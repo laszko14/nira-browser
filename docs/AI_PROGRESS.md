@@ -2,15 +2,11 @@
 
 ## 2026-10-22 — Etap 1 (Europe/Warsaw)
 
-- Odczytano AGENTS.md, historię repozytorium i istniejący workflow. Punktem wyjścia był commit `1d004a0d7d1f4473e2becb252747159197157880`.
-- Potwierdzono istniejący udany run https://github.com/laszko14/nira-browser/actions/runs/39686116222: build/lint success, release skipped; test success oznaczał NO-SOURCE, bez wykonanych testów.
-- Pobrano artefakt https://github.com/laszko14/nira-browser/actions/runs/39686116222/artifacts/12386308193 i zweryfikowano plik arm64, metadane, SHA-256 oraz podpis v2 (szczegóły w AI_HANDOFF.md). Nie powtarzano CI w celu otrzymania tego samego APK.
-- Commit `5b8c9c5`: ręczny workflow na main bez tagu nie uruchamia podpisanego release. Ręczny dispatch poprawionego warunku pozostaje niesprawdzony.
-- Przygotowano narzędzia chmurowe. Lokalna kompilacja napotkała HTTP 502 Google Maven; zatrzymano ją po znalezieniu poprawnego artefaktu CI. Zapisano szkic install_script/start_skill i wymaganych domen, bez publikacji środowiska.
-- Utworzono dokumentację przekazania. Końcowy hash dokumentacji i powodzenie push należy potwierdzić przez Git; hash dokumentu nie może wskazywać sam siebie.
-- Nie testowano aplikacji na telefonie; nie zmieniano architektury ani wyglądu. Etap 2 pozostaje na osobną sesję.
-
-### Publikacja przywrócona
-
-- Po zapisaniu ustawień środowiska `git push origin HEAD:main` zakończył się powodzeniem. Zdalny HEAD potwierdzony przez `git ls-remote`: `6e50c44d6b85e7e063c479c9e989696d8812d4a4`.
-- Run https://github.com/laszko14/nira-browser/actions/runs/39688896991 zakończył się sukcesem: build/lint/test success, release skipped. Artefakt debug APK, id `12388435254`, dostępny pod https://github.com/laszko14/nira-browser/actions/runs/39688896991/artifacts/12388435254. Testy jednostkowe pozostały NO-SOURCE. Ostatni push zaktualizował tylko dokumentację i uruchomił kolejny CI run `39689158161` (queued podczas sprawdzenia); właściwy build workflow potwierdzono w zakończonym runie `39688896991`.
+- Sprawdzono `AGENTS.md`, historię repozytorium i istniejący workflow. Oryginalny udany run `39686116222` dostarczył zweryfikowany APK arm64.
+- Poprawiono warunek joba `release` w commitcie `5b8c9c5`: ręczne uruchomienie na main bez tagu nie buduje signed release.
+- Zapisano konfigurację środowiska. Po jej opublikowaniu przywrócił się dostęp do GitHuba; dokumentacja i poprawka wypchnięte na main.
+- Run `39688896991` zakończył się success dla build/lint/test jobów; release skipped. Artefakt `debug-apks` id `12388435254`: https://github.com/laszko14/nira-browser/actions/runs/39688896991/artifacts/12388435254. Zadanie testów jednostkowych miało `NO-SOURCE`.
+- APK arm64: package `com.prirai.android.nira.debug`, version `0.5.15`, minSdk 27, targetSdk 37. Podpis debug v2 zweryfikowany. Nie testowano na fizycznym telefonie.
+- Lokalny build nie został potwierdzony po HTTP 502 Google Maven; poprawny build CI jest potwierdzony. Kod aplikacji i zależności nie były zmieniane.
+- Dokumentację przekazania poprawiono; potwierdź końcowy zdalny HEAD przez `git ls-remote origin HEAD`.
+- Następny etap w osobnej sesji: integracja ręcznego publicznego URL z MPV Alpha po sprawdzeniu jego package name i Intent filter. Bez implementacji wykrywania wideo w Etapie 1.

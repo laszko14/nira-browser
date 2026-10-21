@@ -1,23 +1,26 @@
-# Alpha Browser — postępy
+# Alpha Browser — przekazanie Etapu 1
 
-## 2026-10-22 — Etap 1 (Europe/Warsaw)
+Data: 2026-10-22 (Europe/Warsaw).
 
-- Odczytano AGENTS.md, historię repozytorium i istniejący workflow. Punktem wyjścia był commit `1d004a0d7d1f4473e2becb252747159197157880`.
-- Potwierdzono istniejący udany run https://github.com/laszko14/nira-browser/actions/runs/39686116222: build/lint success, release skipped; test success oznaczał NO-SOURCE, bez wykonanych testów.
-- Pobrano artefakt https://github.com/laszko14/nira-browser/actions/runs/39686116222/artifacts/12386308193 i zweryfikowano plik arm64, metadane, SHA-256 oraz podpis v2 (szczegóły w AI_HANDOFF.md). Nie powtarzano CI w celu otrzymania tego samego APK.
-- Commit `5b8c9c5`: ręczny workflow na main bez tagu nie uruchamia podpisanego release. Ręczny dispatch poprawionego warunku pozostaje niesprawdzony.
-- Przygotowano narzędzia chmurowe. Lokalna kompilacja napotkała HTTP 502 Google Maven; zatrzymano ją po znalezieniu poprawnego artefaktu CI. Zapisano szkic install_script/start_skill i wymaganych domen, bez publikacji środowiska.
-- Utworzono dokumentację przekazania. Końcowy hash dokumentacji i powodzenie push należy potwierdzić przez Git; hash dokumentu nie może wskazywać sam siebie.
-- Nie testowano aplikacji na telefonie; nie zmieniano architektury ani wyglądu. Etap 2 pozostaje na osobną sesję.
+## Wynik
 
-### Blokada publikacji
+- APK arm64-v8a zbudowany przez istniejący CI; identyfikator pakietu `com.prirai.android.nira.debug`, wersja `0.5.15` / code `1079`, minSdk `27`, targetSdk `37`.
+- Run dla poprawionego workflow: https://github.com/laszko14/nira-browser/actions/runs/39688896991 — build, lint i test job zakończone success; release skipped. Test jednostkowy to `NO-SOURCE`, testów faktycznie nie wykonano.
+- Artefakt `debug-apks`: https://github.com/laszko14/nira-browser/actions/runs/39688896991/artifacts/12388435254 (id `12388435254`, nieprzeterminowany przy sprawdzeniu). Zawiera `app-arm64-v8a-debug.apk` dla Nothing Phone (1).
+- Poprzednio pobrany APK arm64 przeszedł `aapt dump badging` i `apksigner verify` (podpis debug v2). SHA-256: `8270de782aaa44fe8c51f9a2cee93ebec9586be828657d63b5f1414d1b4e51eb`. APK nie był testowany na fizycznym telefonie.
 
-- Lokalny commit dokumentacji: `4d5183d`; poprawka workflow: `5b8c9c5`.
-- `git push origin HEAD:main` nie powiódł się: CONNECT tunnel failed, HTTP 403. Próba użycia standardowego API GitHub również otrzymała Forbidden, już przy odczycie refa. Nie potwierdzono żadnego zapisu na GitHub.
-- Do szkicu sieci dodano `api.github.com`. W ustawieniach środowiska należy przejrzeć i zapisać konfigurację, następnie opublikować środowisko. Po przywróceniu dostępu sprawdzić zdalne main i wypchnąć lokalne commity bez force; jeśli main się zmienił, najpierw bezpiecznie zintegrować zmiany.
-- Etap 1 pozostaje częściowo zablokowany wyłącznie w zakresie publikacji dokumentacji i poprawki workflow. Zweryfikowany artefakt z wcześniejszego CI istnieje.
+## Zmiana CI i publikacja
 
-### Publikacja przywrócona
+Commit `5b8c9c5` zmienia warunek joba release: ręczny dispatch na main bez jawnego tagu pomija podpisane wydanie. Push do main potwierdził, że release jest skipped. Ręcznego dispatchu bez tagu osobno nie wykonywano.
 
-- Po zapisaniu ustawień środowiska `git push origin HEAD:main` zakończył się powodzeniem. Zdalny HEAD `120c5025dc01931e1c576e170c5809ff042983a4` został zweryfikowany przez `git ls-remote`.
-- Push uruchomił run https://github.com/laszko14/nira-browser/actions/runs/39688896991; status przy sprawdzeniu: queued. Weryfikacja nowego workflow oczekuje na zakończenie tego runu.
+Dokumentacja i poprawka workflow są wypchnięte na `main`. Ostatni potwierdzony zdalny HEAD przed korektą tego pliku: `c2790f99bed0968171c278410439c1f38910341a`; po kolejnej korekcie sprawdź `git log -1` i `git ls-remote origin HEAD`. Czysty stan roboczy należy potwierdzić przed kontynuacją.
+
+## Środowisko
+
+Przygotowano Gradle 9.7.1, JDK 21, Android SDK 37.1, Build Tools 37.0.0 i Platform Tools w ścieżkach `/workspace/.gradle` i `/workspace/android-sdk`. Lokalna kompilacja nie została potwierdzona z powodu HTTP 502 Google Maven; CI zbudowało APK poprawnie. Nie zmieniano kodu aplikacji ani zależności. Konfiguracja onboarding została zapisana; rzeczywisty build potwierdza run powyżej.
+
+## Następny krok
+
+Etap 1 jest zakończony po potwierdzeniu ostatniego commitu tej dokumentacji na GitHubie. Użytkownik może pobrać artefakt i zainstalować APK na Nothing Phone (1), np. `adb install -r app-arm64-v8a-debug.apk`; sprawdzić uruchomienie oraz stronę WWW. Aplikacja nie była testowana na urządzeniu.
+
+Etap 2 rozpocząć w osobnej sesji: ustalić rzeczywisty package name i Intent filter MPV Alpha w `laszko14/REX-Player`, a następnie obsłużyć ręcznie podany publiczny link i fallback chooser. Nie implementowano wykrywania wideo ani integracji z MPV.
