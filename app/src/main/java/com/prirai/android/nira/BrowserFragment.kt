@@ -2,7 +2,6 @@ package com.prirai.android.nira
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.net.Uri
 import android.text.InputType
 import android.view.View
 import android.widget.EditText
@@ -14,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.core.net.toUri
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import com.prirai.android.nira.browser.home.compose.jumpBackInItems
@@ -1105,7 +1105,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
 
         dialog.setOnShowListener {
             dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE).setOnClickListener {
-                val uri = Uri.parse(input.text.toString().trim())
+                val uri = input.text.toString().trim().toUri()
                 if (uri.scheme != "https" || uri.host.isNullOrBlank()) {
                     input.error = getString(R.string.video_link_invalid)
                     return@setOnClickListener
