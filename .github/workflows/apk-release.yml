@@ -104,8 +104,8 @@ jobs:
     permissions:
       contents: write
 
-    # Run on tag push OR manual dispatch
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    # Release only on a version tag or manual dispatch with an explicit tag.
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
 
     steps:
       - name: Resolve tag
