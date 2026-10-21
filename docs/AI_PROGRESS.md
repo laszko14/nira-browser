@@ -9,3 +9,10 @@
 - Przygotowano narzędzia chmurowe. Lokalna kompilacja napotkała HTTP 502 Google Maven; zatrzymano ją po znalezieniu poprawnego artefaktu CI. Zapisano szkic install_script/start_skill i wymaganych domen, bez publikacji środowiska.
 - Utworzono dokumentację przekazania. Końcowy hash dokumentacji i powodzenie push należy potwierdzić przez Git; hash dokumentu nie może wskazywać sam siebie.
 - Nie testowano aplikacji na telefonie; nie zmieniano architektury ani wyglądu. Etap 2 pozostaje na osobną sesję.
+
+### Blokada publikacji
+
+- Lokalny commit dokumentacji: `4d5183d`; poprawka workflow: `5b8c9c5`.
+- `git push origin HEAD:main` nie powiódł się: CONNECT tunnel failed, HTTP 403. Próba użycia standardowego API GitHub również otrzymała Forbidden, już przy odczycie refa. Nie potwierdzono żadnego zapisu na GitHub.
+- Do szkicu sieci dodano `api.github.com`. W ustawieniach środowiska należy przejrzeć i zapisać konfigurację, następnie opublikować środowisko. Po przywróceniu dostępu sprawdzić zdalne main i wypchnąć lokalne commity bez force; jeśli main się zmienił, najpierw bezpiecznie zintegrować zmiany.
+- Etap 1 pozostaje częściowo zablokowany wyłącznie w zakresie publikacji dokumentacji i poprawki workflow. Zweryfikowany artefakt z wcześniejszego CI istnieje.

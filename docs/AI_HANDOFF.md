@@ -34,3 +34,7 @@ Instrukcje instalacji i uruchamiania zapisano w szkicu konfiguracji środowiska;
 Etap 1: pobrać powyższy artefakt, rozpakować i zainstalować `app-arm64-v8a-debug.apk` na Nothing Phone (1), np. `adb install -r app-arm64-v8a-debug.apk`; sprawdzić uruchomienie i otwarcie strony. Klucz debug może zmieniać się między runnerami; konflikt podpisu wymaga świadomego rozwiązania, bez automatycznego usuwania danych aplikacji.
 
 Etap 2 rozpocząć wyłącznie w osobnej sesji: ustalić faktyczny package name i Intent filter MPV Alpha w laszko14/REX-Player; najpierw otworzyć ręcznie podany publiczny link wideo z fallback chooser. Nie implementowano wykrywania wideo ani integracji MPV.
+
+## Blokada na końcu sesji
+
+Push commitów `5b8c9c5` i `4d5183d` nie powiódł się (proxy HTTP 403); odczyt API GitHub również zaczął zwracać Forbidden. Nie potwierdzono zmiany zdalnego main. W ustawieniach środowiska zapisano szkic obejmujący również `api.github.com`; wymaga przejrzenia, zapisania i publikacji przez użytkownika. Po przywróceniu dostępu najpierw opublikować lokalną dokumentację i poprawkę workflow (`git push origin HEAD:main`, bez force, po sprawdzeniu zdalnej historii). To jest pozostały krok Etapu 1 przed przejściem do Etapu 2. Bieżący końcowy commit ustal przez `git log -1`.
