@@ -16,3 +16,8 @@
 - `git push origin HEAD:main` nie powiódł się: CONNECT tunnel failed, HTTP 403. Próba użycia standardowego API GitHub również otrzymała Forbidden, już przy odczycie refa. Nie potwierdzono żadnego zapisu na GitHub.
 - Do szkicu sieci dodano `api.github.com`. W ustawieniach środowiska należy przejrzeć i zapisać konfigurację, następnie opublikować środowisko. Po przywróceniu dostępu sprawdzić zdalne main i wypchnąć lokalne commity bez force; jeśli main się zmienił, najpierw bezpiecznie zintegrować zmiany.
 - Etap 1 pozostaje częściowo zablokowany wyłącznie w zakresie publikacji dokumentacji i poprawki workflow. Zweryfikowany artefakt z wcześniejszego CI istnieje.
+
+### Publikacja przywrócona
+
+- Po zapisaniu ustawień środowiska `git push origin HEAD:main` zakończył się powodzeniem. Zdalny HEAD `120c5025dc01931e1c576e170c5809ff042983a4` został zweryfikowany przez `git ls-remote`.
+- Push uruchomił run https://github.com/laszko14/nira-browser/actions/runs/39688896991; status przy sprawdzeniu: queued. Weryfikacja nowego workflow oczekuje na zakończenie tego runu.
