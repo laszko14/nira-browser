@@ -1,6 +1,12 @@
 package com.prirai.android.nira
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
+import android.text.InputType
 import android.view.View
+import android.widget.EditText
+import android.widget.Toast
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.collectAsState
@@ -777,6 +783,16 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         val selectedTab = store.state.tabs.find { it.id == store.state.selectedTabId }
         
         val menuItems = mutableListOf<com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem>()
+
+        menuItems.add(
+            com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+                id = "open_video_link",
+                title = getString(R.string.open_video_link),
+                iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_external_link_24,
+                onClick = { showOpenVideoLinkDialog() }
+            )
+        )
+        menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Divider)
         
         // QuadRow: History, Bookmarks, Print, Save as PDF
         menuItems.add(
@@ -1071,6 +1087,53 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 requireContext(),
                 menuItems
             ).show(it, preferBottom)
+        }
+    }
+
+    private fun showOpenVideoLinkDialog() {
+        val input = EditText(requireContext()).apply {
+            hint = getString(R.string.video_link_hint)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            isSingleLine = true
+        }
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.open_video_link)
+            .setView(input)
+            .setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.open, null)
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE).setOnClickListener {
+                val uri = Uri.parse(input.text.toString().trim())
+                if (uri.scheme != "https" || uri.host.isNullOrBlank()) {
+                    input.error = getString(R.string.video_link_invalid)
+                    return@setOnClickListener
+                }
+
+                val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, "video/*")
+                }
+                try {
+                    startActivity(Intent(viewIntent).setClassName(
+                        "xyz.mpv.rex", "xyz.mpv.rex.ui.player.PlayerActivity"
+                    ))
+                } catch (_: ActivityNotFoundException) {
+                    openVideoChooser(viewIntent)
+                } catch (_: SecurityException) {
+                    openVideoChooser(viewIntent)
+                }
+                dialog.dismiss()
+            }
+        }
+        dialog.show()
+    }
+
+    private fun openVideoChooser(viewIntent: Intent) {
+        try {
+            startActivity(Intent.createChooser(viewIntent, getString(R.string.choose_video_player)))
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(requireContext(), R.string.no_video_player, Toast.LENGTH_SHORT).show()
         }
     }
 

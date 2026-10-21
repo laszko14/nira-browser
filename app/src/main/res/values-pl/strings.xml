@@ -1,5 +1,10 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
+    <string name="open_video_link">Otwórz link wideo w MPV Alpha</string>
+    <string name="video_link_hint">https://example.com/video.mp4</string>
+    <string name="video_link_invalid">Wpisz poprawny link wideo HTTPS</string>
+    <string name="choose_video_player">Wybierz odtwarzacz wideo</string>
+    <string name="no_video_player">Brak dostępnego odtwarzacza wideo</string>
     <string name="more">Więcej informacji</string>
     <string name="version">Wersja aplikacji</string>
     <string name="licenses">Licencje Open Source</string>
