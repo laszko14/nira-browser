@@ -20,4 +20,4 @@
 ### Publikacja przywrócona
 
 - Po zapisaniu ustawień środowiska `git push origin HEAD:main` zakończył się powodzeniem. Zdalny HEAD `120c5025dc01931e1c576e170c5809ff042983a4` został zweryfikowany przez `git ls-remote`.
-- Push uruchomił run https://github.com/laszko14/nira-browser/actions/runs/39688896991; status przy sprawdzeniu: queued. Weryfikacja nowego workflow oczekuje na zakończenie tego runu.
+- Run https://github.com/laszko14/nira-browser/actions/runs/39688896991 zakończył się sukcesem: build/lint/test success, release skipped. Artefakt debug APK, id `12388435254`, dostępny pod https://github.com/laszko14/nira-browser/actions/runs/39688896991/artifacts/12388435254. Testy jednostkowe pozostały NO-SOURCE.
