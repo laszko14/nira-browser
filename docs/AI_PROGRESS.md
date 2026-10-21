@@ -10,14 +10,7 @@
 - Utworzono dokumentację przekazania. Końcowy hash dokumentacji i powodzenie push należy potwierdzić przez Git; hash dokumentu nie może wskazywać sam siebie.
 - Nie testowano aplikacji na telefonie; nie zmieniano architektury ani wyglądu. Etap 2 pozostaje na osobną sesję.
 
-### Blokada publikacji
-
-- Lokalny commit dokumentacji: `4d5183d`; poprawka workflow: `5b8c9c5`.
-- `git push origin HEAD:main` nie powiódł się: CONNECT tunnel failed, HTTP 403. Próba użycia standardowego API GitHub również otrzymała Forbidden, już przy odczycie refa. Nie potwierdzono żadnego zapisu na GitHub.
-- Do szkicu sieci dodano `api.github.com`. W ustawieniach środowiska należy przejrzeć i zapisać konfigurację, następnie opublikować środowisko. Po przywróceniu dostępu sprawdzić zdalne main i wypchnąć lokalne commity bez force; jeśli main się zmienił, najpierw bezpiecznie zintegrować zmiany.
-- Etap 1 pozostaje częściowo zablokowany wyłącznie w zakresie publikacji dokumentacji i poprawki workflow. Zweryfikowany artefakt z wcześniejszego CI istnieje.
-
 ### Publikacja przywrócona
 
-- Po zapisaniu ustawień środowiska `git push origin HEAD:main` zakończył się powodzeniem. Zdalny HEAD `120c5025dc01931e1c576e170c5809ff042983a4` został zweryfikowany przez `git ls-remote`.
-- Run https://github.com/laszko14/nira-browser/actions/runs/39688896991 zakończył się sukcesem: build/lint/test success, release skipped. Artefakt debug APK, id `12388435254`, dostępny pod https://github.com/laszko14/nira-browser/actions/runs/39688896991/artifacts/12388435254. Testy jednostkowe pozostały NO-SOURCE.
+- Po zapisaniu ustawień środowiska `git push origin HEAD:main` zakończył się powodzeniem. Zdalny HEAD potwierdzony przez `git ls-remote`: `6e50c44d6b85e7e063c479c9e989696d8812d4a4`.
+- Run https://github.com/laszko14/nira-browser/actions/runs/39688896991 zakończył się sukcesem: build/lint/test success, release skipped. Artefakt debug APK, id `12388435254`, dostępny pod https://github.com/laszko14/nira-browser/actions/runs/39688896991/artifacts/12388435254. Testy jednostkowe pozostały NO-SOURCE. Ostatni push zaktualizował tylko dokumentację i uruchomił kolejny CI run `39689158161` (queued podczas sprawdzenia); właściwy build workflow potwierdzono w zakończonym runie `39688896991`.
