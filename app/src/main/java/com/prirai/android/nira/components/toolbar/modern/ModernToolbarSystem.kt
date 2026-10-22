@@ -22,6 +22,8 @@ class ModernToolbarSystem @JvmOverloads constructor(
 ) : LinearLayout(context, attrs, defStyleAttr), ScrollableToolbar {
 
     private var currentOffset = 0
+    // Preserve hide state across rotation and group-chip height changes.
+    private var requestedCollapsed = false
     private var scrollingEnabled = true
     private val hideAnimator = ValueAnimator()
     private var engineView: EngineView? = null
@@ -172,10 +174,12 @@ class ModernToolbarSystem @JvmOverloads constructor(
     }
 
     override fun expand() {
+        requestedCollapsed = false
         animateToOffset(0)
     }
 
     override fun collapse() {
+        requestedCollapsed = true
         val totalHeight = getTotalHeight()
         if (totalHeight > 0) {
             animateToOffset(totalHeight)
@@ -248,6 +252,19 @@ class ModernToolbarSystem @JvmOverloads constructor(
      */
     private fun updateEngineViewClipping() {
         // Intentional no-op; see KDoc.
+    }
+
+    /**
+     * The measured height can change while the top toolbar is hidden (rotation,
+     * group chips or a new tab). A stale offset must not reserve a blank band.
+     */
+    fun getEffectiveOffset(): Int {
+        val total = getTotalHeight()
+        if (requestedCollapsed && !hideAnimator.isRunning) {
+            if (currentOffset != total) setToolbarOffset(total)
+            return total
+        }
+        return currentOffset.coerceIn(0, total)
     }
 
     fun getCurrentOffset(): Int = currentOffset
