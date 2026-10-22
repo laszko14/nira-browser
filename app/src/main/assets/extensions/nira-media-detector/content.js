@@ -354,6 +354,10 @@
     }
   }
   function scheduleScan() {
+    // DOM/SPA/player mutations invalidate the deep-scan throttle immediately.
+    // Keep debounce to avoid repeated work on rapidly changing pages, while
+    // ensuring newly injected JSON-LD and player configs are not skipped.
+    lastDeepScan = 0;
     if (scheduled) return;
     scheduled = true;
     setTimeout(() => { scheduled = false; scan(); }, 240);
