@@ -92,7 +92,7 @@
     if (typeof value !== "string") return null;
     const clean = value.replace(/[\u0000-\u001f\u007f]/g, " ")
       .replace(/\s+/g, " ").trim();
-    return clean && clean.length <= 160 ? clean : null;
+    return clean && clean.length <= 300 && new TextEncoder().encode(clean).length <= 900 ? clean : null;
   }
   function pageTitle() {
     let title = null;
@@ -116,13 +116,22 @@
     }
     return null;
   }
+  function posterFor(video) {
+    if (!video) return null;
+    const own = absolute(video.poster || attribute(video, "poster") ||
+      attribute(video, "data-poster") || "");
+    if (own) return own;
+    const container = video.closest && video.closest("article,figure,[class*='video'],[class*='player']");
+    const image = container && container.querySelector && container.querySelector("img");
+    return image ? absolute(image.currentSrc || image.src || attribute(image, "data-src") || "") : null;
+  }
   function durationOf(video) {
     const value = video && video.duration;
     return Number.isFinite(value) && value > 0 && value <= 604800 ?
       Math.ceil(value) : null;
   }
   function submit(value, source = "page", type = null, group = null, title = null,
-    titleKind = null, duration = null) {
+    titleKind = null, duration = null, poster = null) {
     const url = absolute(value);
     if (!url || seen.size >= MAX_SEEN) return;
     const mediaPath = new URL(url).pathname.toLowerCase();
@@ -133,9 +142,10 @@
     const kind = named ? (safeTitle(title) ? (titleKind || "video") : "page") : null;
     const seconds = Number.isSafeInteger(duration) && duration > 0 && duration <= 604800 ?
       duration : null;
+    const posterUrl = absolute(poster);
     // A later loadedmetadata event may reveal duration/title for the SAME URL.
     const key = JSON.stringify([activeUrl, url, source, type || "", group || "",
-      named || "", kind || "", seconds]);
+      named || "", kind || "", seconds, posterUrl || ""]);
     if (seen.has(key)) return;
     seen.set(key, true);
     const navigation = location.href;
@@ -147,6 +157,7 @@
       message.titleKind = kind;
     }
     if (seconds !== null) message.durationSeconds = seconds;
+    if (posterUrl) message.posterUrl = posterUrl;
     ensureDocument().then(root => {
       if (!root || navigation !== location.href) { seen.delete(key); return; }
       return Promise.resolve(browser.runtime.sendMessage(message)).then(validated => {
@@ -156,6 +167,7 @@
             validated.title !== message.title ||
             validated.titleKind !== message.titleKind ||
             validated.durationSeconds !== message.durationSeconds ||
+            validated.posterUrl !== message.posterUrl ||
             navigation !== location.href) {
           context = null; seen.delete(key); return;
         }
@@ -188,10 +200,11 @@
     }
     const title = videoTitle(video);
     const seconds = durationOf(video);
+    const poster = posterFor(video);
     if (preferred) submit(preferred, playing ? "dom" : "page", mime, group,
-      title, title ? "video" : null, seconds);
+      title, title ? "video" : null, seconds, poster);
     if (video.src && video.src !== preferred)
-      submit(video.src, "page", null, group, title, title ? "video" : null, seconds);
+      submit(video.src, "page", null, group, title, title ? "video" : null, seconds, poster);
     // Each declared source matters, even before currentSrc becomes available.
     if (typeof video.querySelectorAll === "function") {
       let n = 0;
@@ -199,7 +212,7 @@
         if (++n > 16) break;
         if (item.src && item.src !== preferred)
           submit(item.src, "page", item.type || null, group,
-            title, title ? "video" : null, seconds);
+            title, title ? "video" : null, seconds, poster);
       }
     }
   }
@@ -251,11 +264,13 @@
         if (kind === "VideoObject" || Array.isArray(kind) && kind.includes("VideoObject")) {
           const name = safeTitle(node.name);
           if (typeof node.contentUrl === "string")
-            submit(node.contentUrl, "page", null, null, name, "video");
+            submit(node.contentUrl, "page", null, null, name, "video", null,
+              typeof node.thumbnailUrl === "string" ? node.thumbnailUrl : null);
           const encodings = Array.isArray(node.encoding) ? node.encoding.slice(0, 8) : [node.encoding];
           for (const entry of encodings)
             if (entry && typeof entry.contentUrl === "string")
-              submit(entry.contentUrl, "page", null, null, name, "video");
+              submit(entry.contentUrl, "page", null, null, name, "video", null,
+                typeof node.thumbnailUrl === "string" ? node.thumbnailUrl : null);
         }
         for (const field of ["@graph", "video", "mainEntity", "itemListElement"])
           if (node[field]) walk(node[field], depth + 1);
@@ -274,18 +289,20 @@
         return;
       }
       const title = safeTitle(node.title || node.name || node.label) || parentTitle;
+      const poster = typeof node.poster === "string" ? node.poster :
+        (typeof node.thumbnailUrl === "string" ? node.thumbnailUrl : null);
       const mime = typeof node.type === "string" ? node.type :
         (typeof node.mimeType === "string" ? node.mimeType : null);
       for (const key of ["file", "src", "contentUrl", "videoUrl", "streamUrl",
         "playbackUrl", "hlsUrl", "dashUrl", "manifestUrl"]) {
         if (typeof node[key] === "string")
-          submit(node[key], "page", mime, null, title, title ? "video" : null);
+          submit(node[key], "page", mime, null, title, title ? "video" : null, null, poster);
       }
       // A source's url is accepted only if it looks like a media resource;
       // submit() still validates the final URL + format.
       if (typeof node.url === "string" &&
           (mime || /\.(?:mp4|m4v|webm|m3u8|mpd|mov)(?:[?#]|$)/i.test(node.url)))
-        submit(node.url, "page", mime, null, title, title ? "video" : null);
+        submit(node.url, "page", mime, null, title, title ? "video" : null, null, poster);
       for (const key of ["sources", "source", "playlist", "tracks", "videos",
         "video", "media", "files", "items", "streams", "props", "pageProps",
         "player", "config", "data", "assets"]) {
