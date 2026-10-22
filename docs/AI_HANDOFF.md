@@ -1,3 +1,29 @@
+# Etap 3.0 — kod i CI zweryfikowane, oczekuje na telefon (2026-10-22 UTC)
+
+- Baza: `main` / `b9fd4c5`; gałąź robocza `feat/media-detector-stage-3-0`. Etapy 1–2 zachowane.
+- Dodano minimalny `nira-media-detector`: zaufany DOM `playing` / `video.currentSrc` → walidacja background → odpowiedź do content → session-bound native messaging → Kotlin. Background mozac nie dostarcza sesji, dlatego końcowy transport korzysta z `registerContentMessageHandler(EngineSession, ...)`.
+- Przypisanie pochodzi z tożsamości EngineSession i bieżących `TabSessionState.id`, `contextId`, `content.private`. `contextId=null` oznacza domyślną partycję. Brak polegania na aktywnej karcie/profilu lub identyfikatorach strony. Zakres: zwykłe karty, główna ramka, publiczny MP4; custom tabs/iframe i stan kandydatów poza etapem 3.0.
+- Potwierdzone źródła API dla tagu `FIREFOX-ANDROID_156_0_1_RELEASE`: concept-engine WebExtension/MessageHandler oraz GeckoWebExtension; Components `156.0.1`, zależność GeckoView `geckoview-omni:156.0.20260921121718`.
+- Bez utrwalania URL, cookies, nagłówków i tokenów; limit 16 KiB wiadomości / 8 KiB URL; HTTP/S; diagnostyka tylko debug, bez URL/hostów/tytułów. Kandydat ma zredagowane `toString()`.
+- Tryb prywatny pozostaje pod kontrolą uprawnienia Gecko. Kod nie włącza go automatycznie; log `private_disabled` oznacza brak detekcji incognito. Przypisanie prywatnej sesji jest testowane jednostkowo, ale nie dowodzi działania rozszerzenia w incognito.
+- Pasywny probe `onHeadersReceived` ograniczony do publicznego pliku MDN flower.mp4, jeden sygnał bez URL. Dostępność callbacku w uruchomionym APK pozostaje do potwierdzenia.
+- Wersja `0.5.17-alpha1`, bazowy code 81; lokalny `aapt` potwierdza arm64-v8a code 1081, `com.prirai.android.nira.debug`, minSdk 27 / targetSdk 37. `apksigner verify` zakończył się kodem 0 (Android Debug). ApplicationId i konfiguracja podpisywania bez zmian. Klucze lokalny/CI nie muszą być identyczne.
+- Testy JVM: 8 wykonanych w bezpośrednim harnessie Kotlin/JUnit, PASS; przed implementacją zaobserwowano 4 porażki. JS: 4 testy Node PASS; dołączone do istniejącego workflow.
+- Commit implementacji: `55cba5c086aa65bd55483723d2864a5b0dece994`, wypchnięty. PR: https://github.com/laszko14/nira-browser/pull/2 (bez merge). Niezależny code review nie znalazł potwierdzonych problemów Critical/Important.
+- CI implementacji: https://github.com/laszko14/nira-browser/actions/runs/39703241830 — build/lint/test SUCCESS, release SKIPPED. Artefakt `debug-apks`, niewygasły: https://github.com/laszko14/nira-browser/actions/runs/39703241830/artifacts/12394132474. Dla Nothing Phone (1) wybrać `app-arm64-v8a-debug.apk`. Obecność artefaktu potwierdzono przez API; pobranie archiwum w Cloud zwracało 403, więc nie przypisywać mu sumy SHA lokalnego APK.
+- Lokalny `testDebugUnitTest`: SUCCESS, 8 testów Kotlin (5 protokołu + 3 przypisania), failures/errors 0, 6m47s. `assembleDebug` ukończone i lokalny APK zweryfikowany; SHA-256 lokalnego pliku `879f887052da43e07beea8ad2f159cf446f6ee2655acf11cb0228efeabd53169`.
+- Pełne lokalne `assembleDebug lintDebug testDebugUnitTest --max-workers=4 --console=plain` z przygotowanym GRADLE_USER_HOME/SDK: BUILD SUCCESSFUL, 9m28s. XML: 8 testów Kotlin, failures/errors 0. Lint: 1626 Error/Fatal, 367 Warning i 12 Hint; Error/Fatal oraz Warning odpowiadają udokumentowanej bazie. Brak zgłoszeń w dodanych plikach; kompilator nie zgłosił ostrzeżeń w nowym kodzie. Lint ma `abortOnError=false`, więc raport nie jest czysty.
+- Ostatni commit dokumentacji ustala `git log -1`; bieżące kontrole końcowego HEAD są widoczne w PR. Powyższy run dotyczy commitu implementacji, nie późniejszych zmian dokumentacji.
+- Telefon: nie testowano. Sprawdzić start, `candidate_received` dla publicznego MP4, właściwą kartę/profil również po zmianie aktywnej karty, `webrequest_callback_received`, brak URL w logach. Nie ma jeszcze panelu ani otwierania automatycznie wykrytego URL w MPV.
+
+## Dokładny kolejny krok
+
+Na Nothing Phone (1) sprawdzić transport i diagnostykę tagu `NiraMediaDetector` po uruchomieniu publicznego `https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4`. Oczekiwane: `installed`, `candidate_received` z właściwym natywnym tab/context oraz niezależnie `webrequest_callback_received`. Powtórzyć dla dwóch zwykłych kart i profilu dodatkowego, przywróconej karty i zmiany aktywnej karty. `private_disabled` oznacza wyłączone przez Gecko incognito, nie potwierdzenie detekcji prywatnej. Nie publikować surowego Logcat zawierającego logi innych modułów przeglądarki.
+
+Prompt kontynuacji: „Kontynuujemy Nira Browser, repo laszko14/nira-browser. Sprawdź main, PR #2, CI oraz AGENTS.md i dokumenty przekazania. Etap 3.0 ma minimalny session-bound bridge; test telefonu pozostaje osobnym kryterium. Wykonaj WYŁĄCZNIE Etap 3.1 z VIDEO_DETECTION_PLAN.md: DOM HTML5/MP4/WebM i DetectedMedia. Zachowaj natywne przypisanie i walidację; bez panelu, webRequest klasyfikującego, HLS/DASH i downloadera. Nie powtarzaj etapów 1–3.0. Dodaj właściwe testy, build/lint/test, PR i checkpointy. Nie deklaruj testu telefonu bez dowodu.”
+
+Poniżej zachowano dowody Etapu 2.
+
 # Alpha Browser — przekazanie Etapu 2
 
 Data: 2026-10-22 (Europe/Warsaw).
