@@ -1,3 +1,14 @@
+## 2026-10-22 — Etap 4.0: Floating Video Detector + Media Panel
+
+- Bazowy HEAD `30cdde1e7cf550106abe452693473e0f5c04eb37` potwierdzony w GitHub API; otwarto [PR #8](https://github.com/laszko14/nira-browser/pull/8) do gałęzi 3.3, bez #6 i bez merge.
+- Natywny `MediaFloatingUi`: 56dp Android View w `browserLayout`, badge, gest przeciągania, pozycja w SharedPreferences bez danych filmów, ukrywanie we fullscreen, BottomSheet z identyfikacją formatu/DOM/Sieć, bezpiecznym opisem i świadomym kopiowaniem URL.
+- Bez przebudowy 3.0–3.3: `MediaRepository.revision` jako event-driven StateFlow i `currentEntries` z kontrolą dokumentu; `MediaDetectorController.uiRepository` udostępnia ten sam RAM-only obiekt. Przed uruchomieniem lub kopiowaniem dodatkowa weryfikacja aktualnego wpisu i jego serialu.
+- Ujednolicono wywołanie istniejącego Intent ACTION_VIEW do MPV Alpha w trybie ręcznym i z listy; zachowano chooser fallback. Nie dodano downloadera/DRM/parsowania manifestów.
+- Wersja 0.5.22-alpha1, ARM64 versionCode 1095. Rozbudowano istniejący GitHub Actions o PR target 3.3 i pojedynczy job ARM64 Stage40 (bez emulatora) z warunkowym istniejącym certyfikatem CI lub oznaczonym tymczasowym podpisem.
+- Dodano 9 testów JVM w `MediaFloatingStage40Test.kt`. Pierwszy [run 39737877731](https://github.com/laszko14/nira-browser/actions/runs/39737877731) wystartował; wynik obowiązkowo zweryfikować dla aktualnego HEAD. Bez testu na urządzeniu; zgodność podpisu z aktualną instalacją nie jest potwierdzona.
+
+---
+
 ## 2026-10-22 — Etap 3.3: Media State Repository
 
 - Zweryfikowano podstawę Etapu 3.2: `ab29e263386b180c373f69b2f7020bd14721f168`. Utworzono `feat/media-detector-stage-3-3-state` i PR #7 do gałęzi 3.2; PR #6 pozostał nietknięty.
