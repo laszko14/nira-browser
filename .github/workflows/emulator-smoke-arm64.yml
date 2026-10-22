@@ -26,6 +26,8 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v5
+      - name: Stage 3.2 WebExtension regression tests (Node.js)
+        run: node --test app/src/test/js/*.test.cjs
       - name: Build one ARM64 debug APK (for emulator only)
         shell: bash
         run: |
@@ -73,6 +75,49 @@ jobs:
               exit 1
             fi
             echo 'Smoke passed: install, launch, alive after navigation, screenshots, no fatal exception.'
+            # Stage 3.2: controlled requests inside the *real GeckoView* browser.
+            # Counts, log output and screenshots must not expose URLs or tokens.
+            python3 -u tools/ci/media_network_fixture.py > /dev/null 2>&1 &
+            server_pid=$!
+            trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+            for attempt in 1 2 3 4 5; do
+              if curl -fsS http://127.0.0.1:8765/_summary > /dev/null; then break; fi
+              sleep 1
+            done
+            adb reverse tcp:8765 tcp:8765
+            adb logcat -c
+            adb shell am start -W -n com.prirai.android.nira.debug/com.prirai.android.nira.BrowserActivity -a android.intent.action.VIEW -d http://127.0.0.1:8765/test.html > smoke-results/fixture-navigation.txt
+            sleep 25
+            adb exec-out screencap -p > smoke-results/fixture-screen.png
+            curl -fsS http://127.0.0.1:8765/_summary > smoke-results/media-fixture-counts.json
+            adb logcat -d -s NiraMediaDetector:D > smoke-results/detector-sanitized.log
+            adb logcat -d -s AndroidRuntime:E > smoke-results/fixture-runtime-errors.txt
+            if grep -q 'FATAL EXCEPTION' smoke-results/fixture-runtime-errors.txt; then
+              echo '::error::Android fatal exception during fixture test.'
+              exit 1
+            fi
+            python3 - <<'PY'
+            import json
+            from pathlib import Path
+            counts = json.loads(Path('smoke-results/media-fixture-counts.json').read_text())
+            print('Fixture request counts (no URLs):', counts)
+            for key, minimum in [('PAGE', 1), ('MP4', 2), ('WEBM', 1), ('HLS', 1),
+                                 ('DASH', 1), ('SEGMENT', 1), ('HTML_MASQUERADE', 1)]:
+                if counts.get(key, 0) < minimum:
+                    raise SystemExit(f'Network fixture not fully loaded: {key}, got {counts.get(key, 0)}')
+            log = Path('smoke-results/detector-sanitized.log').read_text()
+            lines = [line for line in log.splitlines() if 'media_detected format=' in line]
+            observed = {}
+            for fmt in ('MP4', 'WEBM', 'HLS', 'DASH'):
+                observed[fmt] = sum(f'media_detected format={fmt} source=NETWORK' in x for x in lines)
+            print('GeckoView-bound unique media detections (no URLs):', observed)
+            for fmt, count in observed.items():
+                if count != 1:
+                    raise SystemExit(f'Expected exactly one NETWORK detection of {fmt}, got {count}')
+            if len(lines) != 4:
+                raise SystemExit(f'Unexpected total media detections: {len(lines)} (expected 4)')
+            print('PASS: real GeckoView webRequest → native session, formats, dedup and nonmedia/segment exclusion')
+            PY
       - name: Upload emulator screenshots and diagnostics (never APK)
         if: always()
         uses: actions/upload-artifact@v4
