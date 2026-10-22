@@ -11,6 +11,9 @@ import androidx.lifecycle.LifecycleOwner
 import com.prirai.android.nira.browser.profile.BrowserProfile
 import com.prirai.android.nira.browser.profile.ProfileManager
 import com.prirai.android.nira.browser.tabs.compose.TabBarCompose
+import com.prirai.android.nira.browser.tabs.compose.HybridGroupChips
+import com.prirai.android.nira.browser.tabs.compose.HybridGroupTabs
+import androidx.compose.ui.unit.dp
 import com.prirai.android.nira.browser.tabs.compose.TabViewModel
 import com.prirai.android.nira.browser.tabs.compose.TabOrderManager
 import com.prirai.android.nira.browser.tabgroups.UnifiedTabGroupManager
@@ -209,26 +212,89 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
         // so it can scroll to the active tab after each dismissal event.
         val autoScrollTrigger by com.prirai.android.nira.browser.tabs.compose.TabSheetStateManager.dismissedTimestamp.collectAsState()
 
-        // Tab bar only - profile switching available via menu
-        // Use key() to properly recreate composition on profile switch
+        // Hybrid grouping deliberately reuses the existing persisted groups and
+        // order model. The default All mode keeps the original draggable bar.
+        // Only the active group gets a lighter, scoped second row.
         key(profileKey) {
-            TabBarCompose(
-                tabs = tabs,
-                viewModel = viewModel,
-                orderManager = orderManager,
-                selectedTabId = selectedTabId,
-                onTabClick = { tabId: String ->
-                    onTabSelected?.invoke(tabId)
-                },
-                onTabClose = { tabId: String ->
-                    // Use ViewModel's closeTab with undo support
-                    viewModel.closeTab(tabId, showUndo = true)
-                    // Still invoke callback for legacy support
-                    onTabClosed?.invoke(tabId)
-                },
-                modifier = Modifier.fillMaxWidth(),
-                autoScrollTrigger = autoScrollTrigger
-            )
+            val groups by viewModel.groups.collectAsState()
+            val liveTabIds = remember(tabs) { tabs.map { it.id }.toSet() }
+            val visibleGroups = remember(groups, liveTabIds) {
+                groups.filter { group -> group.tabIds.any { it in liveTabIds } }
+            }
+            var activeGroupId by remember { mutableStateOf<String?>(null) }
+            val activeGroup = visibleGroups.firstOrNull { it.id == activeGroupId }
+
+            // A deleted/emptied group must not strand the user in an empty bar.
+            LaunchedEffect(visibleGroups, activeGroupId) {
+                if (activeGroupId != null && activeGroup == null) activeGroupId = null
+            }
+            // Navigation from outside the strip (e.g. address-bar new tab,
+            // external intent) follows the selected tab rather than showing
+            // a stale group while another page is on screen.
+            LaunchedEffect(selectedTabId) {
+                if (activeGroupId != null && selectedTabId != null &&
+                    selectedTabId !in (activeGroup?.tabIds ?: emptyList())) {
+                    activeGroupId = visibleGroups.firstOrNull {
+                        selectedTabId in it.tabIds
+                    }?.id
+                }
+            }
+
+            Column(modifier = Modifier.fillMaxWidth()) {
+                HybridGroupChips(
+                    groups = visibleGroups,
+                    tabs = tabs,
+                    activeGroupId = activeGroupId,
+                    onGroupSelected = { groupId ->
+                        activeGroupId = groupId
+                        val group = visibleGroups.firstOrNull { it.id == groupId }
+                        if (group != null && selectedTabId !in group.tabIds) {
+                            val target = group.tabIds.firstOrNull { it in liveTabIds }
+                            if (target != null) onTabSelected?.invoke(target)
+                        }
+                    },
+                    viewModel = viewModel
+                )
+
+                if (activeGroup != null) {
+                    val scopedTabs = remember(activeGroup, tabs) {
+                        activeGroup.tabIds.mapNotNull { tabId ->
+                            tabs.firstOrNull { it.id == tabId }
+                        }
+                    }
+                    HybridGroupTabs(
+                        tabs = scopedTabs,
+                        selectedTabId = selectedTabId,
+                        groupColor = activeGroup.color,
+                        height = com.prirai.android.nira.preferences.UserPreferences(context)
+                            .niraTabStripHeightDp.coerceIn(40, 80).dp,
+                        onTabSelected = { tabId -> onTabSelected?.invoke(tabId) },
+                        onTabClosed = { tabId ->
+                            viewModel.closeTab(tabId, showUndo = true)
+                            onTabClosed?.invoke(tabId)
+                        },
+                        onNewTabInGroup = {
+                            scope.launch { orderManager.addNewTabToGroup(activeGroup.id) }
+                        }
+                    )
+                } else {
+                    TabBarCompose(
+                        tabs = tabs,
+                        viewModel = viewModel,
+                        orderManager = orderManager,
+                        selectedTabId = selectedTabId,
+                        onTabClick = { tabId: String ->
+                            onTabSelected?.invoke(tabId)
+                        },
+                        onTabClose = { tabId: String ->
+                            viewModel.closeTab(tabId, showUndo = true)
+                            onTabClosed?.invoke(tabId)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        autoScrollTrigger = autoScrollTrigger
+                    )
+                }
+            }
         }
     }
 

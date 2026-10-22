@@ -1,3 +1,10 @@
+## 2026-10-22 — Nira v1103: hybryda grup i szybki przełącznik
+
+- Z bazy PR #15 utworzono osobną gałąź `feat/nira-hybrid-tab-groups-v1103`; nie scalano żadnego PR.
+- Dodano górny pasek nazwanych kolorowych grup i liczników oraz rząd kart aktywnej grupy, z zachowaniem istniejącego systemu Room, gestów i menedżera kart.
+- Podniesiono versionCode dla ARM64 do 1103, versionName do 0.5.22-alpha9, skonfigurowano ten sam certyfikat CI i testy z fail-closed.
+- Status CI, APK i testów sprzętowych: do zweryfikowania przed publikacją.
+
 ## 2026-10-22 — Nira v1102: zebrane poprawki interfejsu i bezpośredni MPV Alpha
 
 - Wprowadzono zmiany w `feat/nira-v1102-tab-panel-player-fixes` z bazy PR #14, PR #15 otwarty jako draft (bez merge).
