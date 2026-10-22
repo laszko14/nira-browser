@@ -1002,7 +1002,10 @@ class TabsBottomSheetFragment : DialogFragment() {
                             if (fromId in targetGroup.tabIds) {
                                 val after = dragY > targetInfo.offset + targetInfo.size / 2f
                                 viewModel.reorderTabInGroup(fromId, targetId, targetGroup.id, after)
-                            } else viewModel.moveTabToGroup(fromId, targetGroup.id)
+                            } else {
+                                val after = dragY > targetInfo.offset + targetInfo.size / 2f
+                                viewModel.moveTabToGroup(fromId, targetGroup.id, targetId, after)
+                            }
                         }
                     }
                 }
@@ -1076,7 +1079,8 @@ class TabsBottomSheetFragment : DialogFragment() {
                                     dragY = rootY - listTopY
                                 },
                                 onDragMove = ::moveDrag,
-                                onDragFinish = ::finishDrag
+                                onDragFinish = ::finishDrag,
+                                onDragCancel = { dragTabId = null; hoveredKey = null }
                             )
                         }
                     }
@@ -1096,7 +1100,8 @@ class TabsBottomSheetFragment : DialogFragment() {
                         dragY = rootY - listTopY
                     },
                     onDragMove = ::moveDrag,
-                    onDragFinish = ::finishDrag
+                    onDragFinish = ::finishDrag,
+                    onDragCancel = { dragTabId = null; hoveredKey = null }
                 )
             }
         }
@@ -1123,12 +1128,14 @@ class TabsBottomSheetFragment : DialogFragment() {
         onMenu: () -> Unit,
         onDragStart: (Float) -> Unit,
         onDragMove: (Float) -> Unit,
-        onDragFinish: () -> Unit
+        onDragFinish: () -> Unit,
+        onDragCancel: () -> Unit
     ) {
         var originY by remember { mutableStateOf(0f) }
         val currentStart by rememberUpdatedState(onDragStart)
         val currentMove by rememberUpdatedState(onDragMove)
         val currentFinish by rememberUpdatedState(onDragFinish)
+        val currentCancel by rememberUpdatedState(onDragCancel)
         Surface(
             color = when {
                 hovered || selected -> MaterialTheme.colorScheme.primaryContainer
@@ -1147,7 +1154,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                                 currentMove(amount.y)
                             },
                             onDragEnd = { currentFinish() },
-                            onDragCancel = { currentFinish() }
+                            onDragCancel = { currentCancel() }
                         )
                     }
                     .clickable(onClick = onClick)
