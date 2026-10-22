@@ -200,3 +200,12 @@
 - Podniesiono wersję do 0.5.22-alpha4 / arm64 1098 i zaostrzono signed build: fail-closed Secrets, publiczny pin certyfikatu, usuwanie tymczasowego keystore, jeden artefakt arm64. Po review usunięto wszystkie historyczne joby publikujące efemeryczne APK oraz objęto tym samym pinem i cleanupem tagowane wydanie.
 - PR #11 (Draft, bez merge): https://github.com/laszko14/nira-browser/pull/11. Pierwszy pełny przebieg ze stałym kluczem: https://github.com/laszko14/nira-browser/actions/runs/39807671100 — build, test i lint SUCCESS. Artefakt APK: https://github.com/laszko14/nira-browser/actions/runs/39807671100/artifacts/12439380190. Walidator potwierdził `com.prirai.android.nira.debug`, versionCode `1098`, versionName `0.5.22-alpha4`, tylko `arm64-v8a` i certyfikat `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00`.
 - Pierwsza próba CI ujawniła zmianę formatu `apksigner` (`V2 Signer` zamiast `Signer #1`); poprawkę odtworzono testem regresji i zweryfikowano w rzeczywistym CI. Test aktualizacji na fizycznym telefonie nadal nie został wykonany.
+# 2026-10-23 — v1107 Event-First Media Engine P0
+
+- Zweryfikowano v1106 HEAD `3fcbd8c71817e66881dd4421fdb64bbd43a6e5ee`, utworzono gałąź `feat/nira-v1107-event-first-media-engine` i draft PR #20 do v1106; bez merge.
+- Root cause: v1106 rozpoznawał URL manifestu, lecz nie analizował wariantów; płaski URL model rozdzielał jakości; brakowało limitowanej analizy body manifestu. Dodano parsery HLS/DASH o jawnie ograniczonym zakresie oraz logiczne grupowanie.
+- Systematic Debugging: CI run 39862525764 wykrył błąd kompilacji `unaryPlus` w Kotlin; poprawka oparta na dokładnym logu. Review wykrył niebezpieczne credentialed fetch, niepełny limit body, globalny cache, rozdzielenie grup i XML entity/redirect base; wszystkie poprawiono testami. Drugi review wykrył redirect do segmentu bez MIME i niestabilny groupId; również poprawiono.
+- Finalny kod aplikacji `60f9e3896390cb735e75caaa3b3bfb330a2844aa`: Node 41/41 PASS; CI https://github.com/laszko14/nira-browser/actions/runs/39863514031 build/test/lint SUCCESS; signed APK artefakt 12463321069. Fizyczny test telefonu i benchmark 1DM nie wykonane.
+
+---
+
