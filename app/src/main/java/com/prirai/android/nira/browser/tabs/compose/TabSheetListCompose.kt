@@ -9,6 +9,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -458,7 +459,9 @@ fun TabSheetListView(
                                 onTabClick = { onTabClick(item.tab.id) },
                                 onTabClose = { onTabClose(item.tab.id) },
                                 onTabLongPress = {
-                                    // Long press now only used for drag - menu via swipe right
+                                    menuTab = item.tab
+                                    menuIsInGroup = true
+                                    showTabMenu = true
                                 },
                                 isDragging = isDragging,
                                 modifier = Modifier
@@ -566,7 +569,9 @@ fun TabSheetListView(
                                 onTabClick = { onTabClick(item.tab.id) },
                                 onTabClose = { onTabClose(item.tab.id) },
                                 onTabLongPress = {
-                                    // Long press now only used for drag - menu via swipe right
+                                    menuTab = item.tab
+                                    menuIsInGroup = false
+                                    showTabMenu = true
                                 },
                                 isDragging = isDragging,
                                 modifier = Modifier
@@ -860,6 +865,7 @@ private fun GroupHeaderItem(
 /**
  * Individual tab list item
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TabListItem(
     tab: TabSessionState,
@@ -928,10 +934,12 @@ private fun TabListItem(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier
                     .weight(1f)
-                    .clickable(
+                     .combinedClickable(
                         indication = null,
-                        interactionSource = remember { MutableInteractionSource() }
-                    ) { onTabClick() }
+                        interactionSource = remember { MutableInteractionSource() },
+                        onClick = onTabClick,
+                        onLongClick = onTabLongPress
+                    )
             ) {
                 // Favicon - use centralized FaviconImage for consistent globe icon fallback
                 FaviconImage(

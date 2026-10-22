@@ -25,6 +25,7 @@ internal class MediaEntry(
     val titleKind: String? = null,
     val durationSeconds: Int? = null,
     val sizeBytes: Long? = null,
+    val posterUrl: String? = null,
 ) {
     override fun toString(): String = "MediaEntry(format=$format, sources=$sources, url=<redacted>)"
 }
@@ -69,6 +70,7 @@ internal class MediaRepository(
         var titleKind: String? = null
         var durationSeconds: Int? = null
         var sizeBytes: Long? = null
+        var posterUrl: String? = null
         fun metadata(candidate: MediaDetectorMessage.Candidate?, format: MediaFormat) {
             if (candidate == null) return
             fun priority(kind: String?): Int = when (kind) {
@@ -77,10 +79,15 @@ internal class MediaRepository(
                 "page" -> 1
                 else -> 0
             }
-            if (candidate.title != null && priority(candidate.titleKind) > priority(titleKind)) {
+            if (candidate.title != null &&
+                (priority(candidate.titleKind) > priority(titleKind) ||
+                    (priority(candidate.titleKind) == priority(titleKind) &&
+                        candidate.title.length > (title?.length ?: 0)))) {
                 title = candidate.title
                 titleKind = candidate.titleKind
             }
+            if (candidate.posterUrl != null && candidate.source != MediaSource.NETWORK)
+                posterUrl = candidate.posterUrl
             if (candidate.durationSeconds != null) durationSeconds = candidate.durationSeconds
             if (candidate.source == MediaSource.NETWORK &&
                 format !in setOf(MediaFormat.HLS, MediaFormat.DASH) &&
@@ -97,7 +104,7 @@ internal class MediaRepository(
             if (dom) add(MediaSource.DOM)
             if (page) add(MediaSource.PAGE)
             if (network) add(MediaSource.NETWORK)
-        }, groupId, title, titleKind, durationSeconds, sizeBytes)
+        }, groupId, title, titleKind, durationSeconds, sizeBytes, posterUrl)
     }
 
     private class Scope(

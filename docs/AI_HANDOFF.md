@@ -1,3 +1,15 @@
+# Checkpoint — Nira Browser v1104: pasek scroll, tytuły, grupy i wykrywanie mediów (2026-10-22)
+
+- **Gałąź:** `feat/nira-v1104-auto-bars-media-tabs`; PR #17 https://github.com/laszko14/nira-browser/pull/17; baza v1103 / PR #16, bez merge.
+- **Zmiany 1–5:** przesuwanie całego górnego toolbara (adres i karty) przy przewijaniu w dół/górę; rozszerzanie nazw obok miniatur filmów w DOM (bez sztucznego limitu wierszy); ulepszenie nazw/miniatur panelu detektora z danych odtwarzacza/JSON-LD; dłuższe menu kart po przytrzymaniu z przenoszeniem/tworzeniem grup; uniwersalne skanowanie player JSON, metadanych i dynamicznego DOM, bez priorytetu CDA.
+- **Pliki:** `ModernScrollBehavior.kt`, `TabMenuCompose.kt`, `TabViewModel.kt`, `TabSheetListCompose.kt`, `GroupContainerCompose.kt`, `extensions/nira-media-detector/*`, `MediaMessageProtocol.kt`, `MediaRepository.kt`, `MediaFloatingUi.kt`.
+- **APK:** `com.prirai.android.nira.debug`, `arm64-v8a`, efektywny `versionCode=1104`, `versionName=0.5.22-alpha10`; stały certyfikat SHA-256 `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00` przez wymagane GitHub Secrets, bez zmiany wartości kluczy.
+- **Dotychczasowe CI:** pierwszy run https://github.com/laszko14/nira-browser/actions/runs/39844837800 — FAIL na brakujących importach ikon; poprawiono w `6024bd6`. Drugi run https://github.com/laszko14/nira-browser/actions/runs/39845560383 — build z podpisem PASS, testy Kotlin PASS, JS FAIL (3 regresje dynamicznego skanu JSON-LD); poprawiono przez wymuszanie skanu po zmianie DOM w `0174536`. Ostateczny wynik dla najnowszego HEAD należy sprawdzić; nie nazywać APK zweryfikowanym przed SUCCESS i istnieniem artefaktu.
+- **Testy sprzętowe:** nie przeprowadzono na Nothing Phone (1). Ostateczną kompatybilność aktualizacji sprawdza zgodność certyfikatu już zainstalowanej aplikacji, jej `applicationId` i niższy `versionCode`. Nie odinstalowywać ani nie usuwać danych. Nie ma gwarancji działania na każdej stronie ani obsługi DRM.
+- **Kolejny krok:** sprawdzić ostatni Actions build, unit tests, JS, lint, `verify-update-apk.sh`, pobrać link do aktualnego artefaktu; przetestować przewijanie i otwieranie menu/grup oraz uniwersalny detektor na urządzeniu.
+
+---
+
 # Checkpoint — Nira Browser v1103: hybrydowe grupy kart (2026-10-22)
 
 - **Gałąź:** `feat/nira-hybrid-tab-groups-v1103`; baza: PR #15 / commit `47d63e4554b4cca44c038e8463301e80c008423e`. Brak merge.

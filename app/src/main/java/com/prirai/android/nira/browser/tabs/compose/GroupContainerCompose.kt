@@ -9,6 +9,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -357,6 +358,7 @@ private fun GroupedTabListItem(
             isSelected = isSelected,
             groupColor = groupColor,
             onTabClick = onTabClick,
+            onTabLongPress = onShowTabMenu,
             onTabClose = onTabClose,
             modifier = Modifier
                 .draggableItem(
@@ -382,12 +384,14 @@ private fun GroupedTabListItem(
  * Has no own background Surface — relies on the parent surfaceContainerHigh container.
  * Selected state is shown via a subtle background tint on the row.
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun GroupedTabRow(
     tab: TabSessionState,
     isSelected: Boolean,
     groupColor: Int,
     onTabClick: () -> Unit,
+    onTabLongPress: () -> Unit,
     onTabClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -398,7 +402,7 @@ private fun GroupedTabRow(
                 if (isSelected) MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.5f)
                 else Color.Transparent
             )
-            .clickable { onTabClick() }
+            .combinedClickable(onClick = onTabClick, onLongClick = onTabLongPress)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

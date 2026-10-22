@@ -21,7 +21,8 @@ internal sealed interface MediaDetectorMessage {
                     val title: String? = null,
                     val titleKind: String? = null,
                     val durationSeconds: Int? = null,
-                    val sizeBytes: Long? = null) : MediaDetectorMessage {
+                    val sizeBytes: Long? = null,
+                    val posterUrl: String? = null) : MediaDetectorMessage {
         override fun toString() = "MediaCandidate(redacted)"
     }
     class Document(val pageUrl: String, val documentKey: Long) : MediaDetectorMessage {
@@ -37,7 +38,7 @@ internal object MediaMessageProtocol {
     private const val MAX_URL_BYTES = 8 * 1024
     private val validMime = Regex("[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+(?:\\s*;[ -~]*)?")
     private fun validTitle(value: String): Boolean = value.isNotBlank() &&
-        value.length <= 160 && value.toByteArray(Charsets.UTF_8).size <= 480 &&
+        value.length <= 300 && value.toByteArray(Charsets.UTF_8).size <= 900 &&
         value.none { it.isISOControl() }
 
     private fun validUrl(url: String): Boolean {
@@ -102,12 +103,14 @@ internal object MediaMessageProtocol {
                 val hasTitle = "title" in fields || "titleKind" in fields
                 val hasDuration = "durationSeconds" in fields
                 val hasSize = "sizeBytes" in fields
+                val hasPoster = "posterUrl" in fields
                 if (hasDoc && !("documentKey" in fields && "pageUrl" in fields)) return null
                 if (hasFrame && (!hasDoc || fromNetwork ||
                         !("frameUrl" in fields && "frameKey" in fields))) return null
                 if (hasGroup && fromNetwork) return null
                 if (hasTitle && !("title" in fields && "titleKind" in fields)) return null
-                if (hasDuration && fromNetwork || hasSize && !fromNetwork) return null
+                if (hasDuration && fromNetwork || hasSize && !fromNetwork ||
+                    hasPoster && fromNetwork) return null
                 val acceptedKeys = expected + (if (hasMime) setOf("contentType") else emptySet()) +
                     (if (fromNetwork) setOf("isPrivate") else emptySet()) +
                     (if (hasDoc) setOf("documentKey", "pageUrl") else emptySet()) +
@@ -115,7 +118,8 @@ internal object MediaMessageProtocol {
                     (if (hasGroup) setOf("groupId") else emptySet()) +
                     (if (hasTitle) setOf("title", "titleKind") else emptySet()) +
                     (if (hasDuration) setOf("durationSeconds") else emptySet()) +
-                    (if (hasSize) setOf("sizeBytes") else emptySet())
+                    (if (hasSize) setOf("sizeBytes") else emptySet()) +
+                    (if (hasPoster) setOf("posterUrl") else emptySet())
                 if (fields.keys != acceptedKeys) return null
                 val source = when (string("source")) {
                     "dom" -> MediaSource.DOM
@@ -154,8 +158,10 @@ internal object MediaMessageProtocol {
                     (fields["sizeBytes"] as? JsonPrimitive)?.takeIf { !it.isString }
                         ?.longOrNull?.takeIf { it in 1..1000000000000L } ?: return null
                     else null
+                val poster = if (hasPoster) string("posterUrl")?.takeIf(::validUrl)
+                    ?: return null else null
                 MediaDetectorMessage.Candidate(url, contentType, source, privateHint, pageUrl, key,
-                    frameUrl, frameKey, groupId, title, titleKind, duration, size)
+                    frameUrl, frameKey, groupId, title, titleKind, duration, size, poster)
             }
             else -> null
         }

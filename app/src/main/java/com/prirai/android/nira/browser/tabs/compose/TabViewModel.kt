@@ -628,6 +628,28 @@ class TabViewModel(
     }
 
     /**
+     * Create a group and move exactly one tab into it in the same coroutine,
+     * avoiding racing asynchronous remove/add operations from the UI.
+     */
+    fun moveTabToNewGroup(tabId: String, name: String) {
+        viewModelScope.launch {
+            val profileId = _currentProfileId.value ?: return@launch
+            val tab = _tabs.value.firstOrNull { it.id == tabId } ?: return@launch
+            val existing = groupManager.getAllGroups().firstOrNull { tabId in it.tabIds }
+            if (existing != null) {
+                groupManager.removeTabFromGroup(tabId, notifyChange = true)
+            }
+            groupManager.createGroup(
+                tabIds = listOf(tabId),
+                name = name.take(70).ifBlank { "Nowa grupa" },
+                profileId = profileId,
+                contextId = tab.contextId
+            )
+            saveCurrentOrder(profileId)
+        }
+    }
+
+    /**
      * Add tab to existing group
      */
     fun addTabToGroup(tabId: String, groupId: String) {

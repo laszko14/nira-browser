@@ -12,7 +12,7 @@
   "background": { "scripts": ["background.js"], "persistent": true },
   "content_scripts": [{
     "matches": ["http://*/*", "https://*/*"],
-    "js": ["content.js"],
+    "js": ["content.js", "full-titles.js"],
     "run_at": "document_start",
     "all_frames": true
   }]
