@@ -9,6 +9,16 @@ const RECENT_MS = 20000;
 const seen = new Map();
 const routedRate = new Map();
 const MAX_ROUTED_PER_5S = 24;
+const MAX_MANIFEST_BYTES = 512 * 1024;
+const MAX_MANIFEST_QUEUE = 8;
+const MAX_MANIFEST_ACTIVE = 2;
+const MANIFEST_TTL_MS = 120000;
+const manifestCache = new Map();
+const manifestInflight = new Map();
+const manifestGroups = new Map();
+const manifestQueue = [];
+let manifestActive = 0;
+let nextManifestGroup = 0;
 const byteLength = value => new TextEncoder().encode(value).length;
 const safeUrl = value => {
   if (typeof value !== "string" || byteLength(value) > MAX_URL_BYTES ||
@@ -103,6 +113,7 @@ function startDocument(message, sender) {
   // sender.url comes from Gecko and is not supplied by the page message.
   if (typeof sender.url === "string" && sender.url !== message.pageUrl) return null;
   const documentKey = ++nextDocumentKey;
+  cancelManifestTasks(sender.tab.id);
   documents.delete(sender.tab.id);
   for (const [id, frame] of frames) if (frame.tabId === sender.tab.id) frames.delete(id);
   documents.set(sender.tab.id, { documentKey, pageUrl: message.pageUrl });
@@ -171,9 +182,24 @@ browser.runtime.onMessage.addListener((message, sender) => {
 });
 if (browser.tabs && browser.tabs.onRemoved && typeof browser.tabs.onRemoved.addListener === "function") {
   browser.tabs.onRemoved.addListener(id => {
+    cancelManifestTasks(id);
     documents.delete(id);
     for (const [key, value] of frames) if (value.tabId === id) frames.delete(key);
   });
+}
+
+function manifestKey(task) {
+  return task.tabId + ":" + task.documentKey + ":" + String(task.isPrivate) + ":" + task.url;
+}
+function cancelManifestTasks(tabId) {
+  for (let index = manifestQueue.length - 1; index >= 0; index--)
+    if (manifestQueue[index].tabId === tabId) manifestQueue.splice(index, 1);
+  for (const [key, value] of manifestInflight)
+    if (value.tabId === tabId) { value.controller?.abort(); manifestInflight.delete(key); }
+  for (const key of manifestCache.keys())
+    if (key.startsWith(tabId + ":")) manifestCache.delete(key);
+  for (const key of manifestGroups.keys())
+    if (key.startsWith(tabId + ":")) manifestGroups.delete(key);
 }
 
 // onBeforeRequest is passive metadata capture only. No request bodies, URLs,
@@ -294,6 +320,12 @@ function onHeaders(details) {
     schemaVersion: 1, event: "media_candidate", source: "network", url: details.url,
     isPrivate: details.incognito, documentKey: doc.documentKey, pageUrl: doc.pageUrl
   };
+  if (format === "HLS" || format === "DASH") {
+    const groupKey = tabId + ":" + doc.documentKey + ":" + String(details.incognito) + ":" + details.url;
+    if (!manifestGroups.has(groupKey))
+      manifestGroups.set(groupKey, "manifest-" + doc.documentKey + "-" + (++nextManifestGroup));
+    message.groupId = manifestGroups.get(groupKey);
+  }
   if (contentType) message.contentType = contentType;
   if (sizeBytes !== null) message.sizeBytes = sizeBytes;
   if (!browser.tabs || typeof browser.tabs.sendMessage !== "function") {
@@ -302,9 +334,94 @@ function onHeaders(details) {
   }
   try {
     Promise.resolve(browser.tabs.sendMessage(tabId, message, { frameId: 0 }))
-      .then(accepted => { if (accepted !== true) anonymous("network_unassigned", details.incognito); })
+      .then(accepted => {
+        if (accepted !== true) anonymous("network_unassigned", details.incognito);
+        else if (format === "HLS" || format === "DASH") queueManifest({
+          url: details.url, format, tabId, documentKey: doc.documentKey,
+          pageUrl: doc.pageUrl, isPrivate: details.incognito, groupId: message.groupId,
+        });
+      })
       .catch(() => anonymous("network_unassigned", details.incognito));
   } catch (_) { anonymous("network_unassigned", details.incognito); }
+}
+
+function queueManifest(task) {
+  if (typeof fetch !== "function" || !globalThis.NiraManifestParser) return;
+  const now = Date.now();
+  const key = manifestKey(task);
+  const cached = manifestCache.get(key);
+  if (cached && now - cached < MANIFEST_TTL_MS) return;
+  if (manifestInflight.has(key) || manifestQueue.some(item => manifestKey(item) === key)) return;
+  if (manifestQueue.length >= MAX_MANIFEST_QUEUE) return;
+  manifestQueue.push(task);
+  drainManifests();
+}
+function drainManifests() {
+  while (manifestActive < MAX_MANIFEST_ACTIVE && manifestQueue.length) {
+    const task = manifestQueue.shift();
+    const current = documents.get(task.tabId);
+    if (!current || current.documentKey !== task.documentKey || current.pageUrl !== task.pageUrl) continue;
+    manifestActive++;
+    inspectManifest(task).catch(() => {}).finally(() => {
+      manifestActive--;
+      drainManifests();
+    });
+  }
+}
+async function inspectManifest(task) {
+  const controller = typeof AbortController === "function" ? new AbortController() : null;
+  const key = manifestKey(task);
+  manifestInflight.set(key, { tabId: task.tabId, controller });
+  const timeout = setTimeout(() => { if (controller) controller.abort(); }, 4000);
+  try {
+    const response = await fetch(task.url, {
+      method: "GET", credentials: "omit", redirect: "follow", cache: "no-store",
+      referrer: task.pageUrl, signal: controller ? controller.signal : undefined,
+    });
+    if (!response || !response.ok) return;
+    const finalUrl = safeUrl(response.url) ? response.url : task.url;
+    const responseType = response.headers && response.headers.get("content-type");
+    if (classify(finalUrl, responseType) !== task.format) return;
+    const declared = response.headers && response.headers.get("content-length");
+    if (declared && (!/^\d+$/.test(declared) || Number(declared) > MAX_MANIFEST_BYTES)) return;
+    if (!response.body || typeof response.body.getReader !== "function" ||
+        typeof TextDecoder !== "function") return;
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8", { fatal: false });
+    let bytes = 0, text = "";
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      if (!chunk.value || !Number.isSafeInteger(chunk.value.byteLength) ||
+          chunk.value.byteLength < 0) { await reader.cancel(); return; }
+      bytes += chunk.value.byteLength;
+      if (bytes > MAX_MANIFEST_BYTES) { await reader.cancel(); return; }
+      text += decoder.decode(chunk.value, { stream: true });
+      if (text.length > MAX_MANIFEST_BYTES) { await reader.cancel(); return; }
+    }
+    text += decoder.decode();
+    const parsed = task.format === "HLS" ?
+      NiraManifestParser.parseHls(text, finalUrl, 8) :
+      NiraManifestParser.parseDash(text, finalUrl, 8);
+    const current = documents.get(task.tabId);
+    if (!current || current.documentKey !== task.documentKey || current.pageUrl !== task.pageUrl) return;
+    for (const variant of parsed.variants || []) {
+      if (!safeUrl(variant.url)) continue;
+      const message = { schemaVersion: 1, event: "media_candidate", source: "network",
+        url: variant.url, isPrivate: task.isPrivate, documentKey: task.documentKey,
+        pageUrl: task.pageUrl, groupId: task.groupId, contentType: task.format === "HLS" ?
+          "application/vnd.apple.mpegurl" : "video/mp4" };
+      if (Number.isSafeInteger(variant.height) && variant.height > 0 && variant.height <= 8640)
+        message.quality = variant.height + "p";
+      if (Number.isSafeInteger(variant.bitrate) && variant.bitrate > 0 && variant.bitrate <= 1000000000)
+        message.bitrate = variant.bitrate;
+      if (typeof variant.codecs === "string" && variant.codecs.length <= 160)
+        message.codecs = variant.codecs;
+      await browser.tabs.sendMessage(task.tabId, message, { frameId: 0 });
+    }
+    manifestCache.set(key, Date.now());
+    while (manifestCache.size > 32) manifestCache.delete(manifestCache.keys().next().value);
+  } finally { clearTimeout(timeout); manifestInflight.delete(key); }
 }
 if (browser.webRequest && browser.webRequest.onHeadersReceived) {
   browser.webRequest.onHeadersReceived.addListener(onHeaders,

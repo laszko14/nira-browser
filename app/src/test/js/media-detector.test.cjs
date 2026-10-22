@@ -5,7 +5,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 const assets = path.join(__dirname, "../../main/assets/extensions/nira-media-detector");
 
-function background(route = async () => false, initialize = true) {
+function background(route = async () => false, initialize = true, fetchImpl = undefined) {
   let receive, rawProbe, before, filter, extras;
   let requestId = 0;
   const native = [], timers = [], routed = [];
@@ -25,10 +25,10 @@ function background(route = async () => false, initialize = true) {
       } },
     },
   };
-  vm.runInNewContext(fs.readFileSync(path.join(assets, "background.js"), "utf8"), {
-    browser, TextEncoder, URL, setTimeout: callback => timers.push(callback),
-    Date,
-  });
+  const context = { browser, TextEncoder, TextDecoder, URL, setTimeout: callback => timers.push(callback),
+    clearTimeout: () => {}, Date, fetch: fetchImpl, AbortController };
+  vm.runInNewContext(fs.readFileSync(path.join(assets, "manifest-parser.js"), "utf8"), context);
+  vm.runInNewContext(fs.readFileSync(path.join(assets, "background.js"), "utf8"), context);
   if (initialize) receive({ schemaVersion: 1, event: "document_started",
     pageUrl: "https://site.example/watch/1" }, sender);
   const probe = details => {
@@ -227,6 +227,71 @@ test("network detects WebM HLS/DASH and skips segment floods", async () => {
   assert.equal(b.routed.length, 3);
   assert.equal(b.native.some(x => x[1].event === "network_segments" && x[1].count === 300), true);
   assert.equal(b.native.every(x => !JSON.stringify(x).includes("site.example")), true);
+});
+
+test("v1107: a bounded HLS manifest emits grouped playable variants without segment requests", async () => {
+  let fetches = 0;
+  const fetchImpl = async (url, options) => {
+    fetches++;
+    assert.equal(url, "https://site.example/master.m3u8?sig=a");
+    assert.equal(options.credentials, "omit");
+    const body = new TextEncoder().encode("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1920x1080\n1080/index.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=854x480\n480/index.m3u8");
+    return {
+      ok: true,
+      url: "https://redirected.example/media/master.m3u8?sig=a",
+      headers: { get: name => name.toLowerCase() === "content-length" ? "220" : null },
+      body: { getReader: () => { let done = false; return { read: async () => done ?
+        { done: true } : (done = true, { done: false, value: body }), cancel: async () => {} }; } },
+    };
+  };
+  const b = background(async () => true, true, fetchImpl);
+  b.probe(response("https://site.example/master.m3u8?sig=a", "application/vnd.apple.mpegurl"));
+  await tick(); await tick(); await tick();
+  assert.equal(fetches, 1);
+  assert.equal(b.routed.length, 3);
+  assert.equal(b.routed[0][1].url, "https://site.example/master.m3u8?sig=a");
+  assert.deepEqual(b.routed.slice(1).map(x => x[1].quality), ["1080p", "480p"]);
+  assert.equal(b.routed[1][1].url, "https://redirected.example/media/1080/index.m3u8");
+  assert.equal(new Set(b.routed.map(x => x[1].groupId)).size, 1);
+});
+
+test("v1107: chunked manifest is aborted before exceeding the decoded byte cap", async () => {
+  let cancelled = false;
+  const chunk = new Uint8Array(300000);
+  const fetchImpl = async () => ({ ok: true, url: "https://site.example/a.m3u8",
+    headers: { get: () => null }, body: { getReader: () => { let reads = 0; return {
+      read: async () => ++reads <= 2 ? { done: false, value: chunk } : { done: true },
+      cancel: async () => { cancelled = true; }
+    }; } } });
+  const b = background(async () => true, true, fetchImpl);
+  b.probe(response("https://site.example/a.m3u8", "application/vnd.apple.mpegurl"));
+  await tick(); await tick(); await tick();
+  assert.equal(cancelled, true);
+  assert.equal(b.routed.length, 1);
+});
+
+test("v1107: redirect to a segment without MIME is rejected before reading its body", async () => {
+  let reads = 0;
+  const fetchImpl = async () => ({ ok: true, url: "https://cdn.example/segment-1.ts",
+    headers: { get: () => null }, body: { getReader: () => ({
+      read: async () => { reads++; return { done: true }; }, cancel: async () => {}
+    }) } });
+  const b = background(async () => true, true, fetchImpl);
+  b.probe(response("https://site.example/master.m3u8", "application/vnd.apple.mpegurl"));
+  await tick(); await tick();
+  assert.equal(reads, 0);
+  assert.equal(b.routed.length, 1);
+});
+
+test("v1107: repeated manifest responses retain a stable logical group", async () => {
+  const b = background(async () => true);
+  b.probe(response("https://site.example/master.m3u8", "application/vnd.apple.mpegurl"));
+  const first = b.routed[0][1].groupId;
+  const originalNow = Date.now;
+  Date.now = () => originalNow() + 21000;
+  try { b.probe(response("https://site.example/master.m3u8", "application/vnd.apple.mpegurl")); }
+  finally { Date.now = originalNow; }
+  assert.equal(b.routed[1][1].groupId, first);
 });
 
 test("extensionless, query, MIME precedence and invalid MIME/HTML protection", async () => {

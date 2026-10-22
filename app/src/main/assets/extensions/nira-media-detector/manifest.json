@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Nira Media Detector",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "browser_specific_settings": {
     "gecko": {
       "id": "nira-media-detector@prirai.android.nira"
@@ -17,6 +17,7 @@
   ],
   "background": {
     "scripts": [
+      "manifest-parser.js",
       "background.js"
     ],
     "persistent": true

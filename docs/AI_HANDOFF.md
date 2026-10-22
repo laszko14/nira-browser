@@ -1,3 +1,15 @@
+# Checkpoint — Nira Browser v1107, Event-First Media Engine P0 (2026-10-23)
+
+- **Gałąź / PR:** `feat/nira-v1107-event-first-media-engine`, draft PR #20 https://github.com/laszko14/nira-browser/pull/20, baza wyłącznie v1106 `3fcbd8c71817e66881dd4421fdb64bbd43a6e5ee`, bez merge.
+- **Zakres wdrożony:** ograniczony parser HLS master/media (warianty, rozdzielczość, bitrate, kodeki, audio/napisy, URL względne, czas VOD) oraz podstawowy DASH (MPD/AdaptationSet/Representation/BaseURL, osobne audio, czas); dodatkowa analiza manifestu bez segmentów; stabilne logiczne grupy manifest+wideo-warianty; jakość i bitrate w panelu.
+- **Granice bezpieczeństwa/wydajności:** dodatkowy fetch manifestu jest anonimowy (`credentials=omit`) — nigdy nie używa globalnie cookies profilu; limit strumieniowy 512 KiB, 4 s, 8 wariantów, kolejka 8, 2 równolegle; cache jest per karta/dokument/private, zadania anulowane przy nawigacji/zamknięciu; redirect do segmentu lub nie-manifestu odrzucany przed czytaniem body; signed URL pozostaje niezmieniony.
+- **Testy:** lokalnie 41/41 Node PASS. Pierwszy CI wykrył błąd składni operatora Kotlin i został naprawiony. Niezależny review wykrył problem credential isolation oraz cztery problemy Important; naprawiono je i wykonano re-review. Run końcowego kodu aplikacji https://github.com/laszko14/nira-browser/actions/runs/39863514031: build SUCCESS, test SUCCESS, lint SUCCESS (historyczne `abortOnError=false`).
+- **APK kodu aplikacji:** artefakt `nira-arm64-update-apk-v1107` https://github.com/laszko14/nira-browser/actions/runs/39863514031/artifacts/12463321069. Walidator potwierdził `com.prirai.android.nira.debug`, `versionCode=1107`, `versionName=0.5.22-alpha13`, tylko `arm64-v8a`, certyfikat SHA-256 `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00`.
+- **Świadome ograniczenia:** to nie jest pełna specyfikacja HLS/DASH. Brak DASH SegmentTemplate/SegmentTimeline, dynamicznego odświeżania MPD, pełnej prezentacji list audio/napisów, potwierdzonej widoczności Service Workerów i przekazywania headers/cookies do MPV Alpha. Manifest wymagający cookies zostanie wykryty jako źródło, ale anonimowa analiza wariantów może się nie udać. Brak testu fizycznego Nothing Phone (1) oraz benchmarku 1DM.
+- **Następny krok:** test urządzeniowy: direct MP4, HLS master 2–3 jakości, HLS wymagający sesji, DASH osobne audio, iframe/SPA, reload/karty/private/fullscreen/powrót z MPV; zebrać precision/recall oraz p50/p95 względem 1DM. Potem P1 według wyników, bez deklarowania przewagi bez pomiaru.
+
+---
+
 # Checkpoint — Nira Browser v1105, stabilizacja interfejsu (2026-10-22)
 
 - **Gałąź:** `feat/nira-v1105-stability-toolbar-drag`, PR #18 https://github.com/laszko14/nira-browser/pull/18, baza PR #17 / `feat/nira-v1104-auto-bars-media-tabs`. Bez merge.

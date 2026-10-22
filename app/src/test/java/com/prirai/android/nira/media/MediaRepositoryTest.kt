@@ -29,6 +29,45 @@ class MediaRepositoryTest {
         assertEquals(2, repo.forTab(t.binding).size)
     }
 
+    @Test fun manifestAndItsNetworkVariantsStayOneLogicalPresentation() {
+        val repo = MediaRepository()
+        val t = tab()
+        begin(repo, t)
+        val group = "manifest-1-1"
+        fun candidate(url: String, quality: String? = null) = MediaDetectorMessage.Candidate(
+            url = url, contentType = "application/vnd.apple.mpegurl",
+            source = MediaSource.NETWORK, privateHint = false, pageUrl = t.pageUrl,
+            documentKey = 1, groupId = group, quality = quality)
+        val master = candidate("https://cdn.example/master.m3u8")
+        val variant = candidate("https://cdn.example/1080/index.m3u8", "1080p")
+        for (item in listOf(master, variant)) {
+            val detected = MediaClassifier.fromNetwork(item, t.binding)!!
+            assertEquals(MediaRepository.InsertResult.ADDED,
+                repo.add(t, t.pageUrl, 1, detected, MediaSource.NETWORK, item.groupId, item))
+        }
+        val entries = repo.currentEntries(t)
+        assertEquals(2, entries.size)
+        assertEquals(setOf(group), entries.map { it.groupId }.toSet())
+        assertEquals("1080p", entries.single { it.url.contains("1080") }.quality)
+    }
+
+    @Test fun networkManifestReconcilesEarlierPageGroupBeforeVariantsArrive() {
+        val repo = MediaRepository()
+        val t = tab()
+        begin(repo, t)
+        val url = "https://cdn.example/master.m3u8?token=signed"
+        val pageCandidate = MediaDetectorMessage.Candidate(url, source = MediaSource.PAGE,
+            pageUrl = t.pageUrl, documentKey = 1, groupId = "video-element-1")
+        val networkCandidate = MediaDetectorMessage.Candidate(url,
+            "application/vnd.apple.mpegurl", MediaSource.NETWORK, false,
+            t.pageUrl, 1, groupId = "manifest-1-1")
+        repo.add(t, t.pageUrl, 1, MediaClassifier.fromPage(pageCandidate, t.binding)!!,
+            MediaSource.PAGE, pageCandidate.groupId, pageCandidate)
+        repo.add(t, t.pageUrl, 1, MediaClassifier.fromNetwork(networkCandidate, t.binding)!!,
+            MediaSource.NETWORK, networkCandidate.groupId, networkCandidate)
+        assertEquals("manifest-1-1", repo.currentEntries(t).single().groupId)
+    }
+
     @Test fun domAndNetworkShareOneEntryButKeepBothSourceFlags() {
         val repo = MediaRepository()
         val t = tab()

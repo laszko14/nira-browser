@@ -4,6 +4,15 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class MediaMessageProtocolTest {
+    @Test fun acceptsBoundedTrustedManifestVariantMetadata() {
+        val decoded = MediaMessageProtocol.decode("""{"schemaVersion":1,"event":"media_candidate","source":"network","url":"https://cdn.example/1080/index.m3u8","isPrivate":false,"pageUrl":"https://site.example/watch/1","documentKey":7,"groupId":"manifest-7-1","quality":"1080p","bitrate":2500000,"codecs":"avc1.640028,mp4a.40.2"}""")
+        assertTrue(decoded is MediaDetectorMessage.Candidate)
+        decoded as MediaDetectorMessage.Candidate
+        assertEquals("manifest-7-1", decoded.groupId)
+        assertEquals("1080p", decoded.quality)
+        assertEquals(2500000L, decoded.bitrate)
+        assertEquals("avc1.640028,mp4a.40.2", decoded.codecs)
+    }
     private fun message(url: String = "https://example.org/flower.mp4?token=secret") =
         """{"schemaVersion":1,"event":"media_candidate","source":"dom","url":"$url"}"""
 
