@@ -759,6 +759,10 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
 
         when (cachedToolbarPosition) {
             com.prirai.android.nira.components.toolbar.ToolbarPosition.BOTTOM.ordinal -> {
+                if (lp.topMargin != 0) {
+                    lp.topMargin = 0
+                    binding.swipeRefresh.layoutParams = lp
+                }
                 if (lp.bottomMargin != visibleHeight) {
                     lp.bottomMargin = visibleHeight
                     binding.swipeRefresh.layoutParams = lp
@@ -770,15 +774,23 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 }
             }
             else -> {
-                // TOP mode: reserve space with top padding (not margin, so
-                // SwipeRefreshLayout overscroll indicator still draws from the
-                // real top edge).
-                if (binding.swipeRefresh.paddingTop != visibleHeight) {
-                    binding.swipeRefresh.setPadding(0, visibleHeight, 0, 0)
+                // Keep SwipeRefreshLayout's gesture surface aligned with
+                // the visible page: padding places GeckoView inside the
+                // refresh container and can leave a dead pull zone at top.
+                // A top margin moves both the touch surface and indicator.
+                var changed = false
+                if (lp.topMargin != visibleHeight) {
+                    lp.topMargin = visibleHeight
+                    changed = true
                 }
                 if (lp.bottomMargin != 0) {
                     lp.bottomMargin = 0
-                    binding.swipeRefresh.layoutParams = lp
+                    changed = true
+                }
+                if (changed) binding.swipeRefresh.layoutParams = lp
+                if (binding.swipeRefresh.paddingTop != 0 ||
+                    binding.swipeRefresh.paddingBottom != 0) {
+                    binding.swipeRefresh.setPadding(0, 0, 0, 0)
                 }
             }
         }

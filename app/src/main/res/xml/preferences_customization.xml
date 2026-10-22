@@ -51,6 +51,22 @@
             app:title="Wysokość paska kart" android:max="80"
             app:min="40" app:defaultValue="48"
             app:showSeekBarValue="true" app:updatesContinuously="true" />
+        <com.prirai.android.nira.settings.MaterialSwitchPreference
+            app:key="nira_group_chips_visible"
+            app:title="Pokazuj pasek grup kart"
+            app:summary="Wszystkie / nazwy grup nad ikonami kart. Grupy pozostają dostępne w panelu kart."
+            app:defaultValue="true" />
+        <SeekBarPreference app:key="nira_toolbar_action_slot_dp"
+            app:title="Szerokość przycisków (dp)"
+            android:max="52" app:min="40" app:defaultValue="40"
+            app:showSeekBarValue="true" />
+        <SeekBarPreference app:key="nira_address_min_width_dp"
+            app:title="Minimalna szerokość adresu (dp)"
+            android:max="220" app:min="64" app:defaultValue="92"
+            app:showSeekBarValue="true" />
+        <Preference app:key="nira_toolbar_drag_hint"
+            app:title="Zmień kolejność przycisków"
+            app:summary="Przytrzymaj przycisk na pasku adresu i przeciągnij. Kolejność zostanie zapisana." />
         <Preference app:key="nira_restore_bar_heights"
             app:title="Przywróć domyślne wysokości pasków" />
 

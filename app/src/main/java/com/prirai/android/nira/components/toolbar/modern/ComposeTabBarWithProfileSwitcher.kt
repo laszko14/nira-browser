@@ -241,7 +241,7 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
             }
 
             Column(modifier = Modifier.fillMaxWidth()) {
-                HybridGroupChips(
+                if (com.prirai.android.nira.preferences.UserPreferences(context).niraGroupChipsVisible) HybridGroupChips(
                     groups = visibleGroups,
                     tabs = tabs,
                     activeGroupId = activeGroupId,

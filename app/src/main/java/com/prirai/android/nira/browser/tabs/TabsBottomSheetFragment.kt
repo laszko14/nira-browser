@@ -12,7 +12,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.Alignment
@@ -937,18 +945,88 @@ class TabsBottomSheetFragment : DialogFragment() {
         }
     }
 
-    @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+    /**
+     * Compact side panel uses its own rows, NOT TabSheetListView. Its old
+     * combinedClickable opened the menu on long press, which prevented drag.
+     * Now a long press + movement reorders/moves; the visible overflow button
+     * retains all context-menu actions without a competing gesture.
+     */
     @Composable
     private fun CompactSideTabs(viewModel: TabViewModel, tabs: List<TabSessionState>) {
         val groups by viewModel.groups.collectAsState()
         val expanded by viewModel.expandedGroups.collectAsState()
         val selectedTabId by viewModel.selectedTabId.collectAsState()
         val scope = rememberCoroutineScope()
+        val listState = rememberLazyListState()
         var groupMenuId by remember { mutableStateOf<String?>(null) }
+        var dragTabId by remember { mutableStateOf<String?>(null) }
+        var dragY by remember { mutableStateOf(0f) }
+        var listTopY by remember { mutableStateOf(0f) }
+        var hoveredKey by remember { mutableStateOf<String?>(null) }
         val groupedIds = groups.flatMap { it.tabIds }.toSet()
+        val density = resources.displayMetrics.density
+
+        fun moveDrag(dy: Float) {
+            dragY += dy
+            val visible = listState.layoutInfo.visibleItemsInfo
+            hoveredKey = visible.firstOrNull {
+                dragY >= it.offset && dragY < it.offset + it.size
+            }?.key?.toString()
+            val viewport = listState.layoutInfo.viewportEndOffset
+            if (dragY < 48f * density || dragY > viewport - 48f * density) {
+                val speed = if (dragY < 48f * density) -15f else 15f
+                scope.launch { listState.scrollBy(speed * density) }
+            }
+        }
+        fun finishDrag() {
+            val fromId = dragTabId
+            val targetInfo = listState.layoutInfo.visibleItemsInfo.firstOrNull {
+                dragY >= it.offset && dragY < it.offset + it.size
+            }
+            val target = targetInfo?.key?.toString()
+            dragTabId = null
+            hoveredKey = null
+            if (fromId == null || targetInfo == null || target == null) return
+            when {
+                target.startsWith("group_") -> {
+                    val groupId = target.removePrefix("group_")
+                    if (groups.any { it.id == groupId && fromId !in it.tabIds }) {
+                        viewModel.moveTabToGroup(fromId, groupId)
+                    }
+                }
+                target.startsWith("group_tab_") -> {
+                    val targetId = target.removePrefix("group_tab_")
+                    if (fromId != targetId) {
+                        val targetGroup = groups.firstOrNull { targetId in it.tabIds }
+                        if (targetGroup != null) {
+                            if (fromId in targetGroup.tabIds) {
+                                val after = dragY > targetInfo.offset + targetInfo.size / 2f
+                                viewModel.reorderTabInGroup(fromId, targetId, targetGroup.id, after)
+                            } else {
+                                val after = dragY > targetInfo.offset + targetInfo.size / 2f
+                                viewModel.moveTabToGroup(fromId, targetGroup.id, targetId, after)
+                            }
+                        }
+                    }
+                }
+                target.startsWith("single_tab_") -> {
+                    val targetId = target.removePrefix("single_tab_")
+                    if (targetId != fromId) {
+                        val order = composeOrderManager?.currentOrder?.value
+                        val index = order?.primaryOrder?.indexOfFirst { entry ->
+                            entry is com.prirai.android.nira.browser.tabs.compose.UnifiedTabOrder.OrderItem.SingleTab &&
+                                entry.tabId == targetId
+                        } ?: -1
+                        if (index >= 0) viewModel.moveTabToPosition(fromId, index)
+                    }
+                }
+            }
+        }
 
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            state = listState,
+            modifier = Modifier.fillMaxSize()
+                .onGloballyPositioned { listTopY = it.positionInRoot().y },
             contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)
         ) {
             groups.forEach { group ->
@@ -957,6 +1035,11 @@ class TabsBottomSheetFragment : DialogFragment() {
                     item(key = "group_" + group.id) {
                         Row(
                             modifier = Modifier.fillMaxWidth().height(44.dp)
+                                .background(
+                                    if (hoveredKey == "group_" + group.id)
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    else MaterialTheme.colorScheme.surface
+                                )
                                 .clickable { viewModel.toggleGroupExpanded(group.id) }
                                 .padding(start = 8.dp, end = 2.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -985,10 +1068,19 @@ class TabsBottomSheetFragment : DialogFragment() {
                         items(members, key = { "group_tab_" + it.id }) { tab ->
                             CompactSideTabRow(
                                 tab = tab, ordinal = tabs.indexOf(tab) + 1,
-                                selected = tab.id == selectedTabId, indent = true,
-                                onClick = { handleTabClickCompose(tab.id) },
+                                selected = tab.id == selectedTabId,
+                                hovered = hoveredKey == "group_tab_" + tab.id,
+                                indent = true,
+                                onClick = { if (dragTabId == null) handleTabClickCompose(tab.id) },
                                 onClose = { handleTabCloseCompose(tab.id) },
-                                onLongPress = { handleTabLongPressCompose(tab, true) }
+                                onMenu = { handleTabLongPressCompose(tab, true) },
+                                onDragStart = { rootY ->
+                                    dragTabId = tab.id
+                                    dragY = rootY - listTopY
+                                },
+                                onDragMove = ::moveDrag,
+                                onDragFinish = ::finishDrag,
+                                onDragCancel = { dragTabId = null; hoveredKey = null }
                             )
                         }
                     }
@@ -997,10 +1089,19 @@ class TabsBottomSheetFragment : DialogFragment() {
             items(tabs.filterNot { it.id in groupedIds }, key = { "single_tab_" + it.id }) { tab ->
                 CompactSideTabRow(
                     tab = tab, ordinal = tabs.indexOf(tab) + 1,
-                    selected = tab.id == selectedTabId, indent = false,
-                    onClick = { handleTabClickCompose(tab.id) },
+                    selected = tab.id == selectedTabId,
+                    hovered = hoveredKey == "single_tab_" + tab.id,
+                    indent = false,
+                    onClick = { if (dragTabId == null) handleTabClickCompose(tab.id) },
                     onClose = { handleTabCloseCompose(tab.id) },
-                    onLongPress = { handleTabLongPressCompose(tab, false) }
+                    onMenu = { handleTabLongPressCompose(tab, false) },
+                    onDragStart = { rootY ->
+                        dragTabId = tab.id
+                        dragY = rootY - listTopY
+                    },
+                    onDragMove = ::moveDrag,
+                    onDragFinish = ::finishDrag,
+                    onDragCancel = { dragTabId = null; hoveredKey = null }
                 )
             }
         }
@@ -1015,25 +1116,48 @@ class TabsBottomSheetFragment : DialogFragment() {
         }
     }
 
-    @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
     @Composable
     private fun CompactSideTabRow(
         tab: TabSessionState,
         ordinal: Int,
         selected: Boolean,
+        hovered: Boolean,
         indent: Boolean,
         onClick: () -> Unit,
         onClose: () -> Unit,
-        onLongPress: () -> Unit
+        onMenu: () -> Unit,
+        onDragStart: (Float) -> Unit,
+        onDragMove: (Float) -> Unit,
+        onDragFinish: () -> Unit,
+        onDragCancel: () -> Unit
     ) {
+        var originY by remember { mutableStateOf(0f) }
+        val currentStart by rememberUpdatedState(onDragStart)
+        val currentMove by rememberUpdatedState(onDragMove)
+        val currentFinish by rememberUpdatedState(onDragFinish)
+        val currentCancel by rememberUpdatedState(onDragCancel)
         Surface(
-            color = if (selected) MaterialTheme.colorScheme.primaryContainer
-                else MaterialTheme.colorScheme.surface,
+            color = when {
+                hovered || selected -> MaterialTheme.colorScheme.primaryContainer
+                else -> MaterialTheme.colorScheme.surface
+            },
             shape = androidx.compose.foundation.shape.RoundedCornerShape(5.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth().height(46.dp)
-                    .combinedClickable(onClick = onClick, onLongClick = onLongPress)
+                    .onGloballyPositioned { originY = it.positionInRoot().y }
+                    .pointerInput(tab.id) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { offset -> currentStart(originY + offset.y) },
+                            onDrag = { change, amount ->
+                                change.consume()
+                                currentMove(amount.y)
+                            },
+                            onDragEnd = { currentFinish() },
+                            onDragCancel = { currentCancel() }
+                        )
+                    }
+                    .clickable(onClick = onClick)
                     .padding(start = if (indent) 12.dp else 3.dp, end = 1.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1052,7 +1176,11 @@ class TabsBottomSheetFragment : DialogFragment() {
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f).padding(start = 8.dp)
                 )
-                IconButton(onClick = onClose, modifier = Modifier.size(42.dp)) {
+                IconButton(onClick = onMenu, modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "Opcje karty",
+                        modifier = Modifier.size(19.dp))
+                }
+                IconButton(onClick = onClose, modifier = Modifier.size(40.dp)) {
                     Icon(Icons.Default.Close, contentDescription = "Zamknij kartę",
                         modifier = Modifier.size(21.dp))
                 }
