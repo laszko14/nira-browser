@@ -61,3 +61,11 @@
 - Kod/build: ograniczenie ABI tylko do arm64-v8a, app version 0.5.19-alpha1 / code 1089 arm64, podpis aktualizacyjny wyłącznie z istniejących secrets. Reguła zapisana w AGENTS.md.
 - [CI 39709690259](https://github.com/laszko14/nira-browser/actions/runs/39709690259): unit test PASS, lint PASS, build FAILED ponieważ brak sekretu ANDROID_KEYSTORE_BASE64. Nie wyprodukowano potwierdzonego update-safe APK. Dane i podpis z już zainstalowanej wersji niezweryfikowane.
 - Potrzebne jednorazowe dodanie 4 GitHub Secrets, opis w docs/ANDROID_SIGNING_SETUP.md. Nie wyciągać kluczy do PR, logów ani repo.
+
+## 2026-10-22 — Etap 3.2, checkpoint gałęzi network
+
+- Weryfikacja repo: #2/#3/#4 otwarte, niescalone; HEAD #4 `52973f9`. Utworzono gałąź `feat/media-detector-stage-3-2-network` na tym SHA, bez zmiany main.
+- Stwierdzono, że probe webRequest ograniczał się do MDN flower.mp4; brak klasyfikacji MIME i bezpiecznego powiązania odpowiedzi z EngineSession. Dokumentacja GeckoView potwierdza, że background message nie posiada natywnej sesji.
+- Dodano pasywne onHeadersReceived URL/MIME (bez blocking), detekcję manifestów HLS/DASH, filtr segmentów oraz fail-closed transport przez tabs.sendMessage → content → session-bound Kotlin. Anonimowe zdarzenia są raportowane bez URL. Deduplikacja TTL ograniczona do RAM, rozdzielenie trybu private i profilów w licznikach, nowe testy JS/JVM.
+- Osobny arm64-only test job z efemerycznym podpisem bez Secrets, + wersja 0.5.20-alpha1 / code 1093. Jest to **wyłącznie test**, nie zgodne z gwarancją aktualizacji APK.
+- CI i test na telefonie niepotwierdzone w momencie tego wpisu. Zweryfikować testDebugUnitTest, lintDebug, assembleDebug, node --test, podpis oraz artefakty po utworzeniu PR.
