@@ -95,6 +95,7 @@ function skipSegment(isPrivate) {
 }
 function onHeaders(details) {
   if (!details || typeof details !== "object") return;
+  if (["image", "imageset", "ping", "beacon", "script", "stylesheet", "font", "csp_report"].includes(details.type)) return;
   if (!probeSent && typeof details.url === "string" &&
       details.url.startsWith("https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4")) {
     probeSent = true;
@@ -102,7 +103,7 @@ function onHeaders(details) {
       { schemaVersion: 1, event: "network_probe" })).catch(() => {}); } catch (_) {}
   }
   if (typeof details.statusCode === "number" && (details.statusCode < 200 || details.statusCode >= 300)) return;
-  if (!safeUrl(details.url)) return;
+  if (!safeUrl(details.url) || typeof details.incognito !== "boolean") return;
   let contentType = null;
   if (Array.isArray(details.responseHeaders)) {
     const header = details.responseHeaders.find(h => h && typeof h.name === "string" &&
@@ -128,7 +129,8 @@ function onHeaders(details) {
   seen.set(key, now);
   while (seen.size > MAX_SEEN) seen.delete(seen.keys().next().value);
   const message = {
-    schemaVersion: 1, event: "media_candidate", source: "network", url: details.url
+    schemaVersion: 1, event: "media_candidate", source: "network", url: details.url,
+    isPrivate: details.incognito
   };
   if (contentType) message.contentType = contentType;
   // tabs.sendMessage routes only to a specified Gecko tab / frame. The content
