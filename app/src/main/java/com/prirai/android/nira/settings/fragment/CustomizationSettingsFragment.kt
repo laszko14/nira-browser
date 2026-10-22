@@ -7,6 +7,8 @@ import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.preference.Preference
+import androidx.preference.PreferenceCategory
+import com.prirai.android.nira.settings.NiraBarsPreviewPreference
 import androidx.preference.SeekBarPreference
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.prirai.android.nira.R
@@ -55,10 +57,19 @@ class CustomizationSettingsFragment : BaseSettingsFragment() {
         addPreferencesFromResource(R.xml.preferences_customization)
 
         val niraPrefs = UserPreferences(requireContext())
+        // The preview is a live representation of both bars, placed above the sliders.
+        val barsPreview = NiraBarsPreviewPreference(requireContext()).apply {
+            key = "nira_bars_live_preview"
+            order = 0
+            setHeights(niraPrefs.niraAddressBarHeightDp, niraPrefs.niraTabStripHeightDp)
+        }
+        preferenceScreen.findPreference<PreferenceCategory>("nira_toolbar_nav_section")
+            ?.addPreference(barsPreview)
         preferenceScreen.findPreference<SeekBarPreference>("nira_address_height_dp")?.apply {
             value = niraPrefs.niraAddressBarHeightDp
             setOnPreferenceChangeListener { _, updated ->
                 niraPrefs.niraAddressBarHeightDp = (updated as Number).toInt()
+                barsPreview.setHeights(niraPrefs.niraAddressBarHeightDp, niraPrefs.niraTabStripHeightDp)
                 true
             }
         }
@@ -66,12 +77,14 @@ class CustomizationSettingsFragment : BaseSettingsFragment() {
             value = niraPrefs.niraTabStripHeightDp
             setOnPreferenceChangeListener { _, updated ->
                 niraPrefs.niraTabStripHeightDp = (updated as Number).toInt()
+                barsPreview.setHeights(niraPrefs.niraAddressBarHeightDp, niraPrefs.niraTabStripHeightDp)
                 true
             }
         }
         preferenceScreen.findPreference<Preference>("nira_restore_bar_heights")?.setOnPreferenceClickListener {
             niraPrefs.niraAddressBarHeightDp = 56
             niraPrefs.niraTabStripHeightDp = 48
+            barsPreview.setHeights(56, 48)
             preferenceScreen.findPreference<SeekBarPreference>("nira_address_height_dp")?.value = 56
             preferenceScreen.findPreference<SeekBarPreference>("nira_tab_strip_height_dp")?.value = 48
             true
