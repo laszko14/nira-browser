@@ -15,9 +15,14 @@ printf 'native' > "$tmp_dir/apk/lib/arm64-v8a/libnira.so"
 cat > "$tmp_dir/android/build-tools/99.0.0/apksigner" <<EOF
 #!/usr/bin/env bash
 echo 'Verifies'
-echo 'Signer #1 certificate SHA-256 digest: $EXPECTED_CERT'
 if [[ -n "\${EXTRA_SIGNER:-}" ]]; then
-  echo 'Signer #2 certificate SHA-256 digest: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+  echo 'Number of signers: 2'
+else
+  echo 'Number of signers: 1'
+fi
+echo 'V2 Signer: certificate SHA-256 digest: $EXPECTED_CERT'
+if [[ -n "\${EXTRA_SIGNER:-}" ]]; then
+  echo 'V2 Signer #2: certificate SHA-256 digest: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 fi
 EOF
 chmod +x "$tmp_dir/android/build-tools/99.0.0/apksigner"

@@ -35,13 +35,23 @@ if [[ -z "$apksigner" || -z "$aapt" ]]; then
   exit 1
 fi
 
-signer_output="$("$apksigner" verify --verbose --print-certs "$apk_path")"
-mapfile -t signer_certs < <(printf '%s\n' "$signer_output" | sed -n 's/^Signer #[0-9][0-9]* certificate SHA-256 digest: //p')
-if [[ "${#signer_certs[@]}" -ne 1 ]]; then
-  echo "APK must have exactly one signing certificate; found ${#signer_certs[@]}." >&2
+signer_output="$("$apksigner" verify --verbose --print-certs "$apk_path" 2>&1)"
+mapfile -t signer_counts < <(printf '%s\n' "$signer_output" | sed -n 's/^[[:space:]]*Number of signers:[[:space:]]*//p')
+if [[ "${#signer_counts[@]}" -ne 1 || "${signer_counts[0]}" != "1" ]]; then
+  echo "APK must have exactly one signer." >&2
   exit 1
 fi
-actual_cert="$(printf '%s' "${signer_certs[0]}" | tr '[:upper:]' '[:lower:]' | tr -d ':[:space:]')"
+mapfile -t signer_certs < <(
+  printf '%s\n' "$signer_output" |
+    sed -n 's/^.*Signer[^:]*: certificate SHA-256 digest:[[:space:]]*//p' |
+    awk '{gsub(/[:[:space:]]/, ""); print tolower($0)}' |
+    sort -u
+)
+if [[ "${#signer_certs[@]}" -ne 1 ]]; then
+  echo "APK must expose exactly one signing certificate; found ${#signer_certs[@]}." >&2
+  exit 1
+fi
+actual_cert="${signer_certs[0]}"
 if [[ "$actual_cert" != "$expected_cert" ]]; then
   echo "Signing certificate SHA-256 does not match the project certificate." >&2
   exit 1
