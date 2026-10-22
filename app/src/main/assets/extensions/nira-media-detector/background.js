@@ -15,6 +15,7 @@ const MAX_MANIFEST_ACTIVE = 2;
 const MANIFEST_TTL_MS = 120000;
 const manifestCache = new Map();
 const manifestInflight = new Map();
+const manifestGroups = new Map();
 const manifestQueue = [];
 let manifestActive = 0;
 let nextManifestGroup = 0;
@@ -197,6 +198,8 @@ function cancelManifestTasks(tabId) {
     if (value.tabId === tabId) { value.controller?.abort(); manifestInflight.delete(key); }
   for (const key of manifestCache.keys())
     if (key.startsWith(tabId + ":")) manifestCache.delete(key);
+  for (const key of manifestGroups.keys())
+    if (key.startsWith(tabId + ":")) manifestGroups.delete(key);
 }
 
 // onBeforeRequest is passive metadata capture only. No request bodies, URLs,
@@ -317,8 +320,12 @@ function onHeaders(details) {
     schemaVersion: 1, event: "media_candidate", source: "network", url: details.url,
     isPrivate: details.incognito, documentKey: doc.documentKey, pageUrl: doc.pageUrl
   };
-  if (format === "HLS" || format === "DASH")
-    message.groupId = "manifest-" + doc.documentKey + "-" + (++nextManifestGroup);
+  if (format === "HLS" || format === "DASH") {
+    const groupKey = tabId + ":" + doc.documentKey + ":" + String(details.incognito) + ":" + details.url;
+    if (!manifestGroups.has(groupKey))
+      manifestGroups.set(groupKey, "manifest-" + doc.documentKey + "-" + (++nextManifestGroup));
+    message.groupId = manifestGroups.get(groupKey);
+  }
   if (contentType) message.contentType = contentType;
   if (sizeBytes !== null) message.sizeBytes = sizeBytes;
   if (!browser.tabs || typeof browser.tabs.sendMessage !== "function") {
@@ -374,7 +381,7 @@ async function inspectManifest(task) {
     if (!response || !response.ok) return;
     const finalUrl = safeUrl(response.url) ? response.url : task.url;
     const responseType = response.headers && response.headers.get("content-type");
-    if (responseType && classify(finalUrl, responseType) !== task.format) return;
+    if (classify(finalUrl, responseType) !== task.format) return;
     const declared = response.headers && response.headers.get("content-length");
     if (declared && (!/^\d+$/.test(declared) || Number(declared) > MAX_MANIFEST_BYTES)) return;
     if (!response.body || typeof response.body.getReader !== "function" ||

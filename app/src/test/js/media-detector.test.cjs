@@ -270,6 +270,30 @@ test("v1107: chunked manifest is aborted before exceeding the decoded byte cap",
   assert.equal(b.routed.length, 1);
 });
 
+test("v1107: redirect to a segment without MIME is rejected before reading its body", async () => {
+  let reads = 0;
+  const fetchImpl = async () => ({ ok: true, url: "https://cdn.example/segment-1.ts",
+    headers: { get: () => null }, body: { getReader: () => ({
+      read: async () => { reads++; return { done: true }; }, cancel: async () => {}
+    }) } });
+  const b = background(async () => true, true, fetchImpl);
+  b.probe(response("https://site.example/master.m3u8", "application/vnd.apple.mpegurl"));
+  await tick(); await tick();
+  assert.equal(reads, 0);
+  assert.equal(b.routed.length, 1);
+});
+
+test("v1107: repeated manifest responses retain a stable logical group", async () => {
+  const b = background(async () => true);
+  b.probe(response("https://site.example/master.m3u8", "application/vnd.apple.mpegurl"));
+  const first = b.routed[0][1].groupId;
+  const originalNow = Date.now;
+  Date.now = () => originalNow() + 21000;
+  try { b.probe(response("https://site.example/master.m3u8", "application/vnd.apple.mpegurl")); }
+  finally { Date.now = originalNow; }
+  assert.equal(b.routed[1][1].groupId, first);
+});
+
 test("extensionless, query, MIME precedence and invalid MIME/HTML protection", async () => {
   const b = background(async () => true);
   b.probe(response("https://v.example/stream?token=private", "video/mp4"));
