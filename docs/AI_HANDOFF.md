@@ -185,3 +185,14 @@ Na Nothing Phone (1) zainstalować `app-arm64-v8a-debug.apk`, wpisać publiczny 
 - Systematic Debugging: pierwszy build run 39759187428 wykrył uszkodzoną linię validMime (przy edycji regex), naprawa commit 8c1d5cc; kolejny run 39759508327 ujawnił błąd kolejności deklaracji sizeBytes w JS (20/30 PASS), poprawka a841fb7; ostatni run 39759954056 30/30 PASS.
 - Funkcje i ograniczenia: tytuł konkretny preferowany ponad tytuł strony, gdy brak metadanych awaryjna nazwa pliku lub „tytuł nieznany”; rozmiar tylko nagłówek sieciowy i tylko bezpośredni materiał; HLS/DASH rozmiar nieznany; czas z video.duration; brak nowych requestów/autoPlay/DRM bypass. Panel kompaktowy, przycisk Kopiuj czytelny.
 - Test na Nothing Phone (1) nie wykonany. Brak parsera manifestów Etapu 4.1; nie merge.
+
+## 2026-10-22 — stały klucz podpisywania APK
+
+- Baza: `feat/media-detector-stage-4-0-2-metadata-ui` HEAD `b217038a58d563bac7e601683f923007472dca25`; gałąź robocza `ci/stable-apk-signing`. Bez zmian funkcji detektora i bez merge.
+- Audyt potwierdził `com.prirai.android.nira.debug`, wyłącznie `arm64-v8a` oraz brak istniejącego trwałego klucza. Wcześniejsze certyfikaty CI są efemeryczne i wzajemnie różne.
+- Utworzono nowy stały klucz PKCS#12: alias `nira-update`, RSA 4096, SHA256withRSA. Publiczny SHA-256 certyfikatu: `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00`.
+- Prywatny klucz i hasło nie znajdują się w repozytorium. Utworzono dwuczęściową prywatną kopię odzyskiwania poza GitHubem; nadal zalecana jest dodatkowa kopia offline.
+- Wersja instalacyjna: `0.5.22-alpha4`, bazowy versionCode 98, arm64 versionCode 1098.
+- Jedyny job budujący instalacyjny APK działa fail-closed dla wszystkich PR-ów i pushy, wymaga czterech Secrets, usuwa tymczasowy keystore, a skrypt walidacyjny sprawdza certyfikat, pakiet, wersję oraz pojedyncze ABI arm64-v8a przed publikacją artefaktu. Usunięto historyczne joby z efemerycznym podpisem. Job tagowanego release ma te same kontrole i cleanup.
+- PR #11 (Draft, bez merge): https://github.com/laszko14/nira-browser/pull/11. CI https://github.com/laszko14/nira-browser/actions/runs/39807671100 zakończyło build/test/lint SUCCESS; zweryfikowany APK: https://github.com/laszko14/nira-browser/actions/runs/39807671100/artifacts/12439380190. Log potwierdza pakiet, wersję, wyłącznie arm64-v8a i przypięty certyfikat projektu.
+- Test aktualizacji na Nothing Phone (1) nie został wykonany. Nowy certyfikat nie jest zgodny z udokumentowanymi efemerycznymi certyfikatami wcześniejszych APK; zgodność z faktycznie zainstalowaną aplikacją wymaga sprawdzenia na urządzeniu.

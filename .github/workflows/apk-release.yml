@@ -9,11 +9,7 @@ on:
 
   pull_request:
     branches:
-      - main
-      - feat/media-detector-stage-3-2-network
-      - feat/media-detector-stage-3-3-state
-      - feat/media-detector-stage-4-0-floating-ui
-      - feat/media-detector-stage-4-0-1-early-discovery
+      - "**"
 
   workflow_dispatch:
     inputs:
@@ -24,9 +20,14 @@ on:
 
 jobs:
   build:
-    # Temporary branch-scoped exception: only the dedicated diagnostics job publishes a test APK.
-    if: github.event_name != 'pull_request' || (github.head_ref != 'feat/media-detector-on-device-diagnostics' && github.head_ref != 'feat/media-detector-stage-3-2-network' && github.head_ref != 'feat/media-detector-stage-3-3-state' && github.head_ref != 'feat/media-detector-stage-4-0-floating-ui' && github.head_ref != 'feat/media-detector-stage-4-0-1-early-discovery' && github.head_ref != 'feat/media-detector-stage-4-0-2-metadata-ui')
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      EXPECTED_PACKAGE: com.prirai.android.nira.debug
+      EXPECTED_VERSION_CODE: "1098"
+      EXPECTED_VERSION_NAME: 0.5.22-alpha4
+      EXPECTED_CERT_SHA256: df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
 
     steps:
       - uses: actions/checkout@v4
@@ -58,368 +59,39 @@ jobs:
               exit 1
             fi
           done
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/nira-update.jks"
-          chmod 600 "$RUNNER_TEMP/nira-update.jks"
-          export NIRA_SIGNING_STORE_FILE="$RUNNER_TEMP/nira-update.jks"
+          keystore_path="$RUNNER_TEMP/nira-update.p12"
+          cleanup() {
+            rm -f "$keystore_path"
+          }
+          trap cleanup EXIT
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
+          chmod 600 "$keystore_path"
+          export NIRA_SIGNING_STORE_FILE="$keystore_path"
           export NIRA_SIGNING_STORE_PASSWORD="$KEYSTORE_PASSWORD"
           export NIRA_SIGNING_KEY_ALIAS="$KEY_ALIAS"
           export NIRA_SIGNING_KEY_PASSWORD="$KEY_PASSWORD"
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --console=plain
           shopt -s nullglob
           apks=(app/build/outputs/apk/debug/*.apk)
           if [ "${#apks[@]}" -ne 1 ] || [[ "${apks[0]}" != *arm64-v8a* ]]; then
             echo "::error::Expected exactly one arm64-v8a APK, got ${#apks[@]}."
             exit 1
           fi
-          signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
-          test -n "$signer"
-          "$signer" verify --verbose --print-certs "${apks[0]}"
-          echo "Built exactly one signed arm64-v8a APK."
+          bash scripts/verify-update-apk.sh \
+            "${apks[0]}" \
+            "$EXPECTED_PACKAGE" \
+            "$EXPECTED_VERSION_CODE" \
+            "$EXPECTED_VERSION_NAME" \
+            "$EXPECTED_CERT_SHA256"
+          echo "Built and verified exactly one update-safe arm64-v8a APK."
 
       - name: Upload only arm64 debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: nira-arm64-update-apk
+          name: nira-arm64-update-apk-v1098
           path: app/build/outputs/apk/debug/*arm64-v8a*.apk
           if-no-files-found: error
-
-
-  # Temporary diagnostic CI, only for PR #4 while the stable signing key is deferred.
-  # Uses the runner's ephemeral Android DEBUG signing certificate. NOT UPDATE SAFE.
-  # Keep the regular guarded build and release policies for all other refs.
-  temporary_arm64_diagnostics:
-    if: github.event_name == 'pull_request' && github.head_ref == 'feat/media-detector-on-device-diagnostics'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate Gradle wrapper
-        uses: gradle/wrapper-validation-action@v2
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: 17
-          distribution: zulu
-      - uses: gradle/actions/setup-gradle@v5
-      - name: Build temporary arm64 diagnostics APK with Gradle log
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "::warning::Temporary test-only DEBUG certificate. This APK cannot be assumed to update an installed Nira Debug app. Do NOT uninstall the app or erase data."
-          ./gradlew assembleDebug --console=plain 2>&1 | tee "$RUNNER_TEMP/nira-diagnostics-gradle.log"
-          shopt -s nullglob
-          apks=(app/build/outputs/apk/debug/*.apk)
-          if [ "${#apks[@]}" -ne 1 ] || [[ "${apks[0]}" != *arm64-v8a* ]]; then
-            echo "::error::Expected exactly one arm64-v8a APK, found ${#apks[@]}."
-            exit 1
-          fi
-          signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
-          test -n "$signer"
-          "$signer" verify --verbose --print-certs "${apks[0]}"
-          printf '%s\n' \
-            'TEST ONLY - TEMPORARY GITHUB RUNNER DEBUG SIGNATURE' \
-            'The signing certificate can differ from previously installed versions.' \
-            'Do not remove the installed app or clear its data.' \
-            'This package is com.prirai.android.nira.debug (not the release package).' \
-            > DIAGNOSTIC_APK_README.txt
-      - name: Upload exactly one arm64 test APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: nira-arm64-DIAGNOSTICS-TEMP-NOT-UPDATE-SAFE
-          path: |
-            app/build/outputs/apk/debug/*arm64-v8a*.apk
-            DIAGNOSTIC_APK_README.txt
-          if-no-files-found: error
-      - name: Upload compilation log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: nira-arm64-diagnostics-gradle-log
-          path: ${{ runner.temp }}/nira-diagnostics-gradle.log
-          if-no-files-found: warn
-
-  # Stage 3.2 PR-only test build. No signing secrets or release privileges.
-  # Do not infer update compatibility from the runner's ephemeral debug certificate.
-  temporary_arm64_stage32:
-    permissions:
-      contents: read
-    if: github.event_name == 'pull_request' && github.head_ref == 'feat/media-detector-stage-3-2-network'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate Gradle wrapper
-        uses: gradle/wrapper-validation-action@v2
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: 17
-          distribution: zulu
-      - uses: gradle/actions/setup-gradle@v5
-      - name: Build temporary arm64 diagnostics APK with Gradle log
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "::warning::Temporary test-only DEBUG certificate. This APK cannot be assumed to update an installed Nira Debug app. Do NOT uninstall the app or erase data."
-          ./gradlew assembleDebug --console=plain 2>&1 | tee "$RUNNER_TEMP/nira-stage32-gradle.log"
-          shopt -s nullglob
-          apks=(app/build/outputs/apk/debug/*.apk)
-          if [ "${#apks[@]}" -ne 1 ] || [[ "${apks[0]}" != *arm64-v8a* ]]; then
-            echo "::error::Expected exactly one arm64-v8a APK, found ${#apks[@]}."
-            exit 1
-          fi
-          signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
-          test -n "$signer"
-          "$signer" verify --verbose --print-certs "${apks[0]}"
-          printf '%s\n' \
-            'TEST ONLY - TEMPORARY GITHUB RUNNER DEBUG SIGNATURE' \
-            'The signing certificate can differ from previously installed versions.' \
-            'Do not remove the installed app or clear its data.' \
-            'This package is com.prirai.android.nira.debug (not the release package).' \
-            > DIAGNOSTIC_APK_README.txt
-      - name: Upload exactly one arm64 test APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: nira-arm64-STAGE32-TEMP-NOT-UPDATE-SAFE
-          path: |
-            app/build/outputs/apk/debug/*arm64-v8a*.apk
-            DIAGNOSTIC_APK_README.txt
-          if-no-files-found: error
-      - name: Upload compilation log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: nira-arm64-stage32-gradle-log
-          path: ${{ runner.temp }}/nira-stage32-gradle.log
-          if-no-files-found: warn
-
-  # Stage 3.3: one arm64 compile/verification only. No APK artifact is
-  # published until the device's installed certificate has been compared.
-  stage33_arm64_compile:
-    if: github.event_name == 'pull_request' && github.head_ref == 'feat/media-detector-stage-3-3-state'
-    permissions:
-      contents: read
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: gradle/wrapper-validation-action@v2
-      - uses: actions/setup-java@v4
-        with:
-          java-version: 17
-          distribution: zulu
-      - uses: gradle/actions/setup-gradle@v5
-      - name: Compile one arm64 Android debug APK and verify its package/signature
-        shell: bash
-        run: |
-          set -euo pipefail
-          ./gradlew assembleDebug --console=plain
-          shopt -s nullglob
-          apks=(app/build/outputs/apk/debug/*.apk)
-          if [ "${#apks[@]}" -ne 1 ] || [[ "${apks[0]}" != *arm64-v8a* ]]; then
-            echo "::error::Expected exactly one arm64-v8a APK."
-            exit 1
-          fi
-          signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
-          test -n "$signer"
-          "$signer" verify --verbose --print-certs "${apks[0]}"
-          echo "::warning::TEST ONLY: runner debug certificate. APK may NOT update the installed Nira application."
-          printf '%s\n' \
-            'NIRA BROWSER 3.3 - TEST APK ONLY' \
-            'Build for ARM64 (Nothing Phone 1, Android 15).' \
-            'Signed by temporary runner debug certificate. NOT an update-safe build.' \
-            'An existing installation may reject this APK due to signature mismatch.' \
-            'Uninstalling the installed app would erase its local data/settings.' \
-            'This APK was explicitly requested for temporary testing only.' \
-            > STAGE33_TEST_APK_README.txt
-
-      - name: Upload only one ARM64 test APK (NOT update-safe)
-        uses: actions/upload-artifact@v4
-        with:
-          name: nira-stage33-arm64-TEST-ONLY-NOT-UPDATE-SAFE
-          path: |
-            app/build/outputs/apk/debug/*arm64-v8a*.apk
-            STAGE33_TEST_APK_README.txt
-          if-no-files-found: error
-          retention-days: 14
-
-  # Stage 4.0: one test-only ARM64 APK. Use existing stable secrets if present.
-  # Even a stable CI cert MUST be compared with the certificate on the device.
-  stage40_arm64_apk:
-    if: github.event_name == 'pull_request' && github.head_ref == 'feat/media-detector-stage-4-0-floating-ui'
-    permissions:
-      contents: read
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: gradle/wrapper-validation-action@v2
-      - uses: actions/setup-java@v4
-        with:
-          java-version: 17
-          distribution: zulu
-      - uses: gradle/actions/setup-gradle@v5
-      - name: Compile exactly one ARM64 APK and verify signing
-        shell: bash
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          if [[ -n "${ANDROID_KEYSTORE_BASE64:-}" && -n "${KEYSTORE_PASSWORD:-}" && -n "${KEY_ALIAS:-}" && -n "${KEY_PASSWORD:-}" ]]; then
-            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/nira-stage40.jks"
-            chmod 600 "$RUNNER_TEMP/nira-stage40.jks"
-            export NIRA_SIGNING_STORE_FILE="$RUNNER_TEMP/nira-stage40.jks"
-            export NIRA_SIGNING_STORE_PASSWORD="$KEYSTORE_PASSWORD"
-            export NIRA_SIGNING_KEY_ALIAS="$KEY_ALIAS"
-            export NIRA_SIGNING_KEY_PASSWORD="$KEY_PASSWORD"
-            MODE="Existing GitHub Secrets certificate; device fingerprint still requires comparison."
-          else
-            echo "::warning::Missing signing secrets. Publishing TEST ONLY with temporary runner debug certificate."
-            MODE="Temporary runner Android debug certificate; NOT update-safe."
-          fi
-          ./gradlew assembleDebug --console=plain
-          shopt -s nullglob
-          apks=(app/build/outputs/apk/debug/*.apk)
-          if [[ "${#apks[@]}" -ne 1 || "${apks[0]}" != *arm64-v8a* ]]; then
-            echo "::error::Expected exactly one arm64-v8a APK."
-            exit 1
-          fi
-          signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
-          test -n "$signer"
-          "$signer" verify --verbose --print-certs "${apks[0]}"
-          printf '%s\n' 'NIRA STAGE 4.0 ARM64 TEST APK' "$MODE" \
-            'com.prirai.android.nira.debug; v0.5.22-alpha1; versionCode 1095' \
-            'Do not uninstall the installed application; that would delete its local data.' \
-            'A valid APK signature does not establish certificate compatibility with your phone.' \
-            > STAGE40_SIGNING_README.txt
-      - name: Upload ARM64 APK plus signing warning
-        uses: actions/upload-artifact@v4
-        with:
-          name: nira-stage40-arm64-TEST-SIGNATURE-CHECK-REQUIRED
-          path: |
-            app/build/outputs/apk/debug/*arm64-v8a*.apk
-            STAGE40_SIGNING_README.txt
-          if-no-files-found: error
-          retention-days: 14
-
-  # Stage 4.0.1: one arm64 APK. Compare CI certificate with device before updating.
-  stage401_arm64_apk:
-    if: github.event_name == 'pull_request' && github.head_ref == 'feat/media-detector-stage-4-0-1-early-discovery'
-    permissions:
-      contents: read
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: gradle/wrapper-validation-action@v2
-      - uses: actions/setup-java@v4
-        with:
-          java-version: 17
-          distribution: zulu
-      - uses: gradle/actions/setup-gradle@v5
-      - name: Compile exactly one ARM64 APK and verify certificate/ID
-        shell: bash
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          MODE="TEST ONLY: temporary runner debug certificate. NOT update-safe."
-          if [[ -n "${ANDROID_KEYSTORE_BASE64:-}" && -n "${KEYSTORE_PASSWORD:-}" && -n "${KEY_ALIAS:-}" && -n "${KEY_PASSWORD:-}" ]]; then
-            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/nira-stage401.jks"
-            chmod 600 "$RUNNER_TEMP/nira-stage401.jks"
-            export NIRA_SIGNING_STORE_FILE="$RUNNER_TEMP/nira-stage401.jks"
-            export NIRA_SIGNING_STORE_PASSWORD="$KEYSTORE_PASSWORD"
-            export NIRA_SIGNING_KEY_ALIAS="$KEY_ALIAS"
-            export NIRA_SIGNING_KEY_PASSWORD="$KEY_PASSWORD"
-            MODE="GitHub Secrets signing certificate. Device certificate comparison still required."
-          else
-            echo "::warning::Stable signing secrets unavailable; TEST ONLY, update compatibility unverified."
-          fi
-          ./gradlew assembleDebug --console=plain
-          shopt -s nullglob
-          apks=(app/build/outputs/apk/debug/*.apk)
-          if [[ "${#apks[@]}" -ne 1 || "${apks[0]}" != *arm64-v8a* ]]; then
-            echo "::error::Expected one arm64-v8a APK."
-            exit 1
-          fi
-          signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
-          aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name aapt | sort -V | tail -n 1)"
-          test -n "$signer" && test -n "$aapt"
-          "$signer" verify --verbose --print-certs "${apks[0]}"
-          "$aapt" dump badging "${apks[0]}" | grep -E "package: name='com.prirai.android.nira.debug' versionCode='1096' versionName='0.5.22-alpha2'"
-          printf '%s\n' 'NIRA STAGE 4.0.1 ARM64' "$MODE" \
-            'Do not uninstall app or erase data.' \
-            'Signature verified; installed device certificate must match before update.' \
-            > STAGE401_SIGNING_README.txt
-      - uses: actions/upload-artifact@v4
-        with:
-          name: nira-stage401-arm64-SIGNATURE-CHECK-REQUIRED
-          path: |
-            app/build/outputs/apk/debug/*arm64-v8a*.apk
-            STAGE401_SIGNING_README.txt
-          if-no-files-found: error
-          retention-days: 14
-
-  # Stage 4.0.2: one arm64 APK. Compare CI certificate with device before updating.
-  stage402_arm64_apk:
-    if: github.event_name == 'pull_request' && github.head_ref == 'feat/media-detector-stage-4-0-2-metadata-ui'
-    permissions:
-      contents: read
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: gradle/wrapper-validation-action@v2
-      - uses: actions/setup-java@v4
-        with:
-          java-version: 17
-          distribution: zulu
-      - uses: gradle/actions/setup-gradle@v5
-      - name: Compile exactly one ARM64 APK and verify certificate/ID
-        shell: bash
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          MODE="TEST ONLY: temporary runner debug certificate. NOT update-safe."
-          if [[ -n "${ANDROID_KEYSTORE_BASE64:-}" && -n "${KEYSTORE_PASSWORD:-}" && -n "${KEY_ALIAS:-}" && -n "${KEY_PASSWORD:-}" ]]; then
-            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/nira-stage402.jks"
-            chmod 600 "$RUNNER_TEMP/nira-stage402.jks"
-            export NIRA_SIGNING_STORE_FILE="$RUNNER_TEMP/nira-stage402.jks"
-            export NIRA_SIGNING_STORE_PASSWORD="$KEYSTORE_PASSWORD"
-            export NIRA_SIGNING_KEY_ALIAS="$KEY_ALIAS"
-            export NIRA_SIGNING_KEY_PASSWORD="$KEY_PASSWORD"
-            MODE="GitHub Secrets signing certificate. Device certificate comparison still required."
-          else
-            echo "::warning::Stable signing secrets unavailable; TEST ONLY, update compatibility unverified."
-          fi
-          ./gradlew assembleDebug --console=plain
-          shopt -s nullglob
-          apks=(app/build/outputs/apk/debug/*.apk)
-          if [[ "${#apks[@]}" -ne 1 || "${apks[0]}" != *arm64-v8a* ]]; then
-            echo "::error::Expected one arm64-v8a APK."
-            exit 1
-          fi
-          signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
-          aapt="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name aapt | sort -V | tail -n 1)"
-          test -n "$signer" && test -n "$aapt"
-          "$signer" verify --verbose --print-certs "${apks[0]}"
-          "$aapt" dump badging "${apks[0]}" | grep -E "package: name='com.prirai.android.nira.debug' versionCode='1097' versionName='0.5.22-alpha3'"
-          printf '%s\n' 'NIRA STAGE 4.0.1 ARM64' "$MODE" \
-            'Do not uninstall app or erase data.' \
-            'Signature verified; installed device certificate must match before update.' \
-            > STAGE402_SIGNING_README.txt
-      - uses: actions/upload-artifact@v4
-        with:
-          name: nira-stage402-arm64-SIGNATURE-CHECK-REQUIRED
-          path: |
-            app/build/outputs/apk/debug/*arm64-v8a*.apk
-            STAGE402_SIGNING_README.txt
-          if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
 
 
   lint:
@@ -481,6 +153,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      EXPECTED_PACKAGE: com.prirai.android.nira
+      EXPECTED_VERSION_CODE: "1098"
+      EXPECTED_VERSION_NAME: 0.5.22-alpha4
+      EXPECTED_CERT_SHA256: df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
 
     # Release only on a version tag or manual dispatch with an explicit tag.
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
@@ -513,17 +190,46 @@ jobs:
         with:
           cache-encryption-key: ${{ secrets.GRADLE_CACHE_ENCRYPTION_KEY }}
 
-      - name: Decode keystore
+      - name: Build and verify one signed arm64 release APK
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        shell: bash
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > "$GITHUB_WORKSPACE/key.jks"
-
-      - name: Build Release APKs (signed)
-        run: |
+          set -euo pipefail
+          for key in ANDROID_KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Stable signing secret $key is not configured."
+              exit 1
+            fi
+          done
+          keystore_path="$RUNNER_TEMP/nira-release.p12"
+          cleanup() {
+            rm -f "$keystore_path"
+          }
+          trap cleanup EXIT
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
+          chmod 600 "$keystore_path"
           ./gradlew clean assembleRelease \
-            -Pandroid.injected.signing.store.file="$GITHUB_WORKSPACE/key.jks" \
-            -Pandroid.injected.signing.store.password="${{ secrets.KEYSTORE_PASSWORD }}" \
-            -Pandroid.injected.signing.key.alias="${{ secrets.KEY_ALIAS }}" \
-            -Pandroid.injected.signing.key.password="${{ secrets.KEY_PASSWORD }}"
+            -Pandroid.injected.signing.store.file="$keystore_path" \
+            -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KEY_PASSWORD" \
+            --console=plain
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/release/*.apk)
+          if [ "${#apks[@]}" -ne 1 ] || [[ "${apks[0]}" != *arm64-v8a* ]]; then
+            echo "::error::Expected exactly one arm64-v8a release APK, got ${#apks[@]}."
+            exit 1
+          fi
+          bash scripts/verify-update-apk.sh \
+            "${apks[0]}" \
+            "$EXPECTED_PACKAGE" \
+            "$EXPECTED_VERSION_CODE" \
+            "$EXPECTED_VERSION_NAME" \
+            "$EXPECTED_CERT_SHA256"
 
       - name: Create or reuse GitHub Release
         env:

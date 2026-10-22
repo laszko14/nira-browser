@@ -149,3 +149,13 @@
 - Systematic Debugging: pierwszy build run 39759187428 wykrył uszkodzoną linię validMime (przy edycji regex), naprawa commit 8c1d5cc; kolejny run 39759508327 ujawnił błąd kolejności deklaracji sizeBytes w JS (20/30 PASS), poprawka a841fb7; ostatni run 39759954056 30/30 PASS.
 - Funkcje i ograniczenia: tytuł konkretny preferowany ponad tytuł strony, gdy brak metadanych awaryjna nazwa pliku lub „tytuł nieznany”; rozmiar tylko nagłówek sieciowy i tylko bezpośredni materiał; HLS/DASH rozmiar nieznany; czas z video.duration; brak nowych requestów/autoPlay/DRM bypass. Panel kompaktowy, przycisk Kopiuj czytelny.
 - Test na Nothing Phone (1) nie wykonany. Brak parsera manifestów Etapu 4.1; nie merge.
+
+## 2026-10-22 — stały podpis aktualizacyjny
+
+- Audyt najnowszej gałęzi 4.0.2, wszystkich otwartych PR-ów i workflow potwierdził brak stałego klucza oraz różne certyfikaty efemerycznych APK.
+- Wygenerowano poza repozytorium jeden klucz PKCS#12 (`nira-update`, RSA 4096, SHA256withRSA); publiczny cert SHA-256: `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00`.
+- Utworzono prywatną kopię odzyskiwania keystore + hasła. Żaden sekret nie został dodany do Git ani dokumentacji.
+- Dodano test-first walidator APK: certyfikat, package, versionCode/versionName oraz wyłącznie arm64-v8a. Test najpierw zakończył się brakiem skryptu (RED), po implementacji przeszedł wraz z przypadkami złego certyfikatu i obcego ABI (GREEN).
+- Podniesiono wersję do 0.5.22-alpha4 / arm64 1098 i zaostrzono signed build: fail-closed Secrets, publiczny pin certyfikatu, usuwanie tymczasowego keystore, jeden artefakt arm64. Po review usunięto wszystkie historyczne joby publikujące efemeryczne APK oraz objęto tym samym pinem i cleanupem tagowane wydanie.
+- PR #11 (Draft, bez merge): https://github.com/laszko14/nira-browser/pull/11. Pierwszy pełny przebieg ze stałym kluczem: https://github.com/laszko14/nira-browser/actions/runs/39807671100 — build, test i lint SUCCESS. Artefakt APK: https://github.com/laszko14/nira-browser/actions/runs/39807671100/artifacts/12439380190. Walidator potwierdził `com.prirai.android.nira.debug`, versionCode `1098`, versionName `0.5.22-alpha4`, tylko `arm64-v8a` i certyfikat `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00`.
+- Pierwsza próba CI ujawniła zmianę formatu `apksigner` (`V2 Signer` zamiast `Signer #1`); poprawkę odtworzono testem regresji i zweryfikowano w rzeczywistym CI. Test aktualizacji na fizycznym telefonie nadal nie został wykonany.
