@@ -35,7 +35,7 @@ internal sealed interface MediaDetectorMessage {
 internal object MediaMessageProtocol {
     private const val MAX_MESSAGE_BYTES = 16 * 1024
     private const val MAX_URL_BYTES = 8 * 1024
-    private val validMime = Regex("[A-Za-z0-9!#    private val validMime = Regex("[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+(?:\\s*;[ -~]*)?")^_.+-]+/[A-Za-z0-9!#    private val validMime = Regex("[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+(?:\\s*;[ -~]*)?")^_.+-]+(?:\\s*;[ -~]*)?")
+    private val validMime = Regex("[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+(?:\\s*;[ -~]*)?")
     private fun validTitle(value: String): Boolean = value.isNotBlank() &&
         value.length <= 160 && value.toByteArray(Charsets.UTF_8).size <= 480 &&
         value.none { it.isISOControl() }
