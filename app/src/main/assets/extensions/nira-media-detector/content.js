@@ -1,6 +1,17 @@
 "use strict";
 
 (() => {
+  // Only messages from this extension, delivered to this specific Gecko tab,
+  // can be forwarded into its native EngineSession-bound handler.
+  browser.runtime.onMessage.addListener((message, sender) => {
+    if (!sender || sender.id !== browser.runtime.id || !message ||
+        message.schemaVersion !== 1 || message.event !== "media_candidate" ||
+        message.source !== "network" || typeof message.url !== "string" ||
+        ![4, 5].includes(Object.keys(message).length)) return Promise.resolve(false);
+    return Promise.resolve(browser.runtime.sendNativeMessage("nira.media.detector", message))
+      .then(value => value === true).catch(() => false);
+  });
+
   const sent = new WeakMap();
   let scanScheduled = false;
 
