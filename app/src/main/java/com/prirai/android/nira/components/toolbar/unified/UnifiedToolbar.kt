@@ -571,6 +571,9 @@ class UnifiedToolbar @JvmOverloads constructor(
         toolbarSystem.addComponent(contextualToolbar!!, ModernToolbarSystem.ComponentType.CONTEXTUAL)
     }
     
+    /** Toolbar anchor used by popups and browser chrome positioning. */
+    fun getToolbarView(): View? = browserToolbar?.asView()
+
     // Count remains on the leading side of the address field.
     private var tabCountDisplayCount = 0
     private var tabCountBadgeDrawable: android.graphics.drawable.Drawable? = null
