@@ -649,10 +649,29 @@ class UnifiedToolbar @JvmOverloads constructor(
                 for (index in 0 until actions.childCount) {
                     actions.getChildAt(index).apply {
                         minimumWidth = slotWidth
+                        minimumHeight = (40f * density).toInt()
                         layoutParams = layoutParams.apply { width = slotWidth }
                         setPadding(iconPadding, paddingTop, iconPadding, paddingBottom)
                     }
                 }
+                // On narrow layouts the stock action strip can clip the LAST
+                // control (Settings). Reserve space for the address and never
+                // allow hidden end controls to receive unreachable taps.
+                val toolbarWidth = toolbar.asView().width
+                val reservedAddress = (108f * density).toInt()
+                val reservedTabCounter = (38f * density).toInt()
+                val maxSlots = ((toolbarWidth - reservedAddress - reservedTabCounter)
+                    / slotWidth).coerceAtLeast(1)
+                val candidatesToHide = listOf(2, 3, 5, 6, 4)
+                var visibleCount = actions.childCount
+                for (index in candidatesToHide) {
+                    if (visibleCount <= maxSlots) break
+                    if (index < actions.childCount - 1) {
+                        actions.getChildAt(index).visibility = View.GONE
+                        visibleCount--
+                    }
+                }
+                actions.requestLayout()
             }
         }
         observeTabCountForBadge()
