@@ -271,15 +271,10 @@ class UnifiedToolbar @JvmOverloads constructor(
 
         when (toolbarPos) {
             ModernToolbarSystem.ToolbarPosition.TOP -> {
-                // TOP: Address Bar only in the top toolbar system
-                // Tab bar and contextual toolbar will be in a separate bottom container
+                // One address row, tab strip immediately below; no footer.
                 addAddressBar(parent, lifecycleOwner, interactor, customTabSession, store)
-                // Create bottom components (they will be retrieved separately)
-                addBottomComponentsForTopToolbar(store, lifecycleOwner)
-                // Add browser actions to address bar if contextual toolbar is disabled
-                if (!showContextualToolbar) {
-                    addBrowserActionsToAddressBar()
-                }
+                addTabGroupBar(store, lifecycleOwner)
+                addBrowserActionsToAddressBar()
             }
             ModernToolbarSystem.ToolbarPosition.BOTTOM -> {
                 // BOTTOM: Contextual Toolbar -> Address Bar -> Tab Bar (all together)
@@ -576,132 +571,105 @@ class UnifiedToolbar @JvmOverloads constructor(
         toolbarSystem.addComponent(contextualToolbar!!, ModernToolbarSystem.ComponentType.CONTEXTUAL)
     }
     
-    // Store tab count view reference to update the count
-    private var tabCountBadgeView: android.widget.TextView? = null
-    
-    /**
-     * Get the toolbar view for anchoring popups
-     */
-    fun getToolbarView(): View? = browserToolbar?.asView()
-    
-    /**
-     * Add browser actions (tab count, menu) to address bar when contextual toolbar is disabled
-     */
+    // Count remains on the leading side of the address field.
+    private var tabCountDisplayCount = 0
+    private var tabCountBadgeDrawable: android.graphics.drawable.Drawable? = null
+
     private fun addBrowserActionsToAddressBar() {
         val toolbar = browserToolbar ?: return
-        
-        // Add menu button first
-        val menuAction = BrowserToolbar.Button(
-            imageDrawable = ContextCompat.getDrawable(context, mozilla.components.ui.icons.R.drawable.mozac_ic_ellipsis_vertical_24)!!,
-            contentDescription = "Menu",
-            listener = {
-                contextualToolbarListener?.onMenuClicked()
-            }
+        val density = resources.displayMetrics.density
+        val foreground = com.google.android.material.color.MaterialColors.getColor(
+            context, com.google.android.material.R.attr.colorOnSurface, android.graphics.Color.WHITE
         )
-        toolbar.addBrowserAction(menuAction)
-        
-        // Create custom tab count button - exact replica of ContextualBottomToolbar's tab count
-        val tabCountContainer = android.widget.FrameLayout(context).apply {
-            layoutParams = ViewGroup.LayoutParams(
-                (48 * context.resources.displayMetrics.density).toInt(),
-                (48 * context.resources.displayMetrics.density).toInt()
-            )
-            val padding = (4 * context.resources.displayMetrics.density).toInt()
-            setPadding(padding, padding, padding, padding)
-            
-            // Add ripple effect (unbounded for circular feedback)
-            val outValue = android.util.TypedValue()
-            context.theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, outValue, true)
-            setBackgroundResource(outValue.resourceId)
-            isClickable = true
-            isFocusable = true
-            
-            // Add square background (same as ContextualBottomToolbar)
-            val backgroundView = android.widget.ImageView(context).apply {
-                setImageDrawable(ContextCompat.getDrawable(context, com.prirai.android.nira.R.drawable.tab_number_background))
-                val size = (28 * context.resources.displayMetrics.density).toInt()
-                layoutParams = LayoutParams(size, size).apply {
-                    gravity = android.view.Gravity.CENTER
-                }
-                scaleType = android.widget.ImageView.ScaleType.FIT_XY
-                imageTintList = android.content.res.ColorStateList.valueOf(
-                    com.google.android.material.color.MaterialColors.getColor(
-                        this,
-                        com.google.android.material.R.attr.colorOnSurface,
-                        android.graphics.Color.BLACK
-                    )
-                )
+        val counter = object : android.graphics.drawable.Drawable() {
+            private val pen = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+            override fun draw(canvas: android.graphics.Canvas) {
+                val b = bounds
+                val x = b.exactCenterX()
+                val y = b.exactCenterY()
+                val half = 12f * density
+                pen.style = android.graphics.Paint.Style.STROKE
+                pen.color = foreground
+                pen.strokeWidth = 1.8f * density
+                canvas.drawRoundRect(x-half, y-half, x+half, y+half, 2*density, 2*density, pen)
+                pen.style = android.graphics.Paint.Style.FILL
+                pen.textSize = 11f * resources.displayMetrics.scaledDensity
+                pen.typeface = android.graphics.Typeface.DEFAULT_BOLD
+                pen.textAlign = android.graphics.Paint.Align.CENTER
+                val number = if (tabCountDisplayCount > 99) "99+" else tabCountDisplayCount.toString()
+                canvas.drawText(number, x, y-(pen.ascent()+pen.descent())/2, pen)
             }
-            addView(backgroundView)
-            
-            // Add count text (same as ContextualBottomToolbar)
-            val countText = android.widget.TextView(context).apply {
-                val size = (28 * context.resources.displayMetrics.density).toInt()
-                layoutParams = LayoutParams(size, size).apply {
-                    gravity = android.view.Gravity.CENTER
-                }
-                gravity = android.view.Gravity.CENTER
-                textSize = 13f
-                setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setTextColor(
-                    com.google.android.material.color.MaterialColors.getColor(
-                        this,
-                        com.google.android.material.R.attr.colorOnSurface,
-                        android.graphics.Color.BLACK
-                    )
-                )
-                maxLines = 1
-            }
-            addView(countText)
-            tabCountBadgeView = countText
-            
-            setOnClickListener {
-                contextualToolbarListener?.onTabCountClicked()
-            }
+            override fun setAlpha(alpha: Int) {}
+            override fun setColorFilter(filter: android.graphics.ColorFilter?) {}
+            override fun getOpacity(): Int = android.graphics.PixelFormat.TRANSLUCENT
         }
-        
-        // Add tab count view directly to browser actions container at the beginning
-        toolbar.asView().post {
-            val browserActions = toolbar.asView().findViewById<ViewGroup>(
-                mozilla.components.browser.toolbar.R.id.mozac_browser_toolbar_browser_actions
-            )
-            if (browserActions != null) {
-                // Add at index 0 so it appears before the menu button
-                browserActions.addView(tabCountContainer, 0)
-            }
+        tabCountBadgeDrawable = counter
+        toolbar.addNavigationAction(BrowserToolbar.Button(
+            imageDrawable = counter,
+            contentDescription = "Otwarte karty",
+            listener = { contextualToolbarListener?.onTabCountClicked() }
+        ))
+        fun action(icon: Int, label: String, click: () -> Unit) {
+            val img = ContextCompat.getDrawable(context, icon)?.mutate() ?: return
+            img.setTint(foreground)
+            toolbar.addBrowserAction(BrowserToolbar.Button(
+                imageDrawable = img, contentDescription = label, listener = click
+            ))
         }
-        
-        // Start observing tab count to update the text
+        // The pre-existing reload/stop integration already adds refresh first.
+        action(com.prirai.android.nira.R.drawable.ic_round_add, "Nowa karta") {
+            contextualToolbarListener?.onNewTabClicked()
+        }
+        action(android.R.drawable.ic_media_next, "Następna karta") { cycleTab(1) }
+        action(android.R.drawable.ic_media_previous, "Poprzednia karta") { cycleTab(-1) }
+        action(com.prirai.android.nira.R.drawable.ic_round_close, "Zamknij kartę") {
+            browserStore?.state?.selectedTabId?.let { context.components.tabsUseCases.removeTab(it) }
+        }
+        action(com.prirai.android.nira.R.drawable.ic_ios_back, "Wstecz") {
+            contextualToolbarListener?.onBackClicked()
+        }
+        action(com.prirai.android.nira.R.drawable.ic_ios_forward, "Do przodu") {
+            contextualToolbarListener?.onForwardClicked()
+        }
+        action(mozilla.components.ui.icons.R.drawable.mozac_ic_ellipsis_vertical_24, "Ustawienia") {
+            contextualToolbarListener?.onMenuClicked()
+        }
         observeTabCountForBadge()
     }
-    
-    /**
-     * Observe store to update tab count badge
-     */
+
+    private fun tabsForActiveProfile(): List<TabSessionState> {
+        val profileManager = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(context)
+        val private = profileManager.isPrivateMode()
+        val active = profileManager.getActiveProfile()
+        val expected = if (private) "private" else "profile_${active.id}"
+        return (browserStore?.state?.tabs ?: emptyList()).filter {
+            it.content.private == private &&
+                (it.contextId == expected || (!private && active.id == "default" && it.contextId == null))
+        }
+    }
+
+    private fun cycleTab(direction: Int) {
+        val tabs = tabsForActiveProfile()
+        if (tabs.size < 2) return
+        val selected = browserStore?.state?.selectedTabId
+        val index = tabs.indexOfFirst { it.id == selected }
+        if (index < 0) return
+        context.components.tabsUseCases.selectTab(tabs[(index + direction + tabs.size) % tabs.size].id)
+    }
+
     private fun observeTabCountForBadge() {
-        val store = context.components.store
-        val lifecycleOwner = context as? LifecycleOwner ?: return
-        
-        lifecycleOwner.lifecycleScope.launch {
+        val store = browserStore ?: return
+        val owner = context as? LifecycleOwner ?: return
+        owner.lifecycleScope.launch {
             store.flowScoped(dispatcher = Dispatchers.Main) { flow ->
-                flow.collect { state ->
-                    val profileManager = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(context)
-                    val isPrivateMode = profileManager.isPrivateMode()
-                    val currentProfile = profileManager.getActiveProfile()
-                    val expectedContextId = if (isPrivateMode) {
-                        "private"
-                    } else {
-                        "profile_${currentProfile.id}"
-                    }
-                    
-                    val filteredTabCount = state.tabs.count { tab ->
-                        tab.content.private == isPrivateMode && tab.contextId == expectedContextId
-                    }
-                    
-                    tabCountBadgeView?.text = if (filteredTabCount > 99) "99+" else filteredTabCount.toString()
+                flow.collect {
+                    tabCountDisplayCount = tabsForActiveProfile().size
+                    tabCountBadgeDrawable?.invalidateSelf()
                 }
             }
         }
+        tabCountDisplayCount = tabsForActiveProfile().size
+        tabCountBadgeDrawable?.invalidateSelf()
     }
 
     /**

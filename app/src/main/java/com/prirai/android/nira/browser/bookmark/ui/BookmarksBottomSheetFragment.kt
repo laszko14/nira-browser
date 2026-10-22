@@ -39,12 +39,32 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
         super.onViewCreated(view, savedInstanceState)
         
         // Set bottom sheet to 60% of screen height
-        setupBottomSheetHeight()
+        if (arguments?.getBoolean("nira_side_panel") != true) setupBottomSheetHeight()
         
         setupBookmarkManager()
         setupRecyclerView()
         setupClickListeners()
         loadBookmarks()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (arguments?.getBoolean("nira_side_panel") != true) return
+        dialog?.window?.let { window ->
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            window.setDimAmount(0.55f)
+            window.setGravity(android.view.Gravity.END or android.view.Gravity.TOP)
+            window.setLayout((resources.displayMetrics.widthPixels * 0.78f).toInt(),
+                ViewGroup.LayoutParams.MATCH_PARENT)
+        }
+        (dialog as? com.google.android.material.bottomsheet.BottomSheetDialog)
+            ?.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)?.let { sheet ->
+                sheet.layoutParams = sheet.layoutParams.apply { height = ViewGroup.LayoutParams.MATCH_PARENT }
+                com.google.android.material.bottomsheet.BottomSheetBehavior.from(sheet).apply {
+                    isDraggable = false
+                    state = com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_EXPANDED
+                }
+            }
     }
 
     private fun setupBottomSheetHeight() {
@@ -702,6 +722,9 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
     companion object {
         private const val ARG_FOLDER_ID = "folder_id"
         
+        fun newSidePanel() = newInstance().apply {
+            arguments?.putBoolean("nira_side_panel", true)
+        }
         fun newInstance(folderId: Long = -1L): BookmarksBottomSheetFragment {
             return BookmarksBottomSheetFragment().apply {
                 arguments = Bundle().apply {
