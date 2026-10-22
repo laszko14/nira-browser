@@ -70,6 +70,27 @@ class MediaFloatingStage40Test {
         assertEquals(1, repo.currentEntries(next).size)
     }
 
+    @Test fun finishingLoadDoesNotTemporarilyHideDetectedVideo() {
+        val repo = MediaRepository()
+        val loading = tab(loading = true)
+        begin(repo, listOf(loading), listOf(17))
+        media(repo, loading, 17, "https://cdn.example/movie.mp4")
+        assertEquals(1, repo.currentEntries(loading).size)
+
+        // The selected-tab UI collector can observe loading=false first.
+        // Repository.observe() is handled by an independent coroutine.
+        val finished = loading.copy(loading = false)
+        assertEquals(1, repo.currentEntries(finished).size)
+        repo.observe(listOf(finished))
+        assertEquals(1, repo.currentEntries(finished).size)
+
+        // Beginning another loading cycle must not expose old entries.
+        val reloading = finished.copy(loading = true)
+        assertTrue(repo.currentEntries(reloading).isEmpty())
+        repo.observe(listOf(reloading))
+        assertTrue(repo.currentEntries(reloading).isEmpty())
+    }
+
     @Test fun reloadRejectsOldSourceEvenWhenSignedUrlIsIdentical() {
         val repo = MediaRepository()
         val t = tab()
