@@ -41,7 +41,7 @@ internal class MediaFloatingUi(
     private val prefs = context.getSharedPreferences("nira_media_floating_position", Context.MODE_PRIVATE)
     private fun dp(value: Int) = (value * context.resources.displayMetrics.density + 0.5f).toInt()
     private val size = dp(56)
-    private val padding = dp(12)
+    private val padding = dp(24)
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
     private val button = FrameLayout(context).apply {
         background = circle(Color.rgb(26, 180, 176))
@@ -83,7 +83,7 @@ internal class MediaFloatingUi(
             setTextColor(Color.WHITE)
             contentDescription = null
         }, FrameLayout.LayoutParams(-1, -1))
-        button.addView(count, FrameLayout.LayoutParams(dp(27), dp(22), Gravity.END or Gravity.TOP))
+        button.addView(count, FrameLayout.LayoutParams(dp(27), dp(27), Gravity.END or Gravity.TOP))
         parent.addView(button, ViewGroup.LayoutParams(size, size))
         button.setOnTouchListener { _, event -> handleTouch(event) }
         parent.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
