@@ -4,6 +4,9 @@ import android.os.SystemClock
 import android.util.Log
 import com.prirai.android.nira.BuildConfig
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import mozilla.components.browser.state.store.BrowserStore
@@ -29,6 +32,7 @@ internal class MediaDetectorController(private val engine: Engine, private val s
         if (started) return
         started = true
         MediaDetectorDiagnostics.setRepository(repository)
+        mutableUiRepository.value = repository
         try {
             engine.installBuiltInWebExtension(
                 id = EXTENSION_ID,
@@ -188,6 +192,9 @@ internal class MediaDetectorController(private val engine: Engine, private val s
     }
 
     companion object {
+        private val mutableUiRepository = MutableStateFlow<MediaRepository?>(null)
+        val uiRepository: StateFlow<MediaRepository?> = mutableUiRepository.asStateFlow()
+
         const val EXTENSION_ID = "nira-media-detector@prirai.android.nira"
         private const val NATIVE_APP = "nira.media.detector"
     }
