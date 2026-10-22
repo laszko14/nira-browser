@@ -17,7 +17,6 @@ import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.consume
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.runtime.rememberUpdatedState
@@ -986,7 +985,7 @@ class TabsBottomSheetFragment : DialogFragment() {
             val target = targetInfo?.key?.toString()
             dragTabId = null
             hoveredKey = null
-            if (fromId == null || target == null) return
+            if (fromId == null || targetInfo == null || target == null) return
             when {
                 target.startsWith("group_") -> {
                     val groupId = target.removePrefix("group_")
