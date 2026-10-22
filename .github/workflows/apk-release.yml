@@ -35,17 +35,47 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v5
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug
+      # Do not publish an ephemeral Android debug signature as an update.
+      # Reuse the stable signing key already used by the release workflow.
+      - name: Build single arm64 debug APK (update-safe certificate)
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in ANDROID_KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Stable signing secret $key is not configured. Refusing to publish an incompatible debug APK."
+              exit 1
+            fi
+          done
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/nira-update.jks"
+          chmod 600 "$RUNNER_TEMP/nira-update.jks"
+          export NIRA_SIGNING_STORE_FILE="$RUNNER_TEMP/nira-update.jks"
+          export NIRA_SIGNING_STORE_PASSWORD="$KEYSTORE_PASSWORD"
+          export NIRA_SIGNING_KEY_ALIAS="$KEY_ALIAS"
+          export NIRA_SIGNING_KEY_PASSWORD="$KEY_PASSWORD"
+          ./gradlew assembleDebug
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/debug/*.apk)
+          if [ "${#apks[@]}" -ne 1 ] || [[ "${apks[0]}" != *arm64-v8a* ]]; then
+            echo "::error::Expected exactly one arm64-v8a APK, got ${#apks[@]}."
+            exit 1
+          fi
+          signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
+          test -n "$signer"
+          "$signer" verify --verbose --print-certs "${apks[0]}"
+          echo "Built exactly one signed arm64-v8a APK."
 
-      - name: Upload Debug APKs (per ABI)
+      - name: Upload only arm64 debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: debug-apks
-          path: |
-            app/build/outputs/apk/debug/*arm64-v8a*.apk
-            app/build/outputs/apk/debug/*armeabi-v7a*.apk
-            app/build/outputs/apk/debug/*x86_64*.apk
+          name: nira-arm64-update-apk
+          path: app/build/outputs/apk/debug/*arm64-v8a*.apk
+          if-no-files-found: error
 
   lint:
     runs-on: ubuntu-latest
