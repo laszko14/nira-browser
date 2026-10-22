@@ -15,12 +15,15 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
+import coil.load
+import coil.request.CachePolicy
 import java.net.URI
 import java.util.Locale
 import kotlin.math.abs
@@ -293,6 +296,20 @@ internal class MediaFloatingUi(
                     cornerRadius = dp(16).toFloat()
                     setColor(Color.rgb(243, 248, 248))
                 }
+            }
+            val posterUrl = variants.firstNotNullOfOrNull { it.posterUrl }
+            if (posterUrl != null) {
+                val thumb = ImageView(context).apply {
+                    scaleType = ImageView.ScaleType.CENTER_CROP
+                    contentDescription = "Miniatura: $name"
+                    load(posterUrl) {
+                        diskCachePolicy(CachePolicy.DISABLED) // Never persist signed media URLs.
+                        crossfade(true)
+                    }
+                }
+                card.addView(thumb, LinearLayout.LayoutParams(-1, dp(156)).apply {
+                    bottomMargin = dp(8)
+                })
             }
             card.addView(label(name, 18f, true))
             if (bestTitle?.titleKind == "page")
