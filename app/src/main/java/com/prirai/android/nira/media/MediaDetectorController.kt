@@ -110,6 +110,12 @@ internal class MediaDetectorController(private val engine: Engine, private val s
                 diagnostic("message_rejected")
                 return false
             }
+            // Independently match Gecko's network incognito bit with native session privacy.
+            // A misrouted response must never contaminate a normal/private partition.
+            if (candidate.source == MediaSource.NETWORK && candidate.privateHint != context.isPrivate) {
+                MediaDetectorDiagnostics.validationError(context)
+                return false
+            }
             // Bound native work without dropping two different videos in the same second.
             val now = SystemClock.elapsedRealtime()
             val window = rate[registeredSession]
