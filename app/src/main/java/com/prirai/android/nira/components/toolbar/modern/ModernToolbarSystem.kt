@@ -130,29 +130,26 @@ class ModernToolbarSystem @JvmOverloads constructor(
         // Setup window insets handling for edge-to-edge
         // This allows toolbars to add padding for system bars without affecting fullscreen
         ViewCompat.setOnApplyWindowInsetsListener(this) { view, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            
-            // Only apply padding when visible (not in fullscreen)
-            if (view.isVisible && view.alpha > 0f) {
-                when (toolbarPosition) {
-                    ToolbarPosition.BOTTOM -> {
-                        view.setPadding(0, 0, 0, systemBars.bottom)
-                    }
-                    ToolbarPosition.TOP -> {
-                        view.setPadding(0, systemBars.top, 0, 0)
-                    }
-                }
-            } else {
-                // In fullscreen or hidden - no padding
-                view.setPadding(0, 0, 0, 0)
+            // Account for landscape cutouts and status/navigation bars on all
+            // sides. Keep padding even during the alpha hide animation: changing
+            // height mid-animation makes the toolbar overlap system UI.
+            val bars = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or
+                    WindowInsetsCompat.Type.displayCutout()
+            )
+            val top = if (toolbarPosition == ToolbarPosition.TOP) bars.top else 0
+            val bottom = if (toolbarPosition == ToolbarPosition.BOTTOM) bars.bottom else 0
+            if (view.paddingLeft != bars.left || view.paddingTop != top ||
+                view.paddingRight != bars.right || view.paddingBottom != bottom) {
+                view.setPadding(bars.left, top, bars.right, bottom)
             }
-            
+
             insets
         }
     }
 
     fun getTotalHeight(): Int {
-        var totalHeight = 0
+        var totalHeight = paddingTop + paddingBottom
 
         for (i in 0 until childCount) {
             val child = getChildAt(i)
