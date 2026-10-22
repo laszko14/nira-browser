@@ -64,7 +64,7 @@ class ContextMenuIntegration(
                 )
             )
             val snackbarDelegate = DefaultSnackbarDelegate()
-            ContextMenuCandidate.defaultCandidates(
+            val defaultCandidates = ContextMenuCandidate.defaultCandidates(
                 context,
                 tabsUseCases,
                 contextMenuUseCases,
@@ -74,7 +74,18 @@ class ContextMenuIntegration(
                         android.os.Environment.DIRECTORY_DOWNLOADS
                     ).path
                 }
-            ) + appLinksCandidate + createOpenLinkInGroupCandidate(context, tabsUseCases, parentView, snackbarDelegate) + createCopyLinkTextCandidate(context, parentView, snackbarDelegate)
+            ).toMutableList()
+            val newTabId = ContextMenuCandidate.createOpenInNewTabCandidate(
+                context, tabsUseCases, parentView, snackbarDelegate
+            ).id
+            // Keep the grouped option immediately below the stock "New Tab" entry.
+            val position = defaultCandidates.indexOfFirst { it.id == newTabId }
+            defaultCandidates.add(
+                if (position >= 0) position + 1 else defaultCandidates.size,
+                createOpenLinkInGroupCandidate(context, tabsUseCases, parentView, snackbarDelegate)
+            )
+            defaultCandidates + appLinksCandidate +
+                createCopyLinkTextCandidate(context, parentView, snackbarDelegate)
         }
     }
 

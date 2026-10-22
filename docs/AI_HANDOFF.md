@@ -1,3 +1,14 @@
+# Checkpoint — Nira Browser v1102: boczne karty / grupy / MPV Alpha (2026-10-22)
+
+- **Repo/gałąź:** `laszko14/nira-browser`, PR #15 https://github.com/laszko14/nira-browser/pull/15, `feat/nira-v1102-tab-panel-player-fixes`, bez merge; baza PR #14 `feat/nira-compact-groups-immersive-v1101` (42872c3).
+- **Zmiany:** w poziomie zapobieganie obcinaniu przycisku Ustawienia; w panelu bocznym kompaktowe jednowierszowe karty z favicon, numerem, X i zwijanymi grupami; ukrycie przełącznika widoku, Search/New Tab i profili wyłącznie w tym panelu; przeciągany prawy brzeg z osobną szerokością na orientację, kliknięcie poza panelem zamyka go; synchronizacja stanu rozwinięcia grup Compose / Room; pozycja opcji grupy pod „Otwórz w nowej karcie”; domyślne otwieranie w MPV Alpha z opcją wyświetlania systemowego wyboru.
+- **Kod APK:** commit `74e37889ea98c1903d5f174674347c804f51806f`; `com.prirai.android.nira.debug`, `versionCode=1102`, `versionName=0.5.22-alpha8`, tylko `arm64-v8a`.
+- **CI:** https://github.com/laszko14/nira-browser/actions/runs/39830853219 — podpisany build SUCCESS, JVM test SUCCESS, JavaScript 30/30 PASS; wynik lint sprawdzić w runie. Artefakt signed update ZIP: https://github.com/laszko14/nira-browser/actions/runs/39830853219/artifacts/12448218095.
+- **Podpis zweryfikowany w CI:** SHA-256 `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00`, bez sekretów w repo. Poprzedni podpis aplikacji na telefonie musi być zgodny; jeśli jest inny, instalacja bez utraty danych nie jest gwarantowana.
+- **Ograniczenia:** nie testowano osobiście na Nothing Phone (1), gestów, działania grup, landscape i integracji odtwarzacza na sprzęcie. Nie twierdzić, że fizyczny test przeszedł. Nie scalać przed ręcznym sprawdzeniem. Dokumentacja jest następnym commitem bez zmiany kodu aplikacji.
+
+---
+
 # Checkpoint — Nira Browser Etap 4.0 (2026-10-22)
 
 - **Repo/PR:** [PR #8](https://github.com/laszko14/nira-browser/pull/8), HEAD na gałęzi `feat/media-detector-stage-4-0-floating-ui`; baza wyłącznie `feat/media-detector-stage-3-3-state` o HEAD `30cdde1e7cf550106abe452693473e0f5c04eb37`. PR #6 nietknięty. Brak merge.

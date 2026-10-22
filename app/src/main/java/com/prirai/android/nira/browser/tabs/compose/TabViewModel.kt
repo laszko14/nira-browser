@@ -191,10 +191,7 @@ class TabViewModel(
             _expandedGroups.value = expandedGroupIds
             _selectedTabId.value = selectedTabId
 
-            // Auto-expand group containing selected tab
-            selectedTabId?.let { tabId ->
-                orderManager.expandGroupContainingTab(tabId)
-            }
+            // Preserve the user's collapsed groups across ordinary tab updates.
         }
     }
 
@@ -244,10 +241,7 @@ class TabViewModel(
                 // Update tabs based on saved order
                 _tabs.value = getOrderedTabs(tabs, profileId, groupsList)
 
-                // Auto-expand group containing selected tab
-                selectedTabId?.let { tabId ->
-                    orderManager.expandGroupContainingTab(tabId)
-                }
+                // Keep the saved group expansion state during refresh.
             }
         }
     }
@@ -322,15 +316,20 @@ class TabViewModel(
      * Toggle group expanded/collapsed state
      */
     fun toggleGroupExpanded(groupId: String) {
-        // Update in the group manager (centralized state)
         viewModelScope.launch {
             try {
-                groupManager.toggleGroupCollapsed(groupId)
-                _currentProfileId.value?.let { profileId ->
-                    saveCurrentOrder(profileId)
+                // Both the persisted tab order and Compose's visible state must
+                // change; updating only Room's collapsed flag left the UI unchanged.
+                orderManager.toggleGroupExpansion(groupId)
+                _expandedGroups.value = if (groupId in _expandedGroups.value) {
+                    _expandedGroups.value - groupId
+                } else {
+                    _expandedGroups.value + groupId
                 }
+                groupManager.toggleGroupCollapsed(groupId)
+                _currentProfileId.value?.let { profileId -> saveCurrentOrder(profileId) }
             } catch (e: Exception) {
-                android.util.Log.e("TabViewModel", "Error toggling group collapsed state", e)
+                android.util.Log.e("TabViewModel", "Error toggling group expanded state", e)
             }
         }
     }
