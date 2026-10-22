@@ -7,7 +7,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
 internal sealed interface MediaDetectorMessage {
-    class Candidate(val url: String) : MediaDetectorMessage {
+    class Candidate(val url: String, val contentType: String? = null) : MediaDetectorMessage {
         override fun toString() = "MediaCandidate(redacted)"
     }
     data object NetworkProbe : MediaDetectorMessage
@@ -47,13 +47,18 @@ internal object MediaMessageProtocol {
         return when (string("event")) {
             "network_probe" -> if (fields.keys == setOf("schemaVersion", "event")) MediaDetectorMessage.NetworkProbe else null
             "media_candidate" -> {
-                if (fields.keys != setOf("schemaVersion", "event", "source", "url") || string("source") != "dom") return null
+                if (fields.keys != setOf("schemaVersion", "event", "source", "url") &&
+                    fields.keys != setOf("schemaVersion", "event", "source", "url", "contentType")) return null
+                if (string("source") != "dom") return null
+                val contentType = if ("contentType" in fields) string("contentType") ?: return null else null
+                if (contentType != null && (contentType.toByteArray(Charsets.UTF_8).size > 128 ||
+                    !contentType.matches(Regex("[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+(?:\\s*;[ -~]*)?")))) return null
                 val url = string("url") ?: return null
                 if (url.toByteArray(Charsets.UTF_8).size > MAX_URL_BYTES || url.any { it.isWhitespace() || it.isISOControl() }) return null
                 val uri = try { URI(url) } catch (_: IllegalArgumentException) { return null }
                     catch (_: java.net.URISyntaxException) { return null }
                 if (uri.scheme?.lowercase() !in setOf("https", "http") || uri.host.isNullOrEmpty() || uri.rawUserInfo != null) return null
-                MediaDetectorMessage.Candidate(url)
+                MediaDetectorMessage.Candidate(url, contentType)
             }
             else -> null
         }

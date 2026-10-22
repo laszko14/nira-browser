@@ -15,12 +15,14 @@ import mozilla.components.lib.state.ext.flowScoped
 import org.json.JSONObject
 import java.util.IdentityHashMap
 
-/** Stage 3.0: transient DOM event reception; no media list, storage or player launch. */
+/** Stage 3.1: transient HTML5 MP4/WebM detection, without repository, UI or playback. */
 internal class MediaDetectorController(private val engine: Engine, private val store: BrowserStore) {
     private val attached = IdentityHashMap<EngineSession, Unit>()
-    private val lastReceived = IdentityHashMap<EngineSession, Long>()
+    private val rate = IdentityHashMap<EngineSession, Window>()
     private var observer: kotlinx.coroutines.CoroutineScope? = null
     private var started = false
+
+    private class Window(var since: Long, var count: Int)
 
     fun start() {
         if (started) return
@@ -44,7 +46,7 @@ internal class MediaDetectorController(private val engine: Engine, private val s
     }
 
     private fun attach(extension: WebExtension) {
-        // webRequest probe is background-only and deliberately cannot produce a media candidate.
+        // Preserve the Stage 3.0 public-fixture-only webRequest compatibility probe.
         extension.registerBackgroundMessageHandler(NATIVE_APP, object : MessageHandler {
             override fun onMessage(message: Any, source: EngineSession?): Any {
                 val accepted = (message as? JSONObject)?.toString()?.let(MediaMessageProtocol::decode) === MediaDetectorMessage.NetworkProbe
@@ -57,7 +59,7 @@ internal class MediaDetectorController(private val engine: Engine, private val s
                 .distinctUntilChanged()
                 .collect { sessions ->
                     attached.keys.removeAll { old -> sessions.none { it === old } }
-                    lastReceived.keys.removeAll { old -> sessions.none { it === old } }
+                    rate.keys.removeAll { old -> sessions.none { it === old } }
                     sessions.forEach { session ->
                         if (!attached.containsKey(session)) {
                             try {
@@ -69,7 +71,6 @@ internal class MediaDetectorController(private val engine: Engine, private val s
                 }
         }
         diagnostic("installed")
-        // Private browsing permission remains controlled by Gecko; do not silently enable it.
         diagnostic(if (extension.isAllowedInPrivateBrowsing()) "private_allowed" else "private_disabled")
     }
 
@@ -77,17 +78,28 @@ internal class MediaDetectorController(private val engine: Engine, private val s
         override fun onMessage(message: Any, source: EngineSession?): Any {
             if (source !== registeredSession) return false
             val context = resolveMediaSession(source, bindings()) ?: return false
-            // Bound native work/log volume as well as content-script emission.
-            val now = SystemClock.elapsedRealtime()
-            if (lastReceived[registeredSession]?.let { now - it < 1000 } == true) return false
-            lastReceived[registeredSession] = now
             val candidate = (message as? JSONObject)?.toString()?.let(MediaMessageProtocol::decode)
             if (candidate !is MediaDetectorMessage.Candidate) {
                 diagnostic("message_rejected")
                 return false
             }
-            // URL has reached Kotlin intact. Retaining/classifying it belongs to Stage 3.1.
-            diagnostic("candidate_received tab=${context.tabId} context=${context.contextId ?: "default"} private=${context.isPrivate}")
+            // Bound native work without dropping two different videos in the same second.
+            val now = SystemClock.elapsedRealtime()
+            val window = rate[registeredSession]
+            if (window == null || now - window.since >= 5000L) {
+                rate[registeredSession] = Window(now, 1)
+            } else if (window.count >= 24) {
+                return false
+            } else {
+                window.count++
+            }
+            val media = MediaClassifier.fromDom(candidate, context)
+            if (media == null) {
+                diagnostic("candidate_unsupported")
+                return false
+            }
+            // No durable state until Stage 3.3. URLs remain transient in this local object.
+            diagnostic("media_detected format=${media.format} tab=${context.tabId} private=${context.isPrivate}")
             return true
         }
     }
