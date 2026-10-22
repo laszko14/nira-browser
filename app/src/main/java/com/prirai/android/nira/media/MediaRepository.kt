@@ -7,7 +7,9 @@ internal data class MediaTabState(
     val binding: MediaSessionBinding,
     val pageUrl: String,
     val loading: Boolean,
-)
+) {
+    override fun toString(): String = "MediaTabState(pageUrl=<redacted>)"
+}
 
 /** Returned only inside the native process. String representations never expose signed URLs. */
 internal class MediaEntry(
@@ -82,9 +84,21 @@ internal class MediaRepository(
         while (iterator.hasNext()) {
             val (_, scope) = iterator.next()
             val actual = live[scope.binding.session]
-            if (actual == null || !same(scope.binding, actual.binding)) {
+            if (actual == null) {
                 changes.add(Change(scope.binding, scope.entries.size, false))
                 iterator.remove()
+                continue
+            }
+            if (!same(scope.binding, actual.binding)) {
+                // Profile/partition changes on the same EngineSession must not
+                // reset the document high-water mark. An old extension message
+                // can never re-register itself into the new partition.
+                changes.add(Change(scope.binding, scope.entries.size, false))
+                scope.entries.clear()
+                scope.binding = actual.binding
+                scope.pageUrl = actual.pageUrl
+                scope.loading = actual.loading
+                scope.registered = false
                 continue
             }
             val navigated = actual.pageUrl != scope.pageUrl || (!scope.loading && actual.loading)
