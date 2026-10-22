@@ -21,7 +21,7 @@ on:
 jobs:
   build:
     # Temporary branch-scoped exception: only the dedicated diagnostics job publishes a test APK.
-    if: github.event_name != 'pull_request' || github.head_ref != 'feat/media-detector-on-device-diagnostics'
+    if: github.event_name != 'pull_request' || (github.head_ref != 'feat/media-detector-on-device-diagnostics' && github.head_ref != 'feat/media-detector-stage-3-2-network')
     runs-on: ubuntu-latest
 
     steps:
@@ -131,6 +131,60 @@ jobs:
         with:
           name: nira-arm64-diagnostics-gradle-log
           path: ${{ runner.temp }}/nira-diagnostics-gradle.log
+          if-no-files-found: warn
+
+  # Stage 3.2 PR-only test build. No signing secrets or release privileges.
+  # Do not infer update compatibility from the runner's ephemeral debug certificate.
+  temporary_arm64_stage32:
+    permissions:
+      contents: read
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/media-detector-stage-3-2-network'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Gradle wrapper
+        uses: gradle/wrapper-validation-action@v2
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: zulu
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Build temporary arm64 diagnostics APK with Gradle log
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::warning::Temporary test-only DEBUG certificate. This APK cannot be assumed to update an installed Nira Debug app. Do NOT uninstall the app or erase data."
+          ./gradlew assembleDebug --console=plain 2>&1 | tee "$RUNNER_TEMP/nira-stage32-gradle.log"
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/debug/*.apk)
+          if [ "${#apks[@]}" -ne 1 ] || [[ "${apks[0]}" != *arm64-v8a* ]]; then
+            echo "::error::Expected exactly one arm64-v8a APK, found ${#apks[@]}."
+            exit 1
+          fi
+          signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
+          test -n "$signer"
+          "$signer" verify --verbose --print-certs "${apks[0]}"
+          printf '%s\n' \
+            'TEST ONLY - TEMPORARY GITHUB RUNNER DEBUG SIGNATURE' \
+            'The signing certificate can differ from previously installed versions.' \
+            'Do not remove the installed app or clear its data.' \
+            'This package is com.prirai.android.nira.debug (not the release package).' \
+            > DIAGNOSTIC_APK_README.txt
+      - name: Upload exactly one arm64 test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: nira-arm64-STAGE32-TEMP-NOT-UPDATE-SAFE
+          path: |
+            app/build/outputs/apk/debug/*arm64-v8a*.apk
+            DIAGNOSTIC_APK_README.txt
+          if-no-files-found: error
+      - name: Upload compilation log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nira-arm64-stage32-gradle-log
+          path: ${{ runner.temp }}/nira-stage32-gradle.log
           if-no-files-found: warn
 
   lint:
