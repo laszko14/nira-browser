@@ -50,4 +50,17 @@ class MediaMessageProtocolTest {
             MediaMessageProtocol.decode("""{"schemaVersion":1,"event":"network_probe"}"""))
         assertNull(MediaMessageProtocol.decode("""{"schemaVersion":1,"event":"network_probe","url":"secret"}"""))
     }
+
+    @Test fun optionalContentTypeIsValidatedAndPreserved() {
+        val original = message().dropLast(1)
+        val withMime = original + ""","contentType":"video/mp4; codecs=avc1"}"""
+        val parsed = MediaMessageProtocol.decode(withMime) as MediaDetectorMessage.Candidate
+        assertEquals("video/mp4; codecs=avc1", parsed.contentType)
+        assertFalse(parsed.toString().contains("secret"))
+        for (invalid in listOf(
+            original + ""","contentType":14}""",
+            original + ""","contentType":"video/mp4\\nX"}""",
+            original + ""","contentType":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}""",
+        )) assertNull(MediaMessageProtocol.decode(invalid))
+    }
 }
