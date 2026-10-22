@@ -1,3 +1,16 @@
+# Checkpoint — Nira Browser v1105, stabilizacja interfejsu (2026-10-22)
+
+- **Gałąź:** `feat/nira-v1105-stability-toolbar-drag`, PR #18 https://github.com/laszko14/nira-browser/pull/18, baza PR #17 / `feat/nira-v1104-auto-bars-media-tabs`. Bez merge.
+- **Zmiany:** przełącznik rzędu chipów grup `Wszystkie/Grupa` (bez wyłączenia grup i paska kart); suwaki szerokości przycisków 40–52 dp i minimalnej szerokości pola adresu 64–220 dp; przeciąganie długim przytrzymaniem przycisków górnego paska z trwałą kolejnością; przeliczenie widoczności akcji przy zmianie szerokości, priorytet dostępności Ustawień; DnD kart w kompaktowym wysuwanym panelu po long press, menu pod ⋮, przenoszenie do grup i zmiana kolejności wewnątrz grup; pull-to-refresh: odświeżanie przywracane po wyjściu z fullscreen oraz wyrównanie obszaru gestu z treścią strony.
+- **Wersja:** `0.5.22-alpha11`, efektywny kod ARM64 `1105`, aplikacja `com.prirai.android.nira.debug`, wyłącznie ARM64. Dotychczasowy pin certyfikatu SHA256: `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00`, Secrets GitHub Actions bez modyfikacji.
+- **Audyt:** zdiagnozowano brak drag w `CompactSideTabRow` (wyłącznie `combinedClickable`), sztywne jednorazowe przycinanie akcji paska oraz bezwarunkowe `swipeRefresh.isEnabled=false` po fullscreen. Stan bazowy v1104: CI PASS, test urządzenia NIE wykonany. Historycznie lint ustawiony na `abortOnError=false`.
+- **CI v1105:** pierwszy przebieg #75 wykrył jeden brakujący import `background` w Compose; poprawiono w kolejnym commicie. Najnowszy HEAD wymaga oddzielnego potwierdzenia zielonego build/test/lint i artefaktu: https://github.com/laszko14/nira-browser/actions?query=branch%3Afeat%2Fnira-v1105-stability-toolbar-drag .
+- **Niezakończone / ryzyko:** konieczne sprawdzenie na Nothing Phone (1) po instalacji: przeciąganie między grupami, zmiana kolejności w obrębie grup i bez grup, przechwytywanie long press przez Compose, menu ⋮ w landscape i po obrocie, pull-to-refresh (po fullscreen/zmianie karty, różne strony), oraz zachowanie detektora mediów. Drop na kartę należącą do innej grupy przenosi do grupy (bez obietnicy dokładnego indeksu); pozostałe testy automatyczne nie zastępują testów UI.
+- **Bezpieczeństwo aktualizacji:** nie odinstalowywać poprzedniej wersji. Aktualizacja bez kasowania danych wymaga pakietu/certyfikatu identycznych jak zainstalowana Nira i większego versionCode; same wyniki CI nie weryfikują starej instalacji.
+- **Następny krok:** potwierdzić sukces najnowszego GitHub Actions, zobaczyć `nira-arm64-update-apk-v1105`, zbadać ewentualne błędy i poprawić, sprawdzić podpis, potem przekazać artefakt ZIP. PR pozostaje draft.
+
+---
+
 # Checkpoint — Nira Browser v1104: pasek scroll, tytuły, grupy i wykrywanie mediów (2026-10-22)
 
 - **Gałąź:** `feat/nira-v1104-auto-bars-media-tabs`; PR #17 https://github.com/laszko14/nira-browser/pull/17; baza v1103 / PR #16, bez merge.
