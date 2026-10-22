@@ -13,7 +13,7 @@
       "button,[role='button'],[class*='preview-play'],[class*='play-preview']"
     );
     if (!control || control.closest("nav,header,footer") ||
-        /(?:next|prev|close|menu|download)/i.test(String(control.className || ""))) return;
+        /(?:^|[\s_-])(?:next|prev|close|menu|download)(?:[\s_-]|$)/i.test(String(control.className || ""))) return;
     const label = [control.getAttribute("aria-label"), control.getAttribute("title"),
       control.textContent, control.className].filter(v => typeof v === "string").join(" ");
     if (!/(?:play|preview|podgląd|odtwórz|odtworz)/i.test(label)) return;
