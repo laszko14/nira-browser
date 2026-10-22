@@ -426,7 +426,7 @@ fun TabBarCompose(
                         Surface(
                             modifier = Modifier
                                 .height(32.dp)
-                                .width(100.dp),
+                                .width(40.dp),
                             shape = RoundedCornerShape(12.dp),
                             color = MaterialTheme.colorScheme.primaryContainer,
                             tonalElevation = 8.dp,
@@ -557,7 +557,7 @@ private fun TabPill(
     Surface(
         modifier = modifier
             .height(32.dp)
-            .width(100.dp),
+            .width(40.dp),
         shape = RoundedCornerShape(12.dp),
         color = if (isSelected) {
             MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
@@ -574,27 +574,18 @@ private fun TabPill(
             modifier = Modifier
                 .fillMaxSize()
                 .clickable { onTabClick(tab.id) }
-                .padding(horizontal = 8.dp, vertical = 4.dp),
+                .padding(horizontal = 4.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.Center
         ) {
             // Favicon
             FaviconImage(
                 tab = tab,
-                size = 14.dp,
+                size = 22.dp,
                 modifier = Modifier
             )
 
-            // Title
-            Text(
-                text = getTabDisplayTitle(tab),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                color = if (isDragging) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
+
         }
     }
 }
@@ -732,31 +723,11 @@ private fun GroupPill(
 
             // Group name - use onSurface color when dragging, no ellipsis
             Text(
-                text = group.groupName,
+                text = "(${group.tabs.size}) ${group.groupName}",
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
                 color = if (isDragging) MaterialTheme.colorScheme.onSurface else Color(group.color)
             )
-
-            // Tab count badge
-            Surface(
-                shape = CircleShape,
-                color = Color(group.color).copy(alpha = 0.3f)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .padding(horizontal = 8.dp, vertical = 2.dp)
-                        .defaultMinSize(minWidth = 20.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "${group.tabs.size}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color(group.color),
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
 
             if (expanded) {
                 // Show tab pills in group with dividers
