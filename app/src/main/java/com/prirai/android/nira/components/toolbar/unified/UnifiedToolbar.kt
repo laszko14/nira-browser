@@ -637,42 +637,114 @@ class UnifiedToolbar @JvmOverloads constructor(
         action(mozilla.components.ui.icons.R.drawable.mozac_ic_ellipsis_vertical_24, "Ustawienia") {
             contextualToolbarListener?.onMenuClicked()
         }
-        // 1DM's dense layout requires compact action slots; the Mozilla
-        // defaults would consume all horizontal space and hide the URL.
+        // Action views are real Android controls. Keep Settings reachable after
+        // rotation, use a >=40dp touch target and allow deliberate long-press
+        // drag reordering without rebuilding BrowserToolbar's click listeners.
         toolbar.asView().post {
             val actions = toolbar.asView().findViewById<ViewGroup>(
                 mozilla.components.browser.toolbar.R.id.mozac_browser_toolbar_browser_actions
-            )
-            val slotWidth = (28f * density).toInt()
-            val iconPadding = (2f * density).toInt()
-            if (actions != null) {
-                for (index in 0 until actions.childCount) {
-                    actions.getChildAt(index).apply {
-                        minimumWidth = slotWidth
-                        minimumHeight = (40f * density).toInt()
-                        layoutParams = layoutParams.apply { width = slotWidth }
-                        setPadding(iconPadding, paddingTop, iconPadding, paddingBottom)
+            ) ?: return@post
+            val ids = mutableMapOf<View, String>()
+            val customActions = listOf("new", "next", "previous", "close", "back", "forward", "settings")
+            val prefixCount = (actions.childCount - customActions.size).coerceAtLeast(0)
+            for (i in 0 until actions.childCount) {
+                ids[actions.getChildAt(i)] =
+                    if (i < prefixCount) "refresh_$i" else customActions.getOrNull(i - prefixCount) ?: "action_$i"
+            }
+            val preferredOrder = prefs.niraToolbarActionOrder.split(",").filter { it.isNotBlank() }
+            if (preferredOrder.isNotEmpty()) {
+                val desired = (preferredOrder.mapNotNull { name ->
+                    ids.entries.firstOrNull { it.value == name }?.key
+                } + (0 until actions.childCount).map { actions.getChildAt(it) })
+                    .distinct()
+                desired.forEachIndexed { index, button ->
+                    if (actions.indexOfChild(button) != index) {
+                        actions.removeView(button)
+                        actions.addView(button, index)
                     }
                 }
-                // On narrow layouts the stock action strip can clip the LAST
-                // control (Settings). Reserve space for the address and never
-                // allow hidden end controls to receive unreachable taps.
-                val toolbarWidth = toolbar.asView().width
-                val reservedAddress = (108f * density).toInt()
-                val reservedTabCounter = (38f * density).toInt()
-                val maxSlots = ((toolbarWidth - reservedAddress - reservedTabCounter)
-                    / slotWidth).coerceAtLeast(1)
-                val candidatesToHide = listOf(2, 3, 5, 6, 4)
+            }
+
+            fun updateActionLayout() {
+                val densityNow = resources.displayMetrics.density
+                val slot = (prefs.niraToolbarActionSlotDp.coerceIn(40, 52) * densityNow).toInt()
+                val padding = (2f * densityNow).toInt()
+                for (i in 0 until actions.childCount) {
+                    val child = actions.getChildAt(i)
+                    if (child.layoutParams.width != slot) {
+                        child.layoutParams = child.layoutParams.apply { width = slot }
+                    }
+                    child.minimumWidth = slot
+                    child.minimumHeight = (40f * densityNow).toInt()
+                    if (child.paddingLeft != padding || child.paddingRight != padding) {
+                        child.setPadding(padding, child.paddingTop, padding, child.paddingBottom)
+                    }
+                    if (child.visibility != View.VISIBLE) child.visibility = View.VISIBLE
+                }
+                val width = toolbar.asView().width
+                if (width == 0) return
+                val reservedAddress = (prefs.niraAddressMinWidthDp.coerceIn(64, 220) * densityNow).toInt()
+                val reservedCounter = (38f * densityNow).toInt()
+                val availableSlots = ((width - reservedAddress - reservedCounter) / slot)
+                    .coerceAtLeast(1)
                 var visibleCount = actions.childCount
-                for (index in candidatesToHide) {
-                    if (visibleCount <= maxSlots) break
-                    if (index < actions.childCount - 1) {
-                        actions.getChildAt(index).visibility = View.GONE
+                // Hide secondary actions first, never Settings. Width is
+                // recalculated whenever the toolbar bounds change.
+                for (name in listOf("previous", "next", "forward", "close", "back")) {
+                    if (visibleCount <= availableSlots) break
+                    val child = ids.entries.firstOrNull { it.value == name }?.key ?: continue
+                    if (child.visibility == View.VISIBLE) {
+                        child.visibility = View.GONE
                         visibleCount--
                     }
                 }
-                actions.requestLayout()
+                // New/refresh/settings are prioritized; extremely narrow
+                // layouts can still use the regular menu for other commands.
             }
+            actions.setOnDragListener { _, event ->
+                when (event.action) {
+                    android.view.DragEvent.ACTION_DRAG_STARTED -> event.localState is View
+                    android.view.DragEvent.ACTION_DROP -> {
+                        val dragged = event.localState as? View ?: return@setOnDragListener false
+                        if (actions.indexOfChild(dragged) < 0) return@setOnDragListener false
+                        val target = (0 until actions.childCount).firstOrNull { index ->
+                            val button = actions.getChildAt(index)
+                            button.visibility == View.VISIBLE &&
+                                event.x < button.x + button.width / 2f
+                        } ?: (actions.childCount - 1)
+                        val from = actions.indexOfChild(dragged)
+                        if (from != target) {
+                            actions.removeView(dragged)
+                            actions.addView(dragged, target.coerceIn(0, actions.childCount))
+                            prefs.niraToolbarActionOrder = (0 until actions.childCount)
+                                .mapNotNull { ids[actions.getChildAt(it)] }.joinToString(",")
+                        }
+                        updateActionLayout()
+                        true
+                    }
+                    android.view.DragEvent.ACTION_DRAG_ENDED -> true
+                    else -> true
+                }
+            }
+            for (i in 0 until actions.childCount) {
+                actions.getChildAt(i).setOnLongClickListener { button ->
+                    button.startDragAndDrop(
+                        android.content.ClipData.newPlainText("nira-toolbar-action", ids[button] ?: ""),
+                        View.DragShadowBuilder(button), button, 0
+                    )
+                }
+            }
+            var lastWidth = -1
+            toolbar.asView().addOnLayoutChangeListener { _, left, _, right, _, oldLeft, _, oldRight, _ ->
+                if (right - left != oldRight - oldLeft || lastWidth < 0) {
+                    val newWidth = right - left
+                    if (newWidth != lastWidth) {
+                        lastWidth = newWidth
+                        updateActionLayout()
+                    }
+                }
+            }
+            updateActionLayout()
         }
         observeTabCountForBadge()
     }
