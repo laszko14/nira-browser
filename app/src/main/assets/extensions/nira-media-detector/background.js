@@ -279,6 +279,7 @@ function onHeaders(details) {
   else if (slot.count >= MAX_ROUTED_PER_5S) return;
   else slot.count++;
   while (routedRate.size > 64) routedRate.delete(routedRate.keys().next().value);
+  const sizeBytes = contentSize(details, format);
   const dedupKey = tabId + ":" + doc.documentKey + ":" + String(details.incognito) +
     ":" + details.url + ":" + format;
   const previously = seen.get(dedupKey);
@@ -292,7 +293,6 @@ function onHeaders(details) {
     isPrivate: details.incognito, documentKey: doc.documentKey, pageUrl: doc.pageUrl
   };
   if (contentType) message.contentType = contentType;
-  const sizeBytes = contentSize(details, format);
   if (sizeBytes !== null) message.sizeBytes = sizeBytes;
   if (!browser.tabs || typeof browser.tabs.sendMessage !== "function") {
     anonymous("network_unassigned", details.incognito);
