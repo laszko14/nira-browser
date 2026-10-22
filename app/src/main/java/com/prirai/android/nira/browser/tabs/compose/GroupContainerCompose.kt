@@ -167,7 +167,7 @@ fun GroupContainerListItem(
 
                     // Group name
                     Text(
-                        text = title,
+                        text = "(${children.size}) $title",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -176,26 +176,6 @@ fun GroupContainerListItem(
                         modifier = Modifier.weight(1f)
                     )
 
-                    // Tab count badge
-                    Surface(
-                        shape = CircleShape,
-                        color = Color(color).copy(alpha = 0.2f),
-                        border = BorderStroke(2.dp, Color(color))
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .padding(horizontal = 12.dp, vertical = 4.dp)
-                                .defaultMinSize(minWidth = 24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = children.size.toString(),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = Color(color),
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
                 }
 
                 // Options button
@@ -574,7 +554,7 @@ fun GroupContainerGridItem(
 
                     // Group name
                     Text(
-                        text = title,
+                        text = "(${children.size}) $title",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -583,26 +563,6 @@ fun GroupContainerGridItem(
                         modifier = Modifier.weight(1f)
                     )
 
-                    // Tab count badge
-                    Surface(
-                        shape = CircleShape,
-                        color = Color(color).copy(alpha = 0.2f),
-                        border = BorderStroke(2.dp, Color(color))
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .padding(horizontal = 12.dp, vertical = 4.dp)
-                                .defaultMinSize(minWidth = 24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = children.size.toString(),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = Color(color),
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
                 }
 
                 // Options button

@@ -40,7 +40,7 @@
 
     </PreferenceCategory>
 
-    <PreferenceCategory android:title="Toolbar &amp; Navigation">
+    <PreferenceCategory android:title="Toolbar &amp; Navigation" app:key="nira_toolbar_nav_section">
         
         <!-- Compact top-only browsing: redundant toolbar switches removed. -->
         <SeekBarPreference app:key="nira_address_height_dp"

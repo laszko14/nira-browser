@@ -74,7 +74,7 @@ class ContextMenuIntegration(
                         android.os.Environment.DIRECTORY_DOWNLOADS
                     ).path
                 }
-            ) + appLinksCandidate + createCopyLinkTextCandidate(context, parentView, snackbarDelegate)
+            ) + appLinksCandidate + createOpenLinkInGroupCandidate(context, tabsUseCases, parentView, snackbarDelegate) + createCopyLinkTextCandidate(context, parentView, snackbarDelegate)
         }
     }
 
