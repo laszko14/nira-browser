@@ -1,6 +1,6 @@
 # Automatyczny smoke test ARM64 Nira Browser
 
-Status: **nowa konfiguracja CI; wymaga pierwszego udanego wykonania na GitHub Actions**.
+Status: **Stage 3.2: poprzedni test/lint/build CI zakończony sukcesem** (run 39722340576); **nowa próba emulatora ARM64 nadal wymaga weryfikacji**.
 
 Workflow: `.github/workflows/emulator-smoke-arm64.yml`.
 
@@ -28,3 +28,16 @@ Workflow: `.github/workflows/emulator-smoke-arm64.yml`.
 - Ten workflow nie modyfikuje istniejącego `apk-release.yml`, nie publikuje dodatkowych APK ani nie używa sekretów.
 - Pierwszy run może ujawnić brak obsługi obrazu emulatora, ograniczenia runnera lub błędy uruchomienia — wtedy popraw konfigurację na podstawie logów zamiast oznaczać test jako zaliczony.
 - Nie publikuj screenshotów prywatnych sesji, stron z tokenami ani cookies. Test ma używać wyłącznie czystego emulatora i publicznego `example.org`.
+
+
+## Oddzielne testy Stage 3.2 (bez emulatora)
+
+Job `stage32-regression` na Ubuntu uruchamia komplet testów JavaScript (klasyfikacja webRequest, URL/MIME, HLS/DASH, segmenty, duplikaty, walidacja oraz routing mock → native) i JVM (`testDebugUnitTest`). Raporty lądują w `nira-stage32-regression-results`. To prawdziwe automatyczne testy kodu, ale routing GeckoView używa symulowanego interfejsu JS — nie jest dowodem, że GeckoView rzeczywiście wygenerował dany callback.
+
+## Dodatkowy test integracyjny (eksperymentalny)
+
+W jobie `arm64-emulator` skrypt `tools/ci/media_network_fixture.py` wystawia tylko na lokalnym porcie kontrolowane odpowiedzi MP4/WebM/HLS/DASH, duplikat MP4, segment m4s oraz fałszywe MP4 typu `text/html`. Po odwiedzeniu strony przez Nira w emulatorze sprawdzane są liczniki żądań oraz **sanityzowane** logi `NiraMediaDetector`. Wymaga to rzeczywistego działania emulatora oraz otwarcia strony, czego nie gwarantuje samo `assembleDebug`.
+
+**Ryzyko techniczne:** runner Apple Silicon GitHub nie gwarantuje zagnieżdżonej wirtualizacji, dlatego start emulatora może być niemożliwy lub przekroczyć limit czasu. Jeżeli test nie uruchomi emulatora, należy odnotować ograniczenie infrastruktury, a nie sugerować awarię detektora. Nie zmieniać zasady publikowania wyłącznie arm64 dla telefonu bez osobnej zgody użytkownika.
+
+Dla jasności: mocki HTTP zwracają przykładowe, krótkie odpowiedzi (nie są prawdziwymi odtwarzalnymi mediami). Test mierzy rozpoznawanie **sieciowe**, nie poprawność odtwarzania materiałów.
