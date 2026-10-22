@@ -637,6 +637,24 @@ class UnifiedToolbar @JvmOverloads constructor(
         action(mozilla.components.ui.icons.R.drawable.mozac_ic_ellipsis_vertical_24, "Ustawienia") {
             contextualToolbarListener?.onMenuClicked()
         }
+        // 1DM's dense layout requires compact action slots; the Mozilla
+        // defaults would consume all horizontal space and hide the URL.
+        toolbar.asView().post {
+            val actions = toolbar.asView().findViewById<ViewGroup>(
+                mozilla.components.browser.toolbar.R.id.mozac_browser_toolbar_browser_actions
+            )
+            val slotWidth = (28f * density).toInt()
+            val iconPadding = (2f * density).toInt()
+            if (actions != null) {
+                for (index in 0 until actions.childCount) {
+                    actions.getChildAt(index).apply {
+                        minimumWidth = slotWidth
+                        layoutParams = layoutParams.apply { width = slotWidth }
+                        setPadding(iconPadding, paddingTop, iconPadding, paddingBottom)
+                    }
+                }
+            }
+        }
         observeTabCountForBadge()
     }
 
