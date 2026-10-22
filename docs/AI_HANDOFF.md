@@ -110,3 +110,12 @@ Na Nothing Phone (1) zainstalować `app-arm64-v8a-debug.apk`, wpisać publiczny 
 - Cert z PR #4 testowego APK: `86a30a10f2ab90053939a547b429fabc31fd0153cb30dd07216b9764776ef8b6`. **Różni się od Stage 3.2**, co uniemożliwia traktowanie go jako aktualizacji tej instalacji. Faktyczny fingerprint aplikacji z telefonu nie został odczytany, więc nie twierdzić, że jest znany. Nie odinstalowywać, nie czyścić danych.
 - W trybie private sieć przekazuje `isPrivate` wyłącznie z metadanych Gecko, a Kotlin wymaga zgodności z zaufanym `EngineSession`; przy nieznanym incognito pomija niepewną odpowiedź. Nie można jeszcze zapewnić, że GeckoView 156.0.1 na fizycznym urządzeniu udostępnia `responseHeaders`, `details.tabId` i `tabs.sendMessage` we wszystkich przypadkach. Potwierdzony wcześniej callback probe dotyczył tylko testowego pliku.
 - Status: **kod + automatyczne testy + testowy APK w CI — wykonane; aktualizacja instalacji i test telefonu — niepotwierdzone / blokada przez certyfikat**. Jedynym kolejnym krokiem użytkownika jest bezpieczna weryfikacja podpisu na telefonie i, jeżeli zgodny, wykonanie scenariuszy diagnostyki. Nie rozpoczynać 3.3.
+
+
+## CI ARM64 emulator — osobny PR (2026-10-22)
+
+- Gałąź `ci/nira-emulator-arm64-smoke` utworzona z `feat/media-detector-stage-3-2-network`, tylko infrastruktura smoke testu, bez modyfikacji kodu 3.2.
+- Workflow `.github/workflows/emulator-smoke-arm64.yml` buduje jeden arm64 debug APK, uruchamia emulator Android API 35 na `macos-15` (Apple Silicon), weryfikuje start i brak fatalnej awarii, zapisuje zrzuty do artefaktu **bez APK**.
+- Testowy build używa efemerycznego certyfikatu debug; **nie nadaje się jako aktualizacja telefonu**. Obecna polityka tylko arm64 i stały podpis APK użytkownika pozostają bez zmian.
+- Dokumentacja: `docs/CI_ARM64_EMULATOR.md`. **CI nie jest jeszcze potwierdzone jako PASS** — sprawdź pierwszy run i popraw na podstawie logów, jeśli wystąpi problem.
+- Nie interpretuj smoke testu jako potwierdzenia działania network video detection ani testu fizycznego Nothing Phone (1).
