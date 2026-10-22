@@ -196,3 +196,11 @@ Na Nothing Phone (1) zainstalować `app-arm64-v8a-debug.apk`, wpisać publiczny 
 - Jedyny job budujący instalacyjny APK działa fail-closed dla wszystkich PR-ów i pushy, wymaga czterech Secrets, usuwa tymczasowy keystore, a skrypt walidacyjny sprawdza certyfikat, pakiet, wersję oraz pojedyncze ABI arm64-v8a przed publikacją artefaktu. Usunięto historyczne joby z efemerycznym podpisem. Job tagowanego release ma te same kontrole i cleanup.
 - PR #11 (Draft, bez merge): https://github.com/laszko14/nira-browser/pull/11. CI https://github.com/laszko14/nira-browser/actions/runs/39807671100 zakończyło build/test/lint SUCCESS; zweryfikowany APK: https://github.com/laszko14/nira-browser/actions/runs/39807671100/artifacts/12439380190. Log potwierdza pakiet, wersję, wyłącznie arm64-v8a i przypięty certyfikat projektu.
 - Test aktualizacji na Nothing Phone (1) nie został wykonany. Nowy certyfikat nie jest zgodny z udokumentowanymi efemerycznymi certyfikatami wcześniejszych APK; zgodność z faktycznie zainstalowaną aplikacją wymaga sprawdzenia na urządzeniu.
+
+## 2026-10-22 — poprawka znikającego pływającego guzika (Etap 4.0.3)
+
+- Base ci/stable-apk-signing HEAD 9d18d6e500c2505a96779d5006db7e055c3e4517; roboczy branch fix/media-floating-disappears-after-load; bez merge.
+- Zgłoszenie: przycisk z liczbą filmów pojawia się, a po chwili znika. Wyścig: BrowserFragment selectedDocument aktualizuje loading=false przed MediaDetectorController.observe(), a MediaRepository.currentEntries odrzuca wynik przez strict loading mismatch. Zmiana stanu true→false nie powoduje repository revision.
+- Poprawa: currentEntries pozwala UI widzieć już zweryfikowane wpisy tego samego dokumentu po zakończeniu ładowania, w tym krótkim okresie przed reconcile; nowy load nadal ukrywa stare wpisy. MediaFloatingUi.render przenosi widoczne kółko nad rodzeństwo.
+- Test regresji w MediaFloatingStage40Test sprawdza wynik przed/po reconcile i nowy reload.
+- Nowy arm64 APK: 0.5.22-alpha5, versionCode 1099; ta sama konfiguracja stałego podpisu co PR #11, bez odinstalowywania i kasowania danych. CI i działanie na urządzeniu wymagają oddzielnej weryfikacji.

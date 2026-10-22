@@ -248,7 +248,9 @@ internal class MediaRepository(
     @Synchronized fun currentEntries(tab: MediaTabState): List<MediaEntry> =
         scopes[tab.binding.session]?.takeIf {
             same(it.binding, tab.binding) && it.pageUrl == tab.pageUrl &&
-                it.loading == tab.loading && it.registered
+                // Store may publish loading=false before the detector observes it.
+                // A new load (false -> true) must still hide stale results immediately.
+                (!tab.loading || it.loading) && it.registered
         }?.entries?.values?.map { it.copy() } ?: emptyList()
 
     /** Sanitized aggregates used by diagnostics; no URLs escape via this API. */

@@ -109,6 +109,7 @@ internal class MediaFloatingUi(
         val amount = displayed?.entries?.groupBy { it.groupId ?: "url:" + it.url }?.size ?: 0
         count.text = if (amount > 99) "99+" else amount.toString()
         button.visibility = if (!isFullscreen && amount > 0) View.VISIBLE else View.GONE
+        if (button.visibility == View.VISIBLE) button.bringToFront()
         if (sheet?.isShowing == true) {
             if (amount == 0 || isFullscreen) sheet?.dismiss() else fillSheet()
         }
