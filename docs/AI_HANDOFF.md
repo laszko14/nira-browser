@@ -119,3 +119,11 @@ Na Nothing Phone (1) zainstalować `app-arm64-v8a-debug.apk`, wpisać publiczny 
 - Testowy build używa efemerycznego certyfikatu debug; **nie nadaje się jako aktualizacja telefonu**. Obecna polityka tylko arm64 i stały podpis APK użytkownika pozostają bez zmian.
 - Dokumentacja: `docs/CI_ARM64_EMULATOR.md`. **CI nie jest jeszcze potwierdzone jako PASS** — sprawdź pierwszy run i popraw na podstawie logów, jeśli wystąpi problem.
 - Nie interpretuj smoke testu jako potwierdzenia działania network video detection ani testu fizycznego Nothing Phone (1).
+
+
+## Etap 3.2 — rozszerzenie testów CI (2026-10-22, PR #6)
+
+- Potwierdzony bazowy run Stage 3.2 `39722340576`: `test`, `lint`, `temporary_arm64_stage32` = SUCCESS; z logów Node: **13 testów, 13 zaliczonych, 0 błędów**. Jednostkowe testy Kotlin = SUCCESS (bez niezależnie potwierdzonej liczby przypadków). Jest testowy ARM64 APK, podpis debug tymczasowy, **nie update-safe**.
+- Rozszerzono roboczy PR #6 `ci/nira-emulator-arm64-smoke`: oddzielny job `stage32-regression` z Node i Kotlin na Ubuntu; eksperymentalny job `arm64-emulator` z lokalnym HTTP fixture MP4, WebM, HLS, DASH, segment i HTML podszywający się pod MP4. Weryfikacja realnego runtime wymaga zielonego joba, same commity NIE stanowią wyniku testu.
+- Pierwsza próba emulatora run `39724056279`: build arm64 = SUCCESS, uruchomienie emulatora nadal `in_progress` w ostatnim odczycie. Runner GitHub macOS ARM64 nie wspiera nested virtualization, więc uruchomienie może być problemem infrastruktury. Nie deklarować zaliczenia E2E bez artefaktów i logów.
+- Dane prywatne/URL i tokeny nie są zapisywane w testowych logach. GitHub APK podpisany efemerycznie NIE może zastąpić aktualizacyjnego APK użytkownika. Nie rozpoczęto 3.3 ani nie zmieniono kodu produkcyjnego detektora.
