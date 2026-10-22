@@ -539,3 +539,57 @@ test("stage 4.0.2: loadedmetadata enriches a previously detected paused movie", 
   assert.equal(p.native[1][1].durationSeconds, 3723);
   assert.equal(p.native[1][1].url, p.native[0][1].url);
 });
+
+
+test("v1106: deeper declarative video attributes are detected before playback", async () => {
+  const p = page();
+  const selector = "[data-video-url],[data-video-src],[data-hls],[data-mpd]," +
+    "[data-src],[data-plyr-source],[data-file],[data-stream-url]," +
+    "[data-playback-url],[data-manifest-url],[data-source-url]," +
+    "[data-mp4],[data-m3u8],[data-stream]";
+  p.extra.set(selector, [{
+    getAttribute: name => ({
+      "data-playback-url": "https://cdn.example.org/watch.mp4",
+      "data-m3u8": "https://cdn.example.org/playlist.m3u8"
+    })[name] || null
+  }]);
+  await p.mutate();
+  assert.deepEqual(p.native.map(x => x[1].url), [
+    "https://cdn.example.org/watch.mp4",
+    "https://cdn.example.org/playlist.m3u8"
+  ]);
+});
+
+test("v1106: preview assist plays a ready muted thumbnail without navigating", async () => {
+  let click, plays = 0, prevented = false, stopped = false;
+  const video = {
+    paused: true, isConnected: true, readyState: 3, muted: true,
+    src: "https://cdn.example.org/preview.mp4",
+    querySelectorAll: () => [], querySelector: () => null,
+    hasAttribute: () => false,
+    play: () => { plays++; return Promise.resolve(); }
+  };
+  const card = {
+    closest: () => null,
+    querySelector: selector => selector === "video" ? video : {}
+  };
+  const control = {
+    className: "preview-play", textContent: "Play",
+    getAttribute: () => null,
+    closest: selector => selector === "nav,header,footer" ? null :
+      selector === "a[href]" ? {} : card
+  };
+  vm.runInNewContext(
+    fs.readFileSync(path.join(assets, "preview-assist.js"), "utf8"),
+    { document: { addEventListener: (type, fn) => { if (type === "click") click = fn; } } }
+  );
+  click({
+    isTrusted: true, cancelable: true, defaultPrevented: false, button: 0,
+    target: { closest: () => control },
+    preventDefault: () => { prevented = true; },
+    stopImmediatePropagation: () => { stopped = true; }
+  });
+  assert.equal(plays, 1);
+  assert.equal(prevented, true);
+  assert.equal(stopped, true);
+});
