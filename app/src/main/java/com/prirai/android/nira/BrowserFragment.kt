@@ -856,6 +856,26 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 onClick = { showOpenVideoLinkDialog() }
             )
         )
+        // Users can opt back into the Android chooser without changing system defaults.
+        val playerPrefs = requireContext().getSharedPreferences("nira_video_player", android.content.Context.MODE_PRIVATE)
+        val askForPlayer = playerPrefs.getBoolean("ask_each_time", false)
+        menuItems.add(
+            com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+                id = "toggle_video_player_choice",
+                title = if (askForPlayer) "Odtwarzacz: wybieraj za każdym razem"
+                    else "Odtwarzacz: MPV Alpha automatycznie",
+                iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_external_link_24,
+                onClick = {
+                    playerPrefs.edit().putBoolean("ask_each_time", !askForPlayer).apply()
+                    Toast.makeText(
+                        requireContext(),
+                        if (askForPlayer) "MPV Alpha będzie otwierany automatycznie"
+                        else "Przy otwieraniu filmu pojawi się wybór odtwarzacza",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            )
+        )
         // On-device detector test: no ADB and no media URLs are exposed.
         menuItems.add(
             com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
@@ -1223,17 +1243,29 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
 
     private fun launchVideoInMpv(uri: android.net.Uri) {
         val viewIntent = Intent(Intent.ACTION_VIEW).apply { setDataAndType(uri, "video/*") }
-        try {
-            startActivity(Intent(viewIntent).setClassName(
-                "xyz.mpv.rex", "xyz.mpv.rex.ui.player.PlayerActivity"
-            ))
-        } catch (_: ActivityNotFoundException) {
+        val playerPrefs = requireContext().getSharedPreferences("nira_video_player", android.content.Context.MODE_PRIVATE)
+        if (playerPrefs.getBoolean("ask_each_time", false)) {
             openVideoChooser(viewIntent)
-        } catch (_: SecurityException) {
-            openVideoChooser(viewIntent)
-        } catch (_: IllegalArgumentException) {
-            openVideoChooser(viewIntent)
+            return
         }
+
+        // Signed MPV Alpha debug builds use the .debug applicationId suffix.
+        // Prefer Alpha to the older release (REX Player), without an Android chooser.
+        for (packageName in listOf("xyz.mpv.rex.debug", "xyz.mpv.rex")) {
+            try {
+                startActivity(Intent(viewIntent).setClassName(
+                    packageName, "xyz.mpv.rex.ui.player.PlayerActivity"
+                ))
+                return
+            } catch (_: ActivityNotFoundException) {
+                // Try the other signed variant before falling back to Android.
+            } catch (_: SecurityException) {
+                // Explicit player not accessible on this device.
+            } catch (_: IllegalArgumentException) {
+                // An OEM resolver might reject the explicit activity.
+            }
+        }
+        openVideoChooser(viewIntent)
     }
 
     private fun openVideoChooser(viewIntent: Intent) {
