@@ -1,10 +1,13 @@
 # Nira Browser — plan implementacji wykrywania wideo
 
 **Data:** 2026-10-22  
-**Stan:** PLAN — jeszcze nie zaimplementowano automatycznego wykrywania  
+**Stan:** 3.0 kod i CI w PR #2; 3.1 kod i CI success w PR #3; test telefonu nadal oczekuje. Dalej plan etapów 3.2–6.1  
 **Repo:** https://github.com/laszko14/nira-browser  
 **Badanie:** [VIDEO_DETECTION_RESEARCH.md](VIDEO_DETECTION_RESEARCH.md)  
 **Stan bieżący:** [PROJECT_STATUS.md](PROJECT_STATUS.md)
+
+
+> **Checkpoint 3.2, 2026-10-22:** implementacja URL/MIME przez pasywne `onHeadersReceived` rozwijana na `feat/media-detector-stage-3-2-network` z PR #4 HEAD `52973f9`. Manifest-only HLS/DASH, segmenty odrzucane, kanał tabs.sendMessage → natywna EngineSession z fail-closed dla niepowiązanego webRequest, ograniczona deduplikacja; status **CI SUCCESS: run 39721818021, test telefonu niepotwierdzony, podpis tymczasowego APK inny niż w PR #4**. Nie rozpoczęto 3.3 ani 4.0.
 
 ## Cel produktu i definicja sukcesu
 
@@ -31,7 +34,7 @@ Przed rozpoczęciem **przeczytaj**: ../AGENTS.md, AI_HANDOFF.md, AI_PROGRESS.md,
 
 **Nie łącz etapów 3.0–4.1 w jednym prompcie.** Codex powinien kończyć mały zakres i aktualizować checkpointy.
 
-## 3.0 — pierwszy, najmniejszy etap (WYKONAJ TERAZ)
+## 3.0 — historyczna specyfikacja pierwszego etapu (kod w PR #2; telefon niepotwierdzony)
 
 1. Potwierdź używane wersje Mozilla Components i GeckoView w gradle/libs.versions.toml i rzeczywiste API `webRequest`, `nativeMessaging`, engine.installBuiltInWebExtension oraz message delegate w tej wersji.
 2. Zbadaj istniejący wzór:

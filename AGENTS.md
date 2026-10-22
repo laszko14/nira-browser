@@ -27,6 +27,14 @@ Projekt Alpha Browser: własna przeglądarka Android na bazie otwartego Nira Bro
 5. Rozszerzenie wykrywania: nagłówki/cookies/Referer tam, gdzie bezpieczne i potrzebne; manifesty i warianty jakości; wymagające strony bez obchodzenia DRM.
 6. Stabilizacja, testy, automatyczne wydania i stały klucz podpisu; każda nowa wersja unikalna.
 
+## Stała polityka APK dla telefonu (2026-10-22)
+- **Jedyny obsługiwany wariant na tym etapie: arm64-v8a** dla Nothing Phone (1), Android 15. Nie kompiluj ani nie publikuj armeabi-v7a, x86_64 i universal APK, chyba że użytkownik wyraźnie zmieni tę zasadę.
+- **Kolejne wersje mają być aktualizacjami**: utrzymuj ten sam applicationId (`com.prirai.android.nira.debug` dla testów), identyczny certyfikat podpisu i rosnący versionCode. Numer versionName też zmieniaj przy kolejnym APK.
+- Nie wystarczy zmiana versionCode: bez tego samego certyfikatu Android odrzuci instalację nad istniejącą wersją. Nie nakazuj usuwania aplikacji bez zgody; wymagaj weryfikacji certyfikatu i zachowania danych.
+- APK przeznaczone do aktualizacji kompiluj w GitHub CI wyłącznie ze **stałym kluczem znajdującym się w GitHub Secrets**. Brak klucza = błąd joba, a nie publikacja losowo podpisanego APK.
+- Źródło klucza w istniejącym CI: ANDROID_KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD (także do aktualizacji wersji debug; nigdy nie umieszczaj ich wartości w kodzie i logach). Jeden raz może być konieczne przejście ze starego losowego klucza debug na certyfikat stały; NIE obiecuj zgodności wstecz bez porównania certyfikatów.
+- Testy/lint mogą używać lokalnego debug keystore, lecz artefakt do instalacji ma pochodzić ze zweryfikowanego joba podpisującego.
+
 ## Zasady oszczędzania budżetu Codex
 - W jednej sesji rób tylko jeden mały, sprawdzalny etap. NIE przeprowadzaj zbędnego researchu ani refaktoryzacji.
 - Nie twórz GitHub Actions od nowa, dopóki można poprawić istniejący workflow.

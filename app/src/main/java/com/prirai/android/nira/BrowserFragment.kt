@@ -792,6 +792,15 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 onClick = { showOpenVideoLinkDialog() }
             )
         )
+        // On-device detector test: no ADB and no media URLs are exposed.
+        menuItems.add(
+            com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+                id = "media_detector_diagnostics",
+                title = "Diagnostyka filmów",
+                iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_external_link_24,
+                onClick = { showMediaDetectorDiagnostics() }
+            )
+        )
         menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Divider)
         
         // QuadRow: History, Bookmarks, Print, Save as PDF
@@ -1088,6 +1097,36 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 menuItems
             ).show(it, preferBottom)
         }
+    }
+
+    /** Read-only snapshot, taken from the native bridge after entering the menu. */
+    private fun showMediaDetectorDiagnostics() {
+        val store = requireContext().components.store
+        fun report(): String {
+            val tab = store.state.tabs.find { it.id == store.state.selectedTabId }
+            return com.prirai.android.nira.media.MediaDetectorDiagnostics
+                .snapshot(tab?.id, tab?.content?.private == true, tab?.contextId)
+                .asPolishReport()
+        }
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Diagnostyka wykrywania filmów")
+            .setMessage(report())
+            .setPositiveButton("Zamknij", null)
+            .setNeutralButton("Odśwież", null)
+            .setNegativeButton("Kopiuj raport", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                dialog.setMessage(report())
+            }
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE).setOnClickListener {
+                val clipboard = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                    as android.content.ClipboardManager
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Nira media diagnostics", report()))
+                android.widget.Toast.makeText(requireContext(), "Raport bez adresów skopiowany", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+        dialog.show()
     }
 
     private fun showOpenVideoLinkDialog() {
