@@ -381,7 +381,12 @@ class TabViewModel(
     /**
      * Move tab to an existing group
      */
-    fun moveTabToGroup(tabId: String, groupId: String) {
+    fun moveTabToGroup(
+        tabId: String,
+        groupId: String,
+        targetTabId: String? = null,
+        insertAfter: Boolean = true
+    ) {
         viewModelScope.launch {
             _currentProfileId.value?.let { profileId ->
                 // Get the tab and the target group
@@ -400,11 +405,17 @@ class TabViewModel(
                         (groupContextId == null || groupContextId == "profile_default")
 
                     if (tabContextId == groupContextId || defaultProfileMatch) {
-                        // Add tab to group
+                        // A drop on another group's tab inserts at that
+                        // exact place; a header drop appends. Preserve the
+                        // existing profile/context security guard above.
+                        val targetIndex = targetTabId?.let { target ->
+                            val index = targetGroup.tabIds.indexOf(target)
+                            if (index < 0) null else index + (if (insertAfter) 1 else 0)
+                        }
                         groupManager.addTabToGroup(
                             tabId = tabId,
                             groupId = groupId,
-                            position = null,
+                            position = targetIndex,
                             notifyChange = true
                         )
 
