@@ -26,11 +26,11 @@ Priorytetami są: zachowanie obecnych funkcji Nira, małe sprawdzalne etapy, osz
 | Ostatni opisany zakończony build | **CI success** | https://github.com/laszko14/nira-browser/actions/runs/39691305749 |
 | Artefakt APK arm64 tego builda | **Zweryfikowany w AI_HANDOFF** | https://github.com/laszko14/nira-browser/actions/runs/39691305749/artifacts/12388986024 |
 | Test otwarcia MPV Alpha na Nothing Phone (1) | **Niepotwierdzony** | wymagany fizyczny test |
-| Automatyczny detektor wideo GeckoView | **Niewykonany** | następny etap implementacyjny: 3.0 |
+| Automatyczny detektor wideo GeckoView | **Etap 3.0: kod w weryfikacji** | minimalny DOM → session-bound bridge Kotlin; telefon niepotwierdzony |
 | Panel wykrytych filmów / przycisk | **Niewykonany** | etap 4.0 |
 | Parser HLS / DASH i warianty jakości | **Niewykonany** | etap 4.1 |
 | Własny zaawansowany download manager | **Niewykonany, niskie pierwszeństwo** | najpierw działające wykrycie i streaming |
-| Testy jednostkowe detektora | **Niewykonane** | poprzedni testDebugUnitTest = NO-SOURCE |
+| Testy jednostkowe detektora | **8 JVM + 4 JS PASS w harnessach** | Android Gradle/CI bieżącego kodu w toku; poprzednie NO-SOURCE nie zaliczało testów |
 
 Uwaga: „CI success” nie oznacza, że funkcja została sprawdzona na telefonie. W raporcie AI_HANDOFF.md wymieniono także liczne istniejące problemy lint (abortOnError=false), dlatego nie należy twierdzić, że lint jest czysty. Zweryfikowany jest kod/artefakt **Etapu 2**, a nie nowy wykrywacz.
 

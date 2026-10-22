@@ -22,3 +22,11 @@
 
 - Commit `1a23bbedf23f7c6a2cfd1c071f165d288535b318`: zamieniono `Uri.parse` na `toUri()`; lokalne `assembleDebug lintDebug` success (1m 42s), raport lint po zmianie: 1626 błędów, 367 ostrzeżeń; ostrzeżenie z nowej linii zniknęło.
 - Końcowy run CI https://github.com/laszko14/nira-browser/actions/runs/39691305749: build/lint/test job success, release skipped. Artefakt https://github.com/laszko14/nira-browser/actions/runs/39691305749/artifacts/12388986024; pobrany APK arm64 zweryfikowano przez `aapt` i `apksigner`, SHA-256 `8e1a5ecaa4ac74b35db5327275f7c8a9b59485c36fc76ebe9c0d82cbd39018d4`. Test jednostkowy nadal NO-SOURCE.
+
+## 2026-10-22 — Etap 3.0, checkpoint implementacji
+
+- Środowisko Cloud uruchomiło się; czysta baza `b9fd4c5` zgodna ze zdalnym main. Nie powtórzono wcześniejszych etapów.
+- Dodano built-in WebExtension, session-bound bridge Kotlin, walidator i natywne przypisanie karty/partycji; bez UI, parserów, pobierania i trwałego stanu.
+- Przed implementacją testy JVM: 8 uruchomionych, 4 porażki; po implementacji 8/8 PASS w bezpośrednim harnessie Kotlin/JUnit. Testy JavaScript: 4/4 PASS.
+- Pierwszy start Gradle bez skonfigurowanego GRADLE_USER_HOME próbował pobrać dystrybucję i zgłosił Connection refused. Wskazanie przygotowanych `/workspace/.gradle` i Android SDK pozwoliło rozpocząć konfigurację; nie zmieniono zależności projektu.
+- Android build/lint/test, code review i CI nowej gałęzi w toku. Nie przeprowadzono testu telefonu. Szczegóły i ograniczenia w AI_HANDOFF.md.

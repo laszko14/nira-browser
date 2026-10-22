@@ -92,6 +92,9 @@ jobs:
       - name: Run unit tests
         run: ./gradlew testDebugUnitTest
 
+      - name: Test media detector WebExtension protocol
+        run: node --test app/src/test/js/*.test.cjs
+
       - name: Upload test reports
         uses: actions/upload-artifact@v4
         with:
