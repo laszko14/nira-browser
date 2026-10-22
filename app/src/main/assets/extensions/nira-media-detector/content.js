@@ -119,12 +119,17 @@
   }
   function posterFor(video) {
     if (!video) return null;
-    const own = absolute(video.poster || attribute(video, "poster") ||
-      attribute(video, "data-poster") || "");
-    if (own) return own;
+    const rawPoster = video.poster || attribute(video, "poster") ||
+      attribute(video, "data-poster");
+    if (rawPoster) {
+      const own = absolute(rawPoster);
+      if (own) return own;
+    }
     const container = video.closest && video.closest("article,figure,[class*='video'],[class*='player']");
     const image = container && container.querySelector && container.querySelector("img");
-    return image ? absolute(image.currentSrc || image.src || attribute(image, "data-src") || "") : null;
+    const imageSource = image &&
+      (image.currentSrc || image.src || attribute(image, "data-src"));
+    return imageSource ? absolute(imageSource) : null;
   }
   function durationOf(video) {
     const value = video && video.duration;
