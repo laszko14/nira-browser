@@ -92,7 +92,8 @@
     if (typeof value !== "string") return null;
     const clean = value.replace(/[\u0000-\u001f\u007f]/g, " ")
       .replace(/\s+/g, " ").trim();
-    return clean && clean.length <= 300 && new TextEncoder().encode(clean).length <= 900 ? clean : null;
+    return clean && clean.length <= 300 &&
+      (typeof TextEncoder === "undefined" || new TextEncoder().encode(clean).length <= 900) ? clean : null;
   }
   function pageTitle() {
     let title = null;
@@ -316,7 +317,7 @@
         try { walk(JSON.parse(raw), 0, videoTitle(element)); } catch (_) {}
       }
     });
-    scanCollection("script:not([src])", MAX_SCRIPTS, element => {
+    scanCollection("script", MAX_SCRIPTS, element => {
       const raw = element.textContent;
       const type = (attribute(element, "type") || "").toLowerCase();
       const id = (attribute(element, "id") || "").toLowerCase();
