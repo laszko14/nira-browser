@@ -22,7 +22,7 @@ class MediaMessageProtocolTest {
             valid.replace("\"schemaVersion\":1", "\"schemaVersion\":2"),
             valid.replace("\"schemaVersion\":1", "\"schemaVersion\":\"1\""),
             valid.replace("media_candidate", "other"),
-            valid.replace("\"dom\"", "\"network\""),
+            valid.replace("\"dom\"", "\"unknown\""),
             valid.replace("\"url\":\"https://example.org/flower.mp4?token=secret\"", "\"url\":false"),
             "{}", "null", "[]", "not-json", "{\"schemaVersion\":1}",
             valid.dropLast(1) + ",\"tabId\":\"spoofed\"}",
