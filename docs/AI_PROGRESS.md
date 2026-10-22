@@ -1,3 +1,12 @@
+## 2026-10-22 — Etap 4.0.3: pływający licznik znika po ładowaniu
+
+- Objaw: przycisk pokazuje liczbę filmów, ale po chwili znika.
+- Przyczyna w kodzie: UI i MediaDetectorController obserwują BrowserStore niezależnie. W MediaRepository.currentEntries sprawdzanie loading == scope.loading zwracało pusty wynik po zmianie true → false, jeśli widok otrzymał aktualizację szybciej niż repozytorium. Reconcile nie wysyłało revision przy samym zakończeniu ładowania, więc guzik mógł pozostać ukryty.
+- Fix: currentEntries toleruje opóźnione loading=true w repozytorium przy aktualnym loading=false w UI, wyłącznie przy identycznej sesji, karcie, profilu, trybie prywatnym, URL i zarejestrowanym dokumencie. Gdy rozpoczyna się nowy load, stare wpisy nadal są ukryte.
+- Widoczny przycisk dodatkowo wywołuje bringToFront dla dynamicznego rodzeństwa WebView. Dodano test regresji na przejście true → false bez wcześniejszego observe i nowy reload.
+- Baza: ci/stable-apk-signing 9d18d6e; branch fix/media-floating-disappears-after-load. Wersja 0.5.22-alpha5, versionCode ARM64 1099, podpis stały bez zmian. Nie wykonywano merge.
+- CI i test na telefonie: wymagają potwierdzenia, nie zakładać sukcesu bez wyników.
+
 ## 2026-10-22 — Etap 4.0: Floating Video Detector + Media Panel
 
 - Bazowy HEAD `30cdde1e7cf550106abe452693473e0f5c04eb37` potwierdzony w GitHub API; otwarto [PR #8](https://github.com/laszko14/nira-browser/pull/8) do gałęzi 3.3, bez #6 i bez merge.
