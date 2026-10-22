@@ -15,10 +15,11 @@ import mozilla.components.lib.state.ext.flowScoped
 import org.json.JSONObject
 import java.util.IdentityHashMap
 
-/** Stage 3.1: transient HTML5 MP4/WebM detection, without repository, UI or playback. */
+/** Stage 3.2: transient DOM and passive network candidates; no persistent repository. */
 internal class MediaDetectorController(private val engine: Engine, private val store: BrowserStore) {
     private val attached = IdentityHashMap<EngineSession, Unit>()
     private val rate = IdentityHashMap<EngineSession, Window>()
+    private val deduplicator = MediaRecentDeduplicator()
     private var observer: kotlinx.coroutines.CoroutineScope? = null
     private var started = false
 
@@ -50,10 +51,28 @@ internal class MediaDetectorController(private val engine: Engine, private val s
         // Preserve the Stage 3.0 public-fixture-only webRequest compatibility probe.
         extension.registerBackgroundMessageHandler(NATIVE_APP, object : MessageHandler {
             override fun onMessage(message: Any, source: EngineSession?): Any {
-                val accepted = (message as? JSONObject)?.toString()?.let(MediaMessageProtocol::decode) === MediaDetectorMessage.NetworkProbe
-                if (accepted) MediaDetectorDiagnostics.networkProbe() else MediaDetectorDiagnostics.rejected()
-                diagnostic(if (accepted) "webrequest_callback_received" else "background_rejected")
-                return accepted
+                // Background messages have no native EngineSession: never guess the active tab.
+                if (source != null) {
+                    MediaDetectorDiagnostics.rejected()
+                    return false
+                }
+                val decoded = (message as? JSONObject)?.toString()?.let(MediaMessageProtocol::decode)
+                when (decoded) {
+                    MediaDetectorMessage.NetworkProbe -> {
+                        MediaDetectorDiagnostics.networkProbe()
+                        diagnostic("webrequest_callback_received")
+                    }
+                    is MediaDetectorMessage.NetworkUnassigned ->
+                        MediaDetectorDiagnostics.networkUnassigned(decoded.isPrivate)
+                    is MediaDetectorMessage.NetworkSegments ->
+                        MediaDetectorDiagnostics.networkSegments(decoded.isPrivate, decoded.count)
+                    else -> {
+                        MediaDetectorDiagnostics.rejected()
+                        diagnostic("background_rejected")
+                        return false
+                    }
+                }
+                return true
             }
         })
         observer = store.flowScoped(dispatcher = Dispatchers.Main) { flow ->
@@ -62,6 +81,7 @@ internal class MediaDetectorController(private val engine: Engine, private val s
                 .collect { sessions ->
                     attached.keys.removeAll { old -> sessions.none { it === old } }
                     rate.keys.removeAll { old -> sessions.none { it === old } }
+                    deduplicator.retainSessions(sessions)
                     MediaDetectorDiagnostics.retainOpenTabs(store.state.tabs.map { it.id }.toSet())
                     sessions.forEach { session ->
                         if (!attached.containsKey(session)) {
@@ -86,7 +106,7 @@ internal class MediaDetectorController(private val engine: Engine, private val s
             val context = resolveMediaSession(source, bindings()) ?: return false
             val candidate = (message as? JSONObject)?.toString()?.let(MediaMessageProtocol::decode)
             if (candidate !is MediaDetectorMessage.Candidate) {
-                MediaDetectorDiagnostics.rejected()
+                MediaDetectorDiagnostics.validationError(context)
                 diagnostic("message_rejected")
                 return false
             }
@@ -100,15 +120,26 @@ internal class MediaDetectorController(private val engine: Engine, private val s
             } else {
                 window.count++
             }
-            val media = MediaClassifier.fromDom(candidate, context)
+            val media = when (candidate.source) {
+                MediaSource.DOM -> MediaClassifier.fromDom(candidate, context)
+                MediaSource.NETWORK -> MediaClassifier.fromNetwork(candidate, context)
+            }
             if (media == null) {
-                MediaDetectorDiagnostics.rejected()
+                if (candidate.source == MediaSource.NETWORK && MediaClassifier.isSegment(candidate.url)) {
+                    MediaDetectorDiagnostics.networkSegments(context.isPrivate, 1)
+                } else {
+                    MediaDetectorDiagnostics.rejected()
+                }
                 diagnostic("candidate_unsupported")
                 return false
             }
-            // No durable state until Stage 3.3. URLs remain transient in this local object.
-            MediaDetectorDiagnostics.detected(context, media.format)
-            diagnostic("media_detected format=${media.format} private=${context.isPrivate}")
+            // Signed URL is kept only within this bounded short-lived session filter.
+            if (!deduplicator.accept(context, media, now)) {
+                MediaDetectorDiagnostics.duplicate(context)
+                return true // acknowledge network path even when DOM already found the URL
+            }
+            MediaDetectorDiagnostics.detected(context, media.format, candidate.source)
+            diagnostic("media_detected format=${media.format} source=${candidate.source} private=${context.isPrivate}")
             return true
         }
     }
