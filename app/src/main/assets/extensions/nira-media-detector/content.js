@@ -7,7 +7,8 @@
     if (!sender || sender.id !== browser.runtime.id || !message ||
         message.schemaVersion !== 1 || message.event !== "media_candidate" ||
         message.source !== "network" || typeof message.url !== "string" ||
-        ![4, 5].includes(Object.keys(message).length)) return Promise.resolve(false);
+        typeof message.isPrivate !== "boolean" ||
+        ![5, 6].includes(Object.keys(message).length)) return Promise.resolve(false);
     return Promise.resolve(browser.runtime.sendNativeMessage("nira.media.detector", message))
       .then(value => value === true).catch(() => false);
   });
