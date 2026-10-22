@@ -170,7 +170,7 @@ internal class MediaDetectorController(private val engine: Engine, private val s
                 diagnostic("candidate_unsupported")
                 return false
             }
-            return when (repository.add(tab, candidate.pageUrl, candidate.documentKey, media, candidate.source, candidate.groupId)) {
+            return when (repository.add(tab, candidate.pageUrl, candidate.documentKey, media, candidate.source, candidate.groupId, candidate)) {
                 MediaRepository.InsertResult.STALE -> {
                     MediaDetectorDiagnostics.stale(context)
                     false

@@ -103,7 +103,7 @@ function page() {
     while (timers.length) timers.shift()();
     await flush();
   };
-  return { HTMLVideoElement, videos, extra, native, fire, navigate, mutate, location,
+  return { HTMLVideoElement, videos, extra, native, fire, navigate, mutate, location, document,
     onNetwork: (msg, from = { id: "detector" }) => networkReceiver(msg, from) };
 }
 
@@ -432,4 +432,110 @@ test("stage 4.0.1: iframe embed, blob and ordinary links do not become videos", 
   ]);
   await p.mutate();
   assert.equal(p.native.length, 0);
+});
+
+
+test("stage 4.0.2: concrete video title and duration take precedence", async () => {
+  const p = page();
+  p.document.title = "Unrelated site title";
+  const v = new p.HTMLVideoElement("https://cdn.example.org/clip.mp4", null, true);
+  v.duration = 624.2;
+  v.getAttribute = name => name === "data-video-title" ? "Dokładny tytuł nagrania" : null;
+  p.videos.push(v);
+  await p.mutate();
+  assert.equal(p.native.length, 1);
+  assert.equal(p.native[0][1].title, "Dokładny tytuł nagrania");
+  assert.equal(p.native[0][1].titleKind, "video");
+  assert.equal(p.native[0][1].durationSeconds, 625);
+});
+
+test("stage 4.0.2: JSON-LD name stays attached to its contentUrl", async () => {
+  const p = page();
+  p.extra.set('script[type="application/ld+json"]', [{
+    textContent: JSON.stringify({ "@type": "VideoObject",
+      name: "Film z metadanych", contentUrl: "https://cdn.example.net/film.mp4" }),
+  }]);
+  await p.mutate();
+  assert.equal(p.native[0][1].title, "Film z metadanych");
+  assert.equal(p.native[0][1].titleKind, "video");
+});
+
+test("stage 4.0.2: full Content-Length and partial Content-Range give size without fetch", async () => {
+  const p = page();
+  p.document.title = "Odcinek pierwszy";
+  const b = background((tab, message) => p.onNetwork(message, { id: "detector" }));
+  b.probe(response("https://cdn.example.net/film.mp4", "video/mp4",
+    { statusCode: 200, responseHeaders: [
+      { name: "content-type", value: "video/mp4" },
+      { name: "Content-Length", value: "252000000" }
+    ] }));
+  b.probe(response("https://cdn.example.net/other.webm", "video/webm",
+    { statusCode: 206, responseHeaders: [
+      { name: "content-type", value: "video/webm" },
+      { name: "Content-Range", value: "bytes 0-2047/95100000" },
+      { name: "Content-Length", value: "2048" }
+    ] }));
+  b.probe(response("https://cdn.example.net/master.m3u8", "application/vnd.apple.mpegurl",
+    { statusCode: 200, responseHeaders: [
+      { name: "Content-Type", value: "application/vnd.apple.mpegurl" },
+      { name: "Content-Length", value: "3000" }
+    ] }));
+  await tick(); await tick();
+  assert.equal(p.native.length, 3);
+  assert.equal(p.native[0][1].sizeBytes, 252000000);
+  assert.equal(p.native[0][1].title, "Odcinek pierwszy");
+  assert.equal(p.native[0][1].titleKind, "page");
+  assert.equal(p.native[1][1].sizeBytes, 95100000);
+  assert.equal(p.native[2][1].sizeBytes, undefined);
+});
+
+test("stage 4.0.2: missing or ambiguous response size never becomes film size", async () => {
+  const b = background(async () => true);
+  b.probe(response("https://cdn.example.net/encoded.mp4", "video/mp4",
+    { statusCode: 200, responseHeaders: [
+      { name: "Content-Type", value: "video/mp4" },
+      { name: "Content-Length", value: "123456" },
+      { name: "Content-Encoding", value: "gzip" }
+    ] }));
+  b.probe(response("https://cdn.example.net/partial.mp4", "video/mp4",
+    { statusCode: 206, responseHeaders: [
+      { name: "Content-Type", value: "video/mp4" },
+      { name: "Content-Length", value: "1024" }
+    ] }));
+  b.probe(response("https://cdn.example.net/big.mp4", "video/mp4",
+    { statusCode: 200, responseHeaders: [
+      { name: "Content-Type", value: "video/mp4" },
+      { name: "Content-Length", value: "9000000000000" }
+    ] }));
+  await tick();
+  assert.equal(b.routed.length, 3);
+  assert.equal(b.routed.every(x => !("sizeBytes" in x[1])), true);
+});
+
+test("stage 4.0.2: title validation rejects injection and excess metadata", async () => {
+  const { receive } = background();
+  const original = candidate("https://cdn.example/a.mp4");
+  assert.equal(await receive({ ...original, title: "A film" }, sender), null);
+  assert.equal(await receive({ ...original, title: "X".repeat(161),
+    titleKind: "video" }, sender), null);
+  assert.equal(await receive({ ...original, title: "X\nY", titleKind: "video" }, sender), null);
+  assert.equal(await receive({ ...original, sizeBytes: 9876 }, sender), null);
+  const accepted = await receive({ ...original, title: "Zapis wideo",
+    titleKind: "video", durationSeconds: 65 }, sender);
+  assert.equal(accepted.title, "Zapis wideo");
+});
+
+
+test("stage 4.0.2: loadedmetadata enriches a previously detected paused movie", async () => {
+  const p = page();
+  const video = new p.HTMLVideoElement("https://cdn.example/m.mp4", null, true);
+  p.videos.push(video);
+  await p.mutate();
+  assert.equal(p.native.length, 1);
+  assert.equal(p.native[0][1].durationSeconds, undefined);
+  video.duration = 3723;
+  await p.fire("loadedmetadata", video);
+  assert.equal(p.native.length, 2);
+  assert.equal(p.native[1][1].durationSeconds, 3723);
+  assert.equal(p.native[1][1].url, p.native[0][1].url);
 });

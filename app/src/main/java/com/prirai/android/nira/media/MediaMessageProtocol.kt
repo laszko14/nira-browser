@@ -17,7 +17,11 @@ internal sealed interface MediaDetectorMessage {
                     val documentKey: Long? = null,
                     val frameUrl: String? = null,
                     val frameKey: Long? = null,
-                    val groupId: String? = null) : MediaDetectorMessage {
+                    val groupId: String? = null,
+                    val title: String? = null,
+                    val titleKind: String? = null,
+                    val durationSeconds: Int? = null,
+                    val sizeBytes: Long? = null) : MediaDetectorMessage {
         override fun toString() = "MediaCandidate(redacted)"
     }
     class Document(val pageUrl: String, val documentKey: Long) : MediaDetectorMessage {
@@ -32,6 +36,9 @@ internal object MediaMessageProtocol {
     private const val MAX_MESSAGE_BYTES = 16 * 1024
     private const val MAX_URL_BYTES = 8 * 1024
     private val validMime = Regex("[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+(?:\\s*;[ -~]*)?")
+    private fun validTitle(value: String): Boolean = value.isNotBlank() &&
+        value.length <= 160 && value.toByteArray(Charsets.UTF_8).size <= 480 &&
+        value.none { it.isISOControl() }
 
     private fun validUrl(url: String): Boolean {
         if (url.toByteArray(Charsets.UTF_8).size > MAX_URL_BYTES ||
@@ -92,15 +99,23 @@ internal object MediaMessageProtocol {
                 val hasDoc = "documentKey" in fields || "pageUrl" in fields
                 val hasFrame = "frameUrl" in fields || "frameKey" in fields
                 val hasGroup = "groupId" in fields
+                val hasTitle = "title" in fields || "titleKind" in fields
+                val hasDuration = "durationSeconds" in fields
+                val hasSize = "sizeBytes" in fields
                 if (hasDoc && !("documentKey" in fields && "pageUrl" in fields)) return null
                 if (hasFrame && (!hasDoc || fromNetwork ||
                         !("frameUrl" in fields && "frameKey" in fields))) return null
                 if (hasGroup && fromNetwork) return null
+                if (hasTitle && !("title" in fields && "titleKind" in fields)) return null
+                if (hasDuration && fromNetwork || hasSize && !fromNetwork) return null
                 val acceptedKeys = expected + (if (hasMime) setOf("contentType") else emptySet()) +
                     (if (fromNetwork) setOf("isPrivate") else emptySet()) +
                     (if (hasDoc) setOf("documentKey", "pageUrl") else emptySet()) +
                     (if (hasFrame) setOf("frameUrl", "frameKey") else emptySet()) +
-                    (if (hasGroup) setOf("groupId") else emptySet())
+                    (if (hasGroup) setOf("groupId") else emptySet()) +
+                    (if (hasTitle) setOf("title", "titleKind") else emptySet()) +
+                    (if (hasDuration) setOf("durationSeconds") else emptySet()) +
+                    (if (hasSize) setOf("sizeBytes") else emptySet())
                 if (fields.keys != acceptedKeys) return null
                 val source = when (string("source")) {
                     "dom" -> MediaSource.DOM
@@ -123,8 +138,24 @@ internal object MediaMessageProtocol {
                 val groupId = if (hasGroup) string("groupId")?.takeIf {
                     it.length in 1..80 && it.matches(Regex("[A-Za-z0-9_-]+"))
                 } ?: return null else null
+                val title = if (hasTitle)
+                    string("title")?.takeIf(::validTitle) ?: return null
+                    else null
+                val titleKind = if (hasTitle)
+                    string("titleKind")?.takeIf {
+                        it in setOf("video", "link", "page") &&
+                            (source != MediaSource.NETWORK || it == "page")
+                    } ?: return null else null
+                val duration = if (hasDuration)
+                    (fields["durationSeconds"] as? JsonPrimitive)?.takeIf { !it.isString }
+                        ?.intOrNull?.takeIf { it in 1..604800 } ?: return null
+                    else null
+                val size = if (hasSize)
+                    (fields["sizeBytes"] as? JsonPrimitive)?.takeIf { !it.isString }
+                        ?.longOrNull?.takeIf { it in 1..1000000000000L } ?: return null
+                    else null
                 MediaDetectorMessage.Candidate(url, contentType, source, privateHint, pageUrl, key,
-                    frameUrl, frameKey, groupId)
+                    frameUrl, frameKey, groupId, title, titleKind, duration, size)
             }
             else -> null
         }
