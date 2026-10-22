@@ -11,6 +11,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -80,6 +86,7 @@ class TabsBottomSheetFragment : DialogFragment() {
     private val menuTabState = mutableStateOf<TabSessionState?>(null) // Currently selected tab for menu
     private val menuIsInGroupState = mutableStateOf(false) // Whether selected tab is in a group
 
+    private val isSidePanel: Boolean get() = arguments?.getBoolean("nira_side_panel") == true
     private var isInitializing = true
     private val isGridViewState = mutableStateOf(false)
     private var isGridView: Boolean
@@ -186,6 +193,7 @@ class TabsBottomSheetFragment : DialogFragment() {
             )
             setupComposeTabViews()
         setupMergedProfileButtons()
+        if (isSidePanel) setupSidePanelResizeGrip()
 
         isInitializing = false
     }
@@ -201,14 +209,16 @@ class TabsBottomSheetFragment : DialogFragment() {
 
         // Make dialog fullscreen
         dialog?.window?.let { window ->
-            val side = arguments?.getBoolean("nira_side_panel") == true
+            val side = isSidePanel
             if (side) {
+                dialog?.setCanceledOnTouchOutside(true)
+                isCancelable = true
                 window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
                 window.setDimAmount(0.55f)
                 window.setGravity(android.view.Gravity.START or android.view.Gravity.TOP)
             }
             window.setLayout(
-                if (side) (resources.displayMetrics.widthPixels * 0.78f).toInt()
+                if (side) sidePanelWidth()
                 else ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
@@ -243,6 +253,12 @@ class TabsBottomSheetFragment : DialogFragment() {
 
         if (isAmoled) {
             dialog?.window?.decorView?.setBackgroundColor(Color.BLACK)
+        }
+
+        if (isSidePanel) {
+            binding.profileButtonContainer.visibility = View.GONE
+            // Keep these capabilities in the full tab manager and toolbar, not in the side drawer.
+            (binding.newTabFab.parent?.parent as? View)?.visibility = View.GONE
         }
 
         binding.newTabFab.setOnClickListener {
@@ -663,7 +679,7 @@ class TabsBottomSheetFragment : DialogFragment() {
 
         // Update profile button visibility based on menu state - use SideEffect for immediate execution
         androidx.compose.runtime.SideEffect {
-            binding.profileButtonContainer.visibility = if (showMenu) View.GONE else View.VISIBLE
+            binding.profileButtonContainer.visibility = if (isSidePanel || showMenu) View.GONE else View.VISIBLE
         }
 
         // Create ViewModel once and store it. TabViewModel.closeTab() now
@@ -762,7 +778,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                         text = "${tabs.size} $tabWord",
                         style = MaterialTheme.typography.titleMedium
                     )
-                    SingleChoiceSegmentedButtonRow {
+                    if (!isSidePanel) SingleChoiceSegmentedButtonRow {
                         SegmentedButton(
                             selected = !isGridView,
                             onClick = {
@@ -791,7 +807,9 @@ class TabsBottomSheetFragment : DialogFragment() {
                     modifier = Modifier.weight(1f)
                 ) {
                     // Choose view based on grid mode
-                    if (isGridView) {
+                    if (isSidePanel) {
+                        CompactSideTabs(viewModel, tabs)
+                    } else if (isGridView) {
                         TabSheetGridView(
                             viewModel = viewModel,
                             orderManager = composeOrderManager!!,
@@ -860,6 +878,182 @@ class TabsBottomSheetFragment : DialogFragment() {
                                 .fillMaxWidth()
                         )
                     }
+                }
+            }
+        }
+    }
+
+
+    // Persist separate side-panel widths for portrait and landscape.
+    private fun sidePanelWidth(): Int {
+        val metrics = resources.displayMetrics
+        val key = if (resources.configuration.orientation ==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE) "width_landscape" else "width_portrait"
+        val preferences = requireContext().getSharedPreferences("nira_side_panel_width", android.content.Context.MODE_PRIVATE)
+        val minWidth = (220 * metrics.density).toInt().coerceAtMost(metrics.widthPixels)
+        val maxWidth = (metrics.widthPixels - 48 * metrics.density).toInt().coerceAtLeast(minWidth)
+        return preferences.getInt(key, (metrics.widthPixels * 0.78f).toInt()).coerceIn(minWidth, maxWidth)
+    }
+
+    private fun setupSidePanelResizeGrip() {
+        val root = binding.root as ViewGroup
+        val grip = View(requireContext()).apply {
+            contentDescription = "Przeciągnij krawędź, aby zmienić szerokość panelu kart"
+            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+        }
+        val params = androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams(
+            (20 * resources.displayMetrics.density).toInt(),
+            ViewGroup.LayoutParams.MATCH_PARENT
+        ).apply { gravity = android.view.Gravity.END }
+        root.addView(grip, params)
+
+        var downX = 0f
+        var initialWidth = 0
+        grip.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    downX = event.rawX
+                    initialWidth = dialog?.window?.attributes?.width?.takeIf { it > 0 } ?: sidePanelWidth()
+                    true
+                }
+                android.view.MotionEvent.ACTION_MOVE, android.view.MotionEvent.ACTION_UP -> {
+                    val screenWidth = resources.displayMetrics.widthPixels
+                    val density = resources.displayMetrics.density
+                    val min = (220 * density).toInt().coerceAtMost(screenWidth)
+                    val max = (screenWidth - 48 * density).toInt().coerceAtLeast(min)
+                    val desired = (initialWidth + event.rawX - downX).toInt().coerceIn(min, max)
+                    dialog?.window?.setLayout(desired, ViewGroup.LayoutParams.MATCH_PARENT)
+                    if (event.actionMasked == android.view.MotionEvent.ACTION_UP) {
+                        val key = if (resources.configuration.orientation ==
+                            android.content.res.Configuration.ORIENTATION_LANDSCAPE) "width_landscape" else "width_portrait"
+                        requireContext().getSharedPreferences("nira_side_panel_width", android.content.Context.MODE_PRIVATE)
+                            .edit().putInt(key, desired).apply()
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+    @Composable
+    private fun CompactSideTabs(viewModel: TabViewModel, tabs: List<TabSessionState>) {
+        val groups by viewModel.groups.collectAsState()
+        val expanded by viewModel.expandedGroups.collectAsState()
+        val selectedTabId by viewModel.selectedTabId.collectAsState()
+        val scope = rememberCoroutineScope()
+        var groupMenuId by remember { mutableStateOf<String?>(null) }
+        val groupedIds = groups.flatMap { it.tabIds }.toSet()
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)
+        ) {
+            groups.forEach { group ->
+                val members = tabs.filter { it.id in group.tabIds }
+                if (members.isNotEmpty()) {
+                    item(key = "group_" + group.id) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().height(44.dp)
+                                .clickable { viewModel.toggleGroupExpanded(group.id) }
+                                .padding(start = 8.dp, end = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                if (group.id in expanded) Icons.Default.KeyboardArrowDown
+                                else Icons.Default.KeyboardArrowRight,
+                                contentDescription = "Rozwiń lub zwiń grupę",
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "(" + members.size + ") " + group.name,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f).padding(start = 4.dp)
+                            )
+                            IconButton(onClick = { groupMenuId = group.id }, modifier = Modifier.size(40.dp)) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "Opcje grupy",
+                                    modifier = Modifier.size(20.dp))
+                            }
+                        }
+                    }
+                    if (group.id in expanded) {
+                        items(members, key = { "group_tab_" + it.id }) { tab ->
+                            CompactSideTabRow(
+                                tab = tab, ordinal = tabs.indexOf(tab) + 1,
+                                selected = tab.id == selectedTabId, indent = true,
+                                onClick = { handleTabClickCompose(tab.id) },
+                                onClose = { handleTabCloseCompose(tab.id) },
+                                onLongPress = { handleTabLongPressCompose(tab, true) }
+                            )
+                        }
+                    }
+                }
+            }
+            items(tabs.filterNot { it.id in groupedIds }, key = { "single_tab_" + it.id }) { tab ->
+                CompactSideTabRow(
+                    tab = tab, ordinal = tabs.indexOf(tab) + 1,
+                    selected = tab.id == selectedTabId, indent = false,
+                    onClick = { handleTabClickCompose(tab.id) },
+                    onClose = { handleTabCloseCompose(tab.id) },
+                    onLongPress = { handleTabLongPressCompose(tab, false) }
+                )
+            }
+        }
+        groupMenuId?.let { id ->
+            com.prirai.android.nira.browser.tabs.compose.GroupContextMenu(
+                groupId = id,
+                groupName = groups.find { it.id == id }?.name.orEmpty(),
+                onDismiss = { groupMenuId = null },
+                viewModel = viewModel,
+                scope = scope
+            )
+        }
+    }
+
+    @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+    @Composable
+    private fun CompactSideTabRow(
+        tab: TabSessionState,
+        ordinal: Int,
+        selected: Boolean,
+        indent: Boolean,
+        onClick: () -> Unit,
+        onClose: () -> Unit,
+        onLongPress: () -> Unit
+    ) {
+        Surface(
+            color = if (selected) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surface,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(5.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().height(46.dp)
+                    .combinedClickable(onClick = onClick, onLongClick = onLongPress)
+                    .padding(start = if (indent) 12.dp else 3.dp, end = 1.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = ordinal.toString() + ".",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(23.dp)
+                )
+                com.prirai.android.nira.browser.tabs.compose.FaviconImage(tab = tab, size = 21.dp)
+                Text(
+                    text = tab.content.title.ifBlank { "Nowa karta" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).padding(start = 8.dp)
+                )
+                IconButton(onClick = onClose, modifier = Modifier.size(42.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = "Zamknij kartę",
+                        modifier = Modifier.size(21.dp))
                 }
             }
         }
