@@ -36,6 +36,10 @@ class MediaClassifierTest {
         }
         assertNull(MediaClassifier.fromDom(
             MediaDetectorMessage.Candidate("https://cdn.example.org/a.m4s", "video/mp4"), regular))
+        assertNull(MediaClassifier.fromDom(
+            MediaDetectorMessage.Candidate("https://cdn.example.org/master.m3u8", "video/mp4"), regular))
+        assertNull(MediaClassifier.fromDom(
+            MediaDetectorMessage.Candidate("https://cdn.example.org/manifest.mpd", "video/webm"), regular))
     }
 
     @Test fun nativeBindingIsPreservedWithoutTrustingPageProvidedIdentifiers() {

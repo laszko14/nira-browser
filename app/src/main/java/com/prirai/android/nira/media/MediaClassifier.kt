@@ -17,7 +17,7 @@ internal class DetectedMedia(
 internal enum class MediaFormat { MP4, WEBM }
 
 internal object MediaClassifier {
-    private val segmentExtensions = setOf("ts", "m4s", "m4a", "cmfv", "cmfa")
+    private val nonPlayableExtensions = setOf("ts", "m4s", "m4a", "cmfv", "cmfa", "m3u", "m3u8", "mpd")
     private val likelySegment = Regex("(?i)^(?:init|segment|seg|chunk|frag)[_.-]?[0-9_-]*\\.(?:mp4|webm)$")
 
     fun fromDom(candidate: MediaDetectorMessage.Candidate, binding: MediaSessionBinding): DetectedMedia? {
@@ -25,7 +25,7 @@ internal object MediaClassifier {
         if (uri.scheme?.lowercase(Locale.ROOT) !in setOf("https", "http") || uri.host.isNullOrEmpty()) return null
         val file = (uri.path ?: "").substringAfterLast('/')
         val extension = file.substringAfterLast('.', "").lowercase(Locale.ROOT)
-        if (extension in segmentExtensions || likelySegment.matches(file)) return null
+        if (extension in nonPlayableExtensions || likelySegment.matches(file)) return null
 
         // DOM MIME comes only from the selected <source type>, not an HTTP response.
         // Stage 3.2 will implement network response MIME and HLS/DASH separately.
