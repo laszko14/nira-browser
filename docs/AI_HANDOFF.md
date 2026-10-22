@@ -135,3 +135,16 @@ Na Nothing Phone (1) zainstalować `app-arm64-v8a-debug.apk`, wpisać publiczny 
 - Cert z PR #4 testowego APK: `86a30a10f2ab90053939a547b429fabc31fd0153cb30dd07216b9764776ef8b6`. **Różni się od Stage 3.2**, co uniemożliwia traktowanie go jako aktualizacji tej instalacji. Faktyczny fingerprint aplikacji z telefonu nie został odczytany, więc nie twierdzić, że jest znany. Nie odinstalowywać, nie czyścić danych.
 - W trybie private sieć przekazuje `isPrivate` wyłącznie z metadanych Gecko, a Kotlin wymaga zgodności z zaufanym `EngineSession`; przy nieznanym incognito pomija niepewną odpowiedź. Nie można jeszcze zapewnić, że GeckoView 156.0.1 na fizycznym urządzeniu udostępnia `responseHeaders`, `details.tabId` i `tabs.sendMessage` we wszystkich przypadkach. Potwierdzony wcześniej callback probe dotyczył tylko testowego pliku.
 - Status: **kod + automatyczne testy + testowy APK w CI — wykonane; aktualizacja instalacji i test telefonu — niepotwierdzone / blokada przez certyfikat**. Jedynym kolejnym krokiem użytkownika jest bezpieczna weryfikacja podpisu na telefonie i, jeżeli zgodny, wykonanie scenariuszy diagnostyki. Nie rozpoczynać 3.3.
+
+
+## 2026-10-22 — Etap 4.0.1: early discovery
+
+- Bazowa gałąź: feat/media-detector-stage-4-0-floating-ui; HEAD: 2f973dd497c500ccc806993124a1f8dd981e27f7. Robocza: feat/media-detector-stage-4-0-1-early-discovery. PR skierować wyłącznie do 4.0, bez merge.
+- Content: bez Play analizuje video.src/currentSrc, wszystkie source, linki, wybrane atrybuty, Open Graph, JSON-LD VideoObject, wybrane literalne konfiguracje JW Player/Video.js/Plyr/HLS.js.
+- Ramki: all_frames plus frame_started; klucze frameKey są wydawane przez background dla root pageUrl/documentKey, a routing pasywnych requestów uwzględnia frameId.
+- Kotlin: nowy typ PAGE dla źródła deklarowanego przed Play; rozpoznanie jawnych HLS/DASH; deduplikacja exact URL, grupowanie wielu źródeł jednego elementu video; network znaczy potwierdzoną odpowiedź HTTP. Bez manifest parsing etapu 4.1.
+- Nie wprowadzono odtwarzania automatycznego, fetch/HEAD, obchodzenia DRM, przechwytywania ciasteczek, logowania podpisanych URL ani utrwalania listy mediów.
+- Limit: 48 video per scan, 16 source na video, maks. 12 skryptów po 12 kB, do 128 kandydatów i debounce 240 ms. Repo nadal ograniczone pamięciowo i izolowane od incognito.
+- Wersja 0.5.22-alpha2, bazowy versionCode 96, ARM64 1096, package com.prirai.android.nira.debug, tylko arm64-v8a.
+- Job stage401_arm64_apk sprawdza apksigner/ID/wersję. Wymaga porównania certyfikatu APK z instalacją na Nothing Phone (1); bez takiego porównania zgodność podpisu i możliwość aktualizacji NIEPOTWIERDZONE.
+- Wyniki CI należy odczytać z rzeczywistego PR/run po push. Test na fizycznym telefonie nie wykonany.

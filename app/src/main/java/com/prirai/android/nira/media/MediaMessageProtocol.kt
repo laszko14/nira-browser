@@ -14,7 +14,10 @@ internal sealed interface MediaDetectorMessage {
                     val source: MediaSource = MediaSource.DOM,
                     val privateHint: Boolean? = null,
                     val pageUrl: String? = null,
-                    val documentKey: Long? = null) : MediaDetectorMessage {
+                    val documentKey: Long? = null,
+                    val frameUrl: String? = null,
+                    val frameKey: Long? = null,
+                    val groupId: String? = null) : MediaDetectorMessage {
         override fun toString() = "MediaCandidate(redacted)"
     }
     class Document(val pageUrl: String, val documentKey: Long) : MediaDetectorMessage {
@@ -87,13 +90,21 @@ internal object MediaMessageProtocol {
                 val hasMime = "contentType" in fields
                 val fromNetwork = string("source") == "network"
                 val hasDoc = "documentKey" in fields || "pageUrl" in fields
+                val hasFrame = "frameUrl" in fields || "frameKey" in fields
+                val hasGroup = "groupId" in fields
                 if (hasDoc && !("documentKey" in fields && "pageUrl" in fields)) return null
+                if (hasFrame && (!hasDoc || fromNetwork ||
+                        !("frameUrl" in fields && "frameKey" in fields))) return null
+                if (hasGroup && fromNetwork) return null
                 val acceptedKeys = expected + (if (hasMime) setOf("contentType") else emptySet()) +
                     (if (fromNetwork) setOf("isPrivate") else emptySet()) +
-                    (if (hasDoc) setOf("documentKey", "pageUrl") else emptySet())
+                    (if (hasDoc) setOf("documentKey", "pageUrl") else emptySet()) +
+                    (if (hasFrame) setOf("frameUrl", "frameKey") else emptySet()) +
+                    (if (hasGroup) setOf("groupId") else emptySet())
                 if (fields.keys != acceptedKeys) return null
                 val source = when (string("source")) {
                     "dom" -> MediaSource.DOM
+                    "page" -> MediaSource.PAGE
                     "network" -> MediaSource.NETWORK
                     else -> return null
                 }
@@ -104,7 +115,16 @@ internal object MediaMessageProtocol {
                 val pageUrl = if (hasDoc) string("pageUrl")?.takeIf(::validUrl) ?: return null else null
                 val key = if (hasDoc) documentKey() ?: return null else null
                 val privateHint = if (source == MediaSource.NETWORK) privacy() ?: return null else null
-                MediaDetectorMessage.Candidate(url, contentType, source, privateHint, pageUrl, key)
+                val frameUrl = if (hasFrame) string("frameUrl")?.takeIf(::validUrl) ?: return null else null
+                val frameKey = if (hasFrame)
+                    (fields["frameKey"] as? JsonPrimitive)?.takeIf { !it.isString }
+                        ?.longOrNull?.takeIf { it in 1..9007199254740991L } ?: return null
+                    else null
+                val groupId = if (hasGroup) string("groupId")?.takeIf {
+                    it.length in 1..80 && it.matches(Regex("[A-Za-z0-9_-]+"))
+                } ?: return null else null
+                MediaDetectorMessage.Candidate(url, contentType, source, privateHint, pageUrl, key,
+                    frameUrl, frameKey, groupId)
             }
             else -> null
         }

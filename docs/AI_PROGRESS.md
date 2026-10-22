@@ -102,3 +102,13 @@
 - Cert z PR #4 testowego APK: `86a30a10f2ab90053939a547b429fabc31fd0153cb30dd07216b9764776ef8b6`. **Różni się od Stage 3.2**, co uniemożliwia traktowanie go jako aktualizacji tej instalacji. Faktyczny fingerprint aplikacji z telefonu nie został odczytany, więc nie twierdzić, że jest znany. Nie odinstalowywać, nie czyścić danych.
 - W trybie private sieć przekazuje `isPrivate` wyłącznie z metadanych Gecko, a Kotlin wymaga zgodności z zaufanym `EngineSession`; przy nieznanym incognito pomija niepewną odpowiedź. Nie można jeszcze zapewnić, że GeckoView 156.0.1 na fizycznym urządzeniu udostępnia `responseHeaders`, `details.tabId` i `tabs.sendMessage` we wszystkich przypadkach. Potwierdzony wcześniej callback probe dotyczył tylko testowego pliku.
 - Status: **kod + automatyczne testy + testowy APK w CI — wykonane; aktualizacja instalacji i test telefonu — niepotwierdzone / blokada przez certyfikat**. Jedynym kolejnym krokiem użytkownika jest bezpieczna weryfikacja podpisu na telefonie i, jeżeli zgodny, wykonanie scenariuszy diagnostyki. Nie rozpoczynać 3.3.
+
+
+## 2026-10-22 — Stage 4.0.1: odkrywanie filmów przed Play
+
+- Bazowy HEAD Etapu 4.0: 2f973dd. Przyczyna: content.js pomijał video.paused, background.js odrzucał inne frameId niż 0.
+- Utworzono gałąź feat/media-detector-stage-4-0-1-early-discovery i zaimplementowano bounded DOM/JSON-LD/meta/static-player discovery, bez dodatkowego ruchu sieciowego.
+- Dodano handshake podramki, korelację frame/root document i filtr dla webRequest z ramek; odrzucone niepewne przypisania.
+- MediaSource.PAGE, HLS/DASH z jawnych adresów manifestów, UI odróżniający źródło ze strony od network; grupowanie alternatywnych URL z jednego odtwarzacza.
+- Testy JS/JVM rozszerzone o pre-Play i iframe, wyniki CI do potwierdzenia po PR. Jedno APK ARM64, brak deklaracji update-safe bez porównania podpisu telefonu.
+- Nie rozpoczęto parsowania jakości 4.1; bez merge.

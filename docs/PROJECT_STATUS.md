@@ -91,3 +91,8 @@ Dokumentacja jest **propozycją**, nie wdrożonym kodem. Wpisy o dokumentach na 
 
 > Kontynuujemy Nira / Alpha Browser, repo: https://github.com/laszko14/nira-browser. Odczytaj AGENTS.md, docs/AI_HANDOFF.md, docs/AI_PROGRESS.md, docs/PROJECT_STATUS.md, docs/VIDEO_DETECTION_RESEARCH.md i docs/VIDEO_DETECTION_PLAN.md (jeśli zostały scalone do main, inaczej na gałęzi dokumentacji). Sprawdź aktualny stan repo i Actions; NIE powtarzaj ukończonych Etapów 1 i 2. Następny do implementacji jest etap 3.0: minimalna detekcja video przez GeckoView WebExtension z natywnym bridge i poprawną identyfikacją karty. Testy i wynik builda są obowiązkowe; aktualizuj checkpointy i podawaj prawdziwy stan, nawet gdy coś nie działa. Przy długim czacie przygotuj gotowy prompt do nowego.
 
+
+
+## Etap 4.0.1 (2026-10-22)
+
+Nowa gałąź feat/media-detector-stage-4-0-1-early-discovery na HEAD 2f973dd z Etapu 4.0. Wykrywanie przed Play obejmuje HTML video/source, metadane Open Graph/JSON-LD i ograniczone jawne konfiguracje odtwarzaczy. Iframe korelowany z głównym dokumentem, natywne powiązanie z EngineSession/tab/profile/privacy. Panel prezentuje stan znaleziony na stronie w odróżnieniu od sieci. Wersja 0.5.22-alpha2, arm64 versionCode 1096. Wyniki CI/telefonu do weryfikacji; żadnego merge i brak parsera wariantów jakości.

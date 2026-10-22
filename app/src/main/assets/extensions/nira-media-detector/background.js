@@ -55,12 +55,18 @@ function classify(url, contentType) {
 // privileged extension, never taken from site-controlled identifiers.
 const documents = new Map();
 const requests = new Map();
+const frames = new Map();
+const MAX_FRAMES = 256;
+let nextFrameKey = 0;
 const MAX_DOCUMENTS = 128;
 const MAX_REQUESTS = 512;
 let nextDocumentKey = 0;
-const isMainSender = sender => !!sender && sender.id === browser.runtime.id &&
+const isExtensionSender = sender => !!sender && sender.id === browser.runtime.id &&
   sender.tab && Number.isInteger(sender.tab.id) && sender.tab.id >= 0 &&
-  sender.frameId === 0;
+  Number.isInteger(sender.frameId) && sender.frameId >= 0;
+const isMainSender = sender => isExtensionSender(sender) && sender.frameId === 0;
+const frameId = sender => sender.tab.id + ":" + sender.frameId;
+const validGroup = value => typeof value === "string" && /^[a-z0-9_-]{1,64}$/i.test(value);
 
 function startDocument(message, sender) {
   if (!isMainSender(sender) || !message || message.schemaVersion !== 1 ||
@@ -71,27 +77,67 @@ function startDocument(message, sender) {
   if (typeof sender.url === "string" && sender.url !== message.pageUrl) return null;
   const documentKey = ++nextDocumentKey;
   documents.delete(sender.tab.id);
+  for (const [id, frame] of frames) if (frame.tabId === sender.tab.id) frames.delete(id);
   documents.set(sender.tab.id, { documentKey, pageUrl: message.pageUrl });
   while (documents.size > MAX_DOCUMENTS) documents.delete(documents.keys().next().value);
   return { documentKey };
 }
+function startFrame(message, sender) {
+  if (!isExtensionSender(sender) || sender.frameId === 0 || !message ||
+      message.schemaVersion !== 1 || message.event !== "frame_started" ||
+      Object.keys(message).sort().join(",") !== "event,frameUrl,schemaVersion" ||
+      !safeUrl(message.frameUrl) || sender.url !== message.frameUrl) return null;
+  const root = documents.get(sender.tab.id);
+  if (!root) return null; // Never assign a subframe to the selected/active tab.
+  const frame = { tabId: sender.tab.id, frameId: sender.frameId, frameUrl: message.frameUrl,
+    pageUrl: root.pageUrl, documentKey: root.documentKey, frameKey: ++nextFrameKey };
+  frames.set(frameId(sender), frame);
+  while (frames.size > MAX_FRAMES) frames.delete(frames.keys().next().value);
+  return { pageUrl: root.pageUrl, documentKey: root.documentKey,
+    frameUrl: frame.frameUrl, frameKey: frame.frameKey };
+}
 function validDom(message, sender) {
-  if (!isMainSender(sender) || !message || typeof message !== "object" ||
+  if (!isExtensionSender(sender) || !message || typeof message !== "object" ||
       Array.isArray(message)) return false;
   const keys = Object.keys(message).sort().join(",");
   if (message.schemaVersion !== 1 || message.event !== "media_candidate" ||
-      message.source !== "dom" ||
-      !(keys === "event,schemaVersion,source,url" ||
-        keys === "contentType,event,schemaVersion,source,url") ||
+      !["dom", "page"].includes(message.source) ||
       !safeUrl(message.url) || byteLength(JSON.stringify(message)) > 16384) return false;
-  return !("contentType" in message) || safeMime(message.contentType);
+  const permitted = ["event", "schemaVersion", "source", "url"];
+  if ("contentType" in message) permitted.push("contentType");
+  if ("groupId" in message) permitted.push("groupId");
+  if (keys !== permitted.sort().join(",") ||
+      ("contentType" in message && !safeMime(message.contentType)) ||
+      ("groupId" in message && !validGroup(message.groupId))) return false;
+  if (sender.frameId === 0) return true;
+  const frame = frames.get(frameId(sender));
+  const root = documents.get(sender.tab.id);
+  return !!frame && !!root && sender.url === frame.frameUrl &&
+    frame.pageUrl === root.pageUrl && frame.documentKey === root.documentKey;
+
 }
 browser.runtime.onMessage.addListener((message, sender) => {
   if (message && message.event === "document_started") return Promise.resolve(startDocument(message, sender));
-  return Promise.resolve(validDom(message, sender) ? { ...message } : null);
+  if (message && message.event === "frame_started") return Promise.resolve(startFrame(message, sender));
+  if (!validDom(message, sender)) return Promise.resolve(null);
+  const reply = { ...message };
+  if ("groupId" in reply) reply.groupId = sender.frameId === 0 ?
+    "t" + documents.get(sender.tab.id)?.documentKey + "-" + reply.groupId :
+    "f" + frames.get(frameId(sender)).frameKey + "-" + reply.groupId;
+  if (sender.frameId > 0) {
+    const frame = frames.get(frameId(sender));
+    reply.frameKey = frame.frameKey;
+    reply.frameUrl = frame.frameUrl;
+    reply.documentKey = frame.documentKey;
+    reply.pageUrl = frame.pageUrl;
+  }
+  return Promise.resolve(reply);
 });
 if (browser.tabs && browser.tabs.onRemoved && typeof browser.tabs.onRemoved.addListener === "function") {
-  browser.tabs.onRemoved.addListener(id => { documents.delete(id); });
+  browser.tabs.onRemoved.addListener(id => {
+    documents.delete(id);
+    for (const [key, value] of frames) if (value.tabId === id) frames.delete(key);
+  });
 }
 
 // onBeforeRequest is passive metadata capture only. No request bodies, URLs,
@@ -106,10 +152,18 @@ function onBefore(details) {
   const key = requestKey(details);
   if (!key) return;
   const doc = documents.get(details.tabId);
-  if (!doc || (typeof details.documentUrl === "string" &&
-      details.documentUrl !== doc.pageUrl)) return;
+  if (!doc) return;
+  let frame = null;
+  if (Number.isInteger(details.frameId) && details.frameId > 0) {
+    frame = frames.get(details.tabId + ":" + details.frameId);
+    if (!frame || frame.documentKey !== doc.documentKey ||
+        (typeof details.documentUrl === "string" && details.documentUrl !== frame.frameUrl))
+      return;
+  } else if (typeof details.documentUrl === "string" && details.documentUrl !== doc.pageUrl) return;
   requests.delete(key);
-  requests.set(key, doc.documentKey);
+  requests.set(key, { documentKey: doc.documentKey,
+    frameKey: frame ? frame.frameKey : null, frameUrl: frame ? frame.frameUrl : null,
+    frameId: frame ? frame.frameId : 0 });
   while (requests.size > MAX_REQUESTS) requests.delete(requests.keys().next().value);
 }
 if (browser.webRequest && browser.webRequest.onBeforeRequest) {
@@ -173,8 +227,14 @@ function onHeaders(details) {
   const doc = documents.get(tabId);
   // No guessing: request must have started in a known document, and
   // response initiator must still match that document's page URL.
-  if (!doc || !requestDocumentKey || doc.documentKey !== requestDocumentKey ||
-      (typeof details.documentUrl === "string" && details.documentUrl !== doc.pageUrl)) {
+  const requestFrame = requestDocumentKey && requestDocumentKey.frameKey !== null ?
+    frames.get(tabId + ":" + requestDocumentKey.frameId) : null;
+  if (!doc || !requestDocumentKey || doc.documentKey !== requestDocumentKey.documentKey ||
+      (requestDocumentKey.frameKey !== null &&
+        (!requestFrame || requestFrame.frameKey !== requestDocumentKey.frameKey ||
+          requestFrame.frameUrl !== requestDocumentKey.frameUrl)) ||
+      (typeof details.documentUrl === "string" &&
+        details.documentUrl !== (requestFrame ? requestFrame.frameUrl : doc.pageUrl))) {
     anonymous("network_unassigned", details.incognito);
     return;
   }
