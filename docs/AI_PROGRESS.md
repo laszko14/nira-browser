@@ -1,3 +1,12 @@
+## 2026-10-22 — v1105 / PR #18 — stabilizacja UI
+
+- Przeanalizowano zgłoszenia: ukrywanie grup, zagęszczenie ikon/menu ⋮ w landscape, drag w lewym panelu, losowo niedostępny pull-to-refresh.
+- Nowa gałąź `feat/nira-v1105-stability-toolbar-drag` od zatwierdzonej bazy v1104 (PR #17), brak merge.
+- Wprowadzono persystencję ustawień paska, przełącznik chipów grup, drobne suwaki, drag akcji, kompaktowy side DnD z menu pod ⋮.
+- `BaseBrowserFragment.fullScreenChanged` wyłączał gest po wyjściu z fullscreen; usunięto bezwarunkowe wyłączenie i poprawiono pozycjonowanie SwipeRefreshLayout.
+- CI #75: FAIL na kompilatorze Kotlin (brak importu `background`); poprawka została dopisana. Wyniki najnowszego przebiegu są do weryfikacji przed publikacją.
+- Plan QA: zielony build, JVM/JS, lint, podpis APK i testy ręczne na Android 15.
+
 ## 2026-10-22 — Nira v1104: rozpoczęte wdrożenie pięciu zmian
 
 - Start z gałęzi v1103 (PR #16); stworzono gałąź `feat/nira-v1104-auto-bars-media-tabs` i draft PR #17, bez merge.
