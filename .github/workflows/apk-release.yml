@@ -217,7 +217,25 @@ jobs:
           signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
           test -n "$signer"
           "$signer" verify --verbose --print-certs "${apks[0]}"
-          echo "::warning::Compilation/signature format verified; compatibility with installed phone certificate NOT proven. No APK uploaded."
+          echo "::warning::TEST ONLY: runner debug certificate. APK may NOT update the installed Nira application."
+          printf '%s\n' \
+            'NIRA BROWSER 3.3 - TEST APK ONLY' \
+            'Build for ARM64 (Nothing Phone 1, Android 15).' \
+            'Signed by temporary runner debug certificate. NOT an update-safe build.' \
+            'An existing installation may reject this APK due to signature mismatch.' \
+            'Uninstalling the installed app would erase its local data/settings.' \
+            'This APK was explicitly requested for temporary testing only.' \
+            > STAGE33_TEST_APK_README.txt
+
+      - name: Upload only one ARM64 test APK (NOT update-safe)
+        uses: actions/upload-artifact@v4
+        with:
+          name: nira-stage33-arm64-TEST-ONLY-NOT-UPDATE-SAFE
+          path: |
+            app/build/outputs/apk/debug/*arm64-v8a*.apk
+            STAGE33_TEST_APK_README.txt
+          if-no-files-found: error
+          retention-days: 14
 
   lint:
     runs-on: ubuntu-latest
