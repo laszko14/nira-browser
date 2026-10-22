@@ -1,3 +1,10 @@
+## 2026-10-22 — Nira v1102: zebrane poprawki interfejsu i bezpośredni MPV Alpha
+
+- Wprowadzono zmiany w `feat/nira-v1102-tab-panel-player-fixes` z bazy PR #14, PR #15 otwarty jako draft (bez merge).
+- Pierwsza kompilacja zakończyła się błędem braku importu delegata `setValue` w Compose; poprawiono w commicie `74e37889ea98c1903d5f174674347c804f51806f`.
+- Powtórna kompilacja: GitHub Actions 39830853219 — build signed PASS, unit tests PASS, JavaScript 30 PASS; skrypt `verify-update-apk.sh` potwierdził pakiet, wersję, certyfikat i pojedyncze arm64-v8a APK. Link: https://github.com/laszko14/nira-browser/actions/runs/39830853219/artifacts/12448218095.
+- Lint i QA telefonu do weryfikacji. Zgodność z aktualną instalacją wyłącznie pod warunkiem tego samego certyfikatu. Brak testu fizycznego.
+
 ## 2026-10-22 — Etap 4.0.3: pływający licznik znika po ładowaniu
 
 - Objaw: przycisk pokazuje liczbę filmów, ale po chwili znika.
