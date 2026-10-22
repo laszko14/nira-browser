@@ -7,7 +7,7 @@
 **Stan bieżący:** [PROJECT_STATUS.md](PROJECT_STATUS.md)
 
 
-> **Checkpoint 3.2, 2026-10-22:** implementacja URL/MIME przez pasywne `onHeadersReceived` rozwijana na `feat/media-detector-stage-3-2-network` z PR #4 HEAD `52973f9`. Manifest-only HLS/DASH, segmenty odrzucane, kanał tabs.sendMessage → natywna EngineSession z fail-closed dla niepowiązanego webRequest, ograniczona deduplikacja; status **oczekuje na CI i rzeczywisty test GeckoView na Nothing Phone (1)**. Nie rozpoczęto 3.3 ani 4.0.
+> **Checkpoint 3.2, 2026-10-22:** implementacja URL/MIME przez pasywne `onHeadersReceived` rozwijana na `feat/media-detector-stage-3-2-network` z PR #4 HEAD `52973f9`. Manifest-only HLS/DASH, segmenty odrzucane, kanał tabs.sendMessage → natywna EngineSession z fail-closed dla niepowiązanego webRequest, ograniczona deduplikacja; status **CI SUCCESS: run 39721818021, test telefonu niepotwierdzony, podpis tymczasowego APK inny niż w PR #4**. Nie rozpoczęto 3.3 ani 4.0.
 
 ## Cel produktu i definicja sukcesu
 

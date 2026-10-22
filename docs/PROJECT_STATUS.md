@@ -8,7 +8,7 @@
 > Ten plik to **krótka mapa projektu i priorytetów**. Szczegółowy, udokumentowany stan techniczny i linki do buildów są w AI_HANDOFF.md oraz AI_PROGRESS.md. Gdy dokumenty się różnią, sprawdź rzeczywisty kod, commity i CI — nie zakładaj, że ten tekst dowodzi wykonania czegoś.
 
 
-> **Checkpoint 2026-10-22, Etap 3.2 (osobny PR w przygotowaniu):** bazą jest niescalony PR #4 HEAD `52973f9`. Powstał kod pasywnego webRequest URL/MIME, HLS/DASH manifest-only, deduplikacja transient DOM+NETWORK, rozszerzona diagnostyka i niezależny job arm64 debug bez Secrets. Brak jeszcze zweryfikowanego CI i APK oraz testów sieciowych na urządzeniu. PR #2 → #3 → #4 → #3.2 pozostają zależne. Nie scalać przed zatwierdzeniem i kontrolą. Stałe podpisywanie odroczone, tymczasowe certyfikaty nie zapewniają aktualizacji.
+> **Checkpoint 2026-10-22, Etap 3.2 (osobny PR w przygotowaniu):** bazą jest niescalony PR #4 HEAD `52973f9`. Powstał kod pasywnego webRequest URL/MIME, HLS/DASH manifest-only, deduplikacja transient DOM+NETWORK, rozszerzona diagnostyka i niezależny job arm64 debug bez Secrets. Kod i testy Etapu 3.2: CI 39721818021 SUCCESS (assembleDebug, lintDebug, testDebugUnitTest, 13 JS), APK arm64 z podpisem v2 istnieje jako artefakt #12401945824. Cert testowy NIE jest zgodny z PR #4; test sieci na urządzeniu nadal niepotwierdzony. PR #2 → #3 → #4 → #3.2 pozostają zależne. Nie scalać przed zatwierdzeniem i kontrolą. Stałe podpisywanie odroczone, tymczasowe certyfikaty nie zapewniają aktualizacji.
 
 ## 1. Cel i zasady pracy
 
