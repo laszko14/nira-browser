@@ -7,6 +7,8 @@ const MAX_MIME_BYTES = 128;
 const MAX_SEEN = 128;
 const RECENT_MS = 20000;
 const seen = new Map();
+const routedRate = new Map();
+const MAX_ROUTED_PER_5S = 24;
 const byteLength = value => new TextEncoder().encode(value).length;
 const safeUrl = value => {
   if (typeof value !== "string" || byteLength(value) > MAX_URL_BYTES ||
@@ -99,7 +101,7 @@ function onHeaders(details) {
     try { Promise.resolve(browser.runtime.sendNativeMessage("nira.media.detector",
       { schemaVersion: 1, event: "network_probe" })).catch(() => {}); } catch (_) {}
   }
-  if (typeof details.statusCode === "number" && (details.statusCode < 200 || details.statusCode >= 400)) return;
+  if (typeof details.statusCode === "number" && (details.statusCode < 200 || details.statusCode >= 300)) return;
   if (!safeUrl(details.url)) return;
   let contentType = null;
   if (Array.isArray(details.responseHeaders)) {
@@ -114,6 +116,13 @@ function onHeaders(details) {
   const tabId = Number.isInteger(details.tabId) && details.tabId >= 0 ? details.tabId : -1;
   const key = tabId + ":" + String(details.incognito) + ":" + details.url + ":" + format;
   const now = Date.now();
+  // Bound cross-tab native message rate independently of memory deduplication.
+  const rateKey = tabId + ":" + String(details.incognito);
+  const slot = routedRate.get(rateKey);
+  if (!slot || now - slot.since >= 5000) routedRate.set(rateKey, { since: now, count: 1 });
+  else if (slot.count >= MAX_ROUTED_PER_5S) return;
+  else slot.count++;
+  while (routedRate.size > 64) routedRate.delete(routedRate.keys().next().value);
   if (seen.has(key) && now - seen.get(key) < RECENT_MS) return;
   seen.delete(key);
   seen.set(key, now);
