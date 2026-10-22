@@ -278,7 +278,13 @@ internal class MediaFloatingUi(
         val groups = snapshot.entries.groupBy { it.groupId ?: "url:" + it.url }
         body.addView(label("Wykryte filmy  •  ${groups.size}", 20f, true))
         body.addView(label("Nazwa i rozmiar pojawiają się, gdy strona lub sieć udostępnia te dane.", 12f))
-        groups.values.forEachIndexed { index, variants ->
+        groups.values.forEachIndexed { index, found ->
+            // Network-confirmed sources first; declarative URLs may be stale,
+            // session-bound or even point at a non-playable player endpoint.
+            val variants = found.sortedWith(
+                compareByDescending<MediaEntry> { MediaSource.NETWORK in it.sources }
+                    .thenByDescending { MediaSource.DOM in it.sources }
+            )
             val bestTitle = variants.filter { !it.title.isNullOrBlank() }.maxByOrNull {
                 when (it.titleKind) {
                     "video" -> 3
@@ -331,6 +337,9 @@ internal class MediaFloatingUi(
                 val host = try { URI(entry.url).host ?: "nieznany serwer" }
                     catch (_: Exception) { "nieznany serwer" }
                 card.addView(label("${originLabel(entry)}  •  ${host.take(65)}", 12f))
+                if (entry.sources == setOf(MediaSource.PAGE)) {
+                    card.addView(label("Adres z deklaracji strony — odtwarzanie w MPV niepotwierdzone.", 11f))
+                }
                 val actions = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
                 val open = MaterialButton(context).apply {
                     text = "▶ MPV Alpha"
