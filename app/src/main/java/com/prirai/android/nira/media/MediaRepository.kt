@@ -170,9 +170,18 @@ internal class MediaRepository(
         while (current.entries.size > perTabLimit) current.entries.remove(current.entries.keys.first())
         // Deterministic global FIFO eviction, bounded even under unique URL floods.
         while (scopes.values.sumOf { it.entries.size } > globalLimit) {
-            val victim = scopes.values.flatMap { s -> s.entries.values.map { e -> s to e } }
-                .minByOrNull { it.second.serial } ?: break
-            victim.first.entries.remove(victim.second.url)
+            var oldestScope: Scope? = null
+            var oldestRecord: Record? = null
+            for (candidateScope in scopes.values) {
+                for (candidate in candidateScope.entries.values) {
+                    if (oldestRecord == null || candidate.serial < oldestRecord.serial) {
+                        oldestRecord = candidate
+                        oldestScope = candidateScope
+                    }
+                }
+            }
+            if (oldestScope == null || oldestRecord == null) break
+            oldestScope.entries.remove(oldestRecord.url)
         }
         return InsertResult.ADDED
     }
