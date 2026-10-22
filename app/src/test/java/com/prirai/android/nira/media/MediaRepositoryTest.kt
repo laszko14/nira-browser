@@ -171,6 +171,27 @@ class MediaRepositoryTest {
         assertTrue(repo.forTab(wrongProfile.binding).isEmpty())
     }
 
+    @Test fun reusedEngineSessionChangingPrivacyCannotReuseOldDocumentKey() {
+        val repo = MediaRepository()
+        val engineSession = Any()
+        val ordinary = tab(session = engineSession, profile = "first", privateMode = false)
+        begin(repo, ordinary, key = 7)
+        add(repo, ordinary, 7, "https://cdn.example/public.mp4")
+        val switched = ordinary.copy(binding = ordinary.binding.copy(
+            contextId = "second", isPrivate = true))
+        repo.observe(listOf(switched))
+        assertEquals(0, repo.currentSize())
+        assertFalse(repo.registerDocument(switched, pageA, 7).accepted)
+        assertEquals(MediaRepository.InsertResult.STALE,
+            add(repo, switched, 7, "https://cdn.example/leaked.mp4"))
+        assertTrue(repo.registerDocument(switched, pageA, 8).accepted)
+        assertEquals(MediaRepository.InsertResult.ADDED,
+            add(repo, switched, 8, "https://cdn.example/private.mp4"))
+        assertTrue(repo.forTab(ordinary.binding).isEmpty())
+        assertEquals(1, repo.counts("second", true).single().count)
+        assertTrue(repo.counts("first", false).isEmpty())
+    }
+
     @Test fun boundedMediaEntriesAndFloodOfSegmentsCannotGrowMemory() {
         val repo = MediaRepository(perTabLimit = 8, globalLimit = 12)
         val a = tab(id = "A")
