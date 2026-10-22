@@ -22,7 +22,7 @@ internal class MediaRecentDeduplicator(
         val iterator = entries.entries.iterator()
         while (iterator.hasNext()) if (now - iterator.next().value >= ttlMillis) iterator.remove()
         // The signed URL remains untouched in memory and is never logged or persisted.
-        val key = media.format.name + ":" + media.url
+        val key = media.url // DOM and network must deduplicate even if MIME format hints differ
         if (entries.containsKey(key)) return false
         entries[key] = now
         while (entries.size > maxPerSession) entries.remove(entries.keys.first())
