@@ -34,9 +34,10 @@ internal class MediaDetectorController(private val engine: Engine, private val s
                 onSuccess = { extension ->
                     try { attach(extension) } catch (_: Exception) { diagnostic("attach_failed") }
                 },
-                onError = { diagnostic("install_failed") },
+                onError = { MediaDetectorDiagnostics.installFailed(); diagnostic("install_failed") },
             )
         } catch (_: Exception) {
+            MediaDetectorDiagnostics.installFailed()
             diagnostic("install_failed")
         }
     }
@@ -50,6 +51,7 @@ internal class MediaDetectorController(private val engine: Engine, private val s
         extension.registerBackgroundMessageHandler(NATIVE_APP, object : MessageHandler {
             override fun onMessage(message: Any, source: EngineSession?): Any {
                 val accepted = (message as? JSONObject)?.toString()?.let(MediaMessageProtocol::decode) === MediaDetectorMessage.NetworkProbe
+                if (accepted) MediaDetectorDiagnostics.networkProbe() else MediaDetectorDiagnostics.rejected()
                 diagnostic(if (accepted) "webrequest_callback_received" else "background_rejected")
                 return accepted
             }
@@ -60,6 +62,7 @@ internal class MediaDetectorController(private val engine: Engine, private val s
                 .collect { sessions ->
                     attached.keys.removeAll { old -> sessions.none { it === old } }
                     rate.keys.removeAll { old -> sessions.none { it === old } }
+                    MediaDetectorDiagnostics.retainOpenTabs(store.state.tabs.map { it.id }.toSet())
                     sessions.forEach { session ->
                         if (!attached.containsKey(session)) {
                             try {
@@ -70,8 +73,11 @@ internal class MediaDetectorController(private val engine: Engine, private val s
                     }
                 }
         }
+        MediaDetectorDiagnostics.installed()
         diagnostic("installed")
-        diagnostic(if (extension.isAllowedInPrivateBrowsing()) "private_allowed" else "private_disabled")
+        val privateAllowed = extension.isAllowedInPrivateBrowsing()
+        MediaDetectorDiagnostics.setPrivateAllowed(privateAllowed)
+        diagnostic(if (privateAllowed) "private_allowed" else "private_disabled")
     }
 
     private fun handler(registeredSession: EngineSession) = object : MessageHandler {
@@ -80,6 +86,7 @@ internal class MediaDetectorController(private val engine: Engine, private val s
             val context = resolveMediaSession(source, bindings()) ?: return false
             val candidate = (message as? JSONObject)?.toString()?.let(MediaMessageProtocol::decode)
             if (candidate !is MediaDetectorMessage.Candidate) {
+                MediaDetectorDiagnostics.rejected()
                 diagnostic("message_rejected")
                 return false
             }
@@ -95,11 +102,13 @@ internal class MediaDetectorController(private val engine: Engine, private val s
             }
             val media = MediaClassifier.fromDom(candidate, context)
             if (media == null) {
+                MediaDetectorDiagnostics.rejected()
                 diagnostic("candidate_unsupported")
                 return false
             }
             // No durable state until Stage 3.3. URLs remain transient in this local object.
-            diagnostic("media_detected format=${media.format} tab=${context.tabId} private=${context.isPrivate}")
+            MediaDetectorDiagnostics.detected(context.tabId, media.format)
+            diagnostic("media_detected format=${media.format} private=${context.isPrivate}")
             return true
         }
     }
