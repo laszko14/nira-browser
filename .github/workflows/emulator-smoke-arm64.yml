@@ -1,0 +1,150 @@
+name: Nira ARM64 emulator smoke
+
+on:
+  push:
+    branches:
+      - feat/media-detector-stage-3-2-network
+  pull_request:
+    branches:
+      - feat/media-detector-stage-3-2-network
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stage32-regression:
+    name: Stage 3.2: JavaScript + Kotlin regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Test WebExtension classification and bridge
+        run: node --test app/src/test/js/*.test.cjs
+      - name: Test Kotlin classifier, protocol and privacy
+        run: ./gradlew testDebugUnitTest --console=plain
+      - name: Save regression report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nira-stage32-regression-results
+          path: app/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: warn
+          retention-days: 7
+
+  arm64-emulator:
+    name: ARM64 emulator (launch + navigation + network)
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Build one ARM64 debug APK (for emulator only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew assembleDebug --console=plain
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/debug/*.apk)
+          if [ "${#apks[@]}" -ne 1 ] || [[ "${apks[0]}" != *arm64-v8a*.apk ]]; then
+            echo '::error::Expected exactly one arm64-v8a APK.'
+            exit 1
+          fi
+          # Ephemeral Android debug certificate; do not publish this build.
+          ./gradlew --stop
+      - name: Launch ARM64 emulator and run smoke tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: arm64-v8a
+          profile: pixel_6
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: |
+            set -euo pipefail
+            mkdir -p smoke-results
+            shopt -s nullglob
+            apks=(app/build/outputs/apk/debug/*arm64-v8a*.apk)
+            test "${#apks[@]}" -eq 1
+            adb install -r "${apks[0]}"
+            adb logcat -c
+            adb shell am start -W -n com.prirai.android.nira.debug/com.prirai.android.nira.BrowserActivity | tee smoke-results/launch.txt
+            sleep 20
+            adb shell pidof com.prirai.android.nira.debug > smoke-results/process.txt
+            test -s smoke-results/process.txt
+            adb exec-out screencap -p > smoke-results/launch.png
+            test -s smoke-results/launch.png
+            # Launch a harmless public test page through Android VIEW intent.
+            adb shell am start -W -n com.prirai.android.nira.debug/com.prirai.android.nira.BrowserActivity -a android.intent.action.VIEW -d https://example.org | tee smoke-results/navigation.txt
+            sleep 15
+            adb shell pidof com.prirai.android.nira.debug >> smoke-results/process.txt
+            adb exec-out screencap -p > smoke-results/navigation.png
+            test -s smoke-results/navigation.png
+            adb logcat -d -s AndroidRuntime:E > smoke-results/runtime-errors.txt
+            if grep -q 'FATAL EXCEPTION' smoke-results/runtime-errors.txt; then
+              echo '::error::Android fatal exception during smoke test.'
+              exit 1
+            fi
+            echo 'Smoke passed: install, launch, alive after navigation, screenshots, no fatal exception.'
+            # Stage 3.2: controlled requests inside the *real GeckoView* browser.
+            # Counts, log output and screenshots must not expose URLs or tokens.
+            python3 -u tools/ci/media_network_fixture.py > /dev/null 2>&1 &
+            server_pid=$!
+            trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+            for attempt in 1 2 3 4 5; do
+              if curl -fsS http://127.0.0.1:8765/_summary > /dev/null; then break; fi
+              sleep 1
+            done
+            adb reverse tcp:8765 tcp:8765
+            adb logcat -c
+            adb shell am start -W -n com.prirai.android.nira.debug/com.prirai.android.nira.BrowserActivity -a android.intent.action.VIEW -d http://127.0.0.1:8765/test.html > smoke-results/fixture-navigation.txt
+            sleep 25
+            adb exec-out screencap -p > smoke-results/fixture-screen.png
+            curl -fsS http://127.0.0.1:8765/_summary > smoke-results/media-fixture-counts.json
+            adb logcat -d -s NiraMediaDetector:D > smoke-results/detector-sanitized.log
+            adb logcat -d -s AndroidRuntime:E > smoke-results/fixture-runtime-errors.txt
+            if grep -q 'FATAL EXCEPTION' smoke-results/fixture-runtime-errors.txt; then
+              echo '::error::Android fatal exception during fixture test.'
+              exit 1
+            fi
+            python3 - <<'PY'
+            import json
+            from pathlib import Path
+            counts = json.loads(Path('smoke-results/media-fixture-counts.json').read_text())
+            print('Fixture request counts (no URLs):', counts)
+            for key, minimum in [('PAGE', 1), ('MP4', 2), ('WEBM', 1), ('HLS', 1),
+                                 ('DASH', 1), ('SEGMENT', 1), ('HTML_MASQUERADE', 1)]:
+                if counts.get(key, 0) < minimum:
+                    raise SystemExit(f'Network fixture not fully loaded: {key}, got {counts.get(key, 0)}')
+            log = Path('smoke-results/detector-sanitized.log').read_text()
+            lines = [line for line in log.splitlines() if 'media_detected format=' in line]
+            observed = {}
+            for fmt in ('MP4', 'WEBM', 'HLS', 'DASH'):
+                observed[fmt] = sum(f'media_detected format={fmt} source=NETWORK' in x for x in lines)
+            print('GeckoView-bound unique media detections (no URLs):', observed)
+            for fmt, count in observed.items():
+                if count != 1:
+                    raise SystemExit(f'Expected exactly one NETWORK detection of {fmt}, got {count}')
+            if len(lines) != 4:
+                raise SystemExit(f'Unexpected total media detections: {len(lines)} (expected 4)')
+            print('PASS: real GeckoView webRequest → native session, formats, dedup and nonmedia/segment exclusion')
+            PY
+      - name: Upload emulator screenshots and diagnostics (never APK)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nira-arm64-emulator-smoke
+          path: smoke-results/
+          if-no-files-found: warn
+          retention-days: 7
