@@ -1170,7 +1170,10 @@ class UnifiedToolbar @JvmOverloads constructor(
         // offset listener so the fragment can update its own
         // margin/padding bookkeeping.
         engine.setDynamicToolbarMaxHeight(0)
-        onToolbarOffsetChanged?.invoke(0, visible)
+        // A late layout pass during rotation/selection may occur after the
+        // toolbar has been translated fully off-screen. Reporting offset 0
+        // here would reserve the entire invisible bar as a black blank band.
+        onToolbarOffsetChanged?.invoke(toolbarSystem.getEffectiveOffset(), visible)
     }
     
     /**
