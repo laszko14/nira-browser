@@ -23,16 +23,19 @@ Priorytetami są: zachowanie obecnych funkcji Nira, małe sprawdzalne etapy, osz
 | Stan bazowy i workflow Android | **Wykonane** | .github/workflows/apk-release.yml; wcześniejsze poprawki release guard |
 | Pierwszy APK arm64 debug | **Wykonane w CI** | dokumentuje AI_PROGRESS.md (Etap 1) |
 | Ręczne otwieranie URL HTTPS w MPV Alpha | **Kod wdrożony** | `0.5.16-alpha1`, wersja arm64 `1080` wg AI_HANDOFF.md |
-| Ostatni opisany zakończony build | **CI success** | https://github.com/laszko14/nira-browser/actions/runs/39691305749 |
-| Artefakt APK arm64 tego builda | **Zweryfikowany w AI_HANDOFF** | https://github.com/laszko14/nira-browser/actions/runs/39691305749/artifacts/12388986024 |
+| Ostatni opisany zakończony build | **CI success: Etap 3.1** | https://github.com/laszko14/nira-browser/actions/runs/39706925625 |
+| Artefakt APK tego builda | **Istnieje; arm64 APK bez potwierdzenia podpisu i instalacji** | https://github.com/laszko14/nira-browser/actions/runs/39706925625/artifacts/12395875886 |
 | Test otwarcia MPV Alpha na Nothing Phone (1) | **Niepotwierdzony** | wymagany fizyczny test |
-| Automatyczny detektor wideo GeckoView | **Niewykonany** | następny etap implementacyjny: 3.0 |
+| Automatyczny detektor wideo GeckoView | **Etap 3.0: kod + CI, oczekuje na telefon** | [PR #2](https://github.com/laszko14/nira-browser/pull/2), główna ramka i zwykłe karty; incognito zgodnie z uprawnieniem Gecko |
+| Detekcja DOM HTML5 MP4/WebM (Etap 3.1) | **Kod + CI success w [PR #3](https://github.com/laszko14/nira-browser/pull/3)** | gałąź oparta na PR #2; bez testu urządzenia |
+| Diagnostyka na telefonie, bez ADB | **Kod w [PR #4](https://github.com/laszko14/nira-browser/pull/4)** | CI test/lint PASS; APK zablokowany przez brak klucza podpisu |
+| Aktualizacyjny APK tylko arm64 | **Konfiguracja w PR #4** | do wydania niezbędne GitHub Secrets; brak zgodności z wcześniejszym losowym certyfikatem nie może być wykluczony |
 | Panel wykrytych filmów / przycisk | **Niewykonany** | etap 4.0 |
 | Parser HLS / DASH i warianty jakości | **Niewykonany** | etap 4.1 |
 | Własny zaawansowany download manager | **Niewykonany, niskie pierwszeństwo** | najpierw działające wykrycie i streaming |
-| Testy jednostkowe detektora | **Niewykonane** | poprzedni testDebugUnitTest = NO-SOURCE |
+| Testy jednostkowe detektora | **14 JVM + 8 JS PASS (Etap 3.1)** | raport HTML testów JVM i log Node w CI 39706343598; po poprawce job test success |
 
-Uwaga: „CI success” nie oznacza, że funkcja została sprawdzona na telefonie. W raporcie AI_HANDOFF.md wymieniono także liczne istniejące problemy lint (abortOnError=false), dlatego nie należy twierdzić, że lint jest czysty. Zweryfikowany jest kod/artefakt **Etapu 2**, a nie nowy wykrywacz.
+Uwaga: „CI success” nie oznacza, że funkcja została sprawdzona na telefonie. W raporcie AI_HANDOFF.md wymieniono także liczne istniejące problemy lint (abortOnError=false), dlatego nie należy twierdzić, że lint jest czysty. Etap 3.0 ma zweryfikowane CI i pełny lokalny build/lint/test (8 testów Kotlin, 4 JS), brak zgłoszeń lint w nowych plikach i zweryfikowany lokalny APK; rzeczywisty transport Gecko i callback sieciowy oczekują na test telefonu. Nie ma jeszcze panelu ani repozytorium kandydatów.
 
 ## 3. Gdzie znajduje się kod
 
@@ -43,13 +46,13 @@ Uwaga: „CI success” nie oznacza, że funkcja została sprawdzona na telefoni
 - `app/build.gradle` — minSdk, wersje i ABI; `gradle/libs.versions.toml` — zależności Mozilli.
 - `.github/workflows/apk-release.yml` — build/lint/test/release.
 
-**Projektowane, jeszcze nie istniejące:** katalog `app/src/main/assets/extensions/nira-media-detector/`, pakiet Kotlin `com.prirai.android.nira.media`, UI listy źródeł. Szczegółowe zadania: VIDEO_DETECTION_PLAN.md.
+**Istniejące na gałęzi PR #3:** katalog `app/src/main/assets/extensions/nira-media-detector/`, pakiet Kotlin `com.prirai.android.nira.media` i `MediaClassifier.kt`. **Projektowane:** repozytorium stanu oraz UI listy źródeł. Szczegółowe zadania: VIDEO_DETECTION_PLAN.md.
 
 **Odtwarzacz:** https://github.com/laszko14/REX-Player — według zweryfikowanego wcześniej commitu `8c4f9ed2159c397317ceb1d58e8223f8cdf2b222` pakiet `xyz.mpv.rex`, aktywność `xyz.mpv.rex.ui.player.PlayerActivity` dla ACTION_VIEW. Nie implementuj duplikatu tej integracji; rozbuduj istniejącą akcję po testach.
 
 ## 4. Co robić dalej — właściwa kolejność
 
-- **Teraz / P0:** Etap 3.0 „Gecko WebExtension spike” — sprawdź zgodność `webRequest` i native messaging oraz przekaż pojedyncze zdarzenie z video DOM do Kotlin, z poprawnym profilem/kartą. Bez parserów HLS, download managera i pełnego UI.
+- **Teraz / P0:** dokończyć ręczne potwierdzenie Etapu 3.0 na telefonie: DOM → Kotlin, poprawna karta/profil i probe webRequest. Kod i CI w PR #2; nie implementować ponownie bridge. Następny zakres kodu to wyłącznie Etap 3.1.
 - **Po potwierdzeniu:** Etapy 3.1–3.3 — HTML5, MP4/WebM, URL/MIME HLS/DASH, deduplikacja, izolacja nawigacji/kart/profili.
 - **Następnie:** Etap 4.0 — badge, lista, kopiowanie linku, otwieranie w MPV Alpha z fallbackiem.
 - **Później:** Etap 4.1 / 5.0 — manifesty, warianty jakości, iframe, signed URLs, cache/Service Worker, warunki niedostępności.
