@@ -145,6 +145,43 @@ fun TabContextMenu(
     scope: CoroutineScope,
     modifier: Modifier = Modifier
 ) {
+    val groups by viewModel.groups.collectAsState()
+    val currentGroup = groups.firstOrNull { tab.id in it.tabIds }
+    val compatibleGroups = groups.filter { group ->
+        group.id != currentGroup?.id &&
+            (group.contextId == tab.contextId ||
+                (group.contextId in listOf(null, "profile_default") &&
+                 tab.contextId in listOf(null, "profile_default")))
+    }
+    var selectingGroup by remember(tab.id) { mutableStateOf(false) }
+    var creatingGroup by remember(tab.id) { mutableStateOf(false) }
+    var newGroupName by remember(tab.id) { mutableStateOf("") }
+
+    if (creatingGroup) {
+        AlertDialog(
+            onDismissRequest = { creatingGroup = false },
+            title = { Text("Nowa grupa kart") },
+            text = {
+                OutlinedTextField(
+                    value = newGroupName,
+                    onValueChange = { newGroupName = it.take(70) },
+                    label = { Text("Nazwa grupy") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.moveTabToNewGroup(tab.id, newGroupName.trim().ifBlank { "Nowa grupa" })
+                    creatingGroup = false
+                    onDismiss()
+                }) { Text("Utwórz i przenieś") }
+            },
+            dismissButton = {
+                TextButton(onClick = { creatingGroup = false }) { Text("Anuluj") }
+            }
+        )
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         modifier = modifier
@@ -157,9 +194,45 @@ fun TabContextMenu(
             TabMenuHeader(tab)
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
+            if (selectingGroup) {
+                TextButton(onClick = { selectingGroup = false }) {
+                    Text("‹ Wróć do opcji karty")
+                }
+                if (compatibleGroups.isEmpty()) {
+                    Text("Brak innych grup w tym profilu",
+                        modifier = Modifier.padding(16.dp))
+                }
+                compatibleGroups.forEach { group ->
+                    TabMenuItem(
+                        icon = { Icon(Icons.Default.Folder, contentDescription = null) },
+                        text = "(" + group.tabIds.size + ") " + group.name,
+                        onClick = {
+                            viewModel.addTabToGroup(tab.id, group.id, currentGroup?.id)
+                            onDismiss()
+                        }
+                    )
+                }
+                TabMenuItem(
+                    icon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) },
+                    text = "Utwórz nową grupę",
+                    onClick = { creatingGroup = true }
+                )
+            } else {
             TabMenuItem(
-                icon = { Icon(painterResource(R.drawable.control_point_duplicate_24px), "Duplicate") },
-                text = "Duplicate Tab",
+                icon = { Icon(Icons.Default.FolderOpen, contentDescription = null) },
+                text = if (isInGroup) "Przenieś do innej grupy" else "Dodaj do grupy",
+                onClick = { selectingGroup = true }
+            )
+            TabMenuItem(
+                icon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) },
+                text = "Utwórz nową grupę",
+                onClick = { creatingGroup = true }
+            )
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+            TabMenuItem(
+                icon = { Icon(painterResource(R.drawable.control_point_duplicate_24px), "Duplikuj") },
+                text = "Duplikuj kartę",
                 onClick = {
                     scope.launch {
                         viewModel.duplicateTab(tab.id)
@@ -173,7 +246,7 @@ fun TabContextMenu(
 
                 TabMenuItem(
                     icon = { Icon(painterResource(R.drawable.ungroup_24px), "Remove from Island") },
-                    text = "Remove from Island",
+                    text = "Usuń z grupy",
                     onClick = {
                         scope.launch {
                             viewModel.removeTabFromGroup(tab.id)
@@ -193,7 +266,7 @@ fun TabContextMenu(
                         modifier = Modifier.size(32.dp)
                     )
                 },
-                text = "Close Tab",
+                text = "Zamknij kartę",
                 contentColor = MaterialTheme.colorScheme.error,
                 onClick = {
                     scope.launch {
@@ -202,6 +275,7 @@ fun TabContextMenu(
                     }
                 }
             )
+            } // end standard tab actions
         }
     }
 }
