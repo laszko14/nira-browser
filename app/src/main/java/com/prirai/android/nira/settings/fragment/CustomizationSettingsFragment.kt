@@ -54,6 +54,41 @@ class CustomizationSettingsFragment : BaseSettingsFragment() {
     override fun onCreatePreferences(savedInstanceState: Bundle?, s: String?) {
         addPreferencesFromResource(R.xml.preferences_customization)
 
+        val niraPrefs = UserPreferences(requireContext())
+        preferenceScreen.findPreference<SeekBarPreference>("nira_address_height_dp")?.apply {
+            value = niraPrefs.niraAddressBarHeightDp
+            setOnPreferenceChangeListener { _, updated ->
+                niraPrefs.niraAddressBarHeightDp = (updated as Number).toInt()
+                true
+            }
+        }
+        preferenceScreen.findPreference<SeekBarPreference>("nira_tab_strip_height_dp")?.apply {
+            value = niraPrefs.niraTabStripHeightDp
+            setOnPreferenceChangeListener { _, updated ->
+                niraPrefs.niraTabStripHeightDp = (updated as Number).toInt()
+                true
+            }
+        }
+        preferenceScreen.findPreference<Preference>("nira_restore_bar_heights")?.setOnPreferenceClickListener {
+            niraPrefs.niraAddressBarHeightDp = 56
+            niraPrefs.niraTabStripHeightDp = 48
+            preferenceScreen.findPreference<SeekBarPreference>("nira_address_height_dp")?.value = 56
+            preferenceScreen.findPreference<SeekBarPreference>("nira_tab_strip_height_dp")?.value = 48
+            true
+        }
+        switchPreference(
+            preference = "nira_edge_panels_enabled",
+            isChecked = niraPrefs.niraEdgePanelsEnabled,
+            onCheckChange = { niraPrefs.niraEdgePanelsEnabled = it }
+        )
+        preferenceScreen.findPreference<SeekBarPreference>("nira_edge_width_dp")?.apply {
+            value = niraPrefs.niraEdgeWidthDp
+            setOnPreferenceChangeListener { _, updated ->
+                niraPrefs.niraEdgeWidthDp = (updated as Number).toInt()
+                true
+            }
+        }
+
         // Dynamic colors preference
         switchPreference(
             preference = "dynamic_colors",

@@ -51,6 +51,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.zIndex
@@ -79,6 +80,10 @@ fun TabBarCompose(
     autoScrollTrigger: Long = 0L
 ) {
     val scope = rememberCoroutineScope()
+    val tabContext = LocalContext.current
+    val stripHeight = remember(tabContext) {
+        com.prirai.android.nira.preferences.UserPreferences(tabContext).niraTabStripHeightDp
+    }
     val order by orderManager.currentOrder.collectAsState()
     val listState = rememberLazyListState()
 
@@ -194,7 +199,7 @@ fun TabBarCompose(
     Box(modifier = modifier.fillMaxWidth()) {
         // Static layer - main tab bar
         Surface(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().height(stripHeight.coerceIn(40, 80).dp),
             color = MaterialTheme.colorScheme.surfaceContainer,
             tonalElevation = 2.dp
         ) {
@@ -203,7 +208,7 @@ fun TabBarCompose(
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxSize()
             ) {
                 itemsIndexed(
                     uniqueItems,

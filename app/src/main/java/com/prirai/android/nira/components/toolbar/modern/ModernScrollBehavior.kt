@@ -118,6 +118,10 @@ class ModernScrollBehavior(
      */
     private fun accumulateAndMaybeEnterMinimal(child: View, dy: Int) {
         val toolbar = child as? UnifiedToolbar ?: return
+        // Approved 1DM top layout keeps the tab strip reachable without
+        // adding a second expand-chevron to the already dense action row.
+        if (com.prirai.android.nira.preferences.UserPreferences(child.context).toolbarPosition ==
+            com.prirai.android.nira.components.toolbar.ToolbarPosition.TOP.ordinal) return
         when {
             dy > 0 -> {
                 // Finger moving upward -> reading further down the page.
