@@ -61,9 +61,11 @@ class MediaNetworkStage32Test {
     }
 
     @Test fun validatesNetworkBridgeAndAnonymousDiagnostics() {
-        val valid = """{"schemaVersion":1,"event":"media_candidate","source":"network","url":"https://cdn.example/a.mpd?secret=1","contentType":"application/dash+xml"}"""
+        val valid = """{"schemaVersion":1,"event":"media_candidate","source":"network","isPrivate":false,"url":"https://cdn.example/a.mpd?secret=1","contentType":"application/dash+xml"}"""
         val message = MediaMessageProtocol.decode(valid) as MediaDetectorMessage.Candidate
         assertEquals(MediaSource.NETWORK, message.source)
+        assertEquals(false, message.privateHint)
+        assertNull(MediaMessageProtocol.decode(valid.replace("\\\"isPrivate\\\":false", "\\\"isPrivate\\\":true-string")))
         assertEquals(MediaFormat.DASH, MediaClassifier.fromNetwork(message, tabA)?.format)
         assertFalse(message.toString().contains("secret"))
         assertNull(MediaMessageProtocol.decode(valid.dropLast(1) + ""","tabId":"spoofed"}"""))
