@@ -4,7 +4,6 @@ import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
@@ -23,9 +22,7 @@ import android.widget.Toast
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import java.net.URI
-import java.util.Locale
 import kotlin.math.abs
-import kotlin.math.min
 
 /** A view-layer snapshot; URLs are never logged, serialized or persisted. */
 internal data class MediaUiSnapshot(val tab: MediaTabState, val entries: List<MediaEntry>)
@@ -137,9 +134,9 @@ internal class MediaFloatingUi(
         val (topToolbar, bottomToolbar) = safeToolbarSpace()
         val minY = maxOf(padding, visible.top - location[1] + padding, topToolbar + padding).toFloat()
         val windowBottom = (visible.bottom - location[1]).coerceAtMost(parent.height)
-        val maxY = maxOf(minY, windowBottom - size - bottomToolbar - padding).toFloat()
+        val maxY = maxOf(minY, (windowBottom - size - bottomToolbar - padding).toFloat())
         val minX = padding.toFloat()
-        val maxX = maxOf(minX, parent.width - size - padding).toFloat()
+        val maxX = maxOf(minX, (parent.width - size - padding).toFloat())
         return floatArrayOf(minX, maxX, minY, maxY)
     }
 
@@ -210,7 +207,7 @@ internal class MediaFloatingUi(
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18), dp(18), dp(18), dp(28))
         }
-        scroll.addView(body, ScrollView.LayoutParams(-1, -2))
+        scroll.addView(body, FrameLayout.LayoutParams(-1, -2))
         dialog.setContentView(scroll)
         sheet = dialog
         sheetBody = body
