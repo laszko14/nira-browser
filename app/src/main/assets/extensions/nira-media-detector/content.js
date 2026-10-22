@@ -4,7 +4,7 @@
   // Only the extension's background can mint root/frame correlation keys.
   // No video playback, network probe, script execution or persistent URL storage.
   const FRAME = typeof window.top !== "undefined" && window !== window.top;
-  const MAX_ITEMS = 64, MAX_SEEN = 128, MAX_SCRIPTS = 32, MAX_SCRIPT_CHARS = 20000;
+  const MAX_ITEMS = 128, MAX_SEEN = 256, MAX_SCRIPTS = 72, MAX_SCRIPT_CHARS = 48000;
   let activeUrl = location.href, context = null, registering = null;
   let scheduled = false, lastDeepScan = 0;
   const seen = new Map(), groups = new WeakMap();
@@ -139,7 +139,7 @@
   function submit(value, source = "page", type = null, group = null, title = null,
     titleKind = null, duration = null, poster = null) {
     const url = absolute(value);
-    if (!url || seen.size >= MAX_SEEN) return;
+    if (!url) return;
     const mediaPath = new URL(url).pathname.toLowerCase();
     const knownMime = typeof type === "string" &&
       /^(?:video\/(?:mp4|webm|ogg|quicktime)|application\/(?:vnd\.apple\.mpegurl|x-mpegurl|dash\+xml)|audio\/(?:x-)?mpegurl)(?:\s*;|$)/i.test(type);
@@ -154,6 +154,8 @@
       named || "", kind || "", seconds, posterUrl || ""]);
     if (seen.has(key)) return;
     seen.set(key, true);
+    // Bounded LRU: long-lived SPAs must not silently stop detecting media.
+    while (seen.size > MAX_SEEN) seen.delete(seen.keys().next().value);
     const navigation = location.href;
     const message = { schemaVersion: 1, event: "media_candidate", source, url };
     if (type && typeof type === "string" && type.length <= 128) message.contentType = type.trim();
@@ -235,14 +237,16 @@
     return typeof element.getAttribute === "function" ? element.getAttribute(name) : null;
   }
   function scanDeclarations() {
-    scanCollection("a[href],link[href]", 48, element => {
+    scanCollection("a[href],link[href]", 160, element => {
       const href = attribute(element, "href") || element.href;
       if (href) submit(href, "page", null, null,
         safeTitle(element.textContent), "link");
     });
-    scanCollection("[data-video-url],[data-video-src],[data-hls],[data-mpd],[data-src],[data-plyr-source],[data-file],[data-stream-url]", 80, element => {
+    scanCollection("[data-video-url],[data-video-src],[data-hls],[data-mpd],[data-src],[data-plyr-source],[data-file],[data-stream-url],[data-playback-url],[data-manifest-url],[data-source-url],[data-mp4],[data-m3u8],[data-stream]", 160, element => {
       for (const name of ["data-video-url", "data-video-src", "data-hls",
-        "data-mpd", "data-src", "data-plyr-source", "data-file", "data-stream-url"]) {
+        "data-mpd", "data-src", "data-plyr-source", "data-file", "data-stream-url",
+        "data-playback-url", "data-manifest-url", "data-source-url", "data-mp4",
+        "data-m3u8", "data-stream"]) {
         const value = attribute(element, name);
         if (value) submit(value, "page", null, groupFor(element));
       }
@@ -287,11 +291,11 @@
   function scanPlayerConfigs() {
     // Universal, bounded passive discovery: declarative configs from common
     // players and framework hydration state. Never evaluate site JavaScript.
-    let remainingNodes = 192;
+    let remainingNodes = 512;
     function walk(node, depth, parentTitle = null) {
-      if (depth > 6 || --remainingNodes < 0 || !node || typeof node !== "object") return;
+      if (depth > 8 || --remainingNodes < 0 || !node || typeof node !== "object") return;
       if (Array.isArray(node)) {
-        for (const child of node.slice(0, 24)) walk(child, depth + 1, parentTitle);
+        for (const child of node.slice(0, 48)) walk(child, depth + 1, parentTitle);
         return;
       }
       const title = safeTitle(node.title || node.name || node.label) || parentTitle;
@@ -300,7 +304,8 @@
       const mime = typeof node.type === "string" ? node.type :
         (typeof node.mimeType === "string" ? node.mimeType : null);
       for (const key of ["file", "src", "contentUrl", "videoUrl", "streamUrl",
-        "playbackUrl", "hlsUrl", "dashUrl", "manifestUrl"]) {
+        "playbackUrl", "hlsUrl", "dashUrl", "manifestUrl", "mediaUrl",
+        "playlistUrl", "urlVideo", "masterUrl", "video_src"]) {
         if (typeof node[key] === "string")
           submit(node[key], "page", mime, null, title, title ? "video" : null, null, poster);
       }
@@ -311,11 +316,12 @@
         submit(node.url, "page", mime, null, title, title ? "video" : null, null, poster);
       for (const key of ["sources", "source", "playlist", "tracks", "videos",
         "video", "media", "files", "items", "streams", "props", "pageProps",
-        "player", "config", "data", "assets"]) {
+        "player", "config", "data", "assets", "initialState", "initialData",
+        "mediaSources", "renditions", "variants", "playback", "movie"]) {
         if (node[key]) walk(node[key], depth + 1, title);
       }
     }
-    scanCollection("video[data-setup],video[data-config],[data-player-config],[data-setup]", 48, element => {
+    scanCollection("video[data-setup],video[data-config],[data-player-config],[data-setup]", 120, element => {
       for (const name of ["data-setup", "data-config", "data-player-config"]) {
         const raw = attribute(element, name);
         if (typeof raw !== "string" || raw.length > MAX_SCRIPT_CHARS) continue;
@@ -346,12 +352,12 @@
     const start = Date.now();
     let count = 0;
     for (const video of document.querySelectorAll("video")) {
-      if (++count > MAX_ITEMS || Date.now() - start > 30) break;
+      if (++count > MAX_ITEMS || Date.now() - start > 55) break;
       inspect(video);
     }
     // Revisit static metadata as SPA/player nodes change, without exhausting
     // a one-time 80-scan budget on long-lived pages.
-    if (Date.now() - start <= 30 && start - lastDeepScan >= 900) {
+    if (Date.now() - start <= 55 && start - lastDeepScan >= 1100) {
       lastDeepScan = start;
       scanDeclarations();
       scanStructuredData();
@@ -365,7 +371,7 @@
     lastDeepScan = 0;
     if (scheduled) return;
     scheduled = true;
-    setTimeout(() => { scheduled = false; scan(); }, 240);
+    setTimeout(() => { scheduled = false; scan(); }, 320);
   }
   function onMediaEvent(event) {
     if (!event.isTrusted || !(event.target instanceof HTMLVideoElement)) return;
@@ -380,6 +386,8 @@
     attributeFilter: ["src", "type", "content", "href", "title", "aria-label",
       "data-title", "data-video-title", "data-src", "data-video-url",
       "data-video-src", "data-hls", "data-mpd", "data-plyr-source",
+      "data-playback-url", "data-manifest-url", "data-source-url",
+      "data-mp4", "data-m3u8", "data-stream",
        "data-file", "data-stream-url", "data-setup", "data-player-config"] });
   document.addEventListener("DOMContentLoaded", scheduleScan, { once: true });
   document.addEventListener("visibilitychange", scheduleScan, { passive: true });
