@@ -10,7 +10,8 @@ import kotlinx.serialization.json.intOrNull
 
 internal sealed interface MediaDetectorMessage {
     class Candidate(val url: String, val contentType: String? = null,
-                    val source: MediaSource = MediaSource.DOM) : MediaDetectorMessage {
+                    val source: MediaSource = MediaSource.DOM,
+                    val privateHint: Boolean? = null) : MediaDetectorMessage {
         override fun toString() = "MediaCandidate(redacted)"
     }
     data object NetworkProbe : MediaDetectorMessage
@@ -61,8 +62,12 @@ internal object MediaMessageProtocol {
                 privacy()?.let { MediaDetectorMessage.NetworkSegments(it, count) }
             }
             "media_candidate" -> {
-                if (fields.keys != setOf("schemaVersion", "event", "source", "url") &&
-                    fields.keys != setOf("schemaVersion", "event", "source", "url", "contentType")) return null
+                val expected = setOf("schemaVersion", "event", "source", "url")
+                val hasMime = "contentType" in fields
+                val fromNetwork = string("source") == "network"
+                val acceptedKeys = expected + (if (hasMime) setOf("contentType") else emptySet()) +
+                    (if (fromNetwork) setOf("isPrivate") else emptySet())
+                if (fields.keys != acceptedKeys) return null
                 val source = when (string("source")) {
                     "dom" -> MediaSource.DOM
                     "network" -> MediaSource.NETWORK
@@ -77,7 +82,8 @@ internal object MediaMessageProtocol {
                 val uri = try { URI(url) } catch (_: Exception) { return null }
                 if (uri.scheme?.lowercase() !in setOf("https", "http") ||
                     uri.host.isNullOrEmpty() || uri.rawUserInfo != null) return null
-                MediaDetectorMessage.Candidate(url, contentType, source)
+                val privateHint = if (source == MediaSource.NETWORK) privacy() ?: return null else null
+                MediaDetectorMessage.Candidate(url, contentType, source, privateHint)
             }
             else -> null
         }
