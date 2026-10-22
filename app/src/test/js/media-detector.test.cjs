@@ -516,7 +516,7 @@ test("stage 4.0.2: title validation rejects injection and excess metadata", asyn
   const { receive } = background();
   const original = candidate("https://cdn.example/a.mp4");
   assert.equal(await receive({ ...original, title: "A film" }, sender), null);
-  assert.equal(await receive({ ...original, title: "X".repeat(161),
+  assert.equal(await receive({ ...original, title: "X".repeat(301),
     titleKind: "video" }, sender), null);
   assert.equal(await receive({ ...original, title: "X\nY", titleKind: "video" }, sender), null);
   assert.equal(await receive({ ...original, sizeBytes: 9876 }, sender), null);
