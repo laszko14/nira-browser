@@ -51,9 +51,33 @@ function classify(url, contentType) {
   if (ext === "mov") return "MOV";
   return null;
 }
+// Stage 3.3: per-document routing. The document key is minted by this
+// privileged extension, never taken from site-controlled identifiers.
+const documents = new Map();
+const requests = new Map();
+const MAX_DOCUMENTS = 128;
+const MAX_REQUESTS = 512;
+let nextDocumentKey = 0;
+const isMainSender = sender => !!sender && sender.id === browser.runtime.id &&
+  sender.tab && Number.isInteger(sender.tab.id) && sender.tab.id >= 0 &&
+  sender.frameId === 0;
+
+function startDocument(message, sender) {
+  if (!isMainSender(sender) || !message || message.schemaVersion !== 1 ||
+      message.event !== "document_started" ||
+      Object.keys(message).sort().join(",") !== "event,pageUrl,schemaVersion" ||
+      !safeUrl(message.pageUrl)) return null;
+  // sender.url comes from Gecko and is not supplied by the page message.
+  if (typeof sender.url === "string" && sender.url !== message.pageUrl) return null;
+  const documentKey = ++nextDocumentKey;
+  documents.delete(sender.tab.id);
+  documents.set(sender.tab.id, { documentKey, pageUrl: message.pageUrl });
+  while (documents.size > MAX_DOCUMENTS) documents.delete(documents.keys().next().value);
+  return { documentKey };
+}
 function validDom(message, sender) {
-  if (!sender || sender.id !== browser.runtime.id || !sender.tab || sender.frameId !== 0 ||
-      !message || typeof message !== "object" || Array.isArray(message)) return false;
+  if (!isMainSender(sender) || !message || typeof message !== "object" ||
+      Array.isArray(message)) return false;
   const keys = Object.keys(message).sort().join(",");
   if (message.schemaVersion !== 1 || message.event !== "media_candidate" ||
       message.source !== "dom" ||
@@ -62,8 +86,36 @@ function validDom(message, sender) {
       !safeUrl(message.url) || byteLength(JSON.stringify(message)) > 16384) return false;
   return !("contentType" in message) || safeMime(message.contentType);
 }
-browser.runtime.onMessage.addListener((message, sender) =>
-  Promise.resolve(validDom(message, sender) ? { ...message } : null));
+browser.runtime.onMessage.addListener((message, sender) => {
+  if (message && message.event === "document_started") return Promise.resolve(startDocument(message, sender));
+  return Promise.resolve(validDom(message, sender) ? { ...message } : null);
+});
+if (browser.tabs && browser.tabs.onRemoved && typeof browser.tabs.onRemoved.addListener === "function") {
+  browser.tabs.onRemoved.addListener(id => { documents.delete(id); });
+}
+
+// onBeforeRequest is passive metadata capture only. No request bodies, URLs,
+// headers or cookies are retained here. A delayed response from a previous
+// document carries the old key and is rejected by the new content script.
+function requestKey(details) {
+  if (!details || !Number.isInteger(details.tabId) || details.tabId < 0 ||
+      !["string", "number"].includes(typeof details.requestId)) return null;
+  return details.tabId + ":" + String(details.requestId);
+}
+function onBefore(details) {
+  const key = requestKey(details);
+  if (!key) return;
+  const doc = documents.get(details.tabId);
+  if (!doc || (typeof details.documentUrl === "string" &&
+      details.documentUrl !== doc.pageUrl)) return;
+  requests.delete(key);
+  requests.set(key, doc.documentKey);
+  while (requests.size > MAX_REQUESTS) requests.delete(requests.keys().next().value);
+}
+if (browser.webRequest && browser.webRequest.onBeforeRequest) {
+  browser.webRequest.onBeforeRequest.addListener(onBefore,
+    { urls: ["http://*/*", "https://*/*"] });
+}
 
 let probeSent = false;
 // Native background callback has NO EngineSession. Send only anonymous diagnostics.
@@ -95,6 +147,9 @@ function skipSegment(isPrivate) {
 }
 function onHeaders(details) {
   if (!details || typeof details !== "object") return;
+  const key = requestKey(details);
+  const requestDocumentKey = key ? requests.get(key) : null;
+  if (key) requests.delete(key);
   if (["image", "imageset", "ping", "beacon", "script", "stylesheet", "font", "csp_report"].includes(details.type)) return;
   if (!probeSent && typeof details.url === "string" &&
       details.url.startsWith("https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4")) {
@@ -109,34 +164,39 @@ function onHeaders(details) {
     const header = details.responseHeaders.find(h => h && typeof h.name === "string" &&
       h.name.toLowerCase() === "content-type");
     if (header && safeMime(header.value)) contentType = header.value;
-    else if (header) return; // malformed Content-Type is not a trustworthy hint
+    else if (header) return;
   }
   const format = classify(details.url, contentType);
   if (format === "segment") { skipSegment(details.incognito); return; }
   if (!format) return;
   const tabId = Number.isInteger(details.tabId) && details.tabId >= 0 ? details.tabId : -1;
-  const key = tabId + ":" + String(details.incognito) + ":" + details.url + ":" + format;
+  const doc = documents.get(tabId);
+  // No guessing: request must have started in a known document, and
+  // response initiator must still match that document's page URL.
+  if (!doc || !requestDocumentKey || doc.documentKey !== requestDocumentKey ||
+      (typeof details.documentUrl === "string" && details.documentUrl !== doc.pageUrl)) {
+    anonymous("network_unassigned", details.incognito);
+    return;
+  }
   const now = Date.now();
-  // Bound cross-tab native message rate independently of memory deduplication.
   const rateKey = tabId + ":" + String(details.incognito);
   const slot = routedRate.get(rateKey);
   if (!slot || now - slot.since >= 5000) routedRate.set(rateKey, { since: now, count: 1 });
   else if (slot.count >= MAX_ROUTED_PER_5S) return;
   else slot.count++;
   while (routedRate.size > 64) routedRate.delete(routedRate.keys().next().value);
-  if (seen.has(key) && now - seen.get(key) < RECENT_MS) return;
-  seen.delete(key);
-  seen.set(key, now);
+  const dedupKey = tabId + ":" + doc.documentKey + ":" + String(details.incognito) +
+    ":" + details.url + ":" + format;
+  if (seen.has(dedupKey) && now - seen.get(dedupKey) < RECENT_MS) return;
+  seen.delete(dedupKey);
+  seen.set(dedupKey, now);
   while (seen.size > MAX_SEEN) seen.delete(seen.keys().next().value);
   const message = {
     schemaVersion: 1, event: "media_candidate", source: "network", url: details.url,
-    isPrivate: details.incognito
+    isPrivate: details.incognito, documentKey: doc.documentKey, pageUrl: doc.pageUrl
   };
   if (contentType) message.contentType = contentType;
-  // tabs.sendMessage routes only to a specified Gecko tab / frame. The content
-  // script's native message is still independently bound to the real EngineSession.
-  // If unavailable or not acknowledged: never guess a tab from active UI state.
-  if (tabId < 0 || !browser.tabs || typeof browser.tabs.sendMessage !== "function") {
+  if (!browser.tabs || typeof browser.tabs.sendMessage !== "function") {
     anonymous("network_unassigned", details.incognito);
     return;
   }
@@ -147,7 +207,6 @@ function onHeaders(details) {
   } catch (_) { anonymous("network_unassigned", details.incognito); }
 }
 if (browser.webRequest && browser.webRequest.onHeadersReceived) {
-  // Response headers available only with responseHeaders. Never use blocking.
   browser.webRequest.onHeadersReceived.addListener(onHeaders,
     { urls: ["http://*/*", "https://*/*"] }, ["responseHeaders"]);
 }
