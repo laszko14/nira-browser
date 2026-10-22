@@ -68,7 +68,7 @@ const isMainSender = sender => isExtensionSender(sender) && sender.frameId === 0
 const frameId = sender => sender.tab.id + ":" + sender.frameId;
 const validGroup = value => typeof value === "string" && /^[a-z0-9_-]{1,64}$/i.test(value);
 const validTitle = value => typeof value === "string" &&
-  value.length > 0 && value.length <= 160 && byteLength(value) <= 480 &&
+  value.length > 0 && value.length <= 300 && byteLength(value) <= 900 &&
   !/[\u0000-\u001f\u007f]/.test(value);
 const validSeconds = value => Number.isSafeInteger(value) && value > 0 && value <= 604800;
 const MAX_MEDIA_BYTES = 1000000000000;
@@ -136,13 +136,15 @@ function validDom(message, sender) {
   if ("title" in message) permitted.push("title");
   if ("titleKind" in message) permitted.push("titleKind");
   if ("durationSeconds" in message) permitted.push("durationSeconds");
+  if ("posterUrl" in message) permitted.push("posterUrl");
   if (keys !== permitted.sort().join(",") ||
       ("contentType" in message && !safeMime(message.contentType)) ||
       ("groupId" in message && !validGroup(message.groupId)) ||
       (("title" in message) !== ("titleKind" in message)) ||
       ("title" in message && !validTitle(message.title)) ||
       ("titleKind" in message && !["video", "link", "page"].includes(message.titleKind)) ||
-      ("durationSeconds" in message && !validSeconds(message.durationSeconds))) return false;
+      ("durationSeconds" in message && !validSeconds(message.durationSeconds)) ||
+      ("posterUrl" in message && !safeUrl(message.posterUrl))) return false;
   if (sender.frameId === 0) return true;
   const frame = frames.get(frameId(sender));
   const root = documents.get(sender.tab.id);
