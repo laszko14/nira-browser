@@ -22,8 +22,8 @@ class MediaDetectorDiagnosticsTest {
     }
 
     @Test fun isolatesOpenTabsAndDoesNotPrintAnyIdentifierOrUrl() {
-        MediaDetectorDiagnostics.detected("tab-A-supersecret", MediaFormat.MP4)
-        MediaDetectorDiagnostics.detected("tab-B-supersecret", MediaFormat.WEBM)
+        MediaDetectorDiagnostics.detected(MediaSessionBinding(Any(), "tab-A-supersecret", "profile-secret", true), MediaFormat.MP4)
+        MediaDetectorDiagnostics.detected(MediaSessionBinding(Any(), "tab-B-supersecret", "profile-secret", true), MediaFormat.WEBM)
         MediaDetectorDiagnostics.detected("tab-B-supersecret", MediaFormat.WEBM)
         val current = MediaDetectorDiagnostics.snapshot("tab-A-supersecret", true, "profile-secret")
         assertEquals(3, current.allTabMediaCount)
@@ -34,9 +34,11 @@ class MediaDetectorDiagnosticsTest {
         val report = current.asPolishReport()
         assertFalse(report.contains("secret"))
         assertFalse(report.contains("http"))
+        assertEquals(0, MediaDetectorDiagnostics.snapshot("tab-A-supersecret", false, "profile-secret").allTabMediaCount)
+        assertEquals(0, MediaDetectorDiagnostics.snapshot("tab-A-supersecret", true, null).selectedTabMediaCount)
         MediaDetectorDiagnostics.retainOpenTabs(setOf("tab-B-supersecret"))
-        assertEquals(0, MediaDetectorDiagnostics.snapshot("tab-A-supersecret").selectedTabMediaCount)
-        assertEquals(2, MediaDetectorDiagnostics.snapshot("tab-B-supersecret").allTabMediaCount)
+        assertEquals(0, MediaDetectorDiagnostics.snapshot("tab-A-supersecret", true, "profile-secret").selectedTabMediaCount)
+        assertEquals(2, MediaDetectorDiagnostics.snapshot("tab-B-supersecret", true, "profile-secret").allTabMediaCount)
     }
 
     @Test fun failedInstallAndRejectedEventsHaveVisibleStatus() {

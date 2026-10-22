@@ -107,7 +107,7 @@ internal class MediaDetectorController(private val engine: Engine, private val s
                 return false
             }
             // No durable state until Stage 3.3. URLs remain transient in this local object.
-            MediaDetectorDiagnostics.detected(context.tabId, media.format)
+            MediaDetectorDiagnostics.detected(context, media.format)
             diagnostic("media_detected format=${media.format} private=${context.isPrivate}")
             return true
         }

@@ -5,7 +5,10 @@ package com.prirai.android.nira.media
  * persistent storage. The map tracks only live native tab IDs and is pruned on tab close.
  */
 internal object MediaDetectorDiagnostics {
-    private class TabCounters(var count: Int = 0, var last: MediaFormat? = null)
+    private class TabCounters(
+        var contextId: String?, var isPrivate: Boolean,
+        var count: Int = 0, var last: MediaFormat? = null,
+    )
     private val tabs = mutableMapOf<String, TabCounters>()
     private var installState = "Oczekiwanie na uruchomienie"
     private var privatePermission = "Nie sprawdzono"
@@ -30,7 +33,7 @@ internal object MediaDetectorDiagnostics {
             appendLine("Uprawnienie prywatne Gecko: $privatePermission")
             appendLine("Testowy callback webRequest: ${if (networkProbeCount > 0) "TAK" else "NIE"}")
             appendLine("Odebrane callbacki testowe: $networkProbeCount")
-            appendLine("Wykrycia MP4/WebM w otwartych kartach: $allTabMediaCount")
+            appendLine("Wykrycia MP4/WebM w tym profilu: $allTabMediaCount")
             appendLine("Karta aktywna: ${if (hasSelectedTab) "TAK" else "BRAK"}")
             if (hasSelectedTab) {
                 appendLine("Tryb karty: ${if (selectedIsPrivate) "prywatny" else "zwykły"}")
@@ -51,8 +54,13 @@ internal object MediaDetectorDiagnostics {
     }
     @Synchronized fun networkProbe() { networkProbeCount++ }
     @Synchronized fun rejected() { rejectedCount++ }
-    @Synchronized fun detected(tabId: String, format: MediaFormat) {
-        val counters = tabs.getOrPut(tabId) { TabCounters() }
+    @Synchronized fun detected(binding: MediaSessionBinding, format: MediaFormat) {
+        val counters = tabs.getOrPut(binding.tabId) { TabCounters(binding.contextId, binding.isPrivate) }
+        if (counters.contextId != binding.contextId || counters.isPrivate != binding.isPrivate) {
+            counters.contextId = binding.contextId
+            counters.isPrivate = binding.isPrivate
+            counters.count = 0
+        }
         counters.count++
         counters.last = format
     }
@@ -67,8 +75,10 @@ internal object MediaDetectorDiagnostics {
         val selected = selectedTabId?.let(tabs::get)
         return Snapshot(
             installState, privatePermission, networkProbeCount, rejectedCount,
-            tabs.values.sumOf { it.count }, selected?.count ?: 0,
-            selected?.last, selectedTabId != null, isPrivate, contextId != null,
+            tabs.values.filter { it.contextId == contextId && it.isPrivate == isPrivate }.sumOf { it.count },
+            selected?.takeIf { it.contextId == contextId && it.isPrivate == isPrivate }?.count ?: 0,
+            selected?.takeIf { it.contextId == contextId && it.isPrivate == isPrivate }?.last,
+            selectedTabId != null, isPrivate, contextId != null,
         )
     }
 
