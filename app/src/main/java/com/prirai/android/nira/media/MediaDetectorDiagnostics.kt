@@ -60,9 +60,9 @@ internal object MediaDetectorDiagnostics {
             appendLine("Uprawnienie prywatne Gecko: $privatePermission")
             appendLine("Testowy callback webRequest: ${if (networkProbeCount > 0) "TAK" else "NIE"}")
             appendLine("Odebrane callbacki testowe: $networkProbeCount")
-            appendLine("Wykrycia MP4/WebM przez DOM w tym profilu: $domMediaCount")
+            appendLine("Wykrycia ze strony/DOM w tym profilu: $domMediaCount")
             appendLine("Wykryte wszystkie formaty w tym profilu: $allTabMediaCount")
-            appendLine("DOM — unikalne źródła: $domMediaCount")
+            appendLine("Strona/DOM — unikalne źródła: $domMediaCount")
             appendLine("webRequest — unikalne źródła: $networkMediaCount")
             appendLine("HLS — manifesty: $hlsCount")
             appendLine("DASH — manifesty: $dashCount")
@@ -111,7 +111,7 @@ internal object MediaDetectorDiagnostics {
         val counter = tab(binding)
         counter.count++
         counter.last = format
-        if (source == MediaSource.DOM) counter.dom++ else counter.network++
+        if (source == MediaSource.NETWORK) counter.network++ else counter.dom++
         if (format == MediaFormat.HLS) counter.hls++
         if (format == MediaFormat.DASH) counter.dash++
     }

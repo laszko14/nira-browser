@@ -91,3 +91,20 @@ Dokumentacja jest **propozycją**, nie wdrożonym kodem. Wpisy o dokumentach na 
 
 > Kontynuujemy Nira / Alpha Browser, repo: https://github.com/laszko14/nira-browser. Odczytaj AGENTS.md, docs/AI_HANDOFF.md, docs/AI_PROGRESS.md, docs/PROJECT_STATUS.md, docs/VIDEO_DETECTION_RESEARCH.md i docs/VIDEO_DETECTION_PLAN.md (jeśli zostały scalone do main, inaczej na gałęzi dokumentacji). Sprawdź aktualny stan repo i Actions; NIE powtarzaj ukończonych Etapów 1 i 2. Następny do implementacji jest etap 3.0: minimalna detekcja video przez GeckoView WebExtension z natywnym bridge i poprawną identyfikacją karty. Testy i wynik builda są obowiązkowe; aktualizuj checkpointy i podawaj prawdziwy stan, nawet gdy coś nie działa. Przy długim czacie przygotuj gotowy prompt do nowego.
 
+
+
+## Etap 4.0.1 (2026-10-22)
+
+Nowa gałąź feat/media-detector-stage-4-0-1-early-discovery na HEAD 2f973dd z Etapu 4.0. Wykrywanie przed Play obejmuje HTML video/source, metadane Open Graph/JSON-LD i ograniczone jawne konfiguracje odtwarzaczy. Iframe korelowany z głównym dokumentem, natywne powiązanie z EngineSession/tab/profile/privacy. Panel prezentuje stan znaleziony na stronie w odróżnieniu od sieci. Wersja 0.5.22-alpha2, arm64 versionCode 1096. Wyniki CI/telefonu do weryfikacji; żadnego merge i brak parsera wariantów jakości.
+
+
+## Potwierdzone CI Etapu 4.0.1 (2026-10-22)
+
+- Kod commit 74d9ddf76a6f99ba18764916f0f09c009b57dbec; PR #9 (Draft, base 4.0, bez merge): https://github.com/laszko14/nira-browser/pull/9
+- GitHub Actions run 39754764327: https://github.com/laszko14/nira-browser/actions/runs/39754764327 — conclusion SUCCESS; stage401_arm64_apk SUCCESS, test SUCCESS, lint SUCCESS, pozostałe wcześniejsze etapowe joby oraz release SKIPPED.
+- Node.js media-detector.test.cjs: 24/24 PASS, 0 fail. Kotlin: task testDebugUnitTest SUCCESS (faktycznie wykonany). Gradle assembleDebug BUILD SUCCESSFUL.
+- Dokładnie jeden APK arm64-v8a: com.prirai.android.nira.debug, versionName 0.5.22-alpha2, arm64 versionCode 1096, poprawny APK Signature v2 (apksigner verify).
+- Artefakt APK: https://github.com/laszko14/nira-browser/actions/runs/39754764327/artifacts/12415316320 (ZIP, 145504033 B); lint report: https://github.com/laszko14/nira-browser/actions/runs/39754764327/artifacts/12415241782
+- WAŻNE: BRAK CI signing secrets; podpis tymczasowego debug certyfikatu SHA-256 = 12655dac69723cfb6d21466615c2971c5d8c265ec198117ba9661e1ca1942423. Ostatnie APK Etapu 4.0 z run 39738739919 ma certyfikat SHA-256 = 857e1fbbb34adabed890f863e07b4a96e288c7203df730f866367275f9c0c02d. Podpisy NIE SĄ zgodne. Nie instalować jako aktualizacja tamtego APK, nie usuwać danych użytkownika. Bez niezależnego porównania z certyfikatem faktycznie zainstalowanej aplikacji nie obiecywać kompatybilności.
+- Lint task SUCCESS, ale w projekcie ustawiono abortOnError=false, więc to nie dowodzi braku ostrzeżeń/naruszeń; pozostały bazowe ostrzeżenia Kotlin i workflow.
+- Nie wykonano testu na Nothing Phone (1), GeckoView iframe na rzeczywistych stronach wymaga walidacji urządzeniowej. Nie rozpoczęto parsowania wariantów Etapu 4.1.

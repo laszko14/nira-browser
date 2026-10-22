@@ -20,6 +20,7 @@ internal class MediaEntry(
     val url: String,
     val format: MediaFormat,
     val sources: Set<MediaSource>,
+    val groupId: String? = null,
 ) {
     override fun toString(): String = "MediaEntry(format=$format, sources=$sources, url=<redacted>)"
 }
@@ -55,13 +56,23 @@ internal class MediaRepository(
         val hls: Int, val dash: Int, val last: MediaFormat?,
     )
 
-    private class Record(val url: String, var format: MediaFormat, val serial: Long) {
+    private class Record(val url: String, var format: MediaFormat, val serial: Long,
+                         var groupId: String? = null) {
         var dom = false
+        var page = false
         var network = false
+        fun mark(source: MediaSource) {
+            when (source) {
+                MediaSource.DOM -> dom = true
+                MediaSource.PAGE -> page = true
+                MediaSource.NETWORK -> network = true
+            }
+        }
         fun copy() = MediaEntry(serial, url, format, buildSet {
             if (dom) add(MediaSource.DOM)
+            if (page) add(MediaSource.PAGE)
             if (network) add(MediaSource.NETWORK)
-        })
+        }, groupId)
     }
 
     private class Scope(
@@ -158,7 +169,7 @@ internal class MediaRepository(
 
     @Synchronized fun add(
         tab: MediaTabState, pageUrl: String, documentKey: Long,
-        media: DetectedMedia, source: MediaSource,
+        media: DetectedMedia, source: MediaSource, groupId: String? = null,
     ): InsertResult {
         val current = scope(tab, create = false) ?: return InsertResult.STALE
         if (!current.registered || current.documentKey == 0L || current.documentKey != documentKey ||
@@ -170,12 +181,13 @@ internal class MediaRepository(
         val found = current.entries[media.url]
         if (found != null) {
             if (source == MediaSource.NETWORK) found.format = media.format
-            if (source == MediaSource.DOM) found.dom = true else found.network = true
+            found.mark(source)
+            if (found.groupId == null && source != MediaSource.NETWORK) found.groupId = groupId
             changed()
             return InsertResult.DUPLICATE
         }
-        val added = Record(media.url, media.format, tick())
-        if (source == MediaSource.DOM) added.dom = true else added.network = true
+        val added = Record(media.url, media.format, tick(), groupId)
+        added.mark(source)
         current.entries[media.url] = added
         while (current.entries.size > perTabLimit) current.entries.remove(current.entries.keys.first())
         // Deterministic global FIFO eviction, bounded even under unique URL floods.
@@ -217,7 +229,7 @@ internal class MediaRepository(
             .map { s ->
                 val entries = s.entries.values.toList()
                 TabCounts(s.binding.tabId, entries.size,
-                    entries.count { it.dom }, entries.count { it.network },
+                    entries.count { it.dom || it.page }, entries.count { it.network },
                     entries.count { it.format == MediaFormat.HLS },
                     entries.count { it.format == MediaFormat.DASH },
                     entries.lastOrNull()?.format)

@@ -105,7 +105,7 @@ internal class MediaFloatingUi(
 
     fun render(value: MediaUiSnapshot?) {
         displayed = value?.takeIf { it.entries.isNotEmpty() }
-        val amount = displayed?.entries?.size ?: 0
+        val amount = displayed?.entries?.groupBy { it.groupId ?: "url:" + it.url }?.size ?: 0
         count.text = if (amount > 99) "99+" else amount.toString()
         button.visibility = if (!isFullscreen && amount > 0) View.VISIBLE else View.GONE
         if (sheet?.isShowing == true) {
@@ -232,9 +232,10 @@ internal class MediaFloatingUi(
             sheet?.dismiss()
             return
         }
-        body.addView(label("Wykryte filmy  •  ${snapshot.entries.size}", 20f, true))
-        body.addView(label("Liczba unikalnych źródeł, niekoniecznie osobnych filmów.", 12f))
-        snapshot.entries.forEachIndexed { index, entry ->
+        val groups = snapshot.entries.groupBy { it.groupId ?: "url:" + it.url }
+        body.addView(label("Wykryte filmy  •  ${groups.size}", 20f, true))
+        body.addView(label("Znalezione na stronie nie oznacza jeszcze potwierdzenia działania adresu.", 12f))
+        groups.values.forEachIndexed { index, variants ->
             val card = LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(12), dp(12), dp(12), dp(12))
@@ -243,11 +244,15 @@ internal class MediaFloatingUi(
                     setColor(Color.rgb(243, 248, 248))
                 }
             }
-            card.addView(label("Źródło ${index + 1}   •   ${entry.format.name}", 16f, true))
+            card.addView(label("Film ${index + 1}   •   ${variants.size} źródło/źródła", 16f, true))
+            variants.forEach { entry ->
+            card.addView(label("Format: ${entry.format.name}", 15f, true))
             val origin = when {
-                MediaSource.DOM in entry.sources && MediaSource.NETWORK in entry.sources -> "DOM + Sieć"
-                MediaSource.DOM in entry.sources -> "DOM"
-                else -> "Sieć"
+                MediaSource.NETWORK in entry.sources && (MediaSource.PAGE in entry.sources || MediaSource.DOM in entry.sources) ->
+                    "Znalezione na stronie • potwierdzone siecią"
+                MediaSource.NETWORK in entry.sources -> "Potwierdzone odpowiedzią sieciową"
+                MediaSource.PAGE in entry.sources -> "Znalezione na stronie • niepotwierdzone"
+                else -> "DOM • odtwarzacz"
             }
             card.addView(label("Wykrycie: $origin", 13f))
             val host = try { URI(entry.url).host ?: "nieznane źródło" } catch (_: Exception) { "nieznane źródło" }
@@ -288,6 +293,7 @@ internal class MediaFloatingUi(
                     }
                 }
             }, LinearLayout.LayoutParams(-1, -2))
+            }
             body.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
         }
     }

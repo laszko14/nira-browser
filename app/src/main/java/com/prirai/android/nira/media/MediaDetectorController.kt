@@ -160,6 +160,7 @@ internal class MediaDetectorController(private val engine: Engine, private val s
             }
             val media = when (candidate.source) {
                 MediaSource.DOM -> MediaClassifier.fromDom(candidate, context)
+                MediaSource.PAGE -> MediaClassifier.fromPage(candidate, context)
                 MediaSource.NETWORK -> MediaClassifier.fromNetwork(candidate, context)
             }
             if (media == null) {
@@ -169,7 +170,7 @@ internal class MediaDetectorController(private val engine: Engine, private val s
                 diagnostic("candidate_unsupported")
                 return false
             }
-            return when (repository.add(tab, candidate.pageUrl, candidate.documentKey, media, candidate.source)) {
+            return when (repository.add(tab, candidate.pageUrl, candidate.documentKey, media, candidate.source, candidate.groupId)) {
                 MediaRepository.InsertResult.STALE -> {
                     MediaDetectorDiagnostics.stale(context)
                     false

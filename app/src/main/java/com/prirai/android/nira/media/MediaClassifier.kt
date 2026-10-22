@@ -15,7 +15,7 @@ internal class DetectedMedia(
 }
 
 internal enum class MediaFormat { MP4, WEBM, OGG, MOV, HLS, DASH }
-internal enum class MediaSource { DOM, NETWORK }
+internal enum class MediaSource { DOM, PAGE, NETWORK }
 
 internal object MediaClassifier {
     private val segments = setOf("ts", "m4s", "m4a", "cmfv", "cmfa")
@@ -59,6 +59,23 @@ internal object MediaClassifier {
             "video/webm" -> MediaFormat.WEBM
             null -> when (ext) { "mp4", "m4v" -> MediaFormat.MP4; "webm" -> MediaFormat.WEBM; else -> null }
             else -> null
+        } ?: return null
+        return DetectedMedia(candidate.url, format, binding.tabId, binding.contextId, binding.isPrivate)
+    }
+
+    /** Explicit URLs declared in a document, without playback or network confirmation. */
+    fun fromPage(candidate: MediaDetectorMessage.Candidate, binding: MediaSessionBinding): DetectedMedia? {
+        if (candidate.source != MediaSource.PAGE) return null
+        val uri = parsed(candidate.url) ?: return null
+        if (isSegment(candidate.url)) return null
+        val mime = candidate.contentType?.substringBefore(';')?.trim()?.lowercase(Locale.ROOT)
+        val ext = extension(file(uri))
+        val format = when {
+            mime in mimes -> mimes[mime]
+            mime != null && mime !in setOf("application/octet-stream", "binary/octet-stream") -> null
+            ext == "m3u8" -> MediaFormat.HLS
+            ext == "mpd" -> MediaFormat.DASH
+            else -> direct[ext]
         } ?: return null
         return DetectedMedia(candidate.url, format, binding.tabId, binding.contextId, binding.isPrivate)
     }
