@@ -509,16 +509,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             //    internal scroll containers).
             // The address bar itself never scrolls off; only the aux
             // bars (tab bar + contextual bar) animate in and out.
-            val minimalToggle = unifiedToolbar?.getBrowserToolbar()?.let { browserToolbar ->
-                unifiedToolbar?.let { toolbar ->
-                    com.prirai.android.nira.integration
-                        .MinimalStateToggleIntegration(
-                            context = requireContext(),
-                            toolbar = browserToolbar,
-                            unifiedToolbar = toolbar,
-                        ).also { viewLifecycleOwner.lifecycle.addObserver(it) }
-                }
-            }
+            // Compact top-only mode keeps the tab bar visible. No chevron
+            // is added to the already crowded address/action row.
 
             // Set expansion state listener to update web content positioning
             unifiedToolbar?.setOnExpansionStateChangedListener { expanded ->
@@ -534,7 +526,6 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             //     by page scroll, not just by tapping the button).
             unifiedToolbar?.setOnMinimalStateChangedListener {
                 requestWebContentPositionUpdate()
-                minimalToggle?.onMinimalStateChanged()
             }
             
             // Set toolbar offset listener for smooth margin adjustment
