@@ -23,15 +23,15 @@ Priorytetami są: zachowanie obecnych funkcji Nira, małe sprawdzalne etapy, osz
 | Stan bazowy i workflow Android | **Wykonane** | .github/workflows/apk-release.yml; wcześniejsze poprawki release guard |
 | Pierwszy APK arm64 debug | **Wykonane w CI** | dokumentuje AI_PROGRESS.md (Etap 1) |
 | Ręczne otwieranie URL HTTPS w MPV Alpha | **Kod wdrożony** | `0.5.16-alpha1`, wersja arm64 `1080` wg AI_HANDOFF.md |
-| Ostatni opisany zakończony build | **CI success: Etap 3.0** | https://github.com/laszko14/nira-browser/actions/runs/39703241830 |
-| Artefakt APK tego builda | **Istnieje według API; pobranie w Cloud 403** | https://github.com/laszko14/nira-browser/actions/runs/39703241830/artifacts/12394132474 |
+| Ostatni opisany zakończony build | **CI success: Etap 3.1** | https://github.com/laszko14/nira-browser/actions/runs/39706925625 |
+| Artefakt APK tego builda | **Istnieje; arm64 APK bez potwierdzenia podpisu i instalacji** | https://github.com/laszko14/nira-browser/actions/runs/39706925625/artifacts/12395875886 |
 | Test otwarcia MPV Alpha na Nothing Phone (1) | **Niepotwierdzony** | wymagany fizyczny test |
 | Automatyczny detektor wideo GeckoView | **Etap 3.0: kod + CI, oczekuje na telefon** | [PR #2](https://github.com/laszko14/nira-browser/pull/2), główna ramka i zwykłe karty; incognito zgodnie z uprawnieniem Gecko |
-| Detekcja DOM HTML5 MP4/WebM (Etap 3.1) | **Kod i testy w [PR #3](https://github.com/laszko14/nira-browser/pull/3), CI oczekuje** | gałąź oparta na PR #2; bez testu urządzenia |
+| Detekcja DOM HTML5 MP4/WebM (Etap 3.1) | **Kod + CI success w [PR #3](https://github.com/laszko14/nira-browser/pull/3)** | gałąź oparta na PR #2; bez testu urządzenia |
 | Panel wykrytych filmów / przycisk | **Niewykonany** | etap 4.0 |
 | Parser HLS / DASH i warianty jakości | **Niewykonany** | etap 4.1 |
 | Własny zaawansowany download manager | **Niewykonany, niskie pierwszeństwo** | najpierw działające wykrycie i streaming |
-| Testy jednostkowe detektora | **8 JVM + 4 JS PASS** | oficjalny testDebugUnitTest wykonał 8 testów Kotlin; job test CI success |
+| Testy jednostkowe detektora | **14 JVM + 8 JS PASS (Etap 3.1)** | raport HTML testów JVM i log Node w CI 39706343598; po poprawce job test success |
 
 Uwaga: „CI success” nie oznacza, że funkcja została sprawdzona na telefonie. W raporcie AI_HANDOFF.md wymieniono także liczne istniejące problemy lint (abortOnError=false), dlatego nie należy twierdzić, że lint jest czysty. Etap 3.0 ma zweryfikowane CI i pełny lokalny build/lint/test (8 testów Kotlin, 4 JS), brak zgłoszeń lint w nowych plikach i zweryfikowany lokalny APK; rzeczywisty transport Gecko i callback sieciowy oczekują na test telefonu. Nie ma jeszcze panelu ani repozytorium kandydatów.
 

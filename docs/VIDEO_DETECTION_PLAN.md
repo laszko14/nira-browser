@@ -1,7 +1,7 @@
 # Nira Browser — plan implementacji wykrywania wideo
 
 **Data:** 2026-10-22  
-**Stan:** 3.0 kod i CI w PR #2; 3.1 kod w PR #3; test telefonu nadal oczekuje. Dalej plan etapów 3.2–6.1  
+**Stan:** 3.0 kod i CI w PR #2; 3.1 kod i CI success w PR #3; test telefonu nadal oczekuje. Dalej plan etapów 3.2–6.1  
 **Repo:** https://github.com/laszko14/nira-browser  
 **Badanie:** [VIDEO_DETECTION_RESEARCH.md](VIDEO_DETECTION_RESEARCH.md)  
 **Stan bieżący:** [PROJECT_STATUS.md](PROJECT_STATUS.md)
