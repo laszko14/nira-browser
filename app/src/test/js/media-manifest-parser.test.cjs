@@ -49,6 +49,13 @@ test("DASH parser extracts bounded video representations and separate audio", ()
   assert.equal(result.audioTracks[0].language, "pl");
 });
 
+test("DASH parser decodes XML entities in signed BaseURL values", () => {
+  const xml = `<MPD><Period><AdaptationSet mimeType="video/mp4"><Representation height="720"><BaseURL>video.mp4?token=a&amp;signature=b</BaseURL></Representation></AdaptationSet></Period></MPD>`;
+  const result = parser.parseDash(xml, "https://cdn.example/path/manifest.mpd", 8);
+  assert.equal(result.variants[0].url,
+    "https://cdn.example/path/video.mp4?token=a&signature=b");
+});
+
 test("manifest parsers reject oversized input and unsafe schemes", () => {
   assert.throws(() => parser.parseHls("x".repeat(524289), "https://cdn.example/a.m3u8", 8));
   const result = parser.parseHls("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nfile:///secret", "https://cdn.example/a.m3u8", 8);

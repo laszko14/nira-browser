@@ -14,6 +14,7 @@ const MAX_MANIFEST_QUEUE = 8;
 const MAX_MANIFEST_ACTIVE = 2;
 const MANIFEST_TTL_MS = 120000;
 const manifestCache = new Map();
+const manifestInflight = new Map();
 const manifestQueue = [];
 let manifestActive = 0;
 let nextManifestGroup = 0;
@@ -111,6 +112,7 @@ function startDocument(message, sender) {
   // sender.url comes from Gecko and is not supplied by the page message.
   if (typeof sender.url === "string" && sender.url !== message.pageUrl) return null;
   const documentKey = ++nextDocumentKey;
+  cancelManifestTasks(sender.tab.id);
   documents.delete(sender.tab.id);
   for (const [id, frame] of frames) if (frame.tabId === sender.tab.id) frames.delete(id);
   documents.set(sender.tab.id, { documentKey, pageUrl: message.pageUrl });
@@ -179,9 +181,22 @@ browser.runtime.onMessage.addListener((message, sender) => {
 });
 if (browser.tabs && browser.tabs.onRemoved && typeof browser.tabs.onRemoved.addListener === "function") {
   browser.tabs.onRemoved.addListener(id => {
+    cancelManifestTasks(id);
     documents.delete(id);
     for (const [key, value] of frames) if (value.tabId === id) frames.delete(key);
   });
+}
+
+function manifestKey(task) {
+  return task.tabId + ":" + task.documentKey + ":" + String(task.isPrivate) + ":" + task.url;
+}
+function cancelManifestTasks(tabId) {
+  for (let index = manifestQueue.length - 1; index >= 0; index--)
+    if (manifestQueue[index].tabId === tabId) manifestQueue.splice(index, 1);
+  for (const [key, value] of manifestInflight)
+    if (value.tabId === tabId) { value.controller?.abort(); manifestInflight.delete(key); }
+  for (const key of manifestCache.keys())
+    if (key.startsWith(tabId + ":")) manifestCache.delete(key);
 }
 
 // onBeforeRequest is passive metadata capture only. No request bodies, URLs,
@@ -326,11 +341,10 @@ function onHeaders(details) {
 function queueManifest(task) {
   if (typeof fetch !== "function" || !globalThis.NiraManifestParser) return;
   const now = Date.now();
-  const cached = manifestCache.get(task.url);
+  const key = manifestKey(task);
+  const cached = manifestCache.get(key);
   if (cached && now - cached < MANIFEST_TTL_MS) return;
-  manifestCache.delete(task.url);
-  manifestCache.set(task.url, now);
-  while (manifestCache.size > 32) manifestCache.delete(manifestCache.keys().next().value);
+  if (manifestInflight.has(key) || manifestQueue.some(item => manifestKey(item) === key)) return;
   if (manifestQueue.length >= MAX_MANIFEST_QUEUE) return;
   manifestQueue.push(task);
   drainManifests();
@@ -338,6 +352,8 @@ function queueManifest(task) {
 function drainManifests() {
   while (manifestActive < MAX_MANIFEST_ACTIVE && manifestQueue.length) {
     const task = manifestQueue.shift();
+    const current = documents.get(task.tabId);
+    if (!current || current.documentKey !== task.documentKey || current.pageUrl !== task.pageUrl) continue;
     manifestActive++;
     inspectManifest(task).catch(() => {}).finally(() => {
       manifestActive--;
@@ -347,20 +363,39 @@ function drainManifests() {
 }
 async function inspectManifest(task) {
   const controller = typeof AbortController === "function" ? new AbortController() : null;
+  const key = manifestKey(task);
+  manifestInflight.set(key, { tabId: task.tabId, controller });
   const timeout = setTimeout(() => { if (controller) controller.abort(); }, 4000);
   try {
     const response = await fetch(task.url, {
-      method: "GET", credentials: "include", redirect: "follow", cache: "no-store",
+      method: "GET", credentials: "omit", redirect: "follow", cache: "no-store",
       referrer: task.pageUrl, signal: controller ? controller.signal : undefined,
     });
     if (!response || !response.ok) return;
+    const finalUrl = safeUrl(response.url) ? response.url : task.url;
+    const responseType = response.headers && response.headers.get("content-type");
+    if (responseType && classify(finalUrl, responseType) !== task.format) return;
     const declared = response.headers && response.headers.get("content-length");
     if (declared && (!/^\d+$/.test(declared) || Number(declared) > MAX_MANIFEST_BYTES)) return;
-    const text = await response.text();
-    if (typeof text !== "string" || text.length > MAX_MANIFEST_BYTES) return;
+    if (!response.body || typeof response.body.getReader !== "function" ||
+        typeof TextDecoder !== "function") return;
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8", { fatal: false });
+    let bytes = 0, text = "";
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      if (!chunk.value || !Number.isSafeInteger(chunk.value.byteLength) ||
+          chunk.value.byteLength < 0) { await reader.cancel(); return; }
+      bytes += chunk.value.byteLength;
+      if (bytes > MAX_MANIFEST_BYTES) { await reader.cancel(); return; }
+      text += decoder.decode(chunk.value, { stream: true });
+      if (text.length > MAX_MANIFEST_BYTES) { await reader.cancel(); return; }
+    }
+    text += decoder.decode();
     const parsed = task.format === "HLS" ?
-      NiraManifestParser.parseHls(text, task.url, 8) :
-      NiraManifestParser.parseDash(text, task.url, 8);
+      NiraManifestParser.parseHls(text, finalUrl, 8) :
+      NiraManifestParser.parseDash(text, finalUrl, 8);
     const current = documents.get(task.tabId);
     if (!current || current.documentKey !== task.documentKey || current.pageUrl !== task.pageUrl) return;
     for (const variant of parsed.variants || []) {
@@ -377,7 +412,9 @@ async function inspectManifest(task) {
         message.codecs = variant.codecs;
       await browser.tabs.sendMessage(task.tabId, message, { frameId: 0 });
     }
-  } finally { clearTimeout(timeout); }
+    manifestCache.set(key, Date.now());
+    while (manifestCache.size > 32) manifestCache.delete(manifestCache.keys().next().value);
+  } finally { clearTimeout(timeout); manifestInflight.delete(key); }
 }
 if (browser.webRequest && browser.webRequest.onHeadersReceived) {
   browser.webRequest.onHeadersReceived.addListener(onHeaders,

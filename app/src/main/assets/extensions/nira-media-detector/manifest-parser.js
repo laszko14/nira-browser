@@ -75,7 +75,14 @@ globalThis.NiraManifestParser = (() => {
   }
   function textTag(xml, name) {
     const match = new RegExp("<" + name + "(?:\\s[^>]*)?>([^<]+)</" + name + ">", "i").exec(xml);
-    return match ? match[1].trim() : null;
+    return match ? match[1].trim().replace(/&(amp|lt|gt|quot|apos|#\d+|#x[0-9a-f]+);/gi,
+      (_, entity) => {
+        const named = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
+        const lower = entity.toLowerCase();
+        if (named[lower]) return named[lower];
+        const value = lower.startsWith("#x") ? parseInt(lower.slice(2), 16) : parseInt(lower.slice(1), 10);
+        return Number.isInteger(value) && value > 0 && value <= 0x10ffff ? String.fromCodePoint(value) : "";
+      }) : null;
   }
   function parseDash(text, base, limit) {
     limit = bounded(text, limit);

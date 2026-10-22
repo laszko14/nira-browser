@@ -225,7 +225,9 @@ internal class MediaRepository(
         if (found != null) {
             if (source == MediaSource.NETWORK) found.format = media.format
             found.mark(source)
-            if (found.groupId == null) found.groupId = groupId
+            if (groupId != null && (found.groupId == null ||
+                    source == MediaSource.NETWORK && media.format in
+                        setOf(MediaFormat.HLS, MediaFormat.DASH))) found.groupId = groupId
             found.metadata(metadata, found.format)
             changed()
             return InsertResult.DUPLICATE
