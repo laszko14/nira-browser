@@ -28,6 +28,8 @@ Priorytetami są: zachowanie obecnych funkcji Nira, małe sprawdzalne etapy, osz
 | Test otwarcia MPV Alpha na Nothing Phone (1) | **Niepotwierdzony** | wymagany fizyczny test |
 | Automatyczny detektor wideo GeckoView | **Etap 3.0: kod + CI, oczekuje na telefon** | [PR #2](https://github.com/laszko14/nira-browser/pull/2), główna ramka i zwykłe karty; incognito zgodnie z uprawnieniem Gecko |
 | Detekcja DOM HTML5 MP4/WebM (Etap 3.1) | **Kod + CI success w [PR #3](https://github.com/laszko14/nira-browser/pull/3)** | gałąź oparta na PR #2; bez testu urządzenia |
+| Diagnostyka na telefonie, bez ADB | **Kod w [PR #4](https://github.com/laszko14/nira-browser/pull/4)** | CI test/lint PASS; APK zablokowany przez brak klucza podpisu |
+| Aktualizacyjny APK tylko arm64 | **Konfiguracja w PR #4** | do wydania niezbędne GitHub Secrets; brak zgodności z wcześniejszym losowym certyfikatem nie może być wykluczony |
 | Panel wykrytych filmów / przycisk | **Niewykonany** | etap 4.0 |
 | Parser HLS / DASH i warianty jakości | **Niewykonany** | etap 4.1 |
 | Własny zaawansowany download manager | **Niewykonany, niskie pierwszeństwo** | najpierw działające wykrycie i streaming |

@@ -1,3 +1,20 @@
+# Etap 3.1D — diagnostyka bez ADB + jedno APK arm64 (2026-10-22)
+
+- Nowa gałąź feat/media-detector-on-device-diagnostics oparta na HEAD PR #3 4328fd5; [PR #4](https://github.com/laszko14/nira-browser/pull/4) stacked względem PR #2 i #3. Nie scalać bez sprawdzenia zależności.
+- W menu BrowserFragment dodano **Diagnostyka filmów** z przyciskami Odśwież i Kopiuj raport. Odczytuje lokalny tylko-RAM MediaDetectorDiagnostics: status instalacji extension, stan Gecko incognito, testowy callback webRequest, wykrycia MP4/WebM w bieżącej karcie/profilu, odrzucone zdarzenia. Bez URL/tokenów, bez zapisu, liczniki usuwane po zamknięciu kart; odseparowana prywatność i partycje profili.
+- Testy: MediaDetectorDiagnosticsTest.kt (JVM), bez ingerencji w DOM/bridge 3.1; zmiana scope wyłącznie diagnostyczna.
+- AGENTS.md — trwała polityka: tylko arm64-v8a dla Nothing Phone (1), jeden APK i ten sam certyfikat podpisu między kolejnymi wydaniami, stałe com.prirai.android.nira.debug, inkrementacja versionCode. app/build.gradle: wyłącznie arm64-v8a, version 0.5.19-alpha1 / bazowy 89 / arm64 code 1089.
+- CI build podpisuje aktualizacyjne debug APK wyłącznie przy udostępnionych GitHub Secrets ANDROID_KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD; bez sekretów fail-closed zamiast publikacji losowo podpisanego debug APK. **Nie ma możliwości wymuszenia zgodności z już zainstalowanym certyfikatem, jeśli poprzednie wydanie było podpisane losowym kluczem.**
+- [Pierwszy CI PR #4, run 39709690259](https://github.com/laszko14/nira-browser/actions/runs/39709690259): test SUCCESS, lint SUCCESS, **build FAILED** na braku ANDROID_KEYSTORE_BASE64. To problem konfiguracji, nie potwierdzona regresja kompilatora. W repo NIE zapisano klucza ani hasła; do wydania update-safe APK użytkownik musi jednorazowo dodać Secrets.
+- Instrukcja stworzenia klucza na Androidzie (Termux) i dodania Secrets: docs/ANDROID_SIGNING_SETUP.md. Nie testowano na telefonie. Nie nazywać APK gotowym bez kompletnego builda i weryfikacji podpisu.
+
+## Następny krok
+
+1. Użytkownik jednorazowo konfiguruje klucz w Settings → Secrets and variables → Actions repo laszko14/nira-browser wg docs/ANDROID_SIGNING_SETUP.md (lub dostarcza poprzedni zgodny keystore z kopii zapasowej).
+2. Ponownie uruchom CI PR #4, potwierdź, że powstał dokładnie jeden APK app-arm64-v8a-debug.apk; porównaj fingerprint certyfikatu z zainstalowaną wersją, zanim obiecasz aktualizację bez usuwania.
+3. Zainstaluj na Nothing Phone (1), uruchom testowy film HTML5, otwórz menu → Diagnostyka filmów → Odśwież, prześlij zrzut lub zredagowany raport. Test dodatkowej karty/profilu później.
+
+---
 # Etap 3.1 — kod i CI SUCCESS; test telefonu nadal NIEPOTWIERDZONY (2026-10-22)
 
 - Zakres: tylko 3.1, na bazie niescalonego PR #2 (b6b46a4). Gałąź feat/media-detector-stage-3-1, [PR #3](https://github.com/laszko14/nira-browser/pull/3) skierowany do main, aby uruchomić istniejące CI. Do scalenia PR #2 diff obejmuje także 3.0. Nie scalać #3 przed #2.

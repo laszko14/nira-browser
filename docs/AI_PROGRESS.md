@@ -54,3 +54,10 @@
 - CI początkowe https://github.com/laszko14/nira-browser/actions/runs/39706343598: build/lint/test SUCCESS, release SKIPPED; 8 Node PASS, HTML raport 14 JVM PASS, failures/skipped 0.
 - CI po poprawce https://github.com/laszko14/nira-browser/actions/runs/39706925625: build/lint/test SUCCESS; release SKIPPED. Artefakt debug-apks https://github.com/laszko14/nira-browser/actions/runs/39706925625/artifacts/12395875886 istnieje według GitHub API. Nie przypisywać ZIP-owi sumy SHA niezweryfikowanego APK.
 - Lint task SUCCESS z abortOnError=false; nie twierdzić, że jest czysto. Bez testu fizycznego, bez scalenia PR #2 i #3.
+
+## 2026-10-22 — Etap 3.1D: test diagnostyki bez ADB i stabilne aktualizacje
+
+- [PR #4](https://github.com/laszko14/nira-browser/pull/4) odgałęziony od PR #3, dodaje lokalną diagnostykę w menu, kopię raportu bez URL i izolację liczników per profil/prywatność.
+- Kod/build: ograniczenie ABI tylko do arm64-v8a, app version 0.5.19-alpha1 / code 1089 arm64, podpis aktualizacyjny wyłącznie z istniejących secrets. Reguła zapisana w AGENTS.md.
+- [CI 39709690259](https://github.com/laszko14/nira-browser/actions/runs/39709690259): unit test PASS, lint PASS, build FAILED ponieważ brak sekretu ANDROID_KEYSTORE_BASE64. Nie wyprodukowano potwierdzonego update-safe APK. Dane i podpis z już zainstalowanej wersji niezweryfikowane.
+- Potrzebne jednorazowe dodanie 4 GitHub Secrets, opis w docs/ANDROID_SIGNING_SETUP.md. Nie wyciągać kluczy do PR, logów ani repo.
