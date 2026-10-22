@@ -27,11 +27,10 @@ class MediaClassifierTest {
             MediaDetectorMessage.Candidate("https://cdn.example.org/file.mp4", "video/ogg"), regular))
     }
 
-    @Test fun skipsSegmentsHlsDashAndNonMedia() {
+    @Test fun skipsSegmentsAndNonMedia() {
         for (url in listOf("https://cdn.example.org/seg-001.mp4",
             "https://cdn.example.org/init.mp4", "https://cdn.example.org/23.m4s",
-            "https://cdn.example.org/01.ts", "https://cdn.example.org/master.m3u8",
-            "https://cdn.example.org/manifest.mpd", "https://cdn.example.org/image.jpg")) {
+            "https://cdn.example.org/01.ts", "https://cdn.example.org/image.jpg")) {
             assertNull(url, MediaClassifier.fromDom(MediaDetectorMessage.Candidate(url), regular))
         }
         assertNull(MediaClassifier.fromDom(
@@ -40,6 +39,18 @@ class MediaClassifierTest {
             MediaDetectorMessage.Candidate("https://cdn.example.org/master.m3u8", "video/mp4"), regular))
         assertNull(MediaClassifier.fromDom(
             MediaDetectorMessage.Candidate("https://cdn.example.org/manifest.mpd", "video/webm"), regular))
+    }
+
+    @Test fun htmlVideoCanDeclareManifestBeforeAnyNetworkResponse() {
+        val hls = MediaClassifier.fromDom(
+            MediaDetectorMessage.Candidate("https://cdn.example.org/master.m3u8?sig=abc"), regular)
+        val dash = MediaClassifier.fromDom(
+            MediaDetectorMessage.Candidate("https://cdn.example.org/manifest.mpd"), regular)
+        assertEquals(MediaFormat.HLS, hls?.format)
+        assertEquals(MediaFormat.DASH, dash?.format)
+        assertEquals(MediaFormat.HLS, MediaClassifier.fromDom(
+            MediaDetectorMessage.Candidate("https://cdn.example.org/playlist?id=5",
+                "application/vnd.apple.mpegurl"), regular)?.format)
     }
 
     @Test fun nativeBindingIsPreservedWithoutTrustingPageProvidedIdentifiers() {

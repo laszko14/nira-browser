@@ -690,7 +690,7 @@ class UnifiedToolbar @JvmOverloads constructor(
                 var visibleCount = actions.childCount
                 // Hide secondary actions first, never Settings. Width is
                 // recalculated whenever the toolbar bounds change.
-                for (name in listOf("previous", "next", "forward", "close", "back")) {
+                for (name in listOf("previous", "next", "forward", "close", "back", "new")) {
                     if (visibleCount <= availableSlots) break
                     val child = ids.entries.firstOrNull { it.value == name }?.key ?: continue
                     if (child.visibility == View.VISIBLE) {
@@ -698,8 +698,18 @@ class UnifiedToolbar @JvmOverloads constructor(
                         visibleCount--
                     }
                 }
-                // New/refresh/settings are prioritized; extremely narrow
-                // layouts can still use the regular menu for other commands.
+                // If an unusual landscape cutout or action reorder leaves
+                // even less width, keep Settings and hide other actions.
+                if (visibleCount > availableSlots) {
+                    for (i in 0 until actions.childCount) {
+                        if (visibleCount <= availableSlots) break
+                        val child = actions.getChildAt(i)
+                        if (ids[child] != "settings" && child.visibility == View.VISIBLE) {
+                            child.visibility = View.GONE
+                            visibleCount--
+                        }
+                    }
+                }
             }
             actions.setOnDragListener { _, event ->
                 when (event.action) {

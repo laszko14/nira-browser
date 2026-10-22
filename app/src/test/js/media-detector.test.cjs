@@ -658,3 +658,24 @@ test("v1106: preview assist plays a ready muted thumbnail without navigating", a
   assert.equal(prevented, true);
   assert.equal(stopped, true);
 });
+
+
+test("v1108: thumbnail click without actual preview preserves navigation", () => {
+  let click, prevented = false;
+  const card = { closest: () => null, querySelector: () => null };
+  const link = {};
+  const thumb = {
+    closest: selector => selector === "a[href]" ? link : card
+  };
+  vm.runInNewContext(
+    fs.readFileSync(path.join(assets, "preview-assist.js"), "utf8"),
+    { document: { addEventListener: (type, fn) => { if (type === "click") click = fn; } } }
+  );
+  click({
+    isTrusted: true, cancelable: true, defaultPrevented: false, button: 0,
+    target: { closest: selector => selector.startsWith("button,") ? null : thumb },
+    preventDefault: () => { prevented = true; },
+    stopImmediatePropagation: () => { throw Error("must not intercept link"); }
+  });
+  assert.equal(prevented, false);
+});

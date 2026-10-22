@@ -52,12 +52,23 @@ internal object MediaClassifier {
         val uri = parsed(candidate.url) ?: return null
         val name = file(uri)
         val ext = extension(name)
-        if (isSegment(candidate.url) || ext in setOf("m3u", "m3u8", "mpd")) return null
+        if (isSegment(candidate.url)) return null
         val mime = candidate.contentType?.substringBefore(';')?.trim()?.lowercase(Locale.ROOT)
-        val format = when (mime) {
-            "video/mp4" -> MediaFormat.MP4
-            "video/webm" -> MediaFormat.WEBM
-            null -> when (ext) { "mp4", "m4v" -> MediaFormat.MP4; "webm" -> MediaFormat.WEBM; else -> null }
+        // A video element can expose an actual HLS/DASH source before a
+        // network request is visible. Do not discard explicit manifests.
+        // Conflicting MIME and extension still must not become a false MP4.
+        if (ext in setOf("m3u8", "mpd") &&
+            mime != null && mime !in setOf("application/octet-stream", "binary/octet-stream",
+                "application/vnd.apple.mpegurl", "application/x-mpegurl",
+                "audio/mpegurl", "audio/x-mpegurl", "application/dash+xml")) return null
+        val format = when {
+            mime in setOf("video/mp4", "video/webm",
+                "application/vnd.apple.mpegurl", "application/x-mpegurl",
+                "audio/mpegurl", "audio/x-mpegurl", "application/dash+xml") -> mimes[mime]
+            mime != null && mime !in setOf("application/octet-stream", "binary/octet-stream") -> null
+            ext == "m3u8" -> MediaFormat.HLS
+            ext == "mpd" -> MediaFormat.DASH
+            ext in setOf("mp4", "m4v", "webm") -> direct[ext]
             else -> null
         } ?: return null
         return DetectedMedia(candidate.url, format, binding.tabId, binding.contextId, binding.isPrivate)
