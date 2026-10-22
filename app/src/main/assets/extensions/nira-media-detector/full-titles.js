@@ -57,7 +57,7 @@
       for (const key of ["data-video-title", "data-title", "title", "aria-label", "alt"]) {
         const text = (node.getAttribute(key) || "").replace(/\s+/g, " ").trim();
         if (text.length < 12 || text.length > 600 || text.length <= visible.length + 5) continue;
-        const prefix = visible.replace(/[.\\u2026]+$/g, "").trim().slice(0, 15).toLowerCase();
+        const prefix = visible.replace(/[.…]+$/g, "").trim().slice(0, 15).toLowerCase();
         if (prefix.length >= 8 && !text.toLowerCase().startsWith(prefix)) continue;
         if (!best || text.length > best.length) best = text;
       }
@@ -72,7 +72,7 @@
     if (text.length < 8 || text.length > 1200) return;
     const original = originalTitle(element, image, card, text);
     if (original && element.children.length === 0 &&
-        (/[.\\u2026]{2,}\s*$/.test(text) || text.length < original.length)) {
+        (/[.…]{2,}\s*$/.test(text) || text.length < original.length)) {
       element.textContent = original;
     }
     element.classList.add(TITLE);
