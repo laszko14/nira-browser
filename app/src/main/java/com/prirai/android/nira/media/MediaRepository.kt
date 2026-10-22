@@ -1,6 +1,9 @@
 package com.prirai.android.nira.media
 
 import java.util.IdentityHashMap
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /** Trusted BrowserStore snapshot. No field here is supplied as a tab/profile ID by a web page. */
 internal data class MediaTabState(
@@ -13,6 +16,7 @@ internal data class MediaTabState(
 
 /** Returned only inside the native process. String representations never expose signed URLs. */
 internal class MediaEntry(
+    val id: Long,
     val url: String,
     val format: MediaFormat,
     val sources: Set<MediaSource>,
@@ -54,7 +58,7 @@ internal class MediaRepository(
     private class Record(val url: String, var format: MediaFormat, val serial: Long) {
         var dom = false
         var network = false
-        fun copy() = MediaEntry(url, format, buildSet {
+        fun copy() = MediaEntry(serial, url, format, buildSet {
             if (dom) add(MediaSource.DOM)
             if (network) add(MediaSource.NETWORK)
         })
@@ -66,6 +70,9 @@ internal class MediaRepository(
         val entries: LinkedHashMap<String, Record> = LinkedHashMap(),
     )
     private val scopes = IdentityHashMap<Any, Scope>()
+    private val mutableRevision = MutableStateFlow(0L)
+    val revision: StateFlow<Long> = mutableRevision.asStateFlow()
+    private fun changed() { mutableRevision.value = mutableRevision.value + 1 }
     private var serial = 0L
     private fun tick(): Long = ++serial
     private fun same(a: MediaSessionBinding, b: MediaSessionBinding) =
@@ -112,6 +119,7 @@ internal class MediaRepository(
                 // previous document must not register again after a reload.
             }
         }
+        if (changes.isNotEmpty()) changed()
         return changes
     }
 
@@ -144,6 +152,7 @@ internal class MediaRepository(
         current.documentKey = documentKey
         current.registered = true
         current.access = tick()
+        changed()
         return DocumentResult(true, removed)
     }
 
@@ -162,6 +171,7 @@ internal class MediaRepository(
         if (found != null) {
             if (source == MediaSource.NETWORK) found.format = media.format
             if (source == MediaSource.DOM) found.dom = true else found.network = true
+            changed()
             return InsertResult.DUPLICATE
         }
         val added = Record(media.url, media.format, tick())
@@ -183,12 +193,23 @@ internal class MediaRepository(
             if (oldestScope == null || oldestRecord == null) break
             oldestScope.entries.remove(oldestRecord.url)
         }
+        changed()
         return InsertResult.ADDED
     }
 
     @Synchronized fun forTab(binding: MediaSessionBinding): List<MediaEntry> =
         scopes[binding.session]?.takeIf { same(it.binding, binding) }
             ?.entries?.values?.map { it.copy() } ?: emptyList()
+
+    /**
+     * Strict UI read. BrowserStore's current page/loading state must match
+     * the registered document; a focus switch never grants other tab access.
+     */
+    @Synchronized fun currentEntries(tab: MediaTabState): List<MediaEntry> =
+        scopes[tab.binding.session]?.takeIf {
+            same(it.binding, tab.binding) && it.pageUrl == tab.pageUrl &&
+                it.loading == tab.loading && it.registered
+        }?.entries?.values?.map { it.copy() } ?: emptyList()
 
     /** Sanitized aggregates used by diagnostics; no URLs escape via this API. */
     @Synchronized fun counts(contextId: String?, privateMode: Boolean): List<TabCounts> =

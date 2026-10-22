@@ -1,3 +1,5 @@
+> **Etap 4.0 — 2026-10-22:** implementacja w [PR #8](https://github.com/laszko14/nira-browser/pull/8), baza `feat/media-detector-stage-3-3-state` SHA `30cdde1e`. Dodano natywny 56dp przeciągany przycisk filmów, licznik wyników z RAM-only MediaRepository 3.3, BottomSheet z listą/MPV Alpha/kopiowaniem, StateFlow, kontrolę starej sesji/dokumentu, 9 nowych testów Kotlin i job CI ARM64. Wersja 0.5.22-alpha1, code 1095. [CI — weryfikacja aktualnego HEAD](https://github.com/laszko14/nira-browser/actions?query=branch%3Afeat%2Fmedia-detector-stage-4-0-floating-ui). Brak testu na fizycznym telefonie, brak dowodu certyfikatu zgodnego z zainstalowaną wersją; bez merge i bez 4.1.
+
 > **Checkpoint Etapu 3.3 (2026-10-22):** prace na [PR #7](https://github.com/laszko14/nira-browser/pull/7), baza PR #5 / gałąź `feat/media-detector-stage-3-2-network` (HEAD przy utworzeniu `ab29e263`), bez PR #6. Dodano RAM-only repozytorium kandydatów z izolacją karty/profilu/incognito/nawigacji, dokumentowo powiązany transport sieciowy i regresje Kotlin/JS. [Run 39730681284](https://github.com/laszko14/nira-browser/actions/runs/39730681284) 36 Kotlin + 17 JS + lint/kompilacja arm64 SUCCESS; po runie dodano jeszcze ochronę profile-rebind i test, więc aktualny HEAD wymaga końcowego CI. Nie wydano aktualizacyjnego APK bez potwierdzenia certyfikatu telefonu. Nie rozpoczęto Etapu 4.0.
 
 # Alpha / Nira Browser — bieżący stan projektu i przekazanie pracy
@@ -35,7 +37,7 @@ Priorytetami są: zachowanie obecnych funkcji Nira, małe sprawdzalne etapy, osz
 | Detekcja DOM HTML5 MP4/WebM (Etap 3.1) | **Kod + CI success w [PR #3](https://github.com/laszko14/nira-browser/pull/3)** | gałąź oparta na PR #2; bez testu urządzenia |
 | Diagnostyka na telefonie, bez ADB | **Kod w [PR #4](https://github.com/laszko14/nira-browser/pull/4)** | CI test/lint PASS; APK zablokowany przez brak klucza podpisu |
 | Aktualizacyjny APK tylko arm64 | **Konfiguracja w PR #4** | do wydania niezbędne GitHub Secrets; brak zgodności z wcześniejszym losowym certyfikatem nie może być wykluczony |
-| Panel wykrytych filmów / przycisk | **Niewykonany** | etap 4.0 |
+| Panel wykrytych filmów / przycisk | **Kod w PR #8, CI i test telefonu do weryfikacji** | etap 4.0; ARM64-only i brak merge |
 | Parser HLS / DASH i warianty jakości | **Niewykonany** | etap 4.1 |
 | Własny zaawansowany download manager | **Niewykonany, niskie pierwszeństwo** | najpierw działające wykrycie i streaming |
 | Testy jednostkowe detektora | **14 JVM + 8 JS PASS (Etap 3.1)** | raport HTML testów JVM i log Node w CI 39706343598; po poprawce job test success |

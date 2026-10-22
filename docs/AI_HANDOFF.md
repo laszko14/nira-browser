@@ -1,3 +1,16 @@
+# Checkpoint — Nira Browser Etap 4.0 (2026-10-22)
+
+- **Repo/PR:** [PR #8](https://github.com/laszko14/nira-browser/pull/8), HEAD na gałęzi `feat/media-detector-stage-4-0-floating-ui`; baza wyłącznie `feat/media-detector-stage-3-3-state` o HEAD `30cdde1e7cf550106abe452693473e0f5c04eb37`. PR #6 nietknięty. Brak merge.
+- **Zakres kodu:** `MediaFloatingUi.kt` — okrągłe 56dp, turkusowe kółko Android View ponad stroną, czerwony licznik unikalnych źródeł, przeciąganie i zapamiętywanie WYŁĄCZNIE znormalizowanej pozycji, przycięcie do widocznego obszaru, zarezerwowane miejsce toolbarów, ukrywanie w fullscreen, Material BottomSheet z formatami i DOM/Sieć. Nie używa SYSTEM_ALERT_WINDOW, HTML, pobierania, DRM, parsera jakości, zewnętrznego emulatora ani nowych źródeł danych.
+- **Źródło prawdy:** tylko istniejący `MediaRepository` (3.3), dodano `StateFlow` rewizji i `currentEntries` z walidacją EngineSession/karty/profilu/trybu private, URL i stanu loading. `MediaEntry.id` to nietrwały identyfikator rekordu; po nawigacji, reloadzie, usunięciu lub wymianie wpisu stary callback UI nie powinien otworzyć źródła. URI w repo pozostają w RAM bez logowania.
+- **Otwieranie:** `BrowserFragment` wykorzystuje tę samą akcję `ACTION_VIEW` do `xyz.mpv.rex.ui.player.PlayerActivity` co ręczny URL Etapu 2, z fallback chooser. HLS/DASH może wymagać niedostępnych headers/cookies. Kopiowanie oryginalnego URL jest świadomą akcją i może przenieść podpisany link do schowka (Android 13+ oznaczenie sensitive).
+- **Testy:** `MediaFloatingStage40Test.kt` zawiera 9 nowych testów Kotlin: puste repo, deduplikacja, przełączanie kart, nawigacja, reload+stale, izolacja profil/incognito, zamknięcie karty, StateFlow i segmenty. Zachowano regresje 3.0–3.3 i testy JS. Testy UI na fizycznym telefonie NIE wykonane w tym środowisku.
+- **APK:** `0.5.22-alpha1`, bazowy versionCode `95`, ARM64 versionCode `1095`, `com.prirai.android.nira.debug`, jedyne ABI arm64-v8a. Workflow `stage40_arm64_apk` buduje jeden APK, sprawdza `apksigner`, publikuje artefakt z README. Używa istniejących czterech GitHub Secrets, jeśli kompletne; inaczej jedynie tymczasowy podpis Android Debug z ostrzeżeniem. Nie modyfikuje Secrets. Samo `apksigner verify` NIE dowodzi możliwości aktualizacji: porównaj fingerprint z aktualnie zainstalowanym APK na Nothing Phone (1).
+- **CI:** [run 39737877731](https://github.com/laszko14/nira-browser/actions/runs/39737877731) — rozpoczęty po utworzeniu PR; bieżący status sprawdzić na GitHubie (późniejsze commity mogą uruchomić nowy run). Zawsze podawać status aktualnego HEAD, wyniki JVM/JS/lint, signed APK i artefakt dopiero po weryfikacji. `lintDebug` ma historyczne `abortOnError=false`.
+- **Dalszy krok:** zweryfikować najnowszy run #8, naprawić konkretne błędy kompilacji/testów z logów, sprawdzić artefakt, skontrolować kod i wykonać test na telefonie (MP4, HLS, drag, fullscreen, przeskok kart, stale URL). **Nie rozpoczynać 4.1, nie scalać.**
+
+---
+
 # Checkpoint — Nira Browser Etap 3.3 (2026-10-22)
 
 - **PR:** https://github.com/laszko14/nira-browser/pull/7 (head `feat/media-detector-stage-3-3-state`, baza `feat/media-detector-stage-3-2-network`, bazowy commit `ab29e263386b180c373f69b2f7020bd14721f168`). PR #6 nie jest bazą; nie wykonano merge.

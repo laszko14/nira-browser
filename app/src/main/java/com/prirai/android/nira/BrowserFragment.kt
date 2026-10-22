@@ -24,8 +24,16 @@ import com.prirai.android.nira.downloads.DownloadsBottomSheetFragment
 import com.prirai.android.nira.ext.components
 import com.prirai.android.nira.ext.nav
 import com.prirai.android.nira.preferences.UserPreferences
+import com.prirai.android.nira.media.MediaDetectorController
+import com.prirai.android.nira.media.MediaFloatingUi
+import com.prirai.android.nira.media.MediaUiSnapshot
+import com.prirai.android.nira.media.MediaTabState
+import com.prirai.android.nira.media.MediaSessionBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.map
@@ -49,6 +57,7 @@ import mozilla.components.support.ktx.kotlinx.coroutines.flow.ifAnyChanged
 class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
 
     private val windowFeature = ViewBoundFeatureWrapper<WindowFeature>()
+    private var mediaFloatingUi: MediaFloatingUi? = null
 
     // Track last tab IDs for auto-grouping detection
     private var lastTabIds = setOf<String>()
@@ -115,6 +124,71 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         observeTabChangesForToolbar()
         observeDownloadsForSheet()
         observeNewTabSelection()
+        setupFloatingMediaUi()
+    }
+
+    private fun currentMediaSnapshot(): MediaUiSnapshot? {
+        val store = requireContext().components.store.state
+        val selected = store.tabs.firstOrNull { it.id == store.selectedTabId } ?: return null
+        val engineSession = selected.engineState.engineSession ?: return null
+        val repository = MediaDetectorController.uiRepository.value ?: return null
+        val tab = MediaTabState(
+            MediaSessionBinding(engineSession, selected.id, selected.contextId, selected.content.private),
+            selected.content.url, selected.content.loading
+        )
+        return MediaUiSnapshot(tab, repository.currentEntries(tab))
+    }
+
+    private fun setupFloatingMediaUi() {
+        val store = requireContext().components.store
+        val overlay = MediaFloatingUi(
+            parent = binding.browserLayout,
+            current = { if (isAdded) currentMediaSnapshot() else null },
+            safeToolbarSpace = {
+                val height = unifiedToolbar?.getToolbarView()?.height ?: 0
+                if (cachedToolbarPosition ==
+                    com.prirai.android.nira.components.toolbar.ToolbarPosition.BOTTOM.ordinal) {
+                    0 to height
+                } else height to 0
+            },
+            openVideo = { url ->
+                // Reuse the proven Stage 2 external player launcher; do not download.
+                val uri = url.toUri()
+                if (uri.scheme in listOf("http", "https") && !uri.host.isNullOrBlank()) {
+                    launchVideoInMpv(uri)
+                } else {
+                    Toast.makeText(requireContext(), R.string.video_link_invalid, Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
+        mediaFloatingUi = overlay
+        viewLifecycleOwner.lifecycleScope.launch {
+            val repositoryChanges = MediaDetectorController.uiRepository.flatMapLatest { repo ->
+                if (repo == null) flowOf(null)
+                else repo.revision.map { repo }
+            }
+            // Only changes of the selected document or MediaRepository revision
+            // repaint the badge; progress/scroll Store actions are ignored.
+            val selectedDocument = store.flow().map { state ->
+                val selected = state.tabs.firstOrNull { it.id == state.selectedTabId }
+                val session = selected?.engineState?.engineSession
+                if (selected == null || session == null) null
+                else MediaTabState(
+                    MediaSessionBinding(session, selected.id, selected.contextId, selected.content.private),
+                    selected.content.url, selected.content.loading
+                )
+            }.distinctUntilChanged()
+            combine(selectedDocument, repositoryChanges) { tab, repo ->
+                if (tab == null || repo == null) null
+                else MediaUiSnapshot(tab, repo.currentEntries(tab))
+            }.collect { overlay.render(it) }
+        }
+    }
+
+    override fun onDestroyView() {
+        mediaFloatingUi?.detach()
+        mediaFloatingUi = null
+        super.onDestroyView()
     }
 
     override fun onResume() {
@@ -736,6 +810,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
      * API calls from the web content.
      */
     override fun onFullScreenModeChanged(inFullScreen: Boolean) {
+        mediaFloatingUi?.setFullscreen(inFullScreen)
         if (inFullScreen) {
             // Entering fullscreen - completely hide and collapse all toolbars
             expandBrowserViewForFullscreen()
@@ -1150,28 +1225,34 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                     return@setOnClickListener
                 }
 
-                val viewIntent = Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(uri, "video/*")
-                }
-                try {
-                    startActivity(Intent(viewIntent).setClassName(
-                        "xyz.mpv.rex", "xyz.mpv.rex.ui.player.PlayerActivity"
-                    ))
-                } catch (_: ActivityNotFoundException) {
-                    openVideoChooser(viewIntent)
-                } catch (_: SecurityException) {
-                    openVideoChooser(viewIntent)
-                }
+                launchVideoInMpv(uri)
                 dialog.dismiss()
             }
         }
         dialog.show()
     }
 
+    private fun launchVideoInMpv(uri: android.net.Uri) {
+        val viewIntent = Intent(Intent.ACTION_VIEW).apply { setDataAndType(uri, "video/*") }
+        try {
+            startActivity(Intent(viewIntent).setClassName(
+                "xyz.mpv.rex", "xyz.mpv.rex.ui.player.PlayerActivity"
+            ))
+        } catch (_: ActivityNotFoundException) {
+            openVideoChooser(viewIntent)
+        } catch (_: SecurityException) {
+            openVideoChooser(viewIntent)
+        } catch (_: IllegalArgumentException) {
+            openVideoChooser(viewIntent)
+        }
+    }
+
     private fun openVideoChooser(viewIntent: Intent) {
         try {
             startActivity(Intent.createChooser(viewIntent, getString(R.string.choose_video_player)))
         } catch (_: ActivityNotFoundException) {
+            Toast.makeText(requireContext(), R.string.no_video_player, Toast.LENGTH_SHORT).show()
+        } catch (_: SecurityException) {
             Toast.makeText(requireContext(), R.string.no_video_player, Toast.LENGTH_SHORT).show()
         }
     }

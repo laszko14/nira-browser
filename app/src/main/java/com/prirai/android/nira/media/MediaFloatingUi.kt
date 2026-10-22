@@ -1,0 +1,301 @@
+package com.prirai.android.nira.media
+
+import android.content.ClipData
+import android.content.ClipDescription
+import android.content.ClipboardManager
+import android.content.Context
+import android.graphics.Color
+import android.graphics.Rect
+import android.graphics.drawable.GradientDrawable
+import android.os.Build
+import android.os.PersistableBundle
+import android.view.Gravity
+import android.view.MotionEvent
+import android.view.View
+import android.view.ViewConfiguration
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
+import android.widget.Toast
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.button.MaterialButton
+import java.net.URI
+import kotlin.math.abs
+
+/** A view-layer snapshot; URLs are never logged, serialized or persisted. */
+internal data class MediaUiSnapshot(val tab: MediaTabState, val entries: List<MediaEntry>)
+
+/**
+ * App-only draggable View overlay and Material BottomSheet. No injected HTML, overlay
+ * permission, polling or separate video cache. Only normalized position is persisted.
+ */
+internal class MediaFloatingUi(
+    private val parent: ViewGroup,
+    private val current: () -> MediaUiSnapshot?,
+    private val safeToolbarSpace: () -> Pair<Int, Int>,
+    private val openVideo: (String) -> Unit,
+) {
+    private val context = parent.context
+    private val prefs = context.getSharedPreferences("nira_media_floating_position", Context.MODE_PRIVATE)
+    private fun dp(value: Int) = (value * context.resources.displayMetrics.density + 0.5f).toInt()
+    private val size = dp(56)
+    private val padding = dp(24)
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+    private val button = FrameLayout(context).apply {
+        background = circle(Color.rgb(26, 180, 176))
+        elevation = dp(8).toFloat()
+        contentDescription = "Wykryte filmy"
+        isClickable = true
+        isFocusable = true
+        visibility = View.GONE
+    }
+    private val count = TextView(context).apply {
+        gravity = Gravity.CENTER
+        textSize = 11f
+        setTypeface(typeface, android.graphics.Typeface.BOLD)
+        setTextColor(Color.WHITE)
+        setPadding(dp(3), 0, dp(3), 0)
+        background = circle(Color.rgb(211, 40, 53))
+        elevation = dp(2).toFloat()
+    }
+    private var isFullscreen = false
+    private var displayed: MediaUiSnapshot? = null
+    private var sheet: BottomSheetDialog? = null
+    private var sheetBody: LinearLayout? = null
+    private var placed = false
+    private var lastWidth = 0
+    private var lastHeight = 0
+    private var x = 0f
+    private var y = 0f
+    private var dragging = false
+    private var downRawX = 0f
+    private var downRawY = 0f
+    private var startX = 0f
+    private var startY = 0f
+
+    init {
+        button.addView(TextView(context).apply {
+            text = "▶"
+            textSize = 24f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            contentDescription = null
+        }, FrameLayout.LayoutParams(-1, -1))
+        button.addView(count, FrameLayout.LayoutParams(dp(27), dp(27), Gravity.END or Gravity.TOP))
+        parent.addView(button, ViewGroup.LayoutParams(size, size))
+        button.setOnTouchListener { _, event -> handleTouch(event) }
+        parent.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
+            if (right - left != lastWidth || bottom - top != lastHeight) {
+                lastWidth = right - left
+                lastHeight = bottom - top
+                button.post { place() }
+            } else {
+                button.post { if (!dragging) place() }
+            }
+        }
+        button.post { place() }
+    }
+
+    private fun circle(color: Int) = GradientDrawable().apply {
+        shape = GradientDrawable.OVAL
+        setColor(color)
+    }
+
+    fun render(value: MediaUiSnapshot?) {
+        displayed = value?.takeIf { it.entries.isNotEmpty() }
+        val amount = displayed?.entries?.size ?: 0
+        count.text = if (amount > 99) "99+" else amount.toString()
+        button.visibility = if (!isFullscreen && amount > 0) View.VISIBLE else View.GONE
+        if (sheet?.isShowing == true) {
+            if (amount == 0 || isFullscreen) sheet?.dismiss() else fillSheet()
+        }
+    }
+
+    fun setFullscreen(value: Boolean) {
+        isFullscreen = value
+        render(displayed)
+    }
+
+    fun detach() {
+        sheet?.dismiss()
+        sheet = null
+        parent.removeView(button)
+    }
+
+    private fun bounds(): FloatArray {
+        // browserLayout is already bounded by Nira's host activity. Keep within
+        // window visible frame (including IME resize/pan) and toolbar reservations.
+        val visible = Rect()
+        parent.getWindowVisibleDisplayFrame(visible)
+        val location = IntArray(2)
+        parent.getLocationOnScreen(location)
+        val (topToolbar, bottomToolbar) = safeToolbarSpace()
+        val minY = maxOf(padding, visible.top - location[1] + padding, topToolbar + padding).toFloat()
+        val windowBottom = (visible.bottom - location[1]).coerceAtMost(parent.height)
+        val maxY = maxOf(minY, (windowBottom - size - bottomToolbar - padding).toFloat())
+        val minX = padding.toFloat()
+        val maxX = maxOf(minX, (parent.width - size - padding).toFloat())
+        return floatArrayOf(minX, maxX, minY, maxY)
+    }
+
+    private fun place() {
+        if (parent.width <= 0 || parent.height <= 0 || dragging) return
+        val b = bounds()
+        if (!placed) {
+            x = if (prefs.contains("x")) b[0] + prefs.getFloat("x", 1f).coerceIn(0f, 1f) * (b[1] - b[0]) else b[1]
+            y = if (prefs.contains("y")) b[2] + prefs.getFloat("y", 1f).coerceIn(0f, 1f) * (b[3] - b[2]) else b[3]
+            placed = true
+        }
+        x = x.coerceIn(b[0], b[1])
+        y = y.coerceIn(b[2], b[3])
+        button.translationX = x
+        button.translationY = y
+    }
+
+    private fun savePosition() {
+        val b = bounds()
+        prefs.edit()
+            .putFloat("x", if (b[1] > b[0]) ((x - b[0]) / (b[1] - b[0])).coerceIn(0f, 1f) else 1f)
+            .putFloat("y", if (b[3] > b[2]) ((y - b[2]) / (b[3] - b[2])).coerceIn(0f, 1f) else 1f)
+            .apply()
+    }
+
+    private fun handleTouch(event: MotionEvent): Boolean = when (event.actionMasked) {
+        MotionEvent.ACTION_DOWN -> {
+            dragging = false
+            downRawX = event.rawX
+            downRawY = event.rawY
+            startX = x
+            startY = y
+            button.parent.requestDisallowInterceptTouchEvent(true)
+            true
+        }
+        MotionEvent.ACTION_MOVE -> {
+            val dx = event.rawX - downRawX
+            val dy = event.rawY - downRawY
+            if (!dragging && (abs(dx) > touchSlop || abs(dy) > touchSlop)) dragging = true
+            if (dragging) {
+                val b = bounds()
+                x = (startX + dx).coerceIn(b[0], b[1])
+                y = (startY + dy).coerceIn(b[2], b[3])
+                button.translationX = x
+                button.translationY = y
+            }
+            true
+        }
+        MotionEvent.ACTION_UP -> {
+            if (dragging) savePosition() else if (!isFullscreen) showSheet()
+            dragging = false
+            true
+        }
+        MotionEvent.ACTION_CANCEL -> {
+            dragging = false
+            place()
+            true
+        }
+        else -> true
+    }
+
+    private fun showSheet() {
+        if (current()?.entries.isNullOrEmpty()) return
+        sheet?.dismiss()
+        val dialog = BottomSheetDialog(context)
+        val scroll = ScrollView(context).apply { isFillViewport = false }
+        val body = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(18), dp(18), dp(28))
+        }
+        scroll.addView(body, FrameLayout.LayoutParams(-1, -2))
+        dialog.setContentView(scroll)
+        sheet = dialog
+        sheetBody = body
+        dialog.setOnDismissListener { sheet = null; sheetBody = null }
+        fillSheet()
+        dialog.show()
+    }
+
+    private fun label(text: String, sizeSp: Float, bold: Boolean = false) = TextView(context).apply {
+        this.text = text
+        textSize = sizeSp
+        setTextColor(if (bold) Color.rgb(35, 48, 52) else Color.rgb(83, 93, 100))
+        if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+        setPadding(0, dp(4), 0, dp(4))
+    }
+
+    private fun fillSheet() {
+        val body = sheetBody ?: return
+        val snapshot = current()
+        body.removeAllViews()
+        if (snapshot == null || snapshot.entries.isEmpty()) {
+            sheet?.dismiss()
+            return
+        }
+        body.addView(label("Wykryte filmy  •  ${snapshot.entries.size}", 20f, true))
+        body.addView(label("Liczba unikalnych źródeł, niekoniecznie osobnych filmów.", 12f))
+        snapshot.entries.forEachIndexed { index, entry ->
+            val card = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(12), dp(12), dp(12), dp(12))
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(16).toFloat()
+                    setColor(Color.rgb(243, 248, 248))
+                }
+            }
+            card.addView(label("Źródło ${index + 1}   •   ${entry.format.name}", 16f, true))
+            val origin = when {
+                MediaSource.DOM in entry.sources && MediaSource.NETWORK in entry.sources -> "DOM + Sieć"
+                MediaSource.DOM in entry.sources -> "DOM"
+                else -> "Sieć"
+            }
+            card.addView(label("Wykrycie: $origin", 13f))
+            val host = try { URI(entry.url).host ?: "nieznane źródło" } catch (_: Exception) { "nieznane źródło" }
+            card.addView(label("Serwer: ${host.take(80)}  •  adres ukryty", 13f))
+            if (entry.format == MediaFormat.HLS || entry.format == MediaFormat.DASH) {
+                card.addView(label("Odtwarzanie zewnętrzne może wymagać cookies lub autoryzacji.", 12f))
+            }
+            val open = MaterialButton(context).apply {
+                text = "Otwórz w MPV Alpha"
+                setOnClickListener {
+                    val now = current()
+                    if (now == null || !sameSelection(snapshot.tab, now.tab) ||
+                        now.entries.none { it.id == entry.id && it.url == entry.url }) {
+                        stale()
+                        fillSheet()
+                    } else openVideo(entry.url)
+                }
+            }
+            card.addView(open, LinearLayout.LayoutParams(-1, -2))
+            card.addView(MaterialButton(context, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                text = "Kopiuj adres"
+                setOnClickListener {
+                    val now = current()
+                    if (now == null || !sameSelection(snapshot.tab, now.tab) ||
+                        now.entries.none { it.id == entry.id && it.url == entry.url }) {
+                        stale()
+                        fillSheet()
+                    } else {
+                        val clip = ClipData.newPlainText("Adres źródła wideo", entry.url)
+                        if (Build.VERSION.SDK_INT >= 33) {
+                            clip.description.extras = PersistableBundle().apply {
+                                putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
+                            }
+                        }
+                        (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
+                            .setPrimaryClip(clip)
+                        Toast.makeText(context, "Adres skopiowany — może zawierać poufny token", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }, LinearLayout.LayoutParams(-1, -2))
+            body.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
+        }
+    }
+
+    private fun stale() = Toast.makeText(context, "Źródło nie jest już aktualne", Toast.LENGTH_SHORT).show()
+
+    private fun sameSelection(a: MediaTabState, b: MediaTabState): Boolean =
+        a.binding.session === b.binding.session && a.binding.tabId == b.binding.tabId &&
+            a.binding.contextId == b.binding.contextId && a.binding.isPrivate == b.binding.isPrivate &&
+            a.pageUrl == b.pageUrl && a.loading == b.loading
+}
