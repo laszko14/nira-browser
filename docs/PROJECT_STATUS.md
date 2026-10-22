@@ -27,6 +27,7 @@ Priorytetami są: zachowanie obecnych funkcji Nira, małe sprawdzalne etapy, osz
 | Artefakt APK tego builda | **Istnieje według API; pobranie w Cloud 403** | https://github.com/laszko14/nira-browser/actions/runs/39703241830/artifacts/12394132474 |
 | Test otwarcia MPV Alpha na Nothing Phone (1) | **Niepotwierdzony** | wymagany fizyczny test |
 | Automatyczny detektor wideo GeckoView | **Etap 3.0: kod + CI, oczekuje na telefon** | [PR #2](https://github.com/laszko14/nira-browser/pull/2), główna ramka i zwykłe karty; incognito zgodnie z uprawnieniem Gecko |
+| Detekcja DOM HTML5 MP4/WebM (Etap 3.1) | **Kod i testy w [PR #3](https://github.com/laszko14/nira-browser/pull/3), CI oczekuje** | gałąź oparta na PR #2; bez testu urządzenia |
 | Panel wykrytych filmów / przycisk | **Niewykonany** | etap 4.0 |
 | Parser HLS / DASH i warianty jakości | **Niewykonany** | etap 4.1 |
 | Własny zaawansowany download manager | **Niewykonany, niskie pierwszeństwo** | najpierw działające wykrycie i streaming |
@@ -43,7 +44,7 @@ Uwaga: „CI success” nie oznacza, że funkcja została sprawdzona na telefoni
 - `app/build.gradle` — minSdk, wersje i ABI; `gradle/libs.versions.toml` — zależności Mozilli.
 - `.github/workflows/apk-release.yml` — build/lint/test/release.
 
-**Projektowane, jeszcze nie istniejące:** katalog `app/src/main/assets/extensions/nira-media-detector/`, pakiet Kotlin `com.prirai.android.nira.media`, UI listy źródeł. Szczegółowe zadania: VIDEO_DETECTION_PLAN.md.
+**Istniejące na gałęzi PR #3:** katalog `app/src/main/assets/extensions/nira-media-detector/`, pakiet Kotlin `com.prirai.android.nira.media` i `MediaClassifier.kt`. **Projektowane:** repozytorium stanu oraz UI listy źródeł. Szczegółowe zadania: VIDEO_DETECTION_PLAN.md.
 
 **Odtwarzacz:** https://github.com/laszko14/REX-Player — według zweryfikowanego wcześniej commitu `8c4f9ed2159c397317ceb1d58e8223f8cdf2b222` pakiet `xyz.mpv.rex`, aktywność `xyz.mpv.rex.ui.player.PlayerActivity` dla ACTION_VIEW. Nie implementuj duplikatu tej integracji; rozbuduj istniejącą akcję po testach.
 

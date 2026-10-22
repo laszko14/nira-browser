@@ -1,3 +1,21 @@
+# Etap 3.1 — kod i testy wypchnięte; CI i telefon NIEPOTWIERDZONE (2026-10-22)
+
+- Zakres: tylko 3.1, na bazie niescalonego PR #2 (b6b46a4). Gałąź feat/media-detector-stage-3-1, [PR #3](https://github.com/laszko14/nira-browser/pull/3) skierowany do main, aby uruchomić istniejące CI. Do scalenia PR #2 diff obejmuje także 3.0. Nie scalać #3 przed #2.
+- Commity kodu f110b95e oraz testów 81d60cfc; końcowy HEAD dokumentacji należy sprawdzić w PR #3.
+- HTML5: play/playing/loadedmetadata, skan tylko odtwarzanych video, ograniczony MutationObserver (120 ms, maks. 48 wideo na skan) na zmiany src i source/SPA; zmiana nawigacji ponawia sygnał, duplikaty tego samego źródła danego elementu są tłumione.
+- Walidowany protokół 3.0 otrzymał opcjonalny contentType z source type (do 128 B); Kotlin tworzy nietrwały DetectedMedia dla MP4/WebM i odrzuca typowe segmenty oraz HLS/DASH. Zachowano podpisany URL bez zmian, lecz diagnostyka i toString nie podają URL/tokenów. HTTP Content-Type to etap 3.2.
+- Zachowano natywne przypisanie EngineSession do karty/profilu, Gecko-controlled incognito i ograniczony webRequest probe. Limit 1/s zmieniono na 24 zdarzenia/5s na sesję, aby nie zgubić dwóch różnych filmów.
+- Brak panelu, MediaRepository (3.3), parserów i downloadera. DetectedMedia jest obiektem chwilowym: nie jest wyświetlany ani trwale przechowywany.
+- Wersja 0.5.18-alpha1, bazowy versionCode 85, arm64 debug code 1085; bez modyfikacji identyfikatora/podpisywania. Nowy APK NIEZWERYFIKOWANY.
+- Dodano 8 testów Node, 5 testów klasyfikatora Kotlin i 1 test protokołu MIME; bez deklaracji PASS do uzyskania wyników CI. Bazowe lint Etapu 3.0: 1626 błędów, 367 ostrzeżeń.
+- Nie testowano na telefonie ani Etapu 3.0, ani 3.1; do potwierdzenia Gecko DOM → Kotlin, przypisanie profili/kart, callback webRequest i SPA. Bez UI nie ma widocznej listy.
+
+## Następny krok
+
+Sprawdzić CI [PR #3](https://github.com/laszko14/nira-browser/pull/3), naprawić tylko potwierdzone regresje i dopisać realny run/artefakt. Następnie osobny test na Nothing Phone (1). PR #2 i #3 pozostawić bez merge do code review.
+
+---
+
 # Etap 3.0 — kod i CI zweryfikowane, oczekuje na telefon (2026-10-22 UTC)
 
 - Baza: `main` / `b9fd4c5`; gałąź robocza `feat/media-detector-stage-3-0`. Etapy 1–2 zachowane.

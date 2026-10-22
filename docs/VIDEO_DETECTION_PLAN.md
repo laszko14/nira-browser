@@ -1,7 +1,7 @@
 # Nira Browser — plan implementacji wykrywania wideo
 
 **Data:** 2026-10-22  
-**Stan:** PLAN — jeszcze nie zaimplementowano automatycznego wykrywania  
+**Stan:** 3.0 kod i CI w PR #2; 3.1 kod w PR #3; test telefonu nadal oczekuje. Dalej plan etapów 3.2–6.1  
 **Repo:** https://github.com/laszko14/nira-browser  
 **Badanie:** [VIDEO_DETECTION_RESEARCH.md](VIDEO_DETECTION_RESEARCH.md)  
 **Stan bieżący:** [PROJECT_STATUS.md](PROJECT_STATUS.md)
@@ -31,7 +31,7 @@ Przed rozpoczęciem **przeczytaj**: ../AGENTS.md, AI_HANDOFF.md, AI_PROGRESS.md,
 
 **Nie łącz etapów 3.0–4.1 w jednym prompcie.** Codex powinien kończyć mały zakres i aktualizować checkpointy.
 
-## 3.0 — pierwszy, najmniejszy etap (WYKONAJ TERAZ)
+## 3.0 — historyczna specyfikacja pierwszego etapu (kod w PR #2; telefon niepotwierdzony)
 
 1. Potwierdź używane wersje Mozilla Components i GeckoView w gradle/libs.versions.toml i rzeczywiste API `webRequest`, `nativeMessaging`, engine.installBuiltInWebExtension oraz message delegate w tej wersji.
 2. Zbadaj istniejący wzór:

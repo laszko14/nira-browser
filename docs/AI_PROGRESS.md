@@ -40,3 +40,10 @@
 - Bez merge i bez testu telefonu. Aktualizacje dokumentacji po commicie implementacji mają własne kontrole widoczne w PR.
 
 - Końcowy lokalny zbiorczy przebieg `assembleDebug lintDebug testDebugUnitTest --max-workers=4 --console=plain`: BUILD SUCCESSFUL w 9m28s. Raport XML testów: 8 wykonanych, 0 failures/errors. Lint: 1626 Error/Fatal, 367 Warning, 12 Hint; liczniki błędów/ostrzeżeń zgodne z udokumentowaną bazą, brak zgłoszeń w nowych plikach. Zastany MediaSessionService.kt nie był zmieniany.
+
+## 2026-10-22 — Etap 3.1 (checkpoint, weryfikacja w toku)
+
+- Na bazie b6b46a4 (PR #2) utworzono feat/media-detector-stage-3-1 i [PR #3](https://github.com/laszko14/nira-browser/pull/3), docelowo main wyłącznie dla istniejącego CI.
+- f110b95e: HTML5 MP4/WebM, SPA, DetectedMedia, numer wersji. 81d60cfc: testy JS i Kotlin. Bez panelu, repozytorium, HLS/DASH, klasyfikacji sieci i downloadera.
+- Oczekuje potwierdzenia: assembleDebug, lintDebug, testDebugUnitTest, node --test app/src/test/js/*.test.cjs. Testy dopisano, ale nie ma jeszcze udanego przebiegu. Nie przypisywać wyniku Etapu 3.0.
+- Nie testowano na urządzeniu; aktualizacja statusu po CI i niezależnym code review.
