@@ -24,7 +24,7 @@ class MediaDetectorDiagnosticsTest {
     @Test fun isolatesOpenTabsAndDoesNotPrintAnyIdentifierOrUrl() {
         MediaDetectorDiagnostics.detected(MediaSessionBinding(Any(), "tab-A-supersecret", "profile-secret", true), MediaFormat.MP4)
         MediaDetectorDiagnostics.detected(MediaSessionBinding(Any(), "tab-B-supersecret", "profile-secret", true), MediaFormat.WEBM)
-        MediaDetectorDiagnostics.detected("tab-B-supersecret", MediaFormat.WEBM)
+        MediaDetectorDiagnostics.detected(MediaSessionBinding(Any(), "tab-B-supersecret", "profile-secret", true), MediaFormat.WEBM)
         val current = MediaDetectorDiagnostics.snapshot("tab-A-supersecret", true, "profile-secret")
         assertEquals(3, current.allTabMediaCount)
         assertEquals(1, current.selectedTabMediaCount)
