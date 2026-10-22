@@ -26,6 +26,9 @@ internal class MediaEntry(
     val durationSeconds: Int? = null,
     val sizeBytes: Long? = null,
     val posterUrl: String? = null,
+    val quality: String? = null,
+    val bitrate: Long? = null,
+    val codecs: String? = null,
 ) {
     override fun toString(): String = "MediaEntry(format=$format, sources=$sources, url=<redacted>)"
 }
@@ -71,6 +74,9 @@ internal class MediaRepository(
         var durationSeconds: Int? = null
         var sizeBytes: Long? = null
         var posterUrl: String? = null
+        var quality: String? = null
+        var bitrate: Long? = null
+        var codecs: String? = null
         fun metadata(candidate: MediaDetectorMessage.Candidate?, format: MediaFormat) {
             if (candidate == null) return
             fun priority(kind: String?): Int = when (kind) {
@@ -92,6 +98,9 @@ internal class MediaRepository(
             if (candidate.source == MediaSource.NETWORK &&
                 format !in setOf(MediaFormat.HLS, MediaFormat.DASH) &&
                 candidate.sizeBytes != null) sizeBytes = candidate.sizeBytes
+            if (candidate.quality != null) quality = candidate.quality
+            if (candidate.bitrate != null) bitrate = candidate.bitrate
+            if (candidate.codecs != null) codecs = candidate.codecs
         }
         fun mark(source: MediaSource) {
             when (source) {
@@ -104,7 +113,8 @@ internal class MediaRepository(
             if (dom) add(MediaSource.DOM)
             if (page) add(MediaSource.PAGE)
             if (network) add(MediaSource.NETWORK)
-        }, groupId, title, titleKind, durationSeconds, sizeBytes, posterUrl)
+        }, groupId, title, titleKind, durationSeconds, sizeBytes, posterUrl,
+            quality, bitrate, codecs)
     }
 
     private class Scope(
@@ -215,7 +225,7 @@ internal class MediaRepository(
         if (found != null) {
             if (source == MediaSource.NETWORK) found.format = media.format
             found.mark(source)
-            if (found.groupId == null && source != MediaSource.NETWORK) found.groupId = groupId
+            if (found.groupId == null) found.groupId = groupId
             found.metadata(metadata, found.format)
             changed()
             return InsertResult.DUPLICATE

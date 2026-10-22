@@ -58,9 +58,19 @@
         typeof message.isPrivate !== "boolean" ||
         !Number.isSafeInteger(message.documentKey) ||
         typeof message.pageUrl !== "string" ||
-        ![7, 8, 9].includes(Object.keys(message).length) ||
         ("sizeBytes" in message && (!Number.isSafeInteger(message.sizeBytes) ||
           message.sizeBytes <= 0 || message.sizeBytes > 1000000000000)) ||
+        ("groupId" in message && (typeof message.groupId !== "string" ||
+          !/^[a-z0-9_-]{1,80}$/i.test(message.groupId))) ||
+        ("quality" in message && (typeof message.quality !== "string" ||
+          !/^\d{2,4}p$/.test(message.quality))) ||
+        ("bitrate" in message && (!Number.isSafeInteger(message.bitrate) ||
+          message.bitrate <= 0 || message.bitrate > 1000000000)) ||
+        ("codecs" in message && (typeof message.codecs !== "string" ||
+          message.codecs.length > 160 || /[\u0000-\u001f\u007f]/.test(message.codecs))) ||
+        Object.keys(message).some(key => !["schemaVersion", "event", "source", "url",
+          "isPrivate", "documentKey", "pageUrl", "contentType", "sizeBytes",
+          "groupId", "quality", "bitrate", "codecs"].includes(key)) ||
         message.pageUrl !== location.href) return Promise.resolve(false);
     return ensureDocument().then(root => {
       if (!root || root.documentKey !== message.documentKey ||

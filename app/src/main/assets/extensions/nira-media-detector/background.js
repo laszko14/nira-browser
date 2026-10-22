@@ -9,6 +9,14 @@ const RECENT_MS = 20000;
 const seen = new Map();
 const routedRate = new Map();
 const MAX_ROUTED_PER_5S = 24;
+const MAX_MANIFEST_BYTES = 512 * 1024;
+const MAX_MANIFEST_QUEUE = 8;
+const MAX_MANIFEST_ACTIVE = 2;
+const MANIFEST_TTL_MS = 120000;
+const manifestCache = new Map();
+const manifestQueue = [];
+let manifestActive = 0;
+let nextManifestGroup = 0;
 const byteLength = value => new TextEncoder().encode(value).length;
 const safeUrl = value => {
   if (typeof value !== "string" || byteLength(value) > MAX_URL_BYTES ||
@@ -294,6 +302,8 @@ function onHeaders(details) {
     schemaVersion: 1, event: "media_candidate", source: "network", url: details.url,
     isPrivate: details.incognito, documentKey: doc.documentKey, pageUrl: doc.pageUrl
   };
+  if (format === "HLS" || format === "DASH")
+    message.groupId = "manifest-" + doc.documentKey + "-" + (++nextManifestGroup);
   if (contentType) message.contentType = contentType;
   if (sizeBytes !== null) message.sizeBytes = sizeBytes;
   if (!browser.tabs || typeof browser.tabs.sendMessage !== "function") {
@@ -302,9 +312,72 @@ function onHeaders(details) {
   }
   try {
     Promise.resolve(browser.tabs.sendMessage(tabId, message, { frameId: 0 }))
-      .then(accepted => { if (accepted !== true) anonymous("network_unassigned", details.incognito); })
+      .then(accepted => {
+        if (accepted !== true) anonymous("network_unassigned", details.incognito);
+        else if (format === "HLS" || format === "DASH") queueManifest({
+          url: details.url, format, tabId, documentKey: doc.documentKey,
+          pageUrl: doc.pageUrl, isPrivate: details.incognito, groupId: message.groupId,
+        });
+      })
       .catch(() => anonymous("network_unassigned", details.incognito));
   } catch (_) { anonymous("network_unassigned", details.incognito); }
+}
+
+function queueManifest(task) {
+  if (typeof fetch !== "function" || !globalThis.NiraManifestParser) return;
+  const now = Date.now();
+  const cached = manifestCache.get(task.url);
+  if (cached && now - cached < MANIFEST_TTL_MS) return;
+  manifestCache.delete(task.url);
+  manifestCache.set(task.url, now);
+  while (manifestCache.size > 32) manifestCache.delete(manifestCache.keys().next().value);
+  if (manifestQueue.length >= MAX_MANIFEST_QUEUE) return;
+  manifestQueue.push(task);
+  drainManifests();
+}
+function drainManifests() {
+  while (manifestActive < MAX_MANIFEST_ACTIVE && manifestQueue.length) {
+    const task = manifestQueue.shift();
+    manifestActive++;
+    inspectManifest(task).catch(() => {}).finally(() => {
+      manifestActive--;
+      drainManifests();
+    });
+  }
+}
+async function inspectManifest(task) {
+  const controller = typeof AbortController === "function" ? new AbortController() : null;
+  const timeout = setTimeout(() => { if (controller) controller.abort(); }, 4000);
+  try {
+    const response = await fetch(task.url, {
+      method: "GET", credentials: "include", redirect: "follow", cache: "no-store",
+      referrer: task.pageUrl, signal: controller ? controller.signal : undefined,
+    });
+    if (!response || !response.ok) return;
+    const declared = response.headers && response.headers.get("content-length");
+    if (declared && (!/^\d+$/.test(declared) || Number(declared) > MAX_MANIFEST_BYTES)) return;
+    const text = await response.text();
+    if (typeof text !== "string" || text.length > MAX_MANIFEST_BYTES) return;
+    const parsed = task.format === "HLS" ?
+      NiraManifestParser.parseHls(text, task.url, 8) :
+      NiraManifestParser.parseDash(text, task.url, 8);
+    const current = documents.get(task.tabId);
+    if (!current || current.documentKey !== task.documentKey || current.pageUrl !== task.pageUrl) return;
+    for (const variant of parsed.variants || []) {
+      if (!safeUrl(variant.url)) continue;
+      const message = { schemaVersion: 1, event: "media_candidate", source: "network",
+        url: variant.url, isPrivate: task.isPrivate, documentKey: task.documentKey,
+        pageUrl: task.pageUrl, groupId: task.groupId, contentType: task.format === "HLS" ?
+          "application/vnd.apple.mpegurl" : "video/mp4" };
+      if (Number.isSafeInteger(variant.height) && variant.height > 0 && variant.height <= 8640)
+        message.quality = variant.height + "p";
+      if (Number.isSafeInteger(variant.bitrate) && variant.bitrate > 0 && variant.bitrate <= 1000000000)
+        message.bitrate = variant.bitrate;
+      if (typeof variant.codecs === "string" && variant.codecs.length <= 160)
+        message.codecs = variant.codecs;
+      await browser.tabs.sendMessage(task.tabId, message, { frameId: 0 });
+    }
+  } finally { clearTimeout(timeout); }
 }
 if (browser.webRequest && browser.webRequest.onHeadersReceived) {
   browser.webRequest.onHeadersReceived.addListener(onHeaders,

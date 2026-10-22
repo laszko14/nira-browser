@@ -29,6 +29,28 @@ class MediaRepositoryTest {
         assertEquals(2, repo.forTab(t.binding).size)
     }
 
+    @Test fun manifestAndItsNetworkVariantsStayOneLogicalPresentation() {
+        val repo = MediaRepository()
+        val t = tab()
+        begin(repo, t)
+        val group = "manifest-1-1"
+        fun candidate(url: String, quality: String? = null) = MediaDetectorMessage.Candidate(
+            url = url, contentType = "application/vnd.apple.mpegurl",
+            source = MediaSource.NETWORK, privateHint = false, pageUrl = t.pageUrl,
+            documentKey = 1, groupId = group, quality = quality)
+        val master = candidate("https://cdn.example/master.m3u8")
+        val variant = candidate("https://cdn.example/1080/index.m3u8", "1080p")
+        for (item in listOf(master, variant)) {
+            val detected = MediaClassifier.fromNetwork(item, t.binding)!!
+            assertEquals(MediaRepository.InsertResult.ADDED,
+                repo.add(t, t.pageUrl, 1, detected, MediaSource.NETWORK, item.groupId, item))
+        }
+        val entries = repo.currentEntries(t)
+        assertEquals(2, entries.size)
+        assertEquals(setOf(group), entries.map { it.groupId }.toSet())
+        assertEquals("1080p", entries.single { it.url.contains("1080") }.quality)
+    }
+
     @Test fun domAndNetworkShareOneEntryButKeepBothSourceFlags() {
         val repo = MediaRepository()
         val t = tab()

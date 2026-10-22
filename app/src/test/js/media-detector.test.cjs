@@ -5,7 +5,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 const assets = path.join(__dirname, "../../main/assets/extensions/nira-media-detector");
 
-function background(route = async () => false, initialize = true) {
+function background(route = async () => false, initialize = true, fetchImpl = undefined) {
   let receive, rawProbe, before, filter, extras;
   let requestId = 0;
   const native = [], timers = [], routed = [];
@@ -25,10 +25,10 @@ function background(route = async () => false, initialize = true) {
       } },
     },
   };
-  vm.runInNewContext(fs.readFileSync(path.join(assets, "background.js"), "utf8"), {
-    browser, TextEncoder, URL, setTimeout: callback => timers.push(callback),
-    Date,
-  });
+  const context = { browser, TextEncoder, URL, setTimeout: callback => timers.push(callback),
+    clearTimeout: () => {}, Date, fetch: fetchImpl, AbortController };
+  vm.runInNewContext(fs.readFileSync(path.join(assets, "manifest-parser.js"), "utf8"), context);
+  vm.runInNewContext(fs.readFileSync(path.join(assets, "background.js"), "utf8"), context);
   if (initialize) receive({ schemaVersion: 1, event: "document_started",
     pageUrl: "https://site.example/watch/1" }, sender);
   const probe = details => {
@@ -227,6 +227,28 @@ test("network detects WebM HLS/DASH and skips segment floods", async () => {
   assert.equal(b.routed.length, 3);
   assert.equal(b.native.some(x => x[1].event === "network_segments" && x[1].count === 300), true);
   assert.equal(b.native.every(x => !JSON.stringify(x).includes("site.example")), true);
+});
+
+test("v1107: a bounded HLS manifest emits grouped playable variants without segment requests", async () => {
+  let fetches = 0;
+  const fetchImpl = async (url, options) => {
+    fetches++;
+    assert.equal(url, "https://site.example/master.m3u8?sig=a");
+    assert.equal(options.credentials, "include");
+    return {
+      ok: true,
+      headers: { get: name => name.toLowerCase() === "content-length" ? "220" : null },
+      text: async () => "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1920x1080\n1080/index.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=854x480\n480/index.m3u8",
+    };
+  };
+  const b = background(async () => true, true, fetchImpl);
+  b.probe(response("https://site.example/master.m3u8?sig=a", "application/vnd.apple.mpegurl"));
+  await tick(); await tick(); await tick();
+  assert.equal(fetches, 1);
+  assert.equal(b.routed.length, 3);
+  assert.equal(b.routed[0][1].url, "https://site.example/master.m3u8?sig=a");
+  assert.deepEqual(b.routed.slice(1).map(x => x[1].quality), ["1080p", "480p"]);
+  assert.equal(new Set(b.routed.map(x => x[1].groupId)).size, 1);
 });
 
 test("extensionless, query, MIME precedence and invalid MIME/HTML protection", async () => {

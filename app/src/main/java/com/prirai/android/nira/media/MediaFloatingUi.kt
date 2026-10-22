@@ -321,6 +321,8 @@ internal class MediaFloatingUi(
                 val headline = buildString {
                     if (variants.size > 1) append("Źródło ${sourceIndex + 1}  •  ")
                     append(entry.format.name)
+                    if (entry.quality != null) append("  •  ").append(entry.quality)
+                    if (entry.bitrate != null) append("  •  ").append(entry.bitrate / 1000).append(" kb/s")
                     append("  •  ")
                     append(sizeLabel(entry))
                     if (time != null) append("  •  ").append(time)
