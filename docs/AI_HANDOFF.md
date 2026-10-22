@@ -1,3 +1,14 @@
+# Checkpoint — Nira Browser v1103: hybrydowe grupy kart (2026-10-22)
+
+- **Gałąź:** `feat/nira-hybrid-tab-groups-v1103`; baza: PR #15 / commit `47d63e4554b4cca44c038e8463301e80c008423e`. Brak merge.
+- **Zakres:** nad dotychczasowym górnym paskiem kart pojawia się przewijany pasek `(n) Wszystkie` i nazwanych, kolorowych grup z licznikami aktywnych kart. Dotknięcie grupy przełącza aktywną kartę; długie przytrzymanie wywołuje istniejące menu edycji. W aktywnej grupie drugi rząd pokazuje karty tej grupy (favicon, tytuł, zamknij), a `+` otwiera nową kartę w grupie przez istniejący TabOrderManager. W trybie Wszystkie działa dotychczasowy pasek z drag & drop; pełny panel kart zachowano.
+- **Kod:** `HybridGroupStrip.kt`, `ComposeTabBarWithProfileSwitcher.kt`; bez zmian detektora mediów i MPV Alpha.
+- **Wersja:** `0.5.22-alpha9`, efektywny ARM64 `versionCode=1103`, `com.prirai.android.nira.debug`. Istniejący pin certyfikatu SHA-256 `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00` pozostaje.
+- **Kontrole wymagane:** GitHub Actions build/test/lint i pojedynczy podpisany ARM64 APK; dopiero po ich sukcesie podać artefakt. Sprawdzić na Nothing Phone (1) wybieranie grup, przejście z zewnętrznego linku, zmianę grup, zamykanie kart, tryb poziomy, gesty 1DM i przycisk filmów.
+- **Ograniczenie:** kompatybilność instalacji bez utraty danych wymaga zgodnego certyfikatu już zainstalowanej wersji. Nie odinstalowywać, nie scalać automatycznie.
+
+---
+
 # Checkpoint — Nira Browser v1102: boczne karty / grupy / MPV Alpha (2026-10-22)
 
 - **Repo/gałąź:** `laszko14/nira-browser`, PR #15 https://github.com/laszko14/nira-browser/pull/15, `feat/nira-v1102-tab-panel-player-fixes`, bez merge; baza PR #14 `feat/nira-compact-groups-immersive-v1101` (42872c3).
