@@ -1,3 +1,14 @@
+## 2026-10-22 — Etap 3.3: Media State Repository
+
+- Zweryfikowano podstawę Etapu 3.2: `ab29e263386b180c373f69b2f7020bd14721f168`. Utworzono `feat/media-detector-stage-3-3-state` i PR #7 do gałęzi 3.2; PR #6 pozostał nietknięty.
+- Dodano natywne, ograniczone pamięciowo repozytorium wyników `MediaRepository`, przypisanie do kontekstu BrowserStore i generacji dokumentu, bez zapisów URL/tokenów w logach lub pamięci trwałej.
+- WebExtension łączy anonimowe `onBeforeRequest` z `onHeadersReceived` przez wygenerowane w rozszerzeniu klucze dokumentu; zdarzenia niepowiązane są odrzucane. Utrzymano filtr segmentów, istniejącą diagnostykę i obsługiwane formaty.
+- Rozszerzono diagnostykę o liczniki stale/navigation; dodano 14 testów repozytorium i 4 JS ponad 13 wcześniejszych regresji JS. Cała wcześniejsza grupa testów Kotlin pozostała w projekcie.
+- **Systematic Debugging:** pierwszy przebieg [39730501963](https://github.com/laszko14/nira-browser/actions/runs/39730501963) ujawnił 2 błędy przy SPA i reload (stary `documentKey`). Naprawiono unieważnienie `registered` i w następnym [39730681284](https://github.com/laszko14/nira-browser/actions/runs/39730681284) potwierdzono 36 Kotlin PASS + 17 JS PASS, lint SUCCESS, jedna kompilacja arm64 SUCCESS. Następnie przegląd kodu wykrył przypadek rebind tej samej sesji do innego profilu/prywatności, dodano ochronę high-water i nowy test; finalny run wymaga weryfikacji.
+- Brak emulatorów i zdalnych testów, brak Etapu 4.0. APK z tego etapu nie jest wydany: certyfikat zainstalowanej wersji nieznany, podpis aktualizacyjny niepotwierdzony.
+
+---
+
 # Alpha Browser — postępy
 
 ## 2026-10-22 — Etap 1 (Europe/Warsaw)

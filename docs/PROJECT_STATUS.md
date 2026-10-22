@@ -1,3 +1,5 @@
+> **Checkpoint Etapu 3.3 (2026-10-22):** prace na [PR #7](https://github.com/laszko14/nira-browser/pull/7), baza PR #5 / gałąź `feat/media-detector-stage-3-2-network` (HEAD przy utworzeniu `ab29e263`), bez PR #6. Dodano RAM-only repozytorium kandydatów z izolacją karty/profilu/incognito/nawigacji, dokumentowo powiązany transport sieciowy i regresje Kotlin/JS. [Run 39730681284](https://github.com/laszko14/nira-browser/actions/runs/39730681284) 36 Kotlin + 17 JS + lint/kompilacja arm64 SUCCESS; po runie dodano jeszcze ochronę profile-rebind i test, więc aktualny HEAD wymaga końcowego CI. Nie wydano aktualizacyjnego APK bez potwierdzenia certyfikatu telefonu. Nie rozpoczęto Etapu 4.0.
+
 # Alpha / Nira Browser — bieżący stan projektu i przekazanie pracy
 
 **Aktualizacja:** 2026-10-22 (Europe/Warsaw)  
