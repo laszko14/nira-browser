@@ -65,7 +65,7 @@ class MediaNetworkStage32Test {
         val message = MediaMessageProtocol.decode(valid) as MediaDetectorMessage.Candidate
         assertEquals(MediaSource.NETWORK, message.source)
         assertEquals(false, message.privateHint)
-        assertNull(MediaMessageProtocol.decode(valid.replace("false", "\\\"false\\\"")))
+        assertNull(MediaMessageProtocol.decode(valid.replace("false", "\"false\"")))
         assertEquals(MediaFormat.DASH, MediaClassifier.fromNetwork(message, tabA)?.format)
         assertFalse(message.toString().contains("secret"))
         assertNull(MediaMessageProtocol.decode(valid.dropLast(1) + ""","tabId":"spoofed"}"""))
