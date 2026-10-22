@@ -1,3 +1,21 @@
+# Etap 3.2 — network detection (2026-10-22, praca na osobnej gałęzi)
+
+- Gałąź: `feat/media-detector-stage-3-2-network` dokładnie z HEAD PR #4 `52973f9`. Zależności: PR #2 → #3 → #4 → Etap 3.2. Żaden PR nie jest scalony; nie scalać w niewłaściwej kolejności. Baza nowego PR będzie `main` wyłącznie na potrzeby istniejącego CI dla pull_request.
+- W GeckoView / Mozilla Components 156.0.1 działanie `onHeadersReceived` na Nothing Phone (1) jest potwierdzone wyłącznie dla dawnego pliku testowego. Odpowiedzi HLS/DASH, `responseHeaders`, `tabId`, `tabs.sendMessage` i routowanie do sesji wymagają dopiero urządzenia; nie przypisywać im statusu „potwierdzone na telefonie”.
+- Rozszerzenie w Etapie 3.2 pasywnie przegląda URL oraz Content-Type bez odczytu body, cookies, Authorization i bez blokowania/modyfikacji odpowiedzi. Klasyfikuje MP4, WebM, OGG, MOV, HLS m3u8 i DASH mpd; pliki segmentów są ignorowane. Jawny sprzeczny MIME niemediowy blokuje dopasowanie po rozszerzeniu. `blob:` i `data:` nie stają się URL mediów.
+- Zdarzenie sieciowe z `details.tabId >= 0` jest *próbnie* dostarczane przez `browser.tabs.sendMessage(tabId, ..., {frameId:0})` do content script. Dopiero jego `runtime.sendNativeMessage`, rozpoznane przez `EngineSession` po stronie Kotlin, wiarygodnie przypisuje kartę i profil. Jeśli `tabId` nie istnieje, brak API lub brak potwierdzenia: wyłącznie anonimowy licznik, bez URL i bez przypisania do aktywnej karty. `incognito` odseparowane; anonimowe segmenty i kandydaci nie są przypisywane do żadnego profilu.
+- Deduplikacja DOM+NETWORK jest przejściowa: 20 s TTL, maksymalnie 64 unikalne źródła na natywną sesję (plus ograniczone 128 wpisów / 20 s w JS). Etap 3.3 będzie osobną implementacją stanu z obsługą nawigacji; tutaj nie ma listy, parsowania manifestów, downloadera ani modyfikacji MPV.
+- Wersja testowa `0.5.20-alpha1`, bazowy code 93 / docelowy kod APK arm64 1093; niezmienny `com.prirai.android.nira.debug`. Osobny PR-only job `temporary_arm64_stage32` bez sekretów z testowym efemerycznym certyfikatem debug, logiem Gradle i weryfikacją apksigner. Ten certyfikat NIE daje gwarancji aktualizacji zainstalowanej wersji; nie usuwać aplikacji ani jej danych.
+- Stan z chwili zapisu: kod i testy dodane; wynik CI i rzeczywiste APK **jeszcze niezweryfikowane**. Należy sprawdzić workflow, Kotlin/JVM, testy Node, lint, pojedynczy APK, podpis i artefakty; skorygować błędy bez pomijania dowodów.
+
+## Test urządzenia Etapu 3.2 (po prawidłowym buildzie)
+
+1. Jeśli podpis testowego APK jest zgodny z zainstalowaną Nirą, zaktualizuj bez usuwania danych; jeśli nie, **nie instaluj jako aktualizacja** i przekaż wynik, aby ustalić bezpieczną ścieżkę testu.
+2. Na Nothing Phone (1) w Nirze włącz stronę z legalnym publicznym MP4 i WebM, a potem HLS i DASH; po odtworzeniu otwórz menu → **Diagnostyka filmów** → Odśwież.
+3. Sprawdź licznik webRequest, HLS, DASH, duplikaty i segmenty. Otwórz drugą kartę, drugi profil, a prywatną kartę tylko przy zezwoleniu Gecko. Sprawdź, czy niesparowany ruch pojawia się wyłącznie jako „bez przypisania”.
+4. Wklej wyłącznie zredagowany raport diagnostyczny; nie publikuj adresów z tokenami, cookies ani logów innych modułów.
+
+---
 # Etap 3.1D — diagnostyka bez ADB + jedno APK arm64 (2026-10-22)
 
 - Nowa gałąź feat/media-detector-on-device-diagnostics oparta na HEAD PR #3 4328fd5; [PR #4](https://github.com/laszko14/nira-browser/pull/4) stacked względem PR #2 i #3. Nie scalać bez sprawdzenia zależności.
