@@ -22,6 +22,7 @@ import android.widget.Toast
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import java.net.URI
+import java.util.Locale
 import kotlin.math.abs
 
 /** A view-layer snapshot; URLs are never logged, serialized or persisted. */
@@ -224,6 +225,44 @@ internal class MediaFloatingUi(
         setPadding(0, dp(4), 0, dp(4))
     }
 
+
+    private fun sizeLabel(entry: MediaEntry): String {
+        // HLS/DASH Content-Length would describe only the manifest, not the movie.
+        if (entry.format == MediaFormat.HLS || entry.format == MediaFormat.DASH)
+            return "rozmiar nieznany"
+        val bytes = entry.sizeBytes ?: return "rozmiar nieznany"
+        return when {
+            bytes >= 1_000_000_000L -> String.format(Locale("pl", "PL"), "%.2f GB", bytes / 1e9)
+            bytes >= 1_000_000L -> String.format(Locale("pl", "PL"), "%.1f MB", bytes / 1e6)
+            else -> String.format(Locale("pl", "PL"), "%.0f KB", bytes / 1000.0)
+        }
+    }
+
+    private fun durationLabel(seconds: Int?): String? {
+        val duration = seconds ?: return null
+        val hours = duration / 3600
+        val minutes = (duration % 3600) / 60
+        val rest = duration % 60
+        return if (hours > 0) String.format(Locale.ROOT, "%d:%02d:%02d", hours, minutes, rest)
+            else String.format(Locale.ROOT, "%d:%02d", minutes, rest)
+    }
+
+    private fun friendlyFileName(url: String): String? {
+        val raw = try { URI(url).path?.substringAfterLast('/') } catch (_: Exception) { null }
+        val part = raw?.substringBeforeLast('.', raw)?.replace(Regex("[_-]+"), " ")?.trim()
+            ?: return null
+        if (part.length !in 3..65 || !part.any { it.isLetter() } ||
+            part.lowercase(Locale.ROOT) in setOf("video", "master", "playlist", "index",
+                "stream", "watch", "download", "manifest")) return null
+        return part
+    }
+
+    private fun originLabel(entry: MediaEntry): String = when {
+        MediaSource.NETWORK in entry.sources -> "Potwierdzone odpowiedzią sieciową"
+        MediaSource.PAGE in entry.sources -> "Znalezione na stronie"
+        else -> "Znalezione w odtwarzaczu"
+    }
+
     private fun fillSheet() {
         val body = sheetBody ?: return
         val snapshot = current()
@@ -234,8 +273,18 @@ internal class MediaFloatingUi(
         }
         val groups = snapshot.entries.groupBy { it.groupId ?: "url:" + it.url }
         body.addView(label("Wykryte filmy  •  ${groups.size}", 20f, true))
-        body.addView(label("Znalezione na stronie nie oznacza jeszcze potwierdzenia działania adresu.", 12f))
+        body.addView(label("Nazwa i rozmiar pojawiają się, gdy strona lub sieć udostępnia te dane.", 12f))
         groups.values.forEachIndexed { index, variants ->
+            val bestTitle = variants.filter { !it.title.isNullOrBlank() }.maxByOrNull {
+                when (it.titleKind) {
+                    "video" -> 3
+                    "link" -> 2
+                    "page" -> 1
+                    else -> 0
+                }
+            }
+            val name = bestTitle?.title ?: variants.firstNotNullOfOrNull { friendlyFileName(it.url) }
+                ?: "Film ${index + 1} — tytuł nieznany"
             val card = LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(12), dp(12), dp(12), dp(12))
@@ -244,57 +293,67 @@ internal class MediaFloatingUi(
                     setColor(Color.rgb(243, 248, 248))
                 }
             }
-            card.addView(label("Film ${index + 1}   •   ${variants.size} źródło/źródła", 16f, true))
-            variants.forEach { entry ->
-            card.addView(label("Format: ${entry.format.name}", 15f, true))
-            val origin = when {
-                MediaSource.NETWORK in entry.sources && (MediaSource.PAGE in entry.sources || MediaSource.DOM in entry.sources) ->
-                    "Znalezione na stronie • potwierdzone siecią"
-                MediaSource.NETWORK in entry.sources -> "Potwierdzone odpowiedzią sieciową"
-                MediaSource.PAGE in entry.sources -> "Znalezione na stronie • niepotwierdzone"
-                else -> "DOM • odtwarzacz"
-            }
-            card.addView(label("Wykrycie: $origin", 13f))
-            val host = try { URI(entry.url).host ?: "nieznane źródło" } catch (_: Exception) { "nieznane źródło" }
-            card.addView(label("Serwer: ${host.take(80)}  •  adres ukryty", 13f))
-            if (entry.format == MediaFormat.HLS || entry.format == MediaFormat.DASH) {
-                card.addView(label("Odtwarzanie zewnętrzne może wymagać cookies lub autoryzacji.", 12f))
-            }
-            val open = MaterialButton(context).apply {
-                text = "Otwórz w MPV Alpha"
-                setOnClickListener {
-                    val now = current()
-                    if (now == null || !sameSelection(snapshot.tab, now.tab) ||
-                        now.entries.none { it.id == entry.id && it.url == entry.url }) {
-                        stale()
-                        fillSheet()
-                    } else openVideo(entry.url)
+            card.addView(label(name, 18f, true))
+            if (bestTitle?.titleKind == "page")
+                card.addView(label("Nazwa z tytułu strony — może nie odpowiadać filmowi.", 11f))
+            if (variants.size > 1)
+                card.addView(label("${variants.size} dostępne źródła", 12f))
+            variants.forEachIndexed { sourceIndex, entry ->
+                val time = durationLabel(entry.durationSeconds)
+                val headline = buildString {
+                    if (variants.size > 1) append("Źródło ${sourceIndex + 1}  •  ")
+                    append(entry.format.name)
+                    append("  •  ")
+                    append(sizeLabel(entry))
+                    if (time != null) append("  •  ").append(time)
                 }
-            }
-            card.addView(open, LinearLayout.LayoutParams(-1, -2))
-            card.addView(MaterialButton(context, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-                text = "Kopiuj adres"
-                setOnClickListener {
-                    val now = current()
-                    if (now == null || !sameSelection(snapshot.tab, now.tab) ||
-                        now.entries.none { it.id == entry.id && it.url == entry.url }) {
-                        stale()
-                        fillSheet()
-                    } else {
-                        val clip = ClipData.newPlainText("Adres źródła wideo", entry.url)
-                        if (Build.VERSION.SDK_INT >= 33) {
-                            clip.description.extras = PersistableBundle().apply {
-                                putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
-                            }
-                        }
-                        (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
-                            .setPrimaryClip(clip)
-                        Toast.makeText(context, "Adres skopiowany — może zawierać poufny token", Toast.LENGTH_SHORT).show()
+                card.addView(label(headline, 14f, true))
+                val host = try { URI(entry.url).host ?: "nieznany serwer" }
+                    catch (_: Exception) { "nieznany serwer" }
+                card.addView(label("${originLabel(entry)}  •  ${host.take(65)}", 12f))
+                val actions = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+                val open = MaterialButton(context).apply {
+                    text = "▶ MPV Alpha"
+                    setOnClickListener {
+                        val now = current()
+                        if (now == null || !sameSelection(snapshot.tab, now.tab) ||
+                            now.entries.none { it.id == entry.id && it.url == entry.url }) {
+                            stale()
+                            fillSheet()
+                        } else openVideo(entry.url)
                     }
                 }
-            }, LinearLayout.LayoutParams(-1, -2))
+                actions.addView(open, LinearLayout.LayoutParams(0, -2, 1.2f))
+                val copy = MaterialButton(context, null,
+                    com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                    text = "Kopiuj"
+                    setTextColor(Color.rgb(33, 62, 65))
+                    setOnClickListener {
+                        val now = current()
+                        if (now == null || !sameSelection(snapshot.tab, now.tab) ||
+                            now.entries.none { it.id == entry.id && it.url == entry.url }) {
+                            stale()
+                            fillSheet()
+                        } else {
+                            val clip = ClipData.newPlainText("Adres źródła wideo", entry.url)
+                            if (Build.VERSION.SDK_INT >= 33) {
+                                clip.description.extras = PersistableBundle().apply {
+                                    putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
+                                }
+                            }
+                            (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
+                                .setPrimaryClip(clip)
+                            Toast.makeText(context, "Adres skopiowany — może zawierać token",
+                                Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+                actions.addView(copy, LinearLayout.LayoutParams(0, -2, 0.8f))
+                card.addView(actions, LinearLayout.LayoutParams(-1, -2))
             }
-            body.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
+            body.addView(card, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = dp(12)
+            })
         }
     }
 

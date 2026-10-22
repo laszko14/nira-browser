@@ -58,12 +58,17 @@
         typeof message.isPrivate !== "boolean" ||
         !Number.isSafeInteger(message.documentKey) ||
         typeof message.pageUrl !== "string" ||
-        ![7, 8].includes(Object.keys(message).length) ||
+        ![7, 8, 9].includes(Object.keys(message).length) ||
+        ("sizeBytes" in message && (!Number.isSafeInteger(message.sizeBytes) ||
+          message.sizeBytes <= 0 || message.sizeBytes > 1000000000000)) ||
         message.pageUrl !== location.href) return Promise.resolve(false);
     return ensureDocument().then(root => {
       if (!root || root.documentKey !== message.documentKey ||
           root.pageUrl !== message.pageUrl) return false;
-      return Promise.resolve(browser.runtime.sendNativeMessage("nira.media.detector", message))
+      // Page title is a hint, never proof of ownership of a network URL.
+      const title = pageTitle();
+      const payload = title ? { ...message, title, titleKind: "page" } : message;
+      return Promise.resolve(browser.runtime.sendNativeMessage("nira.media.detector", payload))
         .then(value => value === true).catch(() => false);
     });
   });
@@ -83,26 +88,74 @@
     if (!groups.has(element)) groups.set(element, "g" + (++nextGroup));
     return groups.get(element);
   }
-  function submit(value, source = "page", type = null, group = null) {
+  function safeTitle(value) {
+    if (typeof value !== "string") return null;
+    const clean = value.replace(/[\u0000-\u001f\u007f]/g, " ")
+      .replace(/\s+/g, " ").trim();
+    return clean && clean.length <= 160 ? clean : null;
+  }
+  function pageTitle() {
+    let title = null;
+    if (document.querySelector) {
+      const og = document.querySelector('meta[property="og:title"],meta[name="twitter:title"]');
+      title = og && attribute(og, "content");
+    }
+    return safeTitle(title) || safeTitle(document.title);
+  }
+  function videoTitle(video) {
+    for (const name of ["data-video-title", "data-title", "aria-label", "title"]) {
+      const value = safeTitle(attribute(video, name));
+      if (value) return value;
+    }
+    if (typeof video.closest === "function") {
+      const parent = video.closest("article,section,figure,[data-video-id],.video-container");
+      const heading = parent && parent.querySelector &&
+        parent.querySelector("h1,h2,h3,[itemprop='name']");
+      const value = safeTitle(heading && heading.textContent);
+      if (value) return value;
+    }
+    return null;
+  }
+  function durationOf(video) {
+    const value = video && video.duration;
+    return Number.isFinite(value) && value > 0 && value <= 604800 ?
+      Math.ceil(value) : null;
+  }
+  function submit(value, source = "page", type = null, group = null, title = null,
+    titleKind = null, duration = null) {
     const url = absolute(value);
     if (!url || seen.size >= MAX_SEEN) return;
     const mediaPath = new URL(url).pathname.toLowerCase();
     const knownMime = typeof type === "string" &&
       /^(?:video\/(?:mp4|webm|ogg|quicktime)|application\/(?:vnd\.apple\.mpegurl|x-mpegurl|dash\+xml)|audio\/(?:x-)?mpegurl)(?:\s*;|$)/i.test(type);
     if (!knownMime && !/\.(?:mp4|m4v|webm|ogv|ogg|mov|m3u8|mpd)$/.test(mediaPath)) return;
-    const key = JSON.stringify([activeUrl, url, source, type || "", group || ""]);
+    const named = safeTitle(title) || pageTitle();
+    const kind = named ? (safeTitle(title) ? (titleKind || "video") : "page") : null;
+    const seconds = Number.isSafeInteger(duration) && duration > 0 && duration <= 604800 ?
+      duration : null;
+    // A later loadedmetadata event may reveal duration/title for the SAME URL.
+    const key = JSON.stringify([activeUrl, url, source, type || "", group || "",
+      named || "", kind || "", seconds]);
     if (seen.has(key)) return;
     seen.set(key, true);
     const navigation = location.href;
     const message = { schemaVersion: 1, event: "media_candidate", source, url };
     if (type && typeof type === "string" && type.length <= 128) message.contentType = type.trim();
     if (group) message.groupId = group;
+    if (named) {
+      message.title = named;
+      message.titleKind = kind;
+    }
+    if (seconds !== null) message.durationSeconds = seconds;
     ensureDocument().then(root => {
       if (!root || navigation !== location.href) { seen.delete(key); return; }
       return Promise.resolve(browser.runtime.sendMessage(message)).then(validated => {
         if (!validated || validated.event !== "media_candidate" ||
             validated.url !== url || validated.source !== source ||
             validated.contentType !== message.contentType ||
+            validated.title !== message.title ||
+            validated.titleKind !== message.titleKind ||
+            validated.durationSeconds !== message.durationSeconds ||
             navigation !== location.href) {
           context = null; seen.delete(key); return;
         }
@@ -133,15 +186,20 @@
         if (item.src === preferred && item.type) { mime = item.type; break; }
       }
     }
-    if (preferred) submit(preferred, playing ? "dom" : "page", mime, group);
-    if (video.src && video.src !== preferred) submit(video.src, "page", null, group);
+    const title = videoTitle(video);
+    const seconds = durationOf(video);
+    if (preferred) submit(preferred, playing ? "dom" : "page", mime, group,
+      title, title ? "video" : null, seconds);
+    if (video.src && video.src !== preferred)
+      submit(video.src, "page", null, group, title, title ? "video" : null, seconds);
     // Each declared source matters, even before currentSrc becomes available.
     if (typeof video.querySelectorAll === "function") {
       let n = 0;
       for (const item of video.querySelectorAll("source")) {
         if (++n > 16) break;
         if (item.src && item.src !== preferred)
-          submit(item.src, "page", item.type || null, group);
+          submit(item.src, "page", item.type || null, group,
+            title, title ? "video" : null, seconds);
       }
     }
   }
@@ -160,7 +218,8 @@
   function scanDeclarations() {
     scanCollection("a[href],link[href]", 48, element => {
       const href = attribute(element, "href") || element.href;
-      if (href) submit(href);
+      if (href) submit(href, "page", null, null,
+        safeTitle(element.textContent), "link");
     });
     scanCollection("[data-video-url],[data-video-src],[data-hls],[data-mpd],[data-src],[data-plyr-source]", 48, element => {
       for (const name of ["data-video-url", "data-video-src", "data-hls",
@@ -190,10 +249,13 @@
         }
         const kind = node["@type"];
         if (kind === "VideoObject" || Array.isArray(kind) && kind.includes("VideoObject")) {
-          if (typeof node.contentUrl === "string") submit(node.contentUrl);
+          const name = safeTitle(node.name);
+          if (typeof node.contentUrl === "string")
+            submit(node.contentUrl, "page", null, null, name, "video");
           const encodings = Array.isArray(node.encoding) ? node.encoding.slice(0, 8) : [node.encoding];
           for (const entry of encodings)
-            if (entry && typeof entry.contentUrl === "string") submit(entry.contentUrl);
+            if (entry && typeof entry.contentUrl === "string")
+              submit(entry.contentUrl, "page", null, null, name, "video");
         }
         for (const field of ["@graph", "video", "mainEntity", "itemListElement"])
           if (node[field]) walk(node[field], depth + 1);
@@ -261,7 +323,8 @@
   }
   const observer = new MutationObserver(scheduleScan);
   observer.observe(document, { childList: true, subtree: true, attributes: true,
-    attributeFilter: ["src", "type", "content", "href", "data-src", "data-video-url",
+    attributeFilter: ["src", "type", "content", "href", "title", "aria-label",
+      "data-title", "data-video-title", "data-src", "data-video-url",
       "data-video-src", "data-hls", "data-mpd", "data-plyr-source"] });
   document.addEventListener("DOMContentLoaded", scheduleScan, { once: true });
   document.addEventListener("visibilitychange", scheduleScan, { passive: true });

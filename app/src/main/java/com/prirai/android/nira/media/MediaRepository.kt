@@ -21,6 +21,10 @@ internal class MediaEntry(
     val format: MediaFormat,
     val sources: Set<MediaSource>,
     val groupId: String? = null,
+    val title: String? = null,
+    val titleKind: String? = null,
+    val durationSeconds: Int? = null,
+    val sizeBytes: Long? = null,
 ) {
     override fun toString(): String = "MediaEntry(format=$format, sources=$sources, url=<redacted>)"
 }
@@ -61,6 +65,27 @@ internal class MediaRepository(
         var dom = false
         var page = false
         var network = false
+        var title: String? = null
+        var titleKind: String? = null
+        var durationSeconds: Int? = null
+        var sizeBytes: Long? = null
+        fun metadata(candidate: MediaDetectorMessage.Candidate?, format: MediaFormat) {
+            if (candidate == null) return
+            fun priority(kind: String?): Int = when (kind) {
+                "video" -> 3
+                "link" -> 2
+                "page" -> 1
+                else -> 0
+            }
+            if (candidate.title != null && priority(candidate.titleKind) > priority(titleKind)) {
+                title = candidate.title
+                titleKind = candidate.titleKind
+            }
+            if (candidate.durationSeconds != null) durationSeconds = candidate.durationSeconds
+            if (candidate.source == MediaSource.NETWORK &&
+                format !in setOf(MediaFormat.HLS, MediaFormat.DASH) &&
+                candidate.sizeBytes != null) sizeBytes = candidate.sizeBytes
+        }
         fun mark(source: MediaSource) {
             when (source) {
                 MediaSource.DOM -> dom = true
@@ -72,7 +97,7 @@ internal class MediaRepository(
             if (dom) add(MediaSource.DOM)
             if (page) add(MediaSource.PAGE)
             if (network) add(MediaSource.NETWORK)
-        }, groupId)
+        }, groupId, title, titleKind, durationSeconds, sizeBytes)
     }
 
     private class Scope(
@@ -170,6 +195,7 @@ internal class MediaRepository(
     @Synchronized fun add(
         tab: MediaTabState, pageUrl: String, documentKey: Long,
         media: DetectedMedia, source: MediaSource, groupId: String? = null,
+        metadata: MediaDetectorMessage.Candidate? = null,
     ): InsertResult {
         val current = scope(tab, create = false) ?: return InsertResult.STALE
         if (!current.registered || current.documentKey == 0L || current.documentKey != documentKey ||
@@ -183,11 +209,13 @@ internal class MediaRepository(
             if (source == MediaSource.NETWORK) found.format = media.format
             found.mark(source)
             if (found.groupId == null && source != MediaSource.NETWORK) found.groupId = groupId
+            found.metadata(metadata, found.format)
             changed()
             return InsertResult.DUPLICATE
         }
         val added = Record(media.url, media.format, tick(), groupId)
         added.mark(source)
+        added.metadata(metadata, media.format)
         current.entries[media.url] = added
         while (current.entries.size > perTabLimit) current.entries.remove(current.entries.keys.first())
         // Deterministic global FIFO eviction, bounded even under unique URL floods.

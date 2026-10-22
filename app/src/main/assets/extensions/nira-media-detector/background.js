@@ -67,6 +67,33 @@ const isExtensionSender = sender => !!sender && sender.id === browser.runtime.id
 const isMainSender = sender => isExtensionSender(sender) && sender.frameId === 0;
 const frameId = sender => sender.tab.id + ":" + sender.frameId;
 const validGroup = value => typeof value === "string" && /^[a-z0-9_-]{1,64}$/i.test(value);
+const validTitle = value => typeof value === "string" &&
+  value.length > 0 && value.length <= 160 && byteLength(value) <= 480 &&
+  !/[\u0000-\u001f\u007f]/.test(value);
+const validSeconds = value => Number.isSafeInteger(value) && value > 0 && value <= 604800;
+const MAX_MEDIA_BYTES = 1000000000000;
+// Read existing response metadata only. Range total is NOT a body download.
+function contentSize(details, format) {
+  if (!["MP4", "WEBM", "OGG", "MOV"].includes(format) ||
+      !Array.isArray(details.responseHeaders)) return null;
+  const get = name => {
+    const h = details.responseHeaders.find(h => h && typeof h.name === "string" &&
+      h.name.toLowerCase() === name);
+    return h && typeof h.value === "string" ? h.value.trim() : null;
+  };
+  const encoding = get("content-encoding");
+  if (encoding && encoding.toLowerCase() !== "identity") return null;
+  let value = null;
+  if (details.statusCode === 200) value = get("content-length");
+  else if (details.statusCode === 206) {
+    const range = get("content-range");
+    const match = range && /^bytes\s+\d+-\d+\/(\d+)$/i.exec(range);
+    if (match) value = match[1];
+  }
+  if (!value || !/^\d{1,13}$/.test(value)) return null;
+  const bytes = Number(value);
+  return Number.isSafeInteger(bytes) && bytes > 0 && bytes <= MAX_MEDIA_BYTES ? bytes : null;
+}
 
 function startDocument(message, sender) {
   if (!isMainSender(sender) || !message || message.schemaVersion !== 1 ||
@@ -106,9 +133,16 @@ function validDom(message, sender) {
   const permitted = ["event", "schemaVersion", "source", "url"];
   if ("contentType" in message) permitted.push("contentType");
   if ("groupId" in message) permitted.push("groupId");
+  if ("title" in message) permitted.push("title");
+  if ("titleKind" in message) permitted.push("titleKind");
+  if ("durationSeconds" in message) permitted.push("durationSeconds");
   if (keys !== permitted.sort().join(",") ||
       ("contentType" in message && !safeMime(message.contentType)) ||
-      ("groupId" in message && !validGroup(message.groupId))) return false;
+      ("groupId" in message && !validGroup(message.groupId)) ||
+      (("title" in message) !== ("titleKind" in message)) ||
+      ("title" in message && !validTitle(message.title)) ||
+      ("titleKind" in message && !["video", "link", "page"].includes(message.titleKind)) ||
+      ("durationSeconds" in message && !validSeconds(message.durationSeconds))) return false;
   if (sender.frameId === 0) return true;
   const frame = frames.get(frameId(sender));
   const root = documents.get(sender.tab.id);
@@ -247,15 +281,19 @@ function onHeaders(details) {
   while (routedRate.size > 64) routedRate.delete(routedRate.keys().next().value);
   const dedupKey = tabId + ":" + doc.documentKey + ":" + String(details.incognito) +
     ":" + details.url + ":" + format;
-  if (seen.has(dedupKey) && now - seen.get(dedupKey) < RECENT_MS) return;
+  const previously = seen.get(dedupKey);
+  if (previously && now - previously.at < RECENT_MS &&
+      (sizeBytes === null || previously.sizeBytes === sizeBytes)) return;
   seen.delete(dedupKey);
-  seen.set(dedupKey, now);
+  seen.set(dedupKey, { at: now, sizeBytes });
   while (seen.size > MAX_SEEN) seen.delete(seen.keys().next().value);
   const message = {
     schemaVersion: 1, event: "media_candidate", source: "network", url: details.url,
     isPrivate: details.incognito, documentKey: doc.documentKey, pageUrl: doc.pageUrl
   };
   if (contentType) message.contentType = contentType;
+  const sizeBytes = contentSize(details, format);
+  if (sizeBytes !== null) message.sizeBytes = sizeBytes;
   if (!browser.tabs || typeof browser.tabs.sendMessage !== "function") {
     anonymous("network_unassigned", details.incognito);
     return;
