@@ -60,7 +60,7 @@ internal class MediaRepository(
 
     private class Scope(
         var binding: MediaSessionBinding, var pageUrl: String, var loading: Boolean,
-        var documentKey: Long = 0, var access: Long = 0,
+        var documentKey: Long = 0, var registered: Boolean = false, var access: Long = 0,
         val entries: LinkedHashMap<String, Record> = LinkedHashMap(),
     )
     private val scopes = IdentityHashMap<Any, Scope>()
@@ -92,6 +92,7 @@ internal class MediaRepository(
             if (navigated) {
                 changes.add(Change(scope.binding, scope.entries.size, true))
                 scope.entries.clear()
+                scope.registered = false
                 scope.pageUrl = actual.pageUrl
                 // Keep documentKey as a high-water mark. A late event from the
                 // previous document must not register again after a reload.
@@ -123,10 +124,11 @@ internal class MediaRepository(
         }
         val current = scope(tab, create = true) ?: return DocumentResult(false)
         if (documentKey < current.documentKey) return DocumentResult(false)
-        if (documentKey == current.documentKey) return DocumentResult(true)
+        if (documentKey == current.documentKey) return DocumentResult(current.registered)
         val removed = current.entries.size
         current.entries.clear()
         current.documentKey = documentKey
+        current.registered = true
         current.access = tick()
         return DocumentResult(true, removed)
     }
@@ -136,7 +138,7 @@ internal class MediaRepository(
         media: DetectedMedia, source: MediaSource,
     ): InsertResult {
         val current = scope(tab, create = false) ?: return InsertResult.STALE
-        if (current.documentKey == 0L || current.documentKey != documentKey ||
+        if (!current.registered || current.documentKey == 0L || current.documentKey != documentKey ||
             current.pageUrl != pageUrl || media.tabId != tab.binding.tabId ||
             media.contextId != tab.binding.contextId || media.isPrivate != tab.binding.isPrivate) {
             return InsertResult.STALE
