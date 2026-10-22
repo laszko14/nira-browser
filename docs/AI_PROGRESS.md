@@ -80,3 +80,10 @@
 - Cert z PR #4 testowego APK: `86a30a10f2ab90053939a547b429fabc31fd0153cb30dd07216b9764776ef8b6`. **Różni się od Stage 3.2**, co uniemożliwia traktowanie go jako aktualizacji tej instalacji. Faktyczny fingerprint aplikacji z telefonu nie został odczytany, więc nie twierdzić, że jest znany. Nie odinstalowywać, nie czyścić danych.
 - W trybie private sieć przekazuje `isPrivate` wyłącznie z metadanych Gecko, a Kotlin wymaga zgodności z zaufanym `EngineSession`; przy nieznanym incognito pomija niepewną odpowiedź. Nie można jeszcze zapewnić, że GeckoView 156.0.1 na fizycznym urządzeniu udostępnia `responseHeaders`, `details.tabId` i `tabs.sendMessage` we wszystkich przypadkach. Potwierdzony wcześniej callback probe dotyczył tylko testowego pliku.
 - Status: **kod + automatyczne testy + testowy APK w CI — wykonane; aktualizacja instalacji i test telefonu — niepotwierdzone / blokada przez certyfikat**. Jedynym kolejnym krokiem użytkownika jest bezpieczna weryfikacja podpisu na telefonie i, jeżeli zgodny, wykonanie scenariuszy diagnostyki. Nie rozpoczynać 3.3.
+
+
+## 2026-10-22 — automatyczny ARM64 emulator smoke (osobny PR)
+
+- Dodano osobny workflow z macOS Apple Silicon i Android Emulator API 35 ARM64, bez publikowania testowego APK i bez zmian w podpisie użytkownika.
+- Test obejmuje instalację na emulatorze, start BrowserActivity, intencję VIEW publicznego `example.org`, sprawdzenie procesu i AndroidRuntime oraz zrzuty ekranu.
+- Utworzono `docs/CI_ARM64_EMULATOR.md`. **Weryfikacja pierwszego uruchomienia GitHub Actions pozostaje do wykonania.** Nie uznajemy tego za potwierdzenie detektora ani rzeczywistego telefonu.
