@@ -1,62 +1,103 @@
 "use strict";
 
-// Nira v1104 — reveal original (already present) titles next to video thumbnails.
-// Pure presentation: no external requests, no page script execution, no title invention.
+// Reveal the original captions on video thumbnail grids. No requests,
+// document rewriting, synthetic titles, or playback changes.
 (() => {
-  const CLASS = "nira-full-video-title";
-  const CSS = "." + CLASS + " { white-space: normal !important; text-overflow: clip !important;" +
-    " overflow: visible !important; -webkit-line-clamp: unset !important;" +
-    " line-clamp: unset !important; max-height: none !important;" +
-    " height: auto !important; overflow-wrap: anywhere !important; }";
-  const VIDEO_HINT = /(?:video|film|movie|episode|serial|watch|player|thumb|related|recommend|suggest)/i;
+  const TITLE = "nira-full-video-title";
+  const WRAPPER = "nira-full-video-title-wrapper";
+  const STYLE_ID = "nira-full-titles-style";
+  const CSS = "." + TITLE + ",." + WRAPPER + " {" +
+    "white-space: normal !important; text-overflow: clip !important;" +
+    "overflow: visible !important; -webkit-line-clamp: unset !important;" +
+    "line-clamp: unset !important; max-height: none !important;" +
+    "height: auto !important; overflow-wrap: anywhere !important; }";
+  const VIDEO_HINT = /(?:video|film|movie|episode|serial|watch|player|thumb|related|recommend|suggest|clip|odcinek|ogladaj|oglądaj)/i;
+  const CARD_SELECTOR = "article,li,figure,[class*='video'],[class*='Video'],[class*='movie'],[class*='thumb'],[class*='Thumb'],[class*='card'],[class*='Card'],[class*='item'],[class*='Item']";
   const TITLE_SELECTOR = [
-    "[data-video-title]", "[itemprop='name']", ".video-title", ".video-name",
-    ".movie-title", ".film-title", "[class*='videoTitle']",
-    "[class*='video-title']", "[class*='thumb-title']",
-    "h2", "h3", "h4", "[title]", "a"
+    "[data-video-title]", "[itemprop='name']", "[class*='title']",
+    "[class*='Title']", "[class*='caption']", "[class*='Caption']",
+    "[class*='name']", "h2", "h3", "h4", "a[href]", "figcaption"
   ].join(",");
-  let scheduled = false;
-  function apply() {
-    scheduled = false;
-    if (!document.documentElement) return;
-    if (!document.getElementById("nira-full-titles-style")) {
-      const style = document.createElement("style");
-      style.id = "nira-full-titles-style";
-      style.textContent = CSS;
-      (document.head || document.documentElement).appendChild(style);
-    }
-    const images = document.querySelectorAll("img");
-    for (let i = 0; i < Math.min(images.length, 180); i++) {
-      const img = images[i];
-      const card = img.closest("article,li,figure,[class*='video'],[class*='movie'],[class*='thumb'],[class*='item']");
-      if (!card || card.closest("header,nav,footer") || !img.isConnected) continue;
-      const link = img.closest("a[href]") || card.querySelector("a[href]");
-      const href = link && link.getAttribute("href") || "";
-      const hint = [card.className, card.id, link && link.className, href].filter(v => typeof v === "string").join(" ");
-      if (!VIDEO_HINT.test(hint)) continue;
-      const titles = card.querySelectorAll(TITLE_SELECTOR);
-      for (let n = 0; n < Math.min(titles.length, 8); n++) {
-        const element = titles[n];
-        // Do not expand the entire card or an icon-only link.
-        const text = (element.textContent || "").trim();
-        if (text.length < 16 || text.length > 1200 || element.contains(img)) continue;
-        if (element.tagName === "A" && element.querySelector("img")) continue;
-        if (element.closest("button,nav,footer") || element.isContentEditable) continue;
-        element.classList.add(CLASS);
-      }
+  let queued = false;
+  let running = false;
+
+  function cssTruncates(node) {
+    try {
+      const style = getComputedStyle(node);
+      return style.textOverflow === "ellipsis" ||
+        style.whiteSpace === "nowrap" ||
+        (style.webkitLineClamp && style.webkitLineClamp !== "none" &&
+          style.webkitLineClamp !== "unset") ||
+        (style.overflow === "hidden" && node.scrollHeight > node.clientHeight + 1);
+    } catch (_) { return false; }
+  }
+
+  function mediaCard(image) {
+    const card = image.closest(CARD_SELECTOR) ||
+      (image.closest("a[href]") && image.closest("a[href]").parentElement);
+    if (!card || card.closest("header,nav,footer") || !card.isConnected) return null;
+    const link = image.closest("a[href]") || card.querySelector("a[href]");
+    const context = [card.className, card.id, link && link.className,
+      link && link.getAttribute("href")].filter(x => typeof x === "string").join(" ");
+    // Avoid altering unrelated product/search lists.
+    if (!VIDEO_HINT.test(context) && !card.querySelector("video,source,[data-video-id]")) return null;
+    return card;
+  }
+
+  function expandTitle(element, image, card) {
+    if (!element || element.contains(image) || element.isContentEditable ||
+        element.closest("button,nav,footer") || element.querySelector("img,video")) return;
+    const text = (element.textContent || "").trim();
+    if (text.length < 12 || text.length > 1200) return;
+    element.classList.add(TITLE);
+    // Many sites clamp an OUTER title wrapper rather than the text node.
+    // Expand only ancestors that do not also contain the thumbnail.
+    let node = element.parentElement;
+    for (let i = 0; node && node !== card && i < 3; i++, node = node.parentElement) {
+      if (node.contains(image) || node.querySelector("img,video")) break;
+      if (cssTruncates(node) || /(?:title|caption|name|truncate|ellipsis|line-clamp)/i.test(
+        String(node.className || ""))) node.classList.add(WRAPPER);
     }
   }
-  const queue = () => {
-    if (!scheduled) {
-      scheduled = true;
-      setTimeout(apply, 350);
+
+  function apply() {
+    queued = false;
+    if (running || !document.documentElement) return;
+    running = true;
+    try {
+      if (!document.getElementById(STYLE_ID)) {
+        const style = document.createElement("style");
+        style.id = STYLE_ID;
+        style.textContent = CSS;
+        (document.head || document.documentElement).appendChild(style);
+      }
+      const images = document.querySelectorAll("img,video[poster]");
+      for (let i = 0; i < Math.min(images.length, 400); i++) {
+        const image = images[i];
+        if (!image.isConnected) continue;
+        const card = mediaCard(image);
+        if (!card) continue;
+        const titles = card.querySelectorAll(TITLE_SELECTOR);
+        let handled = 0;
+        for (const element of titles) {
+          if (++handled > 24) break;
+          // Nested matches must not cause the entire card to expand.
+          if (element === card || element.contains(image)) continue;
+          expandTitle(element, image, card);
+        }
+      }
+    } finally {
+      running = false;
     }
-  };
+  }
+  function queue() {
+    if (queued) return;
+    queued = true;
+    setTimeout(apply, 300);
+  }
   const observer = new MutationObserver(mutations => {
-    // Ignore our own style/class modifications to avoid an observer loop.
     if (mutations.some(m => m.type === "childList" &&
-        Array.from(m.addedNodes).some(n => n.nodeType === 1 &&
-          n.id !== "nira-full-titles-style"))) queue();
+        Array.from(m.addedNodes).some(n => n.nodeType === 1 && n.id !== STYLE_ID))) queue();
   });
   observer.observe(document, { childList: true, subtree: true });
   document.addEventListener("DOMContentLoaded", queue, { once: true });
