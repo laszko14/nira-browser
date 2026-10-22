@@ -30,3 +30,11 @@
 - Przed implementacją testy JVM: 8 uruchomionych, 4 porażki; po implementacji 8/8 PASS w bezpośrednim harnessie Kotlin/JUnit. Testy JavaScript: 4/4 PASS.
 - Pierwszy start Gradle bez skonfigurowanego GRADLE_USER_HOME próbował pobrać dystrybucję i zgłosił Connection refused. Wskazanie przygotowanych `/workspace/.gradle` i Android SDK pozwoliło rozpocząć konfigurację; nie zmieniono zależności projektu.
 - Android build/lint/test, code review i CI nowej gałęzi w toku. Nie przeprowadzono testu telefonu. Szczegóły i ograniczenia w AI_HANDOFF.md.
+
+### Etap 3.0 — wynik CI i APK
+
+- Implementacja `55cba5c` wypchnięta; PR https://github.com/laszko14/nira-browser/pull/2. Niezależny code review: brak potwierdzonych problemów Critical/Important; pozostaje realny test Gecko na urządzeniu.
+- CI https://github.com/laszko14/nira-browser/actions/runs/39703241830: build/lint/test SUCCESS, release SKIPPED; `debug-apks` id 12394132474 niewygasły. Artefakt istnieje, lecz pobranie archiwum w Cloud zwracało 403; brak twierdzenia o weryfikacji pobranego APK CI.
+- Lokalny oficjalny testDebugUnitTest SUCCESS (6m47s): XML potwierdza 8 testów Kotlin, 0 failures/errors; 4 testy JS również PASS. Assemble debug ukończone; aapt potwierdził pakiet debug, arm64-v8a, code 1081 / 0.5.17-alpha1; podpis Android Debug poprawny według apksigner.
+- Zbiorcze wymagane polecenie Gradle uruchomiono. Przy presji limitu 8 GB zatrzymano dopiero bezczynny daemon Kotlin po kompilacji i testach, zwalniając około 2 GB; bez zmiany konfiguracji projektu. Końcowy lokalny wynik i raport lint należy odczytać z opisu PR; CI lint jest potwierdzone, ale nie oznacza braku zastanych problemów.
+- Bez merge i bez testu telefonu. Aktualizacje dokumentacji po commicie implementacji mają własne kontrole widoczne w PR.

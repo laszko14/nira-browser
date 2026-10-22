@@ -23,16 +23,16 @@ Priorytetami są: zachowanie obecnych funkcji Nira, małe sprawdzalne etapy, osz
 | Stan bazowy i workflow Android | **Wykonane** | .github/workflows/apk-release.yml; wcześniejsze poprawki release guard |
 | Pierwszy APK arm64 debug | **Wykonane w CI** | dokumentuje AI_PROGRESS.md (Etap 1) |
 | Ręczne otwieranie URL HTTPS w MPV Alpha | **Kod wdrożony** | `0.5.16-alpha1`, wersja arm64 `1080` wg AI_HANDOFF.md |
-| Ostatni opisany zakończony build | **CI success** | https://github.com/laszko14/nira-browser/actions/runs/39691305749 |
-| Artefakt APK arm64 tego builda | **Zweryfikowany w AI_HANDOFF** | https://github.com/laszko14/nira-browser/actions/runs/39691305749/artifacts/12388986024 |
+| Ostatni opisany zakończony build | **CI success: Etap 3.0** | https://github.com/laszko14/nira-browser/actions/runs/39703241830 |
+| Artefakt APK tego builda | **Istnieje według API; pobranie w Cloud 403** | https://github.com/laszko14/nira-browser/actions/runs/39703241830/artifacts/12394132474 |
 | Test otwarcia MPV Alpha na Nothing Phone (1) | **Niepotwierdzony** | wymagany fizyczny test |
-| Automatyczny detektor wideo GeckoView | **Etap 3.0: kod w weryfikacji** | minimalny DOM → session-bound bridge Kotlin; telefon niepotwierdzony |
+| Automatyczny detektor wideo GeckoView | **Etap 3.0: kod + CI, oczekuje na telefon** | [PR #2](https://github.com/laszko14/nira-browser/pull/2), główna ramka i zwykłe karty; incognito zgodnie z uprawnieniem Gecko |
 | Panel wykrytych filmów / przycisk | **Niewykonany** | etap 4.0 |
 | Parser HLS / DASH i warianty jakości | **Niewykonany** | etap 4.1 |
 | Własny zaawansowany download manager | **Niewykonany, niskie pierwszeństwo** | najpierw działające wykrycie i streaming |
-| Testy jednostkowe detektora | **8 JVM + 4 JS PASS w harnessach** | Android Gradle/CI bieżącego kodu w toku; poprzednie NO-SOURCE nie zaliczało testów |
+| Testy jednostkowe detektora | **8 JVM + 4 JS PASS** | oficjalny testDebugUnitTest wykonał 8 testów Kotlin; job test CI success |
 
-Uwaga: „CI success” nie oznacza, że funkcja została sprawdzona na telefonie. W raporcie AI_HANDOFF.md wymieniono także liczne istniejące problemy lint (abortOnError=false), dlatego nie należy twierdzić, że lint jest czysty. Zweryfikowany jest kod/artefakt **Etapu 2**, a nie nowy wykrywacz.
+Uwaga: „CI success” nie oznacza, że funkcja została sprawdzona na telefonie. W raporcie AI_HANDOFF.md wymieniono także liczne istniejące problemy lint (abortOnError=false), dlatego nie należy twierdzić, że lint jest czysty. Etap 3.0 ma zweryfikowane CI, testy protokołu i lokalny APK; rzeczywisty transport Gecko i callback sieciowy oczekują na test telefonu. Nie ma jeszcze panelu ani repozytorium kandydatów.
 
 ## 3. Gdzie znajduje się kod
 
@@ -49,7 +49,7 @@ Uwaga: „CI success” nie oznacza, że funkcja została sprawdzona na telefoni
 
 ## 4. Co robić dalej — właściwa kolejność
 
-- **Teraz / P0:** Etap 3.0 „Gecko WebExtension spike” — sprawdź zgodność `webRequest` i native messaging oraz przekaż pojedyncze zdarzenie z video DOM do Kotlin, z poprawnym profilem/kartą. Bez parserów HLS, download managera i pełnego UI.
+- **Teraz / P0:** dokończyć ręczne potwierdzenie Etapu 3.0 na telefonie: DOM → Kotlin, poprawna karta/profil i probe webRequest. Kod i CI w PR #2; nie implementować ponownie bridge. Następny zakres kodu to wyłącznie Etap 3.1.
 - **Po potwierdzeniu:** Etapy 3.1–3.3 — HTML5, MP4/WebM, URL/MIME HLS/DASH, deduplikacja, izolacja nawigacji/kart/profili.
 - **Następnie:** Etap 4.0 — badge, lista, kopiowanie linku, otwieranie w MPV Alpha z fallbackiem.
 - **Później:** Etap 4.1 / 5.0 — manifesty, warianty jakości, iframe, signed URLs, cache/Service Worker, warunki niedostępności.
