@@ -124,10 +124,10 @@ internal object MediaMessageProtocol {
                     (if (hasTitle) setOf("title", "titleKind") else emptySet()) +
                     (if (hasDuration) setOf("durationSeconds") else emptySet()) +
                     (if (hasSize) setOf("sizeBytes") else emptySet()) +
-                    (if (hasPoster) setOf("posterUrl") else emptySet())
-                    + (if (hasQuality) setOf("quality") else emptySet())
-                    + (if (hasBitrate) setOf("bitrate") else emptySet())
-                    + (if (hasCodecs) setOf("codecs") else emptySet())
+                    (if (hasPoster) setOf("posterUrl") else emptySet()) +
+                    (if (hasQuality) setOf("quality") else emptySet()) +
+                    (if (hasBitrate) setOf("bitrate") else emptySet()) +
+                    (if (hasCodecs) setOf("codecs") else emptySet())
                 if (fields.keys != acceptedKeys) return null
                 val source = when (string("source")) {
                     "dom" -> MediaSource.DOM
