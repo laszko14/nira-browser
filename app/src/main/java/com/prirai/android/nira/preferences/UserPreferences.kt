@@ -111,6 +111,10 @@ class UserPreferences(appContext: Context) : mozilla.components.support.ktx.andr
     var showTabsInGrid by booleanPreference(SHOW_TABS_IN_GRID, false)
     var showContextualToolbar by booleanPreference(SHOW_CONTEXTUAL_TOOLBAR, true)
     var showTabGroupBar by booleanPreference(SHOW_TAB_GROUP_BAR, true)
+    var niraAddressBarHeightDp by intPreference("nira_address_height_dp", 56)
+    var niraTabStripHeightDp by intPreference("nira_tab_strip_height_dp", 48)
+    var niraEdgePanelsEnabled by booleanPreference("nira_edge_panels_enabled", true)
+    var niraEdgeWidthDp by intPreference("nira_edge_width_dp", 36)
     var swipeToRefresh by booleanPreference(SWIPE_TO_REFRESH, true)
 
     /**

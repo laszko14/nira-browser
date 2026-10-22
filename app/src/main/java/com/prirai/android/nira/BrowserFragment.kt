@@ -79,6 +79,11 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     // Toolbar icon for fullscreen toggle
 
     override fun initializeUI(view: View, tab: SessionState) {
+        UserPreferences(requireContext()).apply {
+            toolbarPosition = com.prirai.android.nira.components.toolbar.ToolbarPosition.TOP.ordinal
+            showContextualToolbar = false
+            showTabGroupBar = true
+        }
         super.initializeUI(view, tab)
 
         val context = requireContext()
@@ -125,6 +130,53 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         observeDownloadsForSheet()
         observeNewTabSelection()
         setupFloatingMediaUi()
+        setupEdgePanelGestures()
+    }
+
+    /** Only intercept swipes beginning in a narrow edge zone of the webpage. */
+    private fun setupEdgePanelGestures() {
+        val prefs = UserPreferences(requireContext())
+        if (!prefs.niraEdgePanelsEnabled) return
+        val density = resources.displayMetrics.density
+        val edgeWidth = prefs.niraEdgeWidthDp * density
+        val threshold = 80 * density
+        binding.gestureLayout.addGestureListener(object : com.prirai.android.nira.browser.SwipeGestureListener {
+            private var direction = 0
+            private var travelled = 0f
+            override fun onSwipeStarted(start: android.graphics.PointF, next: android.graphics.PointF): Boolean {
+                val dx = next.x - start.x
+                val dy = next.y - start.y
+                if (kotlin.math.abs(dx) < 12 * density ||
+                    kotlin.math.abs(dx) < 1.5f * kotlin.math.abs(dy)) return false
+                val width = resources.displayMetrics.widthPixels
+                direction = when {
+                    start.x < edgeWidth && dx > 0 -> 1
+                    start.x > width-edgeWidth && dx < 0 -> -1
+                    else -> 0
+                }
+                travelled = 0f
+                return direction != 0
+            }
+            override fun onSwipeUpdate(distanceX: Float, distanceY: Float) {
+                travelled -= distanceX
+            }
+            override fun onSwipeFinished(velocityX: Float, velocityY: Float) {
+                val finishedDirection = direction
+                direction = 0
+                if (kotlin.math.abs(travelled) < threshold || !isAdded ||
+                    parentFragmentManager.isStateSaved) return
+                if (finishedDirection == 1 && travelled > 0 &&
+                    parentFragmentManager.findFragmentByTag("NiraSideTabs") == null) {
+                    com.prirai.android.nira.browser.tabs.TabsBottomSheetFragment
+                        .newSidePanel().show(parentFragmentManager, "NiraSideTabs")
+                }
+                if (finishedDirection == -1 && travelled < 0 &&
+                    parentFragmentManager.findFragmentByTag("NiraSideBookmarks") == null) {
+                    com.prirai.android.nira.browser.bookmark.ui.BookmarksBottomSheetFragment
+                        .newSidePanel().show(parentFragmentManager, "NiraSideBookmarks")
+                }
+            }
+        })
     }
 
     private fun currentMediaSnapshot(): MediaUiSnapshot? {
@@ -440,62 +492,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 requestWebContentPositionUpdate()
             }
 
-            // For TOP toolbar mode, add bottom components directly to fragment layout
-            if (prefs.toolbarPosition == com.prirai.android.nira.components.toolbar.ToolbarPosition.TOP.ordinal) {
-                val bottomContainer = unifiedToolbar?.getBottomComponentsContainer()
-                
-                bottomContainer?.let { container ->
-                    // Add directly to browserLayout (CoordinatorLayout) instead of rootContainer
-                    val coordinatorLayout = binding.browserLayout as? androidx.coordinatorlayout.widget.CoordinatorLayout
-                    
-                    coordinatorLayout?.let {
-                        val layoutParams = androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams(
-                            androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams.MATCH_PARENT,
-                            androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams.WRAP_CONTENT
-                        ).apply {
-                            gravity = android.view.Gravity.BOTTOM
-                            // Intentionally no scroll behavior: the detached
-                            // bottom components (tab bar + contextual bar) are
-                            // pinned at the bottom and only hide / show via
-                            // UnifiedToolbar's minimal state. Minimal state is
-                            // toggled by the chevron button on the address bar
-                            // (post-v0.5.14 the scroll-driven toggle was
-                            // removed - see ModernScrollBehavior kdoc).
-                        }
-                        
-                        // Apply Material 3 background with elevation
-                        val elevationDp = 3f * resources.displayMetrics.density
-                        val elevatedColor = com.google.android.material.elevation.ElevationOverlayProvider(requireContext())
-                            .compositeOverlayWithThemeSurfaceColorIfNeeded(elevationDp)
-                        container.setBackgroundColor(elevatedColor)
-                        
-                        // Set high elevation to ensure it stays above engine view
-                        container.elevation = 16f * resources.displayMetrics.density
-                        
-                        // Apply window insets to avoid navigation bar
-                        // CRITICAL: Only apply bottom padding for navigation bar, NO extra margins
-                        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(container) { view, insets ->
-                            val navigationBars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())
-                            // Only bottom padding, no margins
-                            view.setPadding(0, 0, 0, navigationBars.bottom)
-                            insets
-                        }
-                        
-                        it.addView(container, layoutParams)
-                        container.visibility = View.VISIBLE
-                        
-                        // Disable animation/transition to prevent stutter
-                        container.layoutTransition = null
-                        
-                        // Use hardware layer for better scroll performance
-                        container.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-                        
-                        // Request insets to be applied
-                        androidx.core.view.ViewCompat.requestApplyInsets(container)
-                    }
-                }
-            }
-            
+            // The tab strip is now part of the top UnifiedToolbar; no footer.
+
             // Set tab selection listener
             unifiedToolbar?.setOnTabSelectedListener { tabId ->
                 requireContext().components.tabsUseCases.selectTab(tabId)
@@ -511,16 +509,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             //    internal scroll containers).
             // The address bar itself never scrolls off; only the aux
             // bars (tab bar + contextual bar) animate in and out.
-            val minimalToggle = unifiedToolbar?.getBrowserToolbar()?.let { browserToolbar ->
-                unifiedToolbar?.let { toolbar ->
-                    com.prirai.android.nira.integration
-                        .MinimalStateToggleIntegration(
-                            context = requireContext(),
-                            toolbar = browserToolbar,
-                            unifiedToolbar = toolbar,
-                        ).also { viewLifecycleOwner.lifecycle.addObserver(it) }
-                }
-            }
+            // Compact top-only mode keeps the tab bar visible. No chevron
+            // is added to the already crowded address/action row.
 
             // Set expansion state listener to update web content positioning
             unifiedToolbar?.setOnExpansionStateChangedListener { expanded ->
@@ -536,7 +526,6 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             //     by page scroll, not just by tapping the button).
             unifiedToolbar?.setOnMinimalStateChangedListener {
                 requestWebContentPositionUpdate()
-                minimalToggle?.onMinimalStateChanged()
             }
             
             // Set toolbar offset listener for smooth margin adjustment

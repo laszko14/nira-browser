@@ -118,6 +118,9 @@ class TabsBottomSheetFragment : DialogFragment() {
     companion object {
         const val TAG = "TabsBottomSheet"
         fun newInstance() = TabsBottomSheetFragment()
+        fun newSidePanel() = TabsBottomSheetFragment().apply {
+            arguments = Bundle().apply { putBoolean("nira_side_panel", true) }
+        }
     }
 
     override fun onCreateView(
@@ -198,8 +201,15 @@ class TabsBottomSheetFragment : DialogFragment() {
 
         // Make dialog fullscreen
         dialog?.window?.let { window ->
+            val side = arguments?.getBoolean("nira_side_panel") == true
+            if (side) {
+                window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+                window.setDimAmount(0.55f)
+                window.setGravity(android.view.Gravity.START or android.view.Gravity.TOP)
+            }
             window.setLayout(
-                ViewGroup.LayoutParams.MATCH_PARENT,
+                if (side) (resources.displayMetrics.widthPixels * 0.78f).toInt()
+                else ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
 

@@ -58,21 +58,21 @@ class ModernToolbarSystem @JvmOverloads constructor(
 
     fun addComponent(component: View, type: ComponentType) {
 
-        val layoutParams = LayoutParams(
-            LayoutParams.MATCH_PARENT,
-            LayoutParams.WRAP_CONTENT
-        )
+        val height = if (type == ComponentType.ADDRESS_BAR) {
+            (com.prirai.android.nira.preferences.UserPreferences(context).niraAddressBarHeightDp *
+                resources.displayMetrics.density).toInt()
+        } else LayoutParams.WRAP_CONTENT
+        val layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, height)
 
         when (type) {
             ComponentType.TAB_GROUP -> {
                 tabGroupComponent = component
-                addView(component, 0, layoutParams) // Top position
+                addView(component, if (addressBarComponent != null) 1 else 0, layoutParams)
             }
 
             ComponentType.ADDRESS_BAR -> {
                 addressBarComponent = component
-                val index = if (tabGroupComponent != null) 1 else 0
-                addView(component, index, layoutParams)
+                addView(component, 0, layoutParams) // Address above tabs
             }
 
             ComponentType.CONTEXTUAL -> {
