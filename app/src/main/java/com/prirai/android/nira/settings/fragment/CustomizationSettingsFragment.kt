@@ -90,6 +90,28 @@ class CustomizationSettingsFragment : BaseSettingsFragment() {
             true
         }
         switchPreference(
+            preference = "nira_group_chips_visible",
+            isChecked = niraPrefs.niraGroupChipsVisible,
+            onCheckChange = {
+                niraPrefs.niraGroupChipsVisible = it
+                Toast.makeText(requireContext(), getString(R.string.app_restart), Toast.LENGTH_SHORT).show()
+            }
+        )
+        preferenceScreen.findPreference<SeekBarPreference>("nira_toolbar_action_slot_dp")?.apply {
+            value = niraPrefs.niraToolbarActionSlotDp
+            setOnPreferenceChangeListener { _, updated ->
+                niraPrefs.niraToolbarActionSlotDp = (updated as Number).toInt()
+                true
+            }
+        }
+        preferenceScreen.findPreference<SeekBarPreference>("nira_address_min_width_dp")?.apply {
+            value = niraPrefs.niraAddressMinWidthDp
+            setOnPreferenceChangeListener { _, updated ->
+                niraPrefs.niraAddressMinWidthDp = (updated as Number).toInt()
+                true
+            }
+        }
+        switchPreference(
             preference = "nira_edge_panels_enabled",
             isChecked = niraPrefs.niraEdgePanelsEnabled,
             onCheckChange = { niraPrefs.niraEdgePanelsEnabled = it }
