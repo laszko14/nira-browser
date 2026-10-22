@@ -167,8 +167,21 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 if (repo == null) flowOf(null)
                 else repo.revision.map { repo }
             }
-            combine(store.flow(), repositoryChanges) { _, _ -> currentMediaSnapshot() }
-                .collect { overlay.render(it) }
+            // Only changes of the selected document or MediaRepository revision
+            // repaint the badge; progress/scroll Store actions are ignored.
+            val selectedDocument = store.flow().map { state ->
+                val selected = state.tabs.firstOrNull { it.id == state.selectedTabId }
+                val session = selected?.engineState?.engineSession
+                if (selected == null || session == null) null
+                else MediaTabState(
+                    MediaSessionBinding(session, selected.id, selected.contextId, selected.content.private),
+                    selected.content.url, selected.content.loading
+                )
+            }.distinctUntilChanged()
+            combine(selectedDocument, repositoryChanges) { tab, repo ->
+                if (tab == null || repo == null) null
+                else MediaUiSnapshot(tab, repo.currentEntries(tab))
+            }.collect { overlay.render(it) }
         }
     }
 
