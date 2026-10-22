@@ -7,12 +7,18 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.longOrNull
 
 internal sealed interface MediaDetectorMessage {
     class Candidate(val url: String, val contentType: String? = null,
                     val source: MediaSource = MediaSource.DOM,
-                    val privateHint: Boolean? = null) : MediaDetectorMessage {
+                    val privateHint: Boolean? = null,
+                    val pageUrl: String? = null,
+                    val documentKey: Long? = null) : MediaDetectorMessage {
         override fun toString() = "MediaCandidate(redacted)"
+    }
+    class Document(val pageUrl: String, val documentKey: Long) : MediaDetectorMessage {
+        override fun toString() = "MediaDocument(redacted)"
     }
     data object NetworkProbe : MediaDetectorMessage
     class NetworkUnassigned(val isPrivate: Boolean) : MediaDetectorMessage
@@ -23,6 +29,14 @@ internal object MediaMessageProtocol {
     private const val MAX_MESSAGE_BYTES = 16 * 1024
     private const val MAX_URL_BYTES = 8 * 1024
     private val validMime = Regex("[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+(?:\\s*;[ -~]*)?")
+
+    private fun validUrl(url: String): Boolean {
+        if (url.toByteArray(Charsets.UTF_8).size > MAX_URL_BYTES ||
+            url.any { it.isWhitespace() || it.isISOControl() }) return false
+        val uri = try { URI(url) } catch (_: Exception) { return false }
+        return uri.scheme?.lowercase() in setOf("https", "http") &&
+            !uri.host.isNullOrEmpty() && uri.rawUserInfo == null
+    }
 
     fun decode(raw: String): MediaDetectorMessage? {
         if (raw.length > MAX_MESSAGE_BYTES || raw.toByteArray(Charsets.UTF_8).size > MAX_MESSAGE_BYTES) return null
@@ -50,6 +64,8 @@ internal object MediaMessageProtocol {
         if (version.isString || version.content != "1") return null
         fun string(key: String): String? = (fields[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
         fun privacy(): Boolean? = (fields["isPrivate"] as? JsonPrimitive)?.takeIf { !it.isString }?.booleanOrNull
+        fun documentKey(): Long? = (fields["documentKey"] as? JsonPrimitive)
+            ?.takeIf { !it.isString }?.longOrNull?.takeIf { it in 1..9007199254740991L }
         return when (string("event")) {
             "network_probe" -> if (fields.keys == setOf("schemaVersion", "event"))
                 MediaDetectorMessage.NetworkProbe else null
@@ -61,29 +77,34 @@ internal object MediaMessageProtocol {
                 if (count == null || count !in 1..100000) return null
                 privacy()?.let { MediaDetectorMessage.NetworkSegments(it, count) }
             }
+            "media_document" -> {
+                if (fields.keys != setOf("schemaVersion", "event", "pageUrl", "documentKey")) return null
+                val page = string("pageUrl")?.takeIf(::validUrl) ?: return null
+                MediaDetectorMessage.Document(page, documentKey() ?: return null)
+            }
             "media_candidate" -> {
                 val expected = setOf("schemaVersion", "event", "source", "url")
                 val hasMime = "contentType" in fields
                 val fromNetwork = string("source") == "network"
+                val hasDoc = "documentKey" in fields || "pageUrl" in fields
+                if (hasDoc && !("documentKey" in fields && "pageUrl" in fields)) return null
                 val acceptedKeys = expected + (if (hasMime) setOf("contentType") else emptySet()) +
-                    (if (fromNetwork) setOf("isPrivate") else emptySet())
+                    (if (fromNetwork) setOf("isPrivate") else emptySet()) +
+                    (if (hasDoc) setOf("documentKey", "pageUrl") else emptySet())
                 if (fields.keys != acceptedKeys) return null
                 val source = when (string("source")) {
                     "dom" -> MediaSource.DOM
                     "network" -> MediaSource.NETWORK
                     else -> return null
                 }
-                val contentType = if ("contentType" in fields) string("contentType") ?: return null else null
+                val contentType = if (hasMime) string("contentType") ?: return null else null
                 if (contentType != null && (contentType.toByteArray(Charsets.UTF_8).size > 128 ||
                     !validMime.matches(contentType))) return null
-                val url = string("url") ?: return null
-                if (url.toByteArray(Charsets.UTF_8).size > MAX_URL_BYTES ||
-                    url.any { it.isWhitespace() || it.isISOControl() }) return null
-                val uri = try { URI(url) } catch (_: Exception) { return null }
-                if (uri.scheme?.lowercase() !in setOf("https", "http") ||
-                    uri.host.isNullOrEmpty() || uri.rawUserInfo != null) return null
+                val url = string("url")?.takeIf(::validUrl) ?: return null
+                val pageUrl = if (hasDoc) string("pageUrl")?.takeIf(::validUrl) ?: return null else null
+                val key = if (hasDoc) documentKey() ?: return null else null
                 val privateHint = if (source == MediaSource.NETWORK) privacy() ?: return null else null
-                MediaDetectorMessage.Candidate(url, contentType, source, privateHint)
+                MediaDetectorMessage.Candidate(url, contentType, source, privateHint, pageUrl, key)
             }
             else -> null
         }

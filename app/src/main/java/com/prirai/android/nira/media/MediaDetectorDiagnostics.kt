@@ -10,8 +10,11 @@ internal object MediaDetectorDiagnostics {
         var count: Int = 0, var last: MediaFormat? = null,
         var dom: Int = 0, var network: Int = 0, var hls: Int = 0, var dash: Int = 0,
         var duplicates: Int = 0, var validation: Int = 0,
+        var stale: Int = 0, var clearedByNavigation: Int = 0,
     )
     private val tabs = mutableMapOf<String, TabCounters>()
+    private var repository: MediaRepository? = null
+    @Synchronized fun setRepository(value: MediaRepository) { repository = value }
     private var installState = "Oczekiwanie na uruchomienie"
     private var privatePermission = "Nie sprawdzono"
     private var networkProbeCount = 0
@@ -48,6 +51,8 @@ internal object MediaDetectorDiagnostics {
         val segmentCount: Int,
         val unassignedCount: Int,
         val validationErrorCount: Int,
+        val staleCount: Int,
+        val clearedByNavigation: Int,
     ) {
         fun asPolishReport(): String = buildString {
             appendLine("Nira — diagnostyka detektora")
@@ -65,6 +70,8 @@ internal object MediaDetectorDiagnostics {
             appendLine("Odrzucone segmenty (bez profilu, ${if (selectedIsPrivate) "prywatne" else "zwykłe"}): $segmentCount")
             appendLine("Zdarzenia bez przypisanej karty (bez profilu): $unassignedCount")
             appendLine("Błędy walidacji w tym profilu: $validationErrorCount")
+            appendLine("Odrzucone zdarzenia starej nawigacji: $staleCount")
+            appendLine("Wyniki usunięte po nawigacji: $clearedByNavigation")
             appendLine("Karta aktywna: ${if (hasSelectedTab) "TAK" else "BRAK"}")
             if (hasSelectedTab) {
                 appendLine("Tryb karty: ${if (selectedIsPrivate) "prywatny" else "zwykły"}")
@@ -95,6 +102,10 @@ internal object MediaDetectorDiagnostics {
             .coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
     }
     @Synchronized fun duplicate(binding: MediaSessionBinding) { tab(binding).duplicates++ }
+    @Synchronized fun stale(binding: MediaSessionBinding) { tab(binding).stale++ }
+    @Synchronized fun navigationRemoved(binding: MediaSessionBinding, count: Int) {
+        tab(binding).clearedByNavigation += count
+    }
     @Synchronized fun detected(binding: MediaSessionBinding, format: MediaFormat,
                                source: MediaSource = MediaSource.DOM) {
         val counter = tab(binding)
@@ -115,20 +126,28 @@ internal object MediaDetectorDiagnostics {
         val sameProfile = tabs.values.filter { it.contextId == contextId && it.isPrivate == isPrivate }
         val selected = selectedTabId?.let(tabs::get)
             ?.takeIf { it.contextId == contextId && it.isPrivate == isPrivate }
+        val live = repository?.counts(contextId, isPrivate)
+        val selectedLive = live?.firstOrNull { it.tabId == selectedTabId }
         return Snapshot(
             installState, privatePermission, networkProbeCount, rejectedCount,
-            sameProfile.sumOf { it.count }, selected?.count ?: 0, selected?.last,
+            live?.sumOf { it.count } ?: sameProfile.sumOf { it.count },
+            selectedLive?.count ?: if (live == null) selected?.count ?: 0 else 0,
+            selectedLive?.last ?: if (live == null) selected?.last else null,
             selectedTabId != null, isPrivate, contextId != null,
-            sameProfile.sumOf { it.dom }, sameProfile.sumOf { it.network },
-            sameProfile.sumOf { it.hls }, sameProfile.sumOf { it.dash },
+            live?.sumOf { it.dom } ?: sameProfile.sumOf { it.dom },
+            live?.sumOf { it.network } ?: sameProfile.sumOf { it.network },
+            live?.sumOf { it.hls } ?: sameProfile.sumOf { it.hls },
+            live?.sumOf { it.dash } ?: sameProfile.sumOf { it.dash },
             sameProfile.sumOf { it.duplicates },
             segments[bucket(isPrivate)], unassigned[bucket(isPrivate)],
             sameProfile.sumOf { it.validation },
+            sameProfile.sumOf { it.stale }, sameProfile.sumOf { it.clearedByNavigation },
         )
     }
 
     @Synchronized internal fun clearForTest() {
         tabs.clear()
+        repository = null
         installState = "Oczekiwanie na uruchomienie"
         privatePermission = "Nie sprawdzono"
         networkProbeCount = 0

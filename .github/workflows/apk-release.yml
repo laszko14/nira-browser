@@ -10,6 +10,7 @@ on:
   pull_request:
     branches:
       - main
+      - feat/media-detector-stage-3-2-network
 
   workflow_dispatch:
     inputs:
@@ -21,7 +22,7 @@ on:
 jobs:
   build:
     # Temporary branch-scoped exception: only the dedicated diagnostics job publishes a test APK.
-    if: github.event_name != 'pull_request' || (github.head_ref != 'feat/media-detector-on-device-diagnostics' && github.head_ref != 'feat/media-detector-stage-3-2-network')
+    if: github.event_name != 'pull_request' || (github.head_ref != 'feat/media-detector-on-device-diagnostics' && github.head_ref != 'feat/media-detector-stage-3-2-network' && github.head_ref != 'feat/media-detector-stage-3-3-state')
     runs-on: ubuntu-latest
 
     steps:
@@ -186,6 +187,55 @@ jobs:
           name: nira-arm64-stage32-gradle-log
           path: ${{ runner.temp }}/nira-stage32-gradle.log
           if-no-files-found: warn
+
+  # Stage 3.3: one arm64 compile/verification only. No APK artifact is
+  # published until the device's installed certificate has been compared.
+  stage33_arm64_compile:
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/media-detector-stage-3-3-state'
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: gradle/wrapper-validation-action@v2
+      - uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: zulu
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Compile one arm64 Android debug APK and verify its package/signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew assembleDebug --console=plain
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/debug/*.apk)
+          if [ "${#apks[@]}" -ne 1 ] || [[ "${apks[0]}" != *arm64-v8a* ]]; then
+            echo "::error::Expected exactly one arm64-v8a APK."
+            exit 1
+          fi
+          signer="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
+          test -n "$signer"
+          "$signer" verify --verbose --print-certs "${apks[0]}"
+          echo "::warning::TEST ONLY: runner debug certificate. APK may NOT update the installed Nira application."
+          printf '%s\n' \
+            'NIRA BROWSER 3.3 - TEST APK ONLY' \
+            'Build for ARM64 (Nothing Phone 1, Android 15).' \
+            'Signed by temporary runner debug certificate. NOT an update-safe build.' \
+            'An existing installation may reject this APK due to signature mismatch.' \
+            'Uninstalling the installed app would erase its local data/settings.' \
+            'This APK was explicitly requested for temporary testing only.' \
+            > STAGE33_TEST_APK_README.txt
+
+      - name: Upload only one ARM64 test APK (NOT update-safe)
+        uses: actions/upload-artifact@v4
+        with:
+          name: nira-stage33-arm64-TEST-ONLY-NOT-UPDATE-SAFE
+          path: |
+            app/build/outputs/apk/debug/*arm64-v8a*.apk
+            STAGE33_TEST_APK_README.txt
+          if-no-files-found: error
+          retention-days: 14
 
   lint:
     runs-on: ubuntu-latest

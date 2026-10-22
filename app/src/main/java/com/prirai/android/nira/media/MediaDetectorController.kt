@@ -15,11 +15,11 @@ import mozilla.components.lib.state.ext.flowScoped
 import org.json.JSONObject
 import java.util.IdentityHashMap
 
-/** Stage 3.2: transient DOM and passive network candidates; no persistent repository. */
+/** Stage 3.3: RAM-only, native Store-bound media state; no UI or downloader. */
 internal class MediaDetectorController(private val engine: Engine, private val store: BrowserStore) {
     private val attached = IdentityHashMap<EngineSession, Unit>()
     private val rate = IdentityHashMap<EngineSession, Window>()
-    private val deduplicator = MediaRecentDeduplicator()
+    private val repository = MediaRepository()
     private var observer: kotlinx.coroutines.CoroutineScope? = null
     private var started = false
 
@@ -28,6 +28,7 @@ internal class MediaDetectorController(private val engine: Engine, private val s
     fun start() {
         if (started) return
         started = true
+        MediaDetectorDiagnostics.setRepository(repository)
         try {
             engine.installBuiltInWebExtension(
                 id = EXTENSION_ID,
@@ -43,15 +44,23 @@ internal class MediaDetectorController(private val engine: Engine, private val s
         }
     }
 
-    private fun bindings(): List<MediaSessionBinding> = store.state.tabs.mapNotNull { tab ->
-        tab.engineState.engineSession?.let { MediaSessionBinding(it, tab.id, tab.contextId, tab.content.private) }
+    private fun tabs(): List<MediaTabState> = store.state.tabs.mapNotNull { tab ->
+        tab.engineState.engineSession?.let {
+            MediaTabState(MediaSessionBinding(it, tab.id, tab.contextId, tab.content.private),
+                tab.content.url, tab.content.loading)
+        }
+    }
+
+    private fun reconcile(current: List<MediaTabState>) {
+        repository.observe(current).forEach { change ->
+            if (change.navigation) MediaDetectorDiagnostics.navigationRemoved(change.binding, change.removed)
+        }
+        MediaDetectorDiagnostics.retainOpenTabs(current.map { it.binding.tabId }.toSet())
     }
 
     private fun attach(extension: WebExtension) {
-        // Preserve the Stage 3.0 public-fixture-only webRequest compatibility probe.
         extension.registerBackgroundMessageHandler(NATIVE_APP, object : MessageHandler {
             override fun onMessage(message: Any, source: EngineSession?): Any {
-                // Background messages have no native EngineSession: never guess the active tab.
                 if (source != null) {
                     MediaDetectorDiagnostics.rejected()
                     return false
@@ -76,22 +85,26 @@ internal class MediaDetectorController(private val engine: Engine, private val s
             }
         })
         observer = store.flowScoped(dispatcher = Dispatchers.Main) { flow ->
-            flow.map { state -> state.tabs.mapNotNull { it.engineState.engineSession } }
-                .distinctUntilChanged()
-                .collect { sessions ->
-                    attached.keys.removeAll { old -> sessions.none { it === old } }
-                    rate.keys.removeAll { old -> sessions.none { it === old } }
-                    deduplicator.retainSessions(sessions)
-                    MediaDetectorDiagnostics.retainOpenTabs(store.state.tabs.map { it.id }.toSet())
-                    sessions.forEach { session ->
-                        if (!attached.containsKey(session)) {
-                            try {
-                                extension.registerContentMessageHandler(session, NATIVE_APP, handler(session))
-                                attached[session] = Unit
-                            } catch (_: Exception) { diagnostic("session_attach_failed") }
-                        }
+            flow.map { state -> state.tabs.mapNotNull { tab ->
+                tab.engineState.engineSession?.let {
+                    MediaTabState(MediaSessionBinding(it, tab.id, tab.contextId, tab.content.private),
+                        tab.content.url, tab.content.loading)
+                }
+            } }.distinctUntilChanged().collect { current ->
+                val sessions = current.map { it.binding.session }
+                attached.keys.removeAll { old -> sessions.none { it === old } }
+                rate.keys.removeAll { old -> sessions.none { it === old } }
+                reconcile(current)
+                current.forEach { tab ->
+                    val session = tab.binding.session as EngineSession
+                    if (!attached.containsKey(session)) {
+                        try {
+                            extension.registerContentMessageHandler(session, NATIVE_APP, handler(session))
+                            attached[session] = Unit
+                        } catch (_: Exception) { diagnostic("session_attach_failed") }
                     }
                 }
+            }
         }
         MediaDetectorDiagnostics.installed()
         diagnostic("installed")
@@ -103,20 +116,35 @@ internal class MediaDetectorController(private val engine: Engine, private val s
     private fun handler(registeredSession: EngineSession) = object : MessageHandler {
         override fun onMessage(message: Any, source: EngineSession?): Any {
             if (source !== registeredSession) return false
-            val context = resolveMediaSession(source, bindings()) ?: return false
-            val candidate = (message as? JSONObject)?.toString()?.let(MediaMessageProtocol::decode)
-            if (candidate !is MediaDetectorMessage.Candidate) {
+            val current = tabs()
+            reconcile(current)
+            val tab = current.singleOrNull { it.binding.session === source } ?: return false
+            val context = tab.binding
+            val decoded = (message as? JSONObject)?.toString()?.let(MediaMessageProtocol::decode)
+            if (decoded is MediaDetectorMessage.Document) {
+                val result = repository.registerDocument(tab, decoded.pageUrl, decoded.documentKey)
+                if (!result.accepted) {
+                    MediaDetectorDiagnostics.stale(context)
+                    return false
+                }
+                if (result.removed > 0) MediaDetectorDiagnostics.navigationRemoved(context, result.removed)
+                return true
+            }
+            val candidate = decoded as? MediaDetectorMessage.Candidate
+            if (candidate == null) {
                 MediaDetectorDiagnostics.validationError(context)
                 diagnostic("message_rejected")
                 return false
             }
-            // Independently match Gecko's network incognito bit with native session privacy.
-            // A misrouted response must never contaminate a normal/private partition.
             if (candidate.source == MediaSource.NETWORK && candidate.privateHint != context.isPrivate) {
                 MediaDetectorDiagnostics.validationError(context)
                 return false
             }
-            // Bound native work without dropping two different videos in the same second.
+            if (candidate.documentKey == null || candidate.pageUrl == null ||
+                candidate.pageUrl != tab.pageUrl) {
+                MediaDetectorDiagnostics.stale(context)
+                return false
+            }
             val now = SystemClock.elapsedRealtime()
             val window = rate[registeredSession]
             if (window == null || now - window.since >= 5000L) {
@@ -131,22 +159,27 @@ internal class MediaDetectorController(private val engine: Engine, private val s
                 MediaSource.NETWORK -> MediaClassifier.fromNetwork(candidate, context)
             }
             if (media == null) {
-                if (candidate.source == MediaSource.NETWORK && MediaClassifier.isSegment(candidate.url)) {
+                if (candidate.source == MediaSource.NETWORK && MediaClassifier.isSegment(candidate.url))
                     MediaDetectorDiagnostics.networkSegments(context.isPrivate, 1)
-                } else {
-                    MediaDetectorDiagnostics.rejected()
-                }
+                else MediaDetectorDiagnostics.rejected()
                 diagnostic("candidate_unsupported")
                 return false
             }
-            // Signed URL is kept only within this bounded short-lived session filter.
-            if (!deduplicator.accept(context, media, now)) {
-                MediaDetectorDiagnostics.duplicate(context)
-                return true // acknowledge network path even when DOM already found the URL
+            return when (repository.add(tab, candidate.pageUrl, candidate.documentKey, media, candidate.source)) {
+                MediaRepository.InsertResult.STALE -> {
+                    MediaDetectorDiagnostics.stale(context)
+                    false
+                }
+                MediaRepository.InsertResult.DUPLICATE -> {
+                    MediaDetectorDiagnostics.duplicate(context)
+                    true
+                }
+                MediaRepository.InsertResult.ADDED -> {
+                    MediaDetectorDiagnostics.detected(context, media.format, candidate.source)
+                    diagnostic("media_detected format=${media.format} source=${candidate.source} private=${context.isPrivate}")
+                    true
+                }
             }
-            MediaDetectorDiagnostics.detected(context, media.format, candidate.source)
-            diagnostic("media_detected format=${media.format} source=${candidate.source} private=${context.isPrivate}")
-            return true
         }
     }
 

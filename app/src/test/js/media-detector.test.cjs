@@ -5,8 +5,9 @@ const path = require("node:path");
 const vm = require("node:vm");
 const assets = path.join(__dirname, "../../main/assets/extensions/nira-media-detector");
 
-function background(route = async () => false) {
-  let receive, probe, filter, extras;
+function background(route = async () => false, initialize = true) {
+  let receive, rawProbe, before, filter, extras;
+  let requestId = 0;
   const native = [], timers = [], routed = [];
   const browser = {
     runtime: {
@@ -17,16 +18,26 @@ function background(route = async () => false) {
     tabs: { sendMessage: async (...args) => {
       routed.push(args); return route(...args);
     } },
-    webRequest: { onHeadersReceived: { addListener: (callback, options, info) => {
-      probe = callback; filter = options; extras = info;
-    } } },
+    webRequest: {
+      onBeforeRequest: { addListener: callback => { before = callback; } },
+      onHeadersReceived: { addListener: (callback, options, info) => {
+        rawProbe = callback; filter = options; extras = info;
+      } },
+    },
   };
   vm.runInNewContext(fs.readFileSync(path.join(assets, "background.js"), "utf8"), {
     browser, TextEncoder, URL, setTimeout: callback => timers.push(callback),
     Date,
   });
+  if (initialize) receive({ schemaVersion: 1, event: "document_started",
+    pageUrl: "https://site.example/watch/1" }, sender);
+  const probe = details => {
+    const request = { ...details, requestId: details.requestId ?? String(++requestId) };
+    before(request);
+    rawProbe(request);
+  };
   const flushTimers = () => { while (timers.length) timers.shift()(); };
-  return { receive, probe, native, filter, extras, routed, flushTimers };
+  return { receive, probe, before, rawProbe, native, filter, extras, routed, flushTimers };
 }
 function response(url, contentType = "video/mp4", extra = {}) {
   return { url, statusCode: 200, tabId: 7, incognito: false,
@@ -38,7 +49,7 @@ const candidate = url => ({ schemaVersion: 1, event: "media_candidate", source: 
 const sender = { id: "detector", tab: { id: 7 }, frameId: 0 };
 
 function page() {
-  const { receive } = background();
+  const { receive } = background(undefined, false);
   let networkReceiver;
   const handlers = new Map();
   const winHandlers = new Map();
@@ -63,7 +74,10 @@ function page() {
     id: "detector",
     onMessage: { addListener: fn => { networkReceiver = fn; } },
     sendMessage: message => receive(message, sender),
-    sendNativeMessage: async (...args) => { native.push(args); return true; },
+    sendNativeMessage: async (...args) => {
+      if (args[1].event === "media_candidate") native.push(args);
+      return true;
+    },
   } };
   class MutationObserver {
     constructor(callback) { observerCallback = callback; }
@@ -253,4 +267,60 @@ test("repeat responses are bounded; forged extension network messages are ignore
   assert.equal(await p.onNetwork({ schemaVersion: 1, event: "media_candidate",
     source: "network", url: "https://v.example/one.mp4" }, { id: "different" }), false);
   assert.equal(p.native.length, 0);
+});
+
+test("stage 3.3: stale response after same-URL reload never reaches new document", async () => {
+  const b = background(async () => true);
+  const stale = response("https://cdn.example.org/old.mp4", "video/mp4", { requestId: "old" });
+  b.before(stale);
+  const newDoc = await b.receive({ schemaVersion: 1, event: "document_started",
+    pageUrl: "https://site.example/watch/1" }, sender);
+  assert.equal(newDoc.documentKey, 2);
+  b.rawProbe(stale);
+  await tick();
+  assert.equal(b.routed.length, 0);
+  assert.equal(b.native.some(x => x[1].event === "network_unassigned"), true);
+  const fresh = response("https://cdn.example.org/new.mp4", "video/mp4", { requestId: "new" });
+  b.probe(fresh);
+  await tick();
+  assert.equal(b.routed.length, 1);
+  assert.equal(b.routed[0][1].documentKey, 2);
+});
+
+test("stage 3.3: missing request ID or uncertain document never guesses active tab", async () => {
+  const b = background(async () => true);
+  b.rawProbe(response("https://cdn.example.org/orphan.mp4", "video/mp4"));
+  b.probe(response("https://cdn.example.org/old.mp4", "video/mp4",
+    { documentUrl: "https://site.example/older" }));
+  await tick();
+  assert.equal(b.routed.length, 0);
+  assert.equal(b.native.filter(x => x[1].event === "network_unassigned").length, 2);
+});
+
+test("stage 3.3: document key mismatches cannot enter another page", async () => {
+  const p = page();
+  await tick();
+  const stale = { schemaVersion: 1, event: "media_candidate", source: "network",
+    url: "https://cdn.example.org/old.mp4", isPrivate: false,
+    documentKey: 99, pageUrl: p.location.href };
+  assert.equal(await p.onNetwork(stale), false);
+  assert.equal(p.native.length, 0);
+  const valid = { ...stale, documentKey: 1 };
+  assert.equal(await p.onNetwork(valid), true);
+  assert.equal(p.native.length, 1);
+  await p.navigate("https://site.example/watch/2");
+  assert.equal(await p.onNetwork(valid), false);
+  assert.equal(p.native.length, 1);
+});
+
+test("stage 3.3: SPA route changes register a new extension document", async () => {
+  const p = page();
+  const video = new p.HTMLVideoElement("https://cdn.example.org/one.mp4");
+  p.videos.push(video);
+  await p.fire("playing", video);
+  const first = p.native[0][1].documentKey;
+  await p.navigate("https://site.example/watch/2");
+  const second = p.native[1][1].documentKey;
+  assert.ok(second > first);
+  assert.equal(p.native[1][1].pageUrl, "https://site.example/watch/2");
 });
