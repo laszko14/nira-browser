@@ -16,6 +16,9 @@ cat > "$tmp_dir/android/build-tools/99.0.0/apksigner" <<EOF
 #!/usr/bin/env bash
 echo 'Verifies'
 echo 'Signer #1 certificate SHA-256 digest: $EXPECTED_CERT'
+if [[ -n "\${EXTRA_SIGNER:-}" ]]; then
+  echo 'Signer #2 certificate SHA-256 digest: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+fi
 EOF
 chmod +x "$tmp_dir/android/build-tools/99.0.0/apksigner"
 
@@ -39,6 +42,16 @@ if ANDROID_HOME="$tmp_dir/android" bash "$VERIFY_SCRIPT" \
   '0.5.22-alpha4' \
   "${EXPECTED_CERT%?}0" >/dev/null 2>&1; then
   echo 'Expected certificate mismatch to fail.' >&2
+  exit 1
+fi
+
+if EXTRA_SIGNER=1 ANDROID_HOME="$tmp_dir/android" bash "$VERIFY_SCRIPT" \
+  "$tmp_dir/nira.apk" \
+  'com.prirai.android.nira.debug' \
+  '1098' \
+  '0.5.22-alpha4' \
+  "$EXPECTED_CERT" >/dev/null 2>&1; then
+  echo 'Expected an APK with multiple signers to fail.' >&2
   exit 1
 fi
 

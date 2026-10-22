@@ -24,7 +24,7 @@ Repozytorium korzysta z czterech sekretów:
 | `KEY_ALIAS` | `nira-update` |
 | `KEY_PASSWORD` | Hasło klucza |
 
-Workflow działa fail-closed: brak któregokolwiek sekretu, zły certyfikat, zły pakiet, zła wersja, więcej niż jeden APK albo ABI inne niż arm64-v8a kończą job błędem. Tymczasowy keystore jest usuwany z runnera przez `trap` także po błędzie.
+Workflow działa fail-closed dla każdego PR-a, pushu na `main` i wydania: brak któregokolwiek sekretu, zły certyfikat, zły pakiet, zła wersja, więcej niż jeden APK albo ABI inne niż arm64-v8a kończą job błędem. Usunięto historyczne joby publikujące APK z efemerycznym Android Debug. Tymczasowy keystore jest usuwany z runnera przez `trap` także po błędzie.
 
 ## Kopia odzyskiwania
 

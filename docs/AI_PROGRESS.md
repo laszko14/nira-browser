@@ -156,4 +156,4 @@
 - Wygenerowano poza repozytorium jeden klucz PKCS#12 (`nira-update`, RSA 4096, SHA256withRSA); publiczny cert SHA-256: `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00`.
 - Utworzono prywatną kopię odzyskiwania keystore + hasła. Żaden sekret nie został dodany do Git ani dokumentacji.
 - Dodano test-first walidator APK: certyfikat, package, versionCode/versionName oraz wyłącznie arm64-v8a. Test najpierw zakończył się brakiem skryptu (RED), po implementacji przeszedł wraz z przypadkami złego certyfikatu i obcego ABI (GREEN).
-- Podniesiono wersję do 0.5.22-alpha4 / arm64 1098 i zaostrzono signed build: fail-closed Secrets, publiczny pin certyfikatu, usuwanie tymczasowego keystore, jeden artefakt arm64. Oczekuje na ustawienie Secrets, push, PR i rzeczywisty przebieg CI.
+- Podniesiono wersję do 0.5.22-alpha4 / arm64 1098 i zaostrzono signed build: fail-closed Secrets, publiczny pin certyfikatu, usuwanie tymczasowego keystore, jeden artefakt arm64. Po review usunięto wszystkie historyczne joby publikujące efemeryczne APK oraz objęto tym samym pinem i cleanupem tagowane wydanie. Oczekuje na push i rzeczywisty przebieg CI.

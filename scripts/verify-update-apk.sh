@@ -35,14 +35,19 @@ if [[ -z "$apksigner" || -z "$aapt" ]]; then
   exit 1
 fi
 
-signer_output="$($apksigner verify --verbose --print-certs "$apk_path")"
-actual_cert="$(printf '%s\n' "$signer_output" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -d ':[:space:]')"
+signer_output="$("$apksigner" verify --verbose --print-certs "$apk_path")"
+mapfile -t signer_certs < <(printf '%s\n' "$signer_output" | sed -n 's/^Signer #[0-9][0-9]* certificate SHA-256 digest: //p')
+if [[ "${#signer_certs[@]}" -ne 1 ]]; then
+  echo "APK must have exactly one signing certificate; found ${#signer_certs[@]}." >&2
+  exit 1
+fi
+actual_cert="$(printf '%s' "${signer_certs[0]}" | tr '[:upper:]' '[:lower:]' | tr -d ':[:space:]')"
 if [[ "$actual_cert" != "$expected_cert" ]]; then
   echo "Signing certificate SHA-256 does not match the project certificate." >&2
   exit 1
 fi
 
-badging="$($aapt dump badging "$apk_path")"
+badging="$("$aapt" dump badging "$apk_path")"
 package_line="$(printf '%s\n' "$badging" | sed -n '1p')"
 for expected_field in \
   "name='$expected_package'" \
