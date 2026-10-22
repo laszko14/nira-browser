@@ -1,3 +1,12 @@
+## 2026-10-22 — Nira v1104: rozpoczęte wdrożenie pięciu zmian
+
+- Start z gałęzi v1103 (PR #16); stworzono gałąź `feat/nira-v1104-auto-bars-media-tabs` i draft PR #17, bez merge.
+- Implementacja obu pasków auto-hide/reveal, pełnych tytułów i miniatur z dostępnych źródeł, zmian w bocznym menu kart i przenoszenia grup, uniwersalnego wykrywania wideo oraz SPA.
+- Zwiększono versionCode 1103 → 1104 (ARM64) i versionName `0.5.22-alpha9` → `0.5.22-alpha10`; pozostawiono `com.prirai.android.nira.debug` i dotychczasowy certyfikat podpisu, fail-closed Secrets.
+- Pierwsze CI 39844837800: kompilacja nie przeszła przez brak importów ikon menu, naprawione `6024bd6`.
+- Drugie CI 39845560383: build podpisał APK prawidłowo, testy JVM przeszły; trzy regresje testów JS po dynamicznym DOM, poprawione w `0174536` przez ponowne uruchomienie głębokiego skanu po zmianie strony.
+- Najnowszy CI i artefakt APK wymagają końcowej weryfikacji. Nie było fizycznego testu na telefonie.
+
 ## 2026-10-22 — Nira v1103: hybryda grup i szybki przełącznik
 
 - Z bazy PR #15 utworzono osobną gałąź `feat/nira-hybrid-tab-groups-v1103`; nie scalano żadnego PR.
