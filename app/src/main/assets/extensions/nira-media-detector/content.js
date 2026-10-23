@@ -75,6 +75,10 @@
         ("codecs" in message && (typeof message.codecs !== "string" ||
           message.codecs.length > 160 || /[\u0000-\u001f\u007f]/.test(message.codecs))) ||
         ("provenance" in message && !["observed", "derived"].includes(message.provenance)) ||
+        ("verification" in message && !["manifest_observed", "manifest_verified",
+          "stream_verified", "expired", "auth_error", "unplayable"].includes(message.verification)) ||
+        ("httpStatus" in message && (!Number.isSafeInteger(message.httpStatus) ||
+          message.httpStatus < 100 || message.httpStatus > 599)) ||
         (("frameKey" in message) !== ("frameUrl" in message)) ||
         ("frameKey" in message && (!Number.isSafeInteger(message.frameKey) ||
           message.frameKey < 1 || typeof message.frameUrl !== "string" ||
@@ -82,6 +86,7 @@
         Object.keys(message).some(key => !["schemaVersion", "event", "source", "url",
           "isPrivate", "documentKey", "pageUrl", "contentType", "sizeBytes",
           "groupId", "quality", "bitrate", "codecs", "provenance",
+          "verification", "httpStatus",
           "frameUrl", "frameKey"].includes(key)) ||
         message.pageUrl !== location.href) return Promise.resolve(false);
     return ensureDocument().then(root => {
