@@ -29,6 +29,7 @@ internal class MediaEntry(
     val quality: String? = null,
     val bitrate: Long? = null,
     val codecs: String? = null,
+    val revisionCount: Int = 1,
 ) {
     override fun toString(): String = "MediaEntry(format=$format, sources=$sources, url=<redacted>)"
 }
@@ -64,8 +65,23 @@ internal class MediaRepository(
         val hls: Int, val dash: Int, val last: MediaFormat?,
     )
 
-    private class Record(val url: String, var format: MediaFormat, val serial: Long,
-                         var groupId: String? = null) {
+    private class Record(val key: String, var url: String, var format: MediaFormat,
+                         val serial: Long, var groupId: String? = null) {
+        var activeProvenance = MediaProvenance.DOM_HINT
+        val revisions = ArrayDeque<MediaUrlRevision>()
+        fun observeUrl(exactUrl: String, provenance: MediaProvenance, sequence: Long) {
+            if (revisions.none { it.exactUrl == exactUrl }) {
+                revisions.addLast(MediaUrlRevision(exactUrl, sequence, provenance))
+                while (revisions.size > 8) revisions.removeFirst()
+            }
+            // Parser fetches must never displace a real player network request.
+            if (exactUrl == url || provenance == MediaProvenance.NETWORK_OBSERVED ||
+                (activeProvenance != MediaProvenance.NETWORK_OBSERVED &&
+                    provenance == MediaProvenance.MANIFEST_DERIVED)) {
+                url = exactUrl
+                activeProvenance = provenance
+            }
+        }
         var dom = false
         var page = false
         var network = false
@@ -114,7 +130,7 @@ internal class MediaRepository(
             if (page) add(MediaSource.PAGE)
             if (network) add(MediaSource.NETWORK)
         }, groupId, title, titleKind, durationSeconds, sizeBytes, posterUrl,
-            quality, bitrate, codecs)
+            quality, bitrate, codecs, revisions.size.coerceAtLeast(1))
     }
 
     private class Scope(
@@ -221,10 +237,17 @@ internal class MediaRepository(
             return InsertResult.STALE
         }
         current.access = tick()
-        val found = current.entries[media.url]
+        val identity = MediaStreamIdentity.key(media.url, media.format, metadata?.frameKey)
+        val provenance = when {
+            source == MediaSource.NETWORK && metadata?.provenance == "derived" -> MediaProvenance.MANIFEST_DERIVED
+            source == MediaSource.NETWORK -> MediaProvenance.NETWORK_OBSERVED
+            else -> MediaProvenance.DOM_HINT
+        }
+        val found = current.entries[identity]
         if (found != null) {
-            if (source == MediaSource.NETWORK) found.format = media.format
-            found.mark(source)
+            if (provenance == MediaProvenance.NETWORK_OBSERVED) found.format = media.format
+            found.observeUrl(media.url, provenance, tick())
+            found.mark(if (provenance == MediaProvenance.MANIFEST_DERIVED) MediaSource.PAGE else source)
             if (groupId != null && (found.groupId == null ||
                     source == MediaSource.NETWORK && media.format in
                         setOf(MediaFormat.HLS, MediaFormat.DASH))) found.groupId = groupId
@@ -232,10 +255,11 @@ internal class MediaRepository(
             changed()
             return InsertResult.DUPLICATE
         }
-        val added = Record(media.url, media.format, tick(), groupId)
-        added.mark(source)
+        val added = Record(identity, media.url, media.format, tick(), groupId)
+        added.observeUrl(media.url, provenance, tick())
+        added.mark(if (provenance == MediaProvenance.MANIFEST_DERIVED) MediaSource.PAGE else source)
         added.metadata(metadata, media.format)
-        current.entries[media.url] = added
+        current.entries[identity] = added
         while (current.entries.size > perTabLimit) current.entries.remove(current.entries.keys.first())
         // Deterministic global FIFO eviction, bounded even under unique URL floods.
         while (scopes.values.sumOf { it.entries.size } > globalLimit) {
@@ -250,7 +274,7 @@ internal class MediaRepository(
                 }
             }
             if (oldestScope == null || oldestRecord == null) break
-            oldestScope.entries.remove(oldestRecord.url)
+            oldestScope.entries.remove(oldestRecord.key)
         }
         changed()
         return InsertResult.ADDED
