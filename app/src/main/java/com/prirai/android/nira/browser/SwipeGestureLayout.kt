@@ -37,10 +37,18 @@ class SwipeGestureLayout @JvmOverloads constructor(
             val next = e2.let { event -> PointF(event.rawX, event.rawY) }
 
             if (activeListener == null && !handledInitialScroll) {
-                activeListener = listeners.firstOrNull { listener ->
-                    listener.onSwipeStarted(start, next)
+                val totalX = kotlin.math.abs(next.x - start.x)
+                val totalY = kotlin.math.abs(next.y - start.y)
+                val slop = android.view.ViewConfiguration.get(context).scaledTouchSlop.toFloat()
+                // Do not reject the entire gesture on the first small MOVE.
+                // Decide once enough travel establishes a horizontal/vertical intent.
+                if (totalX >= maxOf(12f * resources.displayMetrics.density, slop * 1.5f) ||
+                    totalY >= maxOf(12f * resources.displayMetrics.density, slop * 1.5f)) {
+                    activeListener = listeners.firstOrNull { listener ->
+                        listener.onSwipeStarted(start, next)
+                    }
+                    handledInitialScroll = true
                 }
-                handledInitialScroll = true
             }
             activeListener?.onSwipeUpdate(distanceX, distanceY)
             return activeListener != null
