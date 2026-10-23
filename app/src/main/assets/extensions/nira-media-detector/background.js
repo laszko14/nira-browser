@@ -89,6 +89,7 @@ let nextFrameKey = 0;
 const MAX_DOCUMENTS = 128;
 const MAX_REQUESTS = 512;
 let nextDocumentKey = 0;
+let nextRequestSequence = 0;
 const isExtensionSender = sender => !!sender && sender.id === browser.runtime.id &&
   sender.tab && Number.isInteger(sender.tab.id) && sender.tab.id >= 0 &&
   Number.isInteger(sender.frameId) && sender.frameId >= 0;
@@ -245,7 +246,7 @@ function onBefore(details) {
   requests.delete(key);
   requests.set(key, { documentKey: doc.documentKey,
     frameKey: frame ? frame.frameKey : null, frameUrl: frame ? frame.frameUrl : null,
-    frameId: frame ? frame.frameId : 0 });
+    frameId: frame ? frame.frameId : 0, requestSequence: ++nextRequestSequence });
   while (requests.size > MAX_REQUESTS) requests.delete(requests.keys().next().value);
 }
 if (browser.webRequest && browser.webRequest.onBeforeRequest) {
@@ -349,6 +350,7 @@ function onHeaders(details) {
         (details.statusCode === 404 || details.statusCode === 410 ? "expired" : "unplayable")),
     httpStatus: details.statusCode
   };
+  message.requestSequence = requestDocumentKey.requestSequence;
   if (requestFrame) {
     message.frameKey = requestFrame.frameKey;
     message.frameUrl = requestFrame.frameUrl;
@@ -377,6 +379,7 @@ function onHeaders(details) {
           url: details.url, format, tabId, documentKey: doc.documentKey,
           pageUrl: doc.pageUrl, isPrivate: details.incognito, groupId: message.groupId,
           frameKey: requestFrame?.frameKey, frameUrl: requestFrame?.frameUrl,
+          requestSequence: requestDocumentKey.requestSequence,
         });
       })
       .catch(() => anonymous("network_unassigned", details.incognito));
@@ -450,6 +453,7 @@ async function inspectManifest(task) {
       url: finalUrl, isPrivate: task.isPrivate, documentKey: task.documentKey,
       pageUrl: task.pageUrl, groupId: task.groupId,
       contentType: task.format === "HLS" ? "application/vnd.apple.mpegurl" : "application/dash+xml" };
+    if (Number.isSafeInteger(task.requestSequence)) verified.requestSequence = task.requestSequence;
     if (task.frameKey && task.frameUrl) {
       verified.frameKey = task.frameKey;
       verified.frameUrl = task.frameUrl;
@@ -461,7 +465,13 @@ async function inspectManifest(task) {
         referrer: task.frameUrl || task.pageUrl, headers: { Range: "bytes=0-0" },
         signal: controller ? controller.signal : undefined,
       });
-      if (segment && (segment.ok || segment.status === 206)) {
+      const segmentType = segment?.headers?.get?.("content-type")?.split(";")[0].trim().toLowerCase();
+      const finalSegmentPath = segment && safeUrl(segment.url) ? pathOf(segment.url) : "";
+      const plausibleSegment = segmentPath(finalSegmentPath) ||
+        !!segmentType && (segmentType.startsWith("video/") || segmentType.startsWith("audio/") ||
+          segmentType === "application/octet-stream" || segmentType === "binary/octet-stream");
+      if (segment && (segment.ok || segment.status === 206) && plausibleSegment &&
+          !/\.(?:m3u8|mpd)$/i.test(finalSegmentPath)) {
         if (segment.body && typeof segment.body.cancel === "function")
           await segment.body.cancel().catch(() => {});
         verified.url = task.url;
