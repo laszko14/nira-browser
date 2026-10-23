@@ -1398,3 +1398,163 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             val shortcuts by homeViewModel.shortcuts.collectAsState()
             val showAddDialog by homeViewModel.showAddShortcutDialog.collectAsState()
             val jumpBackInHistory by homeViewModel.jumpBackInHistory.collectAsState()
+            val recentsKey by store.observeAsComposableState { state ->
+                Triple(
+                    state.selectedTabId,
+                    state.tabs.map { it.id to it.lastAccess },
+                    state.closedTabs.map { it.id },
+                )
+            }
+            val jumpBackInItems = androidx.compose.runtime.remember(recentsKey, jumpBackInHistory) {
+                store.state.jumpBackInItems(jumpBackInHistory)
+            }
+            val recentlyClosedItems by store.observeAsComposableState { state ->
+                state.recentlyClosedItems()
+            }
+
+            val profileManager =
+                com.prirai.android.nira.browser.profile.ProfileManager.getInstance(requireContext())
+            val currentProfile = run {
+                val tabContextId = selectedTab?.contextId
+                when {
+                    tabContextId == "private" || isPrivateMode -> {
+                        com.prirai.android.nira.browser.home.compose.ProfileInfo("private", "Private", "🕵️", true, 0)
+                    }
+
+                    tabContextId != null && tabContextId.startsWith("profile_") -> {
+                        val profileId = tabContextId.removePrefix("profile_")
+                        val profile = profileManager.getAllProfiles().find { it.id == profileId }
+                            ?: profileManager.getActiveProfile()
+                        com.prirai.android.nira.browser.home.compose.ProfileInfo(profile.id, profile.name, profile.emoji, false, profile.color)
+                    }
+
+                    else -> {
+                        val profile = profileManager.getActiveProfile()
+                        com.prirai.android.nira.browser.home.compose.ProfileInfo(profile.id, profile.name, profile.emoji, false, profile.color)
+                    }
+                }
+            }
+
+            val prefs = UserPreferences(requireContext())
+            val backgroundImageUrl = when (prefs.homepageBackgroundChoice) {
+                com.prirai.android.nira.settings.HomepageBackgroundChoice.NONE.ordinal -> null
+                com.prirai.android.nira.settings.HomepageBackgroundChoice.URL.ordinal,
+                com.prirai.android.nira.settings.HomepageBackgroundChoice.GALLERY.ordinal -> prefs.homepageBackgroundUrl
+                else -> null
+            }
+            
+            val isToolbarAtTop = prefs.toolbarPosition == com.prirai.android.nira.components.toolbar.ToolbarPosition.TOP.ordinal
+            val homepageType = prefs.homepageType
+            val wallpaperDimmed = prefs.keepWallpaperDimmed
+
+            com.prirai.android.nira.ui.theme.NiraTheme(
+                isPrivateMode = isPrivateMode,
+                amoledMode = prefs.amoledMode,
+                dynamicColor = prefs.dynamicColors
+            ) {
+                com.prirai.android.nira.browser.home.compose.HomeScreen(
+                    isPrivateMode = isPrivateMode,
+                    shortcuts = shortcuts,
+                    currentProfile = currentProfile,
+                    onProfileClick = {}, // Profile icon is display-only
+                    backgroundImageUrl = backgroundImageUrl,
+                    isToolbarAtTop = isToolbarAtTop,
+                    homepageType = homepageType,
+                    wallpaperDimmed = wallpaperDimmed,
+                    onShortcutClick = { shortcut ->
+                        components.sessionUseCases.loadUrl(shortcut.url)
+                        // URL will change, triggering visibility update automatically
+                    },
+                    onShortcutDelete = { shortcut ->
+                        com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+                            .setTitle("Delete Shortcut")
+                            .setMessage("Are you sure you want to delete '${shortcut.title}'?")
+                            .setPositiveButton("Delete") { _, _ ->
+                                homeViewModel.deleteShortcut(shortcut)
+                            }
+                            .setNegativeButton("Cancel", null)
+                            .show()
+                    },
+                    onShortcutAdd = { homeViewModel.showAddShortcutDialog() },
+                    onHistoryClick = {
+                        startActivity(
+                            android.content.Intent(
+                                requireContext(),
+                                com.prirai.android.nira.history.HistoryActivity::class.java
+                            )
+                        )
+                    },
+                    onBookmarksClick = {
+                        com.prirai.android.nira.browser.bookmark.ui.BookmarksBottomSheetFragment
+                            .newInstance()
+                            .show(parentFragmentManager, "BookmarksBottomSheet")
+                    },
+                    jumpBackInItems = jumpBackInItems,
+                    recentlyClosedItems = recentlyClosedItems.orEmpty(),
+                    onJumpBackInClick = { item ->
+                        val tabId = item.tabId
+                        if (tabId != null) {
+                            components.tabsUseCases.selectTab(tabId)
+                        } else {
+                            components.sessionUseCases.loadUrl(item.url)
+                        }
+                    },
+                    onRecentlyClosedClick = { item ->
+                        val tab = store.state.closedTabs.find { it.id == item.id } ?: return@HomeScreen
+                        viewLifecycleOwner.lifecycleScope.launch {
+                            components.tabsUseCases.restore(
+                                tab,
+                                components.recentlyClosedTabsStorage.engineStateStorage(),
+                            )
+                            store.dispatch(
+                                mozilla.components.browser.state.action.RecentlyClosedAction.RemoveClosedTabAction(tab)
+                            )
+                        }
+                    },
+                    onSearchClick = {
+                        // Open search dialog
+                        val sessionId = components.store.state.selectedTabId
+                        val directions = NavGraphDirections.actionGlobalSearchDialog(sessionId = sessionId)
+                        try {
+                            androidx.navigation.fragment.NavHostFragment.findNavController(this@BrowserFragment).navigate(directions)
+                        } catch (e: Exception) {
+                            // Navigation failed
+                        }
+                    }
+                )
+
+                if (showAddDialog) {
+                    com.prirai.android.nira.browser.home.compose.AddShortcutDialog(
+                        onDismiss = { homeViewModel.hideAddShortcutDialog() },
+                        onSave = { url, title ->
+                            homeViewModel.addShortcut(url, title)
+                        }
+                    )
+                }
+            }
+        }
+    }
+    
+    /**
+     * Update content visibility based on current URL
+     * Shows homepage ComposeView for "about:homepage", otherwise shows engineView
+     */
+    private fun updateContentVisibility(url: String) {
+        val binding = bindingOrNull ?: return
+        val isHomepage = url == "about:homepage"
+
+        val homePageView = binding.root.findViewById<androidx.compose.ui.platform.ComposeView>(
+            R.id.homePageComposeView
+        )
+
+        // Keep EngineView attached. GONE detaches Gecko's surface and later selectTab
+        // can leave the last frame stuck (AC#6664 / bug 1630775). Homepage sits on top.
+        binding.swipeRefresh.visibility = View.VISIBLE
+        binding.engineView.asView().visibility = View.VISIBLE
+        homePageView?.apply {
+            visibility = if (isHomepage) View.VISIBLE else View.GONE
+            isClickable = isHomepage
+            isFocusable = isHomepage
+        }
+    }
+}
