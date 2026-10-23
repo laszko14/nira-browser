@@ -12,15 +12,42 @@ class MediaStreamRevisionTest {
     private fun add(
         repo: MediaRepository, tab: MediaTabState, url: String,
         provenance: String = "observed", frameKey: Long? = null,
+        frameUrl: String? = null, verification: String? = null, httpStatus: Int? = null,
     ): MediaRepository.InsertResult {
         val candidate = MediaDetectorMessage.Candidate(
             url = url, source = MediaSource.NETWORK, privateHint = tab.binding.isPrivate,
-            pageUrl = tab.pageUrl, documentKey = 1, frameKey = frameKey,
-            provenance = provenance
+            pageUrl = tab.pageUrl, documentKey = 1, frameUrl = frameUrl,
+            frameKey = frameKey, provenance = provenance,
+            verification = verification, httpStatus = httpStatus
         )
         val media = MediaClassifier.fromNetwork(candidate, tab.binding)!!
         return repo.add(tab, tab.pageUrl, 1, media, MediaSource.NETWORK,
             metadata = candidate)
+    }
+
+    @Test fun iframeOriginAndVerificationFollowTheFreshSignedRevision() {
+        val t = tab()
+        val repo = repoFor(t)
+        val iframe = "https://player.example/embed/77"
+        add(repo, t, "https://cdn.test/index.m3u8?t=old&s=1", frameKey = 22,
+            frameUrl = iframe, verification = "manifest_observed", httpStatus = 200)
+        add(repo, t, "https://cdn.test/index.m3u8?t=fresh&s=2", frameKey = 22,
+            frameUrl = iframe, verification = "stream_verified", httpStatus = 206)
+        val entry = repo.currentEntries(t).single()
+        assertEquals("https://cdn.test/index.m3u8?t=fresh&s=2", entry.url)
+        assertEquals(iframe, entry.frameUrl)
+        assertEquals(MediaPlaybackStatus.CONFIRMED, entry.playbackStatus)
+        assertEquals(206, entry.httpStatus)
+    }
+
+    @Test fun authorizationFailureCannotRemainNetworkConfirmed() {
+        val t = tab()
+        val repo = repoFor(t)
+        add(repo, t, "https://cdn.test/index.m3u8?t=expired&s=1",
+            verification = "auth_error", httpStatus = 403)
+        val entry = repo.currentEntries(t).single()
+        assertEquals(MediaPlaybackStatus.AUTH_ERROR, entry.playbackStatus)
+        assertEquals(403, entry.httpStatus)
     }
     private fun repoFor(tab: MediaTabState): MediaRepository {
         val repo = MediaRepository()
