@@ -106,6 +106,7 @@ internal class MediaRepository(
         var frameUrl: String? = null
         var playbackStatus = MediaPlaybackStatus.NEEDS_VERIFICATION
         var httpStatus: Int? = null
+        var highestNetworkRequestSequence: Long = 0
         fun metadata(candidate: MediaDetectorMessage.Candidate?, format: MediaFormat) {
             if (candidate == null) return
             fun priority(kind: String?): Int = when (kind) {
@@ -134,6 +135,7 @@ internal class MediaRepository(
             if (candidate.httpStatus != null) httpStatus = candidate.httpStatus
             playbackStatus = when (candidate.verification) {
                 "stream_verified" -> MediaPlaybackStatus.CONFIRMED
+                "manifest_observed", "manifest_verified" -> MediaPlaybackStatus.NEEDS_VERIFICATION
                 "expired" -> MediaPlaybackStatus.EXPIRED
                 "auth_error" -> MediaPlaybackStatus.AUTH_ERROR
                 "unplayable" -> MediaPlaybackStatus.UNPLAYABLE
@@ -268,6 +270,11 @@ internal class MediaRepository(
         }
         val found = current.entries[identity]
         if (found != null) {
+            val requestSequence = metadata?.requestSequence
+            if (source == MediaSource.NETWORK && requestSequence != null &&
+                requestSequence < found.highestNetworkRequestSequence) return InsertResult.DUPLICATE
+            if (source == MediaSource.NETWORK && requestSequence != null)
+                found.highestNetworkRequestSequence = requestSequence
             if (provenance == MediaProvenance.NETWORK_OBSERVED) found.format = media.format
             found.observeUrl(media.url, provenance, tick())
             found.mark(if (provenance == MediaProvenance.MANIFEST_DERIVED) MediaSource.PAGE else source)
@@ -279,6 +286,8 @@ internal class MediaRepository(
             return InsertResult.DUPLICATE
         }
         val added = Record(identity, media.url, media.format, tick(), groupId)
+        if (source == MediaSource.NETWORK && metadata?.requestSequence != null)
+            added.highestNetworkRequestSequence = metadata.requestSequence
         added.observeUrl(media.url, provenance, tick())
         added.mark(if (provenance == MediaProvenance.MANIFEST_DERIVED) MediaSource.PAGE else source)
         added.metadata(metadata, media.format)
