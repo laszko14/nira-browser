@@ -22,6 +22,40 @@ class SwipeGestureLayout @JvmOverloads constructor(
 
     var isSwipeEnabled = true
 
+    /** Passive vertical scroll signal; never intercepts GeckoView's page gestures. */
+    var onVerticalSwipe: ((Float) -> Unit)? = null
+    private var verticalStartX = 0f
+    private var verticalStartY = 0f
+    private var verticalLastY = 0f
+    private var directionDecided = false
+    private var verticalDirection = false
+
+    private fun observePageGesture(event: MotionEvent) {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                verticalStartX = event.x
+                verticalStartY = event.y
+                verticalLastY = event.y
+                directionDecided = false
+                verticalDirection = false
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dx = kotlin.math.abs(event.x - verticalStartX)
+                val dy = kotlin.math.abs(event.y - verticalStartY)
+                if (!directionDecided && maxOf(dx, dy) >= 12f * resources.displayMetrics.density) {
+                    directionDecided = true
+                    verticalDirection = dy > dx * 1.3f
+                }
+                if (verticalDirection) onVerticalSwipe?.invoke(verticalLastY - event.y)
+                verticalLastY = event.y
+            }
+            MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_UP -> {
+                directionDecided = false
+                verticalDirection = false
+            }
+        }
+    }
+
     private val gestureListener = object : GestureDetector.SimpleOnGestureListener() {
         override fun onDown(e: MotionEvent): Boolean {
             return true
@@ -81,6 +115,7 @@ class SwipeGestureLayout @JvmOverloads constructor(
     }
 
     override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
+        observePageGesture(event)
         if (!isSwipeEnabled) {
             return false
         }
