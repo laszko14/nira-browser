@@ -200,8 +200,20 @@ open class BrowserActivity : LocaleAwareAppCompatActivity(), ComponentCallbacks2
         WindowInsetsControllerCompat(window, window.decorView)
             .show(WindowInsetsCompat.Type.navigationBars())
 
-        // Root view handles insets without padding - fragments manage their own insets
-        ViewCompat.setOnApplyWindowInsetsListener(view) { _, insets -> insets }
+        // On three-button navigation, landscape often puts the system bar
+        // on the LEFT. Keep webpage and gesture surface out of that region;
+        // the root's opaque colorSurface draws a solid background underneath it.
+        // Do not pad TOP here: UnifiedToolbar already includes the status inset.
+        ViewCompat.setOnApplyWindowInsetsListener(view) { root, insets ->
+            val nav = insets.getInsets(
+                WindowInsetsCompat.Type.navigationBars() or
+                    WindowInsetsCompat.Type.displayCutout()
+            )
+            if (root.paddingLeft != nav.left || root.paddingRight != nav.right) {
+                root.setPadding(nav.left, 0, nav.right, 0)
+            }
+            insets
+        }
 
         // Must run BEFORE STARTED/RESUMED: NotificationsDelegate.bindToActivity
         // calls registerForActivityResult which androidx.activity rejects

@@ -136,12 +136,46 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     }
 
     /** Only intercept swipes beginning in a narrow edge zone of the webpage. */
+    // Observe real finger scrolling at the gesture container without stealing
+    // touch events from GeckoView. Unlike CoordinatorLayout nested scrolling,
+    // this works with GeckoView in both portrait and landscape.
+    private var accumulatedDownScroll = 0f
+    private var accumulatedUpScroll = 0f
+
+    private fun onVerticalPageGesture(scrollDeltaY: Float) {
+        if (cachedToolbarPosition !=
+            com.prirai.android.nira.components.toolbar.ToolbarPosition.TOP.ordinal) return
+        val toolbar = unifiedToolbar ?: return
+        if (toolbar.isScrollAnimationRunning()) return
+
+        val density = resources.displayMetrics.density
+        when {
+            scrollDeltaY > 0f -> {
+                accumulatedUpScroll = 0f
+                accumulatedDownScroll += scrollDeltaY
+                if (!toolbar.isCollapsed() && accumulatedDownScroll >= 48f * density) {
+                    toolbar.collapse()
+                    accumulatedDownScroll = 0f
+                }
+            }
+            scrollDeltaY < 0f -> {
+                accumulatedDownScroll = 0f
+                accumulatedUpScroll -= scrollDeltaY
+                if (toolbar.isCollapsed() && accumulatedUpScroll >= 28f * density) {
+                    toolbar.expand()
+                    accumulatedUpScroll = 0f
+                }
+            }
+        }
+    }
+
     private fun setupEdgePanelGestures() {
+        binding.gestureLayout.onVerticalSwipe = { delta -> onVerticalPageGesture(delta) }
         val prefs = UserPreferences(requireContext())
         if (!prefs.niraEdgePanelsEnabled) return
         val density = resources.displayMetrics.density
         val edgeWidth = prefs.niraEdgeWidthDp * density
-        val threshold = 80 * density
+        val threshold = 64 * density
         binding.gestureLayout.addGestureListener(object : com.prirai.android.nira.browser.SwipeGestureListener {
             private var direction = 0
             private var travelled = 0f
@@ -150,10 +184,18 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 val dy = next.y - start.y
                 if (kotlin.math.abs(dx) < 12 * density ||
                     kotlin.math.abs(dx) < 1.5f * kotlin.math.abs(dy)) return false
-                val width = resources.displayMetrics.widthPixels
+                // Gesture coordinates are screen-relative; the content origin can
+                // move inward in landscape when Android navigation is on the left.
+                val location = IntArray(2)
+                binding.gestureLayout.getLocationOnScreen(location)
+                val localX = start.x - location[0]
+                val width = binding.gestureLayout.width.toFloat()
+                val landscape = resources.configuration.orientation ==
+                    android.content.res.Configuration.ORIENTATION_LANDSCAPE
+                val activeEdge = if (landscape) maxOf(edgeWidth, 80f * density) else edgeWidth
                 direction = when {
-                    start.x < edgeWidth && dx > 0 -> 1
-                    start.x > width-edgeWidth && dx < 0 -> -1
+                    localX in 0f..activeEdge && dx > 0 -> 1
+                    localX >= width - activeEdge && localX <= width && dx < 0 -> -1
                     else -> 0
                 }
                 travelled = 0f
@@ -253,6 +295,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     }
 
     override fun onDestroyView() {
+        binding.gestureLayout.onVerticalSwipe = null
         mediaFloatingUi?.detach()
         mediaFloatingUi = null
         super.onDestroyView()
@@ -771,6 +814,18 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         val lp = binding.swipeRefresh.layoutParams
             as? androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams
             ?: return
+
+        // A GeckoView relayout every 16 ms during hide/show makes the webpage
+        // jump, especially in landscape. Move its existing viewport together
+        // with the chrome; update the actual layout margin only after the
+        // 200 ms animation has completed.
+        if (cachedToolbarPosition ==
+                com.prirai.android.nira.components.toolbar.ToolbarPosition.TOP.ordinal &&
+            unifiedToolbar?.isScrollAnimationRunning() == true) {
+            binding.swipeRefresh.translationY = (visibleHeight - lp.topMargin).toFloat()
+            return
+        }
+        binding.swipeRefresh.translationY = 0f
 
         when (cachedToolbarPosition) {
             com.prirai.android.nira.components.toolbar.ToolbarPosition.BOTTOM.ordinal -> {

@@ -950,6 +950,10 @@ class UnifiedToolbar @JvmOverloads constructor(
     /** True while the toolbar is in the minimal (address-bar-only) state. */
     fun isMinimal(): Boolean = minimalState
 
+    fun isScrollAnimationRunning(): Boolean = toolbarSystem.isOffsetAnimating()
+
+    fun isCollapsed(): Boolean = toolbarSystem.isCollapsed()
+
     /**
      * Enter the minimal state: hide the tab bar and contextual toolbar so only
      * the address bar remains visible. Idempotent.

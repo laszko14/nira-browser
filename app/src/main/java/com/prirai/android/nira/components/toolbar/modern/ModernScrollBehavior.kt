@@ -72,7 +72,11 @@ class ModernScrollBehavior(
         axes: Int,
         type: Int,
     ): Boolean {
-        return isScrollingEnabled && axes and ViewCompat.SCROLL_AXIS_VERTICAL != 0
+        // GeckoView does not consistently dispatch nested scroll in portrait,
+        // so TOP chrome is driven by GeckoSession.ScrollDelegate instead.
+        val isTop = com.prirai.android.nira.preferences.UserPreferences(child.context).toolbarPosition ==
+            com.prirai.android.nira.components.toolbar.ToolbarPosition.TOP.ordinal
+        return !isTop && isScrollingEnabled && axes and ViewCompat.SCROLL_AXIS_VERTICAL != 0
     }
 
     override fun onNestedPreScroll(
