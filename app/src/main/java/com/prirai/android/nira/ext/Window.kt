@@ -30,6 +30,9 @@ fun ComponentActivity.enableEdgeToEdgeMode(statusBarColor: Int? = null) {
     }
     
     val barColor = statusBarColor ?: Color.TRANSPARENT
+    // Three-button navigation needs an opaque backdrop, especially when
+    // rotated into a side rail on Android 15+.
+    val navigationColor = if (isDark) Color.rgb(28, 27, 31) else Color.rgb(250, 250, 250)
     
     // Use Android's modern edge-to-edge API
     enableEdgeToEdge(
@@ -39,12 +42,16 @@ fun ComponentActivity.enableEdgeToEdgeMode(statusBarColor: Int? = null) {
             SystemBarStyle.light(barColor, barColor)
         },
         navigationBarStyle = if (isDark) {
-            SystemBarStyle.dark(Color.TRANSPARENT)
+            SystemBarStyle.dark(navigationColor)
         } else {
-            SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+            SystemBarStyle.light(navigationColor, navigationColor)
         }
     )
     
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+        window.isNavigationBarContrastEnforced = true
+    }
+
     // For custom tabs with specific color, also set window.statusBarColor
     // This ensures the color is actually applied (SystemBarStyle alone may not be enough)
     if (statusBarColor != null) {
