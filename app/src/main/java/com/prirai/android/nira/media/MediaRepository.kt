@@ -30,8 +30,15 @@ internal class MediaEntry(
     val bitrate: Long? = null,
     val codecs: String? = null,
     val revisionCount: Int = 1,
+    val frameUrl: String? = null,
+    val playbackStatus: MediaPlaybackStatus = MediaPlaybackStatus.NEEDS_VERIFICATION,
+    val httpStatus: Int? = null,
 ) {
     override fun toString(): String = "MediaEntry(format=$format, sources=$sources, url=<redacted>)"
+}
+
+internal enum class MediaPlaybackStatus {
+    CONFIRMED, NEEDS_VERIFICATION, EXPIRED, AUTH_ERROR, UNPLAYABLE
 }
 
 /**
@@ -96,6 +103,10 @@ internal class MediaRepository(
         var quality: String? = null
         var bitrate: Long? = null
         var codecs: String? = null
+        var frameUrl: String? = null
+        var playbackStatus = MediaPlaybackStatus.NEEDS_VERIFICATION
+        var httpStatus: Int? = null
+        var highestNetworkRequestSequence: Long = 0
         fun metadata(candidate: MediaDetectorMessage.Candidate?, format: MediaFormat) {
             if (candidate == null) return
             fun priority(kind: String?): Int = when (kind) {
@@ -120,6 +131,16 @@ internal class MediaRepository(
             if (candidate.quality != null) quality = candidate.quality
             if (candidate.bitrate != null) bitrate = candidate.bitrate
             if (candidate.codecs != null) codecs = candidate.codecs
+            if (candidate.frameUrl != null) frameUrl = candidate.frameUrl
+            if (candidate.httpStatus != null) httpStatus = candidate.httpStatus
+            playbackStatus = when (candidate.verification) {
+                "stream_verified" -> MediaPlaybackStatus.CONFIRMED
+                "manifest_observed", "manifest_verified" -> MediaPlaybackStatus.NEEDS_VERIFICATION
+                "expired" -> MediaPlaybackStatus.EXPIRED
+                "auth_error" -> MediaPlaybackStatus.AUTH_ERROR
+                "unplayable" -> MediaPlaybackStatus.UNPLAYABLE
+                else -> playbackStatus
+            }
         }
         fun mark(source: MediaSource) {
             when (source) {
@@ -133,7 +154,8 @@ internal class MediaRepository(
             if (page) add(MediaSource.PAGE)
             if (network) add(MediaSource.NETWORK)
         }, groupId, title, titleKind, durationSeconds, sizeBytes, posterUrl,
-            quality, bitrate, codecs, revisions.size.coerceAtLeast(1))
+            quality, bitrate, codecs, revisions.size.coerceAtLeast(1), frameUrl,
+            playbackStatus, httpStatus)
     }
 
     private class Scope(
@@ -248,6 +270,11 @@ internal class MediaRepository(
         }
         val found = current.entries[identity]
         if (found != null) {
+            val requestSequence = metadata?.requestSequence
+            if (source == MediaSource.NETWORK && requestSequence != null &&
+                requestSequence < found.highestNetworkRequestSequence) return InsertResult.DUPLICATE
+            if (source == MediaSource.NETWORK && requestSequence != null)
+                found.highestNetworkRequestSequence = requestSequence
             if (provenance == MediaProvenance.NETWORK_OBSERVED) found.format = media.format
             found.observeUrl(media.url, provenance, tick())
             found.mark(if (provenance == MediaProvenance.MANIFEST_DERIVED) MediaSource.PAGE else source)
@@ -259,6 +286,8 @@ internal class MediaRepository(
             return InsertResult.DUPLICATE
         }
         val added = Record(identity, media.url, media.format, tick(), groupId)
+        if (source == MediaSource.NETWORK && metadata?.requestSequence != null)
+            added.highestNetworkRequestSequence = metadata.requestSequence
         added.observeUrl(media.url, provenance, tick())
         added.mark(if (provenance == MediaProvenance.MANIFEST_DERIVED) MediaSource.PAGE else source)
         added.metadata(metadata, media.format)

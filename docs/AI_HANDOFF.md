@@ -285,3 +285,11 @@ Na Nothing Phone (1) zainstalować `app-arm64-v8a-debug.apk`, wpisać publiczny 
 - Wersja: `0.5.22-alpha16`, ARM64 `versionCode=1110`, pakiet `com.prirai.android.nira.debug`, nadal CI-stały certyfikat `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00`.
 - Regresja: działające menu ⋮, przyciski paska i inline podglądy wideo powinny pozostać bez zmian; nowe testy JS dla podpisów.
 - Status testów i APK: czeka na uruchomienie/ukończenie workflow PR; NIE deklarować urządzeniowej weryfikacji do ręcznych testów.
+
+# Checkpoint — Nira Browser v1111 (2026-10-23)
+
+- Gałąź `feat/nira-v1111-signed-hls-playback`, baza v1110/PR #23, bez merge.
+- Naprawiono propagację `frameUrl` do Referer MPV, statusy weryfikacji HLS oraz ograniczony test pierwszego segmentu. Pełne podpisane URL pozostają nietknięte; fetch nie dołącza cookies.
+- Błędy HTTP 401/403 są oznaczane jako błąd autoryzacji, 404/410 jako wygasły link. Takich wpisów nie można uruchomić z panelu.
+- Wersja `0.5.22-alpha17`, efektywny ARM64 `versionCode=1111`, oczekiwany pakiet `com.prirai.android.nira.debug` i stały certyfikat `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00`.
+- Testy JS: 49/49 PASS. Lokalne Gradle zablokowane brakiem dostępu do dystrybucji; wymagane CI. Test realnej strony i telefonu NIE wykonany.

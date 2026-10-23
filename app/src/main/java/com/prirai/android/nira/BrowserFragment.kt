@@ -210,7 +210,17 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 val entry = fresh?.entries?.firstOrNull { it.id == streamId }
                 val uri = entry?.url?.toUri()
                 if (uri != null && uri.scheme in listOf("http", "https") && !uri.host.isNullOrBlank()) {
-                    launchVideoInMpv(uri, fresh?.tab?.pageUrl)
+                    if (entry.playbackStatus in setOf(
+                            com.prirai.android.nira.media.MediaPlaybackStatus.EXPIRED,
+                            com.prirai.android.nira.media.MediaPlaybackStatus.AUTH_ERROR,
+                            com.prirai.android.nira.media.MediaPlaybackStatus.UNPLAYABLE)) {
+                        Toast.makeText(requireContext(), "Link nie jest aktualnie odtwarzalny — odśwież stronę lub uruchom odtwarzacz strony.", Toast.LENGTH_LONG).show()
+                    } else {
+                        // An embedded player commonly signs the URL for its own origin.
+                        // Use the trusted frame URL captured by webRequest correlation;
+                        // fall back to the top document only for top-frame media.
+                        launchVideoInMpv(uri, entry.frameUrl ?: fresh?.tab?.pageUrl)
+                    }
                 } else {
                     Toast.makeText(requireContext(), R.string.video_link_invalid, Toast.LENGTH_SHORT).show()
                 }

@@ -4,6 +4,12 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class MediaMessageProtocolTest {
+    @Test fun decodesSanitizedNetworkVerificationWithoutSecrets() {
+        val decoded = MediaMessageProtocol.decode("""{"schemaVersion":1,"event":"media_candidate","source":"network","url":"https://cdn.example/index.m3u8?t=secret","isPrivate":false,"pageUrl":"https://site.example/watch","documentKey":7,"verification":"auth_error","httpStatus":403}""") as MediaDetectorMessage.Candidate
+        assertEquals("auth_error", decoded.verification)
+        assertEquals(403, decoded.httpStatus)
+        assertFalse(decoded.toString().contains("secret"))
+    }
     @Test fun acceptsBoundedTrustedManifestVariantMetadata() {
         val decoded = MediaMessageProtocol.decode("""{"schemaVersion":1,"event":"media_candidate","source":"network","url":"https://cdn.example/1080/index.m3u8","isPrivate":false,"pageUrl":"https://site.example/watch/1","documentKey":7,"groupId":"manifest-7-1","quality":"1080p","bitrate":2500000,"codecs":"avc1.640028,mp4a.40.2"}""")
         assertTrue(decoded is MediaDetectorMessage.Candidate)

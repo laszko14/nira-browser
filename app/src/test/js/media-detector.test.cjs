@@ -229,6 +229,16 @@ test("network detects WebM HLS/DASH and skips segment floods", async () => {
   assert.equal(b.native.every(x => !JSON.stringify(x).includes("site.example")), true);
 });
 
+test("v1111: HLS 403 is retained as an authorization failure, not confirmed", async () => {
+  const b = background(async () => true);
+  b.probe(response("https://cdn.example/index.m3u8?t=expired&s=1", "text/html",
+    { statusCode: 403 }));
+  await tick();
+  assert.equal(b.routed.length, 1);
+  assert.equal(b.routed[0][1].verification, "auth_error");
+  assert.equal(b.routed[0][1].httpStatus, 403);
+});
+
 test("v1107: a bounded HLS manifest emits grouped playable variants without segment requests", async () => {
   let fetches = 0;
   const fetchImpl = async (url, options) => {
@@ -469,6 +479,55 @@ test("stage 4.0.1: iframe keys bind strictly to the parent document and expire o
     pageUrl: "https://site.example/watch/2" }, sender);
   assert.equal(await b.receive({ schemaVersion: 1, event: "media_candidate",
     source: "page", url: "https://cdn.example.org/stale.mp4" }, iframe), null);
+});
+
+test("v1111: iframe manifest verification uses embed referrer and confirms one segment", async () => {
+  const calls = [];
+  const manifest = new TextEncoder().encode("#EXTM3U\n#EXTINF:6,\nseg.ts?t=fresh&s=2");
+  const fetchImpl = async (url, options) => {
+    calls.push({ url, options });
+    if (url.includes("index.m3u8")) return {
+      ok: true, status: 200, url,
+      headers: { get: name => name.toLowerCase() === "content-type" ?
+        "application/vnd.apple.mpegurl" : null },
+      body: { getReader: () => { let done = false; return {
+        read: async () => done ? { done: true } :
+          (done = true, { done: false, value: manifest }), cancel: async () => {}
+      }; } },
+    };
+    return { ok: true, status: 206, url, headers: { get: () => null },
+      body: { cancel: async () => {} } };
+  };
+  const b = background(async () => true, true, fetchImpl);
+  const iframe = { id: "detector", tab: { id: 7 }, frameId: 2,
+    url: "https://embed.example.org/player" };
+  await b.receive({ schemaVersion: 1, event: "frame_started", frameUrl: iframe.url }, iframe);
+  b.probe(response("https://cdn.example/index.m3u8?t=fresh&s=2",
+    "application/vnd.apple.mpegurl", { frameId: 2, documentUrl: iframe.url }));
+  await tick(); await tick(); await tick(); await tick();
+  assert.equal(calls[0].options.referrer, iframe.url);
+  assert.equal(calls[1].url, "https://cdn.example/seg.ts?t=fresh&s=2");
+  assert.equal(calls[1].options.headers.Range, "bytes=0-0");
+  assert.equal(b.routed.some(x => x[1].verification === "stream_verified"), true);
+});
+
+test("v1111: HTTP 200 HTML segment response is never confirmed", async () => {
+  const manifest = new TextEncoder().encode("#EXTM3U\n#EXTINF:6,\nseg.ts");
+  const fetchImpl = async (url) => url.endsWith(".m3u8") ? {
+    ok: true, status: 200, url,
+    headers: { get: name => name.toLowerCase() === "content-type" ?
+      "application/vnd.apple.mpegurl" : null },
+    body: { getReader: () => { let done = false; return {
+      read: async () => done ? { done: true } :
+        (done = true, { done: false, value: manifest }), cancel: async () => {}
+    }; } },
+  } : { ok: true, status: 200, url: "https://login.example/challenge",
+    headers: { get: name => name.toLowerCase() === "content-type" ? "text/html" : null },
+    body: { cancel: async () => {} } };
+  const b = background(async () => true, true, fetchImpl);
+  b.probe(response("https://cdn.example/index.m3u8", "application/vnd.apple.mpegurl"));
+  await tick(); await tick(); await tick(); await tick();
+  assert.equal(b.routed.some(x => x[1].verification === "stream_verified"), false);
 });
 
 test("stage 4.0.1: before-Play cannot discover a URL created only after Play", async () => {

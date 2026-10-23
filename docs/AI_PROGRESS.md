@@ -226,3 +226,8 @@
 - Poszerzono wyszukiwanie tytułów miniatur o kontener nadrzędny dla osobnego sibling-caption, dodano test w Node.
 - Przygotowano unikalny build v1110 alpha16 i kontrolę wersji/certyfikatu w GitHub Actions.
 - Sprawdzenie na rzeczywistym Nothing Phone 1 pozostaje do wykonania przez użytkownika.
+
+### 2026-10-23 — v1111: podpisane HLS, iframe i weryfikacja segmentu
+- Przyczyna: Nira zachowywała `frameUrl`, ale do MPV przekazywała Referer strony nadrzędnej; anonimowy parser manifestu nie rozróżniał wskazówki, dostępnego manifestu i dostępnego segmentu.
+- Dodano stan weryfikacji bez zapisywania tokenów, ograniczony probe pierwszego segmentu `Range: bytes=0-0`, iframe Referer, obsługę 401/403/404/410 oraz zachowanie pełnego oryginalnego URL.
+- 49/49 testów JavaScript PASS. Testy Gradle i fizyczny fulltaboo/MPV pozostają do wykonania w CI/na telefonie.

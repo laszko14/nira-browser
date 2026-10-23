@@ -26,7 +26,10 @@ internal sealed interface MediaDetectorMessage {
                     val quality: String? = null,
                     val bitrate: Long? = null,
                     val codecs: String? = null,
-                    val provenance: String? = null) : MediaDetectorMessage {
+                    val provenance: String? = null,
+                    val verification: String? = null,
+                    val httpStatus: Int? = null,
+                    val requestSequence: Long? = null) : MediaDetectorMessage {
         override fun toString() = "MediaCandidate(redacted)"
     }
     class Document(val pageUrl: String, val documentKey: Long) : MediaDetectorMessage {
@@ -112,7 +115,11 @@ internal object MediaMessageProtocol {
                 val hasBitrate = "bitrate" in fields
                 val hasCodecs = "codecs" in fields
                 val hasProvenance = "provenance" in fields
+                val hasVerification = "verification" in fields
+                val hasHttpStatus = "httpStatus" in fields
+                val hasRequestSequence = "requestSequence" in fields
                 if (hasProvenance && !fromNetwork) return null
+                if ((hasVerification || hasHttpStatus || hasRequestSequence) && !fromNetwork) return null
                 if (hasDoc && !("documentKey" in fields && "pageUrl" in fields)) return null
                 if (hasFrame && (!hasDoc ||
                         !("frameUrl" in fields && "frameKey" in fields))) return null
@@ -131,7 +138,10 @@ internal object MediaMessageProtocol {
                     (if (hasQuality) setOf("quality") else emptySet()) +
                     (if (hasBitrate) setOf("bitrate") else emptySet()) +
                     (if (hasCodecs) setOf("codecs") else emptySet()) +
-                    (if (hasProvenance) setOf("provenance") else emptySet())
+                    (if (hasProvenance) setOf("provenance") else emptySet()) +
+                    (if (hasVerification) setOf("verification") else emptySet()) +
+                    (if (hasHttpStatus) setOf("httpStatus") else emptySet()) +
+                    (if (hasRequestSequence) setOf("requestSequence") else emptySet())
                 if (fields.keys != acceptedKeys) return null
                 val source = when (string("source")) {
                     "dom" -> MediaSource.DOM
@@ -185,9 +195,21 @@ internal object MediaMessageProtocol {
                 val provenance = if (hasProvenance) string("provenance")?.takeIf {
                     it == "observed" || it == "derived"
                 } ?: return null else null
+                val verification = if (hasVerification) string("verification")?.takeIf {
+                    it in setOf("manifest_observed", "manifest_verified", "stream_verified",
+                        "expired", "auth_error", "unplayable")
+                } ?: return null else null
+                val httpStatus = if (hasHttpStatus)
+                    (fields["httpStatus"] as? JsonPrimitive)?.takeIf { !it.isString }
+                        ?.intOrNull?.takeIf { it in 100..599 } ?: return null
+                    else null
+                val requestSequence = if (hasRequestSequence)
+                    (fields["requestSequence"] as? JsonPrimitive)?.takeIf { !it.isString }
+                        ?.longOrNull?.takeIf { it in 1..9007199254740991L } ?: return null
+                    else null
                 MediaDetectorMessage.Candidate(url, contentType, source, privateHint, pageUrl, key,
                     frameUrl, frameKey, groupId, title, titleKind, duration, size, poster,
-                    quality, bitrate, codecs, provenance)
+                    quality, bitrate, codecs, provenance, verification, httpStatus, requestSequence)
             }
             else -> null
         }

@@ -35,12 +35,15 @@ globalThis.NiraManifestParser = (() => {
     const lines = text.replace(/\r/g, "").split("\n").map(line => line.trim());
     if (lines[0] !== "#EXTM3U") throw new Error("invalid_hls");
     const variants = [], audioTracks = [], subtitleTracks = [];
-    let seconds = 0;
+    let seconds = 0, firstSegmentUrl = null;
     for (let index = 0; index < lines.length; index++) {
       const line = lines[index];
       if (line.startsWith("#EXTINF:")) {
         const value = Number(line.slice(8).split(",")[0]);
         if (Number.isFinite(value) && value > 0) seconds += value;
+        let next = index + 1;
+        while (next < lines.length && (!lines[next] || lines[next].startsWith("#"))) next++;
+        if (!firstSegmentUrl && next < lines.length) firstSegmentUrl = url(lines[next], base);
       }
       if (line.startsWith("#EXT-X-MEDIA:")) {
         const data = attributes(line.slice(13));
@@ -67,7 +70,8 @@ globalThis.NiraManifestParser = (() => {
       }
     }
     return { protocol: "HLS", kind: variants.length ? "master" : "media", variants,
-      audioTracks, subtitleTracks, durationSeconds: seconds > 0 ? Math.ceil(seconds) : null };
+      audioTracks, subtitleTracks, durationSeconds: seconds > 0 ? Math.ceil(seconds) : null,
+      firstSegmentUrl };
   }
   function xmlAttr(tag, name) {
     const match = new RegExp("\\b" + name + "\\s*=\\s*['\"]([^'\"]*)['\"]", "i").exec(tag);
