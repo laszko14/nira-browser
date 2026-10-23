@@ -29,6 +29,7 @@ import com.prirai.android.nira.media.MediaFloatingUi
 import com.prirai.android.nira.media.MediaUiSnapshot
 import com.prirai.android.nira.media.MediaTabState
 import com.prirai.android.nira.media.MediaSessionBinding
+import com.prirai.android.nira.media.MpvPlaybackHeaders
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.combine
@@ -49,6 +50,7 @@ import mozilla.components.lib.state.ext.observeAsComposableState
 import mozilla.components.support.base.feature.UserInteractionHandler
 import mozilla.components.support.base.feature.ViewBoundFeatureWrapper
 import mozilla.components.support.ktx.kotlinx.coroutines.flow.ifAnyChanged
+import org.mozilla.geckoview.GeckoSession
 
 /**
  * Fragment used for browsing the web within the main app.
@@ -1278,7 +1280,11 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 putExtra("nira.playback_protocol", 1)
                 putExtra("nira.referrer", safeReferrer)
                 putExtra("nira.private", currentMediaSnapshot()?.tab?.binding?.isPrivate == true)
-                putExtra("headers", arrayOf("Referer", safeReferrer))
+                MpvPlaybackHeaders.build(GeckoSession.getDefaultUserAgent(), safeReferrer)
+                    ?.let { putExtra("headers", it) }
+            } else {
+                MpvPlaybackHeaders.build(GeckoSession.getDefaultUserAgent(), null)
+                    ?.let { putExtra("headers", it) }
             }
         }
         val playerPrefs = requireContext().getSharedPreferences("nira_video_player", android.content.Context.MODE_PRIVATE)
