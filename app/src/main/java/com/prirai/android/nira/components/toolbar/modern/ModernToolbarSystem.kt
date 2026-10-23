@@ -26,6 +26,7 @@ class ModernToolbarSystem @JvmOverloads constructor(
     private var requestedCollapsed = false
     private var scrollingEnabled = true
     private val hideAnimator = ValueAnimator()
+    private var offsetAnimating = false
     private var engineView: EngineView? = null
 
     // Position tracking for proper scroll direction
@@ -186,17 +187,36 @@ class ModernToolbarSystem @JvmOverloads constructor(
     private fun animateToOffset(targetOffset: Int) {
         hideAnimator.cancel()
         hideAnimator.removeAllUpdateListeners()
+        hideAnimator.removeAllListeners()
+        offsetAnimating = true
 
         hideAnimator.apply {
             setIntValues(currentOffset, targetOffset)
             duration = 200
             addUpdateListener { animation ->
-                val offset = animation.animatedValue as Int
-                setToolbarOffset(offset)
+                setToolbarOffset(animation.animatedValue as Int)
             }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                private var cancelled = false
+                override fun onAnimationCancel(animation: android.animation.Animator) {
+                    cancelled = true
+                }
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    if (!cancelled) {
+                        offsetAnimating = false
+                        setToolbarOffset(targetOffset)
+                    }
+                }
+            })
             start()
         }
     }
+
+    /** Keep GeckoView's measured viewport stable during toolbar motion. */
+    fun isOffsetAnimating(): Boolean = offsetAnimating
+
+    /** The state requested by page scroll, independent of animation progress. */
+    fun isCollapsed(): Boolean = requestedCollapsed
 
     fun setToolbarOffset(offset: Int) {
         val totalHeight = getTotalHeight()
