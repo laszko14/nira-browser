@@ -114,8 +114,14 @@ class SwipeGestureLayout @JvmOverloads constructor(
         listeners.add(listener)
     }
 
-    override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        // dispatchTouchEvent sees moves even when GeckoView asks its parent
+        // not to intercept; ordinary page scrolling remains uninterrupted.
         observePageGesture(event)
+        return super.dispatchTouchEvent(event)
+    }
+
+    override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
         if (!isSwipeEnabled) {
             return false
         }
