@@ -511,6 +511,25 @@ test("v1111: iframe manifest verification uses embed referrer and confirms one s
   assert.equal(b.routed.some(x => x[1].verification === "stream_verified"), true);
 });
 
+test("v1111: HTTP 200 HTML segment response is never confirmed", async () => {
+  const manifest = new TextEncoder().encode("#EXTM3U\n#EXTINF:6,\nseg.ts");
+  const fetchImpl = async (url) => url.endsWith(".m3u8") ? {
+    ok: true, status: 200, url,
+    headers: { get: name => name.toLowerCase() === "content-type" ?
+      "application/vnd.apple.mpegurl" : null },
+    body: { getReader: () => { let done = false; return {
+      read: async () => done ? { done: true } :
+        (done = true, { done: false, value: manifest }), cancel: async () => {}
+    }; } },
+  } : { ok: true, status: 200, url: "https://login.example/challenge",
+    headers: { get: name => name.toLowerCase() === "content-type" ? "text/html" : null },
+    body: { cancel: async () => {} } };
+  const b = background(async () => true, true, fetchImpl);
+  b.probe(response("https://cdn.example/index.m3u8", "application/vnd.apple.mpegurl"));
+  await tick(); await tick(); await tick(); await tick();
+  assert.equal(b.routed.some(x => x[1].verification === "stream_verified"), false);
+});
+
 test("stage 4.0.1: before-Play cannot discover a URL created only after Play", async () => {
   const p = page();
   const v = new p.HTMLVideoElement("", null, true);
