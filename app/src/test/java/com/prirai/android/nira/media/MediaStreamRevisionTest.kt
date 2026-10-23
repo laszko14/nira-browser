@@ -13,12 +13,14 @@ class MediaStreamRevisionTest {
         repo: MediaRepository, tab: MediaTabState, url: String,
         provenance: String = "observed", frameKey: Long? = null,
         frameUrl: String? = null, verification: String? = null, httpStatus: Int? = null,
+        requestSequence: Long? = null,
     ): MediaRepository.InsertResult {
         val candidate = MediaDetectorMessage.Candidate(
             url = url, source = MediaSource.NETWORK, privateHint = tab.binding.isPrivate,
             pageUrl = tab.pageUrl, documentKey = 1, frameUrl = frameUrl,
             frameKey = frameKey, provenance = provenance,
-            verification = verification, httpStatus = httpStatus
+            verification = verification, httpStatus = httpStatus,
+            requestSequence = requestSequence
         )
         val media = MediaClassifier.fromNetwork(candidate, tab.binding)!!
         return repo.add(tab, tab.pageUrl, 1, media, MediaSource.NETWORK,
@@ -48,6 +50,19 @@ class MediaStreamRevisionTest {
         val entry = repo.currentEntries(t).single()
         assertEquals(MediaPlaybackStatus.AUTH_ERROR, entry.playbackStatus)
         assertEquals(403, entry.httpStatus)
+    }
+
+    @Test fun lateOldResponseCannotReplaceNewerSignedRequest() {
+        val t = tab()
+        val repo = repoFor(t)
+        add(repo, t, "https://cdn.test/index.m3u8?t=fresh&s=2",
+            verification = "manifest_observed", httpStatus = 200, requestSequence = 12)
+        add(repo, t, "https://cdn.test/index.m3u8?t=old&s=1",
+            verification = "auth_error", httpStatus = 403, requestSequence = 11)
+        val entry = repo.currentEntries(t).single()
+        assertEquals("https://cdn.test/index.m3u8?t=fresh&s=2", entry.url)
+        assertEquals(MediaPlaybackStatus.NEEDS_VERIFICATION, entry.playbackStatus)
+        assertEquals(200, entry.httpStatus)
     }
     private fun repoFor(tab: MediaTabState): MediaRepository {
         val repo = MediaRepository()
