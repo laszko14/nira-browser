@@ -75,7 +75,10 @@ internal class MediaRepository(
                 while (revisions.size > 8) revisions.removeFirst()
             }
             // Parser fetches must never displace a real player network request.
-            if (exactUrl == url || provenance == MediaProvenance.NETWORK_OBSERVED ||
+            if (exactUrl == url) {
+                if (provenance == MediaProvenance.NETWORK_OBSERVED ||
+                    activeProvenance != MediaProvenance.NETWORK_OBSERVED) activeProvenance = provenance
+            } else if (provenance == MediaProvenance.NETWORK_OBSERVED ||
                 (activeProvenance != MediaProvenance.NETWORK_OBSERVED &&
                     provenance == MediaProvenance.MANIFEST_DERIVED)) {
                 url = exactUrl
