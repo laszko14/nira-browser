@@ -79,6 +79,8 @@
           "stream_verified", "expired", "auth_error", "unplayable"].includes(message.verification)) ||
         ("httpStatus" in message && (!Number.isSafeInteger(message.httpStatus) ||
           message.httpStatus < 100 || message.httpStatus > 599)) ||
+        ("requestSequence" in message && (!Number.isSafeInteger(message.requestSequence) ||
+          message.requestSequence < 1)) ||
         (("frameKey" in message) !== ("frameUrl" in message)) ||
         ("frameKey" in message && (!Number.isSafeInteger(message.frameKey) ||
           message.frameKey < 1 || typeof message.frameUrl !== "string" ||
@@ -86,7 +88,7 @@
         Object.keys(message).some(key => !["schemaVersion", "event", "source", "url",
           "isPrivate", "documentKey", "pageUrl", "contentType", "sizeBytes",
           "groupId", "quality", "bitrate", "codecs", "provenance",
-          "verification", "httpStatus",
+          "verification", "httpStatus", "requestSequence",
           "frameUrl", "frameKey"].includes(key)) ||
         message.pageUrl !== location.href) return Promise.resolve(false);
     return ensureDocument().then(root => {
