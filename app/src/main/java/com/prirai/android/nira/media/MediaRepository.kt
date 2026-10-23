@@ -30,8 +30,15 @@ internal class MediaEntry(
     val bitrate: Long? = null,
     val codecs: String? = null,
     val revisionCount: Int = 1,
+    val frameUrl: String? = null,
+    val playbackStatus: MediaPlaybackStatus = MediaPlaybackStatus.NEEDS_VERIFICATION,
+    val httpStatus: Int? = null,
 ) {
     override fun toString(): String = "MediaEntry(format=$format, sources=$sources, url=<redacted>)"
+}
+
+internal enum class MediaPlaybackStatus {
+    CONFIRMED, NEEDS_VERIFICATION, EXPIRED, AUTH_ERROR, UNPLAYABLE
 }
 
 /**
@@ -96,6 +103,9 @@ internal class MediaRepository(
         var quality: String? = null
         var bitrate: Long? = null
         var codecs: String? = null
+        var frameUrl: String? = null
+        var playbackStatus = MediaPlaybackStatus.NEEDS_VERIFICATION
+        var httpStatus: Int? = null
         fun metadata(candidate: MediaDetectorMessage.Candidate?, format: MediaFormat) {
             if (candidate == null) return
             fun priority(kind: String?): Int = when (kind) {
@@ -120,6 +130,15 @@ internal class MediaRepository(
             if (candidate.quality != null) quality = candidate.quality
             if (candidate.bitrate != null) bitrate = candidate.bitrate
             if (candidate.codecs != null) codecs = candidate.codecs
+            if (candidate.frameUrl != null) frameUrl = candidate.frameUrl
+            if (candidate.httpStatus != null) httpStatus = candidate.httpStatus
+            playbackStatus = when (candidate.verification) {
+                "stream_verified" -> MediaPlaybackStatus.CONFIRMED
+                "expired" -> MediaPlaybackStatus.EXPIRED
+                "auth_error" -> MediaPlaybackStatus.AUTH_ERROR
+                "unplayable" -> MediaPlaybackStatus.UNPLAYABLE
+                else -> playbackStatus
+            }
         }
         fun mark(source: MediaSource) {
             when (source) {
@@ -133,7 +152,8 @@ internal class MediaRepository(
             if (page) add(MediaSource.PAGE)
             if (network) add(MediaSource.NETWORK)
         }, groupId, title, titleKind, durationSeconds, sizeBytes, posterUrl,
-            quality, bitrate, codecs, revisions.size.coerceAtLeast(1))
+            quality, bitrate, codecs, revisions.size.coerceAtLeast(1), frameUrl,
+            playbackStatus, httpStatus)
     }
 
     private class Scope(
