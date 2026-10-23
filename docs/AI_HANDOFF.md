@@ -276,3 +276,12 @@ Na Nothing Phone (1) zainstalować `app-arm64-v8a-debug.apk`, wpisać publiczny 
 - Poprawa: currentEntries pozwala UI widzieć już zweryfikowane wpisy tego samego dokumentu po zakończeniu ładowania, w tym krótkim okresie przed reconcile; nowy load nadal ukrywa stare wpisy. MediaFloatingUi.render przenosi widoczne kółko nad rodzeństwo.
 - Test regresji w MediaFloatingStage40Test sprawdza wynik przed/po reconcile i nowy reload.
 - Nowy arm64 APK: 0.5.22-alpha5, versionCode 1099; ta sama konfiguracja stałego podpisu co PR #11, bez odinstalowywania i kasowania danych. CI i działanie na urządzeniu wymagają oddzielnej weryfikacji.
+
+
+## 2026-10-23 — Nira v1110 (pozostałe poprawki UI, bez zmian detektora)
+- Bazowa gałąź: `feat/nira-v1109-signed-stream-revisions` (PR #22; commit `dd06c26057395341d103bfb672583010f5a5b6bc`). Należy zachować wykonane już tam poprawki HLS; nie powtarzać prac detektora.
+- Nowa gałąź: `feat/nira-v1110-toolbar-titles-system-nav`, cel PR: gałąź v1109. Żadnego merge do `main`.
+- Poprawki: BrowserActivity wymusza widoczność normalnych `navigationBars()` przy starcie i nie ukrywa ich po fokusie; WebContentPositionManager nie dodaje powtórnie statusBarHeight do GeckoView; BaseBrowserFragment nie rezerwuje w Gecko drugiego dynamic-toolbar; `full-titles.js` znajduje podpis pod miniaturą w nadrzędnej karcie i neutralizuje zagnieżdżony clamp.
+- Wersja: `0.5.22-alpha16`, ARM64 `versionCode=1110`, pakiet `com.prirai.android.nira.debug`, nadal CI-stały certyfikat `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00`.
+- Regresja: działające menu ⋮, przyciski paska i inline podglądy wideo powinny pozostać bez zmian; nowe testy JS dla podpisów.
+- Status testów i APK: czeka na uruchomienie/ukończenie workflow PR; NIE deklarować urządzeniowej weryfikacji do ręcznych testów.
