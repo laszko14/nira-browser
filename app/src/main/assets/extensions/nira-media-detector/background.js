@@ -293,7 +293,10 @@ function onHeaders(details) {
     try { Promise.resolve(browser.runtime.sendNativeMessage("nira.media.detector",
       { schemaVersion: 1, event: "network_probe" })).catch(() => {}); } catch (_) {}
   }
-  if (typeof details.statusCode === "number" && (details.statusCode < 200 || details.statusCode >= 300)) return;
+  const success = typeof details.statusCode !== "number" ||
+    (details.statusCode >= 200 && details.statusCode < 300);
+  const relevantFailure = [401, 403, 404, 410].includes(details.statusCode);
+  if (!success && !relevantFailure) return;
   if (!safeUrl(details.url) || typeof details.incognito !== "boolean") return;
   let contentType = null;
   if (Array.isArray(details.responseHeaders)) {
@@ -302,7 +305,9 @@ function onHeaders(details) {
     if (header && safeMime(header.value)) contentType = header.value;
     else if (header) return;
   }
-  const format = classify(details.url, contentType);
+  // Error pages often report text/html; the request path is still valuable for
+  // marking an already-known manifest as expired/unauthorized.
+  const format = classify(details.url, success ? contentType : null);
   if (format === "segment") { skipSegment(details.incognito); return; }
   if (!format) return;
   const tabId = Number.isInteger(details.tabId) && details.tabId >= 0 ? details.tabId : -1;
@@ -339,7 +344,10 @@ function onHeaders(details) {
   const message = {
     schemaVersion: 1, event: "media_candidate", source: "network", url: details.url,
     isPrivate: details.incognito, documentKey: doc.documentKey, pageUrl: doc.pageUrl,
-    provenance: "observed"
+    provenance: "observed", verification: success ? "manifest_observed" :
+      (details.statusCode === 401 || details.statusCode === 403 ? "auth_error" :
+        (details.statusCode === 404 || details.statusCode === 410 ? "expired" : "unplayable")),
+    httpStatus: details.statusCode
   };
   if (requestFrame) {
     message.frameKey = requestFrame.frameKey;
@@ -365,7 +373,7 @@ function onHeaders(details) {
     Promise.resolve(browser.tabs.sendMessage(tabId, message, { frameId: 0 }))
       .then(accepted => {
         if (accepted !== true) anonymous("network_unassigned", details.incognito);
-        else if (format === "HLS" || format === "DASH") queueManifest({
+        else if (success && (format === "HLS" || format === "DASH")) queueManifest({
           url: details.url, format, tabId, documentKey: doc.documentKey,
           pageUrl: doc.pageUrl, isPrivate: details.incognito, groupId: message.groupId,
           frameKey: requestFrame?.frameKey, frameUrl: requestFrame?.frameUrl,
@@ -406,7 +414,8 @@ async function inspectManifest(task) {
   try {
     const response = await fetch(task.url, {
       method: "GET", credentials: "omit", redirect: "follow", cache: "no-store",
-      referrer: task.pageUrl, signal: controller ? controller.signal : undefined,
+      referrer: task.frameUrl || task.pageUrl,
+      signal: controller ? controller.signal : undefined,
     });
     if (!response || !response.ok) return;
     const finalUrl = safeUrl(response.url) ? response.url : task.url;
@@ -435,6 +444,32 @@ async function inspectManifest(task) {
       NiraManifestParser.parseDash(text, finalUrl, 8);
     const current = documents.get(task.tabId);
     if (!current || current.documentKey !== task.documentKey || current.pageUrl !== task.pageUrl) return;
+    const verified = { schemaVersion: 1, event: "media_candidate", source: "network",
+      provenance: "observed", verification: "manifest_verified",
+      httpStatus: Number.isInteger(response.status) ? response.status : 200,
+      url: finalUrl, isPrivate: task.isPrivate, documentKey: task.documentKey,
+      pageUrl: task.pageUrl, groupId: task.groupId,
+      contentType: task.format === "HLS" ? "application/vnd.apple.mpegurl" : "application/dash+xml" };
+    if (task.frameKey && task.frameUrl) {
+      verified.frameKey = task.frameKey;
+      verified.frameUrl = task.frameUrl;
+    }
+    if (task.format === "HLS" && parsed.kind === "media" && safeUrl(parsed.firstSegmentUrl)) {
+      await browser.tabs.sendMessage(task.tabId, verified, { frameId: 0 });
+      const segment = await fetch(parsed.firstSegmentUrl, {
+        method: "GET", credentials: "omit", redirect: "follow", cache: "no-store",
+        referrer: task.frameUrl || task.pageUrl, headers: { Range: "bytes=0-0" },
+        signal: controller ? controller.signal : undefined,
+      });
+      if (segment && (segment.ok || segment.status === 206)) {
+        if (segment.body && typeof segment.body.cancel === "function")
+          await segment.body.cancel().catch(() => {});
+        verified.url = task.url;
+        verified.verification = "stream_verified";
+        verified.httpStatus = Number.isInteger(segment.status) ? segment.status : 200;
+        await browser.tabs.sendMessage(task.tabId, verified, { frameId: 0 });
+      }
+    }
     // DASH representations can refer to initialization/segment templates, not
     // playable MP4 files. Keep the observed MPD; never export fake direct videos.
     for (const variant of (task.format === "HLS" ? parsed.variants || [] : [])) {
