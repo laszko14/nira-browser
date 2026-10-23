@@ -4,6 +4,8 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.text.InputType
 import android.view.View
+import org.mozilla.geckoview.GeckoSession
+import mozilla.components.browser.engine.gecko.GeckoEngineSession
 import android.widget.EditText
 import android.widget.Toast
 import androidx.compose.foundation.layout.Box
@@ -133,15 +135,107 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         observeNewTabSelection()
         setupFloatingMediaUi()
         setupEdgePanelGestures()
+        observeNativePageScroll()
     }
 
     /** Only intercept swipes beginning in a narrow edge zone of the webpage. */
+    // Native content scroll notifications work in both orientations. GeckoView does
+    // not reliably participate in CoordinatorLayout nested scrolling.
+    private var nativeScrollSession: GeckoSession? = null
+    private var nativeScrollDelegate: GeckoSession.ScrollDelegate? = null
+    private var previousScrollDelegate: GeckoSession.ScrollDelegate? = null
+    private var lastPageScrollY: Int? = null
+    private var accumulatedDownScroll = 0
+    private var accumulatedUpScroll = 0
+
+    private fun observeNativePageScroll() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            requireContext().components.store.flowScoped(viewLifecycleOwner, Dispatchers.Main) { flow ->
+                flow.map { state ->
+                    (state.tabs.firstOrNull { it.id == state.selectedTabId }
+                        ?.engineState?.engineSession as? GeckoEngineSession)?.geckoSession
+                }.distinctUntilChanged().collect { session ->
+                    bindNativePageScroll(session)
+                }
+            }
+        }
+    }
+
+    private fun bindNativePageScroll(session: GeckoSession?) {
+        if (nativeScrollSession === session) return
+        unbindNativePageScroll()
+        if (session == null) return
+        val prior = session.scrollDelegate
+        val listener = object : GeckoSession.ScrollDelegate {
+            override fun onScrollChanged(source: GeckoSession, scrollX: Int, scrollY: Int) {
+                prior?.onScrollChanged(source, scrollX, scrollY)
+                if (source === nativeScrollSession && isAdded && view != null) {
+                    onNativePageScroll(scrollY)
+                }
+            }
+        }
+        previousScrollDelegate = prior
+        nativeScrollDelegate = listener
+        nativeScrollSession = session
+        session.scrollDelegate = listener
+        lastPageScrollY = null
+    }
+
+    private fun unbindNativePageScroll() {
+        val session = nativeScrollSession
+        if (session != null && session.scrollDelegate === nativeScrollDelegate) {
+            session.scrollDelegate = previousScrollDelegate
+        }
+        nativeScrollSession = null
+        nativeScrollDelegate = null
+        previousScrollDelegate = null
+        lastPageScrollY = null
+        accumulatedDownScroll = 0
+        accumulatedUpScroll = 0
+    }
+
+    private fun onNativePageScroll(scrollY: Int) {
+        if (cachedToolbarPosition !=
+            com.prirai.android.nira.components.toolbar.ToolbarPosition.TOP.ordinal) return
+        val previous = lastPageScrollY
+        lastPageScrollY = scrollY
+        if (previous == null) return
+
+        val toolbar = unifiedToolbar ?: return
+        if (toolbar.isScrollAnimationRunning()) return
+        val delta = scrollY - previous
+        // Large discontinuities are navigation, anchor jumps or viewport relayout,
+        // not a reliable finger-scroll direction.
+        if (kotlin.math.abs(delta) > binding.gestureLayout.height / 2) {
+            accumulatedDownScroll = 0
+            accumulatedUpScroll = 0
+            return
+        }
+
+        val density = resources.displayMetrics.density
+        if (delta > 0) {
+            accumulatedUpScroll = 0
+            accumulatedDownScroll += delta
+            if (!toolbar.isCollapsed() && accumulatedDownScroll >= 48 * density) {
+                toolbar.collapse()
+                accumulatedDownScroll = 0
+            }
+        } else if (delta < 0) {
+            accumulatedDownScroll = 0
+            accumulatedUpScroll -= delta
+            if (toolbar.isCollapsed() && accumulatedUpScroll >= 28 * density) {
+                toolbar.expand()
+                accumulatedUpScroll = 0
+            }
+        }
+    }
+
     private fun setupEdgePanelGestures() {
         val prefs = UserPreferences(requireContext())
         if (!prefs.niraEdgePanelsEnabled) return
         val density = resources.displayMetrics.density
         val edgeWidth = prefs.niraEdgeWidthDp * density
-        val threshold = 80 * density
+        val threshold = 64 * density
         binding.gestureLayout.addGestureListener(object : com.prirai.android.nira.browser.SwipeGestureListener {
             private var direction = 0
             private var travelled = 0f
@@ -150,10 +244,18 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 val dy = next.y - start.y
                 if (kotlin.math.abs(dx) < 12 * density ||
                     kotlin.math.abs(dx) < 1.5f * kotlin.math.abs(dy)) return false
-                val width = resources.displayMetrics.widthPixels
+                // Gesture coordinates are screen-relative; the content origin can
+                // move inward in landscape when Android navigation is on the left.
+                val location = IntArray(2)
+                binding.gestureLayout.getLocationOnScreen(location)
+                val localX = start.x - location[0]
+                val width = binding.gestureLayout.width.toFloat()
+                val landscape = resources.configuration.orientation ==
+                    android.content.res.Configuration.ORIENTATION_LANDSCAPE
+                val activeEdge = if (landscape) maxOf(edgeWidth, 80f * density) else edgeWidth
                 direction = when {
-                    start.x < edgeWidth && dx > 0 -> 1
-                    start.x > width-edgeWidth && dx < 0 -> -1
+                    localX in 0f..activeEdge && dx > 0 -> 1
+                    localX >= width - activeEdge && localX <= width && dx < 0 -> -1
                     else -> 0
                 }
                 travelled = 0f
@@ -253,6 +355,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     }
 
     override fun onDestroyView() {
+        unbindNativePageScroll()
         mediaFloatingUi?.detach()
         mediaFloatingUi = null
         super.onDestroyView()
@@ -771,6 +874,18 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         val lp = binding.swipeRefresh.layoutParams
             as? androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams
             ?: return
+
+        // A GeckoView relayout every 16 ms during hide/show makes the webpage
+        // jump, especially in landscape. Move its existing viewport together
+        // with the chrome; update the actual layout margin only after the
+        // 200 ms animation has completed.
+        if (cachedToolbarPosition ==
+                com.prirai.android.nira.components.toolbar.ToolbarPosition.TOP.ordinal &&
+            unifiedToolbar?.isScrollAnimationRunning() == true) {
+            binding.swipeRefresh.translationY = (visibleHeight - lp.topMargin).toFloat()
+            return
+        }
+        binding.swipeRefresh.translationY = 0f
 
         when (cachedToolbarPosition) {
             com.prirai.android.nira.components.toolbar.ToolbarPosition.BOTTOM.ordinal -> {
