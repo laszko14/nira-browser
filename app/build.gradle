@@ -26,8 +26,8 @@ android {
         minSdkVersion 27
         targetSdkVersion 37
         // Increment by 4 with each update, by 1 with each fix
-        versionCode = 111
-        versionName = "0.5.22-alpha17"
+        versionCode = 112
+        versionName = "0.5.22-alpha18"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -238,43 +238,3 @@ dependencies {
     androidTestImplementation libs.androidx.junit
     androidTestImplementation libs.androidx.espresso.core
 
-    // JSON parsing
-    implementation libs.moshi
-    implementation libs.moshi.kotlin
-
-    // OkHTTP
-    implementation libs.okhttp
-
-    implementation libs.androidx.ui
-    implementation libs.androidx.foundation
-    implementation libs.androidx.material
-    implementation libs.androidx.material.icons.extended
-    implementation libs.androidx.material3
-    implementation libs.androidx.runtime
-    implementation libs.androidx.ui.tooling.preview
-    implementation libs.androidx.activity.compose
-    implementation libs.androidx.lifecycle.viewmodel.compose
-    // lifecycle-process for ProcessLifecycleOwner (used by
-    // BackgroundPlaybackGuard to intercept ON_STOP and pause tabs
-    // whose origin isn't on the bg-playback allow-list).
-    implementation libs.androidx.lifecycle.process
-    implementation libs.coil.compose
-
-    // DataStore for preferences
-    implementation libs.androidx.datastore.preferences
-
-    // Kotlinx Serialization
-    implementation libs.kotlinx.serialization.json
-
-    implementation libs.jsoup
-}
-
-project.configurations.configureEach {
-    resolutionStrategy.capabilitiesResolution.withCapability("org.mozilla.telemetry:glean-native") {
-        def toBeSelected = candidates.find { it.id.module.contains('geckoview') }
-        if (toBeSelected != null) {
-            select(toBeSelected)
-        }
-        because 'use GeckoView Glean instead of standalone Glean'
-    }
-}
