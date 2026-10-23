@@ -39,7 +39,7 @@ internal class MediaFloatingUi(
     private val parent: ViewGroup,
     private val current: () -> MediaUiSnapshot?,
     private val safeToolbarSpace: () -> Pair<Int, Int>,
-    private val openVideo: (String) -> Unit,
+    private val openVideo: (Long) -> Unit,
 ) {
     private val context = parent.context
     private val prefs = context.getSharedPreferences("nira_media_floating_position", Context.MODE_PRIVATE)
@@ -332,6 +332,7 @@ internal class MediaFloatingUi(
                     append("  •  ")
                     append(sizeLabel(entry))
                     if (time != null) append("  •  ").append(time)
+                    if (entry.revisionCount > 1) append("  •  świeży link (").append(entry.revisionCount).append(" wersje)")
                 }
                 card.addView(label(headline, 14f, true))
                 val host = try { URI(entry.url).host ?: "nieznany serwer" }
@@ -346,10 +347,10 @@ internal class MediaFloatingUi(
                     setOnClickListener {
                         val now = current()
                         if (now == null || !sameSelection(snapshot.tab, now.tab) ||
-                            now.entries.none { it.id == entry.id && it.url == entry.url }) {
+                            now.entries.none { it.id == entry.id }) {
                             stale()
                             fillSheet()
-                        } else openVideo(entry.url)
+                        } else openVideo(entry.id)
                     }
                 }
                 actions.addView(open, LinearLayout.LayoutParams(0, -2, 1.2f))
@@ -360,11 +361,12 @@ internal class MediaFloatingUi(
                     setOnClickListener {
                         val now = current()
                         if (now == null || !sameSelection(snapshot.tab, now.tab) ||
-                            now.entries.none { it.id == entry.id && it.url == entry.url }) {
+                            now.entries.none { it.id == entry.id }) {
                             stale()
                             fillSheet()
                         } else {
-                            val clip = ClipData.newPlainText("Adres źródła wideo", entry.url)
+                            val fresh = now.entries.first { it.id == entry.id }
+                            val clip = ClipData.newPlainText("Adres źródła wideo", fresh.url)
                             if (Build.VERSION.SDK_INT >= 33) {
                                 clip.description.extras = PersistableBundle().apply {
                                     putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)

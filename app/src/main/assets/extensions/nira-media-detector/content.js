@@ -50,6 +50,12 @@
     return registering;
   }
 
+  // Network iframe identity is minted by the extension, not supplied by the page.
+  function absoluteFrameUrl(value) {
+    try { const parsed = new URL(value); return ["http:", "https:"].includes(parsed.protocol) &&
+      !!parsed.hostname && !parsed.username && !parsed.password; } catch (_) { return false; }
+  }
+
   // Network messages only ever enter the top document with its current key.
   browser.runtime.onMessage.addListener((message, sender) => {
     if (FRAME || !sender || sender.id !== browser.runtime.id || !message ||
@@ -68,9 +74,15 @@
           message.bitrate <= 0 || message.bitrate > 1000000000)) ||
         ("codecs" in message && (typeof message.codecs !== "string" ||
           message.codecs.length > 160 || /[\u0000-\u001f\u007f]/.test(message.codecs))) ||
+        ("provenance" in message && !["observed", "derived"].includes(message.provenance)) ||
+        (("frameKey" in message) !== ("frameUrl" in message)) ||
+        ("frameKey" in message && (!Number.isSafeInteger(message.frameKey) ||
+          message.frameKey < 1 || typeof message.frameUrl !== "string" ||
+          !absoluteFrameUrl(message.frameUrl))) ||
         Object.keys(message).some(key => !["schemaVersion", "event", "source", "url",
           "isPrivate", "documentKey", "pageUrl", "contentType", "sizeBytes",
-          "groupId", "quality", "bitrate", "codecs"].includes(key)) ||
+          "groupId", "quality", "bitrate", "codecs", "provenance",
+          "frameUrl", "frameKey"].includes(key)) ||
         message.pageUrl !== location.href) return Promise.resolve(false);
     return ensureDocument().then(root => {
       if (!root || root.documentKey !== message.documentKey ||

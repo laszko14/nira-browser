@@ -25,7 +25,8 @@ internal sealed interface MediaDetectorMessage {
                     val posterUrl: String? = null,
                     val quality: String? = null,
                     val bitrate: Long? = null,
-                    val codecs: String? = null) : MediaDetectorMessage {
+                    val codecs: String? = null,
+                    val provenance: String? = null) : MediaDetectorMessage {
         override fun toString() = "MediaCandidate(redacted)"
     }
     class Document(val pageUrl: String, val documentKey: Long) : MediaDetectorMessage {
@@ -110,8 +111,10 @@ internal object MediaMessageProtocol {
                 val hasQuality = "quality" in fields
                 val hasBitrate = "bitrate" in fields
                 val hasCodecs = "codecs" in fields
+                val hasProvenance = "provenance" in fields
+                if (hasProvenance && !fromNetwork) return null
                 if (hasDoc && !("documentKey" in fields && "pageUrl" in fields)) return null
-                if (hasFrame && (!hasDoc || fromNetwork ||
+                if (hasFrame && (!hasDoc ||
                         !("frameUrl" in fields && "frameKey" in fields))) return null
                 if (hasTitle && !("title" in fields && "titleKind" in fields)) return null
                 if (hasDuration && fromNetwork || hasSize && !fromNetwork ||
@@ -127,7 +130,8 @@ internal object MediaMessageProtocol {
                     (if (hasPoster) setOf("posterUrl") else emptySet()) +
                     (if (hasQuality) setOf("quality") else emptySet()) +
                     (if (hasBitrate) setOf("bitrate") else emptySet()) +
-                    (if (hasCodecs) setOf("codecs") else emptySet())
+                    (if (hasCodecs) setOf("codecs") else emptySet()) +
+                    (if (hasProvenance) setOf("provenance") else emptySet())
                 if (fields.keys != acceptedKeys) return null
                 val source = when (string("source")) {
                     "dom" -> MediaSource.DOM
@@ -178,9 +182,12 @@ internal object MediaMessageProtocol {
                 val codecs = if (hasCodecs) string("codecs")?.takeIf {
                     it.length in 1..160 && it.none(Char::isISOControl)
                 } ?: return null else null
+                val provenance = if (hasProvenance) string("provenance")?.takeIf {
+                    it == "observed" || it == "derived"
+                } ?: return null else null
                 MediaDetectorMessage.Candidate(url, contentType, source, privateHint, pageUrl, key,
                     frameUrl, frameKey, groupId, title, titleKind, duration, size, poster,
-                    quality, bitrate, codecs)
+                    quality, bitrate, codecs, provenance)
             }
             else -> null
         }
