@@ -335,6 +335,14 @@ internal class MediaFloatingUi(
                     if (entry.revisionCount > 1) append("  •  świeży link (").append(entry.revisionCount).append(" wersje)")
                 }
                 card.addView(label(headline, 14f, true))
+                val status = when (entry.playbackStatus) {
+                    MediaPlaybackStatus.CONFIRMED -> "Potwierdzony strumień"
+                    MediaPlaybackStatus.NEEDS_VERIFICATION -> "Wymaga weryfikacji"
+                    MediaPlaybackStatus.EXPIRED -> "Link wygasł"
+                    MediaPlaybackStatus.AUTH_ERROR -> "Błąd autoryzacji"
+                    MediaPlaybackStatus.UNPLAYABLE -> "Nie można odtworzyć"
+                }
+                card.addView(label(status, 12f, entry.playbackStatus == MediaPlaybackStatus.CONFIRMED))
                 val host = try { URI(entry.url).host ?: "nieznany serwer" }
                     catch (_: Exception) { "nieznany serwer" }
                 card.addView(label("${originLabel(entry)}  •  ${host.take(65)}", 12f))
@@ -344,6 +352,8 @@ internal class MediaFloatingUi(
                 val actions = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
                 val open = MaterialButton(context).apply {
                     text = "▶ MPV Alpha"
+                    isEnabled = entry.playbackStatus !in setOf(MediaPlaybackStatus.EXPIRED,
+                        MediaPlaybackStatus.AUTH_ERROR, MediaPlaybackStatus.UNPLAYABLE)
                     setOnClickListener {
                         val now = current()
                         if (now == null || !sameSelection(snapshot.tab, now.tab) ||
