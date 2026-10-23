@@ -33,6 +33,15 @@ test("HLS media playlist reports duration without treating segments as films", (
   assert.equal(result.kind, "media");
   assert.equal(result.variants.length, 0);
   assert.equal(result.durationSeconds, 10);
+  assert.equal(result.firstSegmentUrl, "https://cdn.example/vod/a.ts");
+});
+
+test("HLS media playlist preserves signed query parameters on the first segment", () => {
+  const text = "#EXTM3U\n#EXTINF:6,\nsegment.ts?t=fresh&s=123";
+  const result = parser.parseHls(text,
+    "https://cdn.example/vod/index.m3u8?t=manifest&s=456", 8);
+  assert.equal(result.firstSegmentUrl,
+    "https://cdn.example/vod/segment.ts?t=fresh&s=123");
 });
 
 test("DASH parser extracts bounded video representations and separate audio", () => {
