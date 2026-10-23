@@ -4,8 +4,6 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.text.InputType
 import android.view.View
-import org.mozilla.geckoview.GeckoSession
-import mozilla.components.browser.engine.gecko.GeckoEngineSession
 import android.widget.EditText
 import android.widget.Toast
 import androidx.compose.foundation.layout.Box
@@ -135,102 +133,44 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         observeNewTabSelection()
         setupFloatingMediaUi()
         setupEdgePanelGestures()
-        observeNativePageScroll()
     }
 
     /** Only intercept swipes beginning in a narrow edge zone of the webpage. */
-    // Native content scroll notifications work in both orientations. GeckoView does
-    // not reliably participate in CoordinatorLayout nested scrolling.
-    private var nativeScrollSession: GeckoSession? = null
-    private var nativeScrollDelegate: GeckoSession.ScrollDelegate? = null
-    private var previousScrollDelegate: GeckoSession.ScrollDelegate? = null
-    private var lastPageScrollY: Int? = null
-    private var accumulatedDownScroll = 0
-    private var accumulatedUpScroll = 0
+    // Observe real finger scrolling at the gesture container without stealing
+    // touch events from GeckoView. Unlike CoordinatorLayout nested scrolling,
+    // this works with GeckoView in both portrait and landscape.
+    private var accumulatedDownScroll = 0f
+    private var accumulatedUpScroll = 0f
 
-    private fun observeNativePageScroll() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            requireContext().components.store.flowScoped(viewLifecycleOwner, Dispatchers.Main) { flow ->
-                flow.map { state ->
-                    (state.tabs.firstOrNull { it.id == state.selectedTabId }
-                        ?.engineState?.engineSession as? GeckoEngineSession)?.geckoSession
-                }.distinctUntilChanged().collect { session ->
-                    bindNativePageScroll(session)
-                }
-            }
-        }
-    }
-
-    private fun bindNativePageScroll(session: GeckoSession?) {
-        if (nativeScrollSession === session) return
-        unbindNativePageScroll()
-        if (session == null) return
-        val prior = session.scrollDelegate
-        val listener = object : GeckoSession.ScrollDelegate {
-            override fun onScrollChanged(source: GeckoSession, scrollX: Int, scrollY: Int) {
-                prior?.onScrollChanged(source, scrollX, scrollY)
-                if (source === nativeScrollSession && isAdded && view != null) {
-                    onNativePageScroll(scrollY)
-                }
-            }
-        }
-        previousScrollDelegate = prior
-        nativeScrollDelegate = listener
-        nativeScrollSession = session
-        session.scrollDelegate = listener
-        lastPageScrollY = null
-    }
-
-    private fun unbindNativePageScroll() {
-        val session = nativeScrollSession
-        if (session != null && session.scrollDelegate === nativeScrollDelegate) {
-            session.scrollDelegate = previousScrollDelegate
-        }
-        nativeScrollSession = null
-        nativeScrollDelegate = null
-        previousScrollDelegate = null
-        lastPageScrollY = null
-        accumulatedDownScroll = 0
-        accumulatedUpScroll = 0
-    }
-
-    private fun onNativePageScroll(scrollY: Int) {
+    private fun onVerticalPageGesture(scrollDeltaY: Float) {
         if (cachedToolbarPosition !=
             com.prirai.android.nira.components.toolbar.ToolbarPosition.TOP.ordinal) return
-        val previous = lastPageScrollY
-        lastPageScrollY = scrollY
-        if (previous == null) return
-
         val toolbar = unifiedToolbar ?: return
         if (toolbar.isScrollAnimationRunning()) return
-        val delta = scrollY - previous
-        // Large discontinuities are navigation, anchor jumps or viewport relayout,
-        // not a reliable finger-scroll direction.
-        if (kotlin.math.abs(delta) > binding.gestureLayout.height / 2) {
-            accumulatedDownScroll = 0
-            accumulatedUpScroll = 0
-            return
-        }
 
         val density = resources.displayMetrics.density
-        if (delta > 0) {
-            accumulatedUpScroll = 0
-            accumulatedDownScroll += delta
-            if (!toolbar.isCollapsed() && accumulatedDownScroll >= 48 * density) {
-                toolbar.collapse()
-                accumulatedDownScroll = 0
+        when {
+            scrollDeltaY > 0f -> {
+                accumulatedUpScroll = 0f
+                accumulatedDownScroll += scrollDeltaY
+                if (!toolbar.isCollapsed() && accumulatedDownScroll >= 48f * density) {
+                    toolbar.collapse()
+                    accumulatedDownScroll = 0f
+                }
             }
-        } else if (delta < 0) {
-            accumulatedDownScroll = 0
-            accumulatedUpScroll -= delta
-            if (toolbar.isCollapsed() && accumulatedUpScroll >= 28 * density) {
-                toolbar.expand()
-                accumulatedUpScroll = 0
+            scrollDeltaY < 0f -> {
+                accumulatedDownScroll = 0f
+                accumulatedUpScroll -= scrollDeltaY
+                if (toolbar.isCollapsed() && accumulatedUpScroll >= 28f * density) {
+                    toolbar.expand()
+                    accumulatedUpScroll = 0f
+                }
             }
         }
     }
 
     private fun setupEdgePanelGestures() {
+        binding.gestureLayout.onVerticalSwipe = { delta -> onVerticalPageGesture(delta) }
         val prefs = UserPreferences(requireContext())
         if (!prefs.niraEdgePanelsEnabled) return
         val density = resources.displayMetrics.density
@@ -355,7 +295,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     }
 
     override fun onDestroyView() {
-        unbindNativePageScroll()
+        binding.gestureLayout.onVerticalSwipe = null
         mediaFloatingUi?.detach()
         mediaFloatingUi = null
         super.onDestroyView()
