@@ -1,3 +1,12 @@
+## 2026-10-23 — v1109 podpisany ARM64 APK, PR #22
+
+- Weryfikacja bazy v1108 `9a44af0af5415c22c686ba348bfcfa97e5bf59f0`. Wdrożono stabilne logical stream identity HLS/DASH z bounded signed revisions i provenance observed/derived.
+- Network event preferowany nad pomocniczym fetch; parser manifestu nie awansuje DASH BaseURL na pseudo-MP4; HLS lineage grupuje warianty i dynamicznie podpisane URL, frame scope zachowany.
+- UI wybiera bieżące źródło przy kliknięciu; Nira przesyła bezpieczny Referer przez istniejący kontrakt `headers` MPV Alpha. Bez zmian w repo MPV Alpha.
+- CI run 39877337815: build/test/lint SUCCESS, 45/45 Node PASS; zweryfikowany APK ARM64, versionCode 1109, cert SHA256 df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00.
+- Artefakt https://github.com/laszko14/nira-browser/actions/runs/39877337815/artifacts/12469470813 ; APK SHA256 bfe33809d2d4ccf18dc788a0ec3a4320b2437012d44a428bf1cf0f3b8eeccab9.
+- Test realnego serwisu fulltaboo.tv i test urządzenia jeszcze niewykonane; wymagają potwierdzenia. P1/P2 z raportu pozostają otwarte.
+
 ## 2026-10-22 — v1105 / PR #18 — stabilizacja UI
 
 - Przeanalizowano zgłoszenia: ukrywanie grup, zagęszczenie ikon/menu ⋮ w landscape, drag w lewym panelu, losowo niedostępny pull-to-refresh.
