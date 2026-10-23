@@ -210,7 +210,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 val entry = fresh?.entries?.firstOrNull { it.id == streamId }
                 val uri = entry?.url?.toUri()
                 if (uri != null && uri.scheme in listOf("http", "https") && !uri.host.isNullOrBlank()) {
-                    launchVideoInMpv(uri, fresh.tab.pageUrl)
+                    launchVideoInMpv(uri, fresh?.tab?.pageUrl)
                 } else {
                     Toast.makeText(requireContext(), R.string.video_link_invalid, Toast.LENGTH_SHORT).show()
                 }
