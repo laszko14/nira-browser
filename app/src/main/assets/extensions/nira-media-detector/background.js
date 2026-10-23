@@ -16,6 +16,24 @@ const MANIFEST_TTL_MS = 120000;
 const manifestCache = new Map();
 const manifestInflight = new Map();
 const manifestGroups = new Map();
+const manifestLineage = new Map();
+// Identity is ONLY for grouping; never mutate or rebuild the exact playback URL.
+const volatileParams = new Set(["s", "e", "t", "token", "sig", "signature",
+  "expires", "expiry", "exp", "hdnts", "hdntl", "policy", "key-pair-id",
+  "x-amz-algorithm", "x-amz-credential", "x-amz-date", "x-amz-expires",
+  "x-amz-signedheaders", "x-amz-signature", "x-amz-security-token"]);
+function manifestIdentity(url) {
+  try {
+    const parsed = new URL(url);
+    const stable = [...parsed.searchParams.entries()]
+      .filter(([key]) => !volatileParams.has(key.toLowerCase()))
+      .sort(([a, av], [b, bv]) => a.localeCompare(b) || av.localeCompare(bv));
+    return parsed.origin + parsed.pathname + "?" + JSON.stringify(stable);
+  } catch (_) { return url; }
+}
+function streamGroupKey(tabId, documentKey, isPrivate, frameKey, url) {
+  return [tabId, documentKey, isPrivate, frameKey || 0, manifestIdentity(url)].join(":");
+}
 const manifestQueue = [];
 let manifestActive = 0;
 let nextManifestGroup = 0;
@@ -200,6 +218,8 @@ function cancelManifestTasks(tabId) {
     if (key.startsWith(tabId + ":")) manifestCache.delete(key);
   for (const key of manifestGroups.keys())
     if (key.startsWith(tabId + ":")) manifestGroups.delete(key);
+  for (const key of manifestLineage.keys())
+    if (key.startsWith(tabId + ":")) manifestLineage.delete(key);
 }
 
 // onBeforeRequest is passive metadata capture only. No request bodies, URLs,
@@ -318,13 +338,22 @@ function onHeaders(details) {
   while (seen.size > MAX_SEEN) seen.delete(seen.keys().next().value);
   const message = {
     schemaVersion: 1, event: "media_candidate", source: "network", url: details.url,
-    isPrivate: details.incognito, documentKey: doc.documentKey, pageUrl: doc.pageUrl
+    isPrivate: details.incognito, documentKey: doc.documentKey, pageUrl: doc.pageUrl,
+    provenance: "observed"
   };
+  if (requestFrame) {
+    message.frameKey = requestFrame.frameKey;
+    message.frameUrl = requestFrame.frameUrl;
+  }
   if (format === "HLS" || format === "DASH") {
-    const groupKey = tabId + ":" + doc.documentKey + ":" + String(details.incognito) + ":" + details.url;
-    if (!manifestGroups.has(groupKey))
-      manifestGroups.set(groupKey, "manifest-" + doc.documentKey + "-" + (++nextManifestGroup));
+    const groupKey = streamGroupKey(tabId, doc.documentKey, details.incognito,
+      requestFrame?.frameKey, details.url);
+    if (!manifestGroups.has(groupKey)) {
+      manifestGroups.set(groupKey, manifestLineage.get(groupKey) ||
+        "manifest-" + doc.documentKey + "-" + (++nextManifestGroup));
+    }
     message.groupId = manifestGroups.get(groupKey);
+    while (manifestGroups.size > 128) manifestGroups.delete(manifestGroups.keys().next().value);
   }
   if (contentType) message.contentType = contentType;
   if (sizeBytes !== null) message.sizeBytes = sizeBytes;
@@ -339,6 +368,7 @@ function onHeaders(details) {
         else if (format === "HLS" || format === "DASH") queueManifest({
           url: details.url, format, tabId, documentKey: doc.documentKey,
           pageUrl: doc.pageUrl, isPrivate: details.incognito, groupId: message.groupId,
+          frameKey: requestFrame?.frameKey, frameUrl: requestFrame?.frameUrl,
         });
       })
       .catch(() => anonymous("network_unassigned", details.incognito));
@@ -405,12 +435,22 @@ async function inspectManifest(task) {
       NiraManifestParser.parseDash(text, finalUrl, 8);
     const current = documents.get(task.tabId);
     if (!current || current.documentKey !== task.documentKey || current.pageUrl !== task.pageUrl) return;
-    for (const variant of parsed.variants || []) {
+    // DASH representations can refer to initialization/segment templates, not
+    // playable MP4 files. Keep the observed MPD; never export fake direct videos.
+    for (const variant of (task.format === "HLS" ? parsed.variants || [] : [])) {
       if (!safeUrl(variant.url)) continue;
+      const lineageKey = streamGroupKey(task.tabId, task.documentKey, task.isPrivate,
+        task.frameKey, variant.url);
+      manifestLineage.set(lineageKey, task.groupId);
+      while (manifestLineage.size > 128) manifestLineage.delete(manifestLineage.keys().next().value);
       const message = { schemaVersion: 1, event: "media_candidate", source: "network",
-        url: variant.url, isPrivate: task.isPrivate, documentKey: task.documentKey,
-        pageUrl: task.pageUrl, groupId: task.groupId, contentType: task.format === "HLS" ?
-          "application/vnd.apple.mpegurl" : "video/mp4" };
+        provenance: "derived", url: variant.url, isPrivate: task.isPrivate,
+        documentKey: task.documentKey, pageUrl: task.pageUrl,
+        groupId: task.groupId, contentType: "application/vnd.apple.mpegurl" };
+      if (task.frameKey && task.frameUrl) {
+        message.frameKey = task.frameKey;
+        message.frameUrl = task.frameUrl;
+      }
       if (Number.isSafeInteger(variant.height) && variant.height > 0 && variant.height <= 8640)
         message.quality = variant.height + "p";
       if (Number.isSafeInteger(variant.bitrate) && variant.bitrate > 0 && variant.bitrate <= 1000000000)
