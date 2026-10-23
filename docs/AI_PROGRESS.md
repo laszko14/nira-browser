@@ -218,3 +218,11 @@
 
 ---
 
+
+
+### 2026-10-23 — v1110: pasek systemowy, pusty pas, tytuły
+- Utworzona gałąź na v1109 HLS (PR #22), bez edycji modułu detektora.
+- Usunięto trwałe ukrywanie Android navigation bar oraz podwójne odsunięcie GeckoView od status bar / dynamic toolbar.
+- Poszerzono wyszukiwanie tytułów miniatur o kontener nadrzędny dla osobnego sibling-caption, dodano test w Node.
+- Przygotowano unikalny build v1110 alpha16 i kontrolę wersji/certyfikatu w GitHub Actions.
+- Sprawdzenie na rzeczywistym Nothing Phone 1 pozostaje do wykonania przez użytkownika.

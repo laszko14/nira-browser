@@ -10,7 +10,9 @@
     "white-space: normal !important; text-overflow: clip !important;" +
     "overflow: visible !important; -webkit-line-clamp: unset !important;" +
     "line-clamp: unset !important; max-height: none !important;" +
-    "height: auto !important; overflow-wrap: anywhere !important; }";
+    "height: auto !important; max-width: 100% !important;" +
+    "min-width: 0 !important; overflow-wrap: anywhere !important;" +
+    "display: block !important; -webkit-box-orient: initial !important; }";
   const VIDEO_HINT = /(?:video|film|movie|episode|serial|watch|player|thumb|related|recommend|suggest|clip|odcinek|ogladaj|oglądaj)/i;
   const CARD_SELECTOR = "article,li,figure,[class*='video'],[class*='Video'],[class*='movie'],[class*='thumb'],[class*='Thumb'],[class*='card'],[class*='Card'],[class*='item'],[class*='Item']";
   const TITLE_SELECTOR = [
@@ -32,18 +34,39 @@
     } catch (_) { return false; }
   }
 
+  function eligibleTitle(element, image) {
+    if (!element || element.contains(image) || element.isContentEditable ||
+        element.closest("button,nav,footer,header") || element.querySelector("img,video")) return false;
+    const text = (element.textContent || "").trim();
+    return text.length >= 8 && text.length <= 1200;
+  }
+
   function mediaCard(image) {
-    const card = image.closest(CARD_SELECTOR) ||
-      (image.closest("a[href]") && image.closest("a[href]").parentElement);
-    if (!card || card.closest("header,nav,footer") || !card.isConnected) return null;
-    const link = image.closest("a[href]") || card.querySelector("a[href]");
-    const context = [card.className, card.id, link && link.className,
-      link && link.getAttribute("href")].filter(x => typeof x === "string").join(" ");
-    // Avoid altering unrelated product/search lists.
-    const mediaLink = link && /\/(?:video|videos|watch|movie|movies|film|films|embed|play|view)\/|[?&](?:v|video|movie)=/i.test(link.getAttribute("href") || "");
-    const timedCard = card.querySelector("video,source,[data-video-id],[class*='duration'],time");
-    if (!VIDEO_HINT.test(context) && !mediaLink && !timedCard) return null;
-    return card;
+    // The thumbnail wrapper is frequently a sibling of the title, not its
+    // parent. closest("[class*=thumb]") finds the wrong (too small) node,
+    // so walk up until a bounded card also contains a separate text title.
+    const imageLink = image.closest("a[href]");
+    let node = image.parentElement;
+    for (let depth = 0; node && depth < 9; depth++, node = node.parentElement) {
+      if (node.closest("header,nav,footer") || !node.isConnected) return null;
+      if (node.querySelectorAll("img,video[poster]").length > 3 ||
+          node.querySelectorAll("a[href]").length > 8) break;
+      const link = imageLink || node.querySelector("a[href]");
+      const context = [node.className, node.id, link && link.className,
+        link && link.getAttribute("href"),
+        image.parentElement && image.parentElement.className]
+        .filter(x => typeof x === "string").join(" ");
+      const mediaLink = link &&
+        /\/(?:video|videos|watch|movie|movies|film|films|embed|play|view)\/|[?&](?:v|video|movie)=/i
+          .test(link.getAttribute("href") || "");
+      const timedCard = node.querySelector(
+        "video,source,[data-video-id],[class*='duration'],time");
+      if (!VIDEO_HINT.test(context) && !mediaLink && !timedCard) continue;
+      const title = Array.from(node.querySelectorAll(TITLE_SELECTOR)).some(el =>
+        eligibleTitle(el, image));
+      if (title) return node;
+    }
+    return null;
   }
 
   function originalTitle(element, image, card, visible) {
@@ -66,8 +89,7 @@
   }
 
   function expandTitle(element, image, card) {
-    if (!element || element.contains(image) || element.isContentEditable ||
-        element.closest("button,nav,footer") || element.querySelector("img,video")) return;
+    if (!eligibleTitle(element, image)) return;
     const text = (element.textContent || "").trim();
     if (text.length < 8 || text.length > 1200) return;
     const original = originalTitle(element, image, card, text);
@@ -108,7 +130,8 @@
         for (const element of titles) {
           if (++handled > 24) break;
           // Nested matches must not cause the entire card to expand.
-          if (element === card || element.contains(image)) continue;
+          if (element === card || !eligibleTitle(element, image)) continue;
+          // Avoid expanding nested metadata labels / overlapping title nodes.
           expandTitle(element, image, card);
         }
       }

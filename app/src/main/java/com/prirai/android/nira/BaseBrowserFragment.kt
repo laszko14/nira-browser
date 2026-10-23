@@ -713,8 +713,9 @@ abstract class BaseBrowserFragment : Fragment(), UserInteractionHandler, Activit
         val context = requireContext()
         val prefs = UserPreferences(context)
 
-        // Enable dynamic toolbar with toolbar height for content coordination
-        binding.engineView.setDynamicToolbarMaxHeight(toolbarHeight)
+        // The pinned unified toolbar is reserved by SwipeRefreshLayout margins,
+        // not Gecko's dynamic-toolbar viewport insets (which double-reserve).
+        binding.engineView.setDynamicToolbarMaxHeight(0)
         
         // Get actual toolbar height (may differ from parameter if components are hidden)
         // Use post to ensure toolbar is measured

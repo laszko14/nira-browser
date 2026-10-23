@@ -196,7 +196,9 @@ open class BrowserActivity : LocaleAwareAppCompatActivity(), ComponentCallbacks2
 
         // Enable edge-to-edge display with standardized approach
         enableEdgeToEdgeMode()
-        hideSystemNavigationBar()
+        // Keep Android's normal gesture / three-button navigation visible.
+        WindowInsetsControllerCompat(window, window.decorView)
+            .show(WindowInsetsCompat.Type.navigationBars())
 
         // Root view handles insets without padding - fragments manage their own insets
         ViewCompat.setOnApplyWindowInsetsListener(view) { _, insets -> insets }
@@ -245,20 +247,6 @@ open class BrowserActivity : LocaleAwareAppCompatActivity(), ComponentCallbacks2
         // Register lifecycle observer here - must be done before RESUMED state
         // This still defers the components initialization but meets lifecycle requirements
         lifecycle.addObserver(webExtensionPopupFeature)
-    }
-
-    // Keep Android's three-button navigation hidden until an upward edge swipe.
-    // The status bar stays visible and the system handles transient controls.
-    private fun hideSystemNavigationBar() {
-        WindowInsetsControllerCompat(window, window.decorView).apply {
-            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            hide(WindowInsetsCompat.Type.navigationBars())
-        }
-    }
-
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) hideSystemNavigationBar()
     }
 
     override fun onResume() {

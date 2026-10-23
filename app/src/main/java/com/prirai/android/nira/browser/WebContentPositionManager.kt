@@ -54,16 +54,11 @@ class WebContentPositionManager(
      */
     private fun updateEnginePadding() {
         val engineViewInstance = (engineView as? View) ?: return
-        val bottomSystemBarPadding = navigationBarHeight
-        
-        // Apply padding to engine view to prevent content under system bars
-        // Status bar at top, navigation bar at bottom
-        engineViewInstance.setPadding(
-            0,
-            statusBarHeight,  // Top padding for status bar
-            0,
-            bottomSystemBarPadding  // Avoid double padding when bottom toolbars handle nav bar
-        )
+        // The toolbar already reserves the status-bar inset in its own
+        // measured height. Padding GeckoView again creates a blank band
+        // between the tab strip and the actual web page.
+        // The Android navigation bar remains visible in normal browsing.
+        engineViewInstance.setPadding(0, 0, 0, navigationBarHeight)
     }
     
     /**
