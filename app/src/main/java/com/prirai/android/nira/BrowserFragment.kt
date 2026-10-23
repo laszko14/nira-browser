@@ -203,11 +203,14 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                     0 to height
                 } else height to 0
             },
-            openVideo = { url ->
-                // Reuse the proven Stage 2 external player launcher; do not download.
-                val uri = url.toUri()
-                if (uri.scheme in listOf("http", "https") && !uri.host.isNullOrBlank()) {
-                    launchVideoInMpv(uri)
+            openVideo = { streamId ->
+                // Resolve on click, not when the bottom sheet rendered: the signed URL
+                // may have rotated while the user was choosing a quality.
+                val fresh = currentMediaSnapshot()
+                val entry = fresh?.entries?.firstOrNull { it.id == streamId }
+                val uri = entry?.url?.toUri()
+                if (uri != null && uri.scheme in listOf("http", "https") && !uri.host.isNullOrBlank()) {
+                    launchVideoInMpv(uri, fresh.tab.pageUrl)
                 } else {
                     Toast.makeText(requireContext(), R.string.video_link_invalid, Toast.LENGTH_SHORT).show()
                 }
@@ -1253,8 +1256,21 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         dialog.show()
     }
 
-    private fun launchVideoInMpv(uri: android.net.Uri) {
-        val viewIntent = Intent(Intent.ACTION_VIEW).apply { setDataAndType(uri, "video/*") }
+    private fun launchVideoInMpv(uri: android.net.Uri, referrer: String? = null) {
+        val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "video/*")
+            // MPV Alpha already accepts a validated legacy `headers` array.
+            // Protocol 1 metadata is optional for older installed builds.
+            val page = referrer?.let { runCatching { android.net.Uri.parse(it) }.getOrNull() }
+            if (page != null && page.scheme in listOf("http", "https") &&
+                !page.host.isNullOrBlank() && page.userInfo == null) {
+                val safeReferrer = page.buildUpon().clearQuery().fragment(null).build().toString()
+                putExtra("nira.playback_protocol", 1)
+                putExtra("nira.referrer", safeReferrer)
+                putExtra("nira.private", currentMediaSnapshot()?.tab?.binding?.isPrivate == true)
+                putExtra("headers", arrayOf("Referer", safeReferrer))
+            }
+        }
         val playerPrefs = requireContext().getSharedPreferences("nira_video_player", android.content.Context.MODE_PRIVATE)
         if (playerPrefs.getBoolean("ask_each_time", false)) {
             openVideoChooser(viewIntent)
