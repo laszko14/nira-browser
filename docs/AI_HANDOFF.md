@@ -1,3 +1,16 @@
+# Checkpoint — Nira Browser v1109 (2026-10-23)
+
+- Base v1108: `9a44af0af5415c22c686ba348bfcfa97e5bf59f0`, gałąź `feat/nira-v1108-player-preview-landscape`; kod v1109 do podpisanego APK: `2c7f2011ff7611d62be6ed176afd719ea1f2410b`.
+- Nowa gałąź: `feat/nira-v1109-signed-stream-revisions`, draft PR #22 https://github.com/laszko14/nira-browser/pull/22. Brak merge.
+- Wykonane: RAM-only `MediaStreamIdentity` i do 8 kolejnych `MediaUrlRevision` na logiczny wariant HLS/DASH; provenance observed/derived, preferencja prawdziwego requestu, bez rekonstrukcji podpisów, frameKey, HLS lineage, naprawa zmyślonych DASH child-video, odczyt świeżego URL z repozytorium w chwili Play/Kopiuj, ograniczony Referer przez istniejące legacy MPV `headers`.
+- Testy: GitHub Actions run https://github.com/laszko14/nira-browser/actions/runs/39877337815: build SUCCESS, test SUCCESS (Node 45/45 PASS, Gradle unit tests SUCCESS), lint SUCCESS. Signed APK `nira-arm64-update-apk-v1109`: https://github.com/laszko14/nira-browser/actions/runs/39877337815/artifacts/12469470813.
+- CI signer potwierdził: pakiet `com.prirai.android.nira.debug`, code 1109, name `0.5.22-alpha15`, ABI `arm64-v8a`, publiczny cert SHA256 `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00`. SHA256 samego APK: `bfe33809d2d4ccf18dc788a0ec3a4320b2437012d44a428bf1cf0f3b8eeccab9`.
+- NIEZWERYFIKOWANE: fizyczna instalacja na Nothing Phone (1), działanie na fulltaboo.tv, poprawność wszystkich iframe w realnym GeckoView, zgodność certyfikatu z faktycznie zainstalowaną aplikacją.
+- Poza obecnym zakresem: pełny aktywny bounded validator 200/403/404 i segment probe, automatyczny retry MPV→Nira, pełny parser DASH XML, przegląd i utwardzenie osobnego binarium MPV Alpha. Nie przedstawiać v1109 jako kompletnego wdrożenia wszystkich punktów audytu.
+- Następny krok: ręczny test A/B signed HLS (oryginalny problem), zbieranie diagnostyki bez tokenów, potem P1 bounded validation / iframe referer i osobne testy MPV header handling. Zachować ten sam podpis i rosnący versionCode.
+
+---
+
 # Checkpoint — Nira Browser v1107, Event-First Media Engine P0 (2026-10-23)
 
 - **Gałąź / PR:** `feat/nira-v1107-event-first-media-engine`, draft PR #20 https://github.com/laszko14/nira-browser/pull/20, baza wyłącznie v1106 `3fcbd8c71817e66881dd4421fdb64bbd43a6e5ee`, bez merge.
