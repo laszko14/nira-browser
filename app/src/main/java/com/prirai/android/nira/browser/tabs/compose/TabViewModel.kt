@@ -728,6 +728,100 @@ class TabViewModel(
     }
 
     /**
+     * Commit a side-panel drop in a single suspendable operation. The previous
+     * UI dispatched fire-and-forget ViewModel jobs after onDragEnd, allowing
+     * a new browser-state refresh to race the persisted group position.
+     * Return only when Room membership AND the shared order are reconciled.
+     */
+    suspend fun commitSidePanelDrop(
+        draggedId: String,
+        targetKey: String,
+        insertAfter: Boolean
+    ): Boolean {
+        val profileId = _currentProfileId.value ?: return false
+        val draggedTab = _tabs.value.firstOrNull { it.id == draggedId } ?: return false
+        val allGroups = groupManager.getAllGroups()
+        fun validGroup(group: TabGroupData): Boolean {
+            if (!groupMatchesProfile(group, profileId)) return false
+            val a = draggedTab.contextId
+            val b = group.contextId
+            return a == b || (profileId == "default" &&
+                a in setOf(null, "profile_default") &&
+                b in setOf(null, "profile_default"))
+        }
+
+        val success = when {
+            targetKey.startsWith("group_tab_") -> {
+                val targetId = targetKey.removePrefix("group_tab_")
+                if (targetId == draggedId) return false
+                val group = allGroups.firstOrNull { targetId in it.tabIds } ?: return false
+                if (!validGroup(group)) return false
+                if (draggedId in group.tabIds) {
+                    val reordered = group.tabIds.toMutableList()
+                    reordered.remove(draggedId)
+                    val pos = reordered.indexOf(targetId)
+                    if (pos < 0) return false
+                    reordered.add(pos + if (insertAfter) 1 else 0, draggedId)
+                    if (reordered == group.tabIds) return false
+                    groupManager.updateGroup(group.id, tabIds = reordered)
+                } else {
+                    val pos = group.tabIds.indexOf(targetId)
+                    groupManager.addTabToGroup(
+                        tabId = draggedId, groupId = group.id,
+                        position = pos + if (insertAfter) 1 else 0,
+                        notifyChange = true
+                    )
+                }
+            }
+            targetKey.startsWith("group_") -> {
+                val group = allGroups.firstOrNull {
+                    it.id == targetKey.removePrefix("group_")
+                } ?: return false
+                if (!validGroup(group) || draggedId in group.tabIds) return false
+                groupManager.addTabToGroup(
+                    tabId = draggedId, groupId = group.id, notifyChange = true
+                )
+            }
+            targetKey.startsWith("single_tab_") -> {
+                val targetId = targetKey.removePrefix("single_tab_")
+                if (targetId == draggedId) return false
+                val targetTab = _tabs.value.firstOrNull { it.id == targetId } ?: return false
+                if (targetTab.contextId != draggedTab.contextId &&
+                    !(profileId == "default" &&
+                        targetTab.contextId in setOf(null, "profile_default") &&
+                        draggedTab.contextId in setOf(null, "profile_default"))) return false
+                if (allGroups.any { draggedId in it.tabIds }) {
+                    if (!groupManager.removeTabFromGroup(draggedId, notifyChange = true))
+                        return false
+                }
+                orderManager.rebuildOrderForProfile(profileId, _tabs.value)
+                val current = orderManager.currentOrder.value ?: return false
+                val from = current.getItemPosition(draggedId) ?: return false
+                val target = current.getItemPosition(targetId) ?: return false
+                val destination = (target + (if (insertAfter) 1 else 0) -
+                    (if (from < target) 1 else 0))
+                    .coerceIn(0, current.primaryOrder.lastIndex)
+                if (from == destination) return false
+                orderManager.reorderItem(from, destination)
+                true
+            }
+            else -> false
+        }
+        if (!success) return false
+
+        // Read back from Room rather than rendering a stale Store snapshot.
+        saveCurrentOrder(profileId)
+        val orderedGroups = groupManager.getAllGroups().filter {
+            groupMatchesProfile(it, profileId) &&
+                it.tabIds.any { tabId -> _tabs.value.any { tab -> tab.id == tabId } }
+        }
+        _groups.value = orderedGroups
+        _tabs.value = getOrderedTabs(_tabs.value, profileId, orderedGroups)
+        android.util.Log.d("ZavroTabDrop", "Drop committed to group/order state")
+        return true
+    }
+
+    /**
      * Reorder tab within a group
      * @param insertAfter If true, insert after target; if false, insert before target
      */
