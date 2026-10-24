@@ -53,7 +53,7 @@ test("v1121: signed APK version is 1121 and same package + certificate", () => {
   const gradle = source("app/build.gradle");
   const workflow = source(".github/workflows/apk-release.yml");
   assert.match(gradle, /versionCode = 125/);
-  assert.match(gradle, /versionName = "0\.5\.22-alpha30"/);
+  assert.match(gradle, /versionName = "0\.5\.22-alpha31"/);
   assert.match(gradle, /applicationIdSuffix = '\.debug'/);
   assert.match(workflow, /EXPECTED_VERSION_CODE: "1125"/);
   assert.match(workflow, /EXPECTED_CERT_SHA256/);
