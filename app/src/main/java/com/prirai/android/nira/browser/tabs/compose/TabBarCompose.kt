@@ -475,7 +475,10 @@ fun TabBarCompose(
 private fun buildBarItems(order: UnifiedTabOrder?, tabs: List<TabSessionState>): List<BarItem> {
     if (order == null) return tabs.map { BarItem.SingleTab(it) }
 
-    return order.primaryOrder.mapNotNull { orderItem ->
+    // The persisted order can lag behind live BrowserStore tabs (new tab,
+    // restored session or rotation). Never render an empty strip just because
+    // a tab has not been added to the order snapshot yet.
+    val orderedItems = order.primaryOrder.mapNotNull { orderItem ->
         when (orderItem) {
             is UnifiedTabOrder.OrderItem.SingleTab -> {
                 tabs.find { it.id == orderItem.tabId }?.let { BarItem.SingleTab(it) }
@@ -499,6 +502,14 @@ private fun buildBarItems(order: UnifiedTabOrder?, tabs: List<TabSessionState>):
             }
         }
     }
+    val representedTabIds = orderedItems.flatMap { item ->
+        when (item) {
+            is BarItem.SingleTab -> listOf(item.tab.id)
+            is BarItem.Group -> item.tabs.map { it.id }
+        }
+    }.toSet()
+    return orderedItems + tabs.filterNot { it.id in representedTabIds }
+        .map { BarItem.SingleTab(it) }
 }
 
 /**

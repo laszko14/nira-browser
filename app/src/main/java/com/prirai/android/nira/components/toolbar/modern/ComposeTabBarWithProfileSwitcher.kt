@@ -48,6 +48,10 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
     private var onProfileSelected: ((BrowserProfile) -> Unit)? = null
     private var onPrivateModeSelected: (() -> Unit)? = null
     private var lastSelectedTabId: String? = null
+    // Only explicit profile switches need a local refresh. BrowserStore changes
+    // are observed within the composition and must not call setContent again.
+    private var profileRefreshToken by mutableIntStateOf(0)
+    private var lastObservedProfileSignature: Pair<String, Boolean>? = null
 
     private var tabOrderManager: TabOrderManager? = null
     private var groupManager: UnifiedTabGroupManager? = null
@@ -122,8 +126,8 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
         }
 
         // Get current profile and mode - recalculate when browserState changes
-        val currentProfile = remember(browserState.value) { profileManager.getActiveProfile() }
-        val isPrivateMode = remember(browserState.value) { profileManager.isPrivateMode() }
+        val currentProfile = remember(browserState.value, profileRefreshToken) { profileManager.getActiveProfile() }
+        val isPrivateMode = remember(browserState.value, profileRefreshToken) { profileManager.isPrivateMode() }
 
         // Filter tabs based on current profile - this will update when browserState changes
         val tabs = remember(browserState.value.tabs, currentProfile, isPrivateMode) {
@@ -174,7 +178,7 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
         }
 
         // Observe duplicate tab events
-        LaunchedEffect(viewModel) {
+        LaunchedEffect(viewModel, currentProfile.id, isPrivateMode) {
             viewModel.duplicateTabEvent.collect { request ->
                 // Create the new tab WITHOUT selecting it. Selecting during creation
                 // triggers the tab bar's auto-scroll while the order is still stale
@@ -270,8 +274,9 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
                             .niraTabStripHeightDp.coerceIn(40, 80).dp,
                         onTabSelected = { tabId -> onTabSelected?.invoke(tabId) },
                         onTabClosed = { tabId ->
+                            // TabViewModel already dispatches removeTab and supports Undo.
+                            // Do not dispatch removal a second time from the host.
                             viewModel.closeTab(tabId, showUndo = true)
-                            onTabClosed?.invoke(tabId)
                         },
                         onNewTabInGroup = {
                             scope.launch { orderManager.addNewTabToGroup(activeGroup.id) }
@@ -287,8 +292,9 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
                             onTabSelected?.invoke(tabId)
                         },
                         onTabClose = { tabId: String ->
+                            // TabViewModel already dispatches removeTab and supports Undo.
+                            // Do not dispatch removal a second time from the host.
                             viewModel.closeTab(tabId, showUndo = true)
-                            onTabClosed?.invoke(tabId)
                         },
                         modifier = Modifier.fillMaxWidth(),
                         autoScrollTrigger = autoScrollTrigger
@@ -299,13 +305,26 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
     }
 
 
+    @Suppress("UNUSED_PARAMETER")
     fun updateTabs(tabs: List<TabSessionState>, selectedId: String?) {
-        // The compose content will automatically update via produceState
-        setupComposeContent()
+        // BrowserStore is already collected by produceState. Repeated setContent()
+        // here destroyed the ongoing composition on every tab/title/loading
+        // update, briefly leaving a black, empty bottom strip.
+        // A profile/private-mode switch is the only non-BrowserStore change
+        // that needs explicit invalidation.
+        val manager = ProfileManager.getInstance(context)
+        val signature = manager.getActiveProfile().id to manager.isPrivateMode()
+        if (lastObservedProfileSignature != signature) {
+            lastObservedProfileSignature = signature
+            profileRefreshToken++
+        }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     fun updateProfileIcon(profile: BrowserProfile) {
-        setupComposeContent()
+        // ProfileManager is not a Compose State, unlike BrowserStore.
+        // Invalidate its snapshot without destroying the tab strip.
+        profileRefreshToken++
     }
 
 }

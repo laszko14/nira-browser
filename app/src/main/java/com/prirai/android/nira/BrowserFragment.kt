@@ -904,13 +904,14 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
      * Follows Mozilla's pattern from Fenix.
      */
     private fun expandBrowserViewForFullscreen() {
-        // Hide unified toolbar
+        // The bottom tab strip is a sibling of UnifiedToolbar, not its child.
+        // Hiding only UnifiedToolbar left tabs visible over fullscreen video.
+        unifiedToolbar?.getBottomComponentsContainer()?.visibility = View.GONE
         unifiedToolbar?.apply {
             collapse()
             isVisible = false
         }
-
-        // No need to touch swipeRefresh layout params - BaseBrowserFragment handles it
+        requestWebContentPositionUpdate()
     }
 
     /**
@@ -920,18 +921,23 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     private fun collapseBrowserViewFromFullscreen() {
         if (!webAppToolbarShouldBeVisible) return
 
-        // Show and expand unified toolbar
         unifiedToolbar?.apply {
             isVisible = true
+            getBottomComponentsContainer()?.apply {
+                visibility = View.VISIBLE
+                alpha = 1f
+                translationY = 0f
+                requestLayout()
+            }
             post {
                 requestApplyInsets()
                 expand()
                 requestLayout()
+                reconcileEngineViewHeight()
+                requestWebContentPositionUpdate()
+            }
         }
-
     }
-        // BaseBrowserFragment will call initializeEngineView automatically
-}
     private fun showBrowserMenu() {
         val store = requireContext().components.store
         val selectedTab = store.state.tabs.find { it.id == store.state.selectedTabId }
