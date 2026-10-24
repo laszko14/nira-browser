@@ -632,19 +632,59 @@ class TabViewModel(
      */
     fun createGroup(tabIds: List<String>, name: String? = null, contextId: String? = null) {
         viewModelScope.launch {
-            _currentProfileId.value?.let { profileId ->
-                groupManager.createGroup(
-                    tabIds = tabIds,
-                    name = name,
-                    profileId = profileId,
-                    contextId = contextId
-                )
-
-                saveCurrentOrder(profileId)
-
-                // Note: Group events observer will trigger the UI refresh
-            }
+            val profileId = _currentProfileId.value ?: return@launch
+            val tabsToGroup = _tabs.value.filter { it.id in tabIds }
+            if (tabsToGroup.size != tabIds.distinct().size || tabsToGroup.isEmpty()) return@launch
+            // Creating a group with null contextId under a named/private profile
+            // made it instantly disappear from the side panel after refresh.
+            val resolvedContext = contextId ?: contextIdForProfile(profileId)
+            val group = groupManager.createGroup(
+                tabIds = tabIds.distinct(),
+                name = name?.take(70)?.ifBlank { "Nowa grupa" } ?: "Nowa grupa",
+                profileId = profileId,
+                contextId = resolvedContext
+            )
+            saveCurrentOrder(profileId)
+            refreshGroupsForProfile(profileId)
+            _expandedGroups.value = _expandedGroups.value + group.id
         }
+    }
+
+    /**
+     * Convert the visible "Bez grupy" recovery section into a real, named
+     * group. Recheck membership and profile at commit time; do not silently
+     * take cards that have since been moved elsewhere.
+     */
+    suspend fun createNamedGroupFromUngrouped(tabIds: List<String>, requestedName: String): Boolean {
+        val profileId = _currentProfileId.value ?: return false
+        if (!groupManager.awaitInitialized()) return false
+        val name = requestedName.trim().take(70)
+        if (name.isEmpty()) return false
+        val distinctIds = tabIds.distinct()
+        if (distinctIds.isEmpty()) return false
+        val tabs = _tabs.value.filter { it.id in distinctIds }
+        if (tabs.size != distinctIds.size) return false
+        val contextId = contextIdForProfile(profileId)
+        val belongsToProfile = tabs.all { tab ->
+            if (profileId == "default") !tab.content.private &&
+                (tab.contextId == null || tab.contextId == "profile_default")
+            else tab.contextId == contextId && tab.content.private == (profileId == "private")
+        }
+        if (!belongsToProfile) return false
+        if (groupManager.getAllGroups().any { group ->
+                group.tabIds.any { it in distinctIds }
+            }) return false
+
+        val created = groupManager.createGroup(
+            tabIds = distinctIds,
+            name = name,
+            profileId = profileId,
+            contextId = contextId
+        )
+        saveCurrentOrder(profileId)
+        refreshGroupsForProfile(profileId)
+        _expandedGroups.value = _expandedGroups.value + created.id
+        return true
     }
 
     /**
