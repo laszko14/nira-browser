@@ -92,69 +92,32 @@ class TabGroupMiddleware(
      */
     private fun handleNewTab(state: BrowserState, action: TabListAction.AddTabAction) {
         val newTab = action.tab
-        val newTabUrl = newTab.content.url
-        // Check both the URL in the tab and the URL being loaded
-        val effectiveUrl = if (newTabUrl.isBlank() || newTabUrl == "about:blank") {
-            // If the tab has no URL yet, track it for later when URL is loaded
-            // Store parent ID for later grouping when URL is loaded
-            if (newTab.parentId != null) {
-                pendingGrouping[newTab.id] = newTab.parentId
-            } else {
-                // Use current selected tab as parent
-                val selectedTab = state.tabs.find { it.id == state.selectedTabId && it.id != newTab.id }
-                if (selectedTab != null) {
-                    pendingGrouping[newTab.id] = selectedTab.id
-                }
-            }
-            return
-        } else {
-            newTabUrl
-        }
-
-        // Don't auto-group tabs with about: or chrome: URLs except about:homepage
-        if ((effectiveUrl.startsWith("about:") && effectiveUrl != "about:homepage") || effectiveUrl.startsWith("chrome:")) {
+        // Never infer an implicit parent from the currently selected tab.
+        val parentId = newTab.parentId ?: return
+        val url = newTab.content.url
+        if (url.isBlank() || url == "about:blank") {
+            pendingGrouping[newTab.id] = parentId
             return
         }
-
-        // Find the currently selected tab or the tab with parentId
-        val sourceTab = if (newTab.parentId != null) {
-            // If tab has a parent, use that as the source
-            state.tabs.find { it.id == newTab.parentId }
-        } else {
-            // Otherwise use the currently selected tab
-            state.selectedTabId?.let { selectedId ->
-                if (selectedId != newTab.id) {
-                    state.tabs.find { it.id == selectedId }
-                } else {
-                    // If the new tab is already selected, find the previous one
-                    state.tabs.filter { it.id != newTab.id }
-                        .maxByOrNull { it.lastAccess }
-                }
+        if (url.startsWith("about:") || url.startsWith("chrome:")) return
+        val source = state.tabs.firstOrNull { it.id == parentId } ?: return
+        if (source.contextId != newTab.contextId ||
+            source.content.private != newTab.content.private) return
+        val sourceUrl = source.content.url
+        if (sourceUrl.isBlank() || sourceUrl == "about:blank") return
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                tabGroupManager.handleNewTabFromLink(
+                    newTabId = newTab.id, newTabUrl = url,
+                    sourceTabId = source.id, sourceTabUrl = sourceUrl,
+                    contextId = source.contextId
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to group explicitly parented tab", e)
             }
-        }
-        if (sourceTab != null) {
-            val sourceUrl = sourceTab.content.url
-
-            // Group all links opened from another tab (both same-domain and cross-domain)
-            if (sourceUrl.isNotBlank() && sourceUrl != "about:blank") {
-                // Group the new tab with the source tab
-                CoroutineScope(Dispatchers.IO).launch {
-                    try {
-                        tabGroupManager.handleNewTabFromLink(
-                            newTabId = newTab.id,
-                            newTabUrl = effectiveUrl,
-                            sourceTabId = sourceTab.id,
-                            sourceTabUrl = sourceUrl
-                        )
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to group tabs", e)
-                    }
-                }
-            }
-        } else {
         }
     }
-    
+
     /**
      * Handles URL updates for tabs that were created with blank URLs.
      * This catches tabs opened from context menu that initially have no URL.
@@ -172,10 +135,11 @@ class TabGroupMiddleware(
         
         // Find the parent tab
         val parentTab = state.tabs.find { it.id == parentId }
-        if (parentTab == null) {
-            return
-        }
-        
+        if (parentTab == null) return
+        val newTab = state.tabs.firstOrNull { it.id == tabId } ?: return
+        if (parentTab.contextId != newTab.contextId ||
+            parentTab.content.private != newTab.content.private) return
+
         val parentUrl = parentTab.content.url
         if (parentUrl.isBlank() || parentUrl == "about:blank") {
             return
@@ -187,7 +151,8 @@ class TabGroupMiddleware(
                     newTabId = tabId,
                     newTabUrl = newUrl,
                     sourceTabId = parentId,
-                    sourceTabUrl = parentUrl
+                    sourceTabUrl = parentUrl,
+                    contextId = parentTab.contextId
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to group tabs after URL update", e)
