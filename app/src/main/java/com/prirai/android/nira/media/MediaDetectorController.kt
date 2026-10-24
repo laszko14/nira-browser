@@ -153,7 +153,7 @@ internal class MediaDetectorController(private val engine: Engine, private val s
             val window = rate[registeredSession]
             if (window == null || now - window.since >= 5000L) {
                 rate[registeredSession] = Window(now, 1)
-            } else if (window.count >= 24) {
+            } else if (window.count >= 96) {
                 return false
             } else {
                 window.count++
