@@ -551,7 +551,11 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             }
 
             unifiedToolbar?.getBottomComponentsContainer()?.addOnLayoutChangeListener {
-                    _, _, _, _, _, _, _, _, _ -> requestWebContentPositionUpdate()
+                    _, _, _, _, _, _, _, _, _ ->
+                // The detached bottom strip can grow/shrink without changing
+                // the address toolbar's height. Keep the Gecko viewport above it.
+                unifiedToolbar?.reconcileEngineViewHeight()
+                requestWebContentPositionUpdate()
             }
 
             // Set tab selection listener
