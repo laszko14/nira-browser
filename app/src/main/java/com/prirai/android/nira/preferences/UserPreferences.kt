@@ -112,6 +112,7 @@ class UserPreferences(appContext: Context) : mozilla.components.support.ktx.andr
     var showContextualToolbar by booleanPreference(SHOW_CONTEXTUAL_TOOLBAR, true)
     var showTabGroupBar by booleanPreference(SHOW_TAB_GROUP_BAR, true)
     var niraGroupChipsVisible by booleanPreference("nira_group_chips_visible", true)
+    var niraGroupBarBottom by booleanPreference("nira_group_bar_bottom", false)
     var niraToolbarActionSlotDp by intPreference("nira_toolbar_action_slot_dp", 40)
     var niraAddressMinWidthDp by intPreference("nira_address_min_width_dp", 92)
     var niraToolbarActionOrder by stringPreference("nira_toolbar_action_order", "")
