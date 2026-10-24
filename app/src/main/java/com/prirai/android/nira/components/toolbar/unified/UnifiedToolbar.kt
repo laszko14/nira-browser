@@ -910,6 +910,10 @@ class UnifiedToolbar @JvmOverloads constructor(
                     android.graphics.Color.rgb(255, 251, 254))
             }
             tabGroupBar?.let { tabStrip ->
+                // Ensure a real one-row touch target even before the first
+                // asynchronous Compose measurement following rotation.
+                tabStrip.minimumHeight = (prefs.niraTabStripHeightDp.coerceIn(40, 80) *
+                    resources.displayMetrics.density).toInt()
                 // A detached Compose host may retain the old hidden/translated
                 // state after a page-scroll animation. Reset before attaching
                 // it to the separate, persistent bottom strip.
