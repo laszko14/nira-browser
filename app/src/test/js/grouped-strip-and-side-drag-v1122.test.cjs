@@ -41,7 +41,7 @@ test("v1122: side panel has a dedicated drag handle and preview that follows the
   assert.match(side, /hoveredKey == "group_" \+ targetId/);
 });
 
-test("v1125: side drawer delegates all drop types to a persisted transaction", () => {
+test("v1126: side drawer delegates all drop types to a persisted transaction", () => {
   assert.match(side, /viewModel\.commitSidePanelDrop\(fromId, target, after\)/);
   const model = read(base + "browser/tabs/compose/TabViewModel.kt");
   assert.match(model, /targetKey\.startsWith\("group_tab_"\)/);
@@ -53,15 +53,15 @@ test("v1125: side drawer delegates all drop types to a persisted transaction", (
 test("v1122: metadata and stable signing", () => {
   const gradle = read("app/build.gradle");
   const workflow = read(".github/workflows/apk-release.yml");
-  assert.match(gradle, /versionCode = 125/);
-  assert.match(gradle, /versionName = "0\.5\.22-alpha31"/);
+  assert.match(gradle, /versionCode = 126/);
+  assert.match(gradle, /versionName = "0\.5\.22-alpha32"/);
   assert.match(gradle, /applicationIdSuffix = '\.debug'/);
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1125"/);
+  assert.match(workflow, /EXPECTED_VERSION_CODE: "1126"/);
   assert.match(workflow, /EXPECTED_CERT_SHA256:/);
-  assert.match(workflow, /zavro-arm64-update-apk-v1125/);
+  assert.match(workflow, /zavro-arm64-update-apk-v1126/);
 });
 
-test("v1125: side-drawer drag commits one awaited transaction, not an async redraw", () => {
+test("v1126: side-drawer drag commits one awaited transaction, not an async redraw", () => {
   const model = read(base + "browser/tabs/compose/TabViewModel.kt");
   assert.match(side, /dragY = pointerRootY - listTopY/);
   assert.match(side, /currentMove\(originY \+ change\.position\.y\)/);
@@ -71,7 +71,7 @@ test("v1125: side-drawer drag commits one awaited transaction, not an async redr
   assert.match(model, /saveCurrentOrder\(profileId\)/);
 });
 
-test("v1125: floating media button and expanded list match the selected reference", () => {
+test("v1126: floating media button and expanded list match the selected reference", () => {
   const ui = read(base + "media/MediaFloatingUi.kt");
   assert.match(ui, /FrameLayout\.LayoutParams\(dp\(29\), dp\(29\), Gravity\.CENTER\)/);
   assert.match(ui, /downloadGlyph\.visibility = if \(amount > 0\) View\.GONE/);
@@ -80,7 +80,7 @@ test("v1125: floating media button and expanded list match the selected referenc
   assert.match(ui, /height = body\.measuredHeight\.coerceIn\(dp\(130\), maxHeight\)/);
 });
 
-test("v1125: address-bar previous/next follows persisted group and tab order", () => {
+test("v1126: address-bar previous/next follows persisted group and tab order", () => {
   const toolbar = read(base + "components/toolbar/unified/UnifiedToolbar.kt");
   assert.match(toolbar, /action\(android\.R\.drawable\.ic_media_next, "Następna karta"\) \{ cycleTab\(1\) \}/);
   assert.match(toolbar, /action\(android\.R\.drawable\.ic_media_previous, "Poprzednia karta"\) \{ cycleTab\(-1\) \}/);
@@ -91,7 +91,7 @@ test("v1125: address-bar previous/next follows persisted group and tab order", (
   assert.match(toolbar, /ids\[next\]/);
   assert.doesNotMatch(toolbar, /selectTab\(tabs\[\(index \+ direction/);
 });
-test("v1125: side panel supplements temporarily missing group headers from DB state", () => {
+test("v1126: side panel supplements temporarily missing group headers from DB state", () => {
   assert.match(side, /unifiedGroupManager\.groupsState\.collectAsState\(\)/);
   assert.match(side, /val groups = liveGroups \+ cachedGroups\.filter/);
   assert.match(side, /group\.tabIds\.any \{ it in visibleTabIds \}/);
