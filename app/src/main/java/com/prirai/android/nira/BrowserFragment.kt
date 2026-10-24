@@ -84,9 +84,10 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         super.onConfigurationChanged(newConfig)
         // This Activity handles orientation/screenSize without recreation.
         // Re-measure the detached footer after its new constraints apply.
-        unifiedToolbar?.getBottomComponentsContainer()?.post {
+        val bottomStrip = unifiedToolbar?.getBottomComponentsContainer()
+        bottomStrip?.post {
             if (!isAdded || view == null) return@post
-            requestLayout()
+            bottomStrip.requestLayout()
             unifiedToolbar?.reconcileEngineViewHeight()
             requestWebContentPositionUpdate()
         }
