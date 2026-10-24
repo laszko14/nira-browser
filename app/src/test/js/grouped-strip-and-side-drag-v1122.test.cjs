@@ -15,7 +15,7 @@ test("v1122: separate colored group containers with scoped icons and counts", ()
   assert.match(native, /members = group\.tabIds\.mapNotNull \{ byId\[it\] \}/);
   assert.match(native, /background = groupBackground\(group\.color\)/);
   assert.match(native, /"\(\$\{members\.size\}\) " \+ group\.name/);
-  assert.match(native, /val ungrouped = tabs\.filterNot/);
+  assert.match(native, /val groupedIds = visibleGroups\.flatMap/);
   assert.match(native, /collapsedGroups/);
   assert.match(native, /onNewTabInGroup\?\.invoke\(group\.id\)/);
   assert.match(host, /groupsState\?\.collect \{ groups/);
@@ -51,10 +51,10 @@ test("v1122: drop saves changes via viewmodel reorder and group moves", () => {
 test("v1122: metadata and stable signing", () => {
   const gradle = read("app/build.gradle");
   const workflow = read(".github/workflows/apk-release.yml");
-  assert.match(gradle, /versionCode = 122/);
-  assert.match(gradle, /versionName = "0\.5\.22-alpha28"/);
+  assert.match(gradle, /versionCode = 123/);
+  assert.match(gradle, /versionName = "0\.5\.22-alpha29"/);
   assert.match(gradle, /applicationIdSuffix = '\.debug'/);
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1122"/);
+  assert.match(workflow, /EXPECTED_VERSION_CODE: "1123"/);
   assert.match(workflow, /EXPECTED_CERT_SHA256:/);
-  assert.match(workflow, /zavro-arm64-update-apk-v1122/);
+  assert.match(workflow, /zavro-arm64-update-apk-v1123/);
 });

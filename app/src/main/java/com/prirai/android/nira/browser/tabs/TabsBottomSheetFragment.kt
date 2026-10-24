@@ -960,6 +960,7 @@ class TabsBottomSheetFragment : DialogFragment() {
         val groups by viewModel.groups.collectAsState()
         val expanded by viewModel.expandedGroups.collectAsState()
         val selectedTabId by viewModel.selectedTabId.collectAsState()
+        val savedOrder by viewModel.currentOrder.collectAsState()
         val scope = rememberCoroutineScope()
         val listState = rememberLazyListState()
         var groupMenuId by remember { mutableStateOf<String?>(null) }
@@ -981,6 +982,37 @@ class TabsBottomSheetFragment : DialogFragment() {
             }
         }
         val groupedIds = groups.flatMap { it.tabIds }.toSet()
+        val tabsById = tabs.associateBy { it.id }
+        val groupsById = groups.associateBy { it.id }
+        // Side drawer, landscape and native portrait bar share ONE persisted
+        // hierarchy. Group members follow Room's committed position order.
+        val entries = buildList<Pair<String, String>> {
+            val seenGroups = mutableSetOf<String>()
+            val seenTabs = mutableSetOf<String>()
+            savedOrder?.primaryOrder?.forEach { item ->
+                when (item) {
+                    is com.prirai.android.nira.browser.tabs.compose.UnifiedTabOrder.OrderItem.TabGroup -> {
+                        if (item.groupId in groupsById && seenGroups.add(item.groupId)) {
+                            add("group" to item.groupId)
+                            seenTabs.addAll(groupsById[item.groupId]?.tabIds.orEmpty())
+                        }
+                    }
+                    is com.prirai.android.nira.browser.tabs.compose.UnifiedTabOrder.OrderItem.SingleTab -> {
+                        if (item.tabId in tabsById && item.tabId !in groupedIds && seenTabs.add(item.tabId))
+                            add("single" to item.tabId)
+                    }
+                }
+            }
+            groups.forEach { group ->
+                if (seenGroups.add(group.id)) {
+                    add("group" to group.id)
+                    seenTabs.addAll(group.tabIds)
+                }
+            }
+            tabs.forEach { tab ->
+                if (tab.id !in groupedIds && seenTabs.add(tab.id)) add("single" to tab.id)
+            }
+        }
         val density = resources.displayMetrics.density
 
         fun moveDrag(dy: Float) {
@@ -1048,9 +1080,11 @@ class TabsBottomSheetFragment : DialogFragment() {
                 .onGloballyPositioned { listTopY = it.positionInRoot().y },
             contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)
         ) {
-            groups.forEach { group ->
-                val members = tabs.filter { it.id in group.tabIds }
-                if (members.isNotEmpty()) {
+            entries.forEach { (kind, id) ->
+                if (kind == "group") {
+                    val group = groupsById[id] ?: return@forEach
+                    val members = group.tabIds.mapNotNull { tabsById[it] }
+                    if (members.isEmpty()) return@forEach
                     item(key = "group_" + group.id) {
                         Row(
                             modifier = Modifier.fillMaxWidth().height(44.dp)
@@ -1103,9 +1137,9 @@ class TabsBottomSheetFragment : DialogFragment() {
                             )
                         }
                     }
-                }
-            }
-            items(tabs.filterNot { it.id in groupedIds }, key = { "single_tab_" + it.id }) { tab ->
+                } else {
+                    val tab = tabsById[id] ?: return@forEach
+                item(key = "single_tab_" + tab.id) {
                 CompactSideTabRow(
                     tab = tab, ordinal = tabs.indexOf(tab) + 1,
                     selected = tab.id == selectedTabId,
@@ -1122,7 +1156,9 @@ class TabsBottomSheetFragment : DialogFragment() {
                     onDragFinish = ::finishDrag,
                     onDragCancel = { dragTabId = null; hoveredKey = null }
                 )
+                }
             }
+        }
         }
         // The original row stays in place while dragged. An overlay follows
         // the finger so the user can see that long-press actually took hold.

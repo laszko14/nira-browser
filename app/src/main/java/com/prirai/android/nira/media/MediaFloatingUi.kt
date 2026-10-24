@@ -42,10 +42,9 @@ internal class MediaFloatingUi(
     private val openVideo: (Long) -> Unit,
 ) {
     private val context = parent.context
-    private val prefs = context.getSharedPreferences("nira_media_floating_position", Context.MODE_PRIVATE)
     private fun dp(value: Int) = (value * context.resources.displayMetrics.density + 0.5f).toInt()
     private val size = dp(56)
-    private val padding = dp(24)
+    private val padding = dp(16)
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
     private val button = FrameLayout(context).apply {
         background = circle(Color.rgb(26, 180, 176))
@@ -53,7 +52,7 @@ internal class MediaFloatingUi(
         contentDescription = "Wykryte filmy"
         isClickable = true
         isFocusable = true
-        visibility = View.GONE
+        visibility = View.VISIBLE
     }
     private val count = TextView(context).apply {
         gravity = Gravity.CENTER
@@ -68,35 +67,40 @@ internal class MediaFloatingUi(
     private var displayed: MediaUiSnapshot? = null
     private var sheet: BottomSheetDialog? = null
     private var sheetBody: LinearLayout? = null
-    private var placed = false
     private var lastWidth = 0
     private var lastHeight = 0
-    private var x = 0f
-    private var y = 0f
-    private var dragging = false
-    private var downRawX = 0f
-    private var downRawY = 0f
-    private var startX = 0f
-    private var startY = 0f
 
     init {
-        button.addView(TextView(context).apply {
-            text = "▶"
-            textSize = 24f
-            gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
-            contentDescription = null
+        // White download-to-tray glyph, modelled on 1DM; no remote thumbnail needed.
+        button.addView(object : View(context) {
+            private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.WHITE
+                style = android.graphics.Paint.Style.STROKE
+                strokeCap = android.graphics.Paint.Cap.ROUND
+                strokeJoin = android.graphics.Paint.Join.ROUND
+                strokeWidth = dp(3).toFloat()
+            }
+            override fun onDraw(canvas: android.graphics.Canvas) {
+                super.onDraw(canvas)
+                val cx = width / 2f
+                val cy = height / 2f
+                canvas.drawLine(cx, cy - dp(15), cx, cy + dp(5), paint)
+                canvas.drawLine(cx - dp(8), cy - dp(2), cx, cy + dp(6), paint)
+                canvas.drawLine(cx, cy + dp(6), cx + dp(8), cy - dp(2), paint)
+                val tray = android.graphics.RectF(cx - dp(13), cy + dp(11), cx + dp(13), cy + dp(15))
+                canvas.drawRoundRect(tray, dp(1).toFloat(), dp(1).toFloat(), paint)
+            }
         }, FrameLayout.LayoutParams(-1, -1))
         button.addView(count, FrameLayout.LayoutParams(dp(27), dp(27), Gravity.END or Gravity.TOP))
         parent.addView(button, ViewGroup.LayoutParams(size, size))
-        button.setOnTouchListener { _, event -> handleTouch(event) }
+        button.setOnClickListener { showSheet() }
         parent.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
             if (right - left != lastWidth || bottom - top != lastHeight) {
                 lastWidth = right - left
                 lastHeight = bottom - top
                 button.post { place() }
             } else {
-                button.post { if (!dragging) place() }
+                button.post { place() }
             }
         }
         button.post { place() }
@@ -111,7 +115,8 @@ internal class MediaFloatingUi(
         displayed = value?.takeIf { it.entries.isNotEmpty() }
         val amount = displayed?.entries?.groupBy { it.groupId ?: "url:" + it.url }?.size ?: 0
         count.text = if (amount > 99) "99+" else amount.toString()
-        button.visibility = if (!isFullscreen && amount > 0) View.VISIBLE else View.GONE
+        count.visibility = if (amount > 0) View.VISIBLE else View.GONE
+        button.visibility = if (!isFullscreen) View.VISIBLE else View.GONE
         if (button.visibility == View.VISIBLE) button.bringToFront()
         if (sheet?.isShowing == true) {
             if (amount == 0 || isFullscreen) sheet?.dismiss() else fillSheet()
@@ -145,72 +150,28 @@ internal class MediaFloatingUi(
         return floatArrayOf(minX, maxX, minY, maxY)
     }
 
+    // Always dock at bottom-right. Never persist or restore finger-dragged offsets.
     private fun place() {
-        if (parent.width <= 0 || parent.height <= 0 || dragging) return
+        if (parent.width <= 0 || parent.height <= 0) return
         val b = bounds()
-        if (!placed) {
-            x = if (prefs.contains("x")) b[0] + prefs.getFloat("x", 1f).coerceIn(0f, 1f) * (b[1] - b[0]) else b[1]
-            y = if (prefs.contains("y")) b[2] + prefs.getFloat("y", 1f).coerceIn(0f, 1f) * (b[3] - b[2]) else b[3]
-            placed = true
-        }
-        x = x.coerceIn(b[0], b[1])
-        y = y.coerceIn(b[2], b[3])
-        button.translationX = x
-        button.translationY = y
-    }
-
-    private fun savePosition() {
-        val b = bounds()
-        prefs.edit()
-            .putFloat("x", if (b[1] > b[0]) ((x - b[0]) / (b[1] - b[0])).coerceIn(0f, 1f) else 1f)
-            .putFloat("y", if (b[3] > b[2]) ((y - b[2]) / (b[3] - b[2])).coerceIn(0f, 1f) else 1f)
-            .apply()
-    }
-
-    private fun handleTouch(event: MotionEvent): Boolean = when (event.actionMasked) {
-        MotionEvent.ACTION_DOWN -> {
-            dragging = false
-            downRawX = event.rawX
-            downRawY = event.rawY
-            startX = x
-            startY = y
-            button.parent.requestDisallowInterceptTouchEvent(true)
-            true
-        }
-        MotionEvent.ACTION_MOVE -> {
-            val dx = event.rawX - downRawX
-            val dy = event.rawY - downRawY
-            if (!dragging && (abs(dx) > touchSlop || abs(dy) > touchSlop)) dragging = true
-            if (dragging) {
-                val b = bounds()
-                x = (startX + dx).coerceIn(b[0], b[1])
-                y = (startY + dy).coerceIn(b[2], b[3])
-                button.translationX = x
-                button.translationY = y
-            }
-            true
-        }
-        MotionEvent.ACTION_UP -> {
-            if (dragging) savePosition() else if (!isFullscreen) showSheet()
-            dragging = false
-            true
-        }
-        MotionEvent.ACTION_CANCEL -> {
-            dragging = false
-            place()
-            true
-        }
-        else -> true
+        button.translationX = b[1]
+        button.translationY = b[3]
     }
 
     private fun showSheet() {
-        if (current()?.entries.isNullOrEmpty()) return
+        if (current()?.entries.isNullOrEmpty()) {
+            Toast.makeText(context, "Brak wykrytych filmów", Toast.LENGTH_SHORT).show()
+            return
+        }
         sheet?.dismiss()
         val dialog = BottomSheetDialog(context)
-        val scroll = ScrollView(context).apply { isFillViewport = false }
+        val scroll = ScrollView(context).apply {
+            isFillViewport = false
+            setBackgroundColor(Color.rgb(63, 63, 63))
+        }
         val body = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(18), dp(18), dp(28))
+            setPadding(dp(12), dp(12), dp(12), dp(24))
         }
         scroll.addView(body, FrameLayout.LayoutParams(-1, -2))
         dialog.setContentView(scroll)
@@ -224,7 +185,7 @@ internal class MediaFloatingUi(
     private fun label(text: String, sizeSp: Float, bold: Boolean = false) = TextView(context).apply {
         this.text = text
         textSize = sizeSp
-        setTextColor(if (bold) Color.rgb(35, 48, 52) else Color.rgb(83, 93, 100))
+        setTextColor(if (bold) Color.WHITE else Color.rgb(206, 206, 206))
         if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
         setPadding(0, dp(4), 0, dp(4))
     }
@@ -233,7 +194,7 @@ internal class MediaFloatingUi(
     private fun sizeLabel(entry: MediaEntry): String {
         // HLS/DASH Content-Length would describe only the manifest, not the movie.
         if (entry.format == MediaFormat.HLS || entry.format == MediaFormat.DASH)
-            return "rozmiar nieznany"
+            return "...MB"
         val bytes = entry.sizeBytes ?: return "rozmiar nieznany"
         return when {
             bytes >= 1_000_000_000L -> String.format(Locale("pl", "PL"), "%.2f GB", bytes / 1e9)
@@ -276,15 +237,14 @@ internal class MediaFloatingUi(
             return
         }
         val groups = snapshot.entries.groupBy { it.groupId ?: "url:" + it.url }
-        body.addView(label("Wykryte filmy  •  ${groups.size}", 20f, true))
-        body.addView(label("Nazwa i rozmiar pojawiają się, gdy strona lub sieć udostępnia te dane.", 12f))
+        body.addView(label("Wykryte pliki  •  ${groups.size}", 19f, true))
         groups.values.forEachIndexed { index, found ->
-            // Network-confirmed sources first; declarative URLs may be stale,
-            // session-bound or even point at a non-playable player endpoint.
+            // Prefer network-confirmed playable URLs; keep the current stream ID for MPV.
             val variants = found.sortedWith(
                 compareByDescending<MediaEntry> { MediaSource.NETWORK in it.sources }
                     .thenByDescending { MediaSource.DOM in it.sources }
             )
+            val entry = variants.first()
             val bestTitle = variants.filter { !it.title.isNullOrBlank() }.maxByOrNull {
                 when (it.titleKind) {
                     "video" -> 3
@@ -294,107 +254,94 @@ internal class MediaFloatingUi(
                 }
             }
             val name = bestTitle?.title ?: variants.firstNotNullOfOrNull { friendlyFileName(it.url) }
-                ?: "Film ${index + 1} — tytuł nieznany"
-            val card = LinearLayout(context).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(12), dp(12), dp(12), dp(12))
+                ?: "Film ${index + 1}"
+            val item = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(8), dp(12), dp(4), dp(12))
                 background = GradientDrawable().apply {
-                    cornerRadius = dp(16).toFloat()
-                    setColor(Color.rgb(243, 248, 248))
+                    cornerRadius = dp(5).toFloat()
+                    setColor(Color.rgb(65, 65, 65))
                 }
             }
-            val posterUrl = variants.firstNotNullOfOrNull { it.posterUrl }
-            if (posterUrl != null) {
-                val thumb = ImageView(context).apply {
-                    scaleType = ImageView.ScaleType.CENTER_CROP
-                    contentDescription = "Miniatura: $name"
-                    load(posterUrl) {
-                        diskCachePolicy(CachePolicy.DISABLED) // Never persist signed media URLs.
-                        crossfade(true)
-                    }
-                }
-                card.addView(thumb, LinearLayout.LayoutParams(-1, dp(156)).apply {
-                    bottomMargin = dp(8)
-                })
+            val iconColumn = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             }
-            card.addView(label(name, 18f, true))
-            if (bestTitle?.titleKind == "page")
-                card.addView(label("Nazwa z tytułu strony — może nie odpowiadać filmowi.", 11f))
-            if (variants.size > 1)
-                card.addView(label("${variants.size} dostępne źródła", 12f))
-            variants.forEachIndexed { sourceIndex, entry ->
-                val time = durationLabel(entry.durationSeconds)
-                val headline = buildString {
-                    if (variants.size > 1) append("Źródło ${sourceIndex + 1}  •  ")
-                    append(entry.format.name)
-                    if (entry.quality != null) append("  •  ").append(entry.quality)
-                    if (entry.bitrate != null) append("  •  ").append(entry.bitrate / 1000).append(" kb/s")
-                    append("  •  ")
-                    append(sizeLabel(entry))
-                    if (time != null) append("  •  ").append(time)
-                    if (entry.revisionCount > 1) append("  •  świeży link (").append(entry.revisionCount).append(" wersje)")
+            // Draw a simple 1DM-style film reel icon locally. No poster loading.
+            iconColumn.addView(object : View(context) {
+                private val ink = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.WHITE
                 }
-                card.addView(label(headline, 14f, true))
-                val status = when (entry.playbackStatus) {
-                    MediaPlaybackStatus.CONFIRMED -> "Potwierdzony strumień"
-                    MediaPlaybackStatus.NEEDS_VERIFICATION -> "Wymaga weryfikacji"
-                    MediaPlaybackStatus.EXPIRED -> "Link wygasł"
-                    MediaPlaybackStatus.AUTH_ERROR -> "Błąd autoryzacji"
-                    MediaPlaybackStatus.UNPLAYABLE -> "Nie można odtworzyć"
-                }
-                card.addView(label(status, 12f, entry.playbackStatus == MediaPlaybackStatus.CONFIRMED))
-                val host = try { URI(entry.url).host ?: "nieznany serwer" }
-                    catch (_: Exception) { "nieznany serwer" }
-                card.addView(label("${originLabel(entry)}  •  ${host.take(65)}", 12f))
-                if (entry.sources == setOf(MediaSource.PAGE)) {
-                    card.addView(label("Adres z deklaracji strony — odtwarzanie w MPV niepotwierdzone.", 11f))
-                }
-                val actions = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
-                val open = MaterialButton(context).apply {
-                    text = "▶ MPV Alpha"
-                    isEnabled = entry.playbackStatus !in setOf(MediaPlaybackStatus.EXPIRED,
-                        MediaPlaybackStatus.AUTH_ERROR, MediaPlaybackStatus.UNPLAYABLE)
-                    setOnClickListener {
-                        val now = current()
-                        if (now == null || !sameSelection(snapshot.tab, now.tab) ||
-                            now.entries.none { it.id == entry.id }) {
-                            stale()
-                            fillSheet()
-                        } else openVideo(entry.id)
+                override fun onDraw(canvas: android.graphics.Canvas) {
+                    super.onDraw(canvas)
+                    val cx = width / 2f
+                    val cy = height / 2f - dp(2)
+                    val radius = dp(15).toFloat()
+                    ink.style = android.graphics.Paint.Style.STROKE
+                    ink.strokeWidth = dp(3).toFloat()
+                    canvas.drawCircle(cx, cy, radius, ink)
+                    ink.style = android.graphics.Paint.Style.FILL
+                    for (a in 0..3) {
+                        val angle = Math.PI * a / 2.0
+                        val dx = kotlin.math.cos(angle).toFloat() * dp(8)
+                        val dy = kotlin.math.sin(angle).toFloat() * dp(8)
+                        canvas.drawCircle(cx + dx, cy + dy, dp(3).toFloat(), ink)
                     }
+                    canvas.drawCircle(cx, cy, dp(3).toFloat(), ink)
+                    canvas.drawRoundRect(
+                        android.graphics.RectF(cx + dp(9), cy + dp(11), cx + dp(20), cy + dp(17)),
+                        dp(2).toFloat(), dp(2).toFloat(), ink
+                    )
                 }
-                actions.addView(open, LinearLayout.LayoutParams(0, -2, 1.2f))
-                val copy = MaterialButton(context, null,
-                    com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-                    text = "Kopiuj"
-                    setTextColor(Color.rgb(33, 62, 65))
-                    setOnClickListener {
-                        val now = current()
-                        if (now == null || !sameSelection(snapshot.tab, now.tab) ||
-                            now.entries.none { it.id == entry.id }) {
-                            stale()
-                            fillSheet()
-                        } else {
-                            val fresh = now.entries.first { it.id == entry.id }
-                            val clip = ClipData.newPlainText("Adres źródła wideo", fresh.url)
-                            if (Build.VERSION.SDK_INT >= 33) {
-                                clip.description.extras = PersistableBundle().apply {
-                                    putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
-                                }
-                            }
-                            (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
-                                .setPrimaryClip(clip)
-                            Toast.makeText(context, "Adres skopiowany — może zawierać token",
-                                Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                }
-                actions.addView(copy, LinearLayout.LayoutParams(0, -2, 0.8f))
-                card.addView(actions, LinearLayout.LayoutParams(-1, -2))
+            }.apply { contentDescription = "Ikona filmu" },
+                LinearLayout.LayoutParams(dp(62), dp(42)))
+            iconColumn.addView(label(sizeLabel(entry), 11f).apply {
+                gravity = Gravity.CENTER
+                maxLines = 1
+            }, LinearLayout.LayoutParams(dp(76), -2))
+            item.addView(iconColumn, LinearLayout.LayoutParams(dp(80), -2))
+            val details = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(5), 0, dp(6), 0)
             }
-            body.addView(card, LinearLayout.LayoutParams(-1, -2).apply {
-                bottomMargin = dp(12)
+            details.addView(label(name, 15f, true).apply {
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
             })
+            val technical = buildList {
+                add(entry.format.name)
+                entry.quality?.takeIf { it.isNotBlank() }?.let { add(it) }
+                entry.bitrate?.let { add("${it / 1000} kb/s") }
+                if (variants.size > 1) add("${variants.size} źródła")
+            }.joinToString("  •  ")
+            details.addView(label(technical, 12f))
+            details.addView(label(durationLabel(entry.durationSeconds) ?: "Czas nieznany", 12f))
+            item.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
+            val playable = entry.playbackStatus !in setOf(
+                MediaPlaybackStatus.EXPIRED, MediaPlaybackStatus.AUTH_ERROR, MediaPlaybackStatus.UNPLAYABLE
+            )
+            item.addView(TextView(context).apply {
+                text = "▶"
+                textSize = 28f
+                gravity = Gravity.CENTER
+                setTextColor(if (playable) Color.WHITE else Color.GRAY)
+                contentDescription = "Odtwórz w MPV Alpha"
+                isEnabled = playable
+                setOnClickListener {
+                    val now = current()
+                    if (now == null || !sameSelection(snapshot.tab, now.tab) ||
+                        now.entries.none { it.id == entry.id }) {
+                        stale()
+                        fillSheet()
+                    } else {
+                        openVideo(entry.id)
+                    }
+                }
+            }, LinearLayout.LayoutParams(dp(48), dp(58)))
+            body.addView(item, LinearLayout.LayoutParams(-1, -2))
+            body.addView(View(context).apply { setBackgroundColor(Color.rgb(93, 93, 93)) },
+                LinearLayout.LayoutParams(-1, dp(1)))
         }
     }
 
