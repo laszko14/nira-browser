@@ -145,10 +145,10 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
 
         // State for tabs and selected tab - observe store state changes
         val store = context.components.store
-        // Use the hosting Fragment view lifecycle rather than the Activity
-        // lifecycle, which survives orientation changes.
-        val lifecycleOwner = androidx.lifecycle.ViewTreeLifecycleOwner.get(composeView)
-            ?: (context as LifecycleOwner)
+        // The ComposeView already uses DisposeOnViewTreeLifecycleDestroyed.
+        // Observe BrowserStore with the activity's available lifecycle owner;
+        // the view-tree lifecycle helper is not available in this dependency set.
+        val lifecycleOwner = context as LifecycleOwner
 
         // Use produceState to observe store state changes reactively
         val browserState = produceState(initialValue = store.state, store) {
