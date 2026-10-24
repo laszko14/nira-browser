@@ -65,6 +65,8 @@ class TabOrderManager private constructor(
      * Clean up orphaned group IDs from unified order
      */
     private suspend fun cleanupOrphanedGroups(order: UnifiedTabOrder): UnifiedTabOrder {
+        // Never drop persisted groups before the asynchronous Room load has finished.
+        if (!groupManager.awaitInitialized()) return order
         val allGroups = groupManager.getAllGroups()
         val validGroupIds = allGroups.map { it.id }.toSet()
         
@@ -134,7 +136,15 @@ class TabOrderManager private constructor(
         val current = _currentOrder.value ?: return
         if (tabIds.isEmpty()) return
         
-        val groupId = "group_${System.currentTimeMillis()}"
+        // Persist the group first so Room and DataStore share the same UUID.
+        val created = groupManager.createGroup(
+            tabIds = tabIds,
+            name = groupName,
+            color = color,
+            contextId = com.prirai.android.nira.browser.profile.BrowserProfile
+                .contextIdFor(current.profileId, isPrivate = current.profileId == "private")
+        )
+        val groupId = created.id
         
         // Find first tab position
         val firstTabIndex = current.primaryOrder.indexOfFirst { item ->
@@ -181,7 +191,6 @@ class TabOrderManager private constructor(
         remainingOrder.add(insertPos, newGroup)
         
         saveOrder(current.copy(primaryOrder = remainingOrder))
-        syncToGroupManager()
     }
     
     /**

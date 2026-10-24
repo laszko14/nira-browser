@@ -3,6 +3,8 @@ package com.prirai.android.nira.browser.tabgroups
 import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CompletableDeferred
+import androidx.room.withTransaction
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -32,6 +34,10 @@ class UnifiedTabGroupManager private constructor(private val context: Context) {
     private val database = TabGroupDatabase.getInstance(context)
     private val dao = database.tabGroupDao()
     private val scope = CoroutineScope(Dispatchers.IO)
+    private val initialized = CompletableDeferred<Boolean>()
+
+    /** True only after Room groups have been loaded successfully. */
+    suspend fun awaitInitialized(): Boolean = initialized.await()
 
     // In-memory cache of groups for fast access.
     //
@@ -87,7 +93,8 @@ class UnifiedTabGroupManager private constructor(private val context: Context) {
 
     private fun initialize() {
         scope.launch {
-            loadGroupsFromDatabase()
+            val success = loadGroupsFromDatabase()
+            initialized.complete(success)
             // Groups with null contextId are now valid - they represent the
             // default profile which shares Gecko's default partition with
             // custom tabs. The inverse migration
@@ -127,12 +134,14 @@ class UnifiedTabGroupManager private constructor(private val context: Context) {
             }
 
             _groupsState.value = groupDataList
+            true
         } catch (e: Exception) {
             // Loading groups from Room failed - schema mismatch or DB
             // corruption. Log so the empty tab-group state has an
             // explanation instead of appearing to work fine but with
             // no groups.
             android.util.Log.e("UnifiedTabGroupManager", "Failed to load groups from database", e)
+            false
         }
     }
 
@@ -222,18 +231,11 @@ class UnifiedTabGroupManager private constructor(private val context: Context) {
         // Remove from other groups first
         removeTabFromGroup(tabId, notifyChange = false)
 
-        val insertPosition = position ?: group.tabIds.size
-        val newTabIds = group.tabIds.toMutableList().apply {
-            add(insertPosition.coerceIn(0, size), tabId)
-        }
+        val insertPosition = (position ?: group.tabIds.size).coerceIn(0, group.tabIds.size)
+        val newTabIds = group.tabIds.toMutableList().apply { add(insertPosition, tabId) }
 
-        // Update database
-        val member = TabGroupMember(
-            tabId = tabId,
-            groupId = groupId,
-            position = insertPosition
-        )
-        dao.insertTabGroupMember(member)
+        // Reindex the full group transactionally; duplicate position values reorder tabs on restart.
+        persistPositions(groupId, newTabIds)
 
         // Update cache
         val updatedGroup = group.copy(tabIds = newTabIds)
@@ -269,6 +271,7 @@ class UnifiedTabGroupManager private constructor(private val context: Context) {
             // Delete empty group
             deleteGroup(groupId, notifyChange = false)
         } else {
+            persistPositions(groupId, newTabIds)
             val updatedGroup = group.copy(tabIds = newTabIds)
             groupsCache[groupId] = updatedGroup
         }
@@ -279,6 +282,16 @@ class UnifiedTabGroupManager private constructor(private val context: Context) {
         }
 
         true
+    }
+
+    /** Keep Room positions dense and stable, including after insert at an index. */
+    private suspend fun persistPositions(groupId: String, tabIds: List<String>) {
+        database.withTransaction {
+            dao.removeAllTabsFromGroup(groupId)
+            tabIds.forEachIndexed { index, id ->
+                dao.insertTabGroupMember(TabGroupMember(tabId = id, groupId = groupId, position = index))
+            }
+        }
     }
 
     /**
@@ -466,14 +479,16 @@ class UnifiedTabGroupManager private constructor(private val context: Context) {
         if (sourceGroupId == targetGroupId) return false
 
         val sourceGroup = groupsCache[sourceGroupId] ?: return false
-        
+        val targetGroup = groupsCache[targetGroupId] ?: return false
+        if (sourceGroup.contextId != targetGroup.contextId) return false
+
         withContext(Dispatchers.IO) {
             // Add all tabs from source to target without individual notifications
-            sourceGroup.tabIds.forEach { tabId ->
+            sourceGroup.tabIds.forEachIndexed { index, tabId ->
                 val member = TabGroupMember(
                     tabId = tabId,
                     groupId = targetGroupId,
-                    position = groupsCache[targetGroupId]?.tabIds?.size ?: 0
+                    position = targetGroup.tabIds.size + index
                 )
                 dao.insertTabGroupMember(member)
                 tabToGroupMap[tabId] = targetGroupId
@@ -485,11 +500,8 @@ class UnifiedTabGroupManager private constructor(private val context: Context) {
             groupsCache.remove(sourceGroupId)
 
             // Update target group cache
-            val targetGroup = groupsCache[targetGroupId]
-            if (targetGroup != null) {
-                val newTabIds = targetGroup.tabIds + sourceGroup.tabIds
-                groupsCache[targetGroupId] = targetGroup.copy(tabIds = newTabIds)
-            }
+            val newTabIds = targetGroup.tabIds + sourceGroup.tabIds
+            groupsCache[targetGroupId] = targetGroup.copy(tabIds = newTabIds)
 
             emitStateUpdate()
             _groupEvents.emit(GroupEvent.GroupsMerged(sourceGroupId, targetGroupId))

@@ -240,7 +240,7 @@ object DownloadController {
                 ParallelDownloadService.parseTotal(response.headers["Content-Range"])
             }
         } catch (t: Throwable) {
-            Log.w(TAG, "Content-length probe failed for ${download.url}", t)
+            Log.w(TAG, "Content-length probe failed for download ${download.id}: ${t.javaClass.simpleName}")
             null
         }
     }

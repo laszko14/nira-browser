@@ -401,8 +401,8 @@ class UnifiedToolbar @JvmOverloads constructor(
                     // Also include guest tabs (contextId == null) which come from custom tabs
                     val filteredTabs = state.tabs.filter { tab ->
                         if (tab.contextId == null) {
-                            // Guest tabs from custom tabs - always show in current profile if not private
-                            !isPrivateMode && !tab.content.private
+                            // Default Gecko partition belongs only to the default profile.
+                            !isPrivateMode && currentProfile.id == "default" && !tab.content.private
                         } else {
                             // Regular profile tabs
                             tab.content.private == isPrivateMode && tab.contextId == expectedContextId

@@ -1012,9 +1012,14 @@ class TabViewModel(
      */
     fun closeAllTabsInGroup(groupId: String) {
         viewModelScope.launch {
-            val group = _groups.value.find { it.id == groupId } ?: return@launch
-            // This will be handled by the caller
-            // to close all tabs in group.tabIds
+            val group = groupManager.getGroup(groupId) ?: return@launch
+            val useCases = context.components.tabsUseCases
+            // Work from a stable snapshot: store/group updates occur for each removal.
+            group.tabIds.toList().forEach { id ->
+                if (context.components.store.state.tabs.any { it.id == id }) {
+                    useCases.removeTab(id)
+                }
+            }
         }
     }
 
@@ -1032,6 +1037,7 @@ class TabViewModel(
                 val newTabId = context.components.tabsUseCases.addTab(
                     url = prefs.getHomepageUrl(),
                     contextId = contextId,
+                    private = contextId == "private",
                     selectTab = false
                 )
 
