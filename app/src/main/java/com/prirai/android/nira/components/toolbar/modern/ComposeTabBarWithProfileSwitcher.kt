@@ -53,12 +53,30 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
     private var profileRefreshToken by mutableIntStateOf(0)
     private var lastObservedProfileSignature: Pair<String, Boolean>? = null
 
+    // Keep the hosting toolbar's BrowserStore snapshot as a second reactive
+    // source so a stale Compose collector cannot leave the bottom bar empty.
+    private data class PushedTabState(
+        val profileId: String,
+        val privateMode: Boolean,
+        val tabs: List<TabSessionState>,
+        val selectedTabId: String?
+    )
+    private var lastPushedTabState by mutableStateOf<PushedTabState?>(null)
+
     private var tabOrderManager: TabOrderManager? = null
     private var groupManager: UnifiedTabGroupManager? = null
     private var tabViewModel: TabViewModel? = null
     private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     init {
+        // The outer FrameLayout's 40dp minimum alone can display an empty
+        // background when the WRAP_CONTENT ComposeView measures to zero.
+        val rowMinimumHeightPx =
+            (com.prirai.android.nira.preferences.UserPreferences(context)
+                .niraTabStripHeightDp.coerceIn(40, 80) *
+                resources.displayMetrics.density).toInt()
+        minimumHeight = rowMinimumHeightPx
+        composeView.minimumHeight = rowMinimumHeightPx
         clipToPadding = false
         clipChildren = false
         val elevationDp = 12f * resources.displayMetrics.density
@@ -80,6 +98,19 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
         // TabsUseCases + UndoMiddleware, so no host-side onTabRemove wiring is
         // required. See TabViewModel.closeTab kdoc for the undo contract.
         tabViewModel = TabViewModel(context, groupManager!!)
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // BrowserActivity handles rotation without recreation. Re-measure
+        // both the Compose row and its outer host for the new width.
+        composeView.requestLayout()
+        requestLayout()
+        post {
+            composeView.requestLayout()
+            requestLayout()
+            composeView.invalidate()
+        }
     }
 
     fun setup(
@@ -114,6 +145,9 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
 
         // State for tabs and selected tab - observe store state changes
         val store = context.components.store
+        // The ComposeView already uses DisposeOnViewTreeLifecycleDestroyed.
+        // Observe BrowserStore with the activity's available lifecycle owner;
+        // the view-tree lifecycle helper is not available in this dependency set.
         val lifecycleOwner = context as LifecycleOwner
 
         // Use produceState to observe store state changes reactively
@@ -129,26 +163,29 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
         val currentProfile = remember(browserState.value, profileRefreshToken) { profileManager.getActiveProfile() }
         val isPrivateMode = remember(browserState.value, profileRefreshToken) { profileManager.isPrivateMode() }
 
-        // Filter tabs based on current profile - this will update when browserState changes
-        val tabs = remember(browserState.value.tabs, currentProfile, isPrivateMode) {
-            browserState.value.tabs.filter { tab ->
-                val tabIsPrivate = tab.content.private
-                if (tabIsPrivate != isPrivateMode) {
-                    false
-                } else if (isPrivateMode) {
+        // Snapshot pushed by the toolbar can restore visible tabs even
+        // while an internally collected state lags after orientation changes.
+        // Recheck profile/private scope to avoid leaking other containers.
+        val pushedState = lastPushedTabState?.takeIf {
+            it.profileId == currentProfile.id && it.privateMode == isPrivateMode
+        }
+        val tabs = remember(browserState.value.tabs, currentProfile.id, isPrivateMode, pushedState) {
+            fun belongsToCurrentProfile(tab: TabSessionState): Boolean {
+                if (tab.content.private != isPrivateMode) return false
+                return if (isPrivateMode) {
                     tab.contextId == "private"
                 } else {
                     val expectedContextId = "profile_${currentProfile.id}"
-                    if (currentProfile.id == "default") {
-                        (tab.contextId == expectedContextId) || (tab.contextId == null)
-                    } else {
-                        tab.contextId == expectedContextId
-                    }
+                    tab.contextId == expectedContextId ||
+                        (currentProfile.id == "default" && tab.contextId == null)
                 }
             }
+            val storedTabs = browserState.value.tabs.filter(::belongsToCurrentProfile)
+            val pushedTabs = pushedState?.tabs?.filter(::belongsToCurrentProfile)
+            if (!pushedTabs.isNullOrEmpty()) pushedTabs else storedTabs
         }
 
-        val selectedTabId = browserState.value.selectedTabId
+        val selectedTabId = pushedState?.selectedTabId ?: browserState.value.selectedTabId
 
         val orderManager = tabOrderManager ?: return
         val viewModel = tabViewModel ?: return
@@ -244,7 +281,12 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
                 }
             }
 
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.fillMaxWidth().heightIn(
+                    min = com.prirai.android.nira.preferences.UserPreferences(context)
+                        .niraTabStripHeightDp.coerceIn(40, 80).dp
+                )
+            ) {
                 if (com.prirai.android.nira.preferences.UserPreferences(context).niraGroupChipsVisible) HybridGroupChips(
                     groups = visibleGroups,
                     tabs = tabs,
@@ -305,7 +347,6 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
     }
 
 
-    @Suppress("UNUSED_PARAMETER")
     fun updateTabs(tabs: List<TabSessionState>, selectedId: String?) {
         // BrowserStore is already collected by produceState. Repeated setContent()
         // here destroyed the ongoing composition on every tab/title/loading
@@ -313,7 +354,10 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
         // A profile/private-mode switch is the only non-BrowserStore change
         // that needs explicit invalidation.
         val manager = ProfileManager.getInstance(context)
-        val signature = manager.getActiveProfile().id to manager.isPrivateMode()
+        val profileId = manager.getActiveProfile().id
+        val isPrivate = manager.isPrivateMode()
+        val signature = profileId to isPrivate
+        lastPushedTabState = PushedTabState(profileId, isPrivate, tabs, selectedId)
         if (lastObservedProfileSignature != signature) {
             lastObservedProfileSignature = signature
             profileRefreshToken++

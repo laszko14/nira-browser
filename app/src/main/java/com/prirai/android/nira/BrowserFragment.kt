@@ -80,6 +80,19 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
 
     // Toolbar icon for fullscreen toggle
 
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // This Activity handles orientation/screenSize without recreation.
+        // Re-measure the detached footer after its new constraints apply.
+        val bottomStrip = unifiedToolbar?.getBottomComponentsContainer()
+        bottomStrip?.post {
+            if (!isAdded || view == null) return@post
+            bottomStrip.requestLayout()
+            unifiedToolbar?.reconcileEngineViewHeight()
+            requestWebContentPositionUpdate()
+        }
+    }
+
     override fun initializeUI(view: View, tab: SessionState) {
         UserPreferences(requireContext()).apply {
             toolbarPosition = com.prirai.android.nira.components.toolbar.ToolbarPosition.TOP.ordinal

@@ -905,6 +905,8 @@ class UnifiedToolbar @JvmOverloads constructor(
         if (bottomComponentsContainer == null) {
             val container = android.widget.LinearLayout(context).apply {
                 orientation = android.widget.LinearLayout.VERTICAL
+                clipChildren = false
+                clipToPadding = false
                 setBackgroundColor(if (com.prirai.android.nira.theme.ThemeManager.isDarkMode(context))
                     android.graphics.Color.rgb(28, 27, 31) else
                     android.graphics.Color.rgb(255, 251, 254))
@@ -1326,6 +1328,10 @@ class UnifiedToolbar @JvmOverloads constructor(
                         ViewGroup.LayoutParams.WRAP_CONTENT
                     ))
                 }
+                // The GeckoView/homepage and footer share one CoordinatorLayout.
+                // Keep the detached Compose tabs above the page on rotation.
+                bottom.bringToFront()
+                bottom.requestLayout()
                 // The bottom Compose strip measures independently of the
                 // address bar. Reserve its actual height in the Gecko viewport
                 // after attachment, on rotation and on group-chip changes.
