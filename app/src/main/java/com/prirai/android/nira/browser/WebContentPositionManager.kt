@@ -57,8 +57,11 @@ class WebContentPositionManager(
         // The toolbar already reserves the status-bar inset in its own
         // measured height. Padding GeckoView again creates a blank band
         // between the tab strip and the actual web page.
-        // The Android navigation bar remains visible in normal browsing.
-        engineViewInstance.setPadding(0, 0, 0, navigationBarHeight)
+        // BrowserActivity already keeps the ENTIRE fragment above the
+        // visible navigation bar via root padding. Reserving the same
+        // bottom inset inside GeckoView creates a second blank band and
+        // makes the page appear shorter than the bottom tab strip.
+        engineViewInstance.setPadding(0, 0, 0, 0)
     }
     
     /**
