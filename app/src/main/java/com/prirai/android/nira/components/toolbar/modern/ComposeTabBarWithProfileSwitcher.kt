@@ -51,6 +51,7 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
     // Only explicit profile switches need a local refresh. BrowserStore changes
     // are observed within the composition and must not call setContent again.
     private var profileRefreshToken by mutableIntStateOf(0)
+    private var lastObservedProfileSignature: Pair<String, Boolean>? = null
 
     private var tabOrderManager: TabOrderManager? = null
     private var groupManager: UnifiedTabGroupManager? = null
@@ -305,9 +306,16 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
     @Suppress("UNUSED_PARAMETER")
     fun updateTabs(tabs: List<TabSessionState>, selectedId: String?) {
         // BrowserStore is already collected by produceState. Repeated setContent()
-        // here destroyed the ongoing Compose composition on every tab/title/
-        // loading update, briefly leaving a black, empty bottom strip.
-        // Do not reset the composition or its remembered scroll/drag state.
+        // here destroyed the ongoing composition on every tab/title/loading
+        // update, briefly leaving a black, empty bottom strip.
+        // A profile/private-mode switch is the only non-BrowserStore change
+        // that needs explicit invalidation.
+        val manager = ProfileManager.getInstance(context)
+        val signature = manager.getActiveProfile().id to manager.isPrivateMode()
+        if (lastObservedProfileSignature != signature) {
+            lastObservedProfileSignature = signature
+            profileRefreshToken++
+        }
     }
 
     @Suppress("UNUSED_PARAMETER")
