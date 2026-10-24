@@ -559,6 +559,13 @@ class DragCoordinator(
     /**
      * Handle dropping a tab (TabNode interactions)
      */
+    private fun contextsMatch(a: String?, b: String?): Boolean {
+        val first = a.orEmpty()
+        val second = b.orEmpty()
+        return first == second || (first in setOf("", "profile_default") &&
+            second in setOf("", "profile_default"))
+    }
+
     private suspend fun handleTabDrop(tab: DraggableItemType.Tab, target: DropTarget) {
         when (target.type) {
             DropTargetType.TAB -> {
@@ -573,17 +580,24 @@ class DragCoordinator(
 
                     if (draggedTab != null && targetTab != null) {
                         // Check context compatibility
-                        if (draggedTab.contextId == targetTab.contextId) {
-                            // If target tab is in a group, add dragged tab to that group
+                        if (contextsMatch(draggedTab.contextId, targetTab.contextId)) {
+                            // An existing group is a reorder target, not just an "add" target.
+                            // The old branch re-added an already grouped tab (a no-op), so the
+                            // dragged card always snapped back after release.
                             if (targetGroupId != null) {
-                                // Remove from old group if needed
-                                if (tab.groupId != null && tab.groupId != targetGroupId) {
-                                    viewModel.removeTabFromGroup(tab.tabId)
-                                    delay(50)
+                                if (tab.groupId == targetGroupId) {
+                                    viewModel.reorderTabInGroup(
+                                        tab.tabId, targetTabId, targetGroupId,
+                                        insertAfter = target.dropZone != DropZone.BEFORE
+                                    )
+                                } else {
+                                    // Single operation: the manager removes the prior membership
+                                    // and inserts at the intended position without racing coroutines.
+                                    viewModel.moveTabToGroup(
+                                        tab.tabId, targetGroupId, targetTabId,
+                                        insertAfter = target.dropZone != DropZone.BEFORE
+                                    )
                                 }
-
-                                // Add to target group
-                                viewModel.addTabToGroup(tab.tabId, targetGroupId)
                                 return
                             }
 
@@ -694,17 +708,12 @@ class DragCoordinator(
 
                 if (draggedTab != null) {
                     // Check context compatibility
-                    if (draggedTab.contextId == groupContextId) {
+                    if (contextsMatch(draggedTab.contextId, groupContextId)) {
                         when (target.dropZone) {
                             DropZone.CENTER -> {
                                 // CENTER zone - Add tab to group
-                                // Remove from old group if needed
-                                if (tab.groupId != null && tab.groupId != groupId) {
-                                    viewModel.removeTabFromGroup(tab.tabId)
-                                    delay(50)
-                                }
-
-                                viewModel.addTabToGroup(tab.tabId, groupId)
+                                // This includes a no-op when already in that group.
+                                viewModel.moveTabToGroup(tab.tabId, groupId)
                             }
 
                             DropZone.BEFORE -> {
@@ -822,7 +831,7 @@ class DragCoordinator(
                     val groups = viewModel.groups.value
                     val draggedGroup = groups.find { it.id == group.groupId }
 
-                    if (draggedGroup != null && draggedGroup.contextId == targetTab.contextId) {
+                    if (draggedGroup != null && contextsMatch(draggedGroup.contextId, targetTab.contextId)) {
                         when (target.dropZone) {
                             DropZone.CENTER -> {
                                 // CENTER - Add tab to group
@@ -873,7 +882,7 @@ class DragCoordinator(
 
                 if (draggedGroup != null && targetGroupId != group.groupId) {
                     // Check context compatibility
-                    if (draggedGroup.contextId == targetContextId) {
+                    if (contextsMatch(draggedGroup.contextId, targetContextId)) {
                         when (target.dropZone) {
                             DropZone.CENTER -> {
                                 // CENTER - Merge groups
