@@ -12,14 +12,14 @@ const compose = source(base + "components/toolbar/modern/ComposeTabBarWithProfil
 const toolbar = source(base + "components/toolbar/unified/UnifiedToolbar.kt");
 const browser = source(base + "BrowserFragment.kt");
 
-test("v1118: portrait tab host and Compose child both have a minimum real height", () => {
+test("v1119: portrait tab host and Compose child both have a minimum real height", () => {
   assert.match(compose, /minimumHeight = rowMinimumHeightPx/);
   assert.match(compose, /composeView\.minimumHeight = rowMinimumHeightPx/);
   assert.match(compose, /Modifier\.fillMaxWidth\(\)\.heightIn\(/);
   assert.match(compose, /niraTabStripHeightDp\.coerceIn\(40, 80\)/);
 });
 
-test("v1118: orientation change forces a new Compose measurement and Gecko viewport reconciliation", () => {
+test("v1119: orientation change forces a new Compose measurement and Gecko viewport reconciliation", () => {
   assert.match(compose, /override fun onConfigurationChanged\(/);
   assert.match(compose, /composeView\.requestLayout\(\)/);
   assert.match(browser, /override fun onConfigurationChanged\(/);
@@ -28,7 +28,7 @@ test("v1118: orientation change forces a new Compose measurement and Gecko viewp
   assert.match(toolbar, /bottom\.bringToFront\(\)/);
 });
 
-test("v1118: tab updates change reactive state without tearing down the composition", () => {
+test("v1119: tab updates change reactive state without tearing down the composition", () => {
   const start = compose.indexOf("fun updateTabs(");
   const end = compose.indexOf("fun updateProfileIcon(", start);
   assert.ok(start > 0 && end > start);
@@ -39,19 +39,19 @@ test("v1118: tab updates change reactive state without tearing down the composit
   assert.match(compose, /DisposeOnViewTreeLifecycleDestroyed/);
 });
 
-test("v1118: fallback tabs remain strictly scoped to current profile and privacy mode", () => {
+test("v1119: fallback tabs remain strictly scoped to current profile and privacy mode", () => {
   assert.match(compose, /it\.profileId == currentProfile\.id && it\.privateMode == isPrivateMode/);
   assert.match(compose, /if \(tab\.content\.private != isPrivateMode\) return false/);
   assert.match(compose, /tab\.contextId == "private"/);
   assert.match(compose, /currentProfile\.id == "default" && tab\.contextId == null/);
 });
 
-test("v1118: APK metadata matches the next update and preserved app identity", () => {
+test("v1119: APK metadata matches the next update and preserved app identity", () => {
   const gradle = source("app/build.gradle");
   const workflow = source(".github/workflows/apk-release.yml");
-  assert.match(gradle, /versionCode = 118/);
-  assert.match(gradle, /versionName = "0\.5\.22-alpha24"/);
+  assert.match(gradle, /versionCode = 119/);
+  assert.match(gradle, /versionName = "0\.5\.22-alpha25"/);
   assert.match(gradle, /resValue "string", "app_name", "Zavro"/);
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1118"/);
-  assert.match(workflow, /name: zavro-arm64-update-apk-v1118/);
+  assert.match(workflow, /EXPECTED_VERSION_CODE: "1119"/);
+  assert.match(workflow, /name: zavro-arm64-update-apk-v1119/);
 });

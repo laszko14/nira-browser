@@ -42,6 +42,25 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
             androidx.compose.ui.platform.ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
         )
     }
+    // On some portrait devices the detached Compose host has correct height but
+    // never paints its tab pills. Use a View-based row only in that configuration;
+    // retain the full draggable/grouped Compose bar in landscape and in TOP mode.
+    private val portraitTabStrip = PortraitNativeTabStrip(context)
+
+    private fun useNativePortraitStrip(orientation: Int): Boolean {
+        val prefs = com.prirai.android.nira.preferences.UserPreferences(context)
+        return prefs.niraGroupBarBottom &&
+            orientation != android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    }
+
+    private fun updateOrientationMode(orientation: Int) {
+        val native = useNativePortraitStrip(orientation)
+        portraitTabStrip.visibility = if (native) VISIBLE else GONE
+        composeView.visibility = if (native) GONE else VISIBLE
+        portraitTabStrip.requestLayout()
+        composeView.requestLayout()
+        requestLayout()
+    }
 
     private var onTabSelected: ((String) -> Unit)? = null
     private var onTabClosed: ((String) -> Unit)? = null
@@ -90,6 +109,13 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
                 LayoutParams.WRAP_CONTENT
             )
         )
+        addView(
+            portraitTabStrip, LayoutParams(
+                LayoutParams.MATCH_PARENT,
+                LayoutParams.WRAP_CONTENT
+            )
+        )
+        updateOrientationMode(resources.configuration.orientation)
 
         // Initialize managers
         groupManager = UnifiedTabGroupManager.getInstance(context)
@@ -102,6 +128,7 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
+        updateOrientationMode(newConfig.orientation)
         // BrowserActivity handles rotation without recreation. Re-measure
         // both the Compose row and its outer host for the new width.
         composeView.requestLayout()
@@ -123,6 +150,36 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
         this.onTabClosed = onTabClosed
         this.onProfileSelected = onProfileSelected
         this.onPrivateModeSelected = onPrivateModeSelected
+
+        portraitTabStrip.onTabSelected = { id -> onTabSelected?.invoke(id) }
+        portraitTabStrip.onTabClosed = { id ->
+            // Exactly one TabsUseCases dispatch; UndoMiddleware remains active.
+            context.components.tabsUseCases.removeTab(id)
+        }
+        portraitTabStrip.onNewTab = {
+            val manager = ProfileManager.getInstance(context)
+            val isPrivate = manager.isPrivateMode()
+            context.components.tabsUseCases.addTab(
+                url = "about:homepage",
+                private = isPrivate,
+                contextId = BrowserProfile.contextIdFor(manager.getActiveProfile(), isPrivate),
+                selectTab = true
+            )
+        }
+        // Initialize the independent row before store notifications arrive.
+        val state = context.components.store.state
+        val manager = ProfileManager.getInstance(context)
+        val profileId = manager.getActiveProfile().id
+        val privateMode = manager.isPrivateMode()
+        val contextId = BrowserProfile.contextIdFor(profileId, privateMode)
+        portraitTabStrip.updateTabs(
+            state.tabs.filter { tab ->
+                tab.content.private == privateMode &&
+                    (tab.contextId == contextId ||
+                        (!privateMode && profileId == "default" && tab.contextId == "profile_default"))
+            },
+            state.selectedTabId
+        )
 
         setupComposeContent()
     }
@@ -358,6 +415,9 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
         val isPrivate = manager.isPrivateMode()
         val signature = profileId to isPrivate
         lastPushedTabState = PushedTabState(profileId, isPrivate, tabs, selectedId)
+        // Unlike the Compose collector, this View is independent of the
+        // composition lifecycle; every filtered store update reaches it.
+        portraitTabStrip.updateTabs(tabs, selectedId)
         if (lastObservedProfileSignature != signature) {
             lastObservedProfileSignature = signature
             profileRefreshToken++
