@@ -12,6 +12,7 @@ import android.widget.LinearLayout
 import android.widget.PopupMenu
 import android.widget.TextView
 import com.prirai.android.nira.browser.tabgroups.TabGroupData
+import com.prirai.android.nira.browser.tabs.compose.UnifiedTabOrder
 import com.prirai.android.nira.theme.ThemeManager
 import com.prirai.android.nira.utils.FaviconLoader
 import kotlinx.coroutines.CoroutineScope
@@ -55,6 +56,7 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
     private var lastSignature: List<String>? = null
     private var lastTabs: List<TabSessionState> = emptyList()
     private var currentGroups: List<TabGroupData> = emptyList()
+    private var currentOrder: UnifiedTabOrder? = null
     private val collapsedGroups = mutableSetOf<String>()
     private var selectedPill: View? = null
     private var lastSelectedId: String? = null
@@ -185,6 +187,14 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
         updateTabs(lastTabs, lastSelectedId)
     }
 
+    /** Shared, persisted ordering used by the side sheet and landscape bar. */
+    fun updateOrder(order: UnifiedTabOrder?) {
+        if (currentOrder == order) return
+        currentOrder = order
+        lastSignature = null
+        updateTabs(lastTabs, lastSelectedId)
+    }
+
     private fun groupBackground(color: Int): GradientDrawable =
         GradientDrawable().apply {
             cornerRadius = dp(13).toFloat()
@@ -300,6 +310,15 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
         val signature = buildList {
             add(selectedId.orEmpty())
             add(ThemeManager.isDarkMode(context).toString())
+            currentOrder?.primaryOrder?.forEach { item ->
+                when (item) {
+                    is UnifiedTabOrder.OrderItem.SingleTab -> add("t:" + item.tabId)
+                    is UnifiedTabOrder.OrderItem.TabGroup -> {
+                        add("g:" + item.groupId)
+                        add(item.tabIds.joinToString(","))
+                    }
+                }
+            }
             visibleGroups.forEach { g ->
                 add(g.id)
                 add(g.name)
@@ -323,13 +342,16 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
         selectedPill = null
 
         val byId = tabs.associateBy { it.id }
-        visibleGroups.forEach { group ->
-            val members = group.tabIds.mapNotNull { byId[it] }
-            row.addView(groupSegment(group, members, selectedId, dark))
-        }
+        val groupsById = visibleGroups.associateBy { it.id }
         val groupedIds = visibleGroups.flatMap { it.tabIds }.toSet()
-        val ungrouped = tabs.filterNot { it.id in groupedIds }
-        if (ungrouped.isNotEmpty() || visibleGroups.isEmpty()) {
+        val renderedGroups = mutableSetOf<String>()
+        val renderedTabs = mutableSetOf<String>()
+        val pendingUngrouped = mutableListOf<TabSessionState>()
+
+        fun addUngroupedSegment() {
+            if (pendingUngrouped.isEmpty()) return
+            val segmentTabs = pendingUngrouped.toList()
+            pendingUngrouped.clear()
             val neutral = LinearLayout(context).apply {
                 orientation = HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
@@ -346,23 +368,56 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
                 contentDescription = "Wybierz kartę"
                 setOnClickListener { openTabChooser(this) }
             })
-            neutral.addView(actionText("(${ungrouped.size})", 36, 13f, dark).apply {
-                contentDescription = "Karty bez grupy: ${ungrouped.size}"
+            neutral.addView(actionText("(${segmentTabs.size})", 36, 13f, dark).apply {
+                contentDescription = "Karty bez grupy: ${segmentTabs.size}"
                 setOnClickListener { openTabChooser(this) }
             })
-            ungrouped.forEach { tab -> tabChip(tab, selectedId, dark, neutral) }
-            neutral.addView(actionText("+", 34, 24f, dark).apply {
-                contentDescription = "Nowa karta"
-                setOnClickListener { onNewTab?.invoke() }
-            })
+            segmentTabs.forEach { tab -> tabChip(tab, selectedId, dark, neutral) }
             row.addView(neutral)
-        } else {
-            // An explicit '+' outside groups always opens an ungrouped tab.
-            row.addView(actionText("+", 32, 24f, dark).apply {
-                contentDescription = "Nowa karta poza grupami"
-                setOnClickListener { onNewTab?.invoke() }
-            })
         }
+
+        // Preserve exact interleaving of groups and individual tabs. The old
+        // implementation always rendered all Room groups before all ungrouped
+        // tabs, which differed from the persisted order in the side drawer.
+        currentOrder?.primaryOrder?.forEach { item ->
+            when (item) {
+                is UnifiedTabOrder.OrderItem.TabGroup -> {
+                    val group = groupsById[item.groupId]
+                    if (group != null && renderedGroups.add(group.id)) {
+                        addUngroupedSegment()
+                        val members = group.tabIds.mapNotNull { byId[it] }
+                        renderedTabs.addAll(members.map { it.id })
+                        row.addView(groupSegment(group, members, selectedId, dark))
+                    }
+                }
+                is UnifiedTabOrder.OrderItem.SingleTab -> {
+                    val tab = byId[item.tabId]
+                    if (tab != null && tab.id !in groupedIds && renderedTabs.add(tab.id)) {
+                        pendingUngrouped.add(tab)
+                    }
+                }
+            }
+        }
+        // Newly opened cards/groups are visible before the persisted order
+        // catches up, but never duplicate a previously rendered item.
+        visibleGroups.forEach { group ->
+            if (renderedGroups.add(group.id)) {
+                addUngroupedSegment()
+                val members = group.tabIds.mapNotNull { byId[it] }
+                renderedTabs.addAll(members.map { it.id })
+                row.addView(groupSegment(group, members, selectedId, dark))
+            }
+        }
+        tabs.forEach { tab ->
+            if (tab.id !in groupedIds && renderedTabs.add(tab.id)) {
+                pendingUngrouped.add(tab)
+            }
+        }
+        addUngroupedSegment()
+        row.addView(actionText("+", 32, 24f, dark).apply {
+            contentDescription = "Nowa karta poza grupami"
+            setOnClickListener { onNewTab?.invoke() }
+        })
 
         val focused = selectedPill
         scroller.post {
