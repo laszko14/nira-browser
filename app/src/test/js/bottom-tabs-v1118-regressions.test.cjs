@@ -35,7 +35,8 @@ test("v1118: tab updates change reactive state without tearing down the composit
   const update = compose.slice(start, end);
   assert.match(update, /lastPushedTabState = PushedTabState\(/);
   assert.doesNotMatch(update, /^\s*(?:composeView\.)?setContent\(/m);
-  assert.match(compose, /ViewTreeLifecycleOwner\.get\(composeView\)/);
+  assert.match(compose, /val lifecycleOwner = context as LifecycleOwner/);
+  assert.match(compose, /DisposeOnViewTreeLifecycleDestroyed/);
 });
 
 test("v1118: fallback tabs remain strictly scoped to current profile and privacy mode", () => {
