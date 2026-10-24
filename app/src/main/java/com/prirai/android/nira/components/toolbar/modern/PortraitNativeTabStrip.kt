@@ -43,9 +43,9 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
     init {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        val height = dp(40)
+        val height = dp(com.prirai.android.nira.preferences.UserPreferences(context).niraTabStripHeightDp.coerceIn(40, 80))
         minimumHeight = height
-        scroller.addView(row, HorizontalScrollView.LayoutParams(
+        scroller.addView(row, android.widget.FrameLayout.LayoutParams(
             LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT
         ))
         addView(scroller, LayoutParams(
