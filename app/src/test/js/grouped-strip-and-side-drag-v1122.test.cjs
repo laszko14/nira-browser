@@ -98,3 +98,19 @@ test("v1126: side panel supplements temporarily missing group headers from DB st
   assert.match(side, /group\.contextId == "private"/);
   assert.match(side, /groupMenuId = group\.id/);
 });
+
+test("v1126: ungrouped tabs have a named recovery section and real group creation", () => {
+  assert.match(side, /text = "\(\$\{ungroupedTabs\.size\}\) Bez grupy"/);
+  assert.match(side, /item\(key = "ungrouped_header"\)/);
+  assert.match(side, /showNameUngroupedDialog = true/);
+  assert.match(side, /viewModel\.createNamedGroupFromUngrouped\(ids, chosenName\)/);
+  assert.match(side, /groupMenuId = group\.id/);
+});
+test("v1126: creating groups persists profile context and verifies membership", () => {
+  const vm = read(base + "browser/tabs/compose/TabViewModel.kt");
+  assert.match(vm, /val resolvedContext = contextId \?: contextIdForProfile\(profileId\)/);
+  assert.match(vm, /suspend fun createNamedGroupFromUngrouped/);
+  assert.match(vm, /groupManager\.getAllGroups\(\)\.any/);
+  assert.match(vm, /contextId = contextId/);
+  assert.match(vm, /_expandedGroups\.value = _expandedGroups\.value \+ created\.id/);
+});
