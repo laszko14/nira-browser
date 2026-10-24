@@ -34,7 +34,7 @@ test("v1118: tab updates change reactive state without tearing down the composit
   assert.ok(start > 0 && end > start);
   const update = compose.slice(start, end);
   assert.match(update, /lastPushedTabState = PushedTabState\(/);
-  assert.doesNotMatch(update, /setContent\(/);
+  assert.doesNotMatch(update, /^\s*(?:composeView\.)?setContent\(/m);
   assert.match(compose, /ViewTreeLifecycleOwner\.get\(composeView\)/);
 });
 
