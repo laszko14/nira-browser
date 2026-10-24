@@ -274,8 +274,9 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
                             .niraTabStripHeightDp.coerceIn(40, 80).dp,
                         onTabSelected = { tabId -> onTabSelected?.invoke(tabId) },
                         onTabClosed = { tabId ->
+                            // TabViewModel already dispatches removeTab and supports Undo.
+                            // Do not dispatch removal a second time from the host.
                             viewModel.closeTab(tabId, showUndo = true)
-                            onTabClosed?.invoke(tabId)
                         },
                         onNewTabInGroup = {
                             scope.launch { orderManager.addNewTabToGroup(activeGroup.id) }
@@ -291,8 +292,9 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
                             onTabSelected?.invoke(tabId)
                         },
                         onTabClose = { tabId: String ->
+                            // TabViewModel already dispatches removeTab and supports Undo.
+                            // Do not dispatch removal a second time from the host.
                             viewModel.closeTab(tabId, showUndo = true)
-                            onTabClosed?.invoke(tabId)
                         },
                         modifier = Modifier.fillMaxWidth(),
                         autoScrollTrigger = autoScrollTrigger
