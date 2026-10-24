@@ -156,6 +156,16 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
             // Exactly one TabsUseCases dispatch; UndoMiddleware remains active.
             context.components.tabsUseCases.removeTab(id)
         }
+        portraitTabStrip.onNewTabInGroup = { groupId ->
+            coroutineScope.launch { tabOrderManager?.addNewTabToGroup(groupId) }
+        }
+        // Group membership is independent of BrowserStore's tab snapshots.
+        // Keep the native portrait strip updated when Room groups change.
+        coroutineScope.launch {
+            groupManager?.groupsState?.collect { groups ->
+                portraitTabStrip.updateGroups(groups)
+            }
+        }
         portraitTabStrip.onNewTab = {
             val manager = ProfileManager.getInstance(context)
             val isPrivate = manager.isPrivateMode()
