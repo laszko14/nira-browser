@@ -30,6 +30,9 @@ import com.prirai.android.nira.media.MediaUiSnapshot
 import com.prirai.android.nira.media.MediaTabState
 import com.prirai.android.nira.media.MediaSessionBinding
 import com.prirai.android.nira.media.MpvPlaybackHeaders
+import com.prirai.android.nira.media.ZavroMpvActivity
+import com.prirai.android.nira.media.MediaSource
+import com.prirai.android.nira.media.MediaPlaybackStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.combine
@@ -909,6 +912,30 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         if (inFullScreen) {
             // Entering fullscreen - completely hide and collapse all toolbars
             expandBrowserViewForFullscreen()
+            if (BuildConfig.APPLICATION_ID.endsWith(".mpv")) {
+                // Only use a directly playable, current HTTP(S) stream. Some websites
+                // use DRM/blob URLs or fullscreen non-video content: keep Gecko there.
+                val snapshot = currentMediaSnapshot()
+                val best = snapshot?.entries
+                    ?.filter { it.playbackStatus !in setOf(
+                        MediaPlaybackStatus.EXPIRED, MediaPlaybackStatus.AUTH_ERROR,
+                        MediaPlaybackStatus.UNPLAYABLE
+                    ) && it.url.toUri().let { u ->
+                        u.scheme in listOf("http", "https") && !u.host.isNullOrBlank()
+                    } }
+                    ?.sortedWith(compareByDescending<com.prirai.android.nira.media.MediaEntry> {
+                        MediaSource.NETWORK in it.sources
+                    }.thenByDescending { MediaSource.DOM in it.sources })
+                    ?.firstOrNull()
+                if (best != null) {
+                    // Restore Gecko's UI state first; the native Activity owns fullscreen.
+                    binding.browserLayout.post {
+                        if (!isAdded) return@post
+                        super.onBackPressed()
+                        launchVideoInMpv(best.url.toUri(), best.frameUrl ?: snapshot?.tab?.pageUrl)
+                    }
+                }
+            }
         } else {
             // Exiting fullscreen - restore toolbars
             collapseBrowserViewFromFullscreen()
@@ -1354,6 +1381,25 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     }
 
     private fun launchVideoInMpv(uri: android.net.Uri, referrer: String? = null) {
+        if (BuildConfig.APPLICATION_ID.endsWith(".mpv")) {
+            val safe = uri.scheme in listOf("https", "http") && !uri.host.isNullOrBlank() &&
+                uri.userInfo == null
+            if (!safe) {
+                Toast.makeText(requireContext(), R.string.video_link_invalid, Toast.LENGTH_SHORT).show()
+                return
+            }
+            val page = referrer?.let { runCatching { android.net.Uri.parse(it) }.getOrNull() }
+            val safeReferrer = page?.takeIf {
+                it.scheme in listOf("https", "http") && !it.host.isNullOrBlank() &&
+                    it.userInfo == null
+            }?.buildUpon()?.clearQuery()?.fragment(null)?.build()?.toString()
+            startActivity(Intent(requireContext(), ZavroMpvActivity::class.java).apply {
+                data = uri
+                putExtra(ZavroMpvActivity.EXTRA_REFERER, safeReferrer)
+                putExtra(ZavroMpvActivity.EXTRA_USER_AGENT, GeckoSession.getDefaultUserAgent())
+            })
+            return
+        }
         val viewIntent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "video/*")
             // MPV Alpha already accepts a validated legacy `headers` array.
