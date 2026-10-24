@@ -41,11 +41,13 @@ test("v1122: side panel has a dedicated drag handle and preview that follows the
   assert.match(side, /hoveredKey == "group_" \+ targetId/);
 });
 
-test("v1122: drop saves changes via viewmodel reorder and group moves", () => {
-  assert.match(side, /viewModel\.moveTabToGroup\(fromId, groupId\)/);
-  assert.match(side, /viewModel\.reorderTabInGroup\(fromId, targetId, targetGroup\.id, after\)/);
-  assert.match(side, /viewModel\.moveTabToGroup\(fromId, targetGroup\.id, targetId, after\)/);
-  assert.match(side, /viewModel\.moveTabToPosition\(fromId, index\)/);
+test("v1124: side drawer delegates all drop types to a persisted transaction", () => {
+  assert.match(side, /viewModel\.commitSidePanelDrop\(fromId, target, after\)/);
+  const model = read(base + "browser/tabs/compose/TabViewModel.kt");
+  assert.match(model, /targetKey\.startsWith\("group_tab_"\)/);
+  assert.match(model, /targetKey\.startsWith\("group_"\)/);
+  assert.match(model, /targetKey\.startsWith\("single_tab_"\)/);
+  assert.match(model, /groupManager\.addTabToGroup\(/);
 });
 
 test("v1122: metadata and stable signing", () => {
