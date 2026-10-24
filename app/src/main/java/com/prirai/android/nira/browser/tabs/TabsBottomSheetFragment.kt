@@ -957,7 +957,35 @@ class TabsBottomSheetFragment : DialogFragment() {
      */
     @Composable
     private fun CompactSideTabs(viewModel: TabViewModel, tabs: List<TabSessionState>) {
-        val groups by viewModel.groups.collectAsState()
+        val cachedGroups by viewModel.groups.collectAsState()
+        val publishedGroups by unifiedGroupManager.groupsState.collectAsState()
+        val activeProfileId by viewModel.currentProfileId.collectAsState()
+        // The ViewModel can briefly lag while a BrowserStore refresh cancels an
+        // older loadJob. Use the group's published DB state for the side panel
+        // so a second real group never disappears into "ungrouped" rows.
+        val visibleTabIds = tabs.map { it.id }.toSet()
+        val liveGroups = publishedGroups.filter { group ->
+            val correctProfile = when (activeProfileId) {
+                "default" -> group.contextId == null || group.contextId == "profile_default"
+                "private" -> group.contextId == "private"
+                null -> false
+                else -> group.contextId == "profile_${activeProfileId}"
+            }
+            correctProfile && group.tabIds.any { it in visibleTabIds }
+        }
+        // During a handoff either flow may briefly be one notification behind.
+        // Union by canonical group ID, favoring the most recent Room snapshot.
+        val liveGroupIds = liveGroups.map { it.id }.toSet()
+        val groups = liveGroups + cachedGroups.filter { group ->
+            group.id !in liveGroupIds &&
+                group.tabIds.any { it in visibleTabIds } &&
+                when (activeProfileId) {
+                    "default" -> group.contextId == null || group.contextId == "profile_default"
+                    "private" -> group.contextId == "private"
+                    null -> false
+                    else -> group.contextId == "profile_${activeProfileId}"
+                }
+        }
         val expanded by viewModel.expandedGroups.collectAsState()
         val selectedTabId by viewModel.selectedTabId.collectAsState()
         val savedOrder by viewModel.currentOrder.collectAsState()
