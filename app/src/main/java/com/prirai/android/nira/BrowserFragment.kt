@@ -932,7 +932,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                     binding.browserLayout.post {
                         if (!isAdded) return@post
                         super.onBackPressed()
-                        launchVideoInMpv(best.url.toUri(), best.frameUrl ?: snapshot.tab.pageUrl)
+                        launchVideoInMpv(best.url.toUri(), best.frameUrl ?: snapshot?.tab?.pageUrl)
                     }
                 }
             }
