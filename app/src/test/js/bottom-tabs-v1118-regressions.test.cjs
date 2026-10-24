@@ -50,7 +50,7 @@ test("v1119: APK metadata matches the next update and preserved app identity", (
   const gradle = source("app/build.gradle");
   const workflow = source(".github/workflows/apk-release.yml");
   assert.match(gradle, /versionCode = 125/);
-  assert.match(gradle, /versionName = "0\.5\.22-alpha30"/);
+  assert.match(gradle, /versionName = "0\.5\.22-alpha31"/);
   assert.match(gradle, /resValue "string", "app_name", "Zavro"/);
   assert.match(workflow, /EXPECTED_VERSION_CODE: "1125"/);
   assert.match(workflow, /name: zavro-arm64-update-apk-v1125/);
