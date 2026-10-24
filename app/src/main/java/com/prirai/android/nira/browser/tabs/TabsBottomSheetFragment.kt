@@ -1159,6 +1159,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                 }
             }
         }
+        }
         // The original row stays in place while dragged. An overlay follows
         // the finger so the user can see that long-press actually took hold.
         // Pointer events remain owned by the originating row, not this preview.
