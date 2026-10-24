@@ -200,7 +200,7 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
                 if (request.groupId != null) {
                     val groupManager =
                         com.prirai.android.nira.browser.tabgroups.UnifiedTabGroupManager.getInstance(context)
-                    groupManager.addTabToGroup(request.groupId, newTabId)
+                    groupManager.addTabToGroup(tabId = newTabId, groupId = request.groupId)
                 }
 
                 components.tabsUseCases.selectTab(newTabId)

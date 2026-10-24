@@ -163,7 +163,7 @@ class ProfileExportManager private constructor(private val context: Context) {
 
         val manifest = JSONObject(manifestJson)
         val version = manifest.optInt("version", 0)
-        if (version < 1) throw IllegalArgumentException("Not a valid Nira profile export")
+        if (version !in 1..EXPORT_VERSION) throw IllegalArgumentException("Unsupported profile export version")
 
         val profileObj = JSONObject(profileJson)
         val profileName = profileObj.optString("name", "Imported Profile")
@@ -205,10 +205,30 @@ class ProfileExportManager private constructor(private val context: Context) {
             ?: throw IllegalArgumentException("Cannot open file")
 
         val entries = mutableMapOf<String, String>()
+        val allowed = setOf("manifest.json", "profile.json", "tabgroups.json", "tabs.json")
+        val maxEntryBytes = 2 * 1024 * 1024
+        val maxTotalBytes = 4 * 1024 * 1024
+        var totalBytes = 0
         ZipInputStream(inputStream.buffered()).use { zis ->
             var entry = zis.nextEntry
             while (entry != null) {
-                entries[entry.name] = zis.readBytes().toString(Charsets.UTF_8)
+                require(entry.name in allowed && !entry.isDirectory && entry.name !in entries) {
+                    "Unsupported or duplicate ZIP entry"
+                }
+                val output = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                var entryBytes = 0
+                while (true) {
+                    val count = zis.read(buffer)
+                    if (count < 0) break
+                    entryBytes += count
+                    totalBytes += count
+                    require(entryBytes <= maxEntryBytes && totalBytes <= maxTotalBytes) {
+                        "Profile archive exceeds size limit"
+                    }
+                    output.write(buffer, 0, count)
+                }
+                entries[entry.name] = output.toString(Charsets.UTF_8.name())
                 zis.closeEntry()
                 entry = zis.nextEntry
             }

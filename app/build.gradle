@@ -26,8 +26,8 @@ android {
         minSdkVersion 27
         targetSdkVersion 37
         // Increment by 4 with each update, by 1 with each fix
-        versionCode = 116
-        versionName = "0.5.22-alpha22"
+        versionCode = 117
+        versionName = "0.5.22-alpha23"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -63,7 +63,7 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
-            resValue "string", "app_name", "ZAVRO"
+            resValue "string", "app_name", "Zavro"
             applicationIdSuffix = '.debug'
             if (signingConfigs.findByName("updateDebug") != null) {
                 signingConfig = signingConfigs.getByName("updateDebug")

@@ -162,7 +162,7 @@ class ParallelDownloadService : Service() {
                 // Log the full cause so the user / developer can see
                 // WHY a download failed at the end. The previous blanket
                 // `catch (_: Exception)` discarded this.
-                Log.e(TAG, "Download ${download.id} (${download.fileName ?: download.url}) failed", t)
+                Log.e(TAG, "Download ${download.id} failed: ${t.javaClass.simpleName}")
                 update(download.id) { it.copy(status = DownloadState.Status.FAILED) }
             } finally {
                 jobs.remove(download.id)
@@ -386,7 +386,7 @@ class ParallelDownloadService : Service() {
                 currentBytesCopied = total,
             )
         }
-        Log.i(TAG, "Download ${download.id} (${download.fileName ?: download.url}) completed, $total bytes")
+        Log.i(TAG, "Download ${download.id} completed, $total bytes")
     }
 
     private fun probeTotal(download: DownloadState): Long? {
@@ -404,7 +404,7 @@ class ParallelDownloadService : Service() {
                 parseTotal(response.headers["Content-Range"])
             }
         } catch (t: Throwable) {
-            Log.w(TAG, "Range probe failed for ${download.url}", t)
+            Log.w(TAG, "Range probe failed for download ${download.id}: ${t.javaClass.simpleName}")
             null
         }
     }

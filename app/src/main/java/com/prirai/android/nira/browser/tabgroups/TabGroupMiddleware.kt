@@ -58,6 +58,10 @@ class TabGroupMiddleware(
             is TabListAction.SelectTabAction -> {
                 handleTabSelection(store.state, action)
             }
+            is TabListAction.RemoveTabAction -> {
+                pendingGrouping.remove(action.tabId)
+                pendingGrouping.entries.removeAll { it.value == action.tabId }
+            }
             else -> {
                 // No action needed for other types
             }
@@ -96,6 +100,7 @@ class TabGroupMiddleware(
         val parentId = newTab.parentId ?: return
         val url = newTab.content.url
         if (url.isBlank() || url == "about:blank") {
+            if (pendingGrouping.size >= 256) pendingGrouping.remove(pendingGrouping.keys.first())
             pendingGrouping[newTab.id] = parentId
             return
         }

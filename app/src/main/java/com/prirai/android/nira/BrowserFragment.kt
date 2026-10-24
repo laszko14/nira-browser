@@ -440,12 +440,13 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 flow.mapNotNull { state -> 
                     if (!isAdded) return@mapNotNull null
                     state.tabs.map { it.id }.toSet() 
-                }.distinctUntilChangedBy { it.hashCode() }
+                }.distinctUntilChanged()
                 .collect { currentTabIds: Set<String> ->
                     val removedTabIds = lastTabIds - currentTabIds
                     removedTabIds.forEach { tabId: String ->
                         lruManager.onTabClosed(tabId)
                     }
+                    lastTabIds = currentTabIds
                 }
             }
         }
@@ -709,7 +710,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                             false
                         } else {
                             // Include tabs with matching contextId OR guest tabs (null contextId)
-                            (tab.contextId == currentProfileContextId) || (tab.contextId == null)
+                            (tab.contextId == currentProfileContextId) ||
+                                (!isPrivateMode && currentProfile.id == "default" && tab.contextId == null)
                         }
                     }
 
@@ -774,7 +776,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 false
             } else {
                 // Include tabs with matching contextId OR guest tabs (null contextId)
-                (tab.contextId == currentProfileContextId) || (tab.contextId == null)
+                (tab.contextId == currentProfileContextId) ||
+                                (!isPrivateMode && currentProfile.id == "default" && tab.contextId == null)
             }
         }
 
