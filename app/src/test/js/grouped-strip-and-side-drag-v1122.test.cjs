@@ -79,3 +79,22 @@ test("v1125: floating media button and expanded list match the selected referenc
   assert.match(ui, /behavior\.state = BottomSheetBehavior\.STATE_EXPANDED/);
   assert.match(ui, /height = body\.measuredHeight\.coerceIn\(dp\(130\), maxHeight\)/);
 });
+
+test("v1125: address-bar previous/next follows persisted group and tab order", () => {
+  const toolbar = read(base + "components/toolbar/unified/UnifiedToolbar.kt");
+  assert.match(toolbar, /action\(android\.R\.drawable\.ic_media_next, "Następna karta"\) \{ cycleTab\(1\) \}/);
+  assert.match(toolbar, /action\(android\.R\.drawable\.ic_media_previous, "Poprzednia karta"\) \{ cycleTab\(-1\) \}/);
+  assert.match(toolbar, /order\.getAllTabIds\(\)/);
+  assert.match(toolbar, /orderManager\.rebuildOrderForProfile\(profileId, tabs\)/);
+  assert.match(toolbar, /if \(!manager\.awaitInitialized\(\)\)/);
+  assert.match(toolbar, /tabCycleMutex\.withLock/);
+  assert.match(toolbar, /ids\[next\]/);
+  assert.doesNotMatch(toolbar, /selectTab\(tabs\[\(index \+ direction/);
+});
+test("v1125: side panel supplements temporarily missing group headers from DB state", () => {
+  assert.match(side, /unifiedGroupManager\.groupsState\.collectAsState\(\)/);
+  assert.match(side, /val groups = liveGroups \+ cachedGroups\.filter/);
+  assert.match(side, /group\.tabIds\.any \{ it in visibleTabIds \}/);
+  assert.match(side, /group\.contextId == "private"/);
+  assert.match(side, /groupMenuId = group\.id/);
+});
