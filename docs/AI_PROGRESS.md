@@ -1,3 +1,12 @@
+## 2026-10-24 — ZAVRO v1115, PR #28 — podpisany ARM64 APK
+
+- Naprawiono animację top-toolbar, która ukrywała dolny pasek Compose; odseparowano pomiary viewportu i przeliczanie po rozmiarze dolnego paska.
+- Osadzono nową ikonę ZAVRO użytkownika i dopasowano adaptive launcher foreground.
+- VersionCode 1115 / 0.5.22-alpha21, podpis i pakiet zachowane.
+- CI run 40073101224: build/test/lint SUCCESS; walidacja signer/ABI/package/version SUCCESS; APK artefakt 12551941931.
+- SHA256 APK: 5e2f5bd95bd2baae2eed23320350aab017ed6805a6af8c8a3be06784a41e9981.
+- Test na fizycznym Nothing Phone (1) i sprawdzenie paska po scrollu/obrocie pozostają do wykonania.
+
 ## 2026-10-23 — v1109 podpisany ARM64 APK, PR #22
 
 - Weryfikacja bazy v1108 `9a44af0af5415c22c686ba348bfcfa97e5bf59f0`. Wdrożono stabilne logical stream identity HLS/DASH z bounded signed revisions i provenance observed/derived.
