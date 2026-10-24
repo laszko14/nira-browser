@@ -189,7 +189,7 @@ class UnifiedToolbar @JvmOverloads constructor(
     override fun expand() {
         toolbarSystem.expand()
         // Also show bottom components if in TOP mode
-        if (shouldHideBottomComponents) {
+        if (shouldHideBottomComponents && !prefs.niraGroupBarBottom) {
             bottomComponentsContainer?.let { container ->
                 container.visibility = VISIBLE
                 container.animate()
@@ -208,7 +208,7 @@ class UnifiedToolbar @JvmOverloads constructor(
     override fun collapse() {
         toolbarSystem.collapse()
         // Also hide bottom components if in TOP mode
-        if (shouldHideBottomComponents) {
+        if (shouldHideBottomComponents && !prefs.niraGroupBarBottom) {
             bottomComponentsContainer?.let { container ->
                 // Set GONE immediately to prevent space reservation
                 container.visibility = GONE
@@ -273,7 +273,8 @@ class UnifiedToolbar @JvmOverloads constructor(
             ModernToolbarSystem.ToolbarPosition.TOP -> {
                 // One address row, tab strip immediately below; no footer.
                 addAddressBar(parent, lifecycleOwner, interactor, customTabSession, store)
-                addTabGroupBar(store, lifecycleOwner)
+                if (prefs.niraGroupBarBottom) createTabGroupBar(store, lifecycleOwner)
+                else addTabGroupBar(store, lifecycleOwner)
                 addBrowserActionsToAddressBar()
             }
             ModernToolbarSystem.ToolbarPosition.BOTTOM -> {
@@ -899,37 +900,18 @@ class UnifiedToolbar @JvmOverloads constructor(
      * Returns null if toolbar is not in TOP mode.
      */
     fun getBottomComponentsContainer(): ViewGroup? {
-        val toolbarPos = if (prefs.toolbarPosition == ToolbarPosition.BOTTOM.ordinal) {
-            ToolbarPosition.BOTTOM
-        } else {
-            ToolbarPosition.TOP
-        }
-        
-        if (toolbarPos != ToolbarPosition.TOP) {
-            return null
-        }
-        
-        // Create container lazily
+        if (prefs.toolbarPosition != ToolbarPosition.TOP.ordinal ||
+            !prefs.niraGroupBarBottom || !showTabGroupBar) return null
         if (bottomComponentsContainer == null) {
             val container = android.widget.LinearLayout(context).apply {
                 orientation = android.widget.LinearLayout.VERTICAL
-                layoutParams = LayoutParams(
-                    LayoutParams.MATCH_PARENT,
-                    LayoutParams.WRAP_CONTENT
-                ).apply {
-                    gravity = android.view.Gravity.BOTTOM
-                }
+                setBackgroundColor(if (com.prirai.android.nira.theme.ThemeManager.isDarkMode(context))
+                    android.graphics.Color.rgb(28, 27, 31) else
+                    android.graphics.Color.rgb(255, 251, 254))
             }
-            
-            // Add tab bar if it exists
             tabGroupBar?.let { container.addView(it) }
-
-            // Add contextual toolbar if it exists
-            contextualToolbar?.let { container.addView(it) }
-            
             bottomComponentsContainer = container
         }
-        
         return bottomComponentsContainer
     }
 
@@ -1088,7 +1070,9 @@ class UnifiedToolbar @JvmOverloads constructor(
             }
 
             addListener(object : android.animation.AnimatorListenerAdapter() {
+                private var cancelled = false
                 override fun onAnimationEnd(animation: android.animation.Animator) {
+                    if (cancelled) return
                     // Snap to final state in a single layout pass. All
                     // of these are idempotent with what the final
                     // animator frame already applied, so no visible jump.
@@ -1111,10 +1095,7 @@ class UnifiedToolbar @JvmOverloads constructor(
                 }
 
                 override fun onAnimationCancel(animation: android.animation.Animator) {
-                    // If we were cancelled mid-flight the new animator's
-                    // `onAnimationEnd` will clear the suppress flag; do
-                    // not clear it here, otherwise rapid toggles could
-                    // leak reconciles between the two animations.
+                    cancelled = true
                 }
             })
 
@@ -1310,14 +1291,23 @@ class UnifiedToolbar @JvmOverloads constructor(
                 ))
             }
 
-            // Setup toolbar
-            return toolbar.setup(
-                parent,
-                lifecycleOwner,
-                interactor,
-                customTabSession,
-                store
+            val configured = toolbar.setup(
+                parent, lifecycleOwner, interactor, customTabSession, store
             )
+            configured.getBottomComponentsContainer()?.let { bottom ->
+                if (parent is CoordinatorLayout) {
+                    parent.addView(bottom, CoordinatorLayout.LayoutParams(
+                        CoordinatorLayout.LayoutParams.MATCH_PARENT,
+                        CoordinatorLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { gravity = android.view.Gravity.BOTTOM })
+                } else {
+                    parent.addView(bottom, ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    ))
+                }
+            }
+            return configured
         }
     }
 }
