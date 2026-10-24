@@ -22,7 +22,7 @@ test("v1119: native portrait tabs remain populated from filtered store state", (
   assert.match(host, /portraitTabStrip\.updateTabs\(tabs, selectedId\)/);
   assert.match(native, /fun updateTabs\(tabs: List<TabSessionState>, selectedId: String\?\)/);
   assert.match(native, /row\.addView\(tabContainer\)/);
-  assert.match(native, /row\.addView\(label\("\+"/);
+  assert.match(native, /row\.addView\(actionText\("\+"/);
   assert.match(native, /niraTabStripHeightDp\.coerceIn\(40, 80\)/);
   assert.match(native, /contentDescription = "Karta: \$title"/);
 });
@@ -39,10 +39,10 @@ test("v1119: native row supports selecting, closing, and correct-context new tab
 
 test("v1119: update-safe signed ARM64 artifact has current metadata", () => {
   const gradle = source("app/build.gradle");
-  assert.match(gradle, /versionCode = 120/);
-  assert.match(gradle, /versionName = "0\.5\.22-alpha26"/);
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1120"/);
-  assert.match(workflow, /EXPECTED_VERSION_NAME: 0\.5\.22-alpha26/);
-  assert.match(workflow, /zavro-arm64-update-apk-v1120/);
+  assert.match(gradle, /versionCode = 121/);
+  assert.match(gradle, /versionName = "0\.5\.22-alpha27"/);
+  assert.match(workflow, /EXPECTED_VERSION_CODE: "1121"/);
+  assert.match(workflow, /EXPECTED_VERSION_NAME: 0\.5\.22-alpha27/);
+  assert.match(workflow, /zavro-arm64-update-apk-v1121/);
   assert.match(workflow, /EXPECTED_CERT_SHA256/);
 });
