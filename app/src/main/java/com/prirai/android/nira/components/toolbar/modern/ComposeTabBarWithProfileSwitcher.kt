@@ -166,6 +166,13 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
                 portraitTabStrip.updateGroups(groups)
             }
         }
+        // The portrait View cannot collect Compose state. Subscribe directly to
+        // the same TabOrderManager StateFlow as TabSheetListCompose/TabBarCompose.
+        coroutineScope.launch {
+            tabOrderManager?.currentOrder?.collect { order ->
+                portraitTabStrip.updateOrder(order)
+            }
+        }
         portraitTabStrip.onNewTab = {
             val manager = ProfileManager.getInstance(context)
             val isPrivate = manager.isPrivateMode()
