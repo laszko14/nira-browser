@@ -88,7 +88,7 @@ jobs:
       - name: Upload only arm64 debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: zavro-arm64-update-apk-v1116
+          name: zavro-arm64-update-apk-v1117
           path: app/build/outputs/apk/debug/*arm64-v8a*.apk
           if-no-files-found: error
           retention-days: 30
