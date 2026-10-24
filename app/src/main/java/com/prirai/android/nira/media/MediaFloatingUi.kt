@@ -268,13 +268,34 @@ internal class MediaFloatingUi(
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             }
-            iconColumn.addView(TextView(context).apply {
-                text = "◉"
-                textSize = 30f
-                gravity = Gravity.CENTER
-                setTextColor(Color.WHITE)
-                contentDescription = "Ikona filmu"
-            }, LinearLayout.LayoutParams(dp(62), dp(42)))
+            // Draw a simple 1DM-style film reel icon locally. No poster loading.
+            iconColumn.addView(object : View(context) {
+                private val ink = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.WHITE
+                }
+                override fun onDraw(canvas: android.graphics.Canvas) {
+                    super.onDraw(canvas)
+                    val cx = width / 2f
+                    val cy = height / 2f - dp(2)
+                    val radius = dp(15).toFloat()
+                    ink.style = android.graphics.Paint.Style.STROKE
+                    ink.strokeWidth = dp(3).toFloat()
+                    canvas.drawCircle(cx, cy, radius, ink)
+                    ink.style = android.graphics.Paint.Style.FILL
+                    for (a in 0..3) {
+                        val angle = Math.PI * a / 2.0
+                        val dx = kotlin.math.cos(angle).toFloat() * dp(8)
+                        val dy = kotlin.math.sin(angle).toFloat() * dp(8)
+                        canvas.drawCircle(cx + dx, cy + dy, dp(3).toFloat(), ink)
+                    }
+                    canvas.drawCircle(cx, cy, dp(3).toFloat(), ink)
+                    canvas.drawRoundRect(
+                        android.graphics.RectF(cx + dp(9), cy + dp(11), cx + dp(20), cy + dp(17)),
+                        dp(2).toFloat(), dp(2).toFloat(), ink
+                    )
+                }
+            }.apply { contentDescription = "Ikona filmu" },
+                LinearLayout.LayoutParams(dp(62), dp(42)))
             iconColumn.addView(label(sizeLabel(entry), 11f).apply {
                 gravity = Gravity.CENTER
                 maxLines = 1
