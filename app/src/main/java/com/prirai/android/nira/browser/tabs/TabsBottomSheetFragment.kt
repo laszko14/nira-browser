@@ -957,7 +957,23 @@ class TabsBottomSheetFragment : DialogFragment() {
      */
     @Composable
     private fun CompactSideTabs(viewModel: TabViewModel, tabs: List<TabSessionState>) {
-        val groups by viewModel.groups.collectAsState()
+        val cachedGroups by viewModel.groups.collectAsState()
+        val publishedGroups by unifiedGroupManager.groupsState.collectAsState()
+        val activeProfileId by viewModel.currentProfileId.collectAsState()
+        // The ViewModel can briefly lag while a BrowserStore refresh cancels an
+        // older loadJob. Use the group's published DB state for the side panel
+        // so a second real group never disappears into "ungrouped" rows.
+        val visibleTabIds = tabs.map { it.id }.toSet()
+        val liveGroups = publishedGroups.filter { group ->
+            val correctProfile = when (activeProfileId) {
+                "default" -> group.contextId == null || group.contextId == "profile_default"
+                "private" -> group.contextId == "private"
+                null -> false
+                else -> group.contextId == "profile_${activeProfileId}"
+            }
+            correctProfile && group.tabIds.any { it in visibleTabIds }
+        }
+        val groups = if (liveGroups.isNotEmpty()) liveGroups else cachedGroups
         val expanded by viewModel.expandedGroups.collectAsState()
         val selectedTabId by viewModel.selectedTabId.collectAsState()
         val savedOrder by viewModel.currentOrder.collectAsState()
