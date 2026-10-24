@@ -491,12 +491,21 @@ class TabViewModel(
      * Save current tab order to persistent storage
      */
     private suspend fun saveCurrentOrder(profileId: String) {
+        // Always reconcile against committed Room membership and item positions.
+        // The group event and Compose snapshots can lag a drag-and-drop update,
+        // and writing their stale tabIds used to undo the just-completed move.
+        val visibleIds = _tabs.value.map { it.id }.toSet()
+        val freshGroups = groupManager.getAllGroups().filter { group ->
+            groupMatchesProfile(group, profileId) && group.tabIds.any { it in visibleIds }
+        }
+        _groups.value = freshGroups
+
         // Get current order or create a new one
         val currentOrder = orderManager.currentOrder.value
 
         if (currentOrder != null && currentOrder.profileId == profileId) {
             // Update existing order: sync group data and add new tabs
-            val groupsById = _groups.value.associateBy { it.id }
+            val groupsById = freshGroups.associateBy { it.id }
             val existingTabIds = mutableSetOf<String>()
 
             // Update existing items
@@ -522,7 +531,7 @@ class TabViewModel(
                     is UnifiedTabOrder.OrderItem.SingleTab -> {
                         // Keep single tab if it still exists and isn't in a group
                         val tabExists = _tabs.value.any { it.id == item.tabId }
-                        val inGroup = _groups.value.any { group -> group.tabIds.contains(item.tabId) }
+                        val inGroup = freshGroups.any { group -> group.tabIds.contains(item.tabId) }
                         if (tabExists && !inGroup) {
                             existingTabIds.add(item.tabId)
                             item
@@ -534,7 +543,7 @@ class TabViewModel(
             }.toMutableList()
 
             // Add new groups that aren't in the order yet
-            _groups.value.forEach { group ->
+            freshGroups.forEach { group ->
                 val exists = updatedItems.any {
                     it is UnifiedTabOrder.OrderItem.TabGroup && it.groupId == group.id
                 }
@@ -554,7 +563,7 @@ class TabViewModel(
 
             // Add new ungrouped tabs at the end
             _tabs.value.forEach { tab ->
-                val inGroup = _groups.value.any { group -> group.tabIds.contains(tab.id) }
+                val inGroup = freshGroups.any { group -> group.tabIds.contains(tab.id) }
                 if (!existingTabIds.contains(tab.id) && !inGroup) {
                     updatedItems.add(UnifiedTabOrder.OrderItem.SingleTab(tab.id))
                 }
@@ -572,7 +581,7 @@ class TabViewModel(
             val processedTabs = mutableSetOf<String>()
 
             // Add groups
-            _groups.value.forEach { group ->
+            freshGroups.forEach { group ->
                 items.add(
                     UnifiedTabOrder.OrderItem.TabGroup(
                         groupId = group.id,
