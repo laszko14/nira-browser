@@ -18,6 +18,10 @@ import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.runtime.rememberUpdatedState
@@ -963,6 +967,19 @@ class TabsBottomSheetFragment : DialogFragment() {
         var dragY by remember { mutableStateOf(0f) }
         var listTopY by remember { mutableStateOf(0f) }
         var hoveredKey by remember { mutableStateOf<String?>(null) }
+        val draggedTab = tabs.firstOrNull { it.id == dragTabId }
+        // Hovering a collapsed header while holding a tab opens the target group
+        // without requiring the user to release the pointer first.
+        LaunchedEffect(dragTabId, hoveredKey) {
+            val targetId = hoveredKey?.takeIf { it.startsWith("group_") }
+                ?.removePrefix("group_")
+            if (dragTabId != null && targetId != null && targetId !in expanded) {
+                kotlinx.coroutines.delay(450)
+                if (dragTabId != null && hoveredKey == "group_" + targetId) {
+                    viewModel.toggleGroupExpanded(targetId)
+                }
+            }
+        }
         val groupedIds = groups.flatMap { it.tabIds }.toSet()
         val density = resources.displayMetrics.density
 
@@ -1023,8 +1040,10 @@ class TabsBottomSheetFragment : DialogFragment() {
             }
         }
 
+        Box(Modifier.fillMaxSize()) {
         LazyColumn(
             state = listState,
+            userScrollEnabled = dragTabId == null,
             modifier = Modifier.fillMaxSize()
                 .onGloballyPositioned { listTopY = it.positionInRoot().y },
             contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)
@@ -1105,6 +1124,36 @@ class TabsBottomSheetFragment : DialogFragment() {
                 )
             }
         }
+        // The original row stays in place while dragged. An overlay follows
+        // the finger so the user can see that long-press actually took hold.
+        // Pointer events remain owned by the originating row, not this preview.
+        if (draggedTab != null) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .offset {
+                        IntOffset(0, (dragY - 23f * density).roundToInt())
+                    }
+                    .padding(horizontal = 8.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                shadowElevation = 10.dp
+            ) {
+                Row(
+                    Modifier.height(46.dp).padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.DragHandle, contentDescription = null)
+                    Text(
+                        draggedTab.content.title.ifBlank { "Nowa karta" },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(start = 10.dp)
+                    )
+                }
+            }
+        }
+        }
         groupMenuId?.let { id ->
             com.prirai.android.nira.browser.tabs.compose.GroupContextMenu(
                 groupId = id,
@@ -1132,6 +1181,7 @@ class TabsBottomSheetFragment : DialogFragment() {
         onDragCancel: () -> Unit
     ) {
         var originY by remember { mutableStateOf(0f) }
+        val haptic = LocalHapticFeedback.current
         val currentStart by rememberUpdatedState(onDragStart)
         val currentMove by rememberUpdatedState(onDragMove)
         val currentFinish by rememberUpdatedState(onDragFinish)
@@ -1146,9 +1196,15 @@ class TabsBottomSheetFragment : DialogFragment() {
             Row(
                 modifier = Modifier.fillMaxWidth().height(46.dp)
                     .onGloballyPositioned { originY = it.positionInRoot().y }
+                    .clickable(onClick = onClick)
+                    // Attach the long-press recognizer on the inside of click:
+                    // normal taps still select; holding the row starts a drag.
                     .pointerInput(tab.id) {
                         detectDragGesturesAfterLongPress(
-                            onDragStart = { offset -> currentStart(originY + offset.y) },
+                            onDragStart = { offset ->
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                currentStart(originY + offset.y)
+                            },
                             onDrag = { change, amount ->
                                 change.consume()
                                 currentMove(amount.y)
@@ -1157,7 +1213,6 @@ class TabsBottomSheetFragment : DialogFragment() {
                             onDragCancel = { currentCancel() }
                         )
                     }
-                    .clickable(onClick = onClick)
                     .padding(start = if (indent) 12.dp else 3.dp, end = 1.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1166,6 +1221,28 @@ class TabsBottomSheetFragment : DialogFragment() {
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.width(23.dp)
+                )
+                // A dedicated handle also works when children (including
+                // menu/close buttons) consume their own touch sequences.
+                Icon(
+                    Icons.Default.DragHandle,
+                    contentDescription = "Przytrzymaj i przeciągnij kartę",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(30.dp)
+                        .pointerInput(tab.id) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { offset ->
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                currentStart(originY + offset.y)
+                            },
+                            onDrag = { change, amount ->
+                                change.consume()
+                                currentMove(amount.y)
+                            },
+                            onDragEnd = { currentFinish() },
+                            onDragCancel = { currentCancel() }
+                        )
+                        }
                 )
                 com.prirai.android.nira.browser.tabs.compose.FaviconImage(tab = tab, size = 21.dp)
                 Text(
