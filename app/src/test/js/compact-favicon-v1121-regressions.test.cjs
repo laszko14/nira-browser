@@ -16,12 +16,12 @@ test("v1121: portrait remains Android Views while landscape remains Compose", ()
 
 test("v1121: compact row contains count, favicon and add; not full-width title/close pills", () => {
   assert.match(native, /actionText\("⌃"/);
-  assert.match(native, /actionText\("\(\$\{tabs\.size\}\)"/);
-  assert.match(native, /row\.addView\(tabContainer\)/);
-  assert.match(native, /row\.addView\(actionText\("\+"/);
+  assert.match(native, /actionText\("\(\$\{ungrouped\.size\}\)"/);
+  assert.match(native, /parent\.addView\(tabContainer\)/);
+  assert.match(native, /neutral\.addView\(actionText\("\+"/);
   assert.match(native, /FrameLayout\(context\)/);
   assert.match(native, /ImageView\(context\)/);
-  assert.match(native, /LinearLayout\.LayoutParams\(dp\(40\), dp\(34\)\)/);
+  assert.match(native, /LinearLayout\.LayoutParams\(dp\(39\), dp\(34\)\)/);
   assert.doesNotMatch(native, /val titleView = TextView\(context\)/);
   assert.doesNotMatch(native, /val closeView = TextView\(context\)/);
 });
@@ -52,10 +52,10 @@ test("v1121: keeps horizontal scroll while selected favicon is visible", () => {
 test("v1121: signed APK version is 1121 and same package + certificate", () => {
   const gradle = source("app/build.gradle");
   const workflow = source(".github/workflows/apk-release.yml");
-  assert.match(gradle, /versionCode = 121/);
-  assert.match(gradle, /versionName = "0\.5\.22-alpha27"/);
+  assert.match(gradle, /versionCode = 122/);
+  assert.match(gradle, /versionName = "0\.5\.22-alpha28"/);
   assert.match(gradle, /applicationIdSuffix = '\.debug'/);
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1121"/);
+  assert.match(workflow, /EXPECTED_VERSION_CODE: "1122"/);
   assert.match(workflow, /EXPECTED_CERT_SHA256/);
-  assert.match(workflow, /zavro-arm64-update-apk-v1121/);
+  assert.match(workflow, /zavro-arm64-update-apk-v1122/);
 });
