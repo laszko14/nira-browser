@@ -97,6 +97,14 @@ class CustomizationSettingsFragment : BaseSettingsFragment() {
                 Toast.makeText(requireContext(), getString(R.string.app_restart), Toast.LENGTH_SHORT).show()
             }
         )
+        switchPreference(
+            preference = "nira_group_bar_bottom",
+            isChecked = niraPrefs.niraGroupBarBottom,
+            onCheckChange = {
+                niraPrefs.niraGroupBarBottom = it
+                Toast.makeText(requireContext(), getString(R.string.app_restart), Toast.LENGTH_SHORT).show()
+            }
+        )
         preferenceScreen.findPreference<SeekBarPreference>("nira_toolbar_action_slot_dp")?.apply {
             value = niraPrefs.niraToolbarActionSlotDp
             setOnPreferenceChangeListener { _, updated ->

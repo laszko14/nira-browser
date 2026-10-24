@@ -269,31 +269,15 @@ class TabOrderManager private constructor(
         val store = context.components.store
         val tabsUseCases = context.components.tabsUseCases
         
-        // Add a new tab
-        tabsUseCases.addTab(
+        // Direct return value is the newly created tab ID; selectedTabId
+        // can change between async operations and must not be used here.
+        val newTabId = tabsUseCases.addTab(
             url = "about:homepage",
             private = contextId == "private",
             contextId = contextId,
             selectTab = true
         )
-        
-        // Wait longer and retry to ensure tab is created
-        kotlinx.coroutines.delay(300)
-        var newTabId = store.state.selectedTabId
-        
-        // Retry up to 3 times if tab ID not available
-        var retries = 0
-        while (newTabId == null && retries < 3) {
-            kotlinx.coroutines.delay(200)
-            newTabId = store.state.selectedTabId
-            retries++
-        }
-        
-        if (newTabId == null) {
-            android.util.Log.e("TabOrderManager", "Failed to get new tab ID after creating tab")
-            return
-        }
-        // Verify the tab exists in store
+                // Verify the tab exists in store
         val newTab = store.state.tabs.find { it.id == newTabId }
         if (newTab == null) {
             android.util.Log.e("TabOrderManager", "Tab $newTabId not found in store")

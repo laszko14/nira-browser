@@ -550,7 +550,9 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 requestWebContentPositionUpdate()
             }
 
-            // The tab strip is now part of the top UnifiedToolbar; no footer.
+            unifiedToolbar?.getBottomComponentsContainer()?.addOnLayoutChangeListener {
+                    _, _, _, _, _, _, _, _, _ -> requestWebContentPositionUpdate()
+            }
 
             // Set tab selection listener
             unifiedToolbar?.setOnTabSelectedListener { tabId ->
@@ -853,8 +855,10 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                     lp.topMargin = visibleHeight
                     changed = true
                 }
-                if (lp.bottomMargin != 0) {
-                    lp.bottomMargin = 0
+                val bottomStripHeight = unifiedToolbar?.getBottomComponentsContainer()
+                    ?.takeIf { it.parent != null && it.visibility == View.VISIBLE }?.height ?: 0
+                if (lp.bottomMargin != bottomStripHeight) {
+                    lp.bottomMargin = bottomStripHeight
                     changed = true
                 }
                 if (changed) binding.swipeRefresh.layoutParams = lp

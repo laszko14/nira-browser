@@ -354,7 +354,7 @@ class UnifiedTabGroupManager private constructor(private val context: Context) {
 
         val updatedName = name ?: group.name
         val updatedColor = color ?: group.color
-        val updatedTabIds = tabIds ?: group.tabIds
+        val updatedTabIds = tabIds?.distinct() ?: group.tabIds
         val updatedContextId = contextId ?: group.contextId
 
         // Update database
@@ -365,10 +365,16 @@ class UnifiedTabGroupManager private constructor(private val context: Context) {
         )
         dao.updateGroup(updatedDbGroup)
 
-        // Update tab associations if changed
+        // A tab may belong to one group only. Drop other memberships.
         if (tabIds != null) {
+            updatedTabIds.forEach { tabId ->
+                val previousGroupId = tabToGroupMap[tabId]
+                if (previousGroupId != null && previousGroupId != groupId) {
+                    removeTabFromGroup(tabId, notifyChange = false)
+                }
+            }
             dao.removeAllTabsFromGroup(groupId)
-            tabIds.forEachIndexed { index, tabId ->
+            updatedTabIds.forEachIndexed { index, tabId ->
                 val member = TabGroupMember(
                     tabId = tabId,
                     groupId = groupId,
@@ -389,7 +395,7 @@ class UnifiedTabGroupManager private constructor(private val context: Context) {
 
         // Update tab to group map
         if (tabIds != null) {
-            group.tabIds.forEach { tabToGroupMap.remove(it) }
+            group.tabIds.forEach { tabToGroupMap.remove(it, groupId) }
             updatedTabIds.forEach { tabToGroupMap[it] = groupId }
         }
 
@@ -539,7 +545,8 @@ class UnifiedTabGroupManager private constructor(private val context: Context) {
         newTabId: String,
         newTabUrl: String,
         sourceTabId: String?,
-        sourceTabUrl: String?
+        sourceTabUrl: String?,
+        contextId: String? = null
     ) = withContext(Dispatchers.IO) {
         // Only proceed if we have source information
         if (sourceTabId == null || sourceTabUrl == null) {
@@ -555,11 +562,10 @@ class UnifiedTabGroupManager private constructor(private val context: Context) {
         val sourceGroupId = tabToGroupMap[sourceTabId]
 
         if (sourceGroupId != null) {
-            // Add new tab to the same group as source
-            addTabToGroup(newTabId, sourceGroupId)
+            if (groupsCache[sourceGroupId]?.contextId == contextId)
+                addTabToGroup(newTabId, sourceGroupId)
         } else {
-            // Source tab is not in a group, create a new group for both
-            createGroup(tabIds = listOf(sourceTabId, newTabId))
+            createGroup(tabIds = listOf(sourceTabId, newTabId), contextId = contextId)
         }
     }
 

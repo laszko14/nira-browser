@@ -56,6 +56,11 @@
             app:title="Pokazuj pasek grup kart"
             app:summary="Wszystkie / nazwy grup nad ikonami kart. Grupy pozostają dostępne w panelu kart."
             app:defaultValue="true" />
+        <com.prirai.android.nira.settings.MaterialSwitchPreference
+            app:key="nira_group_bar_bottom"
+            app:title="Pasek grup i kart na dole"
+            app:summary="Przenieś dodatkowy pasek nad systemową nawigację Androida; adres zostanie na górze. Wymaga restartu."
+            app:defaultValue="false" />
         <SeekBarPreference app:key="nira_toolbar_action_slot_dp"
             app:title="Szerokość przycisków (dp)"
             android:max="52" app:min="40" app:defaultValue="40"
