@@ -55,8 +55,8 @@ test("v1117: imported ZIP entries have strict limits", () => {
 });
 test("v1117: debug label and update code agree", () => {
   const gradle = source("app/build.gradle");
-  assert.match(gradle, /versionCode = 119/);
+  assert.match(gradle, /versionCode = 120/);
   assert.match(gradle, /resValue "string", "app_name", "Zavro"/);
   const workflow = source(".github/workflows/apk-release.yml");
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1119"/);
+  assert.match(workflow, /EXPECTED_VERSION_CODE: "1120"/);
 });
