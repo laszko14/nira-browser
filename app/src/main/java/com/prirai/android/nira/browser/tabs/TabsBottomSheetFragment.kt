@@ -1137,9 +1137,8 @@ class TabsBottomSheetFragment : DialogFragment() {
                             )
                         }
                     }
-                }
                 } else {
-                val tab = tabsById[id] ?: return@forEach
+                    val tab = tabsById[id] ?: return@forEach
                 item(key = "single_tab_" + tab.id) {
                 CompactSideTabRow(
                     tab = tab, ordinal = tabs.indexOf(tab) + 1,
