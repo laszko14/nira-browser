@@ -1015,8 +1015,9 @@ class TabsBottomSheetFragment : DialogFragment() {
         }
         val density = resources.displayMetrics.density
 
-        fun moveDrag(dy: Float) {
-            dragY += dy
+        // Use actual finger coordinates rather than accumulating scroll-sensitive deltas.
+        fun moveDrag(pointerRootY: Float) {
+            dragY = pointerRootY - listTopY
             val visible = listState.layoutInfo.visibleItemsInfo
             hoveredKey = visible.firstOrNull {
                 dragY >= it.offset && dragY < it.offset + it.size
@@ -1028,46 +1029,32 @@ class TabsBottomSheetFragment : DialogFragment() {
             }
         }
         fun finishDrag() {
-            val fromId = dragTabId
-            val targetInfo = listState.layoutInfo.visibleItemsInfo.firstOrNull {
+            val fromId = dragTabId ?: return
+            val visible = listState.layoutInfo.visibleItemsInfo
+            val selected = visible.firstOrNull {
                 dragY >= it.offset && dragY < it.offset + it.size
+            } ?: visible.minByOrNull {
+                kotlin.math.abs(dragY - (it.offset + it.size / 2f))
             }
-            val target = targetInfo?.key?.toString()
+            val target = selected?.key?.toString() ?: hoveredKey
+            val after = selected?.let { dragY >= it.offset + it.size / 2f } ?: true
             dragTabId = null
             hoveredKey = null
-            if (fromId == null || targetInfo == null || target == null) return
-            when {
-                target.startsWith("group_") -> {
-                    val groupId = target.removePrefix("group_")
-                    if (groups.any { it.id == groupId && fromId !in it.tabIds }) {
-                        viewModel.moveTabToGroup(fromId, groupId)
+            if (target.isNullOrEmpty()) return
+            val originalKey = if (fromId in groupedIds)
+                "group_tab_$fromId" else "single_tab_$fromId"
+            if (target == originalKey) return
+            // Wait until the group manager and shared order are committed.
+            scope.launch {
+                try {
+                    if (!viewModel.commitSidePanelDrop(fromId, target, after)) {
+                        android.widget.Toast.makeText(
+                            requireContext(), "Nie udało się przenieść karty",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
                     }
-                }
-                target.startsWith("group_tab_") -> {
-                    val targetId = target.removePrefix("group_tab_")
-                    if (fromId != targetId) {
-                        val targetGroup = groups.firstOrNull { targetId in it.tabIds }
-                        if (targetGroup != null) {
-                            if (fromId in targetGroup.tabIds) {
-                                val after = dragY > targetInfo.offset + targetInfo.size / 2f
-                                viewModel.reorderTabInGroup(fromId, targetId, targetGroup.id, after)
-                            } else {
-                                val after = dragY > targetInfo.offset + targetInfo.size / 2f
-                                viewModel.moveTabToGroup(fromId, targetGroup.id, targetId, after)
-                            }
-                        }
-                    }
-                }
-                target.startsWith("single_tab_") -> {
-                    val targetId = target.removePrefix("single_tab_")
-                    if (targetId != fromId) {
-                        val order = composeOrderManager?.currentOrder?.value
-                        val index = order?.primaryOrder?.indexOfFirst { entry ->
-                            entry is com.prirai.android.nira.browser.tabs.compose.UnifiedTabOrder.OrderItem.SingleTab &&
-                                entry.tabId == targetId
-                        } ?: -1
-                        if (index >= 0) viewModel.moveTabToPosition(fromId, index)
-                    }
+                } catch (error: Exception) {
+                    android.util.Log.e("ZavroTabDrop", "Drop failed", error)
                 }
             }
         }
@@ -1243,7 +1230,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                             },
                             onDrag = { change, amount ->
                                 change.consume()
-                                currentMove(amount.y)
+                                currentMove(originY + change.position.y)
                             },
                             onDragEnd = { currentFinish() },
                             onDragCancel = { currentCancel() }
@@ -1273,7 +1260,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                             },
                             onDrag = { change, amount ->
                                 change.consume()
-                                currentMove(amount.y)
+                                currentMove(originY + change.position.y)
                             },
                             onDragEnd = { currentFinish() },
                             onDragCancel = { currentCancel() }

@@ -21,6 +21,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.button.MaterialButton
 import coil.load
 import coil.request.CachePolicy
@@ -45,9 +46,8 @@ internal class MediaFloatingUi(
     private fun dp(value: Int) = (value * context.resources.displayMetrics.density + 0.5f).toInt()
     private val size = dp(56)
     private val padding = dp(16)
-    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
     private val button = FrameLayout(context).apply {
-        background = circle(Color.rgb(26, 180, 176))
+        background = circle(Color.rgb(126, 202, 196))
         elevation = dp(8).toFloat()
         contentDescription = "Wykryte filmy"
         isClickable = true
@@ -56,13 +56,14 @@ internal class MediaFloatingUi(
     }
     private val count = TextView(context).apply {
         gravity = Gravity.CENTER
-        textSize = 11f
+        textSize = 16f
         setTypeface(typeface, android.graphics.Typeface.BOLD)
         setTextColor(Color.WHITE)
-        setPadding(dp(3), 0, dp(3), 0)
-        background = circle(Color.rgb(211, 40, 53))
+        setPadding(dp(2), 0, dp(2), 0)
+        background = circle(Color.rgb(255, 12, 17))
         elevation = dp(2).toFloat()
     }
+    private lateinit var downloadGlyph: View
     private var isFullscreen = false
     private var displayed: MediaUiSnapshot? = null
     private var sheet: BottomSheetDialog? = null
@@ -71,27 +72,36 @@ internal class MediaFloatingUi(
     private var lastHeight = 0
 
     init {
-        // White download-to-tray glyph, modelled on 1DM; no remote thumbnail needed.
-        button.addView(object : View(context) {
-            private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        // Same two-state appearance as the supplied 1DM reference:
+        // white filled arrow/tray when empty; centered red counter when detected.
+        downloadGlyph = object : View(context) {
+            private val ink = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.WHITE
-                style = android.graphics.Paint.Style.STROKE
-                strokeCap = android.graphics.Paint.Cap.ROUND
-                strokeJoin = android.graphics.Paint.Join.ROUND
-                strokeWidth = dp(3).toFloat()
+                style = android.graphics.Paint.Style.FILL
             }
             override fun onDraw(canvas: android.graphics.Canvas) {
                 super.onDraw(canvas)
                 val cx = width / 2f
                 val cy = height / 2f
-                canvas.drawLine(cx, cy - dp(15), cx, cy + dp(5), paint)
-                canvas.drawLine(cx - dp(8), cy - dp(2), cx, cy + dp(6), paint)
-                canvas.drawLine(cx, cy + dp(6), cx + dp(8), cy - dp(2), paint)
-                val tray = android.graphics.RectF(cx - dp(13), cy + dp(11), cx + dp(13), cy + dp(15))
-                canvas.drawRoundRect(tray, dp(1).toFloat(), dp(1).toFloat(), paint)
+                val arrow = android.graphics.Path().apply {
+                    moveTo(cx - dp(3).toFloat(), cy - dp(15).toFloat())
+                    lineTo(cx + dp(3).toFloat(), cy - dp(15).toFloat())
+                    lineTo(cx + dp(3).toFloat(), cy + dp(1).toFloat())
+                    lineTo(cx + dp(9).toFloat(), cy + dp(1).toFloat())
+                    lineTo(cx, cy + dp(11).toFloat())
+                    lineTo(cx - dp(9).toFloat(), cy + dp(1).toFloat())
+                    lineTo(cx - dp(3).toFloat(), cy + dp(1).toFloat())
+                    close()
+                }
+                canvas.drawPath(arrow, ink)
+                canvas.drawRoundRect(
+                    android.graphics.RectF(cx - dp(13), cy + dp(11), cx + dp(13), cy + dp(17)),
+                    dp(1).toFloat(), dp(1).toFloat(), ink
+                )
             }
-        }, FrameLayout.LayoutParams(-1, -1))
-        button.addView(count, FrameLayout.LayoutParams(dp(27), dp(27), Gravity.END or Gravity.TOP))
+        }
+        button.addView(downloadGlyph, FrameLayout.LayoutParams(-1, -1))
+        button.addView(count, FrameLayout.LayoutParams(dp(29), dp(29), Gravity.CENTER))
         parent.addView(button, ViewGroup.LayoutParams(size, size))
         button.setOnClickListener { showSheet() }
         parent.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
@@ -116,6 +126,7 @@ internal class MediaFloatingUi(
         val amount = displayed?.entries?.groupBy { it.groupId ?: "url:" + it.url }?.size ?: 0
         count.text = if (amount > 99) "99+" else amount.toString()
         count.visibility = if (amount > 0) View.VISIBLE else View.GONE
+        downloadGlyph.visibility = if (amount > 0) View.GONE else View.VISIBLE
         button.visibility = if (!isFullscreen) View.VISIBLE else View.GONE
         if (button.visibility == View.VISIBLE) button.bringToFront()
         if (sheet?.isShowing == true) {
@@ -178,6 +189,30 @@ internal class MediaFloatingUi(
         sheet = dialog
         sheetBody = body
         dialog.setOnDismissListener { sheet = null; sheetBody = null }
+        // Force a fully expanded, content-sized sheet on the very first tap.
+        // With one video there is no wasted full-screen blank area; with many,
+        // ScrollView owns overflow while the sheet fills the available height.
+        dialog.setOnShowListener {
+            val sheetView = dialog.findViewById<FrameLayout>(
+                com.google.android.material.R.id.design_bottom_sheet
+            ) ?: return@setOnShowListener
+            val bounds = Rect()
+            parent.getWindowVisibleDisplayFrame(bounds)
+            val maxHeight = (bounds.height() - dp(24)).coerceAtLeast(dp(180))
+            val sheetWidth = (parent.width - dp(28)).coerceAtLeast(dp(240))
+            body.measure(
+                View.MeasureSpec.makeMeasureSpec(sheetWidth, View.MeasureSpec.AT_MOST),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            )
+            sheetView.layoutParams = sheetView.layoutParams.apply {
+                height = body.measuredHeight.coerceIn(dp(130), maxHeight)
+            }
+            sheetView.requestLayout()
+            val behavior = BottomSheetBehavior.from(sheetView)
+            behavior.skipCollapsed = true
+            behavior.isFitToContents = true
+            sheetView.post { behavior.state = BottomSheetBehavior.STATE_EXPANDED }
+        }
         fillSheet()
         dialog.show()
     }
@@ -195,7 +230,7 @@ internal class MediaFloatingUi(
         // HLS/DASH Content-Length would describe only the manifest, not the movie.
         if (entry.format == MediaFormat.HLS || entry.format == MediaFormat.DASH)
             return "...MB"
-        val bytes = entry.sizeBytes ?: return "rozmiar nieznany"
+        val bytes = entry.sizeBytes ?: return "...MB"
         return when {
             bytes >= 1_000_000_000L -> String.format(Locale("pl", "PL"), "%.2f GB", bytes / 1e9)
             bytes >= 1_000_000L -> String.format(Locale("pl", "PL"), "%.1f MB", bytes / 1e6)

@@ -41,20 +41,41 @@ test("v1122: side panel has a dedicated drag handle and preview that follows the
   assert.match(side, /hoveredKey == "group_" \+ targetId/);
 });
 
-test("v1122: drop saves changes via viewmodel reorder and group moves", () => {
-  assert.match(side, /viewModel\.moveTabToGroup\(fromId, groupId\)/);
-  assert.match(side, /viewModel\.reorderTabInGroup\(fromId, targetId, targetGroup\.id, after\)/);
-  assert.match(side, /viewModel\.moveTabToGroup\(fromId, targetGroup\.id, targetId, after\)/);
-  assert.match(side, /viewModel\.moveTabToPosition\(fromId, index\)/);
+test("v1124: side drawer delegates all drop types to a persisted transaction", () => {
+  assert.match(side, /viewModel\.commitSidePanelDrop\(fromId, target, after\)/);
+  const model = read(base + "browser/tabs/compose/TabViewModel.kt");
+  assert.match(model, /targetKey\.startsWith\("group_tab_"\)/);
+  assert.match(model, /targetKey\.startsWith\("group_"\)/);
+  assert.match(model, /targetKey\.startsWith\("single_tab_"\)/);
+  assert.match(model, /groupManager\.addTabToGroup\(/);
 });
 
 test("v1122: metadata and stable signing", () => {
   const gradle = read("app/build.gradle");
   const workflow = read(".github/workflows/apk-release.yml");
-  assert.match(gradle, /versionCode = 123/);
-  assert.match(gradle, /versionName = "0\.5\.22-alpha29"/);
+  assert.match(gradle, /versionCode = 124/);
+  assert.match(gradle, /versionName = "0\.5\.22-alpha30"/);
   assert.match(gradle, /applicationIdSuffix = '\.debug'/);
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1123"/);
+  assert.match(workflow, /EXPECTED_VERSION_CODE: "1124"/);
   assert.match(workflow, /EXPECTED_CERT_SHA256:/);
-  assert.match(workflow, /zavro-arm64-update-apk-v1123/);
+  assert.match(workflow, /zavro-arm64-update-apk-v1124/);
+});
+
+test("v1124: side-drawer drag commits one awaited transaction, not an async redraw", () => {
+  const model = read(base + "browser/tabs/compose/TabViewModel.kt");
+  assert.match(side, /dragY = pointerRootY - listTopY/);
+  assert.match(side, /currentMove\(originY \+ change\.position\.y\)/);
+  assert.match(side, /viewModel\.commitSidePanelDrop\(fromId, target, after\)/);
+  assert.match(model, /suspend fun commitSidePanelDrop\(/);
+  assert.match(model, /groupManager\.updateGroup\(group\.id, tabIds = reordered\)/);
+  assert.match(model, /saveCurrentOrder\(profileId\)/);
+});
+
+test("v1124: floating media button and expanded list match the selected reference", () => {
+  const ui = read(base + "media/MediaFloatingUi.kt");
+  assert.match(ui, /FrameLayout\.LayoutParams\(dp\(29\), dp\(29\), Gravity\.CENTER\)/);
+  assert.match(ui, /downloadGlyph\.visibility = if \(amount > 0\) View\.GONE/);
+  assert.match(ui, /behavior\.skipCollapsed = true/);
+  assert.match(ui, /behavior\.state = BottomSheetBehavior\.STATE_EXPANDED/);
+  assert.match(ui, /height = body\.measuredHeight\.coerceIn\(dp\(130\), maxHeight\)/);
 });
