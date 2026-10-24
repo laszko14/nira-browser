@@ -1,3 +1,17 @@
+# Checkpoint — ZAVRO v1115 (2026-10-24)
+
+- Baza v1114: `feat/zavro-v1114-settings-stability`, stan `281b1bc0e21e1f452641d8ba7ca03071aba8c7fa`.
+- Kod wdrożenia: `feat/zavro-v1115-bottom-tabs-icon`, commit `1d7a7ba5d8084d71e34c4121989143a578a3026c`, draft PR #28: https://github.com/laszko14/nira-browser/pull/28 — brak merge.
+- Fix dolnego paska: animacja minimalnego górnego toolbaru nie ukrywa wydzielonego paska kart/grup; oddzielny bottom Compose view resetuje stan przy podpięciu; GeckoView przelicza margines względem jego rzeczywistej wysokości po obrocie/zmianie grup.
+- Ikona: grafika dostarczona przez użytkownika, przekonwertowana na WebP 192×192 (zasób `drawable-nodpi/zavro_app_icon.webp`), foreground adaptive launcher icon.
+- Wersja: `com.prirai.android.nira.debug`, `versionCode=1115`, `versionName=0.5.22-alpha21`, tylko `arm64-v8a`.
+- GitHub Actions #104, run https://github.com/laszko14/nira-browser/actions/runs/40073101224 — build SUCCESS / test SUCCESS / lint SUCCESS. Zadanie walidacji APK potwierdziło certyfikat SHA256 `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00`.
+- Artefakt `zavro-arm64-update-apk-v1115`: https://github.com/laszko14/nira-browser/actions/runs/40073101224/artifacts/12551941931. SHA256 wypakowanego APK: `5e2f5bd95bd2baae2eed23320350aab017ed6805a6af8c8a3be06784a41e9981`.
+- Niezweryfikowane na fizycznym telefonie: renderowanie i dotyk dolnego paska po przewinięciu w pionie/poziomie oraz wygląd ikony w launcherze. Nie usuwać danych aplikacji; aktualizacja tylko przy zgodnym pakiecie/certyfikacie i niższym `versionCode`.
+- Następny krok: instalacja jako aktualizacja na Nothing Phone (1), sprawdzić pasek u dołu (przewijanie/obrót/wybór kart/grup) oraz nową ikonę. W razie dalszego czarnego paska zebrać logcat i wymiar/widoczność ComposeView.
+
+---
+
 # Checkpoint — Nira Browser v1109 (2026-10-23)
 
 - Base v1108: `9a44af0af5415c22c686ba348bfcfa97e5bf59f0`, gałąź `feat/nira-v1108-player-preview-landscape`; kod v1109 do podpisanego APK: `2c7f2011ff7611d62be6ed176afd719ea1f2410b`.

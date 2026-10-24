@@ -909,7 +909,18 @@ class UnifiedToolbar @JvmOverloads constructor(
                     android.graphics.Color.rgb(28, 27, 31) else
                     android.graphics.Color.rgb(255, 251, 254))
             }
-            tabGroupBar?.let { container.addView(it) }
+            tabGroupBar?.let { tabStrip ->
+                // A detached Compose host may retain the old hidden/translated
+                // state after a page-scroll animation. Reset before attaching
+                // it to the separate, persistent bottom strip.
+                tabStrip.visibility = VISIBLE
+                tabStrip.translationY = 0f
+                tabStrip.alpha = 1f
+                container.addView(tabStrip, android.widget.LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ))
+            }
             bottomComponentsContainer = container
         }
         return bottomComponentsContainer
@@ -926,6 +937,7 @@ class UnifiedToolbar @JvmOverloads constructor(
         showContextualToolbar = showContextual
 
         tabGroupBar?.visibility = if (showTabBar) VISIBLE else GONE
+        bottomComponentsContainer?.visibility = if (showTabBar) VISIBLE else GONE
         contextualToolbar?.visibility = if (showContextual) VISIBLE else GONE
     }
 
@@ -997,9 +1009,13 @@ class UnifiedToolbar @JvmOverloads constructor(
      * feel identical.
      */
     private fun animateAuxiliaryComponents(show: Boolean) {
+        // Only animate auxiliary views owned by the top toolbar. When the user
+        // moves the tab strip to a separate bottom container, it must remain
+        // visible and interactive during top-toolbar minimal-state transitions.
+        // Counting its height here also breaks the top address-bar height math.
         val auxiliaries = listOfNotNull(
-            tabGroupBar?.takeIf { showTabGroupBar },
-            contextualToolbar?.takeIf { showContextualToolbar },
+            tabGroupBar?.takeIf { showTabGroupBar && it.parent === toolbarSystem },
+            contextualToolbar?.takeIf { showContextualToolbar && it.parent === toolbarSystem },
         )
         if (auxiliaries.isEmpty()) return
 
@@ -1306,6 +1322,15 @@ class UnifiedToolbar @JvmOverloads constructor(
                         ViewGroup.LayoutParams.WRAP_CONTENT
                     ))
                 }
+                // The bottom Compose strip measures independently of the
+                // address bar. Reserve its actual height in the Gecko viewport
+                // after attachment, on rotation and on group-chip changes.
+                bottom.addOnLayoutChangeListener { _, _, top, _, bottomEdge, _, oldTop, _, oldBottom ->
+                    if (bottomEdge - top != oldBottom - oldTop) {
+                        configured.reconcileEngineViewHeight()
+                    }
+                }
+                bottom.post { configured.reconcileEngineViewHeight() }
             }
             return configured
         }
