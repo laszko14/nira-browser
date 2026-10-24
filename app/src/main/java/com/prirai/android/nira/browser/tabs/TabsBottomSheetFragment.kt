@@ -992,6 +992,9 @@ class TabsBottomSheetFragment : DialogFragment() {
         val scope = rememberCoroutineScope()
         val listState = rememberLazyListState()
         var groupMenuId by remember { mutableStateOf<String?>(null) }
+        var showNameUngroupedDialog by remember { mutableStateOf(false) }
+        var ungroupedName by remember { mutableStateOf("Nowa grupa") }
+        var ungroupedExpanded by remember { mutableStateOf(true) }
         var dragTabId by remember { mutableStateOf<String?>(null) }
         var dragY by remember { mutableStateOf(0f) }
         var listTopY by remember { mutableStateOf(0f) }
@@ -1012,11 +1015,28 @@ class TabsBottomSheetFragment : DialogFragment() {
         val groupedIds = groups.flatMap { it.tabIds }.toSet()
         val tabsById = tabs.associateBy { it.id }
         val groupsById = groups.associateBy { it.id }
+        val ungroupedTabs = buildList {
+            val added = mutableSetOf<String>()
+            savedOrder?.primaryOrder?.forEach { item ->
+                if (item is com.prirai.android.nira.browser.tabs.compose.UnifiedTabOrder.OrderItem.SingleTab &&
+                    item.tabId !in groupedIds && added.add(item.tabId)) {
+                    tabsById[item.tabId]?.let { add(it) }
+                }
+            }
+            tabs.forEach { if (it.id !in groupedIds && added.add(it.id)) add(it) }
+        }
         // Side drawer, landscape and native portrait bar share ONE persisted
         // hierarchy. Group members follow Room's committed position order.
         val entries = buildList<Pair<String, String>> {
             val seenGroups = mutableSetOf<String>()
             val seenTabs = mutableSetOf<String>()
+            var recoveryHeaderAdded = false
+            fun addUngroupedHeader() {
+                if (!recoveryHeaderAdded && ungroupedTabs.isNotEmpty()) {
+                    add("ungrouped_header" to "ungrouped")
+                    recoveryHeaderAdded = true
+                }
+            }
             savedOrder?.primaryOrder?.forEach { item ->
                 when (item) {
                     is com.prirai.android.nira.browser.tabs.compose.UnifiedTabOrder.OrderItem.TabGroup -> {
@@ -1026,8 +1046,10 @@ class TabsBottomSheetFragment : DialogFragment() {
                         }
                     }
                     is com.prirai.android.nira.browser.tabs.compose.UnifiedTabOrder.OrderItem.SingleTab -> {
-                        if (item.tabId in tabsById && item.tabId !in groupedIds && seenTabs.add(item.tabId))
+                        if (item.tabId in tabsById && item.tabId !in groupedIds && seenTabs.add(item.tabId)) {
+                            addUngroupedHeader()
                             add("single" to item.tabId)
+                        }
                     }
                 }
             }
@@ -1038,7 +1060,10 @@ class TabsBottomSheetFragment : DialogFragment() {
                 }
             }
             tabs.forEach { tab ->
-                if (tab.id !in groupedIds && seenTabs.add(tab.id)) add("single" to tab.id)
+                if (tab.id !in groupedIds && seenTabs.add(tab.id)) {
+                    addUngroupedHeader()
+                    add("single" to tab.id)
+                }
             }
         }
         val density = resources.displayMetrics.density
@@ -1152,7 +1177,42 @@ class TabsBottomSheetFragment : DialogFragment() {
                             )
                         }
                     }
-                } else {
+                } else if (kind == "ungrouped_header") {
+                    item(key = "ungrouped_header") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().height(44.dp)
+                                .background(MaterialTheme.colorScheme.surface)
+                                .padding(start = 8.dp, end = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(
+                                onClick = { ungroupedExpanded = !ungroupedExpanded },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    if (ungroupedExpanded) Icons.Default.KeyboardArrowDown
+                                    else Icons.Default.KeyboardArrowRight,
+                                    contentDescription = "Rozwiń lub zwiń karty bez grupy"
+                                )
+                            }
+                            Text(
+                                text = "(${ungroupedTabs.size}) Bez grupy",
+                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(
+                                onClick = {
+                                    ungroupedName = "Nowa grupa"
+                                    showNameUngroupedDialog = true
+                                },
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "Nazwij i utwórz grupę")
+                            }
+                        }
+                    }
+                } else if (ungroupedExpanded) {
                     val tab = tabsById[id] ?: return@forEach
                 item(key = "single_tab_" + tab.id) {
                 CompactSideTabRow(
@@ -1204,6 +1264,48 @@ class TabsBottomSheetFragment : DialogFragment() {
                 }
             }
         }
+        }
+        if (showNameUngroupedDialog) {
+            AlertDialog(
+                onDismissRequest = { showNameUngroupedDialog = false },
+                title = { Text("Utwórz grupę z ${ungroupedTabs.size} kart") },
+                text = {
+                    Column {
+                        Text("Te karty nie mają aktywnej grupy. Nadaj jej nazwę, aby zapisać je jako jedną grupę.")
+                        OutlinedTextField(
+                            value = ungroupedName,
+                            onValueChange = { ungroupedName = it.take(70) },
+                            label = { Text("Nazwa grupy") },
+                            singleLine = true
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = ungroupedName.isNotBlank() && ungroupedTabs.isNotEmpty(),
+                        onClick = {
+                            val ids = ungroupedTabs.map { it.id }
+                            val chosenName = ungroupedName.trim()
+                            showNameUngroupedDialog = false
+                            scope.launch {
+                                val ok = viewModel.createNamedGroupFromUngrouped(ids, chosenName)
+                                if (!ok) {
+                                    android.widget.Toast.makeText(
+                                        requireContext(),
+                                        "Karty zmieniły grupę. Otwórz panel ponownie.",
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
+                        }
+                    ) { Text("Utwórz grupę") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showNameUngroupedDialog = false }) {
+                        Text("Anuluj")
+                    }
+                }
+            )
         }
         groupMenuId?.let { id ->
             com.prirai.android.nira.browser.tabs.compose.GroupContextMenu(
