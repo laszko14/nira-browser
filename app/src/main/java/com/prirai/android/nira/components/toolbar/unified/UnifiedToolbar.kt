@@ -17,6 +17,11 @@ import com.prirai.android.nira.components.toolbar.ToolbarIntegration
 import com.prirai.android.nira.components.toolbar.ToolbarPosition
 import com.prirai.android.nira.components.toolbar.modern.ModernToolbarSystem
 import com.prirai.android.nira.components.toolbar.modern.ComposeTabBarWithProfileSwitcher
+import com.prirai.android.nira.browser.tabgroups.UnifiedTabGroupManager
+import com.prirai.android.nira.browser.tabs.compose.TabOrderManager
+import com.prirai.android.nira.browser.tabs.compose.UnifiedTabOrder
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import com.prirai.android.nira.ext.components
 import com.prirai.android.nira.preferences.UserPreferences
 import com.prirai.android.nira.toolbar.ContextualBottomToolbar
@@ -72,6 +77,8 @@ class UnifiedToolbar @JvmOverloads constructor(
     
     // Store reference for tab updates
     private var browserStore: BrowserStore? = null
+    // Rapid toolbar clicks must not rebuild/select out of order.
+    private val tabCycleMutex = Mutex()
     
     // Tab selection callback
     private var onTabSelectedCallback: ((String) -> Unit)? = null
@@ -771,13 +778,50 @@ class UnifiedToolbar @JvmOverloads constructor(
         }
     }
 
+    /**
+     * Flatten the same canonical hierarchy the sidebar and both tab strips use.
+     * BrowserStore.tabs is an inventory, NOT the user's persisted visual order.
+     */
+    private fun orderedVisibleTabIds(
+        tabs: List<TabSessionState>,
+        order: UnifiedTabOrder
+    ): List<String> {
+        val visible = tabs.map { it.id }.toSet()
+        val ordered = order.getAllTabIds().filter { it in visible }.distinct()
+        // Newly opened tabs may not yet be in the persisted order. Make them
+        // reachable after existing cards, without introducing stale other-profile IDs.
+        return ordered + tabs.map { it.id }.filter { it !in ordered }
+    }
+
     private fun cycleTab(direction: Int) {
-        val tabs = tabsForActiveProfile()
-        if (tabs.size < 2) return
-        val selected = browserStore?.state?.selectedTabId
-        val index = tabs.indexOfFirst { it.id == selected }
-        if (index < 0) return
-        context.components.tabsUseCases.selectTab(tabs[(index + direction + tabs.size) % tabs.size].id)
+        val owner = context as? LifecycleOwner ?: return
+        owner.lifecycleScope.launch {
+            tabCycleMutex.withLock {
+                val profileManager = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(context)
+                val profileId = if (profileManager.isPrivateMode()) "private"
+                    else profileManager.getActiveProfile().id
+
+                // The group DB owns membership/order within groups; UnifiedTabOrder
+                // owns the order of group containers and ungrouped cards.
+                val manager = UnifiedTabGroupManager.getInstance(context)
+                val orderManager = TabOrderManager.getInstance(context, manager)
+                val tabs = tabsForActiveProfile()
+                if (tabs.size < 2) return@withLock
+
+                // Reconcile async group edits before resolving a navigation click,
+                // especially after side-panel drag, group rename and relaunch.
+                orderManager.rebuildOrderForProfile(profileId, tabs)
+                val order = orderManager.currentOrder.value
+                    ?.takeIf { it.profileId == profileId } ?: return@withLock
+                val ids = orderedVisibleTabIds(tabs, order)
+                if (ids.size < 2) return@withLock
+                val selected = browserStore?.state?.selectedTabId
+                val current = ids.indexOf(selected)
+                if (current < 0) return@withLock
+                val next = (current + direction + ids.size) % ids.size
+                context.components.tabsUseCases.selectTab(ids[next])
+            }
+        }
     }
 
     private fun observeTabCountForBadge() {
