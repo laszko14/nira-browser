@@ -804,6 +804,8 @@ class UnifiedToolbar @JvmOverloads constructor(
                 // The group DB owns membership/order within groups; UnifiedTabOrder
                 // owns the order of group containers and ungrouped cards.
                 val manager = UnifiedTabGroupManager.getInstance(context)
+                // Never rebuild from an empty group cache during startup.
+                if (!manager.awaitInitialized()) return@withLock
                 val orderManager = TabOrderManager.getInstance(context, manager)
                 val tabs = tabsForActiveProfile()
                 if (tabs.size < 2) return@withLock
