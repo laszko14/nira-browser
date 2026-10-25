@@ -92,7 +92,8 @@ internal object MediaElementPlaybackBridge {
         // Multiple same-URL frames are ambiguous. Refuse rather than pausing
         // a random ad player. A frame with no port also refuses safely.
         val candidates = ports.filter {
-            it.engineSession === tab.binding.session && it.senderUrl() == frame
+            it.engineSession === tab.binding.session &&
+                runCatching { it.senderUrl() }.getOrNull() == frame
         }
         val port = candidates.singleOrNull()
         if (port == null) {
@@ -137,7 +138,7 @@ internal object MediaElementPlaybackBridge {
             pending = null
             val ok = data.optBoolean("ok", false) &&
                 p.port.engineSession === p.binding.session &&
-                p.port.senderUrl() == p.frameUrl
+                runCatching { p.port.senderUrl() }.getOrNull() == p.frameUrl
             if (ok) {
                 lease = Lease(p.port, p.binding, p.pageUrl, p.frameUrl, p.nonce)
                 p.callback(p.nonce)
@@ -157,7 +158,7 @@ internal object MediaElementPlaybackBridge {
         lease = null
         val safe = ports.contains(l.port) &&
             l.port.engineSession === actual.binding.session &&
-            l.port.senderUrl() == l.frameUrl &&
+            runCatching { l.port.senderUrl() }.getOrNull() == l.frameUrl &&
             matches(l.binding, actual.binding) &&
             l.pageUrl == actual.pageUrl
         if (safe) send(l.port, "restore", token)
