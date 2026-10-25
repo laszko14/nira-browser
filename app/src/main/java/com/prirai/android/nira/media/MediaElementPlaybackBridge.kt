@@ -69,12 +69,14 @@ internal object MediaElementPlaybackBridge {
                 return@post
             }
             ports.add(port)
+            MpvDebugTrace.note(MpvDebugTrace.Section.WEB, "port_connected", port.engineSession)
         }
     }
 
     fun disconnected(port: Port) {
         main.post {
             ports.remove(port)
+            MpvDebugTrace.note(MpvDebugTrace.Section.WEB, "port_disconnected", port.engineSession)
             val p = pending
             if (p?.port === port) {
                 pending = null
@@ -98,6 +100,7 @@ internal object MediaElementPlaybackBridge {
     ) {
         check(Looper.myLooper() == Looper.getMainLooper())
         if (pending != null || lease != null || sourceUrl.length !in 8..8192) {
+            MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF, "prepare_rejected", tab.binding.session)
             completed(null)
             return
         }
@@ -120,6 +123,7 @@ internal object MediaElementPlaybackBridge {
         }
         val port = candidates.singleOrNull()
         if (port == null) {
+            MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF, "prepare_rejected", tab.binding.session)
             completed(null)
             return
         }
@@ -128,12 +132,14 @@ internal object MediaElementPlaybackBridge {
             val p = pending
             if (p?.nonce == nonce) {
                 pending = null
+                MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF, "ack_timeout", p.binding.session)
                 // ACK might have arrived after timeout; restore defensively.
                 send(port, "restore", nonce)
                 p.callback(null)
             }
         }
         pending = Pending(port, tab.binding, tab.pageUrl, frame, nonce, completed, timeout)
+        MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF, "prepare_sent", tab.binding.session)
         main.postDelayed(timeout, ACK_TIMEOUT_MS)
         try {
             port.postMessage(JSONObject()
@@ -160,8 +166,19 @@ internal object MediaElementPlaybackBridge {
             if (!ports.contains(port)) return@post
             val data = message as? JSONObject ?: return@post
             if (data.optInt("version") != 1) return@post
+            if (data.optString("event") == "diagnostic") {
+                val code = data.optString("code")
+                if (code.length <= 36) {
+                    MpvDebugTrace.note(MpvDebugTrace.Section.WEB, code, port.engineSession)
+                }
+                return@post
+            }
             if (data.optString("event") == "auto_offer") {
-                if (busy() || onAutoOffer == null) return@post
+                MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF, "auto_offer_received", port.engineSession)
+                if (busy() || onAutoOffer == null) {
+                    MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF, "auto_busy", port.engineSession)
+                    return@post
+                }
                 val frameKey = data.optString("frameKey")
                 val elementKey = data.optString("elementKey")
                 val page = data.optString("pageUrl")
@@ -170,7 +187,10 @@ internal object MediaElementPlaybackBridge {
                 if (!UUID_PATTERN.matches(frameKey) || !UUID_PATTERN.matches(elementKey) ||
                     page.length !in 8..8192 || url.length !in 8..8192 ||
                     parsed?.scheme !in listOf("http", "https") || parsed?.host.isNullOrBlank() ||
-                    runCatching { port.senderUrl() }.getOrNull() != page) return@post
+                    runCatching { port.senderUrl() }.getOrNull() != page) {
+                    MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF, "prepare_rejected", port.engineSession)
+                    return@post
+                }
                 onAutoOffer?.invoke(AutoOffer(port, frameKey, elementKey, page, url))
                 return@post
             }
@@ -183,9 +203,11 @@ internal object MediaElementPlaybackBridge {
                 p.port.engineSession === p.binding.session &&
                 runCatching { p.port.senderUrl() }.getOrNull() == p.frameUrl
             if (ok) {
+                MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF, "ack_ok", p.binding.session)
                 lease = Lease(p.port, p.binding, p.pageUrl, p.frameUrl, p.nonce)
                 p.callback(p.nonce)
             } else {
+                MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF, "ack_failed", p.binding.session)
                 // Even a rejected ACK may have raced a document change.
                 send(p.port, "restore", p.nonce)
                 p.callback(null)
@@ -204,7 +226,10 @@ internal object MediaElementPlaybackBridge {
             runCatching { l.port.senderUrl() }.getOrNull() == l.frameUrl &&
             matches(l.binding, actual.binding) &&
             l.pageUrl == actual.pageUrl
-        if (safe) send(l.port, "restore", token)
+        if (safe) {
+            MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF, "restore_sent", l.binding.session)
+            send(l.port, "restore", token)
+        }
         return safe
     }
 
@@ -214,6 +239,7 @@ internal object MediaElementPlaybackBridge {
         val l = lease ?: return
         if (l.nonce != token) return
         lease = null
+        MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF, "lease_discarded", l.binding.session)
         if (ports.contains(l.port)) send(l.port, "cancel", token)
     }
 
