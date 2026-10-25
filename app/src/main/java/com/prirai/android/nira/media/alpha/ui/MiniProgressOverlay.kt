@@ -81,4 +81,3 @@ internal fun MiniProgressBar(
     }
   }
 }
-
