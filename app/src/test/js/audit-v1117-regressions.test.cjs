@@ -15,7 +15,10 @@ test("v1117: private group new tab remains private", () => {
   const code = source(base + "browser/tabs/compose/TabViewModel.kt");
   const start = code.indexOf("fun createNewTabInGroup(");
   assert.ok(start > -1);
-  assert.match(code.slice(start, start + 850), /private = contextId == "private"/);
+  assert.match(code.slice(start, start + 260), /orderManager\.addNewTabToGroup\(groupId\)/);
+  const manager = source(base + "browser/tabs/compose/TabOrderManager.kt");
+  const creation = manager.slice(manager.indexOf("suspend fun addNewTabToGroup("));
+  assert.match(creation, /private = contextId == "private"/);
 });
 test("v1117: group close really removes tabs", () => {
   const code = source(base + "browser/tabs/compose/TabViewModel.kt");

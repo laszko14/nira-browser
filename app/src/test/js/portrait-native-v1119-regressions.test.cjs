@@ -19,7 +19,7 @@ test("v1119: bottom portrait uses an independent Android View, and landscape kee
 });
 
 test("v1119: native portrait tabs remain populated from filtered store state", () => {
-  assert.match(host, /portraitTabStrip\.updateTabs\(tabs, selectedId\)/);
+  assert.match(host, /portraitTabStrip\.updateTabs\(scopedTabs, selectedId\)/);
   assert.match(native, /fun updateTabs\(tabs: List<TabSessionState>, selectedId: String\?\)/);
   assert.match(native, /parent\.addView\(tabContainer\)/);
   assert.match(native, /row\.addView\(actionText\("\+"/);

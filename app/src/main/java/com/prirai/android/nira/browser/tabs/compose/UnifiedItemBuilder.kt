@@ -109,13 +109,15 @@ object UnifiedItemBuilder {
         // Create lookup maps for efficiency
         val tabsById = tabs.associateBy { it.id }
         val groupsById = groups.associateBy { it.id }
+        val groupedTabIds = groups.flatMap { it.tabIds }.toSet()
+        val addedGroupIds = mutableSetOf<String>()
 
         // Iterate through primary order
         order.primaryOrder.forEachIndexed { index, orderItem ->
             when (orderItem) {
                 is UnifiedTabOrder.OrderItem.SingleTab -> {
                     val tab = tabsById[orderItem.tabId]
-                    if (tab != null && tab.id !in addedTabIds) {
+                    if (tab != null && tab.id !in groupedTabIds && tab.id !in addedTabIds) {
                         items.add(
                             UnifiedItem.SingleTab(
                                 id = "tab_${tab.id}",
@@ -130,11 +132,11 @@ object UnifiedItemBuilder {
 
                 is UnifiedTabOrder.OrderItem.TabGroup -> {
                     val group = groupsById[orderItem.groupId]
-                    if (group != null) {
+                    if (group != null && addedGroupIds.add(group.id)) {
                         val isExpanded = expandedGroups.contains(group.id)
 
                         // Validate tab IDs in group
-                        val validTabIds = orderItem.tabIds.filter { tabId ->
+                        val validTabIds = group.tabIds.distinct().filter { tabId ->
                             tabsById.containsKey(tabId) && tabId !in addedTabIds
                         }
 
@@ -157,6 +159,21 @@ object UnifiedItemBuilder {
                         }
                     }
                 }
+            }
+        }
+
+        // Room can publish a newly created group before the order file catches up.
+        groups.filterNot { it.id in addedGroupIds }.forEach { group ->
+            val members = group.tabIds.distinct().mapNotNull { tabsById[it] }
+                .filterNot { it.id in addedTabIds }
+            if (members.isNotEmpty()) {
+                items.add(UnifiedItem.GroupContainer(
+                    id = "group_${group.id}", sortKey = "new_${group.id}",
+                    groupId = group.id, title = group.name, color = group.color,
+                    contextId = group.contextId, isExpanded = group.id in expandedGroups,
+                    children = members
+                ))
+                addedTabIds.addAll(members.map { it.id })
             }
         }
 

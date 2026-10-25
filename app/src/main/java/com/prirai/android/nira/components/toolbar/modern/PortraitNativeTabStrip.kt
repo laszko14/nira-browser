@@ -57,7 +57,7 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
     private var lastTabs: List<TabSessionState> = emptyList()
     private var currentGroups: List<TabGroupData> = emptyList()
     private var currentOrder: UnifiedTabOrder? = null
-    private val collapsedGroups = mutableSetOf<String>()
+    var onGroupToggle: ((String) -> Unit)? = null
     private var selectedPill: View? = null
     private var lastSelectedId: String? = null
 
@@ -182,7 +182,6 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
      */
     fun updateGroups(groups: List<TabGroupData>) {
         currentGroups = groups
-        collapsedGroups.retainAll(groups.map { it.id }.toSet())
         lastSignature = null
         updateTabs(lastTabs, lastSelectedId)
     }
@@ -251,7 +250,9 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
                 LinearLayout.LayoutParams.WRAP_CONTENT, pillHeight
             ).apply { marginEnd = dp(6) }
         }
-        val collapsed = group.id in collapsedGroups
+        val collapsed = currentOrder?.primaryOrder
+            ?.filterIsInstance<UnifiedTabOrder.OrderItem.TabGroup>()
+            ?.firstOrNull { it.groupId == group.id }?.let { !it.isExpanded } ?: group.isCollapsed
         val header = TextView(context).apply {
             text = (if (collapsed) "› " else "⌃ ") +
                 "(${members.size}) " + group.name.ifBlank { "Grupa" }
@@ -265,9 +266,7 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
             contentDescription = (if (collapsed) "Rozwiń" else "Zwiń") +
                 " grupę ${group.name}, ${members.size} kart"
             setOnClickListener {
-                if (!collapsedGroups.add(group.id)) collapsedGroups.remove(group.id)
-                lastSignature = null
-                updateTabs(lastTabs, lastSelectedId)
+                onGroupToggle?.invoke(group.id)
             }
         }
         segment.addView(header, LinearLayout.LayoutParams(
@@ -302,7 +301,10 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
 
     /** Shows separate colored groups and a neutral ungrouped section. */
     fun updateTabs(tabs: List<TabSessionState>, selectedId: String?) {
-        lastTabs = tabs
+        val byIdForChooser = tabs.associateBy { it.id }
+        val orderedIds = currentOrder?.reconciled(tabs.map { it.id }, currentGroups)
+            ?.getAllTabIds().orEmpty().distinct()
+        lastTabs = orderedIds.mapNotNull { byIdForChooser[it] } + tabs.filterNot { it.id in orderedIds }
         val previousSelectedId = lastSelectedId
         lastSelectedId = selectedId
         val visibleIds = tabs.map { it.id }.toSet()
@@ -316,6 +318,7 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
                     is UnifiedTabOrder.OrderItem.TabGroup -> {
                         add("g:" + item.groupId)
                         add(item.tabIds.joinToString(","))
+                        add(item.isExpanded.toString())
                     }
                 }
             }
@@ -324,7 +327,7 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
                 add(g.name)
                 add(g.color.toString())
                 add(g.tabIds.joinToString(","))
-                add((g.id in collapsedGroups).toString())
+                add(g.isCollapsed.toString())
             }
             tabs.forEach { tab ->
                 add(tab.id)

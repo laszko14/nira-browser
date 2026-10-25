@@ -20,7 +20,8 @@ import com.prirai.android.nira.browser.tabgroups.UnifiedTabGroupManager
 import com.prirai.android.nira.ext.components
 import com.prirai.android.nira.ui.theme.NiraTheme
 import mozilla.components.browser.state.state.TabSessionState
-import mozilla.components.lib.state.ext.flowScoped
+import mozilla.components.lib.state.ext.flow
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -85,6 +86,7 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
     private var tabOrderManager: TabOrderManager? = null
     private var groupManager: UnifiedTabGroupManager? = null
     private var tabViewModel: TabViewModel? = null
+    private val modelStore = androidx.lifecycle.ViewModelStore()
     private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     init {
@@ -123,7 +125,7 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
         // TabViewModel.closeTab() now performs store removal directly via
         // TabsUseCases + UndoMiddleware, so no host-side onTabRemove wiring is
         // required. See TabViewModel.closeTab kdoc for the undo contract.
-        tabViewModel = TabViewModel(context, groupManager!!)
+        tabViewModel = TabViewModel(context, groupManager!!).also { modelStore.put("tabs", it) }
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
@@ -144,8 +146,15 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
         onTabSelected: (String) -> Unit,
         onTabClosed: (String) -> Unit,
         onProfileSelected: (BrowserProfile) -> Unit,
-        onPrivateModeSelected: (() -> Unit)? = null
+        onPrivateModeSelected: (() -> Unit)? = null,
+        lifecycleOwner: LifecycleOwner = context as LifecycleOwner
     ) {
+        lifecycleOwner.lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {
+            override fun onDestroy(owner: LifecycleOwner) {
+                coroutineScope.cancel()
+                modelStore.clear()
+            }
+        })
         this.onTabSelected = onTabSelected
         this.onTabClosed = onTabClosed
         this.onProfileSelected = onProfileSelected
@@ -156,6 +165,7 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
             // Exactly one TabsUseCases dispatch; UndoMiddleware remains active.
             context.components.tabsUseCases.removeTab(id)
         }
+        portraitTabStrip.onGroupToggle = { id -> tabViewModel?.toggleGroupExpanded(id) }
         portraitTabStrip.onNewTabInGroup = { groupId ->
             coroutineScope.launch { tabOrderManager?.addNewTabToGroup(groupId) }
         }
@@ -226,11 +236,7 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
 
         // Use produceState to observe store state changes reactively
         val browserState = produceState(initialValue = store.state, store) {
-            store.flowScoped(lifecycleOwner, Dispatchers.Main) { flow ->
-                flow.collect { state ->
-                    value = state
-                }
-            }
+            store.flow(lifecycleOwner).collect { state -> value = state }
         }
 
         // Get current profile and mode - recalculate when browserState changes
@@ -267,9 +273,6 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
         // Update orderManager and viewModel with current tabs
         LaunchedEffect(tabs, selectedTabId, currentProfile, isPrivateMode) {
             val profileId = if (isPrivateMode) "private" else currentProfile.id
-
-            // Rebuild order to include any new tabs
-            orderManager.rebuildOrderForProfile(profileId, tabs)
 
             viewModel.loadTabsForProfile(profileId, tabs, selectedTabId)
         }
@@ -332,9 +335,14 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
         // Only the active group gets a lighter, scoped second row.
         key(profileKey) {
             val groups by viewModel.groups.collectAsState()
+            val savedOrder by orderManager.currentOrder.collectAsState()
             val liveTabIds = remember(tabs) { tabs.map { it.id }.toSet() }
-            val visibleGroups = remember(groups, liveTabIds) {
+            val visibleGroups = remember(groups, liveTabIds, savedOrder) {
+                val ids = savedOrder?.takeIf { it.profileId == if (isPrivateMode) "private" else currentProfile.id }
+                    ?.primaryOrder?.filterIsInstance<com.prirai.android.nira.browser.tabs.compose.UnifiedTabOrder.OrderItem.TabGroup>()
+                    ?.map { it.groupId }.orEmpty()
                 groups.filter { group -> group.tabIds.any { it in liveTabIds } }
+                    .sortedBy { ids.indexOf(it.id).takeIf { index -> index >= 0 } ?: Int.MAX_VALUE }
             }
             var activeGroupId by remember { mutableStateOf<String?>(null) }
             val activeGroup = visibleGroups.firstOrNull { it.id == activeGroupId }
@@ -431,10 +439,18 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
         val profileId = manager.getActiveProfile().id
         val isPrivate = manager.isPrivateMode()
         val signature = profileId to isPrivate
-        lastPushedTabState = PushedTabState(profileId, isPrivate, tabs, selectedId)
+        val expectedContext = BrowserProfile.contextIdFor(profileId, isPrivate)
+        val scopedTabs = tabs.filter { tab ->
+            tab.content.private == isPrivate && (tab.contextId == expectedContext ||
+                (!isPrivate && profileId == "default" && tab.contextId == "profile_default"))
+        }
+        lastPushedTabState = PushedTabState(profileId, isPrivate, scopedTabs, selectedId)
         // Unlike the Compose collector, this View is independent of the
         // composition lifecycle; every filtered store update reaches it.
-        portraitTabStrip.updateTabs(tabs, selectedId)
+        portraitTabStrip.updateOrder(tabOrderManager?.currentOrder?.value?.takeIf {
+            it.profileId == if (isPrivate) "private" else profileId
+        })
+        portraitTabStrip.updateTabs(scopedTabs, selectedId)
         if (lastObservedProfileSignature != signature) {
             lastObservedProfileSignature = signature
             profileRefreshToken++

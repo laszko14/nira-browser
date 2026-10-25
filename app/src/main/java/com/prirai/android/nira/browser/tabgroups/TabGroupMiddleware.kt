@@ -95,7 +95,8 @@ class TabGroupMiddleware(
      * @param action The AddTabAction containing the new tab
      */
     private fun handleNewTab(state: BrowserState, action: TabListAction.AddTabAction) {
-        val newTab = action.tab
+        if (com.prirai.android.nira.browser.profile.ProfileMigrationGuard.contains(action.tab.id)) return
+        val newTab = state.tabs.firstOrNull { it.id == action.tab.id } ?: return
         // Never infer an implicit parent from the currently selected tab.
         val parentId = newTab.parentId ?: return
         val url = newTab.content.url

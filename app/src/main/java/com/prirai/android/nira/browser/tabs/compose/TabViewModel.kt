@@ -10,7 +10,6 @@ import mozilla.components.browser.state.state.TabSessionState
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 
 /**
  * ViewModel for managing tabs, groups, and their order in Compose UI.
@@ -25,7 +24,8 @@ import kotlinx.coroutines.delay
  */
 class TabViewModel(
     private val context: Context,
-    private val groupManager: UnifiedTabGroupManager
+    private val groupManager: UnifiedTabGroupManager,
+    private val orderManager: TabOrderManager = TabOrderManager.getInstance(context, groupManager)
 ) : ViewModel() {
 
     private val _tabs = MutableStateFlow<List<TabSessionState>>(emptyList())
@@ -43,12 +43,11 @@ class TabViewModel(
     private val _currentProfileId = MutableStateFlow<String?>(null)
     val currentProfileId: StateFlow<String?> = _currentProfileId.asStateFlow()
 
-    private val orderManager by lazy { TabOrderManager.getInstance(context, groupManager) }
     private var loadJob: kotlinx.coroutines.Job? = null
-    private var rebuildJob: kotlinx.coroutines.Job? = null
 
     // Expose order for UI to use
     val currentOrder: StateFlow<UnifiedTabOrder?> = orderManager.currentOrder
+    val groupSnapshot: StateFlow<List<TabGroupData>> = groupManager.groupsState
 
     /**
      * Optional callback invoked *after* a tab has been removed from the store.
@@ -89,20 +88,28 @@ class TabViewModel(
         }
 
     init {
-        // Observe group events and refresh when groups change
         viewModelScope.launch {
-            groupManager.groupEvents.collect { event ->
-                // Debounce rapid group events to prevent flickering
-                rebuildJob?.cancel()
-                rebuildJob = launch {
-                    delay(150) // Debounce for 150ms
-                    // Refresh groups when any group event occurs
-                    _currentProfileId.value?.let { profileId ->
-                        refreshGroupsForProfile(profileId)
-                        // Also reload the order to reflect group changes
-                        orderManager.rebuildOrderForProfile(profileId, _tabs.value)
-                    }
-                }
+            groupManager.groupsState.collect {
+                val profileId = _currentProfileId.value ?: return@collect
+                if (!groupManager.awaitInitialized()) return@collect
+                orderManager.rebuildOrderForProfile(profileId, _tabs.value)
+                if (_currentProfileId.value == profileId) refreshGroupsForProfile(profileId)
+            }
+        }
+    }
+
+    private fun tabMatchesProfile(tab: TabSessionState, profileId: String): Boolean =
+        tab.content.private == (profileId == "private") &&
+            (tab.contextId == contextIdForProfile(profileId) ||
+                (profileId == "default" && tab.contextId == "profile_default"))
+
+    private fun launchMutation(block: suspend () -> Unit) {
+        val profileId = _currentProfileId.value ?: return
+        viewModelScope.launch {
+            orderManager.mutateProfile(profileId) {
+                if (_currentProfileId.value != profileId) return@mutateProfile false
+                block()
+                true
             }
         }
     }
@@ -124,7 +131,7 @@ class TabViewModel(
         _groups.value = groupsList
 
         // Read expanded state from saved order, preserving current state as fallback
-        val savedOrder = orderManager.currentOrder.value
+        val savedOrder = orderManager.currentOrder.value?.takeIf { it.profileId == profileId }
         val savedExpandedStates = savedOrder?.primaryOrder
             ?.filterIsInstance<UnifiedTabOrder.OrderItem.TabGroup>()
             ?.associate { it.groupId to it.isExpanded }
@@ -146,160 +153,45 @@ class TabViewModel(
      * Load tabs and groups for a profile
      */
     fun loadTabsForProfile(profileId: String, tabs: List<TabSessionState>, selectedTabId: String?) {
-        // Cancel any ongoing load operation
         loadJob?.cancel()
-
-        // Update current profile immediately
+        if (_currentProfileId.value != profileId) {
+            // Do not expose the previous profile while the new file/Room snapshot is loading.
+            _tabs.value = emptyList()
+            _groups.value = emptyList()
+            _expandedGroups.value = emptySet()
+            _selectedTabId.value = null
+        }
         _currentProfileId.value = profileId
-
-        // Start new load operation
+        val scopedTabs = tabs.filter { tabMatchesProfile(it, profileId) }
         loadJob = viewModelScope.launch {
-            // Load groups from UnifiedTabGroupManager, filtered by contextId
-            val allGroups = groupManager.getAllGroups()
-
-            // Filter groups to only show those matching the current profile.
-            val groupsList = allGroups.filter { group ->
-                groupMatchesProfile(group, profileId)
-            }.filter { group ->
-                // Additionally, only show groups that have tabs in the current tab list
-                group.tabIds.any { tabId -> tabs.any { it.id == tabId } }
-            }
-
-            // Get ordered tabs (this also loads the order)
-            val orderedTabs = getOrderedTabs(tabs, profileId, groupsList)
-
-            // Rebuild order to sync with latest database state (updates colors, names, etc.)
-            orderManager.rebuildOrderForProfile(profileId, tabs)
-
-            // Initialize expanded groups from the saved order
-            val savedOrder = orderManager.currentOrder.value
-            val expandedGroupIds = if (savedOrder != null) {
-                // Extract isExpanded state from saved order
-                savedOrder.primaryOrder
-                    .filterIsInstance<UnifiedTabOrder.OrderItem.TabGroup>()
-                    .filter { it.isExpanded }
-                    .map { it.groupId }
-                    .toSet()
-            } else {
-                // No saved order, expand all groups by default
-                groupsList.map { it.id }.toSet()
-            }
-
-            // Update all state atomically to prevent flickering
-            _tabs.value = orderedTabs
-            _groups.value = groupsList
-            _expandedGroups.value = expandedGroupIds
-            _selectedTabId.value = selectedTabId
-
-            // Preserve the user's collapsed groups across ordinary tab updates.
+            if (!groupManager.awaitInitialized()) return@launch
+            orderManager.rebuildOrderForProfile(profileId, scopedTabs)
+            val order = orderManager.loadOrder(profileId)
+            if (_currentProfileId.value != profileId) return@launch
+            val groups = groupManager.getAllGroups().filter { groupMatchesProfile(it, profileId) }
+            _tabs.value = orderedTabs(order, scopedTabs, groups)
+            _groups.value = groups.filter { g -> g.tabIds.any { id -> scopedTabs.any { it.id == id } } }
+            _expandedGroups.value = order.primaryOrder.filterIsInstance<UnifiedTabOrder.OrderItem.TabGroup>()
+                .filter { it.isExpanded }.map { it.groupId }.toSet()
+            _selectedTabId.value = selectedTabId?.takeIf { id -> scopedTabs.any { it.id == id } }
         }
     }
 
-    /**
-     * Force immediate refresh of tabs and groups
-     */
     fun forceRefresh(tabs: List<TabSessionState>, selectedTabId: String?) {
-        _currentProfileId.value?.let { profileId ->
-            // Cancel any ongoing operation first
-            loadJob?.cancel()
-
-            // Immediately reload groups and tabs
-            loadJob = viewModelScope.launch {
-                _selectedTabId.value = selectedTabId
-
-                // Reload groups from UnifiedTabGroupManager to get latest state
-                val allGroups = groupManager.getAllGroups()
-
-                // Filter groups to only show those matching the current profile.
-                val groupsList = allGroups.filter { group ->
-                    groupMatchesProfile(group, profileId)
-                }.filter { group ->
-                    // Only show groups that have tabs in the current tab list
-                    group.tabIds.any { tabId -> tabs.any { it.id == tabId } }
-                }
-
-                _groups.value = groupsList
-
-                // Read expanded state from saved order, preserving current state as fallback
-                val savedOrder = orderManager.currentOrder.value
-                val savedExpandedStates = savedOrder?.primaryOrder
-                    ?.filterIsInstance<UnifiedTabOrder.OrderItem.TabGroup>()
-                    ?.associate { it.groupId to it.isExpanded }
-                    ?: emptyMap()
-                
-                val currentExpanded = _expandedGroups.value
-                // For each group, use saved state if available, otherwise preserve current state, default to expanded for new groups
-                val updatedExpanded = groupsList.mapNotNull { group ->
-                    when {
-                        savedExpandedStates.containsKey(group.id) -> if (savedExpandedStates[group.id] == true) group.id else null
-                        currentExpanded.contains(group.id) -> group.id
-                        else -> group.id // New groups default to expanded
-                    }
-                }.toSet()
-                _expandedGroups.value = updatedExpanded
-
-                // Update tabs based on saved order
-                _tabs.value = getOrderedTabs(tabs, profileId, groupsList)
-
-                // Keep the saved group expansion state during refresh.
-            }
-        }
+        _currentProfileId.value?.let { loadTabsForProfile(it, tabs, selectedTabId) }
     }
 
-    /**
-     * Get tabs in the correct order
-     */
-    private suspend fun getOrderedTabs(
-        tabs: List<TabSessionState>,
-        profileId: String,
-        groups: List<TabGroupData>
-    ): List<TabSessionState> {
-        orderManager.loadOrder(profileId)
-
-        val order = orderManager.currentOrder.value
-        if (order == null || order.primaryOrder.isEmpty()) {
-            // No saved order, initialize from current state
-            orderManager.initializeFromCurrentState(profileId, tabs.map { it.id }, groups)
-            return tabs
-        }
-
-        // Build ordered list
-        val tabMap = tabs.associateBy { it.id }
-        val orderedTabs = mutableListOf<TabSessionState>()
-        val processedIds = mutableSetOf<String>()
-
-        // First add groups in order
-        val groupsById = groups.associateBy { it.id }
-        order.primaryOrder.forEach { item ->
+    private fun orderedTabs(order: UnifiedTabOrder, tabs: List<TabSessionState>, groups: List<TabGroupData>): List<TabSessionState> =
+        UnifiedItemBuilder.buildItems(order, tabs, groups, emptySet()).flatMap { item ->
             when (item) {
-                is UnifiedTabOrder.OrderItem.SingleTab -> {
-                    tabMap[item.tabId]?.let {
-                        orderedTabs.add(it)
-                        processedIds.add(item.tabId)
-                    }
-                }
-
-                is UnifiedTabOrder.OrderItem.TabGroup -> {
-                    // Add tabs from this group
-                    groupsById[item.groupId]?.tabIds?.forEach { tabId ->
-                        tabMap[tabId]?.let {
-                            orderedTabs.add(it)
-                            processedIds.add(tabId)
-                        }
-                    }
-                }
+                is UnifiedItem.SingleTab -> listOf(item.tab)
+                is UnifiedItem.GroupContainer -> item.children
+                else -> emptyList()
             }
         }
 
-        // Add any tabs not in the order at the end
-        tabs.forEach { tab ->
-            if (!processedIds.contains(tab.id)) {
-                orderedTabs.add(tab)
-            }
-        }
-
-        return orderedTabs
-    }
+    private suspend fun getOrderedTabs(tabs: List<TabSessionState>, profileId: String, groups: List<TabGroupData>): List<TabSessionState> =
+        orderedTabs(orderManager.loadOrder(profileId), tabs, groups)
 
     /**
      * Update tab list (for refreshing)
@@ -316,24 +208,20 @@ class TabViewModel(
      * Toggle group expanded/collapsed state
      */
     fun toggleGroupExpanded(groupId: String) {
-        viewModelScope.launch {
-            try {
-                // Both the persisted tab order and Compose's visible state must
-                // change; updating only Room's collapsed flag left the UI unchanged.
-                orderManager.toggleGroupExpansion(groupId)
-                _expandedGroups.value = if (groupId in _expandedGroups.value) {
-                    _expandedGroups.value - groupId
-                } else {
-                    _expandedGroups.value + groupId
-                }
-                groupManager.toggleGroupCollapsed(groupId)
-                _currentProfileId.value?.let { profileId -> saveCurrentOrder(profileId) }
-            } catch (e: Exception) {
-                android.util.Log.e("TabViewModel", "Error toggling group expanded state", e)
+        launchMutation {
+            val profileId = _currentProfileId.value ?: return@launchMutation
+            if (groupManager.getGroup(groupId)?.let { groupMatchesProfile(it, profileId) } != true) return@launchMutation
+            orderManager.toggleGroupExpansion(groupId)
+            val order = orderManager.loadOrder(profileId)
+            val expanded = order.primaryOrder.filterIsInstance<UnifiedTabOrder.OrderItem.TabGroup>()
+                .firstOrNull { it.groupId == groupId }?.isExpanded ?: return@launchMutation
+            groupManager.setGroupCollapsed(groupId, !expanded)
+            if (_currentProfileId.value == profileId) {
+                _expandedGroups.value = if (expanded) _expandedGroups.value + groupId else _expandedGroups.value - groupId
             }
         }
     }
-    
+
     /**
      * Get a group by ID from the group manager
      */
@@ -345,7 +233,7 @@ class TabViewModel(
      * Group two tabs together
      */
     fun groupTabsTogether(tab1Id: String, tab2Id: String) {
-        viewModelScope.launch {
+        launchMutation {
             _currentProfileId.value?.let { profileId ->
                 // Get tabs to determine contextId
                 val tab1 = _tabs.value.find { it.id == tab1Id }
@@ -387,7 +275,7 @@ class TabViewModel(
         targetTabId: String? = null,
         insertAfter: Boolean = true
     ) {
-        viewModelScope.launch {
+        launchMutation {
             _currentProfileId.value?.let { profileId ->
                 // Get the tab and the target group
                 val tab = _tabs.value.find { it.id == tabId }
@@ -433,7 +321,7 @@ class TabViewModel(
      * Rename a group
      */
     fun renameGroup(groupId: String, newName: String) {
-        viewModelScope.launch {
+        launchMutation {
             groupManager.renameGroup(groupId, newName)
 
             // Note: Group events observer will trigger the UI refresh
@@ -444,7 +332,7 @@ class TabViewModel(
      * Change group color
      */
     fun changeGroupColor(groupId: String, color: Int) {
-        viewModelScope.launch {
+        launchMutation {
             groupManager.changeGroupColor(groupId, color)
 
             // Note: Group events observer will trigger the UI refresh
@@ -455,7 +343,7 @@ class TabViewModel(
      * Ungroup all tabs in a group
      */
     fun ungroupAll(groupId: String) {
-        viewModelScope.launch {
+        launchMutation {
             _currentProfileId.value?.let { profileId ->
                 val group = groupManager.getGroup(groupId)
                 group?.tabIds?.forEach { tabId ->
@@ -474,7 +362,7 @@ class TabViewModel(
      * Reorder tabs/groups
      */
     fun reorderTabs(fromIndex: Int, toIndex: Int) {
-        viewModelScope.launch {
+        launchMutation {
             val currentTabs = _tabs.value.toMutableList()
             if (fromIndex in currentTabs.indices && toIndex in currentTabs.indices) {
                 val item = currentTabs.removeAt(fromIndex)
@@ -491,124 +379,10 @@ class TabViewModel(
      * Save current tab order to persistent storage
      */
     private suspend fun saveCurrentOrder(profileId: String) {
-        // Always reconcile against committed Room membership and item positions.
-        // The group event and Compose snapshots can lag a drag-and-drop update,
-        // and writing their stale tabIds used to undo the just-completed move.
-        val visibleIds = _tabs.value.map { it.id }.toSet()
-        val freshGroups = groupManager.getAllGroups().filter { group ->
-            groupMatchesProfile(group, profileId) && group.tabIds.any { it in visibleIds }
-        }
-        _groups.value = freshGroups
-
-        // Get current order or create a new one
-        val currentOrder = orderManager.currentOrder.value
-
-        if (currentOrder != null && currentOrder.profileId == profileId) {
-            // Update existing order: sync group data and add new tabs
-            val groupsById = freshGroups.associateBy { it.id }
-            val existingTabIds = mutableSetOf<String>()
-
-            // Update existing items
-            val updatedItems = currentOrder.primaryOrder.mapNotNull { item ->
-                when (item) {
-                    is UnifiedTabOrder.OrderItem.TabGroup -> {
-                        // Update group data if group still exists
-                        val group = groupsById[item.groupId]
-                        if (group != null) {
-                            existingTabIds.addAll(group.tabIds)
-                            UnifiedTabOrder.OrderItem.TabGroup(
-                                groupId = group.id,
-                                groupName = group.name,
-                                color = group.color,
-                                isExpanded = _expandedGroups.value.contains(group.id),
-                                tabIds = group.tabIds
-                            )
-                        } else {
-                            null // Remove group if it no longer exists
-                        }
-                    }
-
-                    is UnifiedTabOrder.OrderItem.SingleTab -> {
-                        // Keep single tab if it still exists and isn't in a group
-                        val tabExists = _tabs.value.any { it.id == item.tabId }
-                        val inGroup = freshGroups.any { group -> group.tabIds.contains(item.tabId) }
-                        if (tabExists && !inGroup) {
-                            existingTabIds.add(item.tabId)
-                            item
-                        } else {
-                            null // Remove if tab doesn't exist or is now in a group
-                        }
-                    }
-                }
-            }.toMutableList()
-
-            // Add new groups that aren't in the order yet
-            freshGroups.forEach { group ->
-                val exists = updatedItems.any {
-                    it is UnifiedTabOrder.OrderItem.TabGroup && it.groupId == group.id
-                }
-                if (!exists) {
-                    updatedItems.add(
-                        UnifiedTabOrder.OrderItem.TabGroup(
-                            groupId = group.id,
-                            groupName = group.name,
-                            color = group.color,
-                            isExpanded = true,
-                            tabIds = group.tabIds
-                        )
-                    )
-                    existingTabIds.addAll(group.tabIds)
-                }
-            }
-
-            // Add new ungrouped tabs at the end
-            _tabs.value.forEach { tab ->
-                val inGroup = freshGroups.any { group -> group.tabIds.contains(tab.id) }
-                if (!existingTabIds.contains(tab.id) && !inGroup) {
-                    updatedItems.add(UnifiedTabOrder.OrderItem.SingleTab(tab.id))
-                }
-            }
-
-            orderManager.saveOrder(
-                currentOrder.copy(
-                    primaryOrder = updatedItems,
-                    lastModified = System.currentTimeMillis()
-                )
-            )
-        } else {
-            // Create new order from scratch
-            val items = mutableListOf<UnifiedTabOrder.OrderItem>()
-            val processedTabs = mutableSetOf<String>()
-
-            // Add groups
-            freshGroups.forEach { group ->
-                items.add(
-                    UnifiedTabOrder.OrderItem.TabGroup(
-                        groupId = group.id,
-                        groupName = group.name,
-                        color = group.color,
-                        isExpanded = true,
-                        tabIds = group.tabIds
-                    )
-                )
-                processedTabs.addAll(group.tabIds)
-            }
-
-            // Add ungrouped tabs
-            _tabs.value.forEach { tab ->
-                if (!processedTabs.contains(tab.id)) {
-                    items.add(UnifiedTabOrder.OrderItem.SingleTab(tab.id))
-                }
-            }
-
-            val order = UnifiedTabOrder(
-                profileId = profileId,
-                primaryOrder = items,
-                lastModified = System.currentTimeMillis()
-            )
-
-            orderManager.saveOrder(order)
-        }
+        // Finish persistence for the originating profile even when its UI was replaced.
+        val liveTabs = groupManager.liveTabsSnapshot().filter { tabMatchesProfile(it, profileId) }
+        orderManager.rebuildOrderForProfile(profileId, liveTabs)
+        if (_currentProfileId.value == profileId) refreshGroupsForProfile(profileId)
     }
 
     private fun generateRandomGroupColor(): Int {
@@ -631,10 +405,10 @@ class TabViewModel(
      * Create a new group with tabs
      */
     fun createGroup(tabIds: List<String>, name: String? = null, contextId: String? = null) {
-        viewModelScope.launch {
-            val profileId = _currentProfileId.value ?: return@launch
+        launchMutation {
+            val profileId = _currentProfileId.value ?: return@launchMutation
             val tabsToGroup = _tabs.value.filter { it.id in tabIds }
-            if (tabsToGroup.size != tabIds.distinct().size || tabsToGroup.isEmpty()) return@launch
+            if (tabsToGroup.size != tabIds.distinct().size || tabsToGroup.isEmpty()) return@launchMutation
             // Creating a group with null contextId under a named/private profile
             // made it instantly disappear from the side panel after refresh.
             val resolvedContext = contextId ?: contextIdForProfile(profileId)
@@ -692,9 +466,9 @@ class TabViewModel(
      * avoiding racing asynchronous remove/add operations from the UI.
      */
     fun moveTabToNewGroup(tabId: String, name: String) {
-        viewModelScope.launch {
-            val profileId = _currentProfileId.value ?: return@launch
-            val tab = _tabs.value.firstOrNull { it.id == tabId } ?: return@launch
+        launchMutation {
+            val profileId = _currentProfileId.value ?: return@launchMutation
+            val tab = _tabs.value.firstOrNull { it.id == tabId } ?: return@launchMutation
             val existing = groupManager.getAllGroups().firstOrNull { tabId in it.tabIds }
             if (existing != null) {
                 groupManager.removeTabFromGroup(tabId, notifyChange = true)
@@ -713,7 +487,7 @@ class TabViewModel(
      * Add tab to existing group
      */
     fun addTabToGroup(tabId: String, groupId: String) {
-        viewModelScope.launch {
+        launchMutation {
             _currentProfileId.value?.let { profileId ->
                 groupManager.addTabToGroup(tabId, groupId)
 
@@ -735,7 +509,7 @@ class TabViewModel(
      * user is never left staring at a blank strip.
      */
     fun removeTabFromGroup(tabId: String) {
-        viewModelScope.launch {
+        launchMutation {
             _currentProfileId.value?.let { profileId ->
                 groupManager.removeTabFromGroup(tabId)
 
@@ -752,18 +526,9 @@ class TabViewModel(
      * Merge two groups
      */
     fun mergeGroups(sourceGroupId: String, targetGroupId: String) {
-        viewModelScope.launch {
-            _currentProfileId.value?.let { profileId ->
-                val sourceGroup = groupManager.getGroup(sourceGroupId)
-                sourceGroup?.tabIds?.forEach { tabId ->
-                    groupManager.removeTabFromGroup(tabId, notifyChange = true)
-                    groupManager.addTabToGroup(tabId, targetGroupId, notifyChange = true)
-                }
-
-                saveCurrentOrder(profileId)
-
-                // Note: Group events observer will trigger the UI refresh
-            }
+        launchMutation {
+            val profileId = _currentProfileId.value ?: return@launchMutation
+            if (groupManager.mergeGroups(sourceGroupId, targetGroupId)) saveCurrentOrder(profileId)
         }
     }
 
@@ -776,10 +541,14 @@ class TabViewModel(
     suspend fun commitSidePanelDrop(
         draggedId: String,
         targetKey: String,
-        insertAfter: Boolean
+        insertAfter: Boolean,
+        expectedProfileId: String? = _currentProfileId.value
     ): Boolean {
-        val profileId = _currentProfileId.value ?: return false
-        val draggedTab = _tabs.value.firstOrNull { it.id == draggedId } ?: return false
+        val profileId = expectedProfileId ?: return false
+        return orderManager.mutateProfile(profileId) drop@ {
+        if (_currentProfileId.value != profileId) return@drop false
+        val draggedTab = _tabs.value.firstOrNull { it.id == draggedId } ?: return@drop false
+        if (!tabMatchesProfile(draggedTab, profileId)) return@drop false
         val allGroups = groupManager.getAllGroups()
         fun validGroup(group: TabGroupData): Boolean {
             if (!groupMatchesProfile(group, profileId)) return false
@@ -793,61 +562,33 @@ class TabViewModel(
         val success = when {
             targetKey.startsWith("group_tab_") -> {
                 val targetId = targetKey.removePrefix("group_tab_")
-                if (targetId == draggedId) return false
-                val group = allGroups.firstOrNull { targetId in it.tabIds } ?: return false
-                if (!validGroup(group)) return false
-                if (draggedId in group.tabIds) {
-                    val reordered = group.tabIds.toMutableList()
-                    reordered.remove(draggedId)
-                    val pos = reordered.indexOf(targetId)
-                    if (pos < 0) return false
-                    reordered.add(pos + if (insertAfter) 1 else 0, draggedId)
-                    if (reordered == group.tabIds) return false
-                    groupManager.updateGroup(group.id, tabIds = reordered)
-                } else {
-                    val pos = group.tabIds.indexOf(targetId)
-                    groupManager.addTabToGroup(
-                        tabId = draggedId, groupId = group.id,
-                        position = pos + if (insertAfter) 1 else 0,
-                        notifyChange = true
-                    )
-                }
+                if (targetId == draggedId) return@drop false
+                val group = allGroups.firstOrNull { targetId in it.tabIds } ?: return@drop false
+                if (!validGroup(group)) return@drop false
+                groupManager.moveTabRelative(draggedId, group.id, targetId, insertAfter)
             }
             targetKey.startsWith("group_") -> {
                 val group = allGroups.firstOrNull {
                     it.id == targetKey.removePrefix("group_")
-                } ?: return false
-                if (!validGroup(group) || draggedId in group.tabIds) return false
-                groupManager.addTabToGroup(
-                    tabId = draggedId, groupId = group.id, notifyChange = true
-                )
+                } ?: return@drop false
+                if (!validGroup(group)) return@drop false
+                groupManager.moveTabRelative(draggedId, group.id, null, true)
             }
             targetKey.startsWith("single_tab_") -> {
                 val targetId = targetKey.removePrefix("single_tab_")
-                if (targetId == draggedId) return false
-                val targetTab = _tabs.value.firstOrNull { it.id == targetId } ?: return false
+                if (targetId == draggedId) return@drop false
+                val targetTab = _tabs.value.firstOrNull { it.id == targetId } ?: return@drop false
                 if (targetTab.contextId != draggedTab.contextId &&
                     !(profileId == "default" &&
                         targetTab.contextId in setOf(null, "profile_default") &&
-                        draggedTab.contextId in setOf(null, "profile_default"))) return false
-                if (allGroups.any { draggedId in it.tabIds }) {
-                    if (!groupManager.removeTabFromGroup(draggedId, notifyChange = true))
-                        return false
-                }
-                orderManager.rebuildOrderForProfile(profileId, _tabs.value)
-                val current = orderManager.currentOrder.value ?: return false
-                val from = current.getItemPosition(draggedId) ?: return false
-                val target = current.getItemPosition(targetId) ?: return false
-                val destination = (target + (if (insertAfter) 1 else 0) -
-                    (if (from < target) 1 else 0))
-                    .coerceIn(0, current.primaryOrder.lastIndex)
-                if (from == destination) return false
-                orderManager.reorderItem(from, destination)
-                true
+                        draggedTab.contextId in setOf(null, "profile_default"))) return@drop false
+                if (!tabMatchesProfile(targetTab, profileId) || allGroups.any { targetId in it.tabIds }) return@drop false
+                commitTabAtRoot(profileId, draggedId, targetId, insertAfter)
             }
+            targetKey == "ungrouped_header" -> commitTabAtRoot(profileId, draggedId, null, true)
             else -> false
         }
-        if (!success) return false
+        if (!success) return@drop false
 
         // Read back from Room rather than rendering a stale Store snapshot.
         saveCurrentOrder(profileId)
@@ -855,10 +596,131 @@ class TabViewModel(
             groupMatchesProfile(it, profileId) &&
                 it.tabIds.any { tabId -> _tabs.value.any { tab -> tab.id == tabId } }
         }
-        _groups.value = orderedGroups
-        _tabs.value = getOrderedTabs(_tabs.value, profileId, orderedGroups)
+        if (_currentProfileId.value == profileId) {
+            _groups.value = orderedGroups
+            _tabs.value = getOrderedTabs(_tabs.value, profileId, orderedGroups)
+        }
         android.util.Log.d("ZavroTabDrop", "Drop committed to group/order state")
+        true
+        }
+    }
+
+    private suspend fun commitTabAtRoot(profileId: String, tabId: String, targetId: String?, after: Boolean): Boolean {
+        orderManager.rememberRootMove(profileId, tabId, targetId, after)
+        if (groupManager.getGroupForTab(tabId) != null && !groupManager.removeTabFromGroup(tabId)) return false
+        orderManager.rebuildOrderForProfile(profileId, _tabs.value)
         return true
+    }
+
+    suspend fun commitSidePanelGroupDrop(groupId: String, targetKey: String, after: Boolean, expectedProfileId: String?): Boolean {
+        val profileId = expectedProfileId ?: return false
+        return orderManager.mutateProfile(profileId) {
+            if (_currentProfileId.value != profileId) return@mutateProfile false
+            val group = groupManager.getGroup(groupId) ?: return@mutateProfile false
+            if (!groupMatchesProfile(group, profileId)) return@mutateProfile false
+            val targetId = rootTargetId(targetKey) ?: return@mutateProfile false
+            orderManager.rebuildOrderForProfile(profileId, _tabs.value)
+            val success = orderManager.moveRootRelative(groupId, targetId, after)
+            saveCurrentOrder(profileId)
+            success
+        }
+    }
+
+    private fun rootTargetId(key: String): String? = when {
+        key.startsWith("group_tab_") -> groupManager.getGroupForTab(key.removePrefix("group_tab_"))?.id
+        key.startsWith("group_") -> key.removePrefix("group_")
+        key.startsWith("single_tab_") -> key.removePrefix("single_tab_")
+        else -> null
+    }
+
+    /** Await one complete drag operation in every Compose surface; no timed remove/add jobs. */
+    suspend fun commitUnifiedDrop(item: DraggableItemType, target: DropTarget, expectedProfileId: String?): Boolean {
+        val profileId = expectedProfileId ?: return false
+        return orderManager.mutateProfile(profileId) drop@ {
+            if (_currentProfileId.value != profileId) return@drop false
+            orderManager.rebuildOrderForProfile(profileId, _tabs.value)
+            val before = orderManager.loadOrder(profileId)
+            val targetTabId = target.metadata["tabId"] as? String ?: target.metadata["targetTabId"] as? String
+            val targetGroupId = target.metadata["groupId"] as? String
+            val after = target.dropZone != DropZone.BEFORE
+            val center = target.dropZone == DropZone.CENTER
+            val success = when (item) {
+                is DraggableItemType.Tab -> {
+                    val tab = _tabs.value.firstOrNull { it.id == item.tabId } ?: return@drop false
+                    if (!tabMatchesProfile(tab, profileId)) return@drop false
+                    when (target.type) {
+                        DropTargetType.TAB, DropTargetType.GROUP_BODY -> {
+                            val targetId = targetTabId ?: return@drop false
+                            val targetTab = _tabs.value.firstOrNull { it.id == targetId } ?: return@drop false
+                            if (!tabMatchesProfile(targetTab, profileId) || targetId == tab.id) return@drop false
+                            val group = groupManager.getGroupForTab(targetId)
+                            if (group != null) {
+                                groupManager.moveTabRelative(tab.id, group.id, targetId, after)
+                            } else if (center) {
+                                val newGroupId = java.util.UUID.randomUUID().toString()
+                                val sourceGroup = groupManager.getGroupForTab(tab.id)
+                                val removedRootId = sourceGroup?.takeIf { it.tabIds.size == 1 }?.id
+                                    ?: tab.id.takeIf { sourceGroup == null }
+                                val targetPosition = before.getItemPosition(targetId) ?: return@drop false
+                                val anchor = before.primaryOrder.drop(targetPosition + 1).map { root ->
+                                    when (root) {
+                                        is UnifiedTabOrder.OrderItem.SingleTab -> root.tabId
+                                        is UnifiedTabOrder.OrderItem.TabGroup -> root.groupId
+                                    }
+                                }.firstOrNull { it != removedRootId }
+                                orderManager.rememberRootMove(profileId, newGroupId, anchor, false)
+                                groupManager.createGroup(listOf(tab.id, targetId), contextId = tab.contextId, groupId = newGroupId)
+                                saveCurrentOrder(profileId)
+                                true
+                            } else commitTabAtRoot(profileId, tab.id, targetId, after)
+                        }
+                        DropTargetType.GROUP_HEADER -> {
+                            val groupId = targetGroupId ?: return@drop false
+                            val group = groupManager.getGroup(groupId) ?: return@drop false
+                            if (!groupMatchesProfile(group, profileId)) return@drop false
+                            if (center) groupManager.moveTabRelative(tab.id, groupId, null, true)
+                            else commitTabAtRoot(profileId, tab.id, groupId, after)
+                        }
+                        DropTargetType.ROOT_POSITION -> {
+                            val boundary = target.metadata["position"] as? Int ?: return@drop false
+                            val anchor = before.primaryOrder.getOrNull(boundary)?.let {
+                                when (it) {
+                                    is UnifiedTabOrder.OrderItem.SingleTab -> it.tabId
+                                    is UnifiedTabOrder.OrderItem.TabGroup -> it.groupId
+                                }
+                            }
+                            if (anchor == tab.id) true else commitTabAtRoot(profileId, tab.id, anchor, false)
+                        }
+                        DropTargetType.EMPTY_SPACE -> commitTabAtRoot(profileId, tab.id, null, true)
+                    }
+                }
+                is DraggableItemType.Group -> {
+                    val group = groupManager.getGroup(item.groupId) ?: return@drop false
+                    if (!groupMatchesProfile(group, profileId)) return@drop false
+                    when (target.type) {
+                        DropTargetType.TAB -> {
+                            val tabId = targetTabId ?: return@drop false
+                            if (center) groupManager.moveTabRelative(tabId, group.id, null, true)
+                            else orderManager.moveRootRelative(group.id, groupManager.getGroupForTab(tabId)?.id ?: tabId, after)
+                        }
+                        DropTargetType.GROUP_HEADER -> {
+                            val id = targetGroupId ?: return@drop false
+                            if (center) groupManager.mergeGroups(group.id, id)
+                            else orderManager.moveRootRelative(group.id, id, after)
+                        }
+                        DropTargetType.ROOT_POSITION -> {
+                            val boundary = target.metadata["position"] as? Int ?: return@drop false
+                            val from = before.getItemPosition(group.id) ?: return@drop false
+                            orderManager.reorderItem(from, DragPlacement.destination(from, boundary, before.primaryOrder.size))
+                            true
+                        }
+                        else -> false
+                    }
+                }
+            }
+            if (success) saveCurrentOrder(profileId)
+            success
+        }
     }
 
     /**
@@ -866,40 +728,11 @@ class TabViewModel(
      * @param insertAfter If true, insert after target; if false, insert before target
      */
     fun reorderTabInGroup(draggedTabId: String, targetTabId: String, groupId: String, insertAfter: Boolean = true) {
-        viewModelScope.launch {
+        launchMutation {
             _currentProfileId.value?.let { profileId ->
-                val group = groupManager.getGroup(groupId) ?: return@launch
-                val tabIds = group.tabIds.toMutableList()
-
-                val fromIndex = tabIds.indexOf(draggedTabId)
-                val toIndex = tabIds.indexOf(targetTabId)
-
-                if (fromIndex != -1 && toIndex != -1) {
-                    tabIds.removeAt(fromIndex)
-
-                    // Recalculate target index after removal
-                    val adjustedToIndex = tabIds.indexOf(targetTabId)
-
-                    // Insert before or after target based on parameter
-                    val insertIndex = if (insertAfter) {
-                        adjustedToIndex + 1
-                    } else {
-                        adjustedToIndex
-                    }
-
-                    tabIds.add(insertIndex, draggedTabId)
-
-                    // Update group with new order
-                    groupManager.updateGroup(
-                        groupId = groupId,
-                        name = group.name,
-                        color = group.color,
-                        tabIds = tabIds
-                    )
-
+                val group = groupManager.getGroup(groupId) ?: return@launchMutation
+                if (groupManager.moveTabRelative(draggedTabId, groupId, targetTabId, insertAfter)) {
                     saveCurrentOrder(profileId)
-
-                    // Note: Group events observer will trigger the UI refresh
                 }
             }
         }
@@ -909,10 +742,9 @@ class TabViewModel(
      * Reorder an entire group to a new position
      */
     fun reorderGroup(groupId: String, targetIndex: Int) {
-        viewModelScope.launch {
+        launchMutation {
             _currentProfileId.value?.let { profileId ->
-                orderManager.loadOrder(profileId)
-                val current = orderManager.currentOrder.value ?: return@launch
+                val current = orderManager.loadOrder(profileId)
 
                 // Find the group in the order
                 val groupIndex = current.primaryOrder.indexOfFirst {
@@ -935,10 +767,9 @@ class TabViewModel(
      * Move a tab to a specific position in the overall order
      */
     fun moveTabToPosition(tabId: String, targetIndex: Int) {
-        viewModelScope.launch {
+        launchMutation {
             _currentProfileId.value?.let { profileId ->
-                orderManager.loadOrder(profileId)
-                val current = orderManager.currentOrder.value ?: return@launch
+                val current = orderManager.loadOrder(profileId)
 
                 // Find the tab - could be a SingleTab or inside a TabGroup
                 var tabIndex = -1
@@ -986,8 +817,8 @@ class TabViewModel(
      * Create a new tab in the current profile
      */
     fun createNewTab() {
-        viewModelScope.launch {
-            val profileId = _currentProfileId.value ?: return@launch
+        launchMutation {
+            val profileId = _currentProfileId.value ?: return@launchMutation
             // This will be handled by the caller (e.g., BrowserActivity)
             // through the components.tabsUseCases.addTab()
         }
@@ -997,11 +828,11 @@ class TabViewModel(
      * Duplicate a tab
      */
     fun duplicateTab(tabId: String) {
-        viewModelScope.launch {
+        launchMutation {
             val tab = _tabs.value.find { it.id == tabId }
             if (tab == null) {
                 android.util.Log.e("TabViewModel", "Cannot duplicate - tab not found: $tabId")
-                return@launch
+                return@launchMutation
             }
 
             // Get group if tab is in a group
@@ -1031,7 +862,7 @@ class TabViewModel(
      * Toggle pin status of a tab
      */
     fun togglePinTab(tabId: String) {
-        viewModelScope.launch {
+        launchMutation {
             // This will be handled by the caller
             // through components.tabsUseCases.pinTab() or unpinTab()
         }
@@ -1070,8 +901,8 @@ class TabViewModel(
      * place makes the undo semantics predictable across every entry point.
      */
     fun closeTab(tabId: String, showUndo: Boolean = true) {
-        viewModelScope.launch {
-            val tab = _tabs.value.find { it.id == tabId } ?: return@launch
+        launchMutation {
+            val tab = _tabs.value.find { it.id == tabId } ?: return@launchMutation
             val tabsUseCases = context.components.tabsUseCases
 
             // Dispatch the removal. UndoMiddleware picks this up and stashes the
@@ -1101,7 +932,7 @@ class TabViewModel(
      * Close all other tabs except the specified one
      */
     fun closeOtherTabs(keepTabId: String) {
-        viewModelScope.launch {
+        launchMutation {
             _currentProfileId.value?.let { profileId ->
                 // Get all tab IDs except the one to keep
                 val tabsToClose = _tabs.value.filter { it.id != keepTabId }.map { it.id }
@@ -1115,9 +946,9 @@ class TabViewModel(
      * Pin a tab (move to first position in its group or root)
      */
     fun pinTab(tabId: String) {
-        viewModelScope.launch {
+        launchMutation {
             _currentProfileId.value?.let { profileId ->
-                val tab = _tabs.value.find { it.id == tabId } ?: return@launch
+                val tab = _tabs.value.find { it.id == tabId } ?: return@launchMutation
                 val group = _groups.value.find { it.tabIds.contains(tabId) }
 
                 if (group != null) {
@@ -1143,7 +974,7 @@ class TabViewModel(
      * Pin a group (move to first position in order)
      */
     fun pinGroup(groupId: String) {
-        viewModelScope.launch {
+        launchMutation {
             _currentProfileId.value?.let { profileId ->
                 reorderGroup(groupId, 0)
             }
@@ -1154,8 +985,8 @@ class TabViewModel(
      * Close all tabs in a group
      */
     fun closeAllTabsInGroup(groupId: String) {
-        viewModelScope.launch {
-            val group = groupManager.getGroup(groupId) ?: return@launch
+        launchMutation {
+            val group = groupManager.getGroup(groupId) ?: return@launchMutation
             val useCases = context.components.tabsUseCases
             // Work from a stable snapshot: store/group updates occur for each removal.
             group.tabIds.toList().forEach { id ->
@@ -1172,50 +1003,24 @@ class TabViewModel(
      * tabs without being force-stamped with a profile sentinel.
      */
     fun createNewTabInGroup(groupId: String, contextId: String?) {
-        viewModelScope.launch {
-            try {
-                // Create a new tab with the group's context
-                val prefs = com.prirai.android.nira.preferences.UserPreferences(context)
-                
-                val newTabId = context.components.tabsUseCases.addTab(
-                    url = prefs.getHomepageUrl(),
-                    contextId = contextId,
-                    private = contextId == "private",
-                    selectTab = false
-                )
-
-                // Add the new tab to the group
-                delay(100) // Wait for tab to be fully created
-                addTabToGroup(newTabId, groupId)
-            } catch (e: Exception) {
-                android.util.Log.e("TabViewModel", "Failed to create new tab in group", e)
-            }
-        }
+        launchMutation { orderManager.addNewTabToGroup(groupId) }
     }
 
     /**
      * Move a group to a different profile
      */
     fun moveGroupToProfile(groupId: String, profileId: String) {
-        viewModelScope.launch {
-            val group = groupManager.getGroup(groupId) ?: return@launch
-
-            // Update the group's contextId to match the new profile.
-            // Default profile => null (shared with custom tabs' Gecko partition).
-            val newContextId = contextIdForProfile(profileId)
-
-            // Update the group
-            groupManager.updateGroup(
-                groupId = groupId,
-                name = group.name,
-                color = group.color,
-                tabIds = group.tabIds,
-                contextId = newContextId
-            )
-
-            // Refresh the UI
-            _currentProfileId.value?.let { currentProfile ->
-                refreshGroupsForProfile(currentProfile)
+        launchMutation {
+            val sourceProfile = _currentProfileId.value ?: return@launchMutation
+            val group = groupManager.getGroup(groupId) ?: return@launchMutation
+            if (!groupMatchesProfile(group, sourceProfile) || sourceProfile == profileId) return@launchMutation
+            val ids = group.tabIds.filter { id -> groupManager.liveTabsSnapshot().any { it.id == id } }
+            val profiles = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(context)
+            if (ids.size != group.tabIds.size || profiles.migrateTabsToProfile(ids, profileId) != ids.size) return@launchMutation
+            if (groupManager.reassignGroupContext(groupId, contextIdForProfile(profileId))) {
+                orderManager.forgetTabs(sourceProfile, ids.toSet())
+                saveCurrentOrder(sourceProfile)
+                orderManager.rebuildOrderForProfile(profileId, groupManager.liveTabsSnapshot())
             }
         }
     }
@@ -1247,7 +1052,7 @@ class TabViewModel(
      * Add tab to group, removing from previous group if needed
      */
     fun addTabToGroup(tabId: String, groupId: String, fromGroupId: String?) {
-        viewModelScope.launch {
+        launchMutation {
             _currentProfileId.value?.let { profileId ->
                 // If tab was in another group, remove it first
                 if (fromGroupId != null) {
@@ -1266,17 +1071,9 @@ class TabViewModel(
      * Ungroup a tab (remove from group)
      */
     fun ungroupTab(tabId: String, groupId: String?) {
-        viewModelScope.launch {
+        launchMutation {
             _currentProfileId.value?.let { profileId ->
                 groupManager.removeTabFromGroup(tabId, notifyChange = true)
-
-                // If group has only 1 tab left, ungroup that too
-                if (groupId != null) {
-                    val group = groupManager.getGroup(groupId)
-                    if (group != null && group.tabIds.size == 1) {
-                        groupManager.removeTabFromGroup(group.tabIds[0], notifyChange = true)
-                    }
-                }
 
                 saveCurrentOrder(profileId)
             }
@@ -1287,9 +1084,9 @@ class TabViewModel(
      * Reorder a group to a new position
      */
     fun reorderGroup(groupId: String, targetGroupId: String) {
-        viewModelScope.launch {
+        launchMutation {
             _currentProfileId.value?.let { profileId ->
-                val order = orderManager.currentOrder.value ?: return@launch
+                val order = orderManager.currentOrder.value ?: return@launchMutation
 
                 val fromIndex = order.primaryOrder.indexOfFirst {
                     it is UnifiedTabOrder.OrderItem.TabGroup && it.groupId == groupId

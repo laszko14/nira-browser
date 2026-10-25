@@ -1,3 +1,11 @@
+# Aktualny punkt startu — Zavro x MPV v1159
+
+Baza: `09f708ee981d255c4bf9d649f60b2137a1181416`, gałąź `fix/zavro-x-mpv-v1159-tabs-groups-toolbar-audit`. Pełny aktualny handoff: [ZAVRO_X_MPV_V1159_HANDOFF.md](ZAVRO_X_MPV_V1159_HANDOFF.md). Lokalny końcowy Gradle PASS4m41s, JUnit230/230, JS162/162, Lua77/77, DSP28/28. Telefon/gesty/instalacja NIEURUCHOMIONE; po podpisującym CI wykonać macierz telefonu, bez kolejnej wersji i bez Auto Audio.
+
+Package `com.prirai.android.nira.mpv`, ARM64 code1159, name `0.5.22-alpha65-mpv33`, dotychczasowy certyfikat. Dokładny SHA, Draft PR, CI i artefakt w końcowym opisie PR. Bez merge, bez pobierania APK do Codex i bez czyszczenia danych. Poniżej zachowano historyczny handoff.
+
+---
+
 # Checkpoint — ZAVRO v1115 (2026-10-24)
 
 - Baza v1114: `feat/zavro-v1114-settings-stability`, stan `281b1bc0e21e1f452641d8ba7ca03071aba8c7fa`.
