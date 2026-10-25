@@ -44,7 +44,7 @@
   function rectOf(video) {
     if (!video || !video.isConnected) return null;
     const r = video.getBoundingClientRect();
-    const dpr = Number(window.devicePixelRatio || 1);
+    const dpr = Number(typeof window !== "undefined" ? (window.devicePixelRatio || 1) : 1);
     if (![r.left,r.top,r.width,r.height,dpr].every(Number.isFinite) ||
         r.width < 1 || r.height < 1 || dpr < .5 || dpr > 5) return null;
     return {x:r.left,y:r.top,w:r.width,h:r.height,dpr};
@@ -245,7 +245,7 @@
     // Only top-level video has unambiguous coordinates in GeckoView.
     const r = rectOf(video);
     const offer = {frameKey, elementKey:key, pageUrl:location.href, mediaUrl:url,
-      topFrame:window === window.top, ...(r || {})};
+      topFrame:typeof window !== "undefined" && window === window.top, ...(r || {})};
     send({version:1,event:"auto_offer",...offer});
     protocolOneShot("auto_offer",offer);
   }
@@ -272,7 +272,7 @@
         if (typeof message.nonce !== "string") return;
         if (message.event === "prepare") prepare(message);
         if (message.event === "inline_start" && holds.has(message.nonce) &&
-            window === window.top) {
+            typeof window !== "undefined" && window === window.top) {
           inlineLease = {nonce:message.nonce,video:holds.get(message.nonce).video};
           layoutUpdate();
         }
@@ -302,8 +302,8 @@
   document.addEventListener("durationchange",videoPlayed,true);
   document.addEventListener("pageshow", () => diagnostic("document_visible"), true);
   document.addEventListener("scroll",layoutUpdate,true);
-  window.addEventListener("scroll",layoutUpdate,true);
-  window.addEventListener("resize",layoutUpdate,true);
+  if (typeof window !== "undefined") window.addEventListener("scroll",layoutUpdate,true);
+  if (typeof window !== "undefined") window.addEventListener("resize",layoutUpdate,true);
   connect();
   if (document.readyState === "loading")
     document.addEventListener("DOMContentLoaded",connect,{once:true});
