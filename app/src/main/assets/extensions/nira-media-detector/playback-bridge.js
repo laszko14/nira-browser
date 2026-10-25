@@ -46,6 +46,16 @@
     } catch (_) { return null; }
   }
   function send(value) { try { if (port) port.postMessage(value); } catch (_) {} }
+  const diagTimes = new Map();
+  function diagnostic(code) {
+    if (!port) return;
+    const now = Date.now();
+    if (now - (diagTimes.get(code) || 0) < 2000) return;
+    if (diagTimes.size > 36) diagTimes.clear();
+    diagTimes.set(code, now);
+    // Only whitelisted code constants, never addresses/element IDs/credentials.
+    send({version:1,event:"diagnostic",code});
+  }
 
   function eligible(video, url) {
     if (!url || video.paused || video.ended || video.error || !video.isConnected ||
@@ -122,6 +132,7 @@
     if (!event || event.isTrusted !== true) return;
     if (event.type === "keydown" && !["Enter", " ", "Spacebar"].includes(event.key)) return;
     lastGesture = {at:Date.now(), target:event.target, page:location.href};
+    diagnostic("gesture");
   }
 
   function videoPlayed(event) {
@@ -130,10 +141,27 @@
     for (const hold of holds.values()) {
       if (hold.video === video) { try { video.pause(); } catch (_) {} return; }
     }
+    diagnostic("video_play");
     if (!frameKey || !lastGesture || lastGesture.page !== location.href ||
-        Date.now() - lastGesture.at > GESTURE_WINDOW_MS) return;
+        Date.now() - lastGesture.at > GESTURE_WINDOW_MS) {
+      diagnostic("no_gesture");
+      return;
+    }
     const url = mediaUrl(video);
-    if (!eligible(video, url)) return;
+    if (!url) {
+      diagnostic(video.mediaKeys ? "source_drm" :
+        typeof video.currentSrc === "string" && video.currentSrc.startsWith("blob:") ?
+          "source_blob" : "no_direct_url");
+      return;
+    }
+    if (!eligible(video, url)) {
+      const r = typeof video.getBoundingClientRect === "function" ?
+        video.getBoundingClientRect() : {width:0,height:0};
+      diagnostic(video.muted || video.loop ? "source_muted" :
+        Number.isFinite(video.duration) && video.duration < 180 ? "source_short" :
+        r.width < 320 || r.height < 180 ? "source_small" : "source_invalid");
+      return;
+    }
 
     // If several actively playing videos are present, selecting by URL or
     // DOM order would risk opening an advertisement. Do nothing.
@@ -146,7 +174,7 @@
             mediaUrl(other)) activeCount++;
       }
     } catch (_) { return; }
-    if (activeCount !== 0) return;
+    if (activeCount !== 0) { diagnostic("multiple_players"); return; }
     const key = elementKey(video);
     if (!key || Date.now() - (lastAutoOffer.get(video) || 0) < 15_000) return;
     const t = lastGesture.target;
@@ -163,6 +191,7 @@
     if (!related && video.currentTime <= 0 && video.readyState < 3) return;
     lastAutoOffer.set(video,Date.now());
     lastGesture = null;
+    diagnostic("auto_offered");
     send({version:1,event:"auto_offer",frameKey,elementKey:key,
       pageUrl:location.href,mediaUrl:url});
   }
@@ -174,6 +203,7 @@
       const connected = browser.runtime.connectNative(PORT);
       if (!connected) return;
       port = connected;
+      diagnostic("bridge_ready");
       connected.onMessage.addListener(message => {
         if (port !== connected || !message || message.version !== 1 ||
             typeof message.event !== "string" || typeof message.nonce !== "string") return;
