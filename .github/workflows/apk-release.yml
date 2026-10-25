@@ -24,7 +24,7 @@ jobs:
     permissions:
       contents: read
     env:
-      EXPECTED_PACKAGE: com.prirai.android.nira
+      EXPECTED_PACKAGE: com.prirai.android.nira.debug
       EXPECTED_VERSION_CODE: "1128"
       EXPECTED_VERSION_NAME: 0.5.22-alpha34-mpv2
       EXPECTED_CERT_SHA256: df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
@@ -83,7 +83,7 @@ jobs:
             "$EXPECTED_VERSION_CODE" \
             "$EXPECTED_VERSION_NAME" \
             "$EXPECTED_CERT_SHA256"
-          echo "Built one arm64-v8a APK with the canonical package and project cert. Device upgrade compatibility is not verified by CI."
+          echo "Built signed arm64-v8a test candidate for Zavro .debug update track. Device installation not verified."
 
       - name: Upload signed arm64 debug update candidate
         uses: actions/upload-artifact@v4
