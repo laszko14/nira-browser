@@ -22,8 +22,8 @@ import `is`.xyz.mpv.BaseMPVView
 import `is`.xyz.mpv.MPVLib
 
 /**
- * A minimal native libmpv player in Zavro x MPV. No external player required.
- * The browser remains installed separately and retains its own profile/data.
+ * The in-app libmpv player for Zavro. No external MPV Alpha installation required.
+ * Browser tabs and profiles stay in the original Zavro process.
  */
 class ZavroMpvActivity : AppCompatActivity() {
     private var player: ZavroMpvView? = null
@@ -36,13 +36,18 @@ class ZavroMpvActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val url = intent?.data?.takeIf(::allowedVideoUrl)?.toString()
+        val source = PlaybackSourceRegistry.take(intent?.getStringExtra(EXTRA_TICKET_ID))
+        val url = source?.url?.let { runCatching { Uri.parse(it) }.getOrNull() }
+            ?.takeIf(::allowedVideoUrl)?.toString()
         if (url == null) {
             Toast.makeText(this, "Nieprawidłowy adres filmu", Toast.LENGTH_LONG).show()
             finish()
             return
         }
 
+        if (source?.isPrivate == true) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         @Suppress("DEPRECATION")
         window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_FULLSCREEN or
@@ -52,8 +57,8 @@ class ZavroMpvActivity : AppCompatActivity() {
         val container = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
         val surface = LayoutInflater.from(this)
             .inflate(R.layout.zavro_mpv_surface, container, false) as ZavroMpvView
-        surface.userAgent = intent.getStringExtra(EXTRA_USER_AGENT)?.takeIf(::safeHeader)
-        surface.referrer = intent.getStringExtra(EXTRA_REFERER)
+        surface.userAgent = source?.userAgent?.takeIf(::safeHeader)
+        surface.referrer = source?.referrer
             ?.takeIf(::safeHeader)
             ?.let(Uri::parse)
             ?.takeIf(::allowedVideoUrl)?.toString()
@@ -143,8 +148,7 @@ class ZavroMpvActivity : AppCompatActivity() {
     }
 
     companion object {
-        const val EXTRA_REFERER = "zavro.mpv.referrer"
-        const val EXTRA_USER_AGENT = "zavro.mpv.userAgent"
+        const val EXTRA_TICKET_ID = "zavro.mpv.ticketId"
 
         internal fun allowedVideoUrl(uri: Uri): Boolean =
             (uri.scheme == "https" || uri.scheme == "http") &&
