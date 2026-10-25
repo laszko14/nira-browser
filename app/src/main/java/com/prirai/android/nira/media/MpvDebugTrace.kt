@@ -85,11 +85,11 @@ internal object MpvDebugTrace {
                 "lavf", "player").none { component.contains(it) }) return null
         val lower = message.lowercase(java.util.Locale.ROOT)
         return when {
-            Regex("""\\b(401|unauthorized)\\b""").containsMatchIn(lower) -> "mpv_http_401"
-            Regex("""\\b(403|forbidden)\\b""").containsMatchIn(lower) -> "mpv_http_403"
-            Regex("""\\b404\\b""").containsMatchIn(lower) -> "mpv_http_404"
-            Regex("""\\b429\\b""").containsMatchIn(lower) -> "mpv_http_429"
-            Regex("""\\b5[0-9]{2}\\b""").containsMatchIn(lower) -> "mpv_http_5xx"
+            Regex("""\b(401|unauthorized)\b""").containsMatchIn(lower) -> "mpv_http_401"
+            Regex("""\b(403|forbidden)\b""").containsMatchIn(lower) -> "mpv_http_403"
+            Regex("""\b404\b""").containsMatchIn(lower) -> "mpv_http_404"
+            Regex("""\b429\b""").containsMatchIn(lower) -> "mpv_http_429"
+            Regex("""\b5[0-9]{2}\b""").containsMatchIn(lower) -> "mpv_http_5xx"
             "certificate" in lower || "ssl" in lower || "tls" in lower -> "mpv_tls_error"
             "timed out" in lower || "timeout" in lower -> "mpv_network_timeout"
             "resolve" in lower || "dns" in lower -> "mpv_dns_failure"
