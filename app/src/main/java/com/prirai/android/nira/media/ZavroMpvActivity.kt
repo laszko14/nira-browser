@@ -66,6 +66,9 @@ class ZavroMpvActivity : AppCompatActivity() {
     private var seekBar: SeekBar? = null
     private var dragging = false
     private var nativeControls: View? = null
+    private var miniProgress: FrameLayout? = null
+    private var miniFill: View? = null
+    private var controlsHideTask: Runnable? = null
     private var focusRequest: AudioFocusRequest? = null
     private var audioManager: AudioManager? = null
     private var focusSuspended = false
@@ -313,7 +316,18 @@ class ZavroMpvActivity : AppCompatActivity() {
         root.addView(bottom, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
             .apply { bottomMargin = dp(12) })
         nativeControls = bottom
+        val mini = FrameLayout(this).apply {
+            setBackgroundColor(Color.argb(120, 255, 255, 255))
+            visibility = View.GONE
+            isClickable = true
+            setOnClickListener { revealControls() }
+        }
+        miniFill = View(this).apply { setBackgroundColor(Color.rgb(126, 202, 196)) }
+        mini.addView(miniFill, FrameLayout.LayoutParams(0, -1, Gravity.START))
+        root.addView(mini, FrameLayout.LayoutParams(-1, dp(3), Gravity.BOTTOM))
+        miniProgress = mini
         updateHud()
+        revealControls()
     }
 
     private fun pill() = GradientDrawable().apply {
@@ -336,6 +350,22 @@ class ZavroMpvActivity : AppCompatActivity() {
         setOnClickListener { tap() }
     }
 
+    private fun revealControls() {
+        if (isInPictureInPictureMode) return
+        nativeControls?.visibility = View.VISIBLE
+        miniProgress?.visibility = View.GONE
+        controlsHideTask?.let(handler::removeCallbacks)
+        val hide = Runnable {
+            if (ready && !isInPictureInPictureMode) {
+                nativeControls?.visibility = View.GONE
+                miniProgress?.visibility = View.VISIBLE
+                updateHud()
+            }
+        }
+        controlsHideTask = hide
+        handler.postDelayed(hide, 5_000L)
+    }
+
     private fun installGestures(surface: ZavroMpvView) {
         val gestures = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: MotionEvent) = true
@@ -355,6 +385,7 @@ class ZavroMpvActivity : AppCompatActivity() {
             gestures.onTouchEvent(event)
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    revealControls()
                     x0 = event.x; y0 = event.y
                     holdFrom = speed
                     holdActive = false
@@ -472,6 +503,8 @@ class ZavroMpvActivity : AppCompatActivity() {
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         nativeControls?.visibility = if (isInPictureInPictureMode) View.GONE else View.VISIBLE
+        miniProgress?.visibility = View.GONE
+        if (!isInPictureInPictureMode) revealControls()
         hud?.visibility = if (isInPictureInPictureMode) View.GONE else View.VISIBLE
         status?.visibility = if (isInPictureInPictureMode) View.GONE else View.VISIBLE
     }
@@ -506,8 +539,15 @@ class ZavroMpvActivity : AppCompatActivity() {
             formatTime(pos) + " / " + formatTime(len) +
                 "  •  −" + formatTime(remain / speed) + " (1×: −" + formatTime(remain) + ")"
         else String.format(Locale.US, "MPV • %.1f×", speed)
-        if (!dragging) seekBar?.progress =
-            if (len > 0) (pos / len * 1000.0).toInt().coerceIn(0, 1000) else 0
+        val proportion = if (len > 0) (pos / len).coerceIn(0.0, 1.0) else 0.0
+        if (!dragging) seekBar?.progress = (proportion * 1000.0).toInt()
+        val mini = miniProgress
+        val fill = miniFill
+        if (mini != null && fill != null && mini.width > 0) {
+            fill.layoutParams = fill.layoutParams.apply {
+                width = (mini.width * proportion).toInt().coerceIn(0, mini.width)
+            }
+        }
     }
 
     private fun formatTime(s: Double): String {
@@ -535,6 +575,7 @@ class ZavroMpvActivity : AppCompatActivity() {
     override fun onDestroy() {
         holdAction?.let(handler::removeCallbacks)
         timeoutAction?.let(handler::removeCallbacks)
+        controlsHideTask?.let(handler::removeCallbacks)
         player?.isExiting = true
         if (ready) {
             ready = false
