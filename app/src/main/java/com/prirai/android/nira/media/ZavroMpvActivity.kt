@@ -772,6 +772,18 @@ class ZavroMpvView(context: android.content.Context, attrs: AttributeSet) :
         onSurfaceReady?.invoke()
     }
 
+    private var hudBottomPx=0f
+    internal fun setOsdHudBottom(value:Float) {hudBottomPx=value;updateNativeOsdLayout()}
+    private fun updateNativeOsdLayout() {
+        if(isExiting || !nativeOsdConfigured || height<=0)return
+        com.prirai.android.nira.media.alpha.OsdGeometry.options(height,
+            context.resources.displayMetrics.density.toDouble(),hudBottomPx.toDouble()).forEach {(key,value)->
+                MPVLib.setOptionString(key,value)
+            }
+    }
+    private var nativeOsdFonts:String?=null
+    internal var nativeOsdConfigured=false
+        private set
     private var alphaBridgePrepared=false
     private var alphaBridgeInstalled=false
     private var alphaBridgeScript=""
@@ -780,6 +792,7 @@ class ZavroMpvView(context: android.content.Context, attrs: AttributeSet) :
     internal fun prepareAlphaBridge(configDir:String,scriptStore:com.prirai.android.nira.media.alpha.scripts.CustomLuaStore?=null):Boolean {
         if(!alphaBridgePrepared) {
             alphaBridgePrepared=true
+            nativeOsdFonts=com.prirai.android.nira.media.alpha.NativeOsd.prepare(context)
             alphaBridgeInstalled=com.prirai.android.nira.media.alpha.AlphaLuaBridge.install(java.io.File(configDir))
             if(alphaBridgeInstalled)alphaBridgeScript=java.io.File(configDir,
                 "scripts/"+com.prirai.android.nira.media.alpha.AlphaLuaBridge.FILE_NAME).absolutePath
@@ -817,6 +830,9 @@ class ZavroMpvView(context: android.content.Context, attrs: AttributeSet) :
         val bridgeSelected=MPVLib.setOptionString("scripts",customScriptsOption)>=0
         alphaBridgeLoadConfigured=alphaBridgeInstalled && fileConfigDisabled && autoloadDisabled && bridgeSelected
         customScriptsConfigured=alphaBridgeLoadConfigured && customRuntime?.prepared==true
+        nativeOsdConfigured=nativeOsdFonts?.let {fonts->
+            com.prirai.android.nira.media.alpha.NativeOsd.options(fonts).map {(key,value)->MPVLib.setOptionString(key,value)>=0}.all {it}
+        }==true
         setVo("gpu")
         MPVLib.setOptionString("hwdec", "mediacodec,no")
         MPVLib.setOptionString("speed", "1.5")
@@ -854,5 +870,6 @@ class ZavroMpvView(context: android.content.Context, attrs: AttributeSet) :
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         // Surface resize must not silently reset playback to the beginning.
         super.surfaceChanged(holder, format, width, height)
+        updateNativeOsdLayout()
     }
 }

@@ -30,8 +30,8 @@ package.preload['mp']=function() return mp end
 cases=[
  ('own native client identity and handler',"assert(mp.get_script_name()=='synthetic');mp.register_script_message('cycle',function() synthetic=42 end)","assert(report.loaded and report.cycle and report.handlers==1);callbacks.cycle();assert(synthetic==42)"),
  ('syntax failure without execution','local = invalid',"assert(report.syntax and not report.loaded and not report.runtime)"),
- ('load runtime failure is redacted',"error('synthetic private failure')","assert(not report.loaded and report.runtime and report.errors==1);assert(report.error==nil)"),
- ('callback runtime failure is redacted',"mp.register_script_message('x',function() error('synthetic secret') end)","callbacks.x();callbacks.zavro_custom_status('synthetic-session');assert(report.loaded and report.runtime and report.errors==1)"),
+ ('load runtime failure is redacted',"error('synthetic private failure')","assert(not report.loaded and report.runtime and report.errors==1 and report.top_errors==1 and report.callback_errors==0);assert(report.error==nil)"),
+ ('callback runtime failure is redacted',"mp.register_script_message('x',function() error('synthetic secret') end)","callbacks.x();callbacks.zavro_custom_status('synthetic-session');assert(report.loaded and report.runtime and report.errors==1 and report.callback_errors==1 and report.top_errors==0)"),
  ('multiple instructions execute only on callback',"mp.register_script_message('x',function() local a=2;synthetic=a+3 end)","assert(synthetic==nil);callbacks.x();assert(synthetic==5)"),
  ('rapid callbacks keep cumulative errors',"mp.register_script_message('x',function() error('test') end)","callbacks.x();callbacks.zavro_custom_status('synthetic-session');local first=report;callbacks.x();callbacks.zavro_custom_status('synthetic-session');assert(first.errors==1 and report.errors==2)"),
  ('callback return values preserve nil and arity',"mp.register_script_message('x',function() return 1,nil,3 end)","local v=table.pack(callbacks.x());assert(v.n==3 and v[1]==1 and v[2]==nil and v[3]==3)"),

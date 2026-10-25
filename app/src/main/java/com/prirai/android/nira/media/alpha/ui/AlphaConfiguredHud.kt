@@ -10,6 +10,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInParent
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -21,8 +24,10 @@ import kotlin.math.roundToInt
 @Composable
 internal fun AlphaConfiguredHud(
     snapshot:AlphaPreferences,state:AlphaPlaybackState,controlsVisible:Boolean,
-    battery:Int,charging:Boolean,clock:String,
+    battery:Int,charging:Boolean,clock:String,onHudBottom:(Float)->Unit = {},
 ) {
+    DisposableEffect(Unit) {onDispose {onHudBottom(0f)}}
+    val density=LocalDensity.current.density
     val p=AlphaRenderedValues(snapshot)
     if(!p.bool("show_playback_info_overlay",true) ||
         (!controlsVisible && !p.bool("alpha_hud_always_visible",true)))return
@@ -78,6 +83,7 @@ internal fun AlphaConfiguredHud(
             ),
             modifier=Modifier.offset { IntOffset((travelX*x).roundToInt(),(travelY*y).roundToInt()) }
                 .onSizeChanged { measured=it }
+                .onGloballyPositioned {val b=it.boundsInParent();onHudBottom(if(b.top<90*density)b.bottom else 0f)}
                 .clip(RoundedCornerShape(p.int("alpha_hud_corner_radius_dp",10).dp))
                 .background(color("alpha_hud_background_color",0xFF10151C)
                     .copy(alpha=p.int("alpha_hud_background_opacity",70)/100f))

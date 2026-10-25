@@ -49,7 +49,7 @@ internal fun AlphaLuaPanel(
     fun action(id:String,long:Boolean) {
         onInteraction()
         val result=AlphaLuaActions.invoke(id,long,config.state.value,session)
-        if(result!=AlphaLuaStatus.NATIVE_APPLIED)
+        if(AlphaFeedbackPolicy.immediate(result))
             Toast.makeText(context,alphaLuaFeedback(result),Toast.LENGTH_SHORT).show()
     }
     val lua=session.lua
@@ -59,7 +59,9 @@ internal fun AlphaLuaPanel(
         LaunchedEffect(execution.completion) {
             if(execution.completion!=lastCompletion) {
                 lastCompletion=execution.completion
-                Toast.makeText(context,alphaLuaFeedback(execution.lastCompletion?:execution.status),Toast.LENGTH_LONG).show()
+                val result=execution.lastCompletion?:execution.status
+                if(AlphaFeedbackPolicy.completion(result))
+                    Toast.makeText(context,alphaLuaFeedback(result),Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -93,16 +95,11 @@ internal fun AlphaLuaPanel(
                     AlphaLuaExecutionSettings(session.lua)
                     AlphaSettingsImport(config)
                 },
+                onReset={resetConfirm=true},
                 prefs=prefs,engineStatus="Natywne pause/seek/speed + bridge Lua za zgodą użytkownika",
                 onDismiss={dismiss()},hiddenDuringDrag=dragging,
                 manualMinimized=minimized,onManualMinimize={minimized=it},
             )
-            if(!dragging && !minimized) {
-                Row(Modifier.align(Alignment.BottomEnd).padding(6.dp)) {
-                    TextButton(onClick={resetConfirm=true}) { Text("Domyślne") }
-                    TextButton(onClick={dismiss()}) { Text("Zapisz i zamknij") }
-                }
-            }
         }
         if(resetConfirm) AlertDialog(
             onDismissRequest={resetConfirm=false},

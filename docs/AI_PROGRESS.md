@@ -283,3 +283,6 @@ Port oryginalnych 13 presetów EQ Alpha v54 i kontrolek Compose na istniejącej 
 
 ### 2026-10-25 — v1156
 Własne .lua jako osobne natywne klienty, jawne opt-in i snapshot na sesję, SAF/reimport/edycja/undo rewizji, prywatny import std.rnnn, bezpieczny podgląd mpv.conf i canonical customButtons XML. Oryginalne prywatne skrypty/model testowane wyłącznie poza Git. Dotychczasowy bridge NODE, Lua consent przycisków, Gecko/HLS/TLS, 43 sloty, mini scroll i fullscreen bez przebudowy. Systemowe Lua i host FFmpeg nie oznaczają Android DSP/GPU; końcowe wyniki oraz ograniczenia w handoff v1156. Bez subagentów i bez Auto Audio.
+
+### 2026-10-25 — v1157
+Ciche SENT/EXEC_OK i pojedyncze błędy, osobne WARN/top-level/callback; poprawiono config=no kontra resolver ~~ bez autoload i bez zmiany źródeł użytkownika. Natywne OSD z Roboto i skalą/marginesem HUD/mini, rzeczywisty odczyt renderer/file/GLSL/vo-passes/cleanup. Edytor ma jeden footer i scroll/IME. Lokalne JUnit179, JS157, Lua17+15+12, DSP13+31 PASS; pełny Gradle build/lint/AndroidTest compile PASS 8m50s. Urządzenia brak — GPU/OSD/dotyk nie zaliczone jako PASS. Handoff v1157 zawiera ograniczenia i instrukcję, bez nowego etapu audio.

@@ -127,6 +127,9 @@ private fun release(context:Context,uri:Uri) {
                             Text(row.name,style=MaterialTheme.typography.titleSmall)
                             Text("Następna sesja: "+if(row.enabled)"WŁĄCZONY" else "WYŁĄCZONY",style=MaterialTheme.typography.labelSmall)
                             Text("Teraz: "+(execution?.clients?.get(row.id)?.status?:"NIEZAŁADOWANY"),style=MaterialTheme.typography.labelSmall)
+                            execution?.clients?.get(row.id)?.let {status->
+                                Text("Ostrzeżenia: ${status.warnings}; wyjątki Lua: ${status.errors}; błędy logów: ${status.logErrors}",style=MaterialTheme.typography.labelSmall)
+                            }
                             if(execution?.versions?.get(row.id)?.let {it!=row.hash}==true)
                                 Text("W bieżącej sesji działa poprzednia rewizja.",style=MaterialTheme.typography.labelSmall)
                         }

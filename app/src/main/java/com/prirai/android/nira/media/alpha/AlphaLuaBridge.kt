@@ -26,7 +26,7 @@ internal object AlphaLuaBridge {
             require(scripts.canonicalFile==File(configDir.canonicalFile,"scripts"))
             val target=File(scripts,FILE_NAME)
             require(target.canonicalFile==File(scripts.canonicalFile,FILE_NAME))
-            val bytes=(source+"\n").toByteArray(Charsets.UTF_8)
+            val bytes=(AlphaLuaEnvironment.source(configDir,AlphaLuaEnvironment.BRIDGE_PROPERTY)+"\n"+source+"\n").toByteArray(Charsets.UTF_8)
             if(target.isFile && target.length()==bytes.size.toLong() && target.readBytes().contentEquals(bytes))
                 return true
             temporary=File.createTempFile("alpha-bridge-",".tmp",scripts)

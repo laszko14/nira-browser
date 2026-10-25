@@ -70,7 +70,7 @@ internal fun AlphaFullscreenControls(
         }
     }
     DisposableEffect(Unit) {
-        onDispose { onDragging(false) } // collectAsState/LaunchedEffect cancel with composition.
+        onDispose { onDragging(false);session.feedbackHudBottom(0f) } // collectAsState/LaunchedEffect cancel with composition.
     }
     val duration=state.durationSeconds?.toFloat()?:Float.NaN
     val position=state.positionSeconds?.toFloat()?:Float.NaN
@@ -82,7 +82,7 @@ internal fun AlphaFullscreenControls(
     )) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val width=maxWidth
-            AlphaConfiguredHud(appearance,state,controlsVisible,battery,charging,clock)
+            AlphaConfiguredHud(appearance,state,controlsVisible,battery,charging,clock,session::feedbackHudBottom)
             if (controlsVisible) {
                 ControlsButton(
                     Icons.AutoMirrored.Filled.ArrowBack,onBack,

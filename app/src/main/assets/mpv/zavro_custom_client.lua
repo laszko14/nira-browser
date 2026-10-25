@@ -6,10 +6,11 @@ local epoch = @EPOCH@
 local expected_client = @CLIENT@
 local mp = require('mp')
 local report = {epoch=epoch, loaded=false, syntax=false, runtime=false,
-    errors=0, handlers=0, cycle=false, off=false, ambient=false, conflict=false}
+    errors=0, top_errors=0, callback_errors=0, handlers=0, cycle=false, off=false, ambient=false, conflict=false}
 local native_set = mp.set_property_native
 local function publish()
     -- Never publish source, errors, document paths, handler names or return values.
+    report.feedback = mp._zavro_collect_feedback and mp._zavro_collect_feedback() or mp._zavro_feedback
     pcall(native_set, status_property, report)
 end
 local function guarded(fn)
@@ -18,6 +19,7 @@ local function guarded(fn)
         if not result[1] then
             report.errors = math.min(report.errors + 1, 1000000)
             report.runtime = true
+            report.callback_errors = report.callback_errors + 1
             return
         end
         return table.unpack(result, 2, result.n)
@@ -81,6 +83,6 @@ elseif not fn then report.syntax = true
 else
     local ok = pcall(fn)
     if ok then report.loaded = true
-    else report.runtime = true; report.errors = report.errors + 1 end
+    else report.runtime = true; report.errors = report.errors + 1; report.top_errors=report.top_errors+1 end
 end
 publish()
