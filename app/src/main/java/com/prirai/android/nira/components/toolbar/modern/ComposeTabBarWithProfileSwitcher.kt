@@ -125,7 +125,12 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
         // TabViewModel.closeTab() now performs store removal directly via
         // TabsUseCases + UndoMiddleware, so no host-side onTabRemove wiring is
         // required. See TabViewModel.closeTab kdoc for the undo contract.
-        tabViewModel = TabViewModel(context, groupManager!!).also { modelStore.put("tabs", it) }
+        tabViewModel = androidx.lifecycle.ViewModelProvider(modelStore,
+            object : androidx.lifecycle.ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                    TabViewModel(context, groupManager!!) as T
+            })[TabViewModel::class.java]
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {

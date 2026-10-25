@@ -298,3 +298,5 @@ Opcjonalne, odwracalne rewizje istniejących przycisków DRC/DE: kopie oryginał
 - Dokładny commit, Draft PR i wynik podpisującego CI w końcowym opisie PR. Nie pobierać APK do Codex; nie rozpoczynać następnej wersji.
 
 - Końcowy Gradle po review PASS4m41s: test/lint/assemble/compileAndroidTest; JUnit230/230, JS162/162, Lua77/77, DSP28/28. Brak destrukcyjnej migracji i resetu preferencji. Review autora,92 chronione pliki bez zmian + tylko numer w diagnostyce MPV.
+
+- Review szczegółowego lint: dwa nowe RestrictedApi w ręcznym ViewModelStore.put. Poprawione publicznym ViewModelProvider; końcowy Gradle PASS4m28s, JUnit230/230 i JS162/162,0 tych naruszeń. Pierwsze CI40233363285 anulowane, konieczny drugi push do tego samego Draft PR72. Bez zmian MPV/Lua/DSP.

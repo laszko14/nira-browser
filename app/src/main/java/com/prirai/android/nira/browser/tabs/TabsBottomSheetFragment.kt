@@ -712,10 +712,12 @@ class TabsBottomSheetFragment : DialogFragment() {
         // so onTabRemove / onTabRestore glue is no longer needed here.
         val modelStore = remember { androidx.lifecycle.ViewModelStore() }
         val viewModel = remember {
-            TabViewModel(requireContext(), unifiedGroupManager).also {
-                modelStore.put("tabs", it)
-                tabViewModel = it
-            }
+            androidx.lifecycle.ViewModelProvider(modelStore,
+                object : androidx.lifecycle.ViewModelProvider.Factory {
+                    @Suppress("UNCHECKED_CAST")
+                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                        TabViewModel(requireContext(), unifiedGroupManager) as T
+                })[TabViewModel::class.java].also { tabViewModel = it }
         }
         DisposableEffect(modelStore) {
             onDispose { modelStore.clear() }
