@@ -79,6 +79,16 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         val fallbackMediaPaused: Boolean,
     )
     private var suspendedWebPlayback: SuspendedWebPlayback? = null
+    private var inlineMpv: com.prirai.android.nira.media.InlineMpvUi? = null
+    private var inlinePage: String? = null
+    private var inlineSession: Any? = null
+    private fun closeInlineMpv() {
+        inlineMpv?.detach()
+        inlineMpv=null
+        inlinePage=null
+        inlineSession=null
+        restoreWebPlaybackAfterMpv()
+    }
     private val internalMpvLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { restoreWebPlaybackAfterMpv() }
@@ -340,8 +350,16 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             val frame = runCatching { android.net.Uri.parse(offer.pageUrl) }.getOrNull()
                 ?.takeIf { ZavroMpvActivity.allowedVideoUrl(it) } ?: return@auto
             val safeReferrer = frame.buildUpon().clearQuery().fragment(null).build().toString()
-            log("auto_launch_request")
-            launchInternalVideo(uri, safeReferrer, offer.pageUrl, offer)
+            if (!offer.topFrame || offer.w < 320.0 || offer.h < 180.0) {
+                log("inline_frame_unsupported")
+                return@auto
+            }
+            log("inline_eligible")
+            launchInlineVideo(uri,safeReferrer,offer)
+        }
+        MediaElementPlaybackBridge.onInlineLayout = { nonce,rect ->
+            val ui=inlineMpv
+            if (ui != null && ui.token == nonce) ui.place(rect)
         }
         val overlay = MediaFloatingUi(
             parent = binding.browserLayout,
@@ -396,12 +414,22 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             combine(selectedDocument, repositoryChanges) { tab, repo ->
                 if (tab == null || repo == null) null
                 else MediaUiSnapshot(tab, repo.currentEntries(tab))
-            }.collect { overlay.render(it) }
+            }.collect {
+                overlay.render(it)
+                if (inlineMpv != null) {
+                    val s=store.state
+                    val tab=s.tabs.firstOrNull { t -> t.id == s.selectedTabId }
+                    if (tab == null || tab.engineState.engineSession !== inlineSession ||
+                        tab.content.url != inlinePage) closeInlineMpv()
+                }
+            }
         }
     }
 
     override fun onDestroyView() {
         MediaElementPlaybackBridge.onAutoOffer = null
+        MediaElementPlaybackBridge.onInlineLayout = null
+        closeInlineMpv()
         binding.gestureLayout.onVerticalSwipe = null
         mediaFloatingUi?.detach()
         mediaFloatingUi = null
@@ -1537,6 +1565,51 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         // Manual playback from the existing detected-media panel is the only
         // native handoff in E1/E2. Automatic Play requires a per-element ACK.
         launchInternalVideo(uri, safeReferrer, referrer)
+    }
+
+    private fun launchInlineVideo(
+        uri: android.net.Uri, safeReferrer: String?,
+        offer: MediaElementPlaybackBridge.AutoOffer
+    ) {
+        if (inlineMpv != null || suspendedWebPlayback != null || !isAdded) return
+        val s=requireContext().components.store.state
+        val tab=s.tabs.firstOrNull { it.id == s.selectedTabId } ?: return
+        val session=tab.engineState.engineSession ?: return
+        val requested=MediaTabState(
+            MediaSessionBinding(session,tab.id,tab.contextId,tab.content.private),
+            tab.content.url,tab.content.loading)
+        MediaElementPlaybackBridge.prepare(requested,uri.toString(),offer.pageUrl,offer) { lease ->
+            if (lease == null) return@prepare
+            if (!isAdded || view == null) {
+                MediaElementPlaybackBridge.restore(lease,requested)
+                return@prepare
+            }
+            val now=requireContext().components.store.state
+            val live=now.tabs.firstOrNull { it.id == now.selectedTabId }
+            if (live == null || live.engineState.engineSession !== session ||
+                live.content.url != tab.content.url ||
+                live.contextId != tab.contextId ||
+                live.content.private != tab.content.private) {
+                MediaElementPlaybackBridge.restore(lease,requested)
+                return@prepare
+            }
+            suspendedWebPlayback=SuspendedWebPlayback(
+                live.id,live.contextId,live.content.private,session,live.content.url,lease,false)
+            val ui=com.prirai.android.nira.media.InlineMpvUi(
+                binding.browserLayout,binding.engineView.asView(),
+                requireActivity(),requireContext(),lease,session) { closeInlineMpv() }
+            inlineMpv=ui
+            inlinePage=live.content.url
+            inlineSession=session
+            val rect=MediaElementPlaybackBridge.InlineRect(
+                offer.x,offer.y,offer.w,offer.h,offer.dpr)
+            if (!ui.open(uri.toString(),GeckoSession.getDefaultUserAgent(),safeReferrer,rect) ||
+                !MediaElementPlaybackBridge.activateInline(lease,requested)) {
+                closeInlineMpv()
+            } else {
+                MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF,"inline_open",session)
+            }
+        }
     }
 
     private fun launchInternalVideo(

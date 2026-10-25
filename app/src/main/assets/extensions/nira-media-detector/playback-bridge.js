@@ -26,7 +26,7 @@
   function protocolOneShot(event, fields = {}) {
     // A Gecko port challenge binds this message to its particular frame.
     // No challenge, no AUTO/ACK; all protocol data stays transient in Gecko.
-    if (!probeNonce || !["probe_ack", "auto_offer", "handoff_ack"].includes(event)) return;
+    if (!probeNonce || !["probe_ack", "auto_offer", "handoff_ack", "inline_layout"].includes(event)) return;
     try {
       const reply = browser.runtime.sendNativeMessage(PORT,
         {version:1, event, probeNonce, ...fields});
@@ -40,6 +40,26 @@
   let port = null, connectAttempts = 0, lastGesture = null, probeNonce = null;
   const GESTURE_WINDOW_MS = 10_000;
   const lastAutoOffer = new WeakMap();
+  let inlineLease = null, lastLayout = 0;
+  function rectOf(video) {
+    if (!video || !video.isConnected) return null;
+    const r = video.getBoundingClientRect();
+    const dpr = Number(window.devicePixelRatio || 1);
+    if (![r.left,r.top,r.width,r.height,dpr].every(Number.isFinite) ||
+        r.width < 1 || r.height < 1 || dpr < .5 || dpr > 5) return null;
+    return {x:r.left,y:r.top,w:r.width,h:r.height,dpr};
+  }
+  function layoutUpdate() {
+    if (!inlineLease || !holds.has(inlineLease.nonce) ||
+        Date.now() - lastLayout < 90) return;
+    lastLayout = Date.now();
+    const r = rectOf(inlineLease.video);
+    const data = {nonce:inlineLease.nonce,frameKey,
+      elementKey:elementKey(inlineLease.video),
+      ...(r || {x:0,y:0,w:0,h:0,dpr:1})};
+    send({version:1,event:"inline_layout",...data});
+    protocolOneShot("inline_layout",data);
+  }
 
   function uuid() {
     try {
@@ -144,6 +164,7 @@
     const state = holds.get(request.nonce);
     if (!state) return;
     holds.delete(request.nonce);
+    if (inlineLease && inlineLease.nonce === request.nonce) inlineLease = null;
     if (!resume || !state.wasPlaying || state.page !== location.href ||
         !state.video.isConnected || state.video.ended ||
         mediaUrl(state.video) !== state.src) return;
@@ -221,7 +242,10 @@
     lastAutoOffer.set(video,Date.now());
     lastGesture = null;
     diagnostic("auto_offered");
-    const offer = {frameKey, elementKey:key, pageUrl:location.href, mediaUrl:url};
+    // Only top-level video has unambiguous coordinates in GeckoView.
+    const r = rectOf(video);
+    const offer = {frameKey, elementKey:key, pageUrl:location.href, mediaUrl:url,
+      topFrame:window === window.top, ...(r || {})};
     send({version:1,event:"auto_offer",...offer});
     protocolOneShot("auto_offer",offer);
   }
@@ -247,6 +271,11 @@
         }
         if (typeof message.nonce !== "string") return;
         if (message.event === "prepare") prepare(message);
+        if (message.event === "inline_start" && holds.has(message.nonce) &&
+            window === window.top) {
+          inlineLease = {nonce:message.nonce,video:holds.get(message.nonce).video};
+          layoutUpdate();
+        }
         if (message.event === "restore") release(message,true);
         if (message.event === "cancel") release(message,false);
       });
@@ -255,6 +284,7 @@
         port = null;
         probeNonce = null;
         holds.clear();
+        inlineLease = null;
         if (connectAttempts < 4) setTimeout(connect,800);
       });
     } catch (_) {
@@ -271,6 +301,9 @@
   document.addEventListener("loadedmetadata",videoPlayed,true);
   document.addEventListener("durationchange",videoPlayed,true);
   document.addEventListener("pageshow", () => diagnostic("document_visible"), true);
+  document.addEventListener("scroll",layoutUpdate,true);
+  window.addEventListener("scroll",layoutUpdate,true);
+  window.addEventListener("resize",layoutUpdate,true);
   connect();
   if (document.readyState === "loading")
     document.addEventListener("DOMContentLoaded",connect,{once:true});
