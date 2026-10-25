@@ -99,7 +99,7 @@ test("v1131 refuses ambiguous same-source players, MSE blobs and stale navigatio
 
 test("v1131 native bridge fail-closed on session, frame, document and token", () => {
   assert.match(native, /it\.engineSession === tab\.binding\.session/);
-  assert.match(native, /it\.senderUrl\(\) == frame/);
+  assert.match(native, /runCatching \{ it\.senderUrl\(\) \}\.getOrNull\(\) == frame/);
   assert.match(native, /candidates\.singleOrNull/);
   assert.match(native, /ACK_TIMEOUT_MS/);
   assert.match(native, /p\.port !== port/);
