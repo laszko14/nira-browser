@@ -72,6 +72,8 @@ class ZavroMpvActivity : AppCompatActivity() {
     private var hud: TextView? = null
     private var speedControl: TextView? = null
     private var pauseControl: TextView? = null
+    private var supertestControl: TextView? = null
+    private var supertestTick: Runnable? = null
     private var seekBar: SeekBar? = null
     private var dragging = false
     private var nativeControls: View? = null
@@ -187,7 +189,10 @@ class ZavroMpvActivity : AppCompatActivity() {
         override fun eventProperty(property: String, value: Double) {
             if (property == "time-pos" || property == "duration") runOnUiThread {
                 if (ready) {
-                    if (property == "time-pos") position = value else duration = value
+                    if (property == "time-pos") {
+                        position = value
+                        MpvSupertest.sample(traceSession, position)
+                    } else duration = value
                     updateHud()
                 }
             }
@@ -408,6 +413,8 @@ class ZavroMpvActivity : AppCompatActivity() {
         })
         row.addView(control("Filtry") { showAudioFilters() })
         row.addView(control("Ponów") { retry() })
+        supertestControl = control("SUPERTEST 40 s") { startMpvSupertest() }
+        row.addView(supertestControl)
         row.addView(control("PiP") { enterNativePip() })
         bottom.addView(row)
         root.addView(bottom, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
@@ -425,6 +432,32 @@ class ZavroMpvActivity : AppCompatActivity() {
         miniProgress = mini
         updateHud()
         revealControls()
+        updateSupertestCountdown()
+    }
+
+    private fun startMpvSupertest() {
+        if (MpvSupertest.start(applicationContext, traceSession,
+                if (autoHandoff) "AUTO" else "MPV ręcznie")) {
+            Toast.makeText(this, "SUPERTEST 40 s rozpoczęty • raport skopiuje się sam",
+                Toast.LENGTH_LONG).show()
+        } else {
+            Toast.makeText(this, "Test trwa: ${MpvSupertest.remainingSeconds()} s",
+                Toast.LENGTH_SHORT).show()
+        }
+        updateSupertestCountdown()
+        revealControls()
+    }
+
+    private fun updateSupertestCountdown() {
+        supertestTick?.let(handler::removeCallbacks)
+        val remaining = MpvSupertest.remainingSeconds()
+        supertestControl?.text = if (remaining > 0) "TEST ${remaining} s"
+            else if (MpvSupertest.latest() != null) "✓ RAPORT" else "SUPERTEST 40 s"
+        if (remaining > 0 && ready) {
+            val tick = Runnable { if (!isFinishing) updateSupertestCountdown() }
+            supertestTick = tick
+            handler.postDelayed(tick, 1_000L)
+        }
     }
 
     private fun pill() = GradientDrawable().apply {
@@ -695,6 +728,7 @@ class ZavroMpvActivity : AppCompatActivity() {
         holdAction?.let(handler::removeCallbacks)
         timeoutAction?.let(handler::removeCallbacks)
         controlsHideTask?.let(handler::removeCallbacks)
+        supertestTick?.let(handler::removeCallbacks)
         player?.isExiting = true
         retryController.clear()
         if (ready) {

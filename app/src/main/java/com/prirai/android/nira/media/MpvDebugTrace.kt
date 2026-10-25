@@ -67,7 +67,7 @@ internal object MpvDebugTrace {
 
     @Synchronized
     fun report(section: Section, session: Any?, playerMode: String? = null): String = buildString {
-        appendLine("Zavro x MPV v1141 — ${section.name}")
+        appendLine("Zavro x MPV v1142 — ${section.name}")
         appendLine("Tryb odtwarzania: ${playerMode ?: "nie dotyczy"}")
         appendLine("Sesja Gecko: ${if (session == null) "BRAK" else "AKTYWNA"}")
         appendLine("Zapis tylko w RAM; brak URL, hostów, cookies, nagłówków i tokenów.")
@@ -78,6 +78,67 @@ internal object MpvDebugTrace {
         if (visible.isEmpty()) appendLine("Brak zdarzeń. Otwórz stronę, naciśnij Play i odśwież raport.")
         visible.forEach { appendLine("${it.elapsedMs / 1000}s | ${it.code}") }
         appendLine("Uwaga: brak zdarzeń może oznaczać brak portu Gecko lub MSE/blob.")
+    }
+
+    /** A single bounded diagnostic report shared by Gecko and native MPV.
+     * Includes only hardcoded allowlisted event codes and numeric telemetry.
+     * The 30-second pre-roll explains why MPV was already opened before a tap.
+     */
+    @Synchronized
+    fun superReport(
+        session: Any?, mode: String, startedMs: Long, finishedMs: Long,
+        positionSamples: Int, progressedSeconds: Double, observedMpv: Boolean
+    ): String = buildString {
+        val before = (startedMs - 30_000L).coerceAtLeast(0L)
+        val relevant = events.filter {
+            it.elapsedMs in before..finishedMs &&
+                (it.session == null || it.session === session)
+        }
+        val during = relevant.filter { it.elapsedMs >= startedMs }
+        fun had(code: String) = relevant.any { it.code == code }
+        fun count(code: String) = during.count { it.code == code }
+        fun yes(value: Boolean) = if (value) "TAK" else "NIE"
+        appendLine("Zavro x MPV v1142 — SUPERTEST 40 s")
+        appendLine("Tryb: ${mode}; czas: ${(finishedMs - startedMs).coerceAtLeast(0L) / 1000} s")
+        appendLine("JEDEN RAPORT • tylko RAM i kody diagnostyczne; bez adresów, hostów, cookies, tokenów i nagłówków.")
+        appendLine()
+        appendLine("1. GECKO / PLAY")
+        appendLine("Most: ${if (had("probe_ack") || had("probe_ack_oneshot")) "OK (probe ACK)" else "niepotwierdzony w tym oknie"}")
+        appendLine("Start strony: ${yes(had("script_started"))}, Play: ${yes(had("video_play"))}, gest: ${yes(had("gesture"))}")
+        appendLine("Źródło blob/MSE: ${yes(had("source_blob"))}, DRM: ${yes(had("source_drm"))}")
+        appendLine()
+        appendLine("2. AUTO / HANDOFF")
+        appendLine("Oferta AUTO: ${yes(had("auto_offered") || had("auto_offer_received"))}, prepare: ${yes(had("prepare_sent"))}, ACK: ${yes(had("ack_ok"))}")
+        appendLine("Odmowa prepare: ${count("prepare_rejected")}; timeout ACK: ${count("ack_timeout")}; rollback: ${count("mpv_auto_rollback")}")
+        if (had("source_blob") || had("source_drm"))
+            appendLine("Wniosek: blob/MSE/DRM pozostaje w Gecko; brak handoff jest zachowaniem ochronnym.")
+        else if (!had("video_play")) appendLine("Wniosek: w tym oknie nie wykryto Play; nie można ocenić AUTO.")
+        else if (!had("gesture")) appendLine("Wniosek: Play bez potwierdzonego gestu; AUTO celowo nie przejmuje.")
+        else if (!had("auto_offered") && !had("auto_offer_received"))
+            appendLine("Wniosek: brak oferty AUTO; sprawdź, czy źródło ma bezpośredni adres.")
+        appendLine()
+        appendLine("3. MPV / HLS / TLS")
+        appendLine("Otwieranie: ${yes(had("mpv_start_file"))}, załadowanie: ${yes(had("mpv_file_loaded"))}, start playback: ${yes(had("mpv_playback_started"))}")
+        appendLine("CA Androida: ${if (had("mpv_tls_ca_prepared")) "przekazano" else if (had("mpv_tls_ca_unavailable")) "niedostępne" else "brak obserwacji"}")
+        appendLine("Postęp odtwarzania w czasie testu: ${if (observedMpv) String.format(java.util.Locale.US, "%.1f s (próbki: %d)", progressedSeconds, positionSamples) else "brak próbek MPV"}")
+        appendLine("Buforowanie: wait=${count("mpv_cache_wait")}, resume=${count("mpv_cache_resume")}")
+        appendLine("Błędy TLS: ogólne=${count("mpv_tls_error")}, cert=${count("mpv_tls_certificate_error")}, handshake=${count("mpv_tls_handshake_error")}, po załadowaniu=${count("mpv_tls_after_load")}")
+        appendLine("HTTP 401/403/404/429/5xx: ${listOf("mpv_http_401","mpv_http_403","mpv_http_404","mpv_http_429","mpv_http_5xx").sumOf(::count)}")
+        appendLine("Retry=${count("mpv_retry")}, resume seek=${count("mpv_retry_resume_attempt")}, błędy ręczne=${count("mpv_manual_error")}, timeout=${count("mpv_timeout")}")
+        appendLine("Wniosek MPV: " + when {
+            progressedSeconds >= 3.0 -> "odtwarzanie wykazało rzeczywisty postęp."
+            had("mpv_file_loaded") && !observedMpv -> "plik załadowany, ale brak pomiaru pozycji w oknie."
+            had("mpv_file_loaded") -> "załadowano plik, lecz za mały postęp; możliwe buforowanie/pauza."
+            had("mpv_start_file") -> "rozpoczęto otwieranie, brak FILE_LOADED."
+            else -> "nie uruchamiano MPV w czasie tego testu (lub otwarto przed oknem kontekstu)."
+        })
+        appendLine()
+        appendLine("4. OŚ ZDARZEŃ • test + 30 s kontekstu")
+        relevant.takeLast(65).forEach { event ->
+            val relative = (event.elapsedMs - startedMs) / 1000.0
+            appendLine(String.format(java.util.Locale.US, "%+.1fs | %s | %s", relative, event.section.name, event.code))
+        }
+        if (relevant.isEmpty()) appendLine("Brak zdarzeń; sprawdź sesję i uruchom Play.")
     }
 
     /** Discard full libmpv logs immediately. Only fixed failure categories survive. */
