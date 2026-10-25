@@ -16,7 +16,7 @@
   const MAX_URL_LENGTH = 8192;
   const holds = new Map();
   let port = null;
-  let lastPort = null;
+  let connectAttempts = 0;
 
   function mediaUrl(video) {
     const value = video && (video.currentSrc || video.src);
@@ -37,13 +37,13 @@
         request.pageUrl !== location.href || holds.size ||
         !/^[0-9a-f-]{36}$/.test(request.nonce)) return;
     let matches = [];
+    let inspected = 0;
     try {
       for (const video of document.querySelectorAll("video")) {
-        if (matches.length > 1) break;
+        if (++inspected > MAX_VIDEOS || matches.length > 1) break;
         if (!(video instanceof HTMLVideoElement) || !video.isConnected ||
             video.ended || video.error || video.mediaKeys) continue;
         if (mediaUrl(video) === request.mediaUrl) matches.push(video);
-        if (matches.length >= MAX_VIDEOS) break;
       }
     } catch (_) { return; }
     if (matches.length !== 1) {
@@ -80,12 +80,12 @@
   }
 
   function connect() {
-    if (port) return;
+    if (port || connectAttempts >= 4) return;
+    connectAttempts++;
     try {
       const connected = browser.runtime.connectNative(PORT);
       if (!connected) return;
       port = connected;
-      lastPort = connected;
       connected.onMessage.addListener(message => {
         if (port !== connected || !message || message.version !== 1 ||
             typeof message.event !== "string" ||
@@ -99,8 +99,12 @@
         // No automatic resumption after disconnect: the browser/user owns
         // playback state and a stale frame must never trigger site autoplay.
         holds.clear();
+        if (connectAttempts < 4) setTimeout(connect, 800);
       });
-    } catch (_) { port = null; }
+    } catch (_) {
+      port = null;
+      if (connectAttempts < 4) setTimeout(connect, 800);
+    }
   }
 
   connect();
