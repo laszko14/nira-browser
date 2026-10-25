@@ -26,7 +26,10 @@ Ręczny code review: sprawdzono sekwencję zdarzeń, recykling kopii, przesuwani
 - Lokalne Node: 138/138 PASS. Nowe kontrakty najpierw FAIL na v1146.
 - Lokalny Gradle testDebugUnitTest + lintDebug offline: BUILD SUCCESSFUL; 83 testy JUnit, zero failures/errors, w tym klasyfikator 3/3 PASS. Po ostatniej korekcie ponownie potwierdzono sukces pełnego polecenia.
 - git diff --check: PASS.
-- PR i CI: zostaną uzupełnione po utworzeniu i zakończeniu.
+- Draft PR: https://github.com/laszko14/nira-browser/pull/60 — baza v1146, bez merge.
+- CI implementacji: https://github.com/laszko14/nira-browser/actions/runs/40172217252 — BUILD, TEST, LINT SUCCESS dla 3b771e5f400ce8f2f5863cf1ac3f8aeb93852b60. Krok budowy potwierdza zgodność package, wersji 1147, ARM64 i wymaganego certyfikatu przed uploadem.
+- Końcowy przebieg po zapisie tych wyników: checks PR #60 lub https://github.com/laszko14/nira-browser/actions?query=branch%3Afeat%2Fzavro-x-mpv-v1147-inline-scroll. Dokładny końcowy SHA i bezpośrednie linki CI/artefaktu znajdują się również w raporcie końcowym.
+- Artefakt APK: zavro-x-mpv-arm64-v1147 (GitHub Actions, bez pobierania).
 - Package pozostaje com.prirai.android.nira.mpv. Wymagany certyfikat SHA256 df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00. Workflow weryfikuje package, wersję, ABI i podpis przed publikacją.
 - Końcowy SHA zostanie podany w raporcie końcowym; można go odczytać również z head.sha PR / git rev-parse HEAD.
 - APK pozostaje w GitHub Actions; nie pobierano go do sesji.
