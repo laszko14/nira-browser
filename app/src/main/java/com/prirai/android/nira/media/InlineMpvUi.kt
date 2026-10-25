@@ -267,12 +267,14 @@ internal class InlineMpvUi(
         val hostScreen=IntArray(2)
         host.getLocationOnScreen(hostScreen)
         hostVisible.offset(hostScreen[0],hostScreen[1])
-        // CSS viewport coordinates map through Gecko devicePixelRatio. Intersect
+        // Map the visual CSS viewport to actual GeckoView pixels (including page scale). Intersect
         // in one common screen coordinate space so chrome remains unobscured.
-        val left=(screen[0]+rect.x*rect.dpr).toInt()
-        val top=(screen[1]+rect.y*rect.dpr).toInt()
-        val rectangle=Rect(left,top,
-            left+(rect.w*rect.dpr).toInt(),top+(rect.h*rect.dpr).toInt())
+        val pixels=InlineMpvGeometry.pixels(rect.x,rect.y,rect.w,rect.h,
+            rect.viewportWidth,engine.width,rect.dpr)
+        val left=screen[0]+pixels[0]
+        val top=screen[1]+pixels[1]
+        val rectangle=Rect(left,top,left+pixels[2],top+pixels[3])
+        val fullRectangle=Rect(rectangle)
         if (!rectangle.intersect(engineVisible) ||
             !rectangle.intersect(hostVisible) ||
             rectangle.width()<dp(120) || rectangle.height()<dp(70)) {
@@ -281,10 +283,13 @@ internal class InlineMpvUi(
         }
         val wasHidden=overlay.visibility!=View.VISIBLE
         overlay.visibility=View.VISIBLE
-        val params=FrameLayout.LayoutParams(rectangle.width(),rectangle.height(),
+        overlay.clipBounds=Rect(rectangle.left-fullRectangle.left,
+            rectangle.top-fullRectangle.top,rectangle.right-fullRectangle.left,
+            rectangle.bottom-fullRectangle.top)
+        val params=FrameLayout.LayoutParams(fullRectangle.width(),fullRectangle.height(),
             Gravity.TOP or Gravity.START).apply {
-            leftMargin=rectangle.left-origin[0]
-            topMargin=rectangle.top-origin[1]
+            leftMargin=fullRectangle.left-origin[0]
+            topMargin=fullRectangle.top-origin[1]
         }
         val old=overlay.layoutParams as? FrameLayout.LayoutParams
         if (old==null || old.width!=params.width || old.height!=params.height ||
@@ -303,6 +308,7 @@ internal class InlineMpvUi(
         if (destroyed) return
         if (!fullscreen) {
             fullscreen=true
+            overlay.clipBounds=null
             // Do not remove/re-add the SurfaceView or call loadfile.
             overlay.visibility=View.VISIBLE
             overlay.layoutParams=FrameLayout.LayoutParams(-1,-1,Gravity.TOP or Gravity.START)

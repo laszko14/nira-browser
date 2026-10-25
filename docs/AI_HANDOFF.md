@@ -317,3 +317,6 @@ Na Nothing Phone (1) zainstalować `app-arm64-v8a-debug.apk`, wpisać publiczny 
 - Próba przechwycenia wejścia strony w fullscreen na podstawie aktualnego wykrytego strumienia, z fallback Gecko. Pełna podmiana inline playerów Gecko nie jest jeszcze wykonana. Dobór strumienia z listy na stronach multi-video wymaga oceny w realnym teście.
 - CI: pierwotny run 40142799308: build arm64 + podpis SUCCESS i artefakt 12579950798, test Node 85/91 (6 błędów jedynie w starych asercjach metadanych v1126), aktualizacja tych asercji w tym commicie. Najnowszy run / artefakt sprawdź po ostatnim commicie, nie deklaruj bez weryfikacji.
 - Bez ręcznego testu na Nothing Phone (1). Testować stronę z jednym MP4, HLS i stronę z wieloma filmami. APK nie oznacza automatycznej zgodności wszystkich stron.
+
+## 2026-10-25 — v1146
+Bieżąca praca nad geometrią inline MPV na bazie v1145. Szczegóły i ograniczenia: [ZAVRO_X_MPV_V1146_HANDOFF.md](ZAVRO_X_MPV_V1146_HANDOFF.md). Bez merge.
