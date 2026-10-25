@@ -268,3 +268,6 @@ Przeniesiono HUD i wyodrębnione oryginalne wizualne kontrolki Alpha do fullscre
 
 ### 2026-10-25 — v1151
 Przeniesiono oryginalny panel Lua, style, edytory i 20 fontów Alpha v54; dodano prywatny zapis, backup i bezpieczne komendy przez AlphaSession. Node 146/146 i JUnit 102/102 PASS. Końcowe lokalne Gradle/CI, ograniczenia i telefon opisuje handoff v1151.
+
+### 2026-10-25 — v1152
+Dodano limitowany lokalny importer XML Alpha v54, podgląd bez mutacji, trzy zakresy, atomowy snapshot i osobny undo oraz mapowanie widocznych preferencji Lua/HUD. Syntetyczne Node 148/148, JUnit 115/115 i lint PASS; build/CI i instrukcję telefonu opisuje handoff v1152.

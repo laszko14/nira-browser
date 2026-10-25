@@ -2,6 +2,7 @@
 // Canonical commit c6107ce14a9f1768c73f975c5d60b1d8bd71aaed.
 package com.prirai.android.nira.media.alpha.ui
 
+import com.prirai.android.nira.media.alpha.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
@@ -25,14 +26,17 @@ internal fun MiniProgressBar(
   visible: Boolean,
   navigationBarBottom: Dp,
   bufferedUntilSeconds: Float? = null,
+  settings:AlphaPreferences=AlphaPreferences(),
 ) {
   val fraction = miniProgressFraction(positionSeconds,durationSeconds) ?: return
   val bufferedFraction:Float? = null
-  if (!visible) return
-  val thickness=3
-  val opacity=65
-  val margin=8
-  val color = Color(0xFF2B9BFA)
+  val p=AlphaRenderedValues(settings)
+  if (!visible || !p.bool("mini_progress_enabled",true)) return
+  val thickness=p.int("mini_progress_thickness_px",3)
+  val opacity=p.int("mini_progress_opacity_percent",65)
+  val margin=p.int("mini_progress_bottom_margin_dp",8)
+  val color=runCatching { Color(android.graphics.Color.parseColor(
+    p.text("mini_progress_color_hex","#2B9BFA"))) }.getOrDefault(Color(0xFF2B9BFA))
   val bufferColor = Color(0xFFFF9100)
   val alpha = opacity.coerceIn(0, 100) / 100f
   val strokeWidthPx = thickness.coerceIn(1, 8).toFloat()

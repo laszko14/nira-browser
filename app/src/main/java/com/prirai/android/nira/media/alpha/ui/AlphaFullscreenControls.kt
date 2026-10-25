@@ -47,6 +47,8 @@ internal fun AlphaFullscreenControls(
 ) {
     val state by session.state.collectAsState()
     val context=LocalContext.current
+    val config=remember(context) { com.prirai.android.nira.media.alpha.AlphaLuaRepository.get(context) }
+    val appearance by config.state.collectAsState()
     var clock by remember { mutableStateOf("") }
     var battery by remember { mutableIntStateOf(-1) }
     var charging by remember { mutableStateOf(false) }
@@ -80,27 +82,7 @@ internal fun AlphaFullscreenControls(
     )) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val width=maxWidth
-            HudBarContent(
-                model=HudBarModel(
-                    battery>=0,clock.isNotEmpty(),remaining.adjustedSeconds!=null,
-                    remaining.originalSeconds!=null,state.speed!=null,
-                    battery,charging,clock,
-                    remaining.adjustedSeconds?.let { "⏱ "+DateUtils.formatElapsedTime(it) }?:"",
-                    remaining.originalSeconds?.let { "↓ "+DateUtils.formatElapsedTime(it) }?:"",
-                    speed,
-                    when (battery) {
-                        in 0..9 -> Color(0xFFEF4444)
-                        in 10..19 -> Color(0xFFF59E0B)
-                        else -> Color(0xFF4ADE80)
-                    },Color(0xFFE2E8F0),Color(0xFFA7F3D0),
-                    Color.White,Color(0xFF60E2F2),16.sp,18.dp,3.dp,
-                    FontWeight.SemiBold,false,12.dp,1f,
-                ),
-                modifier=Modifier.align(Alignment.TopStart).padding(8.dp)
-                    .background(Color(0xFF10151C).copy(alpha=.70f),RoundedCornerShape(10.dp))
-                    .padding(8.dp),
-                maxWidth=width-16.dp,
-            )
+            AlphaConfiguredHud(appearance,state,controlsVisible,battery,charging,clock)
             if (controlsVisible) {
                 ControlsButton(
                     Icons.AutoMirrored.Filled.ArrowBack,onBack,
@@ -171,7 +153,7 @@ internal fun AlphaFullscreenControls(
                     }
                 }
             }
-            MiniProgressBar(position,duration,!controlsVisible,0.dp)
+            MiniProgressBar(position,duration,!controlsVisible,0.dp,settings=appearance)
             AlphaLuaPanel(session,controlsVisible,luaEditRequest,onDragging,onInteraction)
         }
     }

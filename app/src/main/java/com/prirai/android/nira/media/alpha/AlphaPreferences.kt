@@ -63,7 +63,7 @@ internal object AlphaSlots {
     const val RIGHT_START=MAIN+HISTORICAL
     const val COUNT=RIGHT_START+RIGHT
 
-    @Serializable private data class Envelope(val slots:List<AlphaLuaButton?>)
+    @Serializable private data class Envelope(val slots:List<AlphaLuaButton?> = List(COUNT){null})
     fun normalize(source:List<AlphaLuaButton?>):List<AlphaLuaButton?> {
         require(source.size<=COUNT) { "Unsupported slot count" }
         val result=MutableList(COUNT) { source.getOrNull(it) }

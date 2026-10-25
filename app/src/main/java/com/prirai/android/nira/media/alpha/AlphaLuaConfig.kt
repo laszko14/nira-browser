@@ -8,6 +8,9 @@ import kotlinx.serialization.json.*
 internal interface AlphaLuaStorage {
     fun read():String?
     fun backup():String?=null
+    fun importBackup():String?=null
+    fun writeImport(value:String,before:String):Boolean=false
+    fun restoreImport(value:String):Boolean=false
     fun write(value:String):Boolean
 }
 
@@ -17,6 +20,9 @@ internal class AlphaLuaConfig(private val storage:AlphaLuaStorage) {
     val error=mutableError.asStateFlow()
     private val mutableState=MutableStateFlow(load())
     val state=mutableState.asStateFlow()
+    private val mutableImportAvailable=MutableStateFlow(
+        runCatching { storage.importBackup()?.let(::decode)!=null }.getOrDefault(false))
+    val importBackupAvailable=mutableImportAvailable.asStateFlow()
 
     private fun load():AlphaPreferences {
         return try {
@@ -37,6 +43,35 @@ internal class AlphaLuaConfig(private val storage:AlphaLuaStorage) {
             require(text.length<=1_048_576)
             if (!storage.write(text)) { mutableError.value="save_failed"; return false }
             mutableState.value=next
+            mutableError.value=null
+            true
+        } catch (_:Exception) { mutableError.value="invalid_snapshot";false }
+    }
+    @Synchronized fun applyImport(plan:AlphaImportPlan,scope:AlphaImportScope):Boolean {
+        return try {
+            val next=decode(Json.encodeToString(plan.applyTo(mutableState.value,scope)))
+            if(next==mutableState.value) {
+                mutableError.value=null
+                return true // Keep the original undo point on repeat import.
+            }
+            val before=Json.encodeToString(mutableState.value)
+            if(!storage.writeImport(Json.encodeToString(next),before)) {
+                mutableError.value="save_failed";return false
+            }
+            mutableState.value=next
+            mutableImportAvailable.value=true
+            mutableError.value=null
+            true
+        } catch (_:Exception) { mutableError.value="invalid_snapshot";false }
+    }
+    @Synchronized fun restoreBeforeImport():Boolean {
+        return try {
+            val previous=storage.importBackup()?.let(::decode)?:return false
+            if(!storage.restoreImport(Json.encodeToString(previous))) {
+                mutableError.value="save_failed";return false
+            }
+            mutableState.value=previous
+            mutableImportAvailable.value=false
             mutableError.value=null
             true
         } catch (_:Exception) { mutableError.value="invalid_snapshot";false }
