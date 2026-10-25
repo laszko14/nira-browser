@@ -25,6 +25,10 @@ import androidx.compose.runtime.mutableStateOf
 import com.prirai.android.nira.media.alpha.ui.AlphaFullscreenControls
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import com.prirai.android.nira.R
+import com.prirai.android.nira.media.alpha.AlphaLuaBridge
+import com.prirai.android.nira.media.alpha.AlphaLuaController
+import com.prirai.android.nira.media.alpha.AlphaLuaConsent
+import com.prirai.android.nira.media.alpha.AlphaLuaDiagnostics
 import com.prirai.android.nira.media.alpha.AlphaCommand
 import com.prirai.android.nira.media.alpha.AlphaSession
 import com.prirai.android.nira.media.alpha.AlphaSessionAdapter
@@ -53,9 +57,22 @@ internal class InlineMpvUi(
     private var loaded=false
     private var destroyed=false
     private var fullscreen=false
+    private val luaConsent=AlphaLuaConsent(context)
+    private val alphaLua=AlphaLuaController(
+        canSend={ !destroyed && MpvEngineGate.owns(token) && Looper.myLooper()==Looper.getMainLooper() },
+        send={ MPVLib.command(*it) },now={ android.os.SystemClock.elapsedRealtime() },
+        saveConsent=luaConsent::save,enabled=luaConsent.enabled(),
+        changed={ AlphaLuaDiagnostics.update(session,it) },
+    )
+    private val luaTick=object:Runnable {
+        override fun run() {
+            if(!destroyed) { alphaLua.tick();main.postDelayed(this,500L) }
+        }
+    }
     private val alphaAdapter=AlphaSessionAdapter(
         { loaded && !destroyed && MpvEngineGate.owns(token) &&
             Looper.myLooper()==Looper.getMainLooper() },
+        lua=alphaLua,
     ) { command ->
         when(command) {
             is AlphaCommand.Pause -> MPVLib.setPropertyBoolean("pause",command.paused)
@@ -116,7 +133,11 @@ internal class InlineMpvUi(
     private val observer=object: MPVLib.EventObserver {
         override fun eventProperty(property:String) {}
         override fun eventProperty(property:String,value:Long) {}
-        override fun eventProperty(property:String,value:String) {}
+        override fun eventProperty(property:String,value:String) {
+            if(property==AlphaLuaBridge.PROPERTY && value.length<=20_000)main.post {
+                if(!destroyed)alphaLua.onProperty(property,value)
+            }
+        }
         override fun eventProperty(property:String,value:MPVNode) {}
         override fun eventProperty(property:String,value:Boolean) {
             alphaAdapter.onFlag(property,value)
@@ -372,9 +393,14 @@ internal class InlineMpvUi(
         video.segmentedNetworkReconnect=MpvDebugTrace.classifySource(url) in
             setOf("source_hls","source_dash")
         return try {
+            val bridgeInstalled=video.prepareAlphaBridge(context.filesDir.absolutePath)
+            player=video
             video.initialize(context.filesDir.absolutePath,context.cacheDir.absolutePath)
             video.playFile(url) // queue before attaching surface
             MPVLib.addObserver(observer)
+            MPVLib.observeProperty(AlphaLuaBridge.PROPERTY,MPVLib.MpvFormat.MPV_FORMAT_STRING)
+            alphaLua.start(bridgeInstalled)
+            main.postDelayed(luaTick,500L)
             MPVLib.addLogObserver(logs)
             MpvDebugTrace.note(MpvDebugTrace.Section.MPV,"mpv_logger_registered",session)
             MPVLib.observeProperty("time-pos",MPVLib.MpvFormat.MPV_FORMAT_DOUBLE)
@@ -496,6 +522,8 @@ internal class InlineMpvUi(
         overlay.cancelGesture()
         destroyed=true
         disposeAlphaControls()
+        alphaLua.close()
+        main.removeCallbacks(luaTick)
         alphaAdapter.invalidate()
         timeout?.let(main::removeCallbacks)
         hideControlsTask?.let(main::removeCallbacks)

@@ -48,17 +48,20 @@ internal fun AlphaLuaPanel(
     fun dismiss() { editing=false;minimized=false;onDragging(false);onInteraction() }
     fun action(id:String,long:Boolean) {
         onInteraction()
-        val button=snapshot.slots.filterNotNull().singleOrNull { it.id==id && it.enabled }
-        val code=if(long) button?.longPressContent else button?.content
-        val command=code?.let { AlphaNativeButton.command(it,state) }
-        val result=command?.let { session.execute(it) }
-        val feedback=when {
-            result==AlphaCommandResult.APPLIED -> null
-            code.isNullOrBlank() -> "Brak przypisanej akcji."
-            command==null -> "Kod nieobsługiwany — wykonywanie Lua jest wyłączone."
-            else -> "Polecenie niedostępne lub odrzucone przez sesję MPV."
+        val result=AlphaLuaActions.invoke(id,long,config.state.value,session)
+        if(result!=AlphaLuaStatus.NATIVE_APPLIED)
+            Toast.makeText(context,alphaLuaFeedback(result),Toast.LENGTH_SHORT).show()
+    }
+    val lua=session.lua
+    if(lua!=null) {
+        val execution by lua.state.collectAsState()
+        var lastCompletion by remember(lua) { mutableLongStateOf(execution.completion) }
+        LaunchedEffect(execution.completion) {
+            if(execution.completion!=lastCompletion) {
+                lastCompletion=execution.completion
+                Toast.makeText(context,alphaLuaFeedback(execution.lastCompletion?:execution.status),Toast.LENGTH_LONG).show()
+            }
         }
-        if(feedback!=null) Toast.makeText(context,feedback,Toast.LENGTH_SHORT).show()
     }
     val buttons=snapshot.slots.filterNotNull().filter { it.enabled && it.title.isNotBlank() }.map { b ->
         AlphaLuaButtonState(b.id,b.title,true,b.alwaysVisible,b.backgroundColor,b.textColor,
@@ -84,8 +87,11 @@ internal fun AlphaLuaPanel(
         }
         if(editing) {
             LuaButtonsInPlayerDialog(
-                importActions={ AlphaSettingsImport(config) },
-                prefs=prefs,engineStatus="Tylko natywne pause/seek/speed; Lua wyłączone",
+                importActions={
+                    AlphaLuaExecutionSettings(session.lua)
+                    AlphaSettingsImport(config)
+                },
+                prefs=prefs,engineStatus="Natywne pause/seek/speed + bridge Lua za zgodą użytkownika",
                 onDismiss={dismiss()},hiddenDuringDrag=dragging,
                 manualMinimized=minimized,onManualMinimize={minimized=it},
             )

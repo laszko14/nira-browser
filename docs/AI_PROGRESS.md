@@ -271,3 +271,6 @@ Przeniesiono oryginalny panel Lua, style, edytory i 20 fontów Alpha v54; dodano
 
 ### 2026-10-25 — v1152
 Dodano limitowany lokalny importer XML Alpha v54, podgląd bez mutacji, trzy zakresy, atomowy snapshot i osobny undo oraz mapowanie widocznych preferencji Lua/HUD. Syntetyczne Node 148/148, JUnit 115/115 i lint PASS; build/CI i instrukcję telefonu opisuje handoff v1152.
+
+### 2026-10-25 — v1153
+Wprowadzono stały bridge Lua Alpha v54 przed inicjalizacją dotychczasowego silnika, osobną zgodę i skorelowane odpowiedzi/timeout, aktualne click/long-press po ID i diagnostykę liczbową. Dotychczasowe odtwarzanie, wygląd, XML, mini scroll i fullscreen bez przebudowy. Node 150/150, JUnit 131/131 i prawdziwe systemowe Lua z syntetycznym MPV API 12/12 PASS. Instrumentacja rzeczywistego Android libmpv przygotowana, nieuruchomiona (brak urządzenia). Lokalne testDebugUnitTest/lintDebug/assembleDebug/compileDebugAndroidTestKotlin: BUILD SUCCESSFUL (5m 19s), code review i diff --check PASS. Końcowe CI opisuje handoff v1153. Nie rozpoczęto v1154.

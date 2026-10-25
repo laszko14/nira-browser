@@ -310,6 +310,7 @@ class ZavroMpvActivity : AppCompatActivity() {
         surface.tlsCaFile = MpvTlsTrust.prepare(this)
         trace(if (surface.tlsCaFile != null) "mpv_tls_ca_prepared" else "mpv_tls_ca_unavailable")
         try {
+            surface.prepareAlphaBridge(filesDir.absolutePath)
             surface.initialize(filesDir.absolutePath, cacheDir.absolutePath)
             // BaseMPVView.playFile queues the file for surfaceCreated().
             // Queue BEFORE attaching this SurfaceView, never from a later post{}.
@@ -770,7 +771,20 @@ class ZavroMpvView(context: android.content.Context, attrs: AttributeSet) :
         onSurfaceReady?.invoke()
     }
 
+    private var alphaBridgePrepared=false
+    private var alphaBridgeInstalled=false
+    internal fun prepareAlphaBridge(configDir:String):Boolean {
+        if(!alphaBridgePrepared) {
+            alphaBridgePrepared=true
+            alphaBridgeInstalled=com.prirai.android.nira.media.alpha.AlphaLuaBridge.install(java.io.File(configDir))
+        }
+        return alphaBridgeInstalled
+    }
+
     override fun initOptions() {
+        // BaseMPVView sets config=yes/config-dir before this hook, then calls MPVLib.init.
+        // Autoload our inert bridge once; on preparation failure, no stale script may run.
+        MPVLib.setOptionString("load-scripts",if(alphaBridgeInstalled) "yes" else "no")
         setVo("gpu")
         MPVLib.setOptionString("hwdec", "mediacodec,no")
         MPVLib.setOptionString("speed", "1.5")
