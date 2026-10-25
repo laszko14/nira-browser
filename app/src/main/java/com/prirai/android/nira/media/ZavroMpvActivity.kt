@@ -265,6 +265,10 @@ class ZavroMpvActivity : AppCompatActivity() {
         surface.userAgent = source.userAgent?.takeIf(::safeHeader)
         surface.referrer = source.referrer?.takeIf(::safeHeader)
             ?.let(Uri::parse)?.takeIf(::allowedVideoUrl)?.toString()
+        // libmpv/FFmpeg on Android may not discover the OS trust store.
+        // Export only Android's system CA roots as an app-private PEM; never bypass TLS.
+        surface.tlsCaFile = MpvTlsTrust.prepare(this)
+        trace(if (surface.tlsCaFile != null) "mpv_tls_ca_prepared" else "mpv_tls_ca_unavailable")
         try {
             surface.initialize(filesDir.absolutePath, cacheDir.absolutePath)
             // BaseMPVView.playFile queues the file for surfaceCreated().
@@ -678,6 +682,7 @@ class ZavroMpvView(context: android.content.Context, attrs: AttributeSet) :
     BaseMPVView(context, attrs) {
     var userAgent: String? = null
     var referrer: String? = null
+    var tlsCaFile: String? = null
     var isExiting = false
     var onSurfaceReady: (() -> Unit)? = null
 
@@ -693,6 +698,7 @@ class ZavroMpvView(context: android.content.Context, attrs: AttributeSet) :
         MPVLib.setOptionString("audio-pitch-correction", "yes")
         MPVLib.setOptionString("ytdl", "no")
         MPVLib.setOptionString("tls-verify", "yes")
+        tlsCaFile?.let { MPVLib.setOptionString("tls-ca-file", it) }
         // Stream directly over HTTP: seekable cache, bounded buffering,
         // retry button. Never download the whole movie to a temporary file.
         MPVLib.setOptionString("cache", "yes")
