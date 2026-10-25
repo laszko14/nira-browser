@@ -1,0 +1,5 @@
+# v1143 — native inline player MVP
+
+The requested behavior is **native libmpv at the actual webpage player's rectangle**, not a PiP bubble. For verified top-document direct MP4/HLS/WEBM after a real gesture in AUTO mode, Gecko pauses exactly the matched HTMLVideoElement through its existing session/challenge bridge. Android renders a native ZavroMpvView over that rect, tracks scroll/resize using authenticated session/nonce/frame/element layout messages, and provides mini controls + fullscreen/inline of the same libmpv surface (no loadfile restart). Leaving the inline player resumes the same verified Gecko element if the tab/document still matches.
+
+Safeguards: MSE blob, DRM, ambiguous players, and iframe element whose rect cannot be translated to top viewport remain in Gecko. The user-supplied CDA example may be iframe/MSE and is **not guaranteed** to be overridden. This is first stage, not complete universal website player replacement. No URLs, cookies, tokens, headers in log or Intent. TLS verification from v1140 preserved, v1142 Supertest preserved. Device test necessary. Signed standalone arm64 v1143, previous app untouched, Draft PR without merge.

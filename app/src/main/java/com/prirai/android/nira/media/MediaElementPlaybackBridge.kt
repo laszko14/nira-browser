@@ -33,11 +33,29 @@ internal object MediaElementPlaybackBridge {
         val elementKey: String,
         val pageUrl: String,
         val mediaUrl: String,
+        val topFrame: Boolean = false,
+        val x: Double = 0.0, val y: Double = 0.0,
+        val w: Double = 0.0, val h: Double = 0.0,
+        val dpr: Double = 1.0,
     ) {
         override fun toString() = "AutoOffer(<redacted>)"
     }
     /** Registered only by the current foreground browser view. */
     var onAutoOffer: ((AutoOffer) -> Unit)? = null
+    data class InlineRect(val x: Double, val y: Double, val w: Double, val h: Double, val dpr: Double)
+    var onInlineLayout: ((String, InlineRect) -> Unit)? = null
+    private fun rectOf(data: JSONObject): InlineRect? {
+        val x=data.optDouble("x",Double.NaN)
+        val y=data.optDouble("y",Double.NaN)
+        val w=data.optDouble("w",Double.NaN)
+        val h=data.optDouble("h",Double.NaN)
+        val d=data.optDouble("dpr",Double.NaN)
+        if (!listOf(x,y,w,h,d).all { it.isFinite() } ||
+            kotlin.math.abs(x)>20000 || kotlin.math.abs(y)>20000 ||
+            w !in 0.0..10000.0 || h !in 0.0..10000.0 || d !in .5..5.0) return null
+        return InlineRect(x,y,w,h,d)
+    }
+
 
     fun busy(): Boolean = pending != null || lease != null
 
@@ -48,6 +66,7 @@ internal object MediaElementPlaybackBridge {
         val frameUrl: String,
         val nonce: String,
         val callback: (String?) -> Unit,
+        val target: AutoOffer?,
         val timeout: Runnable,
     )
     private data class Lease(
@@ -56,6 +75,7 @@ internal object MediaElementPlaybackBridge {
         val pageUrl: String,
         val frameUrl: String,
         val nonce: String,
+        val target: AutoOffer?,
     )
 
     private val ports = LinkedHashSet<Port>()
@@ -101,7 +121,7 @@ internal object MediaElementPlaybackBridge {
     fun receivedOneShot(source: EngineSession, message: JSONObject): Boolean {
         if (message.optInt("version") != 1) return false
         val event = message.optString("event")
-        if (event !in setOf("probe_ack", "auto_offer", "handoff_ack")) return false
+        if (event !in setOf("probe_ack", "auto_offer", "handoff_ack", "inline_layout")) return false
         val challenge = message.optString("probeNonce")
         if (!UUID_PATTERN.matches(challenge)) return false
         main.post {
@@ -133,7 +153,12 @@ internal object MediaElementPlaybackBridge {
                 main.removeCallbacks(p.timeout)
                 p.callback(null)
             }
-            if (lease?.port === port) lease = null
+            if (lease?.port === port) {
+                val token=lease?.nonce
+                lease=null
+                if (token != null)
+                    onInlineLayout?.invoke(token,InlineRect(0.0,0.0,0.0,0.0,1.0))
+            }
         }
     }
 
@@ -188,7 +213,7 @@ internal object MediaElementPlaybackBridge {
                 p.callback(null)
             }
         }
-        pending = Pending(port, tab.binding, tab.pageUrl, frame, nonce, completed, timeout)
+        pending = Pending(port, tab.binding, tab.pageUrl, frame, nonce, completed, target, timeout)
         MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF, "prepare_sent", tab.binding.session)
         main.postDelayed(timeout, ACK_TIMEOUT_MS)
         try {
@@ -258,7 +283,21 @@ internal object MediaElementPlaybackBridge {
                     MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF, "prepare_rejected", port.engineSession)
                     return@post
                 }
-                onAutoOffer?.invoke(AutoOffer(port, frameKey, elementKey, page, url))
+                val rect=rectOf(data)
+                onAutoOffer?.invoke(AutoOffer(port,frameKey,elementKey,page,url,
+                    data.optBoolean("topFrame",false) && rect != null,
+                    rect?.x?:0.0,rect?.y?:0.0,rect?.w?:0.0,rect?.h?:0.0,rect?.dpr?:1.0))
+                return@post
+            }
+            if (data.optString("event") == "inline_layout") {
+                val l=lease ?: return@post
+                val t=l.target ?: return@post
+                val r=rectOf(data) ?: return@post
+                if (l.port === port && l.nonce == data.optString("nonce") &&
+                    t.frameKey == data.optString("frameKey") &&
+                    t.elementKey == data.optString("elementKey") &&
+                    runCatching { port.senderUrl() }.getOrNull() == l.frameUrl)
+                    onInlineLayout?.invoke(l.nonce,r)
                 return@post
             }
             val p = pending ?: return@post
@@ -271,7 +310,7 @@ internal object MediaElementPlaybackBridge {
                 runCatching { p.port.senderUrl() }.getOrNull() == p.frameUrl
             if (ok) {
                 MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF, "ack_ok", p.binding.session)
-                lease = Lease(p.port, p.binding, p.pageUrl, p.frameUrl, p.nonce)
+                lease = Lease(p.port, p.binding, p.pageUrl, p.frameUrl, p.nonce, p.target)
                 p.callback(p.nonce)
             } else {
                 MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF, "ack_failed", p.binding.session)
@@ -280,6 +319,21 @@ internal object MediaElementPlaybackBridge {
                 p.callback(null)
             }
         }
+    }
+
+    fun activateInline(token: String, actual: MediaTabState): Boolean {
+        check(Looper.myLooper() == Looper.getMainLooper())
+        val l=lease ?: return false
+        val t=l.target ?: return false
+        if (l.nonce != token || !t.topFrame ||
+            !matches(l.binding,actual.binding) || l.pageUrl != actual.pageUrl ||
+            !ports.contains(l.port) ||
+            runCatching { l.port.senderUrl() }.getOrNull() != l.frameUrl) return false
+        return runCatching {
+            l.port.postMessage(JSONObject().put("version",1)
+                .put("event","inline_start").put("nonce",token))
+            true
+        }.getOrDefault(false)
     }
 
     /** Return true only if the same EngineSession/profile/document was verified. */

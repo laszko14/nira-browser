@@ -23,5 +23,5 @@ test('v1142 one 40s one-tap safe supertest covering Gecko, handoff, MPV, bufferi
       'mpv_file_loaded','mpv_cache_wait','mpv_tls_error','mpv_retry',
       'mpv_manual_error','mpv_playback_started']) assert.ok(trace.includes(value), value);
   assert.match(trace, /takeLast\(65\)/);
-  assert.match(trace, /Zavro x MPV v1142 — SUPERTEST 40 s/);
+  assert.match(trace, /Zavro x MPV v11\d{2} — SUPERTEST 40 s/);
 });
