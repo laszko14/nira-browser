@@ -59,7 +59,9 @@ internal object MediaElementPlaybackBridge {
     )
 
     private val ports = LinkedHashSet<Port>()
+    // The challenge survives acknowledgement for per-frame one-shot fallback.
     private val probes = IdentityHashMap<Port, String>()
+    private val verifiedPorts = LinkedHashSet<Port>()
     private var pending: Pending? = null
     private var lease: Lease? = null
 
@@ -83,18 +85,47 @@ internal object MediaElementPlaybackBridge {
                 MpvDebugTrace.note(MpvDebugTrace.Section.WEB, "probe_send_failed", port.engineSession)
             }
             main.postDelayed({
-                if (probes[port] == nonce) {
-                    probes.remove(port)
+                if (probes[port] == nonce && !verifiedPorts.contains(port)) {
                     MpvDebugTrace.note(MpvDebugTrace.Section.WEB, "probe_no_ack", port.engineSession)
                 }
             }, 2_000L)
         }
     }
 
+    /**
+     * Native one-shot fallback when Gecko's content port delivers the challenge
+     * but does not deliver extension-to-Android port messages. A cryptographic
+     * port-specific challenge and the real EngineSession are both required.
+     * URL and cookies are never logged or stored outside this process.
+     */
+    fun receivedOneShot(source: EngineSession, message: JSONObject): Boolean {
+        if (message.optInt("version") != 1) return false
+        val event = message.optString("event")
+        if (event !in setOf("probe_ack", "auto_offer", "handoff_ack")) return false
+        val challenge = message.optString("probeNonce")
+        if (!UUID_PATTERN.matches(challenge)) return false
+        main.post {
+            val matching = ports.filter {
+                it.engineSession === source && probes[it] == challenge
+            }
+            val port = matching.singleOrNull() ?: return@post
+            if (event == "probe_ack") {
+                if (verifiedPorts.add(port)) {
+                    MpvDebugTrace.note(MpvDebugTrace.Section.WEB, "probe_ack_oneshot", source)
+                }
+            } else if (verifiedPorts.contains(port)) {
+                MpvDebugTrace.note(MpvDebugTrace.Section.WEB, "oneshot_protocol_received", source)
+                received(port, message)
+            }
+        }
+        return true
+    }
+
     fun disconnected(port: Port) {
         main.post {
             ports.remove(port)
             probes.remove(port)
+            verifiedPorts.remove(port)
             MpvDebugTrace.note(MpvDebugTrace.Section.WEB, "port_disconnected", port.engineSession)
             val p = pending
             if (p?.port === port) {
@@ -196,11 +227,12 @@ internal object MediaElementPlaybackBridge {
             if (data.optInt("version") != 1) return@post
             if (data.optString("event") == "probe_ack") {
                 if (probes[port] == data.optString("nonce")) {
-                    probes.remove(port)
+                    verifiedPorts.add(port)
                     MpvDebugTrace.note(MpvDebugTrace.Section.WEB, "probe_ack", port.engineSession)
                 }
                 return@post
             }
+            if (!verifiedPorts.contains(port)) return@post
             if (data.optString("event") == "diagnostic") {
                 val code = data.optString("code")
                 if (code.length <= 36) {

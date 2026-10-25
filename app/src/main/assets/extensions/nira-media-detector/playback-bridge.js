@@ -23,11 +23,21 @@
       if (reply && typeof reply.catch === "function") reply.catch(() => {});
     } catch (_) {}
   }
+  function protocolOneShot(event, fields = {}) {
+    // A Gecko port challenge binds this message to its particular frame.
+    // No challenge, no AUTO/ACK; all protocol data stays transient in Gecko.
+    if (!probeNonce || !["probe_ack", "auto_offer", "handoff_ack"].includes(event)) return;
+    try {
+      const reply = browser.runtime.sendNativeMessage(PORT,
+        {version:1, event, probeNonce, ...fields});
+      if (reply && typeof reply.catch === "function") reply.catch(() => {});
+    } catch (_) {}
+  }
   const MAX_URL_LENGTH = 8192;
   const holds = new Map();
   const elementKeys = new WeakMap();
   const offeredAt = new WeakMap();
-  let port = null, connectAttempts = 0, lastGesture = null;
+  let port = null, connectAttempts = 0, lastGesture = null, probeNonce = null;
   const GESTURE_WINDOW_MS = 10_000;
   const lastAutoOffer = new WeakMap();
 
@@ -59,6 +69,10 @@
     } catch (_) { return null; }
   }
   function send(value) { try { if (port) port.postMessage(value); } catch (_) {} }
+  function sendAck(nonce, ok) {
+    send({version:1, event:"handoff_ack", nonce, ok});
+    protocolOneShot("handoff_ack", {nonce, ok});
+  }
   const diagTimes = new Map();
   function diagnostic(code) {
     const now = Date.now();
@@ -95,7 +109,7 @@
     const targeted = request.frameKey != null || request.elementKey != null;
     if (targeted && (!frameKey || request.frameKey !== frameKey ||
         typeof request.elementKey !== "string")) {
-      send({version:1, event:"handoff_ack", nonce:request.nonce, ok:false});
+      sendAck(request.nonce, false);
       return;
     }
     let matches = [], inspected = 0;
@@ -109,21 +123,21 @@
       }
     } catch (_) { return; }
     if (matches.length !== 1) {
-      send({version:1, event:"handoff_ack", nonce:request.nonce, ok:false});
+      sendAck(request.nonce, false);
       return;
     }
     const video = matches[0], wasPlaying = !video.paused;
     if (targeted && !wasPlaying) {
-      send({version:1, event:"handoff_ack", nonce:request.nonce, ok:false});
+      sendAck(request.nonce, false);
       return;
     }
     try {
       video.pause();
       if (!video.paused) throw new Error("not paused");
       holds.set(request.nonce, {video, src:request.mediaUrl, page:location.href, wasPlaying});
-      send({version:1, event:"handoff_ack", nonce:request.nonce, ok:true});
+      sendAck(request.nonce, true);
     } catch (_) {
-      send({version:1, event:"handoff_ack", nonce:request.nonce, ok:false});
+      sendAck(request.nonce, false);
     }
   }
   function release(request, resume) {
@@ -207,8 +221,9 @@
     lastAutoOffer.set(video,Date.now());
     lastGesture = null;
     diagnostic("auto_offered");
-    send({version:1,event:"auto_offer",frameKey,elementKey:key,
-      pageUrl:location.href,mediaUrl:url});
+    const offer = {frameKey, elementKey:key, pageUrl:location.href, mediaUrl:url};
+    send({version:1,event:"auto_offer",...offer});
+    protocolOneShot("auto_offer",offer);
   }
 
   function connect() {
@@ -222,8 +237,11 @@
       connected.onMessage.addListener(message => {
         if (port !== connected || !message || message.version !== 1 ||
             typeof message.event !== "string") return;
-        if (message.event === "probe" && typeof message.nonce === "string") {
+        if (message.event === "probe" && typeof message.nonce === "string" &&
+            /^[0-9a-f-]{36}$/.test(message.nonce)) {
+          probeNonce = message.nonce;
           send({version:1,event:"probe_ack",nonce:message.nonce});
+          protocolOneShot("probe_ack");
           diagnostic("probe_received");
           return;
         }
@@ -235,6 +253,7 @@
       connected.onDisconnect.addListener(() => {
         if (port !== connected) return;
         port = null;
+        probeNonce = null;
         holds.clear();
         if (connectAttempts < 4) setTimeout(connect,800);
       });

@@ -40,7 +40,8 @@ internal object MpvDebugTrace {
         "mpv_linkage_failed", "mpv_init_failed", "mpv_destroyed",
         "source_mp4", "source_hls", "source_dash", "source_unknown",
         "script_started", "document_visible", "oneshot_received",
-        "probe_received", "probe_ack", "probe_no_ack", "probe_send_failed", "message_not_json",
+        "probe_received", "probe_ack", "probe_ack_oneshot", "oneshot_protocol_received",
+        "probe_no_ack", "probe_send_failed", "message_not_json",
         "mpv_start_file", "mpv_video_ready", "mpv_audio_ready", "mpv_playback_started",
         "mpv_cache_wait", "mpv_cache_resume", "mpv_logger_registered",
         "mpv_http_401", "mpv_http_403", "mpv_http_404", "mpv_http_429", "mpv_http_5xx",
@@ -62,7 +63,7 @@ internal object MpvDebugTrace {
 
     @Synchronized
     fun report(section: Section, session: Any?, playerMode: String? = null): String = buildString {
-        appendLine("Zavro x MPV v1135 — ${section.name}")
+        appendLine("Zavro x MPV v1136 — ${section.name}")
         appendLine("Tryb odtwarzania: ${playerMode ?: "nie dotyczy"}")
         appendLine("Sesja Gecko: ${if (session == null) "BRAK" else "AKTYWNA"}")
         appendLine("Zapis tylko w RAM; brak URL, hostów, cookies, nagłówków i tokenów.")

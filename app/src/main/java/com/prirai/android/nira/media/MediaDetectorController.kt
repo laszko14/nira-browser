@@ -121,8 +121,10 @@ internal class MediaDetectorController(private val engine: Engine, private val s
                                     override fun onMessage(message: Any, source: EngineSession?): Any {
                                         if (source !== session) return false
                                         val payload = message as? JSONObject ?: return false
-                                        if (payload.optInt("version") != 1 ||
-                                            payload.optString("event") != "diagnostic") return false
+                                        if (payload.optInt("version") != 1) return false
+                                        if (payload.optString("event") != "diagnostic") {
+                                            return MediaElementPlaybackBridge.receivedOneShot(session, payload)
+                                        }
                                         val code = payload.optString("code")
                                         if (code.length > 36) return false
                                         // Allowlist drops all unrecognized strings. The native
