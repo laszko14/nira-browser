@@ -1452,7 +1452,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             }
             val currentState = requireContext().components.store.state
             val live = currentState.tabs.firstOrNull { it.id == currentState.selectedTabId }
-            if (live?.engineState?.engineSession !== session ||
+            if (live == null || live.engineState.engineSession !== session ||
                 live.contextId != selected.contextId ||
                 live.content.private != selected.content.private ||
                 live.content.url != selected.content.url) {
