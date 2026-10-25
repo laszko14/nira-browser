@@ -1,5 +1,8 @@
 package com.prirai.android.nira.media
 
+import android.app.PictureInPictureParams
+import android.content.res.Configuration
+import android.util.Rational
 import android.content.pm.ActivityInfo
 import android.content.Context
 import android.media.AudioAttributes
@@ -61,6 +64,7 @@ class ZavroMpvActivity : AppCompatActivity() {
     private var pauseControl: TextView? = null
     private var seekBar: SeekBar? = null
     private var dragging = false
+    private var nativeControls: View? = null
     private var focusRequest: AudioFocusRequest? = null
     private var audioManager: AudioManager? = null
     private var focusSuspended = false
@@ -289,10 +293,20 @@ class ZavroMpvActivity : AppCompatActivity() {
         row.addView(pauseControl)
         speedControl = control("1.5×") { cycleSpeed() }
         row.addView(speedControl)
+        row.addView(control("Audio") {
+            if (ready) runCatching { MPVLib.command("cycle", "aid") }
+                .onFailure { status?.text = "Nie można zmienić ścieżki audio" }
+        })
+        row.addView(control("Napisy") {
+            if (ready) runCatching { MPVLib.command("cycle", "sid") }
+                .onFailure { status?.text = "Nie można zmienić napisów" }
+        })
         row.addView(control("Ponów") { retry() })
+        row.addView(control("PiP") { enterNativePip() })
         bottom.addView(row)
         root.addView(bottom, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
             .apply { bottomMargin = dp(12) })
+        nativeControls = bottom
         updateHud()
     }
 
@@ -392,6 +406,25 @@ class ZavroMpvActivity : AppCompatActivity() {
         if (ready) runCatching { MPVLib.command("seek", seconds.toString(), "relative") }
     }
 
+    private fun enterNativePip() {
+        if (!ready || !fileLoaded || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        runCatching {
+            val params = PictureInPictureParams.Builder()
+                .setAspectRatio(Rational(16, 9))
+                .build()
+            enterPictureInPictureMode(params)
+        }.onFailure { status?.text = "PiP nie jest obsługiwany na tym urządzeniu" }
+    }
+
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean, newConfig: Configuration
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        nativeControls?.visibility = if (isInPictureInPictureMode) View.GONE else View.VISIBLE
+        hud?.visibility = if (isInPictureInPictureMode) View.GONE else View.VISIBLE
+        status?.visibility = if (isInPictureInPictureMode) View.GONE else View.VISIBLE
+    }
+
     private fun retry() {
         val url = currentUrl ?: return
         if (!ready) return
@@ -441,7 +474,7 @@ class ZavroMpvActivity : AppCompatActivity() {
     }
 
     override fun onStop() {
-        if (ready && !userPaused) {
+        if (ready && !userPaused && !isInPictureInPictureMode) {
             lifecyclePaused = true
             runCatching { MPVLib.setPropertyBoolean("pause", true) }
         }
