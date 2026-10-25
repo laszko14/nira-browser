@@ -23,7 +23,7 @@ test('v1136 one-shot probe is tied to native challenge and still sends Port ACK'
     }},
     location: {href:'https://example.org/watch',protocol:'https:'},
     document: {readyState:'complete', addEventListener() {}},
-    crypto:webcrypto, URL, Date, HTMLVideoElement:class {},
+    crypto:webcrypto, URL, Date, HTMLVideoElement:class {}, setTimeout:()=>0,
   };
   vm.runInNewContext(js,sandbox,{timeout:1000});
   const challenge='11111111-2222-4333-8444-555555555555';
