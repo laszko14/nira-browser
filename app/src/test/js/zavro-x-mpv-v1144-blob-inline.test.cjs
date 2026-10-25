@@ -1,0 +1,21 @@
+const test = require('node:test'), assert=require('node:assert/strict'), fs=require('node:fs'),vm=require('node:vm');
+const read=p=>fs.readFileSync(p,'utf8');
+test('v1144: source blob is a candidate identity, never passed as a network URL',()=>{
+ const js=read('app/src/main/assets/extensions/nira-media-detector/playback-bridge.js');
+ const bridge=read('app/src/main/java/com/prirai/android/nira/media/MediaElementPlaybackBridge.kt');
+ const frag=read('app/src/main/java/com/prirai/android/nira/BrowserFragment.kt');
+ const selector=read('app/src/main/java/com/prirai/android/nira/media/BlobHlsSelector.kt');
+ assert.match(js,/sourceKind:blob \? "blob" : "direct"/);
+ assert.match(js,/request.sourceKind === "blob"/);
+ assert.match(bridge,/if \(target.blob\) put\("sourceKind","blob"\)/);
+ assert.match(bridge,/fun resolveRect\(/);
+ assert.match(bridge,/iframe_geometry_request/);
+ assert.match(js,/function uniqueIframe\(/);
+ assert.match(js,/trackedFrame = \{nonce:message.nonce,frameUrl:message.frameUrl\}/);
+ assert.match(selector,/it.frameUrl == frameUrl/);
+ assert.match(selector,/MediaSource.NETWORK in it.sources/);
+ assert.match(selector,/groups.size != 1/);
+ assert.match(frag,/tryStartBlobInline\(offer\)/);
+ assert.match(frag,/pendingBlobAt/);
+ assert.match(frag,/blob_frame_resolved/);
+});

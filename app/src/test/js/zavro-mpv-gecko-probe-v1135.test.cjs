@@ -65,7 +65,7 @@ test('v1135 reports only bounded MPV network classes and event lifecycle',()=>{
  assert.match(player,/MPV_EVENT_START_FILE/);
  assert.match(player,/paused-for-cache/);
  assert.match(trace,/classifyMpvLog\(prefix: String, level: Int, message: String\)/);
- assert.match(manifest.version,/^1\.5\.[1-9]\d*$/);
+ assert.match(manifest.version,/^1\.(?:5|6|[7-9]|\d{2,})\.\d+$/);
  assert.equal(manifest.content_scripts[0].all_frames,true);
  assert.equal(manifest.content_scripts[0].match_about_blank,true);
 });

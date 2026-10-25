@@ -39,21 +39,37 @@ internal class InlineMpvUi(
     private var previousRect: MediaElementPlaybackBridge.InlineRect?=null
     private var timeout: Runnable?=null
     private val oldUi=activity.window.decorView.systemUiVisibility
+    private val logs=object: MPVLib.LogObserver {
+        override fun logMessage(prefix:String,level:Int,text:String) {
+            MpvDebugTrace.classifyMpvLog(prefix,level,text)?.let { code ->
+                MpvDebugTrace.note(MpvDebugTrace.Section.MPV,code,session)
+            }
+        }
+    }
     private val observer=object: MPVLib.EventObserver {
         override fun eventProperty(property:String) {}
         override fun eventProperty(property:String,value:Long) {}
         override fun eventProperty(property:String,value:String) {}
         override fun eventProperty(property:String,value:MPVNode) {}
-        override fun eventProperty(property:String,value:Boolean) {}
+        override fun eventProperty(property:String,value:Boolean) {
+            if (property=="paused-for-cache") MpvDebugTrace.note(
+                MpvDebugTrace.Section.MPV,
+                if (value) "mpv_cache_wait" else "mpv_cache_resume",session)
+        }
         override fun eventProperty(property:String,value:Double) {
             if (property=="time-pos" && !destroyed)
                 MpvSupertest.sample(session,value)
         }
         override fun event(eventId:Int,data:MPVNode) {
+            if (eventId==MPVLib.MpvEvent.MPV_EVENT_START_FILE) MpvDebugTrace.note(
+                MpvDebugTrace.Section.MPV,"mpv_start_file",session)
+            if (eventId==MPVLib.MpvEvent.MPV_EVENT_PLAYBACK_RESTART) MpvDebugTrace.note(
+                MpvDebugTrace.Section.MPV,"mpv_playback_started",session)
             if (eventId==MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED) main.post {
                 if (!destroyed) {
                     loaded=true
                     timeout?.let(main::removeCallbacks)
+                    MpvDebugTrace.note(MpvDebugTrace.Section.MPV,"mpv_file_loaded",session)
                     MpvDebugTrace.note(MpvDebugTrace.Section.MPV,"inline_loaded",session)
                 }
             }
@@ -87,13 +103,21 @@ internal class InlineMpvUi(
         video.userAgent=userAgent
         video.referrer=referrer
         video.tlsCaFile=MpvTlsTrust.prepare(context)
+        MpvDebugTrace.note(MpvDebugTrace.Section.MPV,
+            if (video.tlsCaFile != null) "mpv_tls_ca_prepared"
+            else "mpv_tls_ca_unavailable",session)
+        MpvDebugTrace.note(MpvDebugTrace.Section.MPV,
+            MpvDebugTrace.classifySource(url),session)
         video.segmentedNetworkReconnect=MpvDebugTrace.classifySource(url) in
             setOf("source_hls","source_dash")
         return try {
             video.initialize(context.filesDir.absolutePath,context.cacheDir.absolutePath)
             video.playFile(url) // queue before attaching surface
             MPVLib.addObserver(observer)
+            MPVLib.addLogObserver(logs)
+            MpvDebugTrace.note(MpvDebugTrace.Section.MPV,"mpv_logger_registered",session)
             MPVLib.observeProperty("time-pos",MPVLib.MpvFormat.MPV_FORMAT_DOUBLE)
+            MPVLib.observeProperty("paused-for-cache",MPVLib.MpvFormat.MPV_FORMAT_FLAG)
             player=video
             overlay.addView(video,FrameLayout.LayoutParams(-1,-1))
             val controls=LinearLayout(context).apply {
@@ -177,6 +201,7 @@ internal class InlineMpvUi(
         (overlay.parent as? ViewGroup)?.removeView(overlay)
         player?.isExiting=true
         runCatching { MPVLib.removeObserver(observer) }
+        runCatching { MPVLib.removeLogObserver(logs) }
         runCatching { player?.destroy() }
         player=null
         MpvEngineGate.release(token)

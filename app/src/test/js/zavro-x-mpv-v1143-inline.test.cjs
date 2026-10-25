@@ -9,7 +9,7 @@ test('v1143 verified inline libmpv, same player fullscreen, safe Gecko fallback'
  assert.match(js,/inline_layout/);
  assert.match(bridge,/fun activateInline\(/);
  assert.match(bridge,/l.nonce == data.optString\("nonce"\)/);
- assert.match(frag,/launchInlineVideo\(uri,safeReferrer,offer\)/);
+ assert.match(frag,/launchInlineVideo\(uri,safeReferrer,offer,rect\)/);
  assert.match(frag,/inline_frame_unsupported/);
  assert.match(ui,/video.playFile\(url\)/);
  assert.match(ui,/private fun toggleFullscreen\(/);

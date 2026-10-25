@@ -83,12 +83,15 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     private var inlineBackCallback: androidx.activity.OnBackPressedCallback? = null
     private var inlinePage: String? = null
     private var inlineSession: Any? = null
+    private var pendingBlobOffer: MediaElementPlaybackBridge.AutoOffer? = null
+    private var pendingBlobAt = 0L
     private fun closeInlineMpv() {
         inlineMpv?.detach()
         inlineMpv=null
         inlineBackCallback?.isEnabled=false
         inlinePage=null
         inlineSession=null
+        pendingBlobOffer=null
         restoreWebPlaybackAfterMpv()
     }
     private val internalMpvLauncher = registerForActivityResult(
@@ -357,18 +360,32 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 log("auto_mode_not_enabled")
                 return@auto
             }
+            if (offer.blob) {
+                log("blob_offer")
+                pendingBlobOffer=offer
+                pendingBlobAt=android.os.SystemClock.elapsedRealtime()
+                tryStartBlobInline(offer)
+                return@auto
+            }
             val uri = runCatching { android.net.Uri.parse(offer.mediaUrl) }.getOrNull()
                 ?: return@auto
             if (!ZavroMpvActivity.allowedVideoUrl(uri)) return@auto
             val frame = runCatching { android.net.Uri.parse(offer.pageUrl) }.getOrNull()
                 ?.takeIf { ZavroMpvActivity.allowedVideoUrl(it) } ?: return@auto
             val safeReferrer = frame.buildUpon().clearQuery().fragment(null).build().toString()
-            if (!offer.topFrame || offer.w < 320.0 || offer.h < 180.0) {
+            if (offer.w < 320.0 || offer.h < 180.0) {
                 log("inline_frame_unsupported")
                 return@auto
             }
-            log("inline_eligible")
-            launchInlineVideo(uri,safeReferrer,offer)
+            val tab=currentMediaSnapshot()?.tab ?: return@auto
+            MediaElementPlaybackBridge.resolveRect(offer,tab) { rect ->
+                if (rect == null) {
+                    log("inline_frame_unsupported")
+                } else {
+                    log("inline_eligible")
+                    launchInlineVideo(uri,safeReferrer,offer,rect)
+                }
+            }
         }
         MediaElementPlaybackBridge.onInlineLayout = { nonce,rect ->
             val ui=inlineMpv
@@ -432,6 +449,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 else MediaUiSnapshot(tab, repo.currentEntries(tab))
             }.collect {
                 overlay.render(it)
+                val pending=pendingBlobOffer
+                if (pending != null) tryStartBlobInline(pending)
                 if (inlineMpv != null) {
                     val s=store.state
                     val tab=s.tabs.firstOrNull { t -> t.id == s.selectedTabId }
@@ -445,6 +464,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     override fun onDestroyView() {
         MediaElementPlaybackBridge.onAutoOffer = null
         MediaElementPlaybackBridge.onInlineLayout = null
+        pendingBlobOffer=null
         closeInlineMpv()
         binding.gestureLayout.onVerticalSwipe = null
         mediaFloatingUi?.detach()
@@ -1583,9 +1603,61 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         launchInternalVideo(uri, safeReferrer, referrer)
     }
 
+    private fun tryStartBlobInline(offer: MediaElementPlaybackBridge.AutoOffer) {
+        if (!isAdded || pendingBlobOffer !== offer ||
+            inlineMpv != null || suspendedWebPlayback != null ||
+            MediaElementPlaybackBridge.busy()) return
+        if (android.os.SystemClock.elapsedRealtime()-pendingBlobAt > 9_000L) {
+            pendingBlobOffer=null
+            MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF,
+                "blob_candidate_missing",offer.port.engineSession)
+            return
+        }
+        val snapshot=currentMediaSnapshot() ?: return
+        if (snapshot.tab.binding.session !== offer.port.engineSession ||
+            snapshot.tab.loading ||
+            VideoPlayerPolicy.resolve(requireContext(),snapshot.tab.pageUrl,
+                snapshot.tab.binding.isPrivate) != VideoPlayerPolicy.Mode.AUTO) {
+            pendingBlobOffer=null
+            return
+        }
+        val viable=snapshot.entries.filter { it.frameUrl == offer.pageUrl &&
+            it.format == com.prirai.android.nira.media.MediaFormat.HLS &&
+            com.prirai.android.nira.media.MediaSource.NETWORK in it.sources }
+        val candidate=com.prirai.android.nira.media.BlobHlsSelector.select(
+            snapshot.entries,offer.pageUrl)
+        if (candidate == null) {
+            MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF,
+                if (viable.size>1) "blob_candidate_ambiguous"
+                else "blob_candidate_missing",offer.port.engineSession)
+            return
+        }
+        pendingBlobOffer=null
+        MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF,
+            "blob_candidate_found",offer.port.engineSession)
+        val uri=runCatching { android.net.Uri.parse(candidate.url) }.getOrNull()
+            ?.takeIf { ZavroMpvActivity.allowedVideoUrl(it) } ?: return
+        val ref=runCatching { android.net.Uri.parse(offer.pageUrl) }.getOrNull()
+            ?.takeIf { ZavroMpvActivity.allowedVideoUrl(it) }
+            ?.buildUpon()?.clearQuery()?.fragment(null)?.build()?.toString()
+        MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF,
+            "blob_frame_lookup",offer.port.engineSession)
+        MediaElementPlaybackBridge.resolveRect(offer,snapshot.tab) { rect ->
+            if (rect == null) {
+                MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF,
+                    "blob_frame_failed",offer.port.engineSession)
+            } else {
+                MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF,
+                    "blob_frame_resolved",offer.port.engineSession)
+                launchInlineVideo(uri,ref,offer,rect)
+            }
+        }
+    }
+
     private fun launchInlineVideo(
         uri: android.net.Uri, safeReferrer: String?,
-        offer: MediaElementPlaybackBridge.AutoOffer
+        offer: MediaElementPlaybackBridge.AutoOffer,
+        rect: MediaElementPlaybackBridge.InlineRect
     ) {
         if (inlineMpv != null || suspendedWebPlayback != null || !isAdded) return
         val s=requireContext().components.store.state
@@ -1618,8 +1690,6 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             inlineBackCallback?.isEnabled=true
             inlinePage=live.content.url
             inlineSession=session
-            val rect=MediaElementPlaybackBridge.InlineRect(
-                offer.x,offer.y,offer.w,offer.h,offer.dpr)
             if (!ui.open(uri.toString(),GeckoSession.getDefaultUserAgent(),safeReferrer,rect) ||
                 !MediaElementPlaybackBridge.activateInline(lease,requested)) {
                 closeInlineMpv()
