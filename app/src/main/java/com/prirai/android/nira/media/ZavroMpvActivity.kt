@@ -1,6 +1,11 @@
 package com.prirai.android.nira.media
 
 import android.content.pm.ActivityInfo
+import android.content.Context
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.os.Build
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -56,6 +61,69 @@ class ZavroMpvActivity : AppCompatActivity() {
     private var pauseControl: TextView? = null
     private var seekBar: SeekBar? = null
     private var dragging = false
+    private var focusRequest: AudioFocusRequest? = null
+    private var audioManager: AudioManager? = null
+    private var focusSuspended = false
+    private var audioFocusAcquired = false
+    private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
+        runOnUiThread {
+            when (change) {
+                AudioManager.AUDIOFOCUS_LOSS,
+                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
+                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                    if (ready && !userPaused) {
+                        focusSuspended = true
+                        runCatching { MPVLib.setPropertyBoolean("pause", true) }
+                        status?.text = "MPV wstrzymane: inne źródło dźwięku"
+                    }
+                }
+                AudioManager.AUDIOFOCUS_GAIN -> {
+                    if (ready && focusSuspended && !userPaused && !lifecyclePaused) {
+                        focusSuspended = false
+                        runCatching { MPVLib.setPropertyBoolean("pause", false) }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun requestMediaAudioFocus(): Boolean {
+        val manager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        audioManager = manager
+        val attributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_MEDIA)
+            .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
+            .build()
+        val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(attributes)
+                .setOnAudioFocusChangeListener(focusListener)
+                .build()
+            focusRequest = request
+            manager.requestAudioFocus(request)
+        } else {
+            @Suppress("DEPRECATION")
+            manager.requestAudioFocus(
+                focusListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN
+            )
+        }
+        audioFocusAcquired = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        return audioFocusAcquired
+    }
+
+    private fun abandonMediaAudioFocus() {
+        if (!audioFocusAcquired) return
+        val manager = audioManager ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            focusRequest?.let { manager.abandonAudioFocusRequest(it) }
+        } else {
+            @Suppress("DEPRECATION")
+            manager.abandonAudioFocus(focusListener)
+        }
+        audioFocusAcquired = false
+        audioManager = null
+        focusRequest = null
+    }
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density + .5f).toInt()
 
@@ -122,6 +190,11 @@ class ZavroMpvActivity : AppCompatActivity() {
         }
         gateTicket = ticket
         currentUrl = url
+        if (!requestMediaAudioFocus()) {
+            Toast.makeText(this, "Brak dostępu do dźwięku", Toast.LENGTH_LONG).show()
+            finish()
+            return
+        }
 
         if (source.isPrivate) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -386,6 +459,7 @@ class ZavroMpvActivity : AppCompatActivity() {
         }
         player = null
         currentUrl = null
+        abandonMediaAudioFocus()
         gateTicket?.let(MpvEngineGate::release)
         gateTicket = null
         super.onDestroy()
@@ -415,6 +489,14 @@ class ZavroMpvView(context: android.content.Context, attrs: AttributeSet) :
         MPVLib.setOptionString("audio-pitch-correction", "yes")
         MPVLib.setOptionString("ytdl", "no")
         MPVLib.setOptionString("tls-verify", "yes")
+        // Stream directly over HTTP: seekable cache, bounded buffering,
+        // retry button. Never download the whole movie to a temporary file.
+        MPVLib.setOptionString("cache", "yes")
+        MPVLib.setOptionString("cache-secs", "180")
+        MPVLib.setOptionString("cache-pause", "yes")
+        MPVLib.setOptionString("cache-pause-wait", "2")
+        MPVLib.setOptionString("demuxer-seekable-cache", "yes")
+        MPVLib.setOptionString("network-timeout", "15")
         userAgent?.let { MPVLib.setOptionString("user-agent", it) }
         referrer?.let { MPVLib.setOptionString("referrer", it) }
     }
