@@ -44,6 +44,12 @@ test('v1130 provides stream recovery, media focus, PiP, tracks and speed gesture
   assert.match(player, /MPVLib\.command\("cycle", "aid"\)/);
   assert.match(player, /MPVLib\.command\("cycle", "sid"\)/);
   assert.match(player, /enterPictureInPictureMode/);
+  assert.match(player, /showAudioFilters/);
+  assert.match(player, /denoiseLevel/);
+  assert.match(player, /dialogueLevel/);
+  assert.match(player, /afftdn=nr=/);
+  assert.match(player, /equalizer=f=2300/);
+  assert.match(player, /MPVLib\.command\("af", "set"/);
   assert.match(manifest, /android:supportsPictureInPicture="true"/);
   assert.match(player, /postDelayed\(action, 300L\)/);
   assert.match(player, /MPVLib\.command\("loadfile", url\)/);
