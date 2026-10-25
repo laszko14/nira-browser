@@ -15,6 +15,7 @@ internal object PlaybackSourceRegistry {
         val referrer: String?,
         val owner: MediaSessionBinding,
         val pageUrl: String,
+        val autoHandoff: Boolean = false,
     ) {
         val isPrivate: Boolean get() = owner.isPrivate
 
