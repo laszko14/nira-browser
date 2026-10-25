@@ -262,3 +262,6 @@ Dodano fullscreen seekbar/HUD/prędkość/gesty na istniejącej powierzchni MPV,
 
 ### 2026-10-25 — v1149
 Dodano izolowany adapter istniejącego observera i typowane komendy, snapshot preferencji oraz zachowanie 43 slotów. Bridge Lua wyłącznie jako nieaktywny szablon; brak nowych UI/filtrów/importu XML. Node 141/141 PASS; końcowe Gradle i GitHub opisuje handoff v1149.
+
+### 2026-10-25 — v1150
+Przeniesiono HUD i wyodrębnione oryginalne wizualne kontrolki Alpha do fullscreen ComposeView, zasilane AlphaSession. Mini i silnik bez przebudowy. Node 143/143, JVM 96/96 PASS; wynik lint/CI i ograniczenia wizualne opisuje handoff v1150.

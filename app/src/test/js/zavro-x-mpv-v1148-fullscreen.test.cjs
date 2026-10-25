@@ -17,9 +17,10 @@ test('pause/speed are observed, temporary boost restores baseline, seek waits fo
  assert.match(s,/observeProperty\("speed"/);
  assert.match(s,/setSpeed\(holdFrom\)/);
  assert.match(s,/holdFrom=speed/);
- assert.match(s,/dragging=true/);
- const seek=s.split('override fun onStopTrackingTouch')[1].split('fullscreenSeek=bar')[0];
- assert.match(seek,/absolute\+exact/);
+ assert.match(s,/onDragging=\{ dragging=it \}/);
+ const compose=fs.readFileSync('app/src/main/java/com/prirai/android/nira/media/alpha/ui/AlphaFullscreenControls.kt','utf8');
+ assert.match(compose,/AlphaCommand.SeekAbsolute/);
+ assert.match(compose,/pendingSeek=null;onDragging\(false\)/);
  const transitions=s.split('private fun toggleFullscreen()')[1].split('fun detach()')[0];
  assert.doesNotMatch(transitions,/(?:speed|paused|lastPosition)\s*=/);
  assert.match(s,/!fullscreen && !destroyed/);

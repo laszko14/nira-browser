@@ -333,3 +333,6 @@ Pełny panel i gesty fullscreen przy zachowaniu jednego inline silnika/powierzch
 
 ## 2026-10-25 — v1149
 Fundament Alpha na bazie v1148 607c599; kanoniczne Alpha v54 c6107ce potwierdzone przez użytkownika. Adapter jednej sesji, izolowany snapshot i 43 sloty, nieaktywny szablon Lua. Szczegóły: [ZAVRO_X_MPV_V1149_HANDOFF.md](ZAVRO_X_MPV_V1149_HANDOFF.md). Bez merge.
+
+## 2026-10-25 — v1150
+Pierwsze oryginalne komponenty Compose Alpha v54 na istniejącym fullscreen: HUD, StandardSeekbar, ControlsButton i MiniProgressBar; baza v1149 c9f4ac3. Szczegóły: [ZAVRO_X_MPV_V1150_HANDOFF.md](ZAVRO_X_MPV_V1150_HANDOFF.md). Bez merge, Lua i audio nieaktywne.

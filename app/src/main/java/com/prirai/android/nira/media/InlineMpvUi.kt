@@ -17,7 +17,12 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.PopupMenu
 import android.widget.TextView
-import android.widget.SeekBar
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import com.prirai.android.nira.media.alpha.ui.AlphaFullscreenControls
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import com.prirai.android.nira.R
 import com.prirai.android.nira.media.alpha.AlphaCommand
@@ -64,20 +69,16 @@ internal class InlineMpvUi(
     private var timeout: Runnable?=null
     private var controlBar: LinearLayout?=null
     private var controlMode=-1
-    private var controlsVisible=true
+    private var controlsVisible by mutableStateOf(true)
+    private var alphaCompose:ComposeView?=null
     private var hideControlsTask:Runnable?=null
     private var speed=1.5
     private var duration=Double.NaN
     private var paused=false
     private var dragging=false
-    private var fullscreenSeek:SeekBar?=null
-    private var fullscreenHud:TextView?=null
-    private var fullscreenPause:TextView?=null
-    private var fullscreenSpeed:TextView?=null
     private var holdTask:Runnable?=null
     private var holdFrom=1.5
     private var holdActive=false
-    private var lastHudAt=0L
     @Volatile private var lastPosition=Double.NaN
     private var returnAt=Double.NaN
     private var pendingReturnCheck=false
@@ -119,7 +120,7 @@ internal class InlineMpvUi(
         override fun eventProperty(property:String,value:Boolean) {
             alphaAdapter.onFlag(property,value)
             if (property=="pause") main.post {
-                if (!destroyed) { paused=value;updateFullscreenHud() }
+                if (!destroyed) { paused=value }
             }
             if (property=="paused-for-cache") MpvDebugTrace.note(
                 MpvDebugTrace.Section.MPV,
@@ -130,17 +131,11 @@ internal class InlineMpvUi(
             if (property=="duration" || property=="speed") main.post {
                 if (!destroyed) {
                     if (property=="duration") duration=value else speed=value
-                    updateFullscreenHud()
                 }
             }
             if (property=="time-pos" && !destroyed) {
                 lastPosition=value
                 MpvSupertest.sample(session,value)
-                val now=android.os.SystemClock.elapsedRealtime()
-                if (now-lastHudAt>=250L) {
-                    lastHudAt=now
-                    main.post { if (!destroyed) updateFullscreenHud() }
-                }
                 if (pendingReturnCheck && value.isFinite()) main.post {
                     if (!destroyed && pendingReturnCheck) {
                         pendingReturnCheck=false
@@ -202,21 +197,11 @@ internal class InlineMpvUi(
     private fun setSpeed(value:Double) {
         if (runCatching { MPVLib.setPropertyDouble("speed",value) }.isSuccess) {
             speed=value
-            updateFullscreenHud()
         }
     }
     private fun changeSpeed() {
         setSpeed(if (speed>=3.0) 1.5 else speed+0.5)
         if (!fullscreen) updateControlsForWidth(overlay.width,true)
-    }
-    private fun speedMenu(anchor:View) {
-        val popup=PopupMenu(context,anchor)
-        val choices=listOf(1.0,1.5,2.0,2.5,3.0)
-        choices.forEachIndexed { index,value -> popup.menu.add(0,index, index,"$value×") }
-        hideControlsTask?.let(main::removeCallbacks)
-        popup.setOnMenuItemClickListener { setSpeed(choices[it.itemId]);true }
-        popup.setOnDismissListener { revealControls() }
-        popup.show()
     }
     private fun cancelHold() {
         holdTask?.let(main::removeCallbacks)
@@ -270,74 +255,24 @@ internal class InlineMpvUi(
             }
         }
     }
-    private fun updateFullscreenHud() {
-        if (!fullscreen) return
-        fullscreenHud?.text=InlineFullscreenUi.time(lastPosition)+" / "+
-            InlineFullscreenUi.time(duration)+"   −"+
-            InlineFullscreenUi.time(if (duration.isFinite() && lastPosition.isFinite())
-                (duration-lastPosition).coerceAtLeast(0.0) else Double.NaN)+"   $speed×"
-        fullscreenPause?.text=if (paused) "▶" else "⏸"
-        fullscreenSpeed?.text="$speed×"
-        fullscreenSeek?.let { bar ->
-            bar.isEnabled=duration.isFinite() && duration>0
-            if (!dragging) bar.progress=if (bar.isEnabled && lastPosition.isFinite())
-                (lastPosition/duration*1000).toInt().coerceIn(0,1000) else 0
+    private fun buildFullscreenControls():ComposeView = ComposeView(context).apply {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindowOrReleasedFromPool)
+        setContent {
+            AlphaFullscreenControls(
+                session=alphaSession,
+                controlsVisible=controlsVisible,
+                onInteraction={ revealControls() },
+                onDragging={ dragging=it },
+                onBack={ exitFullscreen() },
+            )
         }
     }
-    private fun buildFullscreenControls():LinearLayout {
-        val panel=LinearLayout(context).apply {
-            orientation=LinearLayout.VERTICAL
-            gravity=Gravity.CENTER
-            setPadding(dp(8),dp(6),dp(8),dp(12))
-            setBackgroundColor(Color.argb(190,12,16,22))
+    private fun disposeAlphaControls() {
+        alphaCompose?.let {
+            it.disposeComposition()
+            overlay.removeView(it)
         }
-        fullscreenHud=TextView(context).apply {
-            setTextColor(Color.WHITE); textSize=13f; gravity=Gravity.CENTER
-        }
-        panel.addView(fullscreenHud,LinearLayout.LayoutParams(-1,-2))
-        val bar=SeekBar(context).apply {
-            max=1000
-            contentDescription="Pozycja filmu"
-            setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener {
-                override fun onStartTrackingTouch(bar:SeekBar) {
-                    dragging=true
-                    hideControlsTask?.let(main::removeCallbacks)
-                }
-                override fun onProgressChanged(bar:SeekBar,value:Int,fromUser:Boolean) {
-                    if (fromUser) fullscreenHud?.text=
-                        InlineFullscreenUi.time(InlineFullscreenUi.seekTarget(value,duration)?:Double.NaN)+
-                        " / "+InlineFullscreenUi.time(duration)+"   $speed×"
-                }
-                override fun onStopTrackingTouch(bar:SeekBar) {
-                    dragging=false
-                    InlineFullscreenUi.seekTarget(bar.progress,duration)?.let {
-                        runCatching { MPVLib.command("seek",it.toString(),"absolute+exact") }
-                    }
-                    revealControls()
-                }
-            })
-        }
-        fullscreenSeek=bar
-        panel.addView(bar,LinearLayout.LayoutParams(-1,dp(48)))
-        val row=LinearLayout(context).apply { gravity=Gravity.CENTER }
-        fun control(label:String,action:()->Unit):TextView {
-            val view=TextView(context).apply {
-                text=label; textSize=14f; gravity=Gravity.CENTER
-                setTextColor(Color.WHITE); isClickable=true; isFocusable=true
-                contentDescription=label
-                setOnClickListener { revealControls();action() }
-            }
-            row.addView(view,LinearLayout.LayoutParams(0,dp(48),1f))
-            return view
-        }
-        control("−10 s") { seek(-10) }
-        fullscreenPause=control("⏯") { runCatching { MPVLib.command("cycle","pause") } }
-        control("+10 s") { seek(10) }
-        control("+30 s") { seek(30) }
-        fullscreenSpeed=control("$speed×") { fullscreenSpeed?.let(::speedMenu) }
-        control("↙") { toggleFullscreen() }
-        panel.addView(row,LinearLayout.LayoutParams(-1,dp(48)))
-        return panel
+        alphaCompose=null
     }
     private fun overflow(anchor:View) {
         val popup=PopupMenu(context,anchor)
@@ -364,16 +299,15 @@ internal class InlineMpvUi(
         if (!force && controlMode==mode) return
         controlMode=mode
         controlBar?.let { overlay.removeView(it) }
-        fullscreenHud=null; fullscreenSeek=null; fullscreenPause=null; fullscreenSpeed=null
         if (fullscreen) {
-            val panel=buildFullscreenControls()
-            controlBar=panel
-            overlay.addView(panel,FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM))
-            updateFullscreenHud()
-            panel.visibility=if (controlsVisible) View.VISIBLE else View.GONE
-            if (controlsVisible) scheduleHide()
+            if (alphaCompose==null) {
+                val panel=buildFullscreenControls()
+                alphaCompose=panel
+                overlay.addView(panel,FrameLayout.LayoutParams(-1,-1))
+            }
             return
         }
+        disposeAlphaControls()
         val bar=LinearLayout(context).apply {
             orientation=LinearLayout.HORIZONTAL
             gravity=Gravity.CENTER
@@ -538,6 +472,7 @@ internal class InlineMpvUi(
         cancelHold()
         overlay.cancelGesture()
         destroyed=true
+        disposeAlphaControls()
         alphaAdapter.invalidate()
         timeout?.let(main::removeCallbacks)
         hideControlsTask?.let(main::removeCallbacks)

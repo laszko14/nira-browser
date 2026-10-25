@@ -1,0 +1,32 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
+const read=p=>fs.readFileSync('app/src/main/java/com/prirai/android/nira/media/'+p,'utf8');
+test('fullscreen owns only Compose composition; existing surface and mini scroll remain',()=>{
+ const ui=read('InlineMpvUi.kt');
+ assert.match(ui,/ComposeView/);
+ assert.match(ui,/disposeComposition\(\)/);
+ assert.match(ui,/AlphaFullscreenControls\(/);
+ assert.match(ui,/alphaSession/);
+ assert.equal((ui.match(/video.initialize\(/g)||[]).length,1);
+ assert.equal((ui.match(/video.playFile\(/g)||[]).length,1);
+ assert.match(ui,/!fullscreen && !destroyed/);
+ const compose=read('alpha/ui/AlphaFullscreenControls.kt');
+ assert.match(compose,/session.state.collectAsState/);
+ assert.match(compose,/HudBarContent\(/);
+ assert.match(compose,/StandardSeekbar\(/);
+ assert.match(compose,/onDispose/);
+ assert.doesNotMatch(compose,/MPVLib|SurfaceView|PlayerViewModel|koinInject|loadfile/);
+});
+test('seek commits on release, cancellation does not seek, hide cannot interrupt a held pointer',()=>{
+ const compose=read('alpha/ui/AlphaFullscreenControls.kt');
+ const seek=read('alpha/ui/Seekbar.kt');
+ const end=compose.split('onSeekFinished={')[1].split('onSeekCancelled=')[0];
+ assert.match(end,/AlphaCommand.SeekAbsolute/);
+ const cancel=compose.split('onSeekCancelled={')[1].split('modifier=')[0];
+ assert.doesNotMatch(cancel,/execute|AlphaCommand/);
+ assert.match(compose,/awaitFirstDown\(requireUnconsumed=false,pass=PointerEventPass.Initial\)/);
+ assert.match(compose,/finally \{ onDragging\(false\);onInteraction\(\) \}/);
+ assert.match(seek,/onTap =/);
+ assert.match(seek,/detectDragGestures/);
+ const ui=read('InlineMpvUi.kt');
+ assert.match(ui,/if \(dragging \|\| holdActive\) \{ scheduleHide\(\); return@Runnable \}/);
+});
