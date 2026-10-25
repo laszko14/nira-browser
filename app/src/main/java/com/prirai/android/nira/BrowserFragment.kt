@@ -1387,17 +1387,24 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     }
 
     private fun launchInternalVideo(uri: android.net.Uri, safeReferrer: String?) {
-        // Derive privacy from the trusted BrowserStore even when no media
-        // detector session has been initialized (e.g. manual URL entry).
+        // Bind the handoff to the selected browser tab, GeckoSession and
+        // document. Activity checks the same snapshot immediately before loadfile.
         val store = requireContext().components.store.state
-        val privateTab = store.tabs.firstOrNull { it.id == store.selectedTabId }
-            ?.content?.private == true
+        val selected = store.tabs.firstOrNull { it.id == store.selectedTabId }
+        val session = selected?.engineState?.engineSession
+        if (selected == null || session == null) {
+            Toast.makeText(requireContext(), "Brak aktywnej karty wideo", Toast.LENGTH_SHORT).show()
+            return
+        }
         val ticket = com.prirai.android.nira.media.PlaybackSourceRegistry.issue(
             com.prirai.android.nira.media.PlaybackSourceRegistry.Source(
                 url = uri.toString(),
                 userAgent = GeckoSession.getDefaultUserAgent(),
                 referrer = safeReferrer,
-                isPrivate = privateTab,
+                owner = MediaSessionBinding(
+                    session, selected.id, selected.contextId, selected.content.private
+                ),
+                pageUrl = selected.content.url,
             )
         )
         startActivity(Intent(requireContext(), ZavroMpvActivity::class.java).apply {

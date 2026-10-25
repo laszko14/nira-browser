@@ -4,43 +4,50 @@ import android.os.SystemClock
 import java.util.UUID
 
 /**
- * One-shot, process-local handoff to the non-exported native player.
- *
- * Signed URLs and headers must never be written to Intent extras, SavedState,
- * preferences, logs or the browsing history. The ticket is only an opaque key.
- * A process death deliberately invalidates the handoff rather than restoring
- * potentially private stream credentials from persistent storage.
+ * Native player handoff contains no URL or credential in an Intent. This
+ * single-use, RAM-only registry binds a stream to the exact Gecko EngineSession
+ * and document observed in the trusted BrowserStore at click time.
  */
 internal object PlaybackSourceRegistry {
-    internal data class Source(
+    internal class Source(
         val url: String,
         val userAgent: String?,
         val referrer: String?,
-        val isPrivate: Boolean,
+        val owner: MediaSessionBinding,
+        val pageUrl: String,
     ) {
-        override fun toString() = "Source(url=<redacted>, userAgent=<redacted>, referrer=<redacted>)"
+        val isPrivate: Boolean get() = owner.isPrivate
+
+        override fun toString(): String =
+            "PlaybackSource(url=<redacted>, headers=<redacted>, tab=<redacted>)"
     }
 
-    private data class Pending(val source: Source, val createdAtMs: Long)
+    private data class Pending(val id: String, val source: Source, val createdMs: Long)
     private const val TTL_MS = 30_000L
-    private var pending: Pair<String, Pending>? = null
+    private var pending: Pending? = null
 
     @Synchronized
     fun issue(source: Source): String {
-        val ticketId = UUID.randomUUID().toString()
-        // There is only one native player per browser process in the MVP.
-        pending = ticketId to Pending(source, SystemClock.elapsedRealtime())
-        return ticketId
+        val ticket = UUID.randomUUID().toString()
+        // A second click supersedes the first; there is only one native player.
+        pending = Pending(ticket, source, SystemClock.elapsedRealtime())
+        return ticket
     }
 
     @Synchronized
-    fun take(ticketId: String?): Source? {
-        val record = pending
+    fun take(ticket: String?, current: MediaTabState?): Source? {
+        val value = pending
         pending = null
-        if (ticketId.isNullOrBlank() || record?.first != ticketId) return null
-        val elapsed = SystemClock.elapsedRealtime() - record.second.createdAtMs
-        if (elapsed !in 0L..TTL_MS) return null
-        return record.second.source
+        if (ticket == null || value == null || value.id != ticket) return null
+        if (SystemClock.elapsedRealtime() - value.createdMs !in 0L..TTL_MS) return null
+        val owner = value.source.owner
+        val fresh = current ?: return null
+        if (fresh.binding.session !== owner.session ||
+            fresh.binding.tabId != owner.tabId ||
+            fresh.binding.contextId != owner.contextId ||
+            fresh.binding.isPrivate != owner.isPrivate ||
+            fresh.pageUrl != value.source.pageUrl) return null
+        return value.source
     }
 
     @Synchronized
