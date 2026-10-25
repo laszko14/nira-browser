@@ -1387,7 +1387,11 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     }
 
     private fun launchInternalVideo(uri: android.net.Uri, safeReferrer: String?) {
-        val privateTab = currentMediaSnapshot()?.tab?.binding?.isPrivate == true
+        // Derive privacy from the trusted BrowserStore even when no media
+        // detector session has been initialized (e.g. manual URL entry).
+        val store = requireContext().components.store.state
+        val privateTab = store.tabs.firstOrNull { it.id == store.selectedTabId }
+            ?.content?.private == true
         val ticket = com.prirai.android.nira.media.PlaybackSourceRegistry.issue(
             com.prirai.android.nira.media.PlaybackSourceRegistry.Source(
                 url = uri.toString(),
