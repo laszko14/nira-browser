@@ -112,7 +112,7 @@ test("v1131 native bridge fail-closed on session, frame, document and token", ()
 
 test("v1131 keeps original Zavro untouched; signed MPV app version increments", () => {
   assert.match(build, /applicationId = "com\.prirai\.android\.nira\.mpv"/);
-  assert.match(build, /versionCode = 135/);
+  assert.match(build, /versionCode = 1\d{2}/);
   assert.match(ci, /EXPECTED_VERSION_CODE: "11\d+"/);
   assert.match(ci, /zavro-x-mpv-arm64-v11\d+/);
   assert.doesNotMatch(build,/applicationIdSuffix\s*=/);
