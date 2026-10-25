@@ -27,7 +27,8 @@
    double-tap oraz hold 300 ms.
 6. Ręczne przełączanie ścieżek `aid`/napisów `sid`.
 7. PiP z przycisku (Android API >=26) i ukrycie nakładek w małym oknie.
-8. Dodatkowe testy regresji dla separacji instalacji, Gecko pause/restore,
+8. Testowy panel audio: Szum 0–7 (FFmpeg afftdn), Głos 0–3 (EQ 2300 Hz), EQ wysokie ON/OFF; domyślnie wszystko wyłączone. Żądanie filtra nie gwarantuje, że prebuilt AAR ma potrzebny filtr: potwierdzić na fizycznym urządzeniu.
+9. Dodatkowe testy regresji dla separacji instalacji, Gecko pause/restore,
    HTTP, PiP, audio focus i URL RAM-only.
 
 ## Nadal do zrobienia — kolejność
