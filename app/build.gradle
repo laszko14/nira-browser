@@ -56,7 +56,7 @@ android {
         }
     }
 
-    // The canonical package is essential: the separate .mpv prototype cannot update Zavro.
+    // Keep the release applicationId and the stable .debug testing update track.
     buildTypes {
         release {
             minifyEnabled = true
@@ -64,7 +64,8 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
-            // Independent test app: does not overwrite Zavro or its user data.
+            // Preserve the package of prior signed Zavro test APKs (v1126).
+            applicationIdSuffix = '.debug'
             if (signingConfigs.findByName("updateDebug") != null) {
                 signingConfig = signingConfigs.getByName("updateDebug")
             }
