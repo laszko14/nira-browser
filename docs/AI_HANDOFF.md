@@ -327,3 +327,6 @@ V1146: PR #59 draft, CI https://github.com/laszko14/nira-browser/actions/runs/40
 Baza v1146 457ce67; poprawka pionowego scrollu przez mini MPV. Szczegóły: [ZAVRO_X_MPV_V1147_HANDOFF.md](ZAVRO_X_MPV_V1147_HANDOFF.md). Brak merge.
 
 V1147: draft PR https://github.com/laszko14/nira-browser/pull/60; CI https://github.com/laszko14/nira-browser/actions/runs/40172217252 BUILD/TEST/LINT SUCCESS, commit implementacji 3b771e5. Podpisany artefakt zavro-x-mpv-arm64-v1147; lokalnie Node 138/138, JUnit 83/83 i lint PASS. Test telefonu nadal wymagany.
+
+## 2026-10-25 — v1148
+Pełny panel i gesty fullscreen przy zachowaniu jednego inline silnika/powierzchni; baza v1147 26ee7ad. Szczegóły: [ZAVRO_X_MPV_V1148_HANDOFF.md](ZAVRO_X_MPV_V1148_HANDOFF.md). Bez merge.
