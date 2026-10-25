@@ -12,6 +12,9 @@ internal object MpvEngineGate {
     }
 
     @Synchronized
+    fun owns(id: String): Boolean = owner == id
+
+    @Synchronized
     fun release(id: String) {
         if (owner == id) owner = null
     }
