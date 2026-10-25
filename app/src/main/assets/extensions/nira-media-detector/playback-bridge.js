@@ -7,7 +7,10 @@
  * This script never navigates, clicks Play, bypasses EME or touches cookies.
  */
 (() => {
-  if (!location || !/^https?:$/.test(location.protocol)) return;
+  if (!location) return;
+  const secureDocument = /^https?:$/.test(location.protocol);
+  const inheritedBlank = location.href === "about:blank";
+  if (!secureDocument && !inheritedBlank) return;
   const PORT = "nira.media.playback";
   const MAX_VIDEOS = 64;
   // Diagnostics use a second Gecko transport. Port handoff remains mandatory
@@ -154,7 +157,7 @@
       if (hold.video === video) { try { video.pause(); } catch (_) {} return; }
     }
     diagnostic("video_play");
-    if (!frameKey || !lastGesture || lastGesture.page !== location.href ||
+    if (!secureDocument || !frameKey || !lastGesture || lastGesture.page !== location.href ||
         Date.now() - lastGesture.at > GESTURE_WINDOW_MS) {
       diagnostic("no_gesture");
       return;
