@@ -80,11 +80,13 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     )
     private var suspendedWebPlayback: SuspendedWebPlayback? = null
     private var inlineMpv: com.prirai.android.nira.media.InlineMpvUi? = null
+    private var inlineBackCallback: androidx.activity.OnBackPressedCallback? = null
     private var inlinePage: String? = null
     private var inlineSession: Any? = null
     private fun closeInlineMpv() {
         inlineMpv?.detach()
         inlineMpv=null
+        inlineBackCallback?.isEnabled=false
         inlinePage=null
         inlineSession=null
         restoreWebPlaybackAfterMpv()
@@ -166,6 +168,17 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             showTabGroupBar = true
         }
         super.initializeUI(view, tab)
+        inlineBackCallback = object : androidx.activity.OnBackPressedCallback(false) {
+            override fun handleOnBackPressed() {
+                val ui=inlineMpv
+                if (ui != null) {
+                    if (!ui.exitFullscreen()) closeInlineMpv()
+                } else {
+                    isEnabled=false
+                    requireActivity().onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        }.also { requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner,it) }
 
         val context = requireContext()
         val components = context.components
@@ -359,7 +372,10 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         }
         MediaElementPlaybackBridge.onInlineLayout = { nonce,rect ->
             val ui=inlineMpv
-            if (ui != null && ui.token == nonce) ui.place(rect)
+            if (ui != null && ui.token == nonce) {
+                if (rect.w <= 0.0 || rect.h <= 0.0) closeInlineMpv()
+                else ui.place(rect)
+            }
         }
         val overlay = MediaFloatingUi(
             parent = binding.browserLayout,
@@ -1599,6 +1615,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 binding.browserLayout,binding.engineView.asView(),
                 requireActivity(),requireContext(),lease,session) { closeInlineMpv() }
             inlineMpv=ui
+            inlineBackCallback?.isEnabled=true
             inlinePage=live.content.url
             inlineSession=session
             val rect=MediaElementPlaybackBridge.InlineRect(
