@@ -7,6 +7,8 @@ import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
+import android.view.GestureDetector
+import android.view.MotionEvent
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -15,6 +17,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.PopupMenu
 import android.widget.TextView
+import android.widget.SeekBar
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import com.prirai.android.nira.R
 import `is`.xyz.mpv.MPVLib
@@ -49,6 +52,17 @@ internal class InlineMpvUi(
     private var controlsVisible=true
     private var hideControlsTask:Runnable?=null
     private var speed=1.5
+    private var duration=Double.NaN
+    private var paused=false
+    private var dragging=false
+    private var fullscreenSeek:SeekBar?=null
+    private var fullscreenHud:TextView?=null
+    private var fullscreenPause:TextView?=null
+    private var fullscreenSpeed:TextView?=null
+    private var holdTask:Runnable?=null
+    private var holdFrom=1.5
+    private var holdActive=false
+    private var lastHudAt=0L
     @Volatile private var lastPosition=Double.NaN
     private var returnAt=Double.NaN
     private var pendingReturnCheck=false
@@ -57,6 +71,7 @@ internal class InlineMpvUi(
     private fun scheduleHide() {
         hideControlsTask?.let(main::removeCallbacks)
         val task=Runnable {
+            if (dragging || holdActive) { scheduleHide(); return@Runnable }
             if (!destroyed && controlsVisible) {
                 controlsVisible=false
                 controlBar?.visibility=View.GONE
@@ -87,14 +102,28 @@ internal class InlineMpvUi(
         override fun eventProperty(property:String,value:String) {}
         override fun eventProperty(property:String,value:MPVNode) {}
         override fun eventProperty(property:String,value:Boolean) {
+            if (property=="pause") main.post {
+                if (!destroyed) { paused=value;updateFullscreenHud() }
+            }
             if (property=="paused-for-cache") MpvDebugTrace.note(
                 MpvDebugTrace.Section.MPV,
                 if (value) "mpv_cache_wait" else "mpv_cache_resume",session)
         }
         override fun eventProperty(property:String,value:Double) {
+            if (property=="duration" || property=="speed") main.post {
+                if (!destroyed) {
+                    if (property=="duration") duration=value else speed=value
+                    updateFullscreenHud()
+                }
+            }
             if (property=="time-pos" && !destroyed) {
                 lastPosition=value
                 MpvSupertest.sample(session,value)
+                val now=android.os.SystemClock.elapsedRealtime()
+                if (now-lastHudAt>=250L) {
+                    lastHudAt=now
+                    main.post { if (!destroyed) updateFullscreenHud() }
+                }
                 if (pendingReturnCheck && value.isFinite()) main.post {
                     if (!destroyed && pendingReturnCheck) {
                         pendingReturnCheck=false
@@ -152,20 +181,157 @@ internal class InlineMpvUi(
     private fun seek(amount:Int) {
         runCatching { MPVLib.command("seek",amount.toString(),"relative") }
     }
+    private fun setSpeed(value:Double) {
+        if (runCatching { MPVLib.setPropertyDouble("speed",value) }.isSuccess) {
+            speed=value
+            updateFullscreenHud()
+        }
+    }
     private fun changeSpeed() {
-        speed=if (speed>=3.0) 1.5 else speed+0.5
-        runCatching { MPVLib.setPropertyDouble("speed",speed) }
-        updateControlsForWidth(if(fullscreen) windowHost.width else overlay.width,true)
+        setSpeed(if (speed>=3.0) 1.5 else speed+0.5)
+        if (!fullscreen) updateControlsForWidth(overlay.width,true)
+    }
+    private fun speedMenu(anchor:View) {
+        val popup=PopupMenu(context,anchor)
+        val choices=listOf(1.0,1.5,2.0,2.5,3.0)
+        choices.forEachIndexed { index,value -> popup.menu.add(0,index, index,"$value×") }
+        hideControlsTask?.let(main::removeCallbacks)
+        popup.setOnMenuItemClickListener { setSpeed(choices[it.itemId]);true }
+        popup.setOnDismissListener { revealControls() }
+        popup.show()
+    }
+    private fun cancelHold() {
+        holdTask?.let(main::removeCallbacks)
+        holdTask=null
+        if (holdActive) {
+            holdActive=false
+            setSpeed(holdFrom)
+        }
+    }
+    private fun installFullscreenGestures(video:View) {
+        val gestures=GestureDetector(context,object:GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e:MotionEvent)=true
+            override fun onDoubleTap(e:MotionEvent):Boolean {
+                cancelHold()
+                InlineFullscreenUi.doubleTapSpeed(e.x/video.width.coerceAtLeast(1),speed)
+                    ?.let(::setSpeed)
+                return true
+            }
+        })
+        var x0=0f
+        var y0=0f
+        video.setOnTouchListener { view,event ->
+            if (!fullscreen || destroyed) false else {
+                // Cancel any previous hold before GestureDetector changes base speed.
+                if (event.actionMasked==MotionEvent.ACTION_DOWN) cancelHold()
+                gestures.onTouchEvent(event)
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        revealControls()
+                        x0=event.x; y0=event.y; holdFrom=speed
+                        val action=Runnable {
+                            if (fullscreen && !destroyed) {
+                                holdActive=true
+                                setSpeed((holdFrom+.5).coerceAtMost(3.0))
+                            }
+                        }
+                        holdTask=action
+                        main.postDelayed(action,300L)
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        if (kotlin.math.abs(event.x-x0)>dp(20) ||
+                            kotlin.math.abs(event.y-y0)>dp(20)) cancelHold()
+                    }
+                    MotionEvent.ACTION_POINTER_DOWN -> cancelHold()
+                    MotionEvent.ACTION_UP,MotionEvent.ACTION_CANCEL -> {
+                        cancelHold()
+                        if (event.actionMasked==MotionEvent.ACTION_UP) view.performClick()
+                    }
+                }
+                true
+            }
+        }
+    }
+    private fun updateFullscreenHud() {
+        if (!fullscreen) return
+        fullscreenHud?.text=InlineFullscreenUi.time(lastPosition)+" / "+
+            InlineFullscreenUi.time(duration)+"   −"+
+            InlineFullscreenUi.time(if (duration.isFinite() && lastPosition.isFinite())
+                (duration-lastPosition).coerceAtLeast(0.0) else Double.NaN)+"   $speed×"
+        fullscreenPause?.text=if (paused) "▶" else "⏸"
+        fullscreenSpeed?.text="$speed×"
+        fullscreenSeek?.let { bar ->
+            bar.isEnabled=duration.isFinite() && duration>0
+            if (!dragging) bar.progress=if (bar.isEnabled && lastPosition.isFinite())
+                (lastPosition/duration*1000).toInt().coerceIn(0,1000) else 0
+        }
+    }
+    private fun buildFullscreenControls():LinearLayout {
+        val panel=LinearLayout(context).apply {
+            orientation=LinearLayout.VERTICAL
+            gravity=Gravity.CENTER
+            setPadding(dp(8),dp(6),dp(8),dp(12))
+            setBackgroundColor(Color.argb(190,12,16,22))
+        }
+        fullscreenHud=TextView(context).apply {
+            setTextColor(Color.WHITE); textSize=13f; gravity=Gravity.CENTER
+        }
+        panel.addView(fullscreenHud,LinearLayout.LayoutParams(-1,-2))
+        val bar=SeekBar(context).apply {
+            max=1000
+            contentDescription="Pozycja filmu"
+            setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener {
+                override fun onStartTrackingTouch(bar:SeekBar) {
+                    dragging=true
+                    hideControlsTask?.let(main::removeCallbacks)
+                }
+                override fun onProgressChanged(bar:SeekBar,value:Int,fromUser:Boolean) {
+                    if (fromUser) fullscreenHud?.text=
+                        InlineFullscreenUi.time(InlineFullscreenUi.seekTarget(value,duration)?:Double.NaN)+
+                        " / "+InlineFullscreenUi.time(duration)+"   $speed×"
+                }
+                override fun onStopTrackingTouch(bar:SeekBar) {
+                    dragging=false
+                    InlineFullscreenUi.seekTarget(bar.progress,duration)?.let {
+                        runCatching { MPVLib.command("seek",it.toString(),"absolute+exact") }
+                    }
+                    revealControls()
+                }
+            })
+        }
+        fullscreenSeek=bar
+        panel.addView(bar,LinearLayout.LayoutParams(-1,dp(48)))
+        val row=LinearLayout(context).apply { gravity=Gravity.CENTER }
+        fun control(label:String,action:()->Unit):TextView {
+            val view=TextView(context).apply {
+                text=label; textSize=14f; gravity=Gravity.CENTER
+                setTextColor(Color.WHITE); isClickable=true; isFocusable=true
+                contentDescription=label
+                setOnClickListener { revealControls();action() }
+            }
+            row.addView(view,LinearLayout.LayoutParams(0,dp(48),1f))
+            return view
+        }
+        control("−10 s") { seek(-10) }
+        fullscreenPause=control("⏯") { runCatching { MPVLib.command("cycle","pause") } }
+        control("+10 s") { seek(10) }
+        control("+30 s") { seek(30) }
+        fullscreenSpeed=control("$speed×") { fullscreenSpeed?.let(::speedMenu) }
+        control("↙") { toggleFullscreen() }
+        panel.addView(row,LinearLayout.LayoutParams(-1,dp(48)))
+        return panel
     }
     private fun overflow(anchor:View) {
         val popup=PopupMenu(context,anchor)
         popup.menu.add(0,1,0,"Prędkość: ${speed}×")
-        popup.menu.add(0,2,1,"Napisy")
+        popup.menu.add(0,2,1,"−10 s")
+        popup.menu.add(0,4,2,"+10 s")
         popup.menu.add(0,3,2,"Zamknij mini MPV")
         popup.setOnMenuItemClickListener {
             when (it.itemId) {
                 1 -> changeSpeed()
-                2 -> runCatching { MPVLib.command("cycle","sid") }
+                2 -> seek(-10)
+                4 -> seek(10)
                 3 -> exit()
             }
             true
@@ -175,11 +341,21 @@ internal class InlineMpvUi(
     private fun updateControlsForWidth(width:Int,force:Boolean=false) {
         if (width<=0 || destroyed) return
         val available=width/density
-        val mode=if (fullscreen || available>=346f) 0
+        val mode=if (fullscreen) 3 else if (available>=346f) 0
             else if (available>=248f) 1 else 2
         if (!force && controlMode==mode) return
         controlMode=mode
         controlBar?.let { overlay.removeView(it) }
+        fullscreenHud=null; fullscreenSeek=null; fullscreenPause=null; fullscreenSpeed=null
+        if (fullscreen) {
+            val panel=buildFullscreenControls()
+            controlBar=panel
+            overlay.addView(panel,FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM))
+            updateFullscreenHud()
+            panel.visibility=if (controlsVisible) View.VISIBLE else View.GONE
+            if (controlsVisible) scheduleHide()
+            return
+        }
         val bar=LinearLayout(context).apply {
             orientation=LinearLayout.HORIZONTAL
             gravity=Gravity.CENTER
@@ -193,7 +369,6 @@ internal class InlineMpvUi(
         add("⏯") { runCatching { MPVLib.command("cycle","pause") } }
         if (mode==0) add("${speed}×") { changeSpeed() }
         if (mode!=2) add("↷") { seek(10) }
-        if (mode==0) add("CC") { runCatching { MPVLib.command("cycle","sid") } }
         add("⛶") { toggleFullscreen() }
         if (mode==0) add("×") { exit() }
         else add("⋮") { overflow(bar.getChildAt(bar.childCount-1)) }
@@ -229,12 +404,16 @@ internal class InlineMpvUi(
             MPVLib.addLogObserver(logs)
             MpvDebugTrace.note(MpvDebugTrace.Section.MPV,"mpv_logger_registered",session)
             MPVLib.observeProperty("time-pos",MPVLib.MpvFormat.MPV_FORMAT_DOUBLE)
+            MPVLib.observeProperty("duration",MPVLib.MpvFormat.MPV_FORMAT_DOUBLE)
+            MPVLib.observeProperty("speed",MPVLib.MpvFormat.MPV_FORMAT_DOUBLE)
+            MPVLib.observeProperty("pause",MPVLib.MpvFormat.MPV_FORMAT_FLAG)
             MPVLib.observeProperty("paused-for-cache",MPVLib.MpvFormat.MPV_FORMAT_FLAG)
             player=video
             overlay.addView(video,FrameLayout.LayoutParams(-1,-1))
             // The same native video surface stays attached while only overlay bounds
             // change. This prevents SurfaceView destruction during fullscreen.
             player?.setOnClickListener { revealControls() }
+            installFullscreenGestures(video)
             overlay.setOnClickListener { revealControls() }
             overlay.visibility=View.INVISIBLE
             windowHost.addView(overlay,FrameLayout.LayoutParams(1,1))
@@ -306,6 +485,8 @@ internal class InlineMpvUi(
     }
     private fun toggleFullscreen() {
         if (destroyed) return
+        cancelHold()
+        dragging=false
         if (!fullscreen) {
             overlay.cancelGesture()
             fullscreen=true
@@ -336,6 +517,7 @@ internal class InlineMpvUi(
 
     fun detach() {
         if (destroyed) return
+        cancelHold()
         overlay.cancelGesture()
         destroyed=true
         timeout?.let(main::removeCallbacks)
