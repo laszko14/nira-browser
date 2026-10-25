@@ -102,7 +102,7 @@ test("v1131 native bridge fail-closed on session, frame, document and token", ()
   assert.match(native, /it\.senderUrl\(\) == frame/);
   assert.match(native, /candidates\.singleOrNull/);
   assert.match(native, /ACK_TIMEOUT_MS/);
-  assert.match(native, /p\.port === port/);
+  assert.match(native, /p\.port !== port/);
   assert.match(native, /matches\(l\.binding, actual\.binding\)/);
   assert.match(browser, /MediaElementPlaybackBridge\.prepare/);
   assert.match(browser, /MediaElementPlaybackBridge\.restore/);
