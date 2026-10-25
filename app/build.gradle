@@ -22,12 +22,12 @@ android {
     namespace = 'com.prirai.android.nira'
 
     defaultConfig {
-        applicationId = "com.prirai.android.nira"
+        applicationId = "com.prirai.android.nira.mpv"
         minSdkVersion 27
         targetSdkVersion 37
         // Increment by 4 with each update, by 1 with each fix
-        versionCode = 129
-        versionName = "0.5.22-alpha35-mpv3"
+        versionCode = 130
+        versionName = "0.5.22-alpha36-mpv4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -64,8 +64,8 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
-            // Preserve the package of prior signed Zavro test APKs (v1126).
-            applicationIdSuffix = '.debug'
+            // Deliberately NO .debug suffix: separate experimental APK is
+            // independently installable from normal Zavro and stable across builds.
             if (signingConfigs.findByName("updateDebug") != null) {
                 signingConfig = signingConfigs.getByName("updateDebug")
             }

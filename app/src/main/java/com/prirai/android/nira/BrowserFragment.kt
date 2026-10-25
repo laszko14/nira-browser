@@ -2,6 +2,7 @@ package com.prirai.android.nira
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import androidx.activity.result.contract.ActivityResultContracts
 import android.text.InputType
 import android.view.View
 import android.widget.EditText
@@ -44,6 +45,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import mozilla.components.browser.state.state.SessionState
+import mozilla.components.concept.engine.mediasession.MediaSession
 import mozilla.components.browser.state.state.content.DownloadState
 import mozilla.components.browser.thumbnails.BrowserThumbnails
 import mozilla.components.feature.tabs.WindowFeature
@@ -63,6 +65,31 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
 
     private val windowFeature = ViewBoundFeatureWrapper<WindowFeature>()
     private var mediaFloatingUi: MediaFloatingUi? = null
+    /** Only resume the exact page/session we ourselves paused for native playback. */
+    private data class SuspendedWebPlayback(
+        val tabId: String,
+        val contextId: String?,
+        val privateTab: Boolean,
+        val session: Any,
+        val pageUrl: String,
+    )
+    private var suspendedWebPlayback: SuspendedWebPlayback? = null
+    private val internalMpvLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { restoreWebPlaybackAfterMpv() }
+
+    private fun restoreWebPlaybackAfterMpv() {
+        val held = suspendedWebPlayback ?: return
+        suspendedWebPlayback = null
+        if (!isAdded) return
+        val state = requireContext().components.store.state
+        val tab = state.tabs.firstOrNull { it.id == held.tabId } ?: return
+        if (tab.engineState.engineSession !== held.session ||
+            tab.contextId != held.contextId || tab.content.private != held.privateTab ||
+            tab.content.url != held.pageUrl) return
+        // Never resume a site that navigated/replaced its media during handoff.
+        runCatching { tab.mediaSessionState?.controller?.play() }
+    }
 
     // Track last tab IDs for auto-grouping detection
     private var lastTabIds = setOf<String>()
@@ -1407,10 +1434,28 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 pageUrl = selected.content.url,
             )
         )
-        startActivity(Intent(requireContext(), ZavroMpvActivity::class.java).apply {
-            // Signed URL, headers and incognito metadata stay in process RAM.
+        // Pause Gecko's currently playing media before opening native MPV, to
+        // prevent double audio. The precise HTMLVideoElement ACK remains E3.
+        if (selected.mediaSessionState?.playbackState == MediaSession.PlaybackState.PLAYING) {
+            runCatching {
+                selected.mediaSessionState?.controller?.pause()
+                suspendedWebPlayback = SuspendedWebPlayback(
+                    selected.id, selected.contextId, selected.content.private,
+                    session, selected.content.url
+                )
+            }
+        }
+        val intent = Intent(requireContext(), ZavroMpvActivity::class.java).apply {
+            // Signed URLs/credentials never leave process memory.
             putExtra(ZavroMpvActivity.EXTRA_TICKET_ID, ticket)
-        })
+        }
+        try {
+            internalMpvLauncher.launch(intent)
+        } catch (error: RuntimeException) {
+            restoreWebPlaybackAfterMpv()
+            com.prirai.android.nira.media.PlaybackSourceRegistry.clear()
+            Toast.makeText(requireContext(), "Nie można uruchomić MPV", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun launchVideoExternally(uri: android.net.Uri, referrer: String?) {

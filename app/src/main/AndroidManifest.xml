@@ -71,7 +71,8 @@
         android:exported="false"
         android:theme="@style/AppThemeNotActionBar"
         android:screenOrientation="sensorLandscape"
-        android:configChanges="orientation|screenSize|keyboardHidden" />
+        android:supportsPictureInPicture="true"
+        android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden" />
 
     <!-- Onboarding Activity -->
     <activity

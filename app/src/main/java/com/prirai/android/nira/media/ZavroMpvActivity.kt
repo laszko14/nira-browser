@@ -1,6 +1,14 @@
 package com.prirai.android.nira.media
 
+import android.app.PictureInPictureParams
+import android.content.res.Configuration
+import android.util.Rational
 import android.content.pm.ActivityInfo
+import android.content.Context
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.os.Build
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -22,6 +30,7 @@ import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.prirai.android.nira.R
 import com.prirai.android.nira.ext.components
 import `is`.xyz.mpv.BaseMPVView
@@ -56,6 +65,77 @@ class ZavroMpvActivity : AppCompatActivity() {
     private var pauseControl: TextView? = null
     private var seekBar: SeekBar? = null
     private var dragging = false
+    private var nativeControls: View? = null
+    private var miniProgress: FrameLayout? = null
+    private var miniFill: View? = null
+    private var controlsHideTask: Runnable? = null
+    private var focusRequest: AudioFocusRequest? = null
+    private var audioManager: AudioManager? = null
+    private var focusSuspended = false
+    private var audioFocusAcquired = false
+    // Experimental opt-in filters: none is enabled until the user requests it.
+    private var denoiseLevel = 0
+    private var dialogueLevel = 0
+    private var highEq = false
+    private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
+        runOnUiThread {
+            when (change) {
+                AudioManager.AUDIOFOCUS_LOSS,
+                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
+                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                    if (ready && !userPaused) {
+                        focusSuspended = true
+                        runCatching { MPVLib.setPropertyBoolean("pause", true) }
+                        status?.text = "MPV wstrzymane: inne źródło dźwięku"
+                    }
+                }
+                AudioManager.AUDIOFOCUS_GAIN -> {
+                    if (ready && focusSuspended && !userPaused && !lifecyclePaused) {
+                        focusSuspended = false
+                        runCatching { MPVLib.setPropertyBoolean("pause", false) }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun requestMediaAudioFocus(): Boolean {
+        val manager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        audioManager = manager
+        val attributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_MEDIA)
+            .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
+            .build()
+        val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(attributes)
+                .setOnAudioFocusChangeListener(focusListener)
+                .build()
+            focusRequest = request
+            manager.requestAudioFocus(request)
+        } else {
+            @Suppress("DEPRECATION")
+            manager.requestAudioFocus(
+                focusListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN
+            )
+        }
+        audioFocusAcquired = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        return audioFocusAcquired
+    }
+
+    private fun abandonMediaAudioFocus() {
+        if (!audioFocusAcquired) return
+        val manager = audioManager ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            focusRequest?.let { manager.abandonAudioFocusRequest(it) }
+        } else {
+            @Suppress("DEPRECATION")
+            manager.abandonAudioFocus(focusListener)
+        }
+        audioFocusAcquired = false
+        audioManager = null
+        focusRequest = null
+    }
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density + .5f).toInt()
 
@@ -122,6 +202,11 @@ class ZavroMpvActivity : AppCompatActivity() {
         }
         gateTicket = ticket
         currentUrl = url
+        if (!requestMediaAudioFocus()) {
+            Toast.makeText(this, "Brak dostępu do dźwięku", Toast.LENGTH_LONG).show()
+            finish()
+            return
+        }
 
         if (source.isPrivate) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -216,11 +301,33 @@ class ZavroMpvActivity : AppCompatActivity() {
         row.addView(pauseControl)
         speedControl = control("1.5×") { cycleSpeed() }
         row.addView(speedControl)
+        row.addView(control("Audio") {
+            if (ready) runCatching { MPVLib.command("cycle", "aid") }
+                .onFailure { status?.text = "Nie można zmienić ścieżki audio" }
+        })
+        row.addView(control("Napisy") {
+            if (ready) runCatching { MPVLib.command("cycle", "sid") }
+                .onFailure { status?.text = "Nie można zmienić napisów" }
+        })
+        row.addView(control("Filtry") { showAudioFilters() })
         row.addView(control("Ponów") { retry() })
+        row.addView(control("PiP") { enterNativePip() })
         bottom.addView(row)
         root.addView(bottom, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
             .apply { bottomMargin = dp(12) })
+        nativeControls = bottom
+        val mini = FrameLayout(this).apply {
+            setBackgroundColor(Color.argb(120, 255, 255, 255))
+            visibility = View.GONE
+            isClickable = true
+            setOnClickListener { revealControls() }
+        }
+        miniFill = View(this).apply { setBackgroundColor(Color.rgb(126, 202, 196)) }
+        mini.addView(miniFill, FrameLayout.LayoutParams(0, -1, Gravity.START))
+        root.addView(mini, FrameLayout.LayoutParams(-1, dp(3), Gravity.BOTTOM))
+        miniProgress = mini
         updateHud()
+        revealControls()
     }
 
     private fun pill() = GradientDrawable().apply {
@@ -243,6 +350,22 @@ class ZavroMpvActivity : AppCompatActivity() {
         setOnClickListener { tap() }
     }
 
+    private fun revealControls() {
+        if (isInPictureInPictureMode) return
+        nativeControls?.visibility = View.VISIBLE
+        miniProgress?.visibility = View.GONE
+        controlsHideTask?.let(handler::removeCallbacks)
+        val hide = Runnable {
+            if (ready && !isInPictureInPictureMode) {
+                nativeControls?.visibility = View.GONE
+                miniProgress?.visibility = View.VISIBLE
+                updateHud()
+            }
+        }
+        controlsHideTask = hide
+        handler.postDelayed(hide, 5_000L)
+    }
+
     private fun installGestures(surface: ZavroMpvView) {
         val gestures = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: MotionEvent) = true
@@ -262,6 +385,7 @@ class ZavroMpvActivity : AppCompatActivity() {
             gestures.onTouchEvent(event)
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    revealControls()
                     x0 = event.x; y0 = event.y
                     holdFrom = speed
                     holdActive = false
@@ -319,6 +443,72 @@ class ZavroMpvActivity : AppCompatActivity() {
         if (ready) runCatching { MPVLib.command("seek", seconds.toString(), "relative") }
     }
 
+    private fun showAudioFilters() {
+        if (!ready || isFinishing) return
+        val options = arrayOf(
+            "Szum: $denoiseLevel/7  •  następny poziom",
+            "Głos: $dialogueLevel/3  •  następny poziom",
+            "EQ wysokie: ${if (highEq) "ON" else "OFF"}",
+            "Wyłącz wszystkie filtry",
+        )
+        MaterialAlertDialogBuilder(this)
+            .setTitle("MPV • Filtry audio (testowe)")
+            .setItems(options) { _, item ->
+                when (item) {
+                    0 -> denoiseLevel = (denoiseLevel + 1) % 8
+                    1 -> dialogueLevel = (dialogueLevel + 1) % 4
+                    2 -> highEq = !highEq
+                    3 -> { denoiseLevel = 0; dialogueLevel = 0; highEq = false }
+                }
+                applyAudioFilters()
+            }
+            .setNegativeButton("Zamknij", null)
+            .show()
+    }
+
+    private fun applyAudioFilters() {
+        if (!ready) return
+        val filters = mutableListOf<String>()
+        if (denoiseLevel > 0) {
+            // Gentle 1–4 and stronger 5–7; values are FFmpeg afftdn nr in dB.
+            val levels = intArrayOf(4, 6, 8, 10, 12, 16, 20)
+            filters += "lavfi=[afftdn=nr=${levels[denoiseLevel - 1]}]"
+        }
+        if (dialogueLevel > 0) {
+            val gains = arrayOf("1.0", "2.0", "3.0")
+            filters += "lavfi=[equalizer=f=2300:t=q:w=1:g=${gains[dialogueLevel - 1]}]"
+        }
+        if (highEq) filters += "lavfi=[equalizer=f=4300:t=q:w=1:g=1.5]"
+        // af set replaces only the filters owned by this experimental player.
+        // Never use speechnorm or constant loudness normalization.
+        runCatching { MPVLib.command("af", "set", filters.joinToString(",")) }
+            .onSuccess {
+                status?.text = if (filters.isEmpty()) "Filtry wyłączone"
+                    else "Żądanie filtrów wysłane • sprawdź działanie i dźwięk"
+            }.onFailure { status?.text = "MPV odrzuciło zmianę filtrów" }
+    }
+
+    private fun enterNativePip() {
+        if (!ready || !fileLoaded || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        runCatching {
+            val params = PictureInPictureParams.Builder()
+                .setAspectRatio(Rational(16, 9))
+                .build()
+            enterPictureInPictureMode(params)
+        }.onFailure { status?.text = "PiP nie jest obsługiwany na tym urządzeniu" }
+    }
+
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean, newConfig: Configuration
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        nativeControls?.visibility = if (isInPictureInPictureMode) View.GONE else View.VISIBLE
+        miniProgress?.visibility = View.GONE
+        if (!isInPictureInPictureMode) revealControls()
+        hud?.visibility = if (isInPictureInPictureMode) View.GONE else View.VISIBLE
+        status?.visibility = if (isInPictureInPictureMode) View.GONE else View.VISIBLE
+    }
+
     private fun retry() {
         val url = currentUrl ?: return
         if (!ready) return
@@ -349,8 +539,15 @@ class ZavroMpvActivity : AppCompatActivity() {
             formatTime(pos) + " / " + formatTime(len) +
                 "  •  −" + formatTime(remain / speed) + " (1×: −" + formatTime(remain) + ")"
         else String.format(Locale.US, "MPV • %.1f×", speed)
-        if (!dragging) seekBar?.progress =
-            if (len > 0) (pos / len * 1000.0).toInt().coerceIn(0, 1000) else 0
+        val proportion = if (len > 0) (pos / len).coerceIn(0.0, 1.0) else 0.0
+        if (!dragging) seekBar?.progress = (proportion * 1000.0).toInt()
+        val mini = miniProgress
+        val fill = miniFill
+        if (mini != null && fill != null && mini.width > 0) {
+            fill.layoutParams = fill.layoutParams.apply {
+                width = (mini.width * proportion).toInt().coerceIn(0, mini.width)
+            }
+        }
     }
 
     private fun formatTime(s: Double): String {
@@ -368,7 +565,7 @@ class ZavroMpvActivity : AppCompatActivity() {
     }
 
     override fun onStop() {
-        if (ready && !userPaused) {
+        if (ready && !userPaused && !isInPictureInPictureMode) {
             lifecyclePaused = true
             runCatching { MPVLib.setPropertyBoolean("pause", true) }
         }
@@ -378,6 +575,7 @@ class ZavroMpvActivity : AppCompatActivity() {
     override fun onDestroy() {
         holdAction?.let(handler::removeCallbacks)
         timeoutAction?.let(handler::removeCallbacks)
+        controlsHideTask?.let(handler::removeCallbacks)
         player?.isExiting = true
         if (ready) {
             ready = false
@@ -386,6 +584,7 @@ class ZavroMpvActivity : AppCompatActivity() {
         }
         player = null
         currentUrl = null
+        abandonMediaAudioFocus()
         gateTicket?.let(MpvEngineGate::release)
         gateTicket = null
         super.onDestroy()
@@ -415,6 +614,14 @@ class ZavroMpvView(context: android.content.Context, attrs: AttributeSet) :
         MPVLib.setOptionString("audio-pitch-correction", "yes")
         MPVLib.setOptionString("ytdl", "no")
         MPVLib.setOptionString("tls-verify", "yes")
+        // Stream directly over HTTP: seekable cache, bounded buffering,
+        // retry button. Never download the whole movie to a temporary file.
+        MPVLib.setOptionString("cache", "yes")
+        MPVLib.setOptionString("cache-secs", "180")
+        MPVLib.setOptionString("cache-pause", "yes")
+        MPVLib.setOptionString("cache-pause-wait", "2")
+        MPVLib.setOptionString("demuxer-seekable-cache", "yes")
+        MPVLib.setOptionString("network-timeout", "15")
         userAgent?.let { MPVLib.setOptionString("user-agent", it) }
         referrer?.let { MPVLib.setOptionString("referrer", it) }
     }

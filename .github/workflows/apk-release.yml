@@ -24,9 +24,9 @@ jobs:
     permissions:
       contents: read
     env:
-      EXPECTED_PACKAGE: com.prirai.android.nira.debug
-      EXPECTED_VERSION_CODE: "1129"
-      EXPECTED_VERSION_NAME: 0.5.22-alpha35-mpv3
+      EXPECTED_PACKAGE: com.prirai.android.nira.mpv
+      EXPECTED_VERSION_CODE: "1130"
+      EXPECTED_VERSION_NAME: 0.5.22-alpha36-mpv4
       EXPECTED_CERT_SHA256: df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
 
     steps:
@@ -44,7 +44,7 @@ jobs:
 
       # Do not publish an ephemeral Android debug signature as an update.
       # Reuse the stable signing key already used by the release workflow.
-      - name: Build single arm64 debug APK (update-safe certificate)
+      - name: Build signed standalone arm64 Zavro x MPV APK
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -83,12 +83,12 @@ jobs:
             "$EXPECTED_VERSION_CODE" \
             "$EXPECTED_VERSION_NAME" \
             "$EXPECTED_CERT_SHA256"
-          echo "Built signed arm64-v8a test candidate for Zavro .debug update track. Device installation not verified."
+          echo "Built standalone Zavro x MPV arm64-v8a APK. Normal Zavro package is untouched. Device installation not verified."
 
-      - name: Upload signed arm64 debug update candidate
+      - name: Upload standalone Zavro x MPV arm64 debug build
         uses: actions/upload-artifact@v4
         with:
-          name: zavro-arm64-update-test-v1129
+          name: zavro-x-mpv-arm64-v1130
           path: app/build/outputs/apk/debug/*arm64-v8a*.apk
           if-no-files-found: error
           retention-days: 30
@@ -154,9 +154,9 @@ jobs:
     permissions:
       contents: write
     env:
-      EXPECTED_PACKAGE: com.prirai.android.nira
-      EXPECTED_VERSION_CODE: "1129"
-      EXPECTED_VERSION_NAME: 0.5.22-alpha35-mpv3
+      EXPECTED_PACKAGE: com.prirai.android.nira.mpv
+      EXPECTED_VERSION_CODE: "1130"
+      EXPECTED_VERSION_NAME: 0.5.22-alpha36-mpv4
       EXPECTED_CERT_SHA256: df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
 
     # Release only on a version tag or manual dispatch with an explicit tag.
