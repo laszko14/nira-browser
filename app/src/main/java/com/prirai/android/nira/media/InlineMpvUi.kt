@@ -256,13 +256,19 @@ internal class InlineMpvUi(
         windowHost.getLocationOnScreen(origin)
         val engineVisible=Rect()
         val hostVisible=Rect()
-        if (!engine.getGlobalVisibleRect(engineVisible) ||
-            !host.getGlobalVisibleRect(hostVisible)) {
+        // getGlobalVisibleRect is in root-view coordinates, NOT screen pixels.
+        // Convert local visible bounds to screen pixels for correct clipping.
+        if (!engine.getLocalVisibleRect(engineVisible) ||
+            !host.getLocalVisibleRect(hostVisible)) {
             hideInline()
             return
         }
+        engineVisible.offset(screen[0],screen[1])
+        val hostScreen=IntArray(2)
+        host.getLocationOnScreen(hostScreen)
+        hostVisible.offset(hostScreen[0],hostScreen[1])
         // CSS viewport coordinates map through Gecko devicePixelRatio. Intersect
-        // with both actual native viewports so a scrolling video never overlays chrome.
+        // in one common screen coordinate space so chrome remains unobscured.
         val left=(screen[0]+rect.x*rect.dpr).toInt()
         val top=(screen[1]+rect.y*rect.dpr).toInt()
         val rectangle=Rect(left,top,
