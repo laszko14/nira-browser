@@ -31,6 +31,7 @@ import com.prirai.android.nira.media.MediaUiSnapshot
 import com.prirai.android.nira.media.MediaTabState
 import com.prirai.android.nira.media.MediaSessionBinding
 import com.prirai.android.nira.media.MediaElementPlaybackBridge
+import com.prirai.android.nira.media.VideoPlayerPolicy
 import com.prirai.android.nira.media.MpvPlaybackHeaders
 import com.prirai.android.nira.media.ZavroMpvActivity
 import com.prirai.android.nira.media.MediaSource
@@ -84,12 +85,21 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     private fun restoreWebPlaybackAfterMpv() {
         val held = suspendedWebPlayback ?: return
         suspendedWebPlayback = null
-        if (!isAdded) return
+        if (!isAdded) {
+            held.elementLeaseId?.let(MediaElementPlaybackBridge::discard)
+            return
+        }
         val state = requireContext().components.store.state
-        val tab = state.tabs.firstOrNull { it.id == held.tabId } ?: return
+        val tab = state.tabs.firstOrNull { it.id == held.tabId } ?: run {
+            held.elementLeaseId?.let(MediaElementPlaybackBridge::discard)
+            return
+        }
         if (tab.engineState.engineSession !== held.session ||
             tab.contextId != held.contextId || tab.content.private != held.privateTab ||
-            tab.content.url != held.pageUrl) return
+            tab.content.url != held.pageUrl) {
+            held.elementLeaseId?.let(MediaElementPlaybackBridge::discard)
+            return
+        }
         // Per-element Gecko handoff wins: restore ONLY the same connected
         // HTMLVideoElement and exact source that was paused on user request.
         val session = tab.engineState.engineSession ?: return
@@ -295,6 +305,26 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
 
     private fun setupFloatingMediaUi() {
         val store = requireContext().components.store
+        // Content-script Play offers are recommendations only. The trusted
+        // Store session, active tab and explicit AUTO preference decide.
+        MediaElementPlaybackBridge.onAutoOffer = auto@{ offer ->
+            if (!isAdded || view == null || suspendedWebPlayback != null ||
+                MediaElementPlaybackBridge.busy()) return@auto
+            val state = store.state
+            val selected = state.tabs.firstOrNull { it.id == state.selectedTabId }
+                ?: return@auto
+            val session = selected.engineState.engineSession ?: return@auto
+            if (session !== offer.port.engineSession || selected.content.loading ||
+                VideoPlayerPolicy.resolve(requireContext(), selected.content.url,
+                    selected.content.private) != VideoPlayerPolicy.Mode.AUTO) return@auto
+            val uri = runCatching { android.net.Uri.parse(offer.mediaUrl) }.getOrNull()
+                ?: return@auto
+            if (!ZavroMpvActivity.allowedVideoUrl(uri)) return@auto
+            val frame = runCatching { android.net.Uri.parse(offer.pageUrl) }.getOrNull()
+                ?.takeIf { ZavroMpvActivity.allowedVideoUrl(it) } ?: return@auto
+            val safeReferrer = frame.buildUpon().clearQuery().fragment(null).build().toString()
+            launchInternalVideo(uri, safeReferrer, offer.pageUrl, offer)
+        }
         val overlay = MediaFloatingUi(
             parent = binding.browserLayout,
             current = { if (isAdded) currentMediaSnapshot() else null },
@@ -353,6 +383,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     }
 
     override fun onDestroyView() {
+        MediaElementPlaybackBridge.onAutoOffer = null
         binding.gestureLayout.onVerticalSwipe = null
         mediaFloatingUi?.detach()
         mediaFloatingUi = null
@@ -1237,6 +1268,16 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             )
         )
 
+        // Experimental playback routing (global + per-site overrides).
+        menuItems.add(
+            com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+                id = "zavro_video_routing",
+                title = "Odtwarzacz wideo: AUTO / MPV / WEB / EXTERNAL",
+                iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_settings_24,
+                onClick = { showVideoPlayerModeDialog() }
+            )
+        )
+
         // Settings
         menuItems.add(
             com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
@@ -1373,6 +1414,47 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         dialog.show()
     }
 
+    private fun showVideoPlayerModeDialog() {
+        val context = requireContext()
+        val labels = arrayOf("AUTO — przejmuj obsługiwane Play",
+            "MPV — uruchamiaj ręcznie", "WEB — oryginalny odtwarzacz",
+            "EXTERNAL — odtwarzacz zewnętrzny")
+        val modes = VideoPlayerPolicy.Mode.entries.toTypedArray()
+        val current = VideoPlayerPolicy.global(context)
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(context)
+            .setTitle("Domyślny odtwarzacz")
+            .setSingleChoiceItems(labels, modes.indexOf(current)) { dialog, choice ->
+                VideoPlayerPolicy.setGlobal(context, modes[choice])
+                dialog.dismiss()
+                showVideoPlayerSiteDialog()
+            }
+            .setNeutralButton("Wyjątek dla strony") { _, _ -> showVideoPlayerSiteDialog() }
+            .setNegativeButton("Anuluj", null).show()
+    }
+
+    private fun showVideoPlayerSiteDialog() {
+        val context = requireContext()
+        val state = context.components.store.state
+        val tab = state.tabs.firstOrNull { it.id == state.selectedTabId } ?: return
+        if (tab.content.private) {
+            Toast.makeText(context, "Wyjątki nie są zapisywane w kartach prywatnych",
+                Toast.LENGTH_LONG).show()
+            return
+        }
+        val labels = arrayOf("Dziedzicz ustawienie globalne", "AUTO", "MPV", "WEB", "EXTERNAL")
+        val options = VideoPlayerPolicy.Mode.entries.toTypedArray()
+        val override = VideoPlayerPolicy.siteOverride(context, tab.content.url, false)
+        val selected = if (override == null) 0 else options.indexOf(override) + 1
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(context)
+            .setTitle("Odtwarzacz dla tej witryny")
+            .setSingleChoiceItems(labels, selected) { dialog, choice ->
+                VideoPlayerPolicy.setSite(context, tab.content.url, false,
+                    if (choice == 0) null else options[choice - 1])
+                dialog.dismiss()
+            }
+            .setNegativeButton("Anuluj", null).show()
+    }
+
     private fun showOpenVideoLinkDialog() {
         val input = EditText(requireContext()).apply {
             hint = getString(R.string.video_link_hint)
@@ -1413,6 +1495,23 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         val prefs = requireContext().getSharedPreferences(
             "nira_video_player", android.content.Context.MODE_PRIVATE
         )
+        val selected = requireContext().components.store.state.selectedTabId?.let { id ->
+            requireContext().components.store.state.tabs.firstOrNull { it.id == id }
+        }
+        when (VideoPlayerPolicy.resolve(requireContext(), selected?.content?.url.orEmpty(),
+                selected?.content?.private == true)) {
+            VideoPlayerPolicy.Mode.WEB -> {
+                Toast.makeText(requireContext(),
+                    "Tryb WEB: odtwarzaj na stronie. Zmień tryb w menu przeglądarki.",
+                    Toast.LENGTH_LONG).show()
+                return
+            }
+            VideoPlayerPolicy.Mode.EXTERNAL -> {
+                launchVideoExternally(uri, safeReferrer)
+                return
+            }
+            else -> Unit // MPV manual and AUTO both allow explicit launch
+        }
         if (prefs.getBoolean("ask_each_time", false)) {
             com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
                 .setTitle(R.string.choose_video_player)
@@ -1428,7 +1527,12 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         launchInternalVideo(uri, safeReferrer, referrer)
     }
 
-    private fun launchInternalVideo(uri: android.net.Uri, safeReferrer: String?, frameUrl: String?) {
+    private fun launchInternalVideo(
+        uri: android.net.Uri,
+        safeReferrer: String?,
+        frameUrl: String?,
+        target: MediaElementPlaybackBridge.AutoOffer? = null,
+    ) {
         // Bind the handoff to the selected browser tab, GeckoSession and
         // document. Activity checks the same snapshot immediately before loadfile.
         val store = requireContext().components.store.state
@@ -1445,7 +1549,10 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         // Manual opt-in only. Ask the exact frame to pause the unique matching
         // element. If its native port is absent/ambiguous, safely fall back to
         // Gecko's media-session controller for the selected tab.
-        MediaElementPlaybackBridge.prepare(requested, uri.toString(), frameUrl) { leaseId ->
+        MediaElementPlaybackBridge.prepare(requested, uri.toString(), frameUrl, target) { leaseId ->
+            // AUTO never pauses a random media session or launches MPV without
+            // a confirmed ACK from the precise frame and element.
+            if (target != null && leaseId == null) return@prepare
             if (!isAdded || view == null) {
                 if (leaseId != null) MediaElementPlaybackBridge.restore(leaseId, requested)
                 return@prepare
