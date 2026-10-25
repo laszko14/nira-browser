@@ -203,6 +203,11 @@
     if (!state) return;
     holds.delete(request.nonce);
     if (inlineLease && inlineLease.nonce === request.nonce) inlineLease = null;
+    // The only DOM mutation is the verified video element's native controls.
+    // Restore its exact prior value on close, rollback and normal handoff exit.
+    if (state.controlsSuppressed && state.video.isConnected) {
+      try { state.video.controls = state.previousControls; } catch (_) {}
+    }
     if (!resume || !state.wasPlaying || state.page !== location.href ||
         !state.video.isConnected || state.video.ended ||
         (state.sourceKind === "blob"
@@ -335,10 +340,19 @@
           trackedFrame = {nonce:message.nonce,frameUrl:message.frameUrl};
           reportIframeGeometry(message.nonce,message.frameUrl);
         }
-        if (message.event === "inline_start" && holds.has(message.nonce) &&
-            typeof window !== "undefined" && window === window.top) {
-          inlineLease = {nonce:message.nonce,video:holds.get(message.nonce).video};
-          layoutUpdate();
+        if (message.event === "inline_start" && holds.has(message.nonce)) {
+          const state = holds.get(message.nonce);
+          if (!state.controlsSuppressed) {
+            state.previousControls = state.video.controls;
+            try {
+              state.video.controls = false;
+              state.controlsSuppressed = true;
+            } catch (_) {}
+          }
+          if (typeof window !== "undefined" && window === window.top) {
+            inlineLease = {nonce:message.nonce,video:state.video};
+            layoutUpdate();
+          }
         }
         if (message.event === "restore") release(message,true);
         if (message.event === "cancel") release(message,false);
@@ -347,6 +361,11 @@
         if (port !== connected) return;
         port = null;
         probeNonce = null;
+        for (const state of holds.values()) {
+          if (state.controlsSuppressed && state.video.isConnected) {
+            try { state.video.controls = state.previousControls; } catch (_) {}
+          }
+        }
         holds.clear();
         inlineLease = null;
         trackedFrame = null;

@@ -51,6 +51,8 @@ internal object MpvDebugTrace {
         "mpv_tls_certificate_error", "mpv_tls_handshake_error",
         "inline_eligible", "inline_open", "inline_loaded", "inline_failed",
         "inline_frame_unsupported", "inline_fullscreen", "inline_return", "inline_closed",
+        "inline_surface_visible", "inline_surface_hidden", "inline_controls_shown",
+        "inline_controls_hidden", "inline_position_preserved", "inline_unexpected_reload",
         "blob_offer", "blob_candidate_found", "blob_candidate_missing",
         "blob_candidate_ambiguous", "blob_frame_lookup", "blob_frame_resolved",
         "blob_frame_failed",
@@ -72,7 +74,7 @@ internal object MpvDebugTrace {
 
     @Synchronized
     fun report(section: Section, session: Any?, playerMode: String? = null): String = buildString {
-        appendLine("Zavro x MPV v1144 — ${section.name}")
+        appendLine("Zavro x MPV v1145 — ${section.name}")
         appendLine("Tryb odtwarzania: ${playerMode ?: "nie dotyczy"}")
         appendLine("Sesja Gecko: ${if (session == null) "BRAK" else "AKTYWNA"}")
         appendLine("Zapis tylko w RAM; brak URL, hostów, cookies, nagłówków i tokenów.")
@@ -103,7 +105,7 @@ internal object MpvDebugTrace {
         fun had(code: String) = relevant.any { it.code == code }
         fun count(code: String) = during.count { it.code == code }
         fun yes(value: Boolean) = if (value) "TAK" else "NIE"
-        appendLine("Zavro x MPV v1144 — SUPERTEST 40 s")
+        appendLine("Zavro x MPV v1145 — SUPERTEST 40 s")
         appendLine("Tryb: ${mode}; czas: ${(finishedMs - startedMs).coerceAtLeast(0L) / 1000} s")
         appendLine("JEDEN RAPORT • tylko RAM i kody diagnostyczne; bez adresów, hostów, cookies, tokenów i nagłówków.")
         appendLine()
@@ -142,7 +144,17 @@ internal object MpvDebugTrace {
             else -> "nie uruchamiano MPV w czasie tego testu (lub otwarto przed oknem kontekstu)."
         })
         appendLine()
-        appendLine("4. OŚ ZDARZEŃ • test + 30 s kontekstu")
+        appendLine("4. MINI MPV / PEŁNY EKRAN")
+        appendLine("Mini otwarty: ${yes(had("inline_open"))}; geometria widoczna: ${yes(had("inline_surface_visible"))}; mini załadowany: ${yes(had("inline_loaded"))}")
+        appendLine("Pełny ekran: ${yes(had("inline_fullscreen"))}; powrót: ${yes(had("inline_return"))}")
+        appendLine("Ciągłość pozycji po powrocie: ${if (had("inline_position_preserved")) "potwierdzona próbką" else "niepotwierdzona w oknie"}")
+        appendLine("Ponowne START_FILE po załadowaniu: ${count("inline_unexpected_reload")}")
+        appendLine("Widoczność kontrolek: pokazano=${count("inline_controls_shown")}, ukryto=${count("inline_controls_hidden")}")
+        appendLine("Przywrócenie Gecko: żądania=${count("restore_requested")}, wysłane=${count("restore_sent")}; inline error=${count("inline_failed")}")
+        appendLine("Podwójny dźwięk: wymaga potwierdzenia słuchem; raport nie mierzy torów audio.")
+        appendLine("Geometria widoczna nie potwierdza samodzielnie widoczności klatek filmu.")
+        appendLine()
+        appendLine("5. OŚ ZDARZEŃ • test + 30 s kontekstu")
         relevant.takeLast(65).forEach { event ->
             val relative = (event.elapsedMs - startedMs) / 1000.0
             appendLine(String.format(java.util.Locale.US, "%+.1fs | %s | %s", relative, event.section.name, event.code))
