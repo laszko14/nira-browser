@@ -330,3 +330,6 @@ V1147: draft PR https://github.com/laszko14/nira-browser/pull/60; CI https://git
 
 ## 2026-10-25 — v1148
 Pełny panel i gesty fullscreen przy zachowaniu jednego inline silnika/powierzchni; baza v1147 26ee7ad. Szczegóły: [ZAVRO_X_MPV_V1148_HANDOFF.md](ZAVRO_X_MPV_V1148_HANDOFF.md). Bez merge.
+
+## 2026-10-25 — v1149
+Fundament Alpha na bazie v1148 607c599; kanoniczne Alpha v54 c6107ce potwierdzone przez użytkownika. Adapter jednej sesji, izolowany snapshot i 43 sloty, nieaktywny szablon Lua. Szczegóły: [ZAVRO_X_MPV_V1149_HANDOFF.md](ZAVRO_X_MPV_V1149_HANDOFF.md). Bez merge.

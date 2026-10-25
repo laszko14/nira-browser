@@ -259,3 +259,6 @@ V1147: draft PR https://github.com/laszko14/nira-browser/pull/60; CI https://git
 
 ### 2026-10-25 — v1148
 Dodano fullscreen seekbar/HUD/prędkość/gesty na istniejącej powierzchni MPV, bez zmiany ręcznej Activity. Node 140/140, JVM 85/85 PASS; pełne lokalne Gradle/CI i ograniczenia opisuje handoff v1148.
+
+### 2026-10-25 — v1149
+Dodano izolowany adapter istniejącego observera i typowane komendy, snapshot preferencji oraz zachowanie 43 slotów. Bridge Lua wyłącznie jako nieaktywny szablon; brak nowych UI/filtrów/importu XML. Node 141/141 PASS; końcowe Gradle i GitHub opisuje handoff v1149.

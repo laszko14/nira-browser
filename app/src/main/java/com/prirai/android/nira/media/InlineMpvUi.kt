@@ -20,6 +20,9 @@ import android.widget.TextView
 import android.widget.SeekBar
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import com.prirai.android.nira.R
+import com.prirai.android.nira.media.alpha.AlphaCommand
+import com.prirai.android.nira.media.alpha.AlphaSession
+import com.prirai.android.nira.media.alpha.AlphaSessionAdapter
 import `is`.xyz.mpv.MPVLib
 import `is`.xyz.mpv.MPVNode
 
@@ -45,6 +48,18 @@ internal class InlineMpvUi(
     private var loaded=false
     private var destroyed=false
     private var fullscreen=false
+    private val alphaAdapter=AlphaSessionAdapter(
+        { loaded && !destroyed && MpvEngineGate.owns(token) &&
+            Looper.myLooper()==Looper.getMainLooper() },
+    ) { command ->
+        when(command) {
+            is AlphaCommand.Pause -> MPVLib.setPropertyBoolean("pause",command.paused)
+            is AlphaCommand.Speed -> MPVLib.setPropertyDouble("speed",command.value)
+            is AlphaCommand.SeekRelative -> MPVLib.command("seek",command.seconds.toString(),"relative")
+            is AlphaCommand.SeekAbsolute -> MPVLib.command("seek",command.seconds.toString(),"absolute+exact")
+        }
+    }
+    val alphaSession:AlphaSession get()=alphaAdapter
     private var previousRect: MediaElementPlaybackBridge.InlineRect?=null
     private var timeout: Runnable?=null
     private var controlBar: LinearLayout?=null
@@ -102,6 +117,7 @@ internal class InlineMpvUi(
         override fun eventProperty(property:String,value:String) {}
         override fun eventProperty(property:String,value:MPVNode) {}
         override fun eventProperty(property:String,value:Boolean) {
+            alphaAdapter.onFlag(property,value)
             if (property=="pause") main.post {
                 if (!destroyed) { paused=value;updateFullscreenHud() }
             }
@@ -110,6 +126,7 @@ internal class InlineMpvUi(
                 if (value) "mpv_cache_wait" else "mpv_cache_resume",session)
         }
         override fun eventProperty(property:String,value:Double) {
+            alphaAdapter.onNumber(property,value)
             if (property=="duration" || property=="speed") main.post {
                 if (!destroyed) {
                     if (property=="duration") duration=value else speed=value
@@ -143,6 +160,7 @@ internal class InlineMpvUi(
             if (eventId==MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED) main.post {
                 if (!destroyed) {
                     loaded=true
+                    alphaAdapter.onReady()
                     timeout?.let(main::removeCallbacks)
                     MpvDebugTrace.note(MpvDebugTrace.Section.MPV,"mpv_file_loaded",session)
                     MpvDebugTrace.note(MpvDebugTrace.Section.MPV,"inline_loaded",session)
@@ -520,6 +538,7 @@ internal class InlineMpvUi(
         cancelHold()
         overlay.cancelGesture()
         destroyed=true
+        alphaAdapter.invalidate()
         timeout?.let(main::removeCallbacks)
         hideControlsTask?.let(main::removeCallbacks)
         if (fullscreen) activity.window.decorView.systemUiVisibility=oldUi
