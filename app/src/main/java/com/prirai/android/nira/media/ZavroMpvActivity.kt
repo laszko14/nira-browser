@@ -156,12 +156,21 @@ class ZavroMpvActivity : AppCompatActivity() {
         )
     }
 
+    private val mpvLogs = object : MPVLib.LogObserver {
+        override fun logMessage(prefix: String, level: Int, text: String) {
+            MpvDebugTrace.classifyMpvLog(prefix, level, text)?.let(::trace)
+        }
+    }
+
     private val mpvEvents = object : MPVLib.EventObserver {
         override fun eventProperty(property: String) {}
         override fun eventProperty(property: String, value: Long) {}
         override fun eventProperty(property: String, value: String) {}
         override fun eventProperty(property: String, value: MPVNode) {}
         override fun eventProperty(property: String, value: Boolean) {
+            if (property == "paused-for-cache") trace(
+                if (value) "mpv_cache_wait" else "mpv_cache_resume"
+            )
             if (property == "pause") runOnUiThread {
                 if (ready) pauseControl?.text = if (value) "▶" else "⏸"
             }
@@ -176,6 +185,10 @@ class ZavroMpvActivity : AppCompatActivity() {
         }
         override fun event(eventId: Int, data: MPVNode) {
             when (eventId) {
+                MPVLib.MpvEvent.MPV_EVENT_START_FILE -> trace("mpv_start_file")
+                MPVLib.MpvEvent.MPV_EVENT_VIDEO_RECONFIG -> trace("mpv_video_ready")
+                MPVLib.MpvEvent.MPV_EVENT_AUDIO_RECONFIG -> trace("mpv_audio_ready")
+                MPVLib.MpvEvent.MPV_EVENT_PLAYBACK_RESTART -> trace("mpv_playback_started")
                 MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED -> runOnUiThread {
                     if (ready) {
                         fileLoaded = true
@@ -257,6 +270,9 @@ class ZavroMpvActivity : AppCompatActivity() {
             player = surface
             ready = true
             MPVLib.addObserver(mpvEvents)
+            MPVLib.addLogObserver(mpvLogs)
+            trace("mpv_logger_registered")
+            MPVLib.observeProperty("paused-for-cache", MPVLib.MpvFormat.MPV_FORMAT_FLAG)
             MPVLib.observeProperty("time-pos", MPVLib.MpvFormat.MPV_FORMAT_DOUBLE)
             MPVLib.observeProperty("duration", MPVLib.MpvFormat.MPV_FORMAT_DOUBLE)
             MPVLib.observeProperty("pause", MPVLib.MpvFormat.MPV_FORMAT_FLAG)
@@ -642,6 +658,7 @@ class ZavroMpvActivity : AppCompatActivity() {
         if (ready) {
             ready = false
             runCatching { MPVLib.removeObserver(mpvEvents) }
+            runCatching { MPVLib.removeLogObserver(mpvLogs) }
             runCatching { player?.destroy() }
         }
         player = null

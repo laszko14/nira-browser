@@ -6,6 +6,7 @@ import mozilla.components.concept.engine.EngineSession
 import mozilla.components.concept.engine.webextension.Port
 import org.json.JSONObject
 import java.util.UUID
+import java.util.IdentityHashMap
 
 /**
  * Manual, opt-in and fail-closed WebExtension <-> native MPV element handoff.
@@ -58,6 +59,7 @@ internal object MediaElementPlaybackBridge {
     )
 
     private val ports = LinkedHashSet<Port>()
+    private val probes = IdentityHashMap<Port, String>()
     private var pending: Pending? = null
     private var lease: Lease? = null
 
@@ -70,12 +72,29 @@ internal object MediaElementPlaybackBridge {
             }
             ports.add(port)
             MpvDebugTrace.note(MpvDebugTrace.Section.WEB, "port_connected", port.engineSession)
+            val nonce = UUID.randomUUID().toString()
+            probes[port] = nonce
+            runCatching {
+                port.postMessage(JSONObject()
+                    .put("version", 1)
+                    .put("event", "probe")
+                    .put("nonce", nonce))
+            }.onFailure {
+                MpvDebugTrace.note(MpvDebugTrace.Section.WEB, "probe_send_failed", port.engineSession)
+            }
+            main.postDelayed({
+                if (probes[port] == nonce) {
+                    probes.remove(port)
+                    MpvDebugTrace.note(MpvDebugTrace.Section.WEB, "probe_no_ack", port.engineSession)
+                }
+            }, 2_000L)
         }
     }
 
     fun disconnected(port: Port) {
         main.post {
             ports.remove(port)
+            probes.remove(port)
             MpvDebugTrace.note(MpvDebugTrace.Section.WEB, "port_disconnected", port.engineSession)
             val p = pending
             if (p?.port === port) {
@@ -164,8 +183,24 @@ internal object MediaElementPlaybackBridge {
     fun received(port: Port, message: Any) {
         main.post {
             if (!ports.contains(port)) return@post
-            val data = message as? JSONObject ?: return@post
+            val data = when (message) {
+                is JSONObject -> message
+                is String -> if (message.length <= 16384) {
+                    runCatching { JSONObject(message) }.getOrNull()
+                } else null
+                else -> null
+            } ?: run {
+                MpvDebugTrace.note(MpvDebugTrace.Section.WEB, "message_not_json", port.engineSession)
+                return@post
+            }
             if (data.optInt("version") != 1) return@post
+            if (data.optString("event") == "probe_ack") {
+                if (probes[port] == data.optString("nonce")) {
+                    probes.remove(port)
+                    MpvDebugTrace.note(MpvDebugTrace.Section.WEB, "probe_ack", port.engineSession)
+                }
+                return@post
+            }
             if (data.optString("event") == "diagnostic") {
                 val code = data.optString("code")
                 if (code.length <= 36) {

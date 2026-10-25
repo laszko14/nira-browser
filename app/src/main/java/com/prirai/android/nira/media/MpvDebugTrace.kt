@@ -38,7 +38,14 @@ internal object MpvDebugTrace {
         "mpv_end_before_load", "mpv_end_after_load", "mpv_timeout",
         "mpv_auto_rollback", "mpv_manual_error", "mpv_retry",
         "mpv_linkage_failed", "mpv_init_failed", "mpv_destroyed",
-        "source_mp4", "source_hls", "source_dash", "source_unknown"
+        "source_mp4", "source_hls", "source_dash", "source_unknown",
+        "script_started", "document_visible", "oneshot_received",
+        "probe_received", "probe_ack", "probe_no_ack", "probe_send_failed", "message_not_json",
+        "mpv_start_file", "mpv_video_ready", "mpv_audio_ready", "mpv_playback_started",
+        "mpv_cache_wait", "mpv_cache_resume", "mpv_logger_registered",
+        "mpv_http_401", "mpv_http_403", "mpv_http_404", "mpv_http_429", "mpv_http_5xx",
+        "mpv_tls_error", "mpv_network_timeout", "mpv_dns_failure", "mpv_format_error",
+        "mpv_open_failed", "mpv_network_other"
     )
 
     @Synchronized
@@ -55,7 +62,7 @@ internal object MpvDebugTrace {
 
     @Synchronized
     fun report(section: Section, session: Any?, playerMode: String? = null): String = buildString {
-        appendLine("Zavro x MPV v1134 — ${section.name}")
+        appendLine("Zavro x MPV v1135 — ${section.name}")
         appendLine("Tryb odtwarzania: ${playerMode ?: "nie dotyczy"}")
         appendLine("Sesja Gecko: ${if (session == null) "BRAK" else "AKTYWNA"}")
         appendLine("Zapis tylko w RAM; brak URL, hostów, cookies, nagłówków i tokenów.")
@@ -66,6 +73,32 @@ internal object MpvDebugTrace {
         if (visible.isEmpty()) appendLine("Brak zdarzeń. Otwórz stronę, naciśnij Play i odśwież raport.")
         visible.forEach { appendLine("${it.elapsedMs / 1000}s | ${it.code}") }
         appendLine("Uwaga: brak zdarzeń może oznaczać brak portu Gecko lub MSE/blob.")
+    }
+
+    /** Discard full libmpv logs immediately. Only fixed failure categories survive. */
+    fun classifyMpvLog(prefix: String, level: Int, message: String): String? {
+        // Only warnings/errors from known mpv network/demuxer layers.
+        if (level > 30 || message.length > 4096 ||
+            prefix.length > 80) return null
+        val component = prefix.lowercase(java.util.Locale.ROOT)
+        if (listOf("ffmpeg", "stream", "demux", "http", "tls", "network",
+                "lavf", "player").none { component.contains(it) }) return null
+        val lower = message.lowercase(java.util.Locale.ROOT)
+        return when {
+            Regex("""\b(401|unauthorized)\b""").containsMatchIn(lower) -> "mpv_http_401"
+            Regex("""\b(403|forbidden)\b""").containsMatchIn(lower) -> "mpv_http_403"
+            Regex("""\b404\b""").containsMatchIn(lower) -> "mpv_http_404"
+            Regex("""\b429\b""").containsMatchIn(lower) -> "mpv_http_429"
+            Regex("""\b5[0-9]{2}\b""").containsMatchIn(lower) -> "mpv_http_5xx"
+            "certificate" in lower || "ssl" in lower || "tls" in lower -> "mpv_tls_error"
+            "timed out" in lower || "timeout" in lower -> "mpv_network_timeout"
+            "resolve" in lower || "dns" in lower -> "mpv_dns_failure"
+            "unsupported" in lower || "unrecognized" in lower ||
+                "invalid data" in lower -> "mpv_format_error"
+            "failed to open" in lower || "error opening" in lower -> "mpv_open_failed"
+            "network" in lower && "error" in lower -> "mpv_network_other"
+            else -> null
+        }
     }
 
     fun classifySource(url: String): String {

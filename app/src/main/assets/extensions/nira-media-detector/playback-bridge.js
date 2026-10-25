@@ -7,9 +7,22 @@
  * This script never navigates, clicks Play, bypasses EME or touches cookies.
  */
 (() => {
-  if (!location || !/^https?:$/.test(location.protocol)) return;
+  if (!location) return;
+  const secureDocument = /^https?:$/.test(location.protocol);
+  const inheritedBlank = location.href === "about:blank";
+  if (!secureDocument && !inheritedBlank) return;
   const PORT = "nira.media.playback";
   const MAX_VIDEOS = 64;
+  // Diagnostics use a second Gecko transport. Port handoff remains mandatory
+  // for any actual pause/auto-play to avoid losing per-frame identity.
+  function oneShot(code) {
+    try {
+      const reply = browser.runtime.sendNativeMessage(PORT, {
+        version:1, event:"diagnostic", code
+      });
+      if (reply && typeof reply.catch === "function") reply.catch(() => {});
+    } catch (_) {}
+  }
   const MAX_URL_LENGTH = 8192;
   const holds = new Map();
   const elementKeys = new WeakMap();
@@ -48,13 +61,15 @@
   function send(value) { try { if (port) port.postMessage(value); } catch (_) {} }
   const diagTimes = new Map();
   function diagnostic(code) {
-    if (!port) return;
     const now = Date.now();
     if (now - (diagTimes.get(code) || 0) < 2000) return;
     if (diagTimes.size > 36) diagTimes.clear();
     diagTimes.set(code, now);
     // Only whitelisted code constants, never addresses/element IDs/credentials.
-    send({version:1,event:"diagnostic",code});
+    if (port) send({version:1,event:"diagnostic",code});
+    // If Gecko's native Port.onPortMessage is silent, the one-shot
+    // fallback tells us whether the content script itself executed.
+    oneShot(code);
   }
 
   function eligible(video, url) {
@@ -142,7 +157,7 @@
       if (hold.video === video) { try { video.pause(); } catch (_) {} return; }
     }
     diagnostic("video_play");
-    if (!frameKey || !lastGesture || lastGesture.page !== location.href ||
+    if (!secureDocument || !frameKey || !lastGesture || lastGesture.page !== location.href ||
         Date.now() - lastGesture.at > GESTURE_WINDOW_MS) {
       diagnostic("no_gesture");
       return;
@@ -206,7 +221,13 @@
       diagnostic("bridge_ready");
       connected.onMessage.addListener(message => {
         if (port !== connected || !message || message.version !== 1 ||
-            typeof message.event !== "string" || typeof message.nonce !== "string") return;
+            typeof message.event !== "string") return;
+        if (message.event === "probe" && typeof message.nonce === "string") {
+          send({version:1,event:"probe_ack",nonce:message.nonce});
+          diagnostic("probe_received");
+          return;
+        }
+        if (typeof message.nonce !== "string") return;
         if (message.event === "prepare") prepare(message);
         if (message.event === "restore") release(message,true);
         if (message.event === "cancel") release(message,false);
@@ -222,6 +243,7 @@
       if (connectAttempts < 4) setTimeout(connect,800);
     }
   }
+  oneShot("script_started");
   document.addEventListener("pointerup",userGesture,true);
   document.addEventListener("click",userGesture,true);
   document.addEventListener("keydown",userGesture,true);
@@ -229,6 +251,7 @@
   document.addEventListener("playing",videoPlayed,true);
   document.addEventListener("loadedmetadata",videoPlayed,true);
   document.addEventListener("durationchange",videoPlayed,true);
+  document.addEventListener("pageshow", () => diagnostic("document_visible"), true);
   connect();
   if (document.readyState === "loading")
     document.addEventListener("DOMContentLoaded",connect,{once:true});
