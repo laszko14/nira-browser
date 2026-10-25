@@ -11,8 +11,9 @@ const workflow = fs.readFileSync('.github/workflows/apk-release.yml', 'utf8');
 test('keeps the canonical Zavro identity for in-place updates', () => {
   assert.match(build, /applicationId = "com\.prirai\.android\.nira"/);
   assert.doesNotMatch(build, /applicationIdSuffix\s*=\s*['"]\.mpv/);
+  assert.match(build, /applicationIdSuffix\s*=\s*['"]\.debug/);
+  assert.match(workflow, /EXPECTED_PACKAGE: com\.prirai\.android\.nira\.debug\b/);
   assert.match(build, /versionCode = 128/);
-  assert.match(workflow, /EXPECTED_PACKAGE: com\.prirai\.android\.nira\b/);
   assert.match(workflow, /EXPECTED_VERSION_CODE: "1128"/);
 });
 
