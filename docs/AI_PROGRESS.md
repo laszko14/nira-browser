@@ -280,3 +280,6 @@ Naprawiono podwójną serializację userdata przez native mapę/NODE, sprawdzani
 
 ### 2026-10-25 — v1155
 Port oryginalnych 13 presetów EQ Alpha v54 i kontrolek Compose na istniejącej sesji. CommandNode + natywny af readback, celowane label/rollback, konflikt zamiast usuwania obcych filtrów, agregaty AUDIO / ALPHA. Brak modelu std.rnnn i definicji Głos Lua: pozostały jawnie niedostępne; bez afftdn/zgadywania tytułów. Bridge/import/sloty/CA/TLS/Gecko/mini bez zmian. Systemowe DSP 13 grafów i 17 Lua PASS; końcowe JUnit 149/149, JS 153/153, Gradle test/lint/assemble/compile Android test PASS (5m3s), code review i diff --check PASS; CI i ograniczenia urządzenia w handoff v1155. Auto Audio poza planem; bez nowego etapu.
+
+### 2026-10-25 — v1156
+Własne .lua jako osobne natywne klienty, jawne opt-in i snapshot na sesję, SAF/reimport/edycja/undo rewizji, prywatny import std.rnnn, bezpieczny podgląd mpv.conf i canonical customButtons XML. Oryginalne prywatne skrypty/model testowane wyłącznie poza Git. Dotychczasowy bridge NODE, Lua consent przycisków, Gecko/HLS/TLS, 43 sloty, mini scroll i fullscreen bez przebudowy. Systemowe Lua i host FFmpeg nie oznaczają Android DSP/GPU; końcowe wyniki oraz ograniczenia w handoff v1156. Bez subagentów i bez Auto Audio.

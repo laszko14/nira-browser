@@ -64,9 +64,20 @@ internal class InlineMpvUi(
         saveConsent=luaConsent::save,enabled=luaConsent.enabled(),
         changed={ AlphaLuaDiagnostics.update(session,it) },
     )
+    private val customScripts=com.prirai.android.nira.media.alpha.scripts.CustomScriptsSession {
+        !destroyed && MpvEngineGate.owns(token) && Looper.myLooper()==Looper.getMainLooper()
+    }
+    private var customPoll=0
     private val luaTick=object:Runnable {
         override fun run() {
-            if(!destroyed) { alphaLua.tick();main.postDelayed(this,500L) }
+            if(!destroyed) {
+                alphaLua.tick()
+                if(customPoll++%2==0) {
+                    customScripts.poll()
+                    com.prirai.android.nira.media.alpha.scripts.CustomScriptsDiagnostics.update(session,customScripts.state.value)
+                }
+                main.postDelayed(this,500L)
+            }
         }
     }
     private val audioController=com.prirai.android.nira.media.alpha.audio.AlphaAudioController(
@@ -77,7 +88,7 @@ internal class InlineMpvUi(
     private val alphaAdapter=AlphaSessionAdapter(
         { loaded && !destroyed && MpvEngineGate.owns(token) &&
             Looper.myLooper()==Looper.getMainLooper() },
-        lua=alphaLua,audio=audioController,
+        lua=alphaLua,audio=audioController,customScripts=customScripts,
     ) { command ->
         when(command) {
             is AlphaCommand.Pause -> MPVLib.setPropertyBoolean("pause",command.paused)
@@ -130,6 +141,8 @@ internal class InlineMpvUi(
     private val oldUi=activity.window.decorView.systemUiVisibility
     private val logs=object: MPVLib.LogObserver {
         override fun logMessage(prefix:String,level:Int,text:String) {
+            // No source/error text is retained; only the prefix matches the frozen client list.
+            customScripts.log(prefix,level) // thread-safe counters; no log queue or raw text retained
             if(prefix==AlphaLuaBridge.CLIENT_NAME && level<=30 && text.length<=128 &&
                 text.trim()==AlphaLuaBridge.PUBLISH_FAILED)main.post {
                 if(!destroyed)alphaLua.onPublishFailure()
@@ -412,8 +425,10 @@ internal class InlineMpvUi(
         return try {
             val bridgeInstalled=video.prepareAlphaBridge(context.filesDir.absolutePath)
             player=video
+            customScripts.start(video.customRuntime,false,0,0)
             MPVLib.addLogObserver(logs) // Capture fixed bridge startup failures, including during init.
             video.initialize(context.filesDir.absolutePath,context.cacheDir.absolutePath)
+            customScripts.configured(video.customScriptsConfigured,video.customOptionsAccepted,video.customOptionsRejected)
             video.playFile(url) // queue before attaching surface
             MPVLib.addObserver(observer)
             MPVLib.observeProperty(AlphaLuaBridge.PROPERTY,MPVLib.MpvFormat.MPV_FORMAT_NODE)
@@ -542,6 +557,8 @@ internal class InlineMpvUi(
         disposeAlphaControls()
         audioController.close()
         alphaLua.close()
+        customScripts.close()
+        com.prirai.android.nira.media.alpha.scripts.CustomScriptsDiagnostics.update(session,customScripts.state.value)
         main.removeCallbacks(luaTick)
         alphaAdapter.invalidate()
         timeout?.let(main::removeCallbacks)
@@ -552,6 +569,7 @@ internal class InlineMpvUi(
         runCatching { MPVLib.removeObserver(observer) }
         runCatching { MPVLib.removeLogObserver(logs) }
         runCatching { player?.destroy() }
+        player?.cleanupCustomScripts()
         player=null
         MpvEngineGate.release(token)
         MpvDebugTrace.note(MpvDebugTrace.Section.MPV,"inline_closed",session)

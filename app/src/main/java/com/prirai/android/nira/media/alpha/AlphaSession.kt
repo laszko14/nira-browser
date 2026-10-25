@@ -24,6 +24,7 @@ internal interface AlphaSession {
     val state:StateFlow<AlphaPlaybackState>
     val lua:AlphaLuaController? get()=null
     val audio:com.prirai.android.nira.media.alpha.audio.AlphaAudioController? get()=null
+    val customScripts:com.prirai.android.nira.media.alpha.scripts.CustomScriptsSession? get()=null
     fun execute(command:AlphaCommand):AlphaCommandResult
 }
 
@@ -32,6 +33,7 @@ internal class AlphaSessionAdapter(
     private val canControl:()->Boolean,
     override val lua:AlphaLuaController?=null,
     override val audio:com.prirai.android.nira.media.alpha.audio.AlphaAudioController?=null,
+    override val customScripts:com.prirai.android.nira.media.alpha.scripts.CustomScriptsSession?=null,
     private val backend:(AlphaCommand)->Unit,
 ):AlphaSession {
     private val mutableState=MutableStateFlow(AlphaPlaybackState())

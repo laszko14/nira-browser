@@ -89,6 +89,7 @@ internal fun AlphaLuaPanel(
             LuaButtonsInPlayerDialog(
                 importActions={
                     com.prirai.android.nira.media.alpha.audio.AlphaAudioSettings(session.audio)
+                    CustomLuaScriptsSettings(session.customScripts)
                     AlphaLuaExecutionSettings(session.lua)
                     AlphaSettingsImport(config)
                 },
