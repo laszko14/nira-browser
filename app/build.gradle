@@ -26,8 +26,8 @@ android {
         minSdkVersion 27
         targetSdkVersion 37
         // Increment by 4 with each update, by 1 with each fix
-        versionCode = 137
-        versionName = "0.5.22-alpha43-mpv11"
+        versionCode = 138
+        versionName = "0.5.22-alpha44-mpv12"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
