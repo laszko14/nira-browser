@@ -53,7 +53,8 @@ function runBridge(initialControls) {
     addEventListener(name,f) { handlers[name] = f; },
     querySelectorAll(sel) { return sel === 'video' ? [video] : []; }
   };
-  const window = {innerWidth:500,innerHeight:300,devicePixelRatio:1};
+  const window = {innerWidth:500,innerHeight:300,devicePixelRatio:1,
+    addEventListener() {}};
   window.top = window;
   const sandbox = {
     location, document, window, HTMLVideoElement:Video, URL,
