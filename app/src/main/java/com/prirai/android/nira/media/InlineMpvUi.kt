@@ -31,7 +31,7 @@ internal class InlineMpvUi(
     private val density=context.resources.displayMetrics.density
     // Keep a single decor parent for the entire lifecycle: never reparent SurfaceView.
     private val windowHost=activity.window.decorView as ViewGroup
-    private val overlay=FrameLayout(context).apply {
+    private val overlay=InlineMpvTouchLayout(context,engine) { !fullscreen && !destroyed }.apply {
         clipChildren=true
         clipToPadding=true
         setBackgroundColor(Color.BLACK)
@@ -307,6 +307,7 @@ internal class InlineMpvUi(
     private fun toggleFullscreen() {
         if (destroyed) return
         if (!fullscreen) {
+            overlay.cancelGesture()
             fullscreen=true
             overlay.clipBounds=null
             // Do not remove/re-add the SurfaceView or call loadfile.
@@ -335,6 +336,7 @@ internal class InlineMpvUi(
 
     fun detach() {
         if (destroyed) return
+        overlay.cancelGesture()
         destroyed=true
         timeout?.let(main::removeCallbacks)
         hideControlsTask?.let(main::removeCallbacks)

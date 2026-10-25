@@ -251,3 +251,8 @@
 Poprawiono mapowanie visual viewportu Gecko na powierzchnię MPV, clipping i wycofanie geometrii usuniętego iframe. Node 135/135 PASS. Gradle offline zablokowany brakującą zależnością. Weryfikacja APK przez Actions; test urządzenia pozostaje po stronie użytkownika.
 
 V1146: PR #59 draft, CI https://github.com/laszko14/nira-browser/actions/runs/40170281650 BUILD/TEST/LINT SUCCESS (dbd7c31). Artefakt zavro-x-mpv-arm64-v1146; kontrola podpisu/wersji/ABI PASS. Test telefonu nadal wymagany.
+
+### 2026-10-25 — v1147
+Dodano przekazywanie pionowego drag po Android touch slop do Gecko, zachowując kliknięcia MPV i blokadę fullscreen. Nagłówki raportów v1147. Node 138/138 PASS, klasyfikator JVM 3/3 PASS; finalne Gradle/CI i telefon opisuje handoff v1147.
+
+V1147: draft PR https://github.com/laszko14/nira-browser/pull/60; CI https://github.com/laszko14/nira-browser/actions/runs/40172217252 BUILD/TEST/LINT SUCCESS, commit implementacji 3b771e5. Podpisany artefakt zavro-x-mpv-arm64-v1147; lokalnie Node 138/138, JUnit 83/83 i lint PASS. Test telefonu nadal wymagany.
