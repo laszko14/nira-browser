@@ -15,6 +15,8 @@
   const elementKeys = new WeakMap();
   const offeredAt = new WeakMap();
   let port = null, connectAttempts = 0, lastGesture = null;
+  const GESTURE_WINDOW_MS = 10_000;
+  const lastAutoOffer = new WeakMap();
 
   function uuid() {
     try {
@@ -48,7 +50,8 @@
   function eligible(video, url) {
     if (!url || video.paused || video.ended || video.error || !video.isConnected ||
         video.muted || video.loop || video.mediaKeys || video.srcObject ||
-        !Number.isFinite(video.duration) || video.duration < 180) return false;
+        (Number.isFinite(video.duration) ? video.duration < 180 :
+          !/\.m3u8(?:\?|$)/i.test(url) || video.readyState < 2)) return false;
     // Refuse generic endpoints, MSE/blobs and typical ad assets. Heuristics
     // alone cannot guarantee ad identification: AUTO remains user opt-in.
     let parsed;
@@ -111,29 +114,54 @@
     } catch (_) {}
   }
 
+  // 'play' is an asynchronously dispatched media event, not itself a trusted
+  // pointer/key event. Requiring playEvent.isTrusted excluded many real pages.
+  // Player controls can be siblings of the video, so require an actual gesture
+  // in this frame and one unique eligible visible video instead.
   function userGesture(event) {
     if (!event || event.isTrusted !== true) return;
     if (event.type === "keydown" && !["Enter", " ", "Spacebar"].includes(event.key)) return;
-    lastGesture = {at:Date.now(), target:event.target};
+    lastGesture = {at:Date.now(), target:event.target, page:location.href};
   }
+
   function videoPlayed(event) {
     const video = event.target;
     if (!(video instanceof HTMLVideoElement) || !port) return;
-    // A site may call play() again while MPV is active: never permit double audio.
     for (const hold of holds.values()) {
       if (hold.video === video) { try { video.pause(); } catch (_) {} return; }
     }
-    if (!frameKey || !lastGesture || Date.now() - lastGesture.at > 1500 ||
-        event.isTrusted !== true) return;
-    const t = lastGesture.target;
-    if (!(video === t || (typeof video.contains === "function" && video.contains(t)) ||
-        (video.parentElement && typeof video.parentElement.contains === "function" &&
-          video.parentElement.contains(t)))) return;
+    if (!frameKey || !lastGesture || lastGesture.page !== location.href ||
+        Date.now() - lastGesture.at > GESTURE_WINDOW_MS) return;
     const url = mediaUrl(video);
-    if (!eligible(video,url)) return;
+    if (!eligible(video, url)) return;
+
+    // If several actively playing videos are present, selecting by URL or
+    // DOM order would risk opening an advertisement. Do nothing.
+    let activeCount = 0, inspected = 0;
+    try {
+      for (const other of document.querySelectorAll("video")) {
+        if (++inspected > MAX_VIDEOS) return;
+        if (other instanceof HTMLVideoElement && !other.paused &&
+            other.isConnected && !other.muted && other !== video &&
+            mediaUrl(other)) activeCount++;
+      }
+    } catch (_) { return; }
+    if (activeCount !== 0) return;
     const key = elementKey(video);
-    if (!key || Date.now() - (offeredAt.get(video) || 0) < 10000) return;
-    offeredAt.set(video, Date.now());
+    if (!key || Date.now() - (lastAutoOffer.get(video) || 0) < 15_000) return;
+    const t = lastGesture.target;
+    let related = (video === t);
+    for (let parent = video.parentElement, depth = 0; parent && depth < 6;
+         parent = parent.parentElement, depth++) {
+      if (typeof parent.contains === "function" && parent.contains(t)) {
+        related = true; break;
+      }
+    }
+    // Some embedded players put their overlay button outside the video tree.
+    // Permit only when there is exactly one active non-muted player, playback
+    // is visibly underway, and a trusted gesture just happened in this frame.
+    if (!related && video.currentTime <= 0 && video.readyState < 3) return;
+    lastAutoOffer.set(video,Date.now());
     lastGesture = null;
     send({version:1,event:"auto_offer",frameKey,elementKey:key,
       pageUrl:location.href,mediaUrl:url});
@@ -168,6 +196,9 @@
   document.addEventListener("click",userGesture,true);
   document.addEventListener("keydown",userGesture,true);
   document.addEventListener("play",videoPlayed,true);
+  document.addEventListener("playing",videoPlayed,true);
+  document.addEventListener("loadedmetadata",videoPlayed,true);
+  document.addEventListener("durationchange",videoPlayed,true);
   connect();
   if (document.readyState === "loading")
     document.addEventListener("DOMContentLoaded",connect,{once:true});

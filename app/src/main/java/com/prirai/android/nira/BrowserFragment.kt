@@ -1591,6 +1591,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                         session, live.id, live.contextId, live.content.private
                     ),
                     pageUrl = live.content.url,
+                    autoHandoff = target != null,
                 )
             )
             val intent = Intent(requireContext(), ZavroMpvActivity::class.java).apply {

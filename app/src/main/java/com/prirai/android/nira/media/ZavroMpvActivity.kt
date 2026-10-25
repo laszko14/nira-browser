@@ -1,5 +1,6 @@
 package com.prirai.android.nira.media
 
+import android.app.Activity
 import android.app.PictureInPictureParams
 import android.content.res.Configuration
 import android.util.Rational
@@ -50,6 +51,8 @@ class ZavroMpvActivity : AppCompatActivity() {
     private var gateTicket: String? = null
     private var ready = false
     private var fileLoaded = false
+    private var autoHandoff = false
+    private var loadStartMs = 0L
     private var userPaused = false
     private var lifecyclePaused = false
     private var speed = 1.5
@@ -178,7 +181,20 @@ class ZavroMpvActivity : AppCompatActivity() {
                     }
                 }
                 MPVLib.MpvEvent.MPV_EVENT_END_FILE -> runOnUiThread {
-                    if (ready) status?.text = "Koniec lub błąd filmu • Ponów / Wróć"
+                    if (!ready || isFinishing) return@runOnUiThread
+                    if (!fileLoaded) {
+                        if (autoHandoff) {
+                            // Return Gecko to its paused element instead of trapping
+                            // the user in a black screen after failed network opening.
+                            setResult(Activity.RESULT_CANCELED)
+                            finish()
+                        } else {
+                            status?.text = "Nie można otworzyć strumienia • " +
+                                "możliwy wygasły link, autoryzacja lub format. Ponów / Wróć"
+                        }
+                    } else {
+                        status?.text = "Koniec filmu • Ponów / Wróć"
+                    }
                 }
             }
         }
@@ -201,6 +217,7 @@ class ZavroMpvActivity : AppCompatActivity() {
             return
         }
         gateTicket = ticket
+        autoHandoff = source.autoHandoff
         currentUrl = url
         if (!requestMediaAudioFocus()) {
             Toast.makeText(this, "Brak dostępu do dźwięku", Toast.LENGTH_LONG).show()
@@ -229,7 +246,6 @@ class ZavroMpvActivity : AppCompatActivity() {
             MPVLib.observeProperty("time-pos", MPVLib.MpvFormat.MPV_FORMAT_DOUBLE)
             MPVLib.observeProperty("duration", MPVLib.MpvFormat.MPV_FORMAT_DOUBLE)
             MPVLib.observeProperty("pause", MPVLib.MpvFormat.MPV_FORMAT_FLAG)
-            surface.playFile(url)
             root.addView(surface, FrameLayout.LayoutParams(-1, -1))
         } catch (e: LinkageError) {
             Toast.makeText(this, "Nie można uruchomić libmpv", Toast.LENGTH_LONG).show()
@@ -244,7 +260,22 @@ class ZavroMpvActivity : AppCompatActivity() {
         installGestures(surface)
         installControls(root)
         setContentView(root)
-        scheduleTimeout()
+        // Initial loadfile previously ran before the SurfaceView had been
+        // attached. Defer playback until the host view is in the hierarchy.
+        surface.post {
+            if (ready && !isFinishing && currentUrl == url) {
+                loadStartMs = android.os.SystemClock.elapsedRealtime()
+                runCatching { surface.playFile(url) }.onFailure {
+                    if (autoHandoff) {
+                        setResult(Activity.RESULT_CANCELED)
+                        finish()
+                    } else {
+                        status?.text = "Nie udało się przekazać źródła do MPV • Wróć do strony"
+                    }
+                }
+                scheduleTimeout()
+            }
+        }
     }
 
     private fun installControls(root: FrameLayout) {
@@ -524,8 +555,15 @@ class ZavroMpvActivity : AppCompatActivity() {
     private fun scheduleTimeout() {
         timeoutAction?.let(handler::removeCallbacks)
         val action = Runnable {
-            if (ready && !fileLoaded) status?.text =
-                "Brak obrazu po 20 s • Ponów albo ✕, aby wrócić"
+            if (ready && !fileLoaded && !isFinishing) {
+                if (autoHandoff) {
+                    setResult(Activity.RESULT_CANCELED)
+                    finish()
+                } else {
+                    status?.text = "Brak obrazu po 20 s • " +
+                        "strumień może wymagać logowania lub nowego adresu. Ponów / Wróć"
+                }
+            }
         }
         timeoutAction = action
         handler.postDelayed(action, 20_000L)

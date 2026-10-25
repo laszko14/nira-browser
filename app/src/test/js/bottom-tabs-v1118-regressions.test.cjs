@@ -49,9 +49,9 @@ test("v1119: fallback tabs remain strictly scoped to current profile and privacy
 test("v1119: APK metadata matches the next update and Zavro debug update identity", () => {
   const gradle = source("app/build.gradle");
   const workflow = source(".github/workflows/apk-release.yml");
-  assert.match(gradle, /versionCode = 132/);
-  assert.match(gradle, /versionName = "0\.5\.22-alpha38-mpv6"/);
+  assert.match(gradle, /versionCode = 133/);
+  assert.match(gradle, /versionName = "0\.5\.22-alpha39-mpv7"/);
   assert.doesNotMatch(gradle, /applicationIdSuffix/);
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1132"/);
-  assert.match(workflow, /name: zavro-x-mpv-arm64-v1132/);
+  assert.match(workflow, /EXPECTED_VERSION_CODE: "1133"/);
+  assert.match(workflow, /name: zavro-x-mpv-arm64-v1133/);
 });
