@@ -281,7 +281,7 @@ internal class InlineMpvUi(
             topMargin=rectangle.top-origin[1]
         }
         val old=overlay.layoutParams as? FrameLayout.LayoutParams
-        if (old?.width!=params.width || old.height!=params.height ||
+        if (old==null || old.width!=params.width || old.height!=params.height ||
             old.leftMargin!=params.leftMargin || old.topMargin!=params.topMargin)
             overlay.layoutParams=params
         updateControlsForWidth(rectangle.width())
