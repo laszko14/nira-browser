@@ -22,11 +22,14 @@ Ten sam decor parent, player i SurfaceView w fullscreen; brak ponownego loadfile
 
 ## Weryfikacja i odnośniki
 - Lokalnie Node: 135/135 PASS; dwa nowe testy JS najpierw FAIL, po poprawce PASS.
-- Lokalny Gradle offline: blokada przed kompilacją — brak aapt2-proto w cache. Próba online: wynik zostanie dopisany.
-- Draft PR: zostanie uzupełniony po utworzeniu.
-- CI: zostanie uzupełniony po zakończeniu. APK pozostaje w Actions, bez pobierania.
+- Lokalny Gradle offline: blokada przed kompilacją — brak aapt2-proto w cache. Próba online przez proxy pobrała Build Tools 36; pozostałe zadania nadal w toku przy zapisie dokumentu.
+- Draft PR: https://github.com/laszko14/nira-browser/pull/59 (baza v1145).
+- CI kodu: https://github.com/laszko14/nira-browser/actions/runs/40170162158 — w toku przy zapisie. Po aktualizacji dokumentu ostateczny przebieg ostatniego commita jest dostępny w checks PR #59 oraz https://github.com/laszko14/nira-browser/actions?query=branch%3Afeat%2Fzavro-x-mpv-v1146-inline-geometry. Artefakt: zavro-x-mpv-arm64-v1146. APK pozostaje w Actions, bez pobierania.
+- Commit implementacji: d6dc7335f246b91fc40a78ca33b1a3d11ee2d339.
 - Końcowy SHA dokumentu/gałęzi: odczytaj git rev-parse HEAD albo pole head.sha w PR. Literalny własny SHA nie może być zapisany wewnątrz tego samego commita.
 - Package com.prirai.android.nira.mpv; wymagany SHA256 podpisu df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00. Workflow wymusza kontrolę wersji, ABI i podpisu.
 
 ## Telefon i kolejne zadania (bez implementacji)
 Nie wykonano testu na fizycznym telefonie. Sprawdzić pokrycie oryginalnego odtwarzacza, brak podwójnych kontrolek, proporcje, scroll do częściowego/pełnego ukrycia i powrót, obrót, zoom, fullscreen/Back bez restartu, zamknięcie i powrót Gecko; SUPERTEST 40 s. Nadal fail-closed dla niejednoznacznych/nested iframe i video niewypełniającego iframe. Następny etap: ocena raportu z telefonu; dalsze poprawki tylko na podstawie dowodów.
+
+Przegląd własnego diffu: bez nowych loadfile/reparentingu, zmian TLS/selektora, globalnych mutacji DOM ani sekretów; git diff --check PASS. Testy Kotlin dodano, lecz ich lokalnego wyniku nie potwierdzono przed zapisem.
