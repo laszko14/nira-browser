@@ -88,6 +88,7 @@ internal fun AlphaLuaPanel(
         if(editing) {
             LuaButtonsInPlayerDialog(
                 importActions={
+                    com.prirai.android.nira.media.alpha.audio.AlphaAudioSettings(session.audio)
                     AlphaLuaExecutionSettings(session.lua)
                     AlphaSettingsImport(config)
                 },

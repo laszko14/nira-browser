@@ -23,6 +23,7 @@ internal enum class AlphaCommandResult { APPLIED, UNAVAILABLE, INVALID, FAILED }
 internal interface AlphaSession {
     val state:StateFlow<AlphaPlaybackState>
     val lua:AlphaLuaController? get()=null
+    val audio:com.prirai.android.nira.media.alpha.audio.AlphaAudioController? get()=null
     fun execute(command:AlphaCommand):AlphaCommandResult
 }
 
@@ -30,6 +31,7 @@ internal interface AlphaSession {
 internal class AlphaSessionAdapter(
     private val canControl:()->Boolean,
     override val lua:AlphaLuaController?=null,
+    override val audio:com.prirai.android.nira.media.alpha.audio.AlphaAudioController?=null,
     private val backend:(AlphaCommand)->Unit,
 ):AlphaSession {
     private val mutableState=MutableStateFlow(AlphaPlaybackState())
