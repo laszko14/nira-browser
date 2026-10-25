@@ -320,3 +320,5 @@ Na Nothing Phone (1) zainstalować `app-arm64-v8a-debug.apk`, wpisać publiczny 
 
 ## 2026-10-25 — v1146
 Bieżąca praca nad geometrią inline MPV na bazie v1145. Szczegóły i ograniczenia: [ZAVRO_X_MPV_V1146_HANDOFF.md](ZAVRO_X_MPV_V1146_HANDOFF.md). Bez merge.
+
+V1146: PR #59 draft, CI https://github.com/laszko14/nira-browser/actions/runs/40170281650 BUILD/TEST/LINT SUCCESS (dbd7c31). Artefakt zavro-x-mpv-arm64-v1146; kontrola podpisu/wersji/ABI PASS. Test telefonu nadal wymagany.
