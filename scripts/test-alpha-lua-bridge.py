@@ -26,9 +26,21 @@ lua.lua_close.argtypes = [ctypes.c_void_p]
 setup = """
 local callbacks={}
 local report
-package.preload['mp.utils']=function() return {format_json=function(value) report=value; return '{}' end} end
+local writes={};local writeFailure=false;local warnings=0
+local function clone(value)
+    if type(value)~='table' then return value end
+    local copied={};for k,v in pairs(value) do copied[k]=clone(v) end;return copied
+end
+package.preload['mp.utils']=function() return {format_json=function(value) return 'synthetic-json' end} end
 mp={register_script_message=function(name, callback) callbacks[name]=callback end,
-    set_property=function() end}
+    set_property=function() return true end,
+    set_property_native=function(name,value)
+        if writeFailure=='throw' then error('synthetic private error') end
+        if writeFailure then return nil,'synthetic private error' end
+        assert(type(value)=='table','Bridge must publish a native map, not JSON text')
+        report=clone(value);writes[#writes+1]=report;return true
+    end,
+    msg={error=function(value) assert(value=='ZAVRO_ALPHA_PUBLISH_FAILED');warnings=warnings+1 end}}
 """
 cases = [
     ('registered without execution', "assert(callbacks.mpv_alpha_eval and callbacks.mpv_alpha_probe);assert(report.epoch=='');assert(#report.results==0)"),
@@ -43,6 +55,12 @@ cases = [
     ('bounded acknowledgement mailbox', "callbacks.mpv_alpha_probe('s');for i=1,80 do callbacks.mpv_alpha_eval('return 1','s-'..i,'s') end;assert(#report.results==64 and report.results[64].id=='s-80')"),
     ('empty or invalid code fails without crashing bridge', "callbacks.mpv_alpha_probe('s');callbacks.mpv_alpha_eval('','s-1','s');callbacks.mpv_alpha_eval(nil,'s-2','s');assert(report.results[1].status=='syntax' and report.results[2].status=='syntax')"),
     ('standard Lua require available with original unrestricted environment', "callbacks.mpv_alpha_probe('s');callbacks.mpv_alpha_eval(\"local m=require('math');synthetic=m.sqrt(81)\",'s-1','s');assert(synthetic==9 and report.results[1].status=='ok')"),
+    ('nil-error property failure is not mistaken for pcall success', "writeFailure=true;local before=#writes;callbacks.mpv_alpha_probe('s');assert(#writes==before and warnings==1);assert(report.epoch=='')"),
+    ('thrown property failure is redacted and rate-limited', "writeFailure='throw';callbacks.mpv_alpha_probe('s');callbacks.mpv_alpha_probe('s');assert(warnings==1);assert(report.epoch=='')"),
+    ('property recovery publishes readiness after lost announcement', "writeFailure=true;callbacks.mpv_alpha_probe('s');writeFailure=false;callbacks.mpv_alpha_probe('s');assert(report.epoch=='s' and report.ready)"),
+    ('ACK write failure never reexecutes user code on probe retry', "callbacks.mpv_alpha_probe('s');writeFailure=true;callbacks.mpv_alpha_eval('synthetic=(synthetic or 0)+1','s-1','s');assert(synthetic==1 and #report.results==0);writeFailure=false;callbacks.mpv_alpha_probe('s');assert(synthetic==1 and #report.results==1 and report.results[1].status=='ok')"),
+    ('cumulative snapshots retain both acknowledgements without mutation', "callbacks.mpv_alpha_probe('s');callbacks.mpv_alpha_eval('return 1','s-1','s');local first=report;callbacks.mpv_alpha_eval('return 2','s-2','s');assert(#first.results==1 and #report.results==2)"),
+
 ]
 for label, case in cases:
     state = lua.luaL_newstate()

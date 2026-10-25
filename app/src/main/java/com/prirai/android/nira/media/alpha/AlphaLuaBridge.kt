@@ -13,6 +13,8 @@ import java.nio.file.StandardCopyOption
 internal object AlphaLuaBridge {
     const val REFERENCE_COMMIT="c6107ce14a9f1768c73f975c5d60b1d8bd71aaed"
     const val FILE_NAME="mpv_alpha_buttons_bridge.lua"
+    const val CLIENT_NAME="mpv_alpha_buttons_bridge"
+    const val PUBLISH_FAILED="ZAVRO_ALPHA_PUBLISH_FAILED"
     const val PROPERTY="user-data/mpvex/zavro_alpha_bridge"
 
     /** Replace only our fixed file atomically. Never touch unrelated configuration/scripts. */
@@ -39,12 +41,21 @@ internal object AlphaLuaBridge {
     // Bounded cumulative mailbox survives mpv property-event coalescing on fast clicks.
     // No exception/source text, OSD, log messages or user button IDs enter this protocol.
     val source:String = """
-        local utils = require 'mp.utils'
         local epoch = ""
         local results = {}
+        local write_failed = false
         local function publish()
-            pcall(mp.set_property, "user-data/mpvex/zavro_alpha_bridge",
-                utils.format_json({version=1, epoch=epoch, ready=true, results=results}))
+            -- user-data is NODE. Do not JSON-encode then observe as STRING:
+            -- mpv would JSON-quote that string again (v1153 lost every reply).
+            local called, accepted = pcall(mp.set_property_native, "user-data/mpvex/zavro_alpha_bridge",
+                {version=1, epoch=epoch, ready=true, results=results})
+            if not called or accepted ~= true then
+                if not write_failed then mp.msg.error("ZAVRO_ALPHA_PUBLISH_FAILED") end
+                write_failed = true
+                return false
+            end
+            write_failed = false
+            return true
         end
         mp.register_script_message("mpv_alpha_probe", function(session)
             if type(session) ~= "string" or #session > 64 or not session:match("^[%w%-]+$") then return end

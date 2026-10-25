@@ -125,6 +125,10 @@ internal class InlineMpvUi(
     private val oldUi=activity.window.decorView.systemUiVisibility
     private val logs=object: MPVLib.LogObserver {
         override fun logMessage(prefix:String,level:Int,text:String) {
+            if(prefix==AlphaLuaBridge.CLIENT_NAME && level<=30 && text.length<=128 &&
+                text.trim()==AlphaLuaBridge.PUBLISH_FAILED)main.post {
+                if(!destroyed)alphaLua.onPublishFailure()
+            }
             MpvDebugTrace.classifyMpvLog(prefix,level,text)?.let { code ->
                 MpvDebugTrace.note(MpvDebugTrace.Section.MPV,code,session)
             }
@@ -133,12 +137,18 @@ internal class InlineMpvUi(
     private val observer=object: MPVLib.EventObserver {
         override fun eventProperty(property:String) {}
         override fun eventProperty(property:String,value:Long) {}
-        override fun eventProperty(property:String,value:String) {
-            if(property==AlphaLuaBridge.PROPERTY && value.length<=20_000)main.post {
-                if(!destroyed)alphaLua.onProperty(property,value)
+        override fun eventProperty(property:String,value:String) {}
+        override fun eventProperty(property:String,value:MPVNode) {
+            if(property==AlphaLuaBridge.PROPERTY) {
+                val message=runCatching {value.toJson()}.getOrNull()
+                main.post {
+                    if(!destroyed) {
+                        if(message==null)alphaLua.onPropertyInvalid()
+                        else alphaLua.onProperty(property,message)
+                    }
+                }
             }
         }
-        override fun eventProperty(property:String,value:MPVNode) {}
         override fun eventProperty(property:String,value:Boolean) {
             alphaAdapter.onFlag(property,value)
             if (property=="pause") main.post {
@@ -395,13 +405,13 @@ internal class InlineMpvUi(
         return try {
             val bridgeInstalled=video.prepareAlphaBridge(context.filesDir.absolutePath)
             player=video
+            MPVLib.addLogObserver(logs) // Capture fixed bridge startup failures, including during init.
             video.initialize(context.filesDir.absolutePath,context.cacheDir.absolutePath)
             video.playFile(url) // queue before attaching surface
             MPVLib.addObserver(observer)
-            MPVLib.observeProperty(AlphaLuaBridge.PROPERTY,MPVLib.MpvFormat.MPV_FORMAT_STRING)
-            alphaLua.start(bridgeInstalled)
+            MPVLib.observeProperty(AlphaLuaBridge.PROPERTY,MPVLib.MpvFormat.MPV_FORMAT_NODE)
+            alphaLua.start(bridgeInstalled,video.alphaBridgeLoadConfigured)
             main.postDelayed(luaTick,500L)
-            MPVLib.addLogObserver(logs)
             MpvDebugTrace.note(MpvDebugTrace.Section.MPV,"mpv_logger_registered",session)
             MPVLib.observeProperty("time-pos",MPVLib.MpvFormat.MPV_FORMAT_DOUBLE)
             MPVLib.observeProperty("duration",MPVLib.MpvFormat.MPV_FORMAT_DOUBLE)

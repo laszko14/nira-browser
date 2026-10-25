@@ -33,6 +33,9 @@ internal fun AlphaLuaExecutionSettings(controller:AlphaLuaController?) {
             }
             Text(when {
                 state.ready->"Bridge gotowy. onStartup wyłączone."
+                !state.installed->"Bridge niezainstalowany. Uruchom następny film; bieżący nie będzie restartowany."
+                !state.loadConfigured->"Nie potwierdzono konfiguracji ładowania bridge w libmpv."
+                state.publishFailures>0->"Bridge uruchomiony, ale wystąpił błąd publikacji odpowiedzi. Brak potwierdzenia gotowości."
                 state.registered->"Bridge zarejestrowany; oczekiwanie na potwierdzenie gotowości."
                 else->"Bridge niegotowy. Poczekaj; jeśli nadal niedostępny, uruchom następny film. Bieżący film nie będzie restartowany."
             })

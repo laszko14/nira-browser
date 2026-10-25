@@ -15,7 +15,8 @@ test('full Lua requires separate consent and reports only redacted correlated ou
  const bridge=read('alpha/AlphaLuaBridge.kt');
  assert.match(bridge,/mpv_alpha_eval/);assert.match(bridge,/mpv_alpha_probe/);
  assert.match(bridge,/loadstring or load/);assert.match(bridge,/pcall\(fn\)/);
- assert.doesNotMatch(bridge,/mp\.msg|mp\.osd_message|tostring\(err/);
+ assert.doesNotMatch(bridge,/mp\.osd_message|tostring\(err/);
+ assert.match(bridge,/mp.msg.error\("ZAVRO_ALPHA_PUBLISH_FAILED"\)/);
  const panel=read('alpha/ui/AlphaLuaPanel.kt');
  assert.match(panel,/AlphaLuaExecutionSettings/);
  assert.match(panel,/config.state.value/);

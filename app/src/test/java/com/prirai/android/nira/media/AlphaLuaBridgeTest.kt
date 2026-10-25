@@ -4,6 +4,8 @@ import com.prirai.android.nira.media.alpha.*
 import org.junit.Assert.*
 import org.junit.Test
 import java.nio.file.Files
+import `is`.xyz.mpv.MPVNode
+import kotlinx.serialization.json.*
 
 class AlphaLuaBridgeTest {
     private class Fixture(enabled:Boolean=true) {
@@ -184,6 +186,70 @@ class AlphaLuaBridgeTest {
         assertTrue(report.contains("Błędy wykonania: 1"))
         assertTrue(AlphaLuaDiagnostics.report(Any()).contains("Wywołania: 0"))
         assertFalse(report.contains("mpv_alpha_eval"))
+    }
+
+    @Test fun v1153StringTransportIsJsonQuotedButNativeMapRoundTripsThroughActualAarNode() {
+        val f=Fixture();f.bridge.start(true)
+        val epoch=f.commands.first()[2]
+        val native=MPVNode.MapNode(mapOf(
+            "version" to MPVNode.IntNode(1),"epoch" to MPVNode.StringNode(epoch),
+            "ready" to MPVNode.BooleanNode(true),"results" to MPVNode.ArrayNode(emptyArray()),
+        ))
+        val raw=native.toJson()
+        // mpv user-data GET_STRING calls m_option_type_node.print -> json_write.
+        // v1153 stored a JSON STRING: that string gets quoted a second time.
+        val v1153Wire=JsonPrimitive(raw).toString()
+        f.bridge.onProperty(AlphaLuaBridge.PROPERTY,v1153Wire)
+        assertFalse(f.bridge.state.value.ready)
+        assertEquals(1,f.bridge.state.value.invalidMessages)
+        f.bridge.onProperty(AlphaLuaBridge.PROPERTY,raw)
+        assertTrue(f.bridge.state.value.loaded);assertTrue(f.bridge.state.value.registered)
+        assertTrue(f.bridge.state.value.probeAcknowledged);assertTrue(f.bridge.state.value.ready)
+    }
+    @Test fun installedAndProbeSentNeverProveLoadRegistrationOrReady() {
+        val f=Fixture();f.bridge.start(true)
+        assertTrue(f.bridge.state.value.installed);assertEquals(1,f.bridge.state.value.probeSent)
+        assertFalse(f.bridge.state.value.loaded);assertFalse(f.bridge.state.value.registered)
+        assertFalse(f.bridge.state.value.probeAcknowledged);assertFalse(f.bridge.state.value.ready)
+        f.bridge.onProperty(AlphaLuaBridge.PROPERTY,"""{"version":1,"ready":true,"epoch":"","results":[]}""")
+        assertTrue(f.bridge.state.value.loaded);assertTrue(f.bridge.state.value.registered)
+        assertFalse(f.bridge.state.value.ready)
+    }
+    @Test fun handshakeRecoversLateWithoutDependingOnOneTimeAnnouncementOrInitialWindow() {
+        val f=Fixture();f.bridge.start(true)
+        f.time=30_000;f.bridge.tick()
+        assertEquals(2,f.commands.size)
+        f.time=30_500;f.bridge.tick();assertEquals(2,f.commands.size)
+        f.time=35_000;f.bridge.tick();assertEquals(3,f.commands.size)
+        f.ready();assertTrue(f.bridge.state.value.ready)
+        assertEquals(3,f.bridge.state.value.probeSent)
+    }
+    @Test fun configurationFailureAndMalformedEnvelopesCannotGrantReady() {
+        val f=Fixture();f.bridge.start(true,false)
+        assertTrue(f.bridge.state.value.installed);assertFalse(f.bridge.state.value.loadConfigured)
+        assertEquals(0,f.commands.size)
+        assertEquals(AlphaLuaStatus.UNAVAILABLE,f.bridge.dispatch("return 1"))
+        val other=Fixture();other.bridge.start(true)
+        val epoch=other.commands.first()[2]
+        for(raw in listOf(
+            """{"version":"1","ready":true,"epoch":"$epoch","results":[]}""",
+            """{"version":1,"ready":"true","epoch":"$epoch","results":[]}""",
+            """{"version":1,"ready":true,"epoch":"$epoch","results":{}}""",
+            """{"version":1,"ready":true,"epoch":"$epoch"}""")) {
+            other.bridge.onProperty(AlphaLuaBridge.PROPERTY,raw)
+            assertFalse(other.bridge.state.value.ready)
+        }
+    }
+    @Test fun publishFailureCannotGrantReadyAndProbeNeverResendsAnExpiredAction() {
+        val f=Fixture();f.ready();f.bridge.dispatch("synthetic=1")
+        f.bridge.onPublishFailure()
+        assertTrue(f.bridge.state.value.loaded);assertTrue(f.bridge.state.value.registered)
+        assertFalse(f.bridge.state.value.ready);assertEquals(1,f.bridge.state.value.publishFailures)
+        f.time=6_000;f.bridge.tick();f.time=12_000;f.bridge.tick()
+        assertEquals(1,f.commands.count { it[1]=="mpv_alpha_eval" })
+        assertEquals(1,f.bridge.state.value.timeouts)
+        f.ready();f.reply("ok")
+        assertTrue(f.bridge.state.value.ready);assertEquals(0,f.bridge.state.value.succeeded)
     }
 
 }
