@@ -19,15 +19,22 @@ internal object AlphaLuaDiagnostics {
         fun yes(flag:Boolean)=if(flag)"TAK" else "NIE"
         return """
             LUA / BRIDGE
-            Bridge zainstalowany: ${yes(value.installed)}
-            Bridge gotowy: ${yes(value.ready)}
+            Bridge zainstalowany: ${yes(value.installed)} (${if(value.installed)"INSTALL_OK" else "INSTALL_FAILED"})
+            Konfiguracja ładowania: ${yes(value.loadConfigured)}
+            Bridge załadowany: ${if(value.loaded)"TAK (LOAD_CONFIRMED)" else "NIEPOTWIERDZONY (LOAD_UNCONFIRMED)"}
+            Bridge zarejestrowany: ${if(value.registered)"TAK (REGISTERED)" else "NIEPOTWIERDZONY (REGISTER_UNCONFIRMED)"}
+            Probe wysłane: ${value.probeSent} (${if(value.probeSent>0)"PROBE_SENT" else "PROBE_UNSENT"})
+            Probe ACK: ${yes(value.probeAcknowledged)} (${if(value.probeAcknowledged)"PROBE_ACK" else "PROBE_UNCONFIRMED"})
+            Bridge gotowy: ${yes(value.ready)} (${if(value.ready)"READY" else "NOT_READY"})
             Lua włączone: ${yes(value.enabled)}
-            Wywołania: ${value.sent}
-            Potwierdzone sukcesy: ${value.succeeded}
-            Błędy składni: ${value.syntaxErrors}
-            Błędy wykonania: ${value.runtimeErrors}
-            Brak potwierdzenia: ${value.timeouts}
-            Zablokowane wywołania: ${value.blocked}
+            Wywołania: ${value.sent} (DISPATCH_SENT)
+            Potwierdzone sukcesy: ${value.succeeded} (EXEC_OK)
+            Błędy składni: ${value.syntaxErrors} (SYNTAX_ERROR)
+            Błędy wykonania: ${value.runtimeErrors} (RUNTIME_ERROR)
+            Brak potwierdzenia: ${value.timeouts} (TIMEOUT)
+            Zablokowane wywołania: ${value.blocked} (BLOCKED)
+            Błędy publikacji ACK: ${value.publishFailures} (PROPERTY_WRITE_FAILED)
+            Nieprawidłowe odpowiedzi: ${value.invalidMessages} (PROPERTY_INVALID)
         """.trimIndent()
     }
 }

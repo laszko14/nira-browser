@@ -11,6 +11,8 @@ internal enum class AlphaLuaStatus {
 }
 internal data class AlphaLuaState(
     val installed:Boolean=false, val registered:Boolean=false, val ready:Boolean=false,
+    val loadConfigured:Boolean=false, val loaded:Boolean=false, val probeSent:Int=0,
+    val probeAcknowledged:Boolean=false, val publishFailures:Int=0, val invalidMessages:Int=0,
     val enabled:Boolean=false, val status:AlphaLuaStatus=AlphaLuaStatus.IDLE,
     val sent:Int=0, val callbacks:Int=0, val succeeded:Int=0, val syntaxErrors:Int=0,
     val runtimeErrors:Int=0, val timeouts:Int=0, val blocked:Int=0,
@@ -47,11 +49,11 @@ internal class AlphaLuaController(
         if(saved)update(state.value.copy(enabled=value))
         return saved
     }
-    fun start(installed:Boolean) {
+    fun start(installed:Boolean,configured:Boolean=true) {
         if(started || closed)return
         started=true
-        update(state.value.copy(installed=installed))
-        if(installed) { probeUntil=now()+5_000;nextProbe=now();tick() }
+        update(state.value.copy(installed=installed,loadConfigured=installed && configured))
+        if(installed && configured) { probeUntil=now()+5_000;nextProbe=now();tick() }
         else status(AlphaLuaStatus.UNAVAILABLE)
     }
     /** Retry only the readiness probe, never load/reload a script or run user source. */
@@ -64,28 +66,49 @@ internal class AlphaLuaController(
             update(state.value.copy(timeouts=state.value.timeouts+expired.size,
                 status=AlphaLuaStatus.TIMEOUT,lastCompletion=AlphaLuaStatus.TIMEOUT,completion=state.value.completion+1))
         }
-        if(started && state.value.installed && !state.value.ready && time<=probeUntil && time>=nextProbe && canSend()) {
-            nextProbe=time+500
+        if(started && state.value.loadConfigured && !state.value.ready && time>=nextProbe && canSend()) {
+            // Slow, bounded-frequency recovery after the initial burst, even if the
+            // one-time registration announcement preceded observer installation.
+            nextProbe=time+if(time<=probeUntil)500 else 5_000
             runCatching { send(arrayOf("script-message","mpv_alpha_probe",epoch)) }
+                .onSuccess { update(state.value.copy(probeSent=state.value.probeSent+1)) }
         }
     }
+    fun onPublishFailure() {
+        if(closed || !started || !state.value.loadConfigured)return
+        // Only the fixed log emitted by this bridge reaches this callback.
+        update(state.value.copy(loaded=true,registered=true,ready=false,
+            publishFailures=state.value.publishFailures+1))
+    }
+    fun onPropertyInvalid() {
+        if(closed || !started || !state.value.loadConfigured)return
+        update(state.value.copy(ready=false,invalidMessages=state.value.invalidMessages+1))
+    }
     fun onProperty(property:String,value:String) {
-        if(closed || !started || !state.value.installed || property!=AlphaLuaBridge.PROPERTY || value.length>20_000)return
-        val message=runCatching { Json.parseToJsonElement(value).jsonObject }.getOrNull()?:return
-        if((message["version"] as? JsonPrimitive)?.intOrNull!=1 || (message["ready"] as? JsonPrimitive)?.booleanOrNull!=true)return
-        val session=(message["epoch"] as? JsonPrimitive)?.contentOrNull?:return
-        if(session.isEmpty()) {
-            // Registration announcement may precede the first probe. It never proves readiness.
-            if(!state.value.ready && !state.value.registered) {
-                update(state.value.copy(registered=true,status=AlphaLuaStatus.REGISTERED))
+        if(closed || !started || !state.value.loadConfigured || property!=AlphaLuaBridge.PROPERTY)return
+        if(value.length>20_000) {onPropertyInvalid();return}
+        val message=runCatching { Json.parseToJsonElement(value) as? JsonObject }.getOrNull()
+        val version=message?.get("version") as? JsonPrimitive
+        val ready=message?.get("ready") as? JsonPrimitive
+        val session=message?.get("epoch") as? JsonPrimitive
+        val results=message?.get("results") as? JsonArray
+        if(message==null || version==null || version.isString || version.intOrNull!=1 ||
+            ready==null || ready.isString || ready.booleanOrNull!=true ||
+            session==null || !session.isString || results==null || results.size>64) {
+            onPropertyInvalid();return
+        }
+        if(session.content.isEmpty()) {
+            // A valid native map proves code ran AFTER both handlers registered,
+            // but it does not prove a probe reached this session's callback.
+            if(!state.value.registered) {
+                update(state.value.copy(loaded=true,registered=true,status=AlphaLuaStatus.REGISTERED))
                 probeUntil=now()+5_000;nextProbe=now()
             }
             return
         }
-        if(session!=epoch)return
-        if(!state.value.ready) update(state.value.copy(registered=true,ready=true,status=AlphaLuaStatus.READY))
-        val results=message["results"] as? JsonArray?:return
-        if(results.size>64)return
+        if(session.content!=epoch)return
+        if(!state.value.ready)update(state.value.copy(loaded=true,registered=true,ready=true,
+            probeAcknowledged=true,status=AlphaLuaStatus.READY))
         for(element in results) {
             val entry=element as? JsonObject?:continue
             val id=(entry["id"] as? JsonPrimitive)?.contentOrNull?:continue

@@ -773,18 +773,29 @@ class ZavroMpvView(context: android.content.Context, attrs: AttributeSet) :
 
     private var alphaBridgePrepared=false
     private var alphaBridgeInstalled=false
+    private var alphaBridgeScript=""
+    internal var alphaBridgeLoadConfigured=false
+        private set
     internal fun prepareAlphaBridge(configDir:String):Boolean {
         if(!alphaBridgePrepared) {
             alphaBridgePrepared=true
             alphaBridgeInstalled=com.prirai.android.nira.media.alpha.AlphaLuaBridge.install(java.io.File(configDir))
+            if(alphaBridgeInstalled)alphaBridgeScript=java.io.File(configDir,
+                "scripts/"+com.prirai.android.nira.media.alpha.AlphaLuaBridge.FILE_NAME).absolutePath
         }
         return alphaBridgeInstalled
     }
 
     override fun initOptions() {
         // BaseMPVView sets config=yes/config-dir before this hook, then calls MPVLib.init.
-        // Autoload our inert bridge once; on preparation failure, no stale script may run.
-        MPVLib.setOptionString("load-scripts",if(alphaBridgeInstalled) "yes" else "no")
+        // Do not autoload unrelated scripts, even with consent off. Explicit script
+        // options are loaded by mp_load_scripts BEFORE its auto_load_scripts check.
+        // Supported Zavro preferences are applied through API/adapters, not mpv.conf.
+        // Do not let an unrelated config file re-enable autoload or add scripts.
+        val fileConfigDisabled=MPVLib.setOptionString("config","no")>=0
+        val autoloadDisabled=MPVLib.setOptionString("load-scripts","no")>=0
+        val bridgeSelected=MPVLib.setOptionString("scripts",alphaBridgeScript)>=0
+        alphaBridgeLoadConfigured=alphaBridgeInstalled && fileConfigDisabled && autoloadDisabled && bridgeSelected
         setVo("gpu")
         MPVLib.setOptionString("hwdec", "mediacodec,no")
         MPVLib.setOptionString("speed", "1.5")
