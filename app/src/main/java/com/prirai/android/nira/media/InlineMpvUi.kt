@@ -69,10 +69,15 @@ internal class InlineMpvUi(
             if(!destroyed) { alphaLua.tick();main.postDelayed(this,500L) }
         }
     }
+    private val audioController=com.prirai.android.nira.media.alpha.audio.AlphaAudioController(
+        { loaded && !destroyed && MpvEngineGate.owns(token) && Looper.myLooper()==Looper.getMainLooper() },
+        com.prirai.android.nira.media.alpha.audio.AlphaAudioNative,
+        { com.prirai.android.nira.media.alpha.audio.AlphaAudioDiagnostics.update(session,it) },
+    )
     private val alphaAdapter=AlphaSessionAdapter(
         { loaded && !destroyed && MpvEngineGate.owns(token) &&
             Looper.myLooper()==Looper.getMainLooper() },
-        lua=alphaLua,
+        lua=alphaLua,audio=audioController,
     ) { command ->
         when(command) {
             is AlphaCommand.Pause -> MPVLib.setPropertyBoolean("pause",command.paused)
@@ -139,6 +144,7 @@ internal class InlineMpvUi(
         override fun eventProperty(property:String,value:Long) {}
         override fun eventProperty(property:String,value:String) {}
         override fun eventProperty(property:String,value:MPVNode) {
+            if(property=="af")main.post {if(!destroyed)audioController.refresh()}
             if(property==AlphaLuaBridge.PROPERTY) {
                 val message=runCatching {value.toJson()}.getOrNull()
                 main.post {
@@ -188,6 +194,7 @@ internal class InlineMpvUi(
                 if (!destroyed) {
                     loaded=true
                     alphaAdapter.onReady()
+                    audioController.refresh()
                     timeout?.let(main::removeCallbacks)
                     MpvDebugTrace.note(MpvDebugTrace.Section.MPV,"mpv_file_loaded",session)
                     MpvDebugTrace.note(MpvDebugTrace.Section.MPV,"inline_loaded",session)
@@ -410,6 +417,7 @@ internal class InlineMpvUi(
             video.playFile(url) // queue before attaching surface
             MPVLib.addObserver(observer)
             MPVLib.observeProperty(AlphaLuaBridge.PROPERTY,MPVLib.MpvFormat.MPV_FORMAT_NODE)
+            MPVLib.observeProperty("af",MPVLib.MpvFormat.MPV_FORMAT_NODE)
             alphaLua.start(bridgeInstalled,video.alphaBridgeLoadConfigured)
             main.postDelayed(luaTick,500L)
             MpvDebugTrace.note(MpvDebugTrace.Section.MPV,"mpv_logger_registered",session)
@@ -532,6 +540,7 @@ internal class InlineMpvUi(
         overlay.cancelGesture()
         destroyed=true
         disposeAlphaControls()
+        audioController.close()
         alphaLua.close()
         main.removeCallbacks(luaTick)
         alphaAdapter.invalidate()
