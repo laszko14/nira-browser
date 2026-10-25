@@ -26,7 +26,7 @@
   function protocolOneShot(event, fields = {}) {
     // A Gecko port challenge binds this message to its particular frame.
     // No challenge, no AUTO/ACK; all protocol data stays transient in Gecko.
-    if (!probeNonce || !["probe_ack", "auto_offer", "handoff_ack", "inline_layout"].includes(event)) return;
+    if (!probeNonce || !["probe_ack", "auto_offer", "handoff_ack", "inline_layout", "iframe_geometry"].includes(event)) return;
     try {
       const reply = browser.runtime.sendNativeMessage(PORT,
         {version:1, event, probeNonce, ...fields});
@@ -40,7 +40,30 @@
   let port = null, connectAttempts = 0, lastGesture = null, probeNonce = null;
   const GESTURE_WINDOW_MS = 10_000;
   const lastAutoOffer = new WeakMap();
-  let inlineLease = null, lastLayout = 0;
+  let inlineLease = null, lastLayout = 0, trackedFrame = null;
+  function uniqueIframe(frameUrl) {
+    if (typeof window === "undefined" || window !== window.top ||
+        typeof document.querySelectorAll !== "function") return null;
+    const matches = Array.from(document.querySelectorAll("iframe")).filter(f => {
+      if (!f.isConnected || !f.src) return false;
+      try { return new URL(f.src, location.href).href === frameUrl; }
+      catch (_) { return false; }
+    });
+    return matches.length === 1 ? matches[0] : null;
+  }
+  function reportIframeGeometry(nonce, frameUrl) {
+    const iframe = uniqueIframe(frameUrl);
+    const r = iframe && rectOf(iframe);
+    if (!r || r.w < 320 || r.h < 180 || r.x < -5000 || r.y < -5000) return;
+    const data = {nonce,frameUrl,...r};
+    send({version:1,event:"iframe_geometry",...data});
+    protocolOneShot("iframe_geometry",data);
+  }
+  function trackIframe() {
+    if (!trackedFrame || Date.now()-lastLayout < 90) return;
+    lastLayout = Date.now();
+    reportIframeGeometry(trackedFrame.nonce,trackedFrame.frameUrl);
+  }
   function rectOf(video) {
     if (!video || !video.isConnected) return null;
     const r = video.getBoundingClientRect();
@@ -138,7 +161,11 @@
         if (++inspected > MAX_VIDEOS || matches.length > 1) break;
         if (!(video instanceof HTMLVideoElement) || !video.isConnected ||
             video.ended || video.error || video.mediaKeys || video.srcObject) continue;
-        if (mediaUrl(video) === request.mediaUrl &&
+        const matchingSource = request.sourceKind === "blob"
+          ? typeof (video.currentSrc || video.src) === "string" &&
+            (video.currentSrc || video.src).startsWith("blob:")
+          : mediaUrl(video) === request.mediaUrl;
+        if (matchingSource &&
             (!targeted || elementKey(video) === request.elementKey)) matches.push(video);
       }
     } catch (_) { return; }
@@ -147,6 +174,15 @@
       return;
     }
     const video = matches[0], wasPlaying = !video.paused;
+    const blobSource = typeof (video.currentSrc || video.src) === "string" &&
+      (video.currentSrc || video.src).startsWith("blob:");
+    if (request.sourceKind === "blob" &&
+        (!targeted || !blobSource || video.mediaKeys || video.srcObject ||
+         !Number.isFinite(video.duration) || video.duration < 180 ||
+         video.muted || video.loop || !rectOf(video))) {
+      sendAck(request.nonce, false);
+      return;
+    }
     if (targeted && !wasPlaying) {
       sendAck(request.nonce, false);
       return;
@@ -154,7 +190,9 @@
     try {
       video.pause();
       if (!video.paused) throw new Error("not paused");
-      holds.set(request.nonce, {video, src:request.mediaUrl, page:location.href, wasPlaying});
+      holds.set(request.nonce, {video,
+        src:request.sourceKind === "blob" ? (video.currentSrc || video.src) : request.mediaUrl,
+        sourceKind:request.sourceKind, page:location.href, wasPlaying});
       sendAck(request.nonce, true);
     } catch (_) {
       sendAck(request.nonce, false);
@@ -167,7 +205,9 @@
     if (inlineLease && inlineLease.nonce === request.nonce) inlineLease = null;
     if (!resume || !state.wasPlaying || state.page !== location.href ||
         !state.video.isConnected || state.video.ended ||
-        mediaUrl(state.video) !== state.src) return;
+        (state.sourceKind === "blob"
+          ? (state.video.currentSrc || state.video.src) !== state.src
+          : mediaUrl(state.video) !== state.src)) return;
     try {
       const result = state.video.play();
       if (result && typeof result.catch === "function") result.catch(() => {});
@@ -198,13 +238,22 @@
       return;
     }
     const url = mediaUrl(video);
-    if (!url) {
-      diagnostic(video.mediaKeys ? "source_drm" :
-        typeof video.currentSrc === "string" && video.currentSrc.startsWith("blob:") ?
-          "source_blob" : "no_direct_url");
+    const blob = !url && !video.mediaKeys && !video.srcObject &&
+      typeof (video.currentSrc || video.src) === "string" &&
+      (video.currentSrc || video.src).startsWith("blob:");
+    if (!url && !blob) {
+      diagnostic(video.mediaKeys ? "source_drm" : "no_direct_url");
       return;
     }
-    if (!eligible(video, url)) {
+    if (blob) diagnostic("source_blob");
+    // Blob is only offered as an element identity, never as a playable URL.
+    // Native must independently find exactly one matching network HLS source.
+    const blobEligible = blob && Number.isFinite(video.duration) &&
+      video.duration >= 180 && !video.muted && !video.loop &&
+      video.readyState >= 2 && !!rectOf(video) &&
+      rectOf(video).w >= 320 && rectOf(video).h >= 180 &&
+      typeof window !== "undefined";
+    if (!(blob ? blobEligible : eligible(video, url))) {
       const r = typeof video.getBoundingClientRect === "function" ?
         video.getBoundingClientRect() : {width:0,height:0};
       diagnostic(video.muted || video.loop ? "source_muted" :
@@ -244,8 +293,12 @@
     diagnostic("auto_offered");
     // Only top-level video has unambiguous coordinates in GeckoView.
     const r = rectOf(video);
-    const offer = {frameKey, elementKey:key, pageUrl:location.href, mediaUrl:url,
-      topFrame:typeof window !== "undefined" && window === window.top, ...(r || {})};
+    const offer = {frameKey, elementKey:key, pageUrl:location.href,
+      mediaUrl:url || "", sourceKind:blob ? "blob" : "direct",
+      topFrame:typeof window !== "undefined" && window === window.top,
+      viewportW:typeof window !== "undefined" ? window.innerWidth : 0,
+      viewportH:typeof window !== "undefined" ? window.innerHeight : 0,
+      ...(r || {})};
     send({version:1,event:"auto_offer",...offer});
     protocolOneShot("auto_offer",offer);
   }
@@ -271,6 +324,17 @@
         }
         if (typeof message.nonce !== "string") return;
         if (message.event === "prepare") prepare(message);
+        if (message.event === "iframe_geometry_request" &&
+            typeof message.frameUrl === "string" &&
+            /^[0-9a-f-]{36}$/.test(message.nonce)) {
+          reportIframeGeometry(message.nonce,message.frameUrl);
+        }
+        if (message.event === "iframe_track" &&
+            typeof message.frameUrl === "string" &&
+            /^[0-9a-f-]{36}$/.test(message.nonce)) {
+          trackedFrame = {nonce:message.nonce,frameUrl:message.frameUrl};
+          reportIframeGeometry(message.nonce,message.frameUrl);
+        }
         if (message.event === "inline_start" && holds.has(message.nonce) &&
             typeof window !== "undefined" && window === window.top) {
           inlineLease = {nonce:message.nonce,video:holds.get(message.nonce).video};
@@ -285,6 +349,7 @@
         probeNonce = null;
         holds.clear();
         inlineLease = null;
+        trackedFrame = null;
         if (connectAttempts < 4) setTimeout(connect,800);
       });
     } catch (_) {
@@ -302,8 +367,11 @@
   document.addEventListener("durationchange",videoPlayed,true);
   document.addEventListener("pageshow", () => diagnostic("document_visible"), true);
   document.addEventListener("scroll",layoutUpdate,true);
+  document.addEventListener("scroll",trackIframe,true);
   if (typeof window !== "undefined") window.addEventListener("scroll",layoutUpdate,true);
   if (typeof window !== "undefined") window.addEventListener("resize",layoutUpdate,true);
+  if (typeof window !== "undefined") window.addEventListener("scroll",trackIframe,true);
+  if (typeof window !== "undefined") window.addEventListener("resize",trackIframe,true);
   connect();
   if (document.readyState === "loading")
     document.addEventListener("DOMContentLoaded",connect,{once:true});

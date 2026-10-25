@@ -37,6 +37,9 @@ internal object MediaElementPlaybackBridge {
         val x: Double = 0.0, val y: Double = 0.0,
         val w: Double = 0.0, val h: Double = 0.0,
         val dpr: Double = 1.0,
+        val blob: Boolean = false,
+        val viewportW: Double = 0.0,
+        val viewportH: Double = 0.0,
     ) {
         override fun toString() = "AutoOffer(<redacted>)"
     }
@@ -44,6 +47,53 @@ internal object MediaElementPlaybackBridge {
     var onAutoOffer: ((AutoOffer) -> Unit)? = null
     data class InlineRect(val x: Double, val y: Double, val w: Double, val h: Double, val dpr: Double)
     var onInlineLayout: ((String, InlineRect) -> Unit)? = null
+    private data class FrameRequest(
+        val topPort: Port, val offer: AutoOffer, val binding: MediaSessionBinding,
+        val nonce: String, val done: (InlineRect?) -> Unit,
+        val timeout: Runnable
+    )
+    private var frameRequest: FrameRequest? = null
+    private var resolvedFramePort: Pair<AutoOffer, Port>? = null
+    fun resolveRect(offer: AutoOffer, tab: MediaTabState, done: (InlineRect?) -> Unit) {
+        check(Looper.myLooper() == Looper.getMainLooper())
+        if (offer.topFrame) {
+            done(InlineRect(offer.x,offer.y,offer.w,offer.h,offer.dpr))
+            return
+        }
+        if (frameRequest != null || offer.pageUrl == tab.pageUrl ||
+            // Only inline if the video fills its iframe. Otherwise its screen
+            // coordinates can't be safely inferred from the parent iframe.
+            offer.viewportW < 320.0 || offer.viewportH < 180.0 ||
+            kotlin.math.abs(offer.x) > 5 || kotlin.math.abs(offer.y) > 5 ||
+            kotlin.math.abs(offer.w-offer.viewportW) > 24 ||
+            kotlin.math.abs(offer.h-offer.viewportH) > 24) {
+            done(null);return
+        }
+        val portsMatching = ports.filter {
+            it.engineSession === tab.binding.session &&
+                verifiedPorts.contains(it) &&
+                runCatching { it.senderUrl() }.getOrNull() == tab.pageUrl
+        }
+        val top = portsMatching.singleOrNull()
+        if (top == null) { done(null);return }
+        val nonce = UUID.randomUUID().toString()
+        val timeout = Runnable {
+            val p=frameRequest
+            if (p?.nonce == nonce) { frameRequest=null;done(null) }
+        }
+        frameRequest=FrameRequest(top,offer,tab.binding,nonce,done,timeout)
+        main.postDelayed(timeout,1_250L)
+        runCatching {
+            top.postMessage(JSONObject().put("version",1)
+                .put("event","iframe_geometry_request")
+                .put("nonce",nonce).put("frameUrl",offer.pageUrl))
+        }.onFailure {
+            main.removeCallbacks(timeout)
+            frameRequest=null
+            done(null)
+        }
+    }
+
     private fun rectOf(data: JSONObject): InlineRect? {
         val x=data.optDouble("x",Double.NaN)
         val y=data.optDouble("y",Double.NaN)
@@ -76,6 +126,7 @@ internal object MediaElementPlaybackBridge {
         val frameUrl: String,
         val nonce: String,
         val target: AutoOffer?,
+        var framePort: Port? = null,
     )
 
     private val ports = LinkedHashSet<Port>()
@@ -121,7 +172,7 @@ internal object MediaElementPlaybackBridge {
     fun receivedOneShot(source: EngineSession, message: JSONObject): Boolean {
         if (message.optInt("version") != 1) return false
         val event = message.optString("event")
-        if (event !in setOf("probe_ack", "auto_offer", "handoff_ack", "inline_layout")) return false
+        if (event !in setOf("probe_ack", "auto_offer", "handoff_ack", "inline_layout", "iframe_geometry")) return false
         val challenge = message.optString("probeNonce")
         if (!UUID_PATTERN.matches(challenge)) return false
         main.post {
@@ -153,6 +204,18 @@ internal object MediaElementPlaybackBridge {
                 main.removeCallbacks(p.timeout)
                 p.callback(null)
             }
+            if (frameRequest?.topPort === port) {
+                val pendingFrame=frameRequest
+                frameRequest=null
+                pendingFrame?.let {
+                    main.removeCallbacks(it.timeout)
+                    it.done(null)
+                }
+            }
+            if (lease?.framePort === port) {
+                val token=lease?.nonce
+                if (token != null) onInlineLayout?.invoke(token,InlineRect(0.0,0.0,0.0,0.0,1.0))
+            }
             if (lease?.port === port) {
                 val token=lease?.nonce
                 lease=null
@@ -180,7 +243,11 @@ internal object MediaElementPlaybackBridge {
             return
         }
         val frame = preferredFrame ?: tab.pageUrl
-        if (target != null && (target.pageUrl != frame || target.mediaUrl != sourceUrl ||
+        if (target != null && (target.pageUrl != frame ||
+            (!target.blob && target.mediaUrl != sourceUrl) ||
+            (target.blob && !sourceUrl.endsWith(".m3u8") &&
+                !runCatching { android.net.Uri.parse(sourceUrl).path.orEmpty()
+                    .endsWith(".m3u8") }.getOrDefault(false)) ||
             !ports.contains(target.port))) {
             completed(null)
             return
@@ -227,6 +294,7 @@ internal object MediaElementPlaybackBridge {
                     if (target != null) {
                         put("frameKey", target.frameKey)
                         put("elementKey", target.elementKey)
+                        if (target.blob) put("sourceKind","blob")
                     }
                 })
         } catch (_: RuntimeException) {
@@ -275,25 +343,55 @@ internal object MediaElementPlaybackBridge {
                 val elementKey = data.optString("elementKey")
                 val page = data.optString("pageUrl")
                 val url = data.optString("mediaUrl")
+                val blob = data.optString("sourceKind") == "blob" &&
+                    data.optString("mediaUrl").isEmpty()
                 val parsed = runCatching { android.net.Uri.parse(url) }.getOrNull()
                 if (!UUID_PATTERN.matches(frameKey) || !UUID_PATTERN.matches(elementKey) ||
-                    page.length !in 8..8192 || url.length !in 8..8192 ||
-                    parsed?.scheme !in listOf("http", "https") || parsed?.host.isNullOrBlank() ||
+                    page.length !in 8..8192 ||
+                    (!blob && (url.length !in 8..8192 ||
+                        parsed?.scheme !in listOf("http", "https") ||
+                        parsed?.host.isNullOrBlank())) ||
                     runCatching { port.senderUrl() }.getOrNull() != page) {
                     MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF, "prepare_rejected", port.engineSession)
                     return@post
                 }
                 val rect=rectOf(data)
+                val vw=data.optDouble("viewportW",0.0)
+                val vh=data.optDouble("viewportH",0.0)
                 onAutoOffer?.invoke(AutoOffer(port,frameKey,elementKey,page,url,
                     data.optBoolean("topFrame",false) && rect != null,
-                    rect?.x?:0.0,rect?.y?:0.0,rect?.w?:0.0,rect?.h?:0.0,rect?.dpr?:1.0))
+                    rect?.x?:0.0,rect?.y?:0.0,rect?.w?:0.0,rect?.h?:0.0,rect?.dpr?:1.0,
+                    blob,vw,vh))
+                return@post
+            }
+            if (data.optString("event") == "iframe_geometry") {
+                val r=rectOf(data) ?: return@post
+                val request=frameRequest
+                if (request != null && port === request.topPort &&
+                    request.nonce == data.optString("nonce") &&
+                    request.offer.pageUrl == data.optString("frameUrl") &&
+                    port.engineSession === request.binding.session) {
+                    main.removeCallbacks(request.timeout)
+                    frameRequest=null
+                    resolvedFramePort=request.offer to port
+                    request.done(r)
+                    return@post
+                }
+                val l=lease
+                val t=l?.target
+                if (l != null && t != null && l.framePort === port &&
+                    l.nonce == data.optString("nonce") &&
+                    t.pageUrl == data.optString("frameUrl") &&
+                    port.engineSession === l.binding.session)
+                    onInlineLayout?.invoke(l.nonce,r)
                 return@post
             }
             if (data.optString("event") == "inline_layout") {
                 val l=lease ?: return@post
                 val t=l.target ?: return@post
                 val r=rectOf(data) ?: return@post
-                if (l.port === port && l.nonce == data.optString("nonce") &&
+                if (l.framePort == null && l.port === port &&
+                    l.nonce == data.optString("nonce") &&
                     t.frameKey == data.optString("frameKey") &&
                     t.elementKey == data.optString("elementKey") &&
                     runCatching { port.senderUrl() }.getOrNull() == l.frameUrl)
@@ -325,13 +423,21 @@ internal object MediaElementPlaybackBridge {
         check(Looper.myLooper() == Looper.getMainLooper())
         val l=lease ?: return false
         val t=l.target ?: return false
-        if (l.nonce != token || !t.topFrame ||
+        if (l.nonce != token ||
             !matches(l.binding,actual.binding) || l.pageUrl != actual.pageUrl ||
             !ports.contains(l.port) ||
             runCatching { l.port.senderUrl() }.getOrNull() != l.frameUrl) return false
+        val framePort = if (t.topFrame) null
+            else resolvedFramePort?.takeIf { it.first === t }?.second ?: return false
         return runCatching {
             l.port.postMessage(JSONObject().put("version",1)
                 .put("event","inline_start").put("nonce",token))
+            if (framePort != null) {
+                l.framePort=framePort
+                framePort.postMessage(JSONObject().put("version",1)
+                    .put("event","iframe_track").put("nonce",token)
+                    .put("frameUrl",t.pageUrl))
+            }
             true
         }.getOrDefault(false)
     }

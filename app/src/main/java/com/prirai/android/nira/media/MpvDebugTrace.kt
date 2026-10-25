@@ -51,6 +51,9 @@ internal object MpvDebugTrace {
         "mpv_tls_certificate_error", "mpv_tls_handshake_error",
         "inline_eligible", "inline_open", "inline_loaded", "inline_failed",
         "inline_frame_unsupported", "inline_fullscreen", "inline_return", "inline_closed",
+        "blob_offer", "blob_candidate_found", "blob_candidate_missing",
+        "blob_candidate_ambiguous", "blob_frame_lookup", "blob_frame_resolved",
+        "blob_frame_failed",
         "mpv_network_timeout", "mpv_dns_failure", "mpv_format_error",
         "mpv_open_failed", "mpv_network_other"
     )
@@ -69,7 +72,7 @@ internal object MpvDebugTrace {
 
     @Synchronized
     fun report(section: Section, session: Any?, playerMode: String? = null): String = buildString {
-        appendLine("Zavro x MPV v1143 — ${section.name}")
+        appendLine("Zavro x MPV v1144 — ${section.name}")
         appendLine("Tryb odtwarzania: ${playerMode ?: "nie dotyczy"}")
         appendLine("Sesja Gecko: ${if (session == null) "BRAK" else "AKTYWNA"}")
         appendLine("Zapis tylko w RAM; brak URL, hostów, cookies, nagłówków i tokenów.")
@@ -100,7 +103,7 @@ internal object MpvDebugTrace {
         fun had(code: String) = relevant.any { it.code == code }
         fun count(code: String) = during.count { it.code == code }
         fun yes(value: Boolean) = if (value) "TAK" else "NIE"
-        appendLine("Zavro x MPV v1143 — SUPERTEST 40 s")
+        appendLine("Zavro x MPV v1144 — SUPERTEST 40 s")
         appendLine("Tryb: ${mode}; czas: ${(finishedMs - startedMs).coerceAtLeast(0L) / 1000} s")
         appendLine("JEDEN RAPORT • tylko RAM i kody diagnostyczne; bez adresów, hostów, cookies, tokenów i nagłówków.")
         appendLine()
@@ -112,8 +115,12 @@ internal object MpvDebugTrace {
         appendLine("2. AUTO / HANDOFF")
         appendLine("Oferta AUTO: ${yes(had("auto_offered") || had("auto_offer_received"))}, prepare: ${yes(had("prepare_sent"))}, ACK: ${yes(had("ack_ok"))}")
         appendLine("Odmowa prepare: ${count("prepare_rejected")}; timeout ACK: ${count("ack_timeout")}; rollback: ${count("mpv_auto_rollback")}")
-        if (had("source_blob") || had("source_drm"))
-            appendLine("Wniosek: blob/MSE/DRM pozostaje w Gecko; brak handoff jest zachowaniem ochronnym.")
+        if (had("source_drm"))
+            appendLine("Wniosek: DRM pozostaje w Gecko.")
+        else if (had("source_blob") && !had("blob_candidate_found"))
+            appendLine("Wniosek: blob/MSE nie ma jednoznacznego strumienia HLS; Gecko pozostaje aktywne.")
+        else if (had("blob_candidate_found"))
+            appendLine("Wniosek: rozpoznano strumień HLS dla blob; sprawdź ACK i ustawienie ramki.")
         else if (!had("video_play")) appendLine("Wniosek: w tym oknie nie wykryto Play; nie można ocenić AUTO.")
         else if (!had("gesture")) appendLine("Wniosek: Play bez potwierdzonego gestu; AUTO celowo nie przejmuje.")
         else if (!had("auto_offered") && !had("auto_offer_received"))
