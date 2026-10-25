@@ -115,7 +115,7 @@ internal fun AlphaSettingsImport(config:AlphaLuaConfig) {
                         "Ostrzeżenia: ${preview.warnings.size}. Wartości poza zakresem widoku będą ograniczone podczas renderowania; oryginały pozostaną w danych.")
                     if(preview.matchedCount==0)Text("Brak ustawień obsługiwanych przez v1152.")
                     if(!validCandidate)Text("Wybrany zakres przekracza limit modelu konfiguracji lub jest niepoprawny.")
-                    Text("Prędkości poza zakresem 0,5–3× pozostaną zapisane, ale nie będą wykonywane.")
+                    Text("Natywna ścieżka prędkości obsługuje 0,5–3×. Dowolny Lua wymaga osobnej zgody w ustawieniach panelu; import jej nie włącza.")
                     Text("Transfer pozostaje ukryty bez rzeczywistego pomiaru. Układ może zostać dopasowany do dostępnego obszaru ekranu.")
                     if(selection==AlphaImportScope.APPEARANCE)
                         Text("Indywidualne kolory i ikony są przenoszone tylko dla zgodnych ID; kody i kolejność pozostają.")

@@ -80,7 +80,7 @@ class AlphaFoundationTest {
         assertEquals(slots,decoded)
         assertNull(decoded[1])
         assertFalse(AlphaPreferences().luaExecutionEnabled)
-        assertFalse(AlphaLuaBridge.plan().installBeforeInitialization)
+        assertFalse(AlphaLuaState().enabled)
     }
     @Test fun legacyMigrationMovesHistoricalSlotsWithoutDroppingOverflow() {
         val slots=MutableList<AlphaLuaButton?>(35) { null }

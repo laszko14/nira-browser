@@ -342,3 +342,6 @@ Oryginalne LuaButtonGrid/Minimal Soft, fonty i edycja 30+8 z Alpha v54 na bazie 
 
 ## 2026-10-25 — v1152
 Lokalny import eksportu Alpha v54 przez SAF: podgląd/zakresy, allowlista, 43 sloty i wygląd, rzeczywiste preferencje HUD, prywatny backup/undo. Baza v1151 62b8ead. Szczegóły: [ZAVRO_X_MPV_V1152_HANDOFF.md](ZAVRO_X_MPV_V1152_HANDOFF.md). Lua/startup/audio nieaktywne; bez merge.
+
+## Checkpoint v1153 — Lua bridge Alpha v54 (2026-10-25)
+Baza v1152 6254dc08c5d47681ce911660bf93db2271174eb8. Gałąź feat/zavro-x-mpv-v1153-alpha-lua-bridge, Draft PR względem v1152 bez merge. Stały bridge przed jedynym initialize, handshake/epoch/skorelowane ACK, domyślne off i osobna zgoda, click/long-press po aktualnym ID. Brak onStartup, runtime reload, drugiego playera i zmiany importowanego wyglądu. Pełny stan, linki gałęzi, ograniczenia i instrukcja telefonu: docs/ZAVRO_X_MPV_V1153_HANDOFF.md. Końcowe SHA i bezpośrednie CI/APK w raporcie oraz opisie PR; nie deklarować gotowego artefaktu bez potwierdzenia CI.

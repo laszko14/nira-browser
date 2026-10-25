@@ -22,12 +22,14 @@ internal enum class AlphaCommandResult { APPLIED, UNAVAILABLE, INVALID, FAILED }
 /** UI-facing session contract. No engine, file, surface, URL or lifecycle operations. */
 internal interface AlphaSession {
     val state:StateFlow<AlphaPlaybackState>
+    val lua:AlphaLuaController? get()=null
     fun execute(command:AlphaCommand):AlphaCommandResult
 }
 
 /** Fed by Zavro's existing observer. Never registers a second native observer. */
 internal class AlphaSessionAdapter(
     private val canControl:()->Boolean,
+    override val lua:AlphaLuaController?=null,
     private val backend:(AlphaCommand)->Unit,
 ):AlphaSession {
     private val mutableState=MutableStateFlow(AlphaPlaybackState())
