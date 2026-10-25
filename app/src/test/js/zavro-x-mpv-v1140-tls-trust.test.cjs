@@ -25,5 +25,5 @@ test('v1140: diagnostic categories separate handshake/cert and remain allowliste
   assert.match(debug,/mpv_tls_ca_unavailable/);
   assert.match(debug,/mpv_tls_certificate_error/);
   assert.match(debug,/mpv_tls_handshake_error/);
-  assert.match(debug,/Zavro x MPV v1140/);
+  assert.match(debug,/Zavro x MPV v11\d{2}/);
 });

@@ -55,6 +55,8 @@ class ZavroMpvActivity : AppCompatActivity() {
     }
     private var ready = false
     private var fileLoaded = false
+    private val retryController = MpvRetryController()
+    private var retryGeneration = 0
     private var autoHandoff = false
     private var loadStartMs = 0L
     private var userPaused = false
@@ -158,7 +160,14 @@ class ZavroMpvActivity : AppCompatActivity() {
 
     private val mpvLogs = object : MPVLib.LogObserver {
         override fun logMessage(prefix: String, level: Int, text: String) {
-            MpvDebugTrace.classifyMpvLog(prefix, level, text)?.let(::trace)
+            val code = MpvDebugTrace.classifyMpvLog(prefix, level, text) ?: return
+            trace(code)
+            // Categorize post-load segment TLS errors without storing the raw log,
+            // hostname, signed query, or HTTP headers.
+            if (code == "mpv_tls_error" || code == "mpv_tls_certificate_error" ||
+                code == "mpv_tls_handshake_error") runOnUiThread {
+                if (ready && fileLoaded) trace("mpv_tls_after_load")
+            }
         }
     }
 
@@ -192,15 +201,37 @@ class ZavroMpvActivity : AppCompatActivity() {
                 MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED -> runOnUiThread {
                     if (ready) {
                         fileLoaded = true
+                        val resumeAt = retryController.onFileLoaded()
                         trace("mpv_file_loaded")
                         timeoutAction?.let(handler::removeCallbacks)
                         status?.text = "MPV w Zavro • odtwarzanie"
                         updateHud()
+                        if (resumeAt != null) {
+                            val generation = retryGeneration
+                            handler.postDelayed({
+                                if (ready && fileLoaded && !isFinishing &&
+                                    generation == retryGeneration) {
+                                    trace("mpv_retry_resume_attempt")
+                                    runCatching {
+                                        MPVLib.command("seek", resumeAt.toString(), "absolute+keyframes")
+                                    }.onFailure { trace("mpv_retry_resume_failed") }
+                                }
+                            }, 350L)
+                        }
                     }
                 }
                 MPVLib.MpvEvent.MPV_EVENT_END_FILE -> runOnUiThread {
                     if (!ready || isFinishing) return@runOnUiThread
-                    if (!fileLoaded) {
+                    // A 'loadfile replace' unloads the OLD file first. It is
+                    // not evidence that opening the new stream failed.
+                    if (retryController.consumeReplacementEnd()) {
+                        trace("mpv_retry_replacement_end")
+                        return@runOnUiThread
+                    }
+                    val previouslyLoaded = fileLoaded
+                    fileLoaded = false
+                    retryController.clear()
+                    if (!previouslyLoaded) {
                         trace("mpv_end_before_load")
                         if (autoHandoff) {
                             trace("mpv_auto_rollback")
@@ -265,6 +296,10 @@ class ZavroMpvActivity : AppCompatActivity() {
         surface.userAgent = source.userAgent?.takeIf(::safeHeader)
         surface.referrer = source.referrer?.takeIf(::safeHeader)
             ?.let(Uri::parse)?.takeIf(::allowedVideoUrl)?.toString()
+        // Retries are limited to HLS/DASH HTTP requests, not application-level
+        // replays. No automatic retry on authentication/permission failures.
+        surface.segmentedNetworkReconnect = MpvDebugTrace.classifySource(url) in
+            setOf("source_hls", "source_dash")
         // libmpv/FFmpeg on Android may not discover the OS trust store.
         // Export only Android's system CA roots as an app-private PEM; never bypass TLS.
         surface.tlsCaFile = MpvTlsTrust.prepare(this)
@@ -573,14 +608,22 @@ class ZavroMpvActivity : AppCompatActivity() {
 
     private fun retry() {
         val url = currentUrl ?: return
-        trace("mpv_retry")
-        if (!ready) return
+        if (!ready || isFinishing) return
+        retryController.prepare(fileLoaded, position, duration)
+        retryGeneration++
         fileLoaded = false
         status?.text = "Ponowne łączenie…"
-        runCatching {
-            MPVLib.command("stop")
-            MPVLib.command("loadfile", url)
-        }.onFailure { status?.text = "Błąd otwarcia • wróć do strony" }
+        // One atomic playlist replacement; an extra 'stop' created a spurious
+        // END_FILE in v1140 and could show 'mpv_manual_error' while reopening.
+        val started = runCatching {
+            MPVLib.command("loadfile", url, "replace")
+        }.isSuccess
+        if (!started) {
+            retryController.clear()
+            status?.text = "Błąd ponownego otwarcia • wróć do strony"
+            return
+        }
+        trace("mpv_retry")
         scheduleTimeout()
     }
 
@@ -653,6 +696,7 @@ class ZavroMpvActivity : AppCompatActivity() {
         timeoutAction?.let(handler::removeCallbacks)
         controlsHideTask?.let(handler::removeCallbacks)
         player?.isExiting = true
+        retryController.clear()
         if (ready) {
             ready = false
             runCatching { MPVLib.removeObserver(mpvEvents) }
@@ -683,6 +727,7 @@ class ZavroMpvView(context: android.content.Context, attrs: AttributeSet) :
     var userAgent: String? = null
     var referrer: String? = null
     var tlsCaFile: String? = null
+    var segmentedNetworkReconnect = false
     var isExiting = false
     var onSurfaceReady: (() -> Unit)? = null
 
@@ -699,6 +744,14 @@ class ZavroMpvView(context: android.content.Context, attrs: AttributeSet) :
         MPVLib.setOptionString("ytdl", "no")
         MPVLib.setOptionString("tls-verify", "yes")
         tlsCaFile?.let { MPVLib.setOptionString("tls-ca-file", it) }
+        if (segmentedNetworkReconnect) {
+            // Bounded FFmpeg reconnect for mid-playback HLS/DASH segment failures.
+            // Keep TLS verification; do NOT retry 401/403 or loop at segment EOF.
+            val retryOptions = "reconnect=1,reconnect_on_network_error=1," +
+                "reconnect_streamed=1,reconnect_delay_max=2"
+            MPVLib.setOptionString("stream-lavf-o", retryOptions)
+            MPVLib.setOptionString("demuxer-lavf-o", retryOptions)
+        }
         // Stream directly over HTTP: seekable cache, bounded buffering,
         // retry button. Never download the whole movie to a temporary file.
         MPVLib.setOptionString("cache", "yes")
