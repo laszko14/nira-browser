@@ -3,6 +3,7 @@ package com.prirai.android.nira.media
 import android.app.Activity
 import android.content.Context
 import android.graphics.Color
+import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
@@ -12,6 +13,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.PopupMenu
 import android.widget.TextView
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import com.prirai.android.nira.R
@@ -27,7 +29,11 @@ internal class InlineMpvUi(
 ) {
     private val main=Handler(Looper.getMainLooper())
     private val density=context.resources.displayMetrics.density
+    // Keep a single decor parent for the entire lifecycle: never reparent SurfaceView.
+    private val windowHost=activity.window.decorView as ViewGroup
     private val overlay=FrameLayout(context).apply {
+        clipChildren=true
+        clipToPadding=true
         setBackgroundColor(Color.BLACK)
         elevation=16f*density
         isClickable=true
@@ -38,6 +44,35 @@ internal class InlineMpvUi(
     private var fullscreen=false
     private var previousRect: MediaElementPlaybackBridge.InlineRect?=null
     private var timeout: Runnable?=null
+    private var controlBar: LinearLayout?=null
+    private var controlMode=-1
+    private var controlsVisible=true
+    private var hideControlsTask:Runnable?=null
+    private var speed=1.5
+    @Volatile private var lastPosition=Double.NaN
+    private var returnAt=Double.NaN
+    private var pendingReturnCheck=false
+    private fun dp(n:Int)=(n*density+0.5f).toInt()
+    private fun trace(code:String)=MpvDebugTrace.note(MpvDebugTrace.Section.MPV,code,session)
+    private fun scheduleHide() {
+        hideControlsTask?.let(main::removeCallbacks)
+        val task=Runnable {
+            if (!destroyed && controlsVisible) {
+                controlsVisible=false
+                controlBar?.visibility=View.GONE
+                trace("inline_controls_hidden")
+            }
+        }
+        hideControlsTask=task
+        main.postDelayed(task,3_000L)
+    }
+    private fun revealControls() {
+        if (destroyed) return
+        controlsVisible=true
+        controlBar?.visibility=View.VISIBLE
+        trace("inline_controls_shown")
+        scheduleHide()
+    }
     private val oldUi=activity.window.decorView.systemUiVisibility
     private val logs=object: MPVLib.LogObserver {
         override fun logMessage(prefix:String,level:Int,text:String) {
@@ -57,12 +92,23 @@ internal class InlineMpvUi(
                 if (value) "mpv_cache_wait" else "mpv_cache_resume",session)
         }
         override fun eventProperty(property:String,value:Double) {
-            if (property=="time-pos" && !destroyed)
+            if (property=="time-pos" && !destroyed) {
+                lastPosition=value
                 MpvSupertest.sample(session,value)
+                if (pendingReturnCheck && value.isFinite()) main.post {
+                    if (!destroyed && pendingReturnCheck) {
+                        pendingReturnCheck=false
+                        if (returnAt.isFinite() && kotlin.math.abs(value-returnAt)<4.0)
+                            trace("inline_position_preserved")
+                    }
+                }
+            }
         }
         override fun event(eventId:Int,data:MPVNode) {
-            if (eventId==MPVLib.MpvEvent.MPV_EVENT_START_FILE) MpvDebugTrace.note(
-                MpvDebugTrace.Section.MPV,"mpv_start_file",session)
+            if (eventId==MPVLib.MpvEvent.MPV_EVENT_START_FILE) {
+                trace("mpv_start_file")
+                if (loaded) trace("inline_unexpected_reload")
+            }
             if (eventId==MPVLib.MpvEvent.MPV_EVENT_PLAYBACK_RESTART) MpvDebugTrace.note(
                 MpvDebugTrace.Section.MPV,"mpv_playback_started",session)
             if (eventId==MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED) main.post {
@@ -81,18 +127,84 @@ internal class InlineMpvUi(
             }
         }
     }
-    private fun button(title:String,action:()->Unit)=TextView(context).apply {
-        text=title
-        textSize=13f
-        setTextColor(Color.WHITE)
-        gravity=Gravity.CENTER
-        minWidth=(44*density).toInt()
-        minHeight=(44*density).toInt()
-        background=GradientDrawable().apply {
-            cornerRadius=7*density
-            setColor(Color.argb(230,28,32,36))
+    private fun button(label:String,action:()->Unit):FrameLayout {
+        // Visual icon 32 dp; whole 48 dp container is the touch target.
+        val cell=FrameLayout(context).apply {
+            layoutParams=LinearLayout.LayoutParams(dp(48),dp(48))
+            isClickable=true
+            isFocusable=true
+            contentDescription=label
+            setOnClickListener { revealControls();action() }
         }
-        setOnClickListener { action() }
+        val text=TextView(context).apply {
+            this.text=label
+            textSize=if (label.endsWith("×")) 12f else 17f
+            setTextColor(Color.WHITE)
+            gravity=Gravity.CENTER
+            background=GradientDrawable().apply {
+                cornerRadius=dp(8).toFloat()
+                setColor(Color.argb(100,40,44,52))
+            }
+        }
+        cell.addView(text,FrameLayout.LayoutParams(dp(32),dp(32),Gravity.CENTER))
+        return cell
+    }
+    private fun seek(amount:Int) {
+        runCatching { MPVLib.command("seek",amount.toString(),"relative") }
+    }
+    private fun changeSpeed() {
+        speed=if (speed>=3.0) 1.5 else speed+0.5
+        runCatching { MPVLib.setPropertyDouble("speed",speed) }
+        updateControlsForWidth(if(fullscreen) windowHost.width else overlay.width,true)
+    }
+    private fun overflow(anchor:View) {
+        val popup=PopupMenu(context,anchor)
+        popup.menu.add(0,1,0,"Prędkość: ${speed}×")
+        popup.menu.add(0,2,1,"Napisy")
+        popup.menu.add(0,3,2,"Zamknij mini MPV")
+        popup.setOnMenuItemClickListener {
+            when (it.itemId) {
+                1 -> changeSpeed()
+                2 -> runCatching { MPVLib.command("cycle","sid") }
+                3 -> exit()
+            }
+            true
+        }
+        popup.show()
+    }
+    private fun updateControlsForWidth(width:Int,force:Boolean=false) {
+        if (width<=0 || destroyed) return
+        val available=width/density
+        val mode=if (fullscreen || available>=346f) 0
+            else if (available>=248f) 1 else 2
+        if (!force && controlMode==mode) return
+        controlMode=mode
+        controlBar?.let { overlay.removeView(it) }
+        val bar=LinearLayout(context).apply {
+            orientation=LinearLayout.HORIZONTAL
+            gravity=Gravity.CENTER
+            background=GradientDrawable().apply {
+                cornerRadius=dp(12).toFloat()
+                setColor(Color.argb(160,12,16,22))
+            }
+        }
+        fun add(label:String,action:()->Unit){bar.addView(button(label,action))}
+        if (mode!=2) add("↶") { seek(-10) }
+        add("⏯") { runCatching { MPVLib.command("cycle","pause") } }
+        if (mode==0) add("${speed}×") { changeSpeed() }
+        if (mode!=2) add("↷") { seek(10) }
+        if (mode==0) add("CC") { runCatching { MPVLib.command("cycle","sid") } }
+        add("⛶") { toggleFullscreen() }
+        if (mode==0) add("×") { exit() }
+        else add("⋮") { overflow(bar.getChildAt(bar.childCount-1)) }
+        controlBar=bar
+        val params=FrameLayout.LayoutParams(-2,dp(48),
+            Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
+            bottomMargin=dp(6)
+        }
+        overlay.addView(bar,params)
+        bar.visibility=if (controlsVisible) View.VISIBLE else View.GONE
+        if (controlsVisible) scheduleHide()
     }
     fun open(url:String,userAgent:String?,referrer:String?,
              rect:MediaElementPlaybackBridge.InlineRect):Boolean {
@@ -120,23 +232,12 @@ internal class InlineMpvUi(
             MPVLib.observeProperty("paused-for-cache",MPVLib.MpvFormat.MPV_FORMAT_FLAG)
             player=video
             overlay.addView(video,FrameLayout.LayoutParams(-1,-1))
-            val controls=LinearLayout(context).apply {
-                gravity=Gravity.CENTER_HORIZONTAL
-                orientation=LinearLayout.HORIZONTAL
-            }
-            controls.addView(button("−10") { runCatching { MPVLib.command("seek","-10","relative") } })
-            controls.addView(button("⏯") { runCatching { MPVLib.command("cycle","pause") } })
-            var speed=1.5
-            controls.addView(button("1.5×") {
-                speed=if(speed>=3.0)1.5 else speed+.5
-                runCatching { MPVLib.setPropertyDouble("speed",speed) }
-            })
-            controls.addView(button("+10") { runCatching { MPVLib.command("seek","10","relative") } })
-            controls.addView(button("CC") { runCatching { MPVLib.command("cycle","sid") } })
-            controls.addView(button("⛶") { toggleFullscreen() })
-            controls.addView(button("✕") { exit() })
-            overlay.addView(controls,FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
-            host.addView(overlay,CoordinatorLayout.LayoutParams(1,1))
+            // The same native video surface stays attached while only overlay bounds
+            // change. This prevents SurfaceView destruction during fullscreen.
+            player?.setOnClickListener { revealControls() }
+            overlay.setOnClickListener { revealControls() }
+            overlay.visibility=View.INVISIBLE
+            windowHost.addView(overlay,FrameLayout.LayoutParams(1,1))
             overlay.post { if (!destroyed) place(rect) }
             val action=Runnable { if (!destroyed && !loaded) exit() }
             timeout=action
@@ -149,42 +250,69 @@ internal class InlineMpvUi(
         if (destroyed) return
         previousRect=rect
         if (fullscreen) return
-        val viewport=IntArray(2);val origin=IntArray(2)
-        engine.getLocationOnScreen(viewport)
-        host.getLocationOnScreen(origin)
-        val left=(viewport[0]-origin[0]+rect.x*rect.dpr).toInt()
-        val top=(viewport[1]-origin[1]+rect.y*rect.dpr).toInt()
-        val right=left+(rect.w*rect.dpr).toInt()
-        val bottom=top+(rect.h*rect.dpr).toInt()
-        val x=left.coerceAtLeast(0);val y=top.coerceAtLeast(0)
-        val r=right.coerceAtMost(host.width);val b=bottom.coerceAtMost(host.height)
-        if (r-x<120 || b-y<70) { overlay.visibility=View.INVISIBLE;return }
+        val screen=IntArray(2)
+        engine.getLocationOnScreen(screen)
+        val origin=IntArray(2)
+        windowHost.getLocationOnScreen(origin)
+        val engineVisible=Rect()
+        val hostVisible=Rect()
+        if (!engine.getGlobalVisibleRect(engineVisible) ||
+            !host.getGlobalVisibleRect(hostVisible)) {
+            hideInline()
+            return
+        }
+        // CSS viewport coordinates map through Gecko devicePixelRatio. Intersect
+        // with both actual native viewports so a scrolling video never overlays chrome.
+        val left=(screen[0]+rect.x*rect.dpr).toInt()
+        val top=(screen[1]+rect.y*rect.dpr).toInt()
+        val rectangle=Rect(left,top,
+            left+(rect.w*rect.dpr).toInt(),top+(rect.h*rect.dpr).toInt())
+        if (!rectangle.intersect(engineVisible) ||
+            !rectangle.intersect(hostVisible) ||
+            rectangle.width()<dp(120) || rectangle.height()<dp(70)) {
+            hideInline()
+            return
+        }
+        val wasHidden=overlay.visibility!=View.VISIBLE
         overlay.visibility=View.VISIBLE
-        overlay.layoutParams=CoordinatorLayout.LayoutParams(r-x,b-y)
-        overlay.translationX=x.toFloat()
-        overlay.translationY=y.toFloat()
-        overlay.bringToFront()
+        val params=FrameLayout.LayoutParams(rectangle.width(),rectangle.height(),
+            Gravity.TOP or Gravity.START).apply {
+            leftMargin=rectangle.left-origin[0]
+            topMargin=rectangle.top-origin[1]
+        }
+        val old=overlay.layoutParams as? FrameLayout.LayoutParams
+        if (old?.width!=params.width || old.height!=params.height ||
+            old.leftMargin!=params.leftMargin || old.topMargin!=params.topMargin)
+            overlay.layoutParams=params
+        updateControlsForWidth(rectangle.width())
+        if (wasHidden) trace("inline_surface_visible")
+    }
+    private fun hideInline() {
+        if (overlay.visibility!=View.INVISIBLE) {
+            overlay.visibility=View.INVISIBLE
+            trace("inline_surface_hidden")
+        }
     }
     private fun toggleFullscreen() {
         if (destroyed) return
-        val decor=activity.window.decorView as? ViewGroup ?: return
         if (!fullscreen) {
-            (overlay.parent as? ViewGroup)?.removeView(overlay)
-            overlay.translationX=0f;overlay.translationY=0f
             fullscreen=true
-            decor.addView(overlay,FrameLayout.LayoutParams(-1,-1))
-            activity.window.decorView.systemUiVisibility=
-                View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-            MpvDebugTrace.note(MpvDebugTrace.Section.MPV,"inline_fullscreen",session)
+            // Do not remove/re-add the SurfaceView or call loadfile.
+            overlay.visibility=View.VISIBLE
+            overlay.layoutParams=FrameLayout.LayoutParams(-1,-1,Gravity.TOP or Gravity.START)
+            windowHost.systemUiVisibility=View.SYSTEM_UI_FLAG_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            trace("inline_fullscreen")
         } else {
-            decor.removeView(overlay)
+            returnAt=lastPosition
+            pendingReturnCheck=true
             fullscreen=false
-            host.addView(overlay,CoordinatorLayout.LayoutParams(1,1))
-            activity.window.decorView.systemUiVisibility=oldUi
-            previousRect?.let(::place)
-            MpvDebugTrace.note(MpvDebugTrace.Section.MPV,"inline_return",session)
+            windowHost.systemUiVisibility=oldUi
+            previousRect?.let(::place) ?: hideInline()
+            trace("inline_return")
         }
+        updateControlsForWidth(if(fullscreen) windowHost.width else overlay.width,true)
+        revealControls()
     }
     /** Android Back collapses fullscreen without stopping or re-opening media. */
     fun exitFullscreen(): Boolean {
@@ -197,6 +325,7 @@ internal class InlineMpvUi(
         if (destroyed) return
         destroyed=true
         timeout?.let(main::removeCallbacks)
+        hideControlsTask?.let(main::removeCallbacks)
         if (fullscreen) activity.window.decorView.systemUiVisibility=oldUi
         (overlay.parent as? ViewGroup)?.removeView(overlay)
         player?.isExiting=true
