@@ -1057,23 +1057,16 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         
         val menuItems = mutableListOf<com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem>()
 
-        // v1134: replace the three legacy external-MPV entries with reports.
-        // Actual AUTO/MPV/WEB/EXTERNAL policy remains below in the menu.
-        val diagnosticItems = listOf(
-            Triple("mpv_diag_web", "Diagnostyka 1/3 • Strona i Play", MpvDebugTrace.Section.WEB),
-            Triple("mpv_diag_handoff", "Diagnostyka 2/3 • AUTO / Gecko", MpvDebugTrace.Section.HANDOFF),
-            Triple("mpv_diag_stream", "Diagnostyka 3/3 • MPV / strumień", MpvDebugTrace.Section.MPV)
-        )
-        diagnosticItems.forEach { (id, title, section) ->
-            menuItems.add(
-                com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
-                    id = id,
-                    title = title,
-                    iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_settings_24,
-                    onClick = { showMpvDiagnostics(section) }
-                )
+        // One short diagnostic instead of three manual reports.
+        // The same 40-second capture can also be started inside native MPV.
+        menuItems.add(
+            com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+                id = "mpv_supertest",
+                title = "SUPERTEST • 40 s • jeden raport",
+                iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_settings_24,
+                onClick = { startMpvSupertest() }
             )
-        }
+        )
         menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Divider)
         
         // QuadRow: History, Bookmarks, Print, Save as PDF
@@ -1382,38 +1375,25 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         }
     }
 
-    /** Three copyable, sanitized reports: no URL, cookies or private browsing history. */
-    private fun showMpvDiagnostics(section: MpvDebugTrace.Section) {
+    /** One button: record the current Gecko -> MPV lifecycle for 40 seconds.
+     * The clipboard is populated automatically, including when MPV is opened.
+     */
+    private fun startMpvSupertest() {
         val context = requireContext()
-        fun report(): String {
-            val state = context.components.store.state
-            val tab = state.tabs.firstOrNull { it.id == state.selectedTabId }
-            val session = tab?.engineState?.engineSession
-            val mode = if (tab == null) null else VideoPlayerPolicy
-                .resolve(context, tab.content.url, tab.content.private).name
-            return MpvDebugTrace.report(section, session, mode)
+        val state = context.components.store.state
+        val tab = state.tabs.firstOrNull { it.id == state.selectedTabId }
+        val session = tab?.engineState?.engineSession
+        val mode = if (tab == null) "brak aktywnej karty" else VideoPlayerPolicy
+            .resolve(context, tab.content.url, tab.content.private).name
+        if (com.prirai.android.nira.media.MpvSupertest.start(context, session, mode)) {
+            Toast.makeText(context,
+                "SUPERTEST 40 s: naciśnij Play lub uruchom MPV. Jeden raport skopiuje się automatycznie.",
+                Toast.LENGTH_LONG).show()
+        } else {
+            Toast.makeText(context,
+                "Supertest już trwa: ${com.prirai.android.nira.media.MpvSupertest.remainingSeconds()} s",
+                Toast.LENGTH_SHORT).show()
         }
-        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(context)
-            .setTitle("Zavro x MPV • Diagnostyka ${section.name}")
-            .setMessage(report())
-            .setPositiveButton("Zamknij", null)
-            .setNeutralButton("Odśwież", null)
-            .setNegativeButton("Kopiuj raport", null)
-            .create()
-        dialog.setOnShowListener {
-            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
-                dialog.setMessage(report())
-            }
-            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE).setOnClickListener {
-                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
-                    as android.content.ClipboardManager
-                clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
-                    "Zavro x MPV diagnostics", report()
-                ))
-                Toast.makeText(context, "Raport diagnostyczny skopiowany", Toast.LENGTH_SHORT).show()
-            }
-        }
-        dialog.show()
     }
 
     /** Read-only snapshot, taken from the native bridge after entering the menu. */
