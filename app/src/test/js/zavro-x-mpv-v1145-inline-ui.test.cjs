@@ -10,7 +10,8 @@ test('v1145 uses one native surface parent with compact responsive controls', ()
   const trace = read('app/src/main/java/com/prirai/android/nira/media/MpvDebugTrace.kt');
   const lifecycle = ui.split('private fun toggleFullscreen()')[1].split('/** Android Back')[0];
   assert.match(ui, /windowHost.addView\(overlay/);
-  assert.match(ui, /getGlobalVisibleRect\(engineVisible\)/);
+  assert.match(ui, /getLocalVisibleRect\(engineVisible\)/);
+  assert.match(ui, /engineVisible.offset\(screen\[0\],screen\[1\]\)/);
   assert.match(ui, /rectangle.intersect\(hostVisible\)/);
   assert.match(ui, /main.postDelayed\(task,3_000L\)/);
   assert.match(ui, /dp\(48\),dp\(48\)/);
