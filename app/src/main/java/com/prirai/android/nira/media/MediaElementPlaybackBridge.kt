@@ -23,6 +23,22 @@ internal object MediaElementPlaybackBridge {
     private val main = Handler(Looper.getMainLooper())
     private const val ACK_TIMEOUT_MS = 1_000L
     private const val MAX_PORTS = 96
+    private val UUID_PATTERN = Regex("[0-9a-f-]{36}")
+
+    /** Created by our isolated Gecko content script, not a web page tab ID. */
+    data class AutoOffer(
+        val port: Port,
+        val frameKey: String,
+        val elementKey: String,
+        val pageUrl: String,
+        val mediaUrl: String,
+    ) {
+        override fun toString() = "AutoOffer(<redacted>)"
+    }
+    /** Registered only by the current foreground browser view. */
+    var onAutoOffer: ((AutoOffer) -> Unit)? = null
+
+    fun busy(): Boolean = pending != null || lease != null
 
     private data class Pending(
         val port: Port,
@@ -77,6 +93,7 @@ internal object MediaElementPlaybackBridge {
         tab: MediaTabState,
         sourceUrl: String,
         preferredFrame: String?,
+        target: AutoOffer? = null,
         completed: (String?) -> Unit,
     ) {
         check(Looper.myLooper() == Looper.getMainLooper())
@@ -85,6 +102,11 @@ internal object MediaElementPlaybackBridge {
             return
         }
         val frame = preferredFrame ?: tab.pageUrl
+        if (target != null && (target.pageUrl != frame || target.mediaUrl != sourceUrl ||
+            !ports.contains(target.port))) {
+            completed(null)
+            return
+        }
         if (!frame.startsWith("https://") && !frame.startsWith("http://")) {
             completed(null)
             return
@@ -92,7 +114,8 @@ internal object MediaElementPlaybackBridge {
         // Multiple same-URL frames are ambiguous. Refuse rather than pausing
         // a random ad player. A frame with no port also refuses safely.
         val candidates = ports.filter {
-            it.engineSession === tab.binding.session &&
+            (target == null || it === target.port) &&
+                it.engineSession === tab.binding.session &&
                 runCatching { it.senderUrl() }.getOrNull() == frame
         }
         val port = candidates.singleOrNull()
@@ -118,7 +141,13 @@ internal object MediaElementPlaybackBridge {
                 .put("event", "prepare")
                 .put("nonce", nonce)
                 .put("pageUrl", frame)
-                .put("mediaUrl", sourceUrl))
+                .put("mediaUrl", sourceUrl)
+                .apply {
+                    if (target != null) {
+                        put("frameKey", target.frameKey)
+                        put("elementKey", target.elementKey)
+                    }
+                })
         } catch (_: RuntimeException) {
             main.removeCallbacks(timeout)
             pending = null
@@ -128,11 +157,25 @@ internal object MediaElementPlaybackBridge {
 
     fun received(port: Port, message: Any) {
         main.post {
-            val p = pending ?: return@post
-            if (p.port !== port || !ports.contains(port)) return@post
+            if (!ports.contains(port)) return@post
             val data = message as? JSONObject ?: return@post
-            if (data.optInt("version") != 1 ||
-                data.optString("event") != "handoff_ack" ||
+            if (data.optInt("version") != 1) return@post
+            if (data.optString("event") == "auto_offer") {
+                if (busy() || onAutoOffer == null) return@post
+                val frameKey = data.optString("frameKey")
+                val elementKey = data.optString("elementKey")
+                val page = data.optString("pageUrl")
+                val url = data.optString("mediaUrl")
+                val parsed = runCatching { android.net.Uri.parse(url) }.getOrNull()
+                if (!UUID_PATTERN.matches(frameKey) || !UUID_PATTERN.matches(elementKey) ||
+                    page.length !in 8..8192 || url.length !in 8..8192 ||
+                    parsed?.scheme !in listOf("http", "https") || parsed?.host.isNullOrBlank() ||
+                    runCatching { port.senderUrl() }.getOrNull() != page) return@post
+                onAutoOffer?.invoke(AutoOffer(port, frameKey, elementKey, page, url))
+                return@post
+            }
+            val p = pending ?: return@post
+            if (p.port !== port || data.optString("event") != "handoff_ack" ||
                 data.optString("nonce") != p.nonce) return@post
             main.removeCallbacks(p.timeout)
             pending = null
@@ -163,6 +206,15 @@ internal object MediaElementPlaybackBridge {
             l.pageUrl == actual.pageUrl
         if (safe) send(l.port, "restore", token)
         return safe
+    }
+
+    /** A closed/stale tab must clear its lease without resuming old playback. */
+    fun discard(token: String) {
+        check(Looper.myLooper() == Looper.getMainLooper())
+        val l = lease ?: return
+        if (l.nonce != token) return
+        lease = null
+        if (ports.contains(l.port)) send(l.port, "cancel", token)
     }
 
     private fun send(port: Port, event: String, nonce: String) {

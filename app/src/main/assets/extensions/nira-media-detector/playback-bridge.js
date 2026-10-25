@@ -1,25 +1,41 @@
 "use strict";
 
 /**
- * v1131, deliberately manual-only Gecko → MPV handoff.
- *
- * One privileged native port per frame. BrowserStore chooses the target
- * EngineSession and source URL; this script will only pause a UNIQUE matching
- * HTMLVideoElement in the CURRENT document. It never clicks a site's Play,
- * injects page-world JavaScript, captures credentials or blocks navigation.
+ * v1132: frame + element scoped native handoff.
+ * Automatic offers require a trusted user interaction, real HTMLVideoElement,
+ * visible long-form direct media and explicit AUTO mode on the Android side.
+ * This script never navigates, clicks Play, bypasses EME or touches cookies.
  */
 (() => {
   if (!location || !/^https?:$/.test(location.protocol)) return;
-
   const PORT = "nira.media.playback";
   const MAX_VIDEOS = 64;
   const MAX_URL_LENGTH = 8192;
   const holds = new Map();
-  let port = null;
-  let connectAttempts = 0;
+  const elementKeys = new WeakMap();
+  const offeredAt = new WeakMap();
+  let port = null, connectAttempts = 0, lastGesture = null;
 
+  function uuid() {
+    try {
+      if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+      if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+        const b = crypto.getRandomValues(new Uint8Array(16));
+        b[6] = (b[6] & 15) | 64; b[8] = (b[8] & 63) | 128;
+        const s = Array.from(b, x => x.toString(16).padStart(2, "0")).join("");
+        return s.slice(0,8)+"-"+s.slice(8,12)+"-"+s.slice(12,16)+"-"+s.slice(16,20)+"-"+s.slice(20);
+      }
+    } catch (_) {}
+    return null; // No entropy: fail closed for automatic identity.
+  }
+  const frameKey = uuid();
+  function elementKey(video) {
+    if (!elementKeys.has(video)) elementKeys.set(video, uuid());
+    return elementKeys.get(video);
+  }
   function mediaUrl(video) {
-    const value = video && (video.currentSrc || video.src);
+    if (!video || video.srcObject || video.mediaKeys) return null;
+    const value = video.currentSrc || video.src;
     if (typeof value !== "string" || value.length > MAX_URL_LENGTH) return null;
     try {
       const uri = new URL(value, location.href);
@@ -27,56 +43,100 @@
         !!uri.hostname && !uri.username && !uri.password ? uri.href : null;
     } catch (_) { return null; }
   }
+  function send(value) { try { if (port) port.postMessage(value); } catch (_) {} }
 
-  function send(value) {
-    try { if (port) port.postMessage(value); } catch (_) {}
+  function eligible(video, url) {
+    if (!url || video.paused || video.ended || video.error || !video.isConnected ||
+        video.muted || video.loop || video.mediaKeys || video.srcObject ||
+        !Number.isFinite(video.duration) || video.duration < 180) return false;
+    // Refuse generic endpoints, MSE/blobs and typical ad assets. Heuristics
+    // alone cannot guarantee ad identification: AUTO remains user opt-in.
+    let parsed;
+    try { parsed = new URL(url); } catch (_) { return false; }
+    if (!/\.(?:mp4|m4v|webm|m3u8)(?:$)/i.test(parsed.pathname) ||
+        /(?:^|[./_-])(?:ads?|vast|vpaid|preroll|midroll|doubleclick)(?:[./_-]|$)/i.test(parsed.hostname + parsed.pathname)) return false;
+    if (typeof video.getBoundingClientRect !== "function") return false;
+    const r = video.getBoundingClientRect();
+    return r.width >= 320 && r.height >= 180;
   }
 
   function prepare(request) {
     if (typeof request.mediaUrl !== "string" || request.mediaUrl.length > MAX_URL_LENGTH ||
         request.pageUrl !== location.href || holds.size ||
         !/^[0-9a-f-]{36}$/.test(request.nonce)) return;
-    let matches = [];
-    let inspected = 0;
+    const targeted = request.frameKey != null || request.elementKey != null;
+    if (targeted && (!frameKey || request.frameKey !== frameKey ||
+        typeof request.elementKey !== "string")) {
+      send({version:1, event:"handoff_ack", nonce:request.nonce, ok:false});
+      return;
+    }
+    let matches = [], inspected = 0;
     try {
       for (const video of document.querySelectorAll("video")) {
         if (++inspected > MAX_VIDEOS || matches.length > 1) break;
         if (!(video instanceof HTMLVideoElement) || !video.isConnected ||
-            video.ended || video.error || video.mediaKeys) continue;
-        if (mediaUrl(video) === request.mediaUrl) matches.push(video);
+            video.ended || video.error || video.mediaKeys || video.srcObject) continue;
+        if (mediaUrl(video) === request.mediaUrl &&
+            (!targeted || elementKey(video) === request.elementKey)) matches.push(video);
       }
     } catch (_) { return; }
     if (matches.length !== 1) {
-      send({ version: 1, event: "handoff_ack", nonce: request.nonce, ok: false });
+      send({version:1, event:"handoff_ack", nonce:request.nonce, ok:false});
       return;
     }
-    const video = matches[0];
-    const wasPlaying = !video.paused;
+    const video = matches[0], wasPlaying = !video.paused;
+    if (targeted && !wasPlaying) {
+      send({version:1, event:"handoff_ack", nonce:request.nonce, ok:false});
+      return;
+    }
     try {
       video.pause();
-      if (!video.paused) throw new Error("video not paused");
-      holds.set(request.nonce, {
-        video, src: request.mediaUrl, page: location.href, wasPlaying,
-      });
-      send({ version: 1, event: "handoff_ack", nonce: request.nonce, ok: true });
+      if (!video.paused) throw new Error("not paused");
+      holds.set(request.nonce, {video, src:request.mediaUrl, page:location.href, wasPlaying});
+      send({version:1, event:"handoff_ack", nonce:request.nonce, ok:true});
     } catch (_) {
-      send({ version: 1, event: "handoff_ack", nonce: request.nonce, ok: false });
+      send({version:1, event:"handoff_ack", nonce:request.nonce, ok:false});
     }
   }
-
-  function restore(request) {
+  function release(request, resume) {
     const state = holds.get(request.nonce);
     if (!state) return;
     holds.delete(request.nonce);
-    // Another navigation, new source, detached element or a prior paused state:
-    // NEVER issue Play against the replacement document/element.
-    if (!state.wasPlaying || state.page !== location.href ||
+    if (!resume || !state.wasPlaying || state.page !== location.href ||
         !state.video.isConnected || state.video.ended ||
         mediaUrl(state.video) !== state.src) return;
     try {
       const result = state.video.play();
       if (result && typeof result.catch === "function") result.catch(() => {});
     } catch (_) {}
+  }
+
+  function userGesture(event) {
+    if (!event || event.isTrusted !== true) return;
+    if (event.type === "keydown" && !["Enter", " ", "Spacebar"].includes(event.key)) return;
+    lastGesture = {at:Date.now(), target:event.target};
+  }
+  function videoPlayed(event) {
+    const video = event.target;
+    if (!(video instanceof HTMLVideoElement) || !port) return;
+    // A site may call play() again while MPV is active: never permit double audio.
+    for (const hold of holds.values()) {
+      if (hold.video === video) { try { video.pause(); } catch (_) {} return; }
+    }
+    if (!frameKey || !lastGesture || Date.now() - lastGesture.at > 1500 ||
+        event.isTrusted !== true) return;
+    const t = lastGesture.target;
+    if (!(video === t || (typeof video.contains === "function" && video.contains(t)) ||
+        (video.parentElement && typeof video.parentElement.contains === "function" &&
+          video.parentElement.contains(t)))) return;
+    const url = mediaUrl(video);
+    if (!eligible(video,url)) return;
+    const key = elementKey(video);
+    if (!key || Date.now() - (offeredAt.get(video) || 0) < 10000) return;
+    offeredAt.set(video, Date.now());
+    lastGesture = null;
+    send({version:1,event:"auto_offer",frameKey,elementKey:key,
+      pageUrl:location.href,mediaUrl:url});
   }
 
   function connect() {
@@ -88,28 +148,27 @@
       port = connected;
       connected.onMessage.addListener(message => {
         if (port !== connected || !message || message.version !== 1 ||
-            typeof message.event !== "string" ||
-            typeof message.nonce !== "string") return;
+            typeof message.event !== "string" || typeof message.nonce !== "string") return;
         if (message.event === "prepare") prepare(message);
-        if (message.event === "restore") restore(message);
+        if (message.event === "restore") release(message,true);
+        if (message.event === "cancel") release(message,false);
       });
       connected.onDisconnect.addListener(() => {
         if (port !== connected) return;
         port = null;
-        // No automatic resumption after disconnect: the browser/user owns
-        // playback state and a stale frame must never trigger site autoplay.
         holds.clear();
-        if (connectAttempts < 4) setTimeout(connect, 800);
+        if (connectAttempts < 4) setTimeout(connect,800);
       });
     } catch (_) {
       port = null;
-      if (connectAttempts < 4) setTimeout(connect, 800);
+      if (connectAttempts < 4) setTimeout(connect,800);
     }
   }
-
+  document.addEventListener("pointerup",userGesture,true);
+  document.addEventListener("click",userGesture,true);
+  document.addEventListener("keydown",userGesture,true);
+  document.addEventListener("play",videoPlayed,true);
   connect();
-  // Gecko can attach the native handler after document_start. One bounded
-  // retry on DOM readiness covers this without a permanent reconnect loop.
   if (document.readyState === "loading")
-    document.addEventListener("DOMContentLoaded", connect, { once: true });
+    document.addEventListener("DOMContentLoaded",connect,{once:true});
 })();
