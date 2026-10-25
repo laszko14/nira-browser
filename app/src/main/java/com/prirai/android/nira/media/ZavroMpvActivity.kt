@@ -267,6 +267,17 @@ class ZavroMpvActivity : AppCompatActivity() {
             ?.let(Uri::parse)?.takeIf(::allowedVideoUrl)?.toString()
         try {
             surface.initialize(filesDir.absolutePath, cacheDir.absolutePath)
+            // BaseMPVView.playFile queues the file for surfaceCreated().
+            // Queue BEFORE attaching this SurfaceView, never from a later post{}.
+            surface.playFile(url)
+            surface.onSurfaceReady = {
+                if (ready && !isFinishing && currentUrl == url) {
+                    trace("mpv_surface_attached")
+                    trace("mpv_loading")
+                    loadStartMs = android.os.SystemClock.elapsedRealtime()
+                    scheduleTimeout()
+                }
+            }
             player = surface
             ready = true
             MPVLib.addObserver(mpvEvents)
@@ -292,26 +303,6 @@ class ZavroMpvActivity : AppCompatActivity() {
         installGestures(surface)
         installControls(root)
         setContentView(root)
-        // Initial loadfile previously ran before the SurfaceView had been
-        // attached. Defer playback until the host view is in the hierarchy.
-        surface.post {
-            if (ready && !isFinishing && currentUrl == url) {
-                trace("mpv_surface_attached")
-                trace("mpv_loading")
-                loadStartMs = android.os.SystemClock.elapsedRealtime()
-                runCatching { surface.playFile(url) }.onFailure {
-                    if (autoHandoff) {
-                        trace("mpv_auto_rollback")
-                        setResult(Activity.RESULT_CANCELED)
-                        finish()
-                    } else {
-                        trace("mpv_manual_error")
-                        status?.text = "Nie udało się przekazać źródła do MPV • Wróć do strony"
-                    }
-                }
-                scheduleTimeout()
-            }
-        }
     }
 
     private fun installControls(root: FrameLayout) {
@@ -599,13 +590,16 @@ class ZavroMpvActivity : AppCompatActivity() {
                     setResult(Activity.RESULT_CANCELED)
                     finish()
                 } else {
-                    status?.text = "Brak obrazu po 20 s • " +
+                    status?.text = "Nie udało się rozpocząć odtwarzania • " +
                         "strumień może wymagać logowania lub nowego adresu. Ponów / Wróć"
                 }
             }
         }
         timeoutAction = action
-        handler.postDelayed(action, 20_000L)
+        // HLS/DASH can require manifest + segment fetch before FILE_LOADED.
+        val isSegmented = MpvDebugTrace.classifySource(currentUrl.orEmpty()) in
+            setOf("source_hls", "source_dash")
+        handler.postDelayed(action, if (isSegmented) 35_000L else 25_000L)
     }
 
     private fun updateHud() {
@@ -685,6 +679,12 @@ class ZavroMpvView(context: android.content.Context, attrs: AttributeSet) :
     var userAgent: String? = null
     var referrer: String? = null
     var isExiting = false
+    var onSurfaceReady: (() -> Unit)? = null
+
+    override fun surfaceCreated(holder: SurfaceHolder) {
+        super.surfaceCreated(holder) // executes queued loadfile exactly once
+        onSurfaceReady?.invoke()
+    }
 
     override fun initOptions() {
         setVo("gpu")
@@ -708,9 +708,7 @@ class ZavroMpvView(context: android.content.Context, attrs: AttributeSet) :
     override fun observeProperties() {}
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+        // Surface resize must not silently reset playback to the beginning.
         super.surfaceChanged(holder, format, width, height)
-        if (!isExiting && runCatching { MPVLib.getPropertyBoolean("pause") }.getOrNull() == true) {
-            runCatching { MPVLib.command("seek", "0", "relative+exact") }
-        }
     }
 }
