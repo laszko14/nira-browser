@@ -286,3 +286,6 @@ Własne .lua jako osobne natywne klienty, jawne opt-in i snapshot na sesję, SAF
 
 ### 2026-10-25 — v1157
 Ciche SENT/EXEC_OK i pojedyncze błędy, osobne WARN/top-level/callback; poprawiono config=no kontra resolver ~~ bez autoload i bez zmiany źródeł użytkownika. Natywne OSD z Roboto i skalą/marginesem HUD/mini, rzeczywisty odczyt renderer/file/GLSL/vo-passes/cleanup. Edytor ma jeden footer i scroll/IME. Lokalne JUnit179, JS157, Lua17+15+12, DSP13+31 PASS; pełny Gradle build/lint/AndroidTest compile PASS 8m50s. Urządzenia brak — GPU/OSD/dotyk nie zaliczone jako PASS. Handoff v1157 zawiera ograniczenia i instrukcję, bez nowego etapu audio.
+
+### 2026-10-25 — v1158
+Opcjonalne, odwracalne rewizje istniejących przycisków DRC/DE: kopie oryginałów, zachowane sloty/styl i zgody; DRC bez kumulacji, pięć rzeczywistych profili DE z kanonicznej Alpha v54. Native command + AF readback, ochrona obcych filtrów, celowany rollback i osobne skorelowane DSP receipts; brak uznawania samego EXEC_OK za DSP. Review poprawił znikający wpis po nieudanym reinit, dodatkowe obce parametry etykiety i deduplikację błędów ACK/timeout. JUnit194/JS159/Lua77/DSP28 + prywatne regresje PASS; Android test kompilowany, nieuruchomiony. Pełne wyniki i ograniczenia w handoff v1158. Bez merge, prywatnych plików w Git/APK i bez Auto Audio.

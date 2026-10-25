@@ -25,6 +25,7 @@ internal interface AlphaSession {
     val lua:AlphaLuaController? get()=null
     val audio:com.prirai.android.nira.media.alpha.audio.AlphaAudioController? get()=null
     val customScripts:com.prirai.android.nira.media.alpha.scripts.CustomScriptsSession? get()=null
+    val dsp:com.prirai.android.nira.media.alpha.audio.AlphaDspSession? get()=null
     fun feedbackHudBottom(bottom:Float) {}
     fun execute(command:AlphaCommand):AlphaCommandResult
 }
@@ -35,6 +36,7 @@ internal class AlphaSessionAdapter(
     override val lua:AlphaLuaController?=null,
     override val audio:com.prirai.android.nira.media.alpha.audio.AlphaAudioController?=null,
     override val customScripts:com.prirai.android.nira.media.alpha.scripts.CustomScriptsSession?=null,
+    override val dsp:com.prirai.android.nira.media.alpha.audio.AlphaDspSession?=null,
     private val hudBottom:(Float)->Unit = {},
     private val backend:(AlphaCommand)->Unit,
 ):AlphaSession {

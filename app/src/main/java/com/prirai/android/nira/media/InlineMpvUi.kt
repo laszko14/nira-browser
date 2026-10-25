@@ -72,6 +72,7 @@ internal class InlineMpvUi(
         override fun run() {
             if(!destroyed) {
                 alphaLua.tick()
+                dspController.poll()
                 if(customPoll++%2==0) {
                     customScripts.poll()
                     com.prirai.android.nira.media.alpha.scripts.CustomScriptsDiagnostics.update(session,customScripts.state.value)
@@ -85,10 +86,17 @@ internal class InlineMpvUi(
         com.prirai.android.nira.media.alpha.audio.AlphaAudioNative,
         { com.prirai.android.nira.media.alpha.audio.AlphaAudioDiagnostics.update(session,it) },
     )
+    private val dspController=com.prirai.android.nira.media.alpha.audio.AlphaDspSession(
+        { loaded && !destroyed && MpvEngineGate.owns(token) && Looper.myLooper()==Looper.getMainLooper() },
+        {MPVLib.getPropertyNode(com.prirai.android.nira.media.alpha.audio.AlphaDspSession.PROPERTY)?.toJson()},
+        {com.prirai.android.nira.media.alpha.audio.AlphaAudioNative.read()},
+        {android.os.SystemClock.elapsedRealtime()},
+        {com.prirai.android.nira.media.alpha.audio.AlphaDspDiagnostics.update(session,it)},
+    )
     private val alphaAdapter=AlphaSessionAdapter(
         { loaded && !destroyed && MpvEngineGate.owns(token) &&
             Looper.myLooper()==Looper.getMainLooper() },
-        lua=alphaLua,audio=audioController,customScripts=customScripts,
+        lua=alphaLua,audio=audioController,customScripts=customScripts,dsp=dspController,
         hudBottom={player?.setOsdHudBottom(it)},
     ) { command ->
         when(command) {
@@ -558,6 +566,7 @@ internal class InlineMpvUi(
         disposeAlphaControls()
         audioController.close()
         alphaLua.close()
+        dspController.close()
         customScripts.close()
         com.prirai.android.nira.media.alpha.scripts.CustomScriptsDiagnostics.update(session,customScripts.state.value)
         main.removeCallbacks(luaTick)
