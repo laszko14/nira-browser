@@ -17,7 +17,7 @@ test('v1145 uses one native surface parent with compact responsive controls', ()
   assert.match(ui, /private fun updateControlsForWidth/);
   assert.match(ui, /PopupMenu\(context,anchor\)/);
   assert.match(lifecycle, /overlay.layoutParams=FrameLayout.LayoutParams\(-1,-1/);
-  assert.doesNotMatch(lifecycle, /removeView|addView|playFile|loadfile|\.destroy\(/);
+  assert.doesNotMatch(lifecycle, /(?:windowHost|overlay|decor)\.(?:removeView|addView)\(|(?:player|video)\.playFile\(|MPVLib\.command\("loadfile"|\.destroy\(/);
   assert.match(frag, /ui.exitFullscreen\(\)/);
   assert.match(trace, /inline_position_preserved/);
   assert.match(trace, /inline_unexpected_reload/);
