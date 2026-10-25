@@ -39,7 +39,7 @@ internal object PlaybackSourceRegistry {
         pending = null
         if (ticketId.isNullOrBlank() || record?.first != ticketId) return null
         val elapsed = SystemClock.elapsedRealtime() - record.second.createdAtMs
-        if (elapsed !in 0..TTL_MS) return null
+        if (elapsed !in 0L..TTL_MS) return null
         return record.second.source
     }
 
