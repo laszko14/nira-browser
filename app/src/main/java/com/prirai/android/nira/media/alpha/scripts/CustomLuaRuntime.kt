@@ -12,6 +12,10 @@ internal class CustomLuaRuntime private constructor(
     val options:Map<String,String>,val modelAvailable:Boolean,val prepared:Boolean,
     private val directory:File?,private val config:File,
 ) {
+    fun ambientFiles():List<File> = config.listFiles().orEmpty().filter {
+        com.prirai.android.nira.media.alpha.AlphaFeedbackPolicy.ambientFile(it.name) &&
+            !Files.isSymbolicLink(it.toPath()) && it.isFile && it.canonicalFile==it.absoluteFile
+    }
     fun property(row:CustomScript)="user-data/zavro-custom/${row.id}"
     fun cleanup() {
         // Called only AFTER the sole MPV owner destroys the engine (shutdown handlers ran).
@@ -46,7 +50,8 @@ internal class CustomLuaRuntime private constructor(
                 val originals=File(directory,"originals").also {require(it.mkdir())}
                 val paths=rows.map {(row,bytes)->
                     val original=File(originals,row.name);atomic(original,bytes)
-                    val code=template.replace("@SOURCE@",quote(original.absolutePath))
+                    val code=com.prirai.android.nira.media.alpha.AlphaLuaEnvironment.source(config,
+                        "user-data/zavro-feedback/${row.id}")+"\n"+template.replace("@SOURCE@",quote(original.absolutePath))
                         .replace("@PROPERTY@",quote("user-data/zavro-custom/${row.id}"))
                         .replace("@EPOCH@",quote(epoch))
                         .replace("@CLIENT@",quote(CustomLuaStore.clientName(row.name)))
@@ -76,7 +81,7 @@ internal class CustomLuaRuntime private constructor(
         }
         private fun cleanupAmbient(config:File) {
             // Only the documented temporary files of the supplied Ambient+ v4; never a broad *.glsl delete.
-            config.listFiles().orEmpty().filter {it.name.matches(Regex("rex_ambient_plus_v4_[0-9]+_[0-9]+\\.glsl"))}
+            config.listFiles().orEmpty().filter {com.prirai.android.nira.media.alpha.AlphaFeedbackPolicy.ambientFile(it.name)}
                 .forEach {if(!it.isDirectory || Files.isSymbolicLink(it.toPath()))it.delete()}
         }
     }

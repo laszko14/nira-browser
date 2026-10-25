@@ -89,6 +89,7 @@ internal class InlineMpvUi(
         { loaded && !destroyed && MpvEngineGate.owns(token) &&
             Looper.myLooper()==Looper.getMainLooper() },
         lua=alphaLua,audio=audioController,customScripts=customScripts,
+        hudBottom={player?.setOsdHudBottom(it)},
     ) { command ->
         when(command) {
             is AlphaCommand.Pause -> MPVLib.setPropertyBoolean("pause",command.paused)
@@ -142,7 +143,7 @@ internal class InlineMpvUi(
     private val logs=object: MPVLib.LogObserver {
         override fun logMessage(prefix:String,level:Int,text:String) {
             // No source/error text is retained; only the prefix matches the frozen client list.
-            customScripts.log(prefix,level) // thread-safe counters; no log queue or raw text retained
+            customScripts.log(prefix,level,text) // thread-safe counters; no log queue or raw text retained
             if(prefix==AlphaLuaBridge.CLIENT_NAME && level<=30 && text.length<=128 &&
                 text.trim()==AlphaLuaBridge.PUBLISH_FAILED)main.post {
                 if(!destroyed)alphaLua.onPublishFailure()
@@ -428,7 +429,7 @@ internal class InlineMpvUi(
             customScripts.start(video.customRuntime,false,0,0)
             MPVLib.addLogObserver(logs) // Capture fixed bridge startup failures, including during init.
             video.initialize(context.filesDir.absolutePath,context.cacheDir.absolutePath)
-            customScripts.configured(video.customScriptsConfigured,video.customOptionsAccepted,video.customOptionsRejected)
+            customScripts.configured(video.customScriptsConfigured,video.customOptionsAccepted,video.customOptionsRejected,video.nativeOsdConfigured)
             video.playFile(url) // queue before attaching surface
             MPVLib.addObserver(observer)
             MPVLib.observeProperty(AlphaLuaBridge.PROPERTY,MPVLib.MpvFormat.MPV_FORMAT_NODE)

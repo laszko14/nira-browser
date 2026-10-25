@@ -26,6 +26,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -73,7 +76,10 @@ internal fun LuaButtonsInPlayerDialog(
     manualMinimized: Boolean = false,
     onManualMinimize: (Boolean) -> Unit = {},
     importActions:@Composable ()->Unit = {},
+    onReset:()->Unit = {},
 ) {
+    var toolsOpen by remember { mutableStateOf(false) }
+    val keyboard=WindowInsets.ime.getBottom(LocalDensity.current)>0
     val landscape = LocalConfiguration.current.orientation == ORIENTATION_LANDSCAPE
     val savedTab by prefs.luaEditorLastTab.collectAsState()
     val tab = if (savedTab == 2) 1 else 0
@@ -122,7 +128,7 @@ internal fun LuaButtonsInPlayerDialog(
                     modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(9.dp),
                 ) {
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    if(!keyboard)Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text("⚙", fontSize = 20.sp,
                             color = LuaDarkMuted, modifier = Modifier.padding(end = 10.dp))
                         Text(stringResource(R.string.alpha_panel_lua_v2_title), color = LuaDarkText,
@@ -133,8 +139,8 @@ internal fun LuaButtonsInPlayerDialog(
                         }
                         TextButton(onClick = onDismiss) { Text("✕", color = LuaDarkMuted) }
                     }
-                    importActions()
-                    Row(
+                    if(!keyboard)TextButton(onClick={toolsOpen=!toolsOpen}) {Text(if(toolsOpen)"Wróć do panelu" else "Skrypty / Audio / Import") }
+                    if(!keyboard)Row(
                         modifier = Modifier.fillMaxWidth()
                             .background(androidx.compose.ui.graphics.Color(0xFF242C38),
                                 RoundedCornerShape(12.dp)).padding(3.dp),
@@ -156,7 +162,9 @@ internal fun LuaButtonsInPlayerDialog(
                             }
                         }
                     }
-                    if (tab == 0) {
+                    if(toolsOpen) {
+                        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {importActions()}
+                    } else if (tab == 0) {
                         Column(modifier = Modifier.weight(1f)
                             .verticalScroll(rememberScrollState()),
                             verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -164,6 +172,11 @@ internal fun LuaButtonsInPlayerDialog(
                         }
                     } else {
                         LuaInPlayerCodeBrowser(prefs, Modifier.weight(1f))
+                    }
+                    HorizontalDivider()
+                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(4.dp)) {
+                        TextButton(onClick=onReset,modifier=Modifier.weight(1f)) {Text("Domyślne")}
+                        TextButton(onClick=onDismiss,modifier=Modifier.weight(1f)) {Text("Zapisz i zamknij")}
                     }
                 }
             }

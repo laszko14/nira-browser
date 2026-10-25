@@ -14,6 +14,7 @@ internal object AlphaLuaDiagnostics {
     private var owner:Any?=null
     private var current=AlphaLuaState()
     @Synchronized fun update(session:Any?,value:AlphaLuaState) { owner=session;current=value }
+    @Synchronized fun lastStatus(session:Any?):String=if(session!=null && session===owner)current.status.name else "UNCONFIRMED"
     @Synchronized fun report(session:Any?):String {
         val value=if(session!=null && session===owner)current else AlphaLuaState()
         fun yes(flag:Boolean)=if(flag)"TAK" else "NIE"

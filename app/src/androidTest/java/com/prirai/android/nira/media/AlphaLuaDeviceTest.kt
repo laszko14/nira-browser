@@ -101,7 +101,10 @@ class AlphaLuaDeviceTest {
             main {
                 assertEquals(1.5,MPVLib.getPropertyDouble("speed")!!,0.0001)
                 assertEquals(false,MPVLib.getPropertyBoolean("pause"))
-                controller!!.dispatch("local u=require('mp.utils'); assert(type(u.format_json)=='function')")
+                controller!!.dispatch("local u=require('mp.utils'); assert(type(u.format_json)=='function'); "+
+                    "local p=mp.command_native({'expand-path','~~/synthetic-resource'}); "+
+                    "assert(p=="+com.prirai.android.nira.media.alpha.scripts.CustomLuaRuntime.quote(directory.canonicalPath+"/synthetic-resource")+"); "+
+                    "mp.osd_message('synthetic OSD',2)")
             }
             await { controller!!.state.value.succeeded==3 }
             main { controller!!.dispatch("local = broken") }
