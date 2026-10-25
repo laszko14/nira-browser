@@ -300,3 +300,13 @@ Opcjonalne, odwracalne rewizje istniejących przycisków DRC/DE: kopie oryginał
 - Końcowy Gradle po review PASS4m41s: test/lint/assemble/compileAndroidTest; JUnit230/230, JS162/162, Lua77/77, DSP28/28. Brak destrukcyjnej migracji i resetu preferencji. Review autora,92 chronione pliki bez zmian + tylko numer w diagnostyce MPV.
 
 - Review szczegółowego lint: dwa nowe RestrictedApi w ręcznym ViewModelStore.put. Poprawione publicznym ViewModelProvider; końcowy Gradle PASS4m28s, JUnit230/230 i JS162/162,0 tych naruszeń. Pierwsze CI40233363285 anulowane, konieczny drugi push do tego samego Draft PR72. Bez zmian MPV/Lua/DSP.
+
+
+## 2026-10-25 — v1160, diagnoza i implementacja
+- Baza finalnego v1159 fdf3a98; bez ponownego audytu, gałąź fix/zavro-x-mpv-v1160-multigroup-fab-layout.
+- FAB pomijał detached bottom tab strip i nie reagował na zmianę chrome bez resize rodzica; RED layout364vs454. Poprawiono rzeczywiste granice i preDraw/cleanup.
+- Aktywne menu boczne nie miało tworzenia nowej grupy z karty. Dodano dialog i użyto istniejącej atomowej operacji createGroup bez wcześniejszego osobnego remove.
+- Celowane5/5 GREEN: wiele grup, Room/DataStore close-reopen, profile, native strip i pełny hit target. Brak limitu jednej grupy w Room potwierdzają testy.
+- Pełna końcowa walidacja w toku, wyniki w handoff v1160. Android/MPV na telefonie NIEURUCHOMIONE.
+
+- Końcowy review/Gradle PASS2m55s: JUnit235/235, JS162/162, Lua77/77, DSP28/28; assemble i compileAndroidTest PASS. Pierwszy pełny4m31s ujawnił1nowy CheckResult; naprawiony przed pierwszym push. Lint final:0nowych, dokładnie stan v1159 (1462Fatal/258Error/444Warning/19Hint). Kontrola92plików i etykiet MPV PASS. CI/certyfikat/artefakt potwierdzić po push w opisie PR.

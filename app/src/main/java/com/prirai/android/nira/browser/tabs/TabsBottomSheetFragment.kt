@@ -1570,6 +1570,29 @@ class TabsBottomSheetFragment : DialogFragment() {
         onRemoveFromGroup: () -> Unit,
         modifier: Modifier = Modifier
     ) {
+        var creatingGroup by remember(tab.id) { mutableStateOf(false) }
+        var groupName by remember(tab.id) { mutableStateOf("") }
+        if (creatingGroup) {
+            AlertDialog(
+                onDismissRequest = { creatingGroup = false },
+                title = { Text("Nowa grupa kart") },
+                text = {
+                    OutlinedTextField(
+                        value = groupName,
+                        onValueChange = { groupName = it.take(70) },
+                        label = { Text("Nazwa grupy") }, singleLine = true
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        tabViewModel?.moveTabToNewGroup(tab.id, groupName.trim().ifBlank { "Nowa grupa" })
+                        creatingGroup = false
+                        onDismiss()
+                    }) { Text("Utwórz i przenieś") }
+                },
+                dismissButton = { TextButton(onClick = { creatingGroup = false }) { Text("Anuluj") } }
+            )
+        }
         androidx.compose.animation.AnimatedVisibility(
             visible = true,
             enter = androidx.compose.animation.slideInVertically { it } + androidx.compose.animation.fadeIn(),
@@ -1616,7 +1639,12 @@ class TabsBottomSheetFragment : DialogFragment() {
                         modifier = Modifier.padding(vertical = 4.dp)
                     )
 
-                    // Menu options
+                    // This is the active side-panel menu (not TabMenuCompose).
+                    MenuOption(
+                        icon = androidx.compose.material.icons.Icons.Default.Add,
+                        text = "Utwórz nową grupę",
+                        onClick = { creatingGroup = true }
+                    )
                     if (isInGroup) {
                         MenuOption(
                             icon = androidx.compose.material.icons.Icons.Default.Clear,
