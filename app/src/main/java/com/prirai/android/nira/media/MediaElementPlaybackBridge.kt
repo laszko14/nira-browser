@@ -40,12 +40,13 @@ internal object MediaElementPlaybackBridge {
         val blob: Boolean = false,
         val viewportW: Double = 0.0,
         val viewportH: Double = 0.0,
+        val viewportWidth: Double = 0.0,
     ) {
         override fun toString() = "AutoOffer(<redacted>)"
     }
     /** Registered only by the current foreground browser view. */
     var onAutoOffer: ((AutoOffer) -> Unit)? = null
-    data class InlineRect(val x: Double, val y: Double, val w: Double, val h: Double, val dpr: Double)
+    data class InlineRect(val x: Double, val y: Double, val w: Double, val h: Double, val dpr: Double, val viewportWidth: Double = 0.0)
     var onInlineLayout: ((String, InlineRect) -> Unit)? = null
     private data class FrameRequest(
         val topPort: Port, val offer: AutoOffer, val binding: MediaSessionBinding,
@@ -57,7 +58,7 @@ internal object MediaElementPlaybackBridge {
     fun resolveRect(offer: AutoOffer, tab: MediaTabState, done: (InlineRect?) -> Unit) {
         check(Looper.myLooper() == Looper.getMainLooper())
         if (offer.topFrame) {
-            done(InlineRect(offer.x,offer.y,offer.w,offer.h,offer.dpr))
+            done(InlineRect(offer.x,offer.y,offer.w,offer.h,offer.dpr,offer.viewportWidth))
             return
         }
         if (frameRequest != null || offer.pageUrl == tab.pageUrl ||
@@ -103,7 +104,9 @@ internal object MediaElementPlaybackBridge {
         if (!listOf(x,y,w,h,d).all { it.isFinite() } ||
             kotlin.math.abs(x)>20000 || kotlin.math.abs(y)>20000 ||
             w !in 0.0..10000.0 || h !in 0.0..10000.0 || d !in .5..5.0) return null
-        return InlineRect(x,y,w,h,d)
+        val viewportWidth=data.optDouble("viewportWidth",0.0)
+        if (!viewportWidth.isFinite() || viewportWidth !in 0.0..20000.0) return null
+        return InlineRect(x,y,w,h,d,viewportWidth)
     }
 
 
@@ -361,7 +364,7 @@ internal object MediaElementPlaybackBridge {
                 onAutoOffer?.invoke(AutoOffer(port,frameKey,elementKey,page,url,
                     data.optBoolean("topFrame",false) && rect != null,
                     rect?.x?:0.0,rect?.y?:0.0,rect?.w?:0.0,rect?.h?:0.0,rect?.dpr?:1.0,
-                    blob,vw,vh))
+                    blob,vw,vh,rect?.viewportWidth?:0.0))
                 return@post
             }
             if (data.optString("event") == "iframe_geometry") {
@@ -448,6 +451,7 @@ internal object MediaElementPlaybackBridge {
         val l = lease ?: return false
         if (l.nonce != token) return false
         lease = null
+        l.framePort?.let { send(it,"iframe_untrack",token) }
         val safe = ports.contains(l.port) &&
             l.port.engineSession === actual.binding.session &&
             runCatching { l.port.senderUrl() }.getOrNull() == l.frameUrl &&
@@ -466,6 +470,7 @@ internal object MediaElementPlaybackBridge {
         val l = lease ?: return
         if (l.nonce != token) return
         lease = null
+        l.framePort?.let { send(it,"iframe_untrack",token) }
         MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF, "lease_discarded", l.binding.session)
         if (ports.contains(l.port)) send(l.port, "cancel", token)
     }

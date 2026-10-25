@@ -246,3 +246,8 @@
 - Zweryfikowano libmpv z MPV Alpha (Maven 0.0.9), udostępnione BaseMPVView/MPVLib i gotowy podpisujący CI browser.
 - Branch feat/zavro-x-mpv-v1127-standalone (PR #40 draft) na bazie v1126. Wprowadzono osobny identyfikator com.prirai.android.nira.mpv, natywny odtwarzacz, 1.5×, seek -10 s, +10 s, +30 s; otwieranie strumieni z listy i próba fullscreen.
 - Pierwszy GitHub Actions 40142799308: poprawny podpisany build, sześć testów JS historycznie sprawdzało na sztywno v1126. Korekta sprawdzeń na nowy pakiet i wersję w tym commicie. Test na urządzeniu nadal niewykonany; nie mylić statycznego testu z działaniem mpv na stronie.
+
+### 2026-10-25 — v1146
+Poprawiono mapowanie visual viewportu Gecko na powierzchnię MPV, clipping i wycofanie geometrii usuniętego iframe. Node 135/135 PASS. Gradle offline zablokowany brakującą zależnością. Weryfikacja APK przez Actions; test urządzenia pozostaje po stronie użytkownika.
+
+V1146: PR #59 draft, CI https://github.com/laszko14/nira-browser/actions/runs/40170281650 BUILD/TEST/LINT SUCCESS (dbd7c31). Artefakt zavro-x-mpv-arm64-v1146; kontrola podpisu/wersji/ABI PASS. Test telefonu nadal wymagany.

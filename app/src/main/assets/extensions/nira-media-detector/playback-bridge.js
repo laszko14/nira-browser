@@ -53,8 +53,8 @@
   }
   function reportIframeGeometry(nonce, frameUrl) {
     const iframe = uniqueIframe(frameUrl);
-    const r = iframe && rectOf(iframe);
-    if (!r || r.w < 320 || r.h < 180 || r.x < -5000 || r.y < -5000) return;
+    const r = (iframe && rectOf(iframe)) || {x:0,y:0,w:0,h:0,dpr:1};
+
     const data = {nonce,frameUrl,...r};
     send({version:1,event:"iframe_geometry",...data});
     protocolOneShot("iframe_geometry",data);
@@ -70,7 +70,12 @@
     const dpr = Number(typeof window !== "undefined" ? (window.devicePixelRatio || 1) : 1);
     if (![r.left,r.top,r.width,r.height,dpr].every(Number.isFinite) ||
         r.width < 1 || r.height < 1 || dpr < .5 || dpr > 5) return null;
-    return {x:r.left,y:r.top,w:r.width,h:r.height,dpr};
+    const viewport = typeof window !== "undefined" && window.visualViewport;
+    const viewportWidth = Number(viewport ? viewport.width : window.innerWidth);
+    return {x:r.left-(viewport ? viewport.offsetLeft : 0),
+      y:r.top-(viewport ? viewport.offsetTop : 0),
+      w:r.width,h:r.height,dpr,
+      viewportWidth:Number.isFinite(viewportWidth) ? viewportWidth : 0};
   }
   function layoutUpdate() {
     if (!inlineLease || !holds.has(inlineLease.nonce) ||
@@ -354,6 +359,8 @@
             layoutUpdate();
           }
         }
+        if (message.event === "iframe_untrack" &&
+            trackedFrame && trackedFrame.nonce === message.nonce) trackedFrame = null;
         if (message.event === "restore") release(message,true);
         if (message.event === "cancel") release(message,false);
       });
@@ -391,6 +398,16 @@
   if (typeof window !== "undefined") window.addEventListener("resize",layoutUpdate,true);
   if (typeof window !== "undefined") window.addEventListener("scroll",trackIframe,true);
   if (typeof window !== "undefined") window.addEventListener("resize",trackIframe,true);
+  if (typeof window !== "undefined" && window.visualViewport) {
+    window.visualViewport.addEventListener("scroll",layoutUpdate);
+    window.visualViewport.addEventListener("resize",layoutUpdate);
+    window.visualViewport.addEventListener("scroll",trackIframe);
+    window.visualViewport.addEventListener("resize",trackIframe);
+  }
+  // A trailing sample also handles CSS/layout changes and throttled final scroll events.
+  if (typeof setInterval === "function") setInterval(() => {
+    layoutUpdate(); trackIframe();
+  }, 200);
   connect();
   if (document.readyState === "loading")
     document.addEventListener("DOMContentLoaded",connect,{once:true});
