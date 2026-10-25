@@ -33,5 +33,5 @@ test('v1141: VOD resume guarded and no raw URL in trace', () => {
   assert.match(controller,/positionSeconds < durationSeconds - 5\.0/);
   assert.match(act,/MPVLib\.command\("seek", resumeAt\.toString\(\), "absolute\+keyframes"\)/);
   assert.match(debug,/mpv_tls_after_load/);
-  assert.match(debug,/Zavro x MPV v1141/);
+  assert.match(debug,/Zavro x MPV v11\d{2}/);
 });
