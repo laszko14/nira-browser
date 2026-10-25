@@ -5,9 +5,10 @@ standalone prototype. It is **not** the completed MPV Alpha port.
 
 ## What this branch changes
 
-- Keeps the existing browser package `com.prirai.android.nira`; removes the
-  experimental `.mpv` suffix and the second-app branding. Uses effective
-  ARM64 versionCode **1128** (base 128 + 1000).
+- Keeps the established release package `com.prirai.android.nira` **and**
+  the existing signed testing track `com.prirai.android.nira.debug` from v1126.
+  Removes the experimental `.mpv` suffix; effective ARM64 versionCode is
+  **1128** (base 128 + 1000). CI produces the **.debug testing APK**.
 - Reuses the tested-in-CI native libmpv Activity from PR #40 inside Zavro.
 - Routes manual detected-media choices / manual HTTPS media link entry into
   the embedded player by default. The existing `ask_each_time` preference
@@ -34,8 +35,8 @@ standalone prototype. It is **not** the completed MPV Alpha port.
   binary/license compliance audit** (FFmpeg GPL/LGPL and notices) before a
   production release.
 - CI project signing certificate is pinned, but it must still be compared
-  with the actual installed APK's certificate and versionCode before any
-  on-device update can be declared safe.
+  with the actual installed APK's **package (debug vs release)**, certificate
+  and versionCode before any on-device update can be declared safe.
 - Do not uninstall Zavro or clear browser storage if an update is rejected.
 
 ## Next gates
