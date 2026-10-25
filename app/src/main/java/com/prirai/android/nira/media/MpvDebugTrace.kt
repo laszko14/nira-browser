@@ -45,7 +45,9 @@ internal object MpvDebugTrace {
         "mpv_start_file", "mpv_video_ready", "mpv_audio_ready", "mpv_playback_started",
         "mpv_cache_wait", "mpv_cache_resume", "mpv_logger_registered",
         "mpv_http_401", "mpv_http_403", "mpv_http_404", "mpv_http_429", "mpv_http_5xx",
-        "mpv_tls_error", "mpv_network_timeout", "mpv_dns_failure", "mpv_format_error",
+        "mpv_tls_error", "mpv_tls_ca_prepared", "mpv_tls_ca_unavailable",
+        "mpv_tls_certificate_error", "mpv_tls_handshake_error",
+        "mpv_network_timeout", "mpv_dns_failure", "mpv_format_error",
         "mpv_open_failed", "mpv_network_other"
     )
 
@@ -63,7 +65,7 @@ internal object MpvDebugTrace {
 
     @Synchronized
     fun report(section: Section, session: Any?, playerMode: String? = null): String = buildString {
-        appendLine("Zavro x MPV v1139 — ${section.name}")
+        appendLine("Zavro x MPV v1140 — ${section.name}")
         appendLine("Tryb odtwarzania: ${playerMode ?: "nie dotyczy"}")
         appendLine("Sesja Gecko: ${if (session == null) "BRAK" else "AKTYWNA"}")
         appendLine("Zapis tylko w RAM; brak URL, hostów, cookies, nagłówków i tokenów.")
@@ -91,7 +93,13 @@ internal object MpvDebugTrace {
             Regex("""\b404\b""").containsMatchIn(lower) -> "mpv_http_404"
             Regex("""\b429\b""").containsMatchIn(lower) -> "mpv_http_429"
             Regex("""\b5[0-9]{2}\b""").containsMatchIn(lower) -> "mpv_http_5xx"
-            "certificate" in lower || "ssl" in lower || "tls" in lower -> "mpv_tls_error"
+            "certificate" in lower || "x509" in lower ||
+                "unknown ca" in lower || "self-signed" in lower ->
+                "mpv_tls_certificate_error"
+            "handshake" in lower || "protocol version" in lower ||
+                "no shared cipher" in lower || "fatal alert" in lower ->
+                "mpv_tls_handshake_error"
+            "ssl" in lower || "tls" in lower -> "mpv_tls_error"
             "timed out" in lower || "timeout" in lower -> "mpv_network_timeout"
             "resolve" in lower || "dns" in lower -> "mpv_dns_failure"
             "unsupported" in lower || "unrecognized" in lower ||
