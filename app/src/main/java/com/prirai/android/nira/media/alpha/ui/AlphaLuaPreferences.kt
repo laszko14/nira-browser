@@ -1,0 +1,57 @@
+// MPV Alpha v54 / REX-Player, Apache-2.0. Adapted from c6107ce14a9f1768c73f975c5d60b1d8bd71aaed.
+package com.prirai.android.nira.media.alpha.ui
+
+import com.prirai.android.nira.media.alpha.*
+import androidx.compose.runtime.*
+internal typealias CustomButton = AlphaLuaButton
+internal class AlphaLuaPreferences(val config:AlphaLuaConfig) {
+    private val preferenceStore=AlphaLuaPreferenceAccess(config)
+  val luaPanelColumns = preferenceStore.getInt("lua_panel_columns", 5)
+  val luaEditorLastTab = preferenceStore.getInt("lua_editor_last_tab", 0)
+  val luaButtonRowGap = preferenceStore.getInt("lua_button_row_gap_dp", 2)
+  val luaButtonColumnGap = preferenceStore.getInt("lua_button_column_gap_dp", 2)
+  val luaButtonWidth = preferenceStore.getInt("lua_button_width_dp", 52)
+  val luaButtonHeight = preferenceStore.getInt("lua_button_height_dp", 27)
+  val luaButtonFontSize = preferenceStore.getInt("lua_button_font_sp", 11)
+  val luaButtonTypeface = preferenceStore.getInt("lua_button_typeface", 0)
+  val luaButtonTextOutlineEnabled = preferenceStore.getBoolean("lua_button_text_outline_enabled", false)
+  val luaButtonTextOutlineHalfPx = preferenceStore.getInt("lua_button_text_outline_half_px", 4)
+  val luaButtonTextOutlineColor = preferenceStore.getInt("lua_button_text_outline_argb", 0xFF000000.toInt())
+  val luaActiveSpeedGlowEnabled = preferenceStore.getBoolean("lua_active_speed_glow_enabled", false)
+  val luaActiveSpeedGlowColor = preferenceStore.getInt("lua_active_speed_glow_argb", 0xFFFF2929.toInt())
+  val luaActiveSpeedGlowSizePx = preferenceStore.getInt("lua_active_speed_glow_size_px", 5)
+  val luaActiveSpeedBackgroundEnabled = preferenceStore.getBoolean("lua_active_speed_bg_enabled", true)
+  val luaButtonMinimalSoft = preferenceStore.getBoolean("lua_button_minimal_soft", true)
+  val luaButtonMinimalSoftV2 = preferenceStore.getBoolean("lua_button_minimal_soft_v2", true)
+  val luaSoftBackgroundColor = preferenceStore.getInt("lua_soft_bg_argb", 0xFF1F2A33.toInt())
+  val luaSoftTextColor = preferenceStore.getInt("lua_soft_text_argb", 0xFFB8C2CC.toInt())
+  val luaSoftActiveTextColor = preferenceStore.getInt("lua_soft_active_text_argb", 0xFFA9C4D8.toInt())
+  val luaSoftShape = preferenceStore.getInt("lua_soft_shape", 2)
+  val luaSoftTextShadow = preferenceStore.getBoolean("lua_soft_text_shadow", true)
+  val luaSoftContrast = preferenceStore.getInt("lua_soft_contrast", 1)
+  val luaSoftIconStyle = preferenceStore.getInt("lua_soft_icon_style", 0)
+  val luaEmptySlots = preferenceStore.getInt("lua_empty_slots", 1)
+  val luaRightColumns = preferenceStore.getInt("lua_right_columns", 4)
+  val luaAutoHideOnDrag = preferenceStore.getBoolean("lua_auto_hide_on_drag", true)
+  val luaButtonHighContrastText = preferenceStore.getBoolean("lua_button_high_contrast_text", false)
+  val luaButtonBoldText = preferenceStore.getBoolean("lua_button_bold_text", false)
+  val luaButtonFontWeightPercent = preferenceStore.getInt(
+    "lua_button_font_weight_percent", if (luaButtonBoldText.get()) 60 else 0)
+  val luaButtonOutlinePercent = preferenceStore.getInt(
+    "lua_button_outline_percent", if (luaButtonHighContrastText.get()) 50 else 0)
+  val luaButtonPositionX = preferenceStore.getInt("lua_button_position_x_dp", 0)
+  val luaButtonPositionY = preferenceStore.getInt("lua_button_position_y_dp", 100)
+  val luaButtonCornerRadius = preferenceStore.getInt("lua_button_corner_dp", 7)
+  val luaButtonBorderOpacity = preferenceStore.getInt("lua_button_border_opacity_pct", 20)
+  val luaButtonBaseColor = preferenceStore.getInt("lua_button_base_argb", 0xFF252631.toInt())
+  val luaButtonActiveColor = preferenceStore.getInt("lua_button_active_argb", 0xFF92BBFF.toInt())
+  val luaButtonActiveTransparency = preferenceStore.getInt("lua_button_active_transparency_pct", 0)
+  val luaButtonTextColor = preferenceStore.getInt("lua_button_text_argb", 0xFFFFFFFF.toInt())
+  val luaButtonAlwaysVisible = preferenceStore.getBoolean("lua_button_always_visible", false)
+  val luaButtonActiveTextColor = preferenceStore.getInt("lua_button_active_text_argb", 0xFF071426.toInt())
+  val threeFingerSpeedPanelSize = preferenceStore.getInt("three_finger_speed_panel_size_pct", 100)
+  val luaButtonScalePercent = preferenceStore.getInt("lua_button_scale_percent", threeFingerSpeedPanelSize.get())
+  val threeFingerSpeedPanelTransparency = preferenceStore.getInt("three_finger_speed_panel_transparency_pct", 20)
+  val luaButtonBackgroundTransparency = preferenceStore.getInt("lua_button_bg_transparency_pct", threeFingerSpeedPanelTransparency.get())
+  val customButtons = preferenceStore.getString("custom_buttons_json", "[]")
+}

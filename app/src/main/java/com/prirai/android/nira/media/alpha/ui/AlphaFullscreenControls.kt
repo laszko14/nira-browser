@@ -43,6 +43,7 @@ internal fun AlphaFullscreenControls(
     onInteraction:()->Unit,
     onDragging:(Boolean)->Unit,
     onBack:()->Unit,
+    luaEditRequest:Int=0,
 ) {
     val state by session.state.collectAsState()
     val context=LocalContext.current
@@ -171,6 +172,7 @@ internal fun AlphaFullscreenControls(
                 }
             }
             MiniProgressBar(position,duration,!controlsVisible,0.dp)
+            AlphaLuaPanel(session,controlsVisible,luaEditRequest,onDragging,onInteraction)
         }
     }
 }

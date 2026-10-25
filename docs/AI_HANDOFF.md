@@ -336,3 +336,6 @@ Fundament Alpha na bazie v1148 607c599; kanoniczne Alpha v54 c6107ce potwierdzon
 
 ## 2026-10-25 — v1150
 Pierwsze oryginalne komponenty Compose Alpha v54 na istniejącym fullscreen: HUD, StandardSeekbar, ControlsButton i MiniProgressBar; baza v1149 c9f4ac3. Szczegóły: [ZAVRO_X_MPV_V1150_HANDOFF.md](ZAVRO_X_MPV_V1150_HANDOFF.md). Bez merge, Lua i audio nieaktywne.
+
+## 2026-10-25 — v1151
+Oryginalne LuaButtonGrid/Minimal Soft, fonty i edycja 30+8 z Alpha v54 na bazie v1150 cfd146e. Izolowany zapis schematu 1 i natywne whitelistowane działania; dowolny Lua/startup/audio nadal wyłączone. Szczegóły: [ZAVRO_X_MPV_V1151_HANDOFF.md](ZAVRO_X_MPV_V1151_HANDOFF.md). Bez merge.
