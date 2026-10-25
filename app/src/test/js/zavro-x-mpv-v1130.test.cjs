@@ -52,7 +52,7 @@ test('v1130 provides stream recovery, media focus, PiP, tracks and speed gesture
   assert.match(player, /MPVLib\.command\("af", "set"/);
   assert.match(manifest, /android:supportsPictureInPicture="true"/);
   assert.match(player, /postDelayed\(action, 300L\)/);
-  assert.match(player, /MPVLib\.command\("loadfile", url\)/);
+  assert.match(player, /MPVLib\.command\("loadfile", url, "replace"\)/);
 });
 
 test('native player URL remains in RAM, not an exported intent', () => {
