@@ -72,6 +72,7 @@ internal fun LuaButtonsInPlayerDialog(
     hiddenDuringDrag: Boolean = false,
     manualMinimized: Boolean = false,
     onManualMinimize: (Boolean) -> Unit = {},
+    importActions:@Composable ()->Unit = {},
 ) {
     val landscape = LocalConfiguration.current.orientation == ORIENTATION_LANDSCAPE
     val savedTab by prefs.luaEditorLastTab.collectAsState()
@@ -132,6 +133,7 @@ internal fun LuaButtonsInPlayerDialog(
                         }
                         TextButton(onClick = onDismiss) { Text("✕", color = LuaDarkMuted) }
                     }
+                    importActions()
                     Row(
                         modifier = Modifier.fillMaxWidth()
                             .background(androidx.compose.ui.graphics.Color(0xFF242C38),

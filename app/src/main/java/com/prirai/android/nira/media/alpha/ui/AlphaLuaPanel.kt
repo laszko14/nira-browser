@@ -55,7 +55,7 @@ internal fun AlphaLuaPanel(
         val feedback=when {
             result==AlphaCommandResult.APPLIED -> null
             code.isNullOrBlank() -> "Brak przypisanej akcji."
-            command==null -> "Kod nieobsługiwany w v1151 — wykonywanie Lua jest wyłączone."
+            command==null -> "Kod nieobsługiwany — wykonywanie Lua jest wyłączone."
             else -> "Polecenie niedostępne lub odrzucone przez sesję MPV."
         }
         if(feedback!=null) Toast.makeText(context,feedback,Toast.LENGTH_SHORT).show()
@@ -84,6 +84,7 @@ internal fun AlphaLuaPanel(
         }
         if(editing) {
             LuaButtonsInPlayerDialog(
+                importActions={ AlphaSettingsImport(config) },
                 prefs=prefs,engineStatus="Tylko natywne pause/seek/speed; Lua wyłączone",
                 onDismiss={dismiss()},hiddenDuringDrag=dragging,
                 manualMinimized=minimized,onManualMinimize={minimized=it},

@@ -20,13 +20,12 @@ internal fun <T> AlphaLuaSetting<T>.collectAsState():State<T> {
 /** Only UI keys are adapted; all other snapshot groups and button fields survive writes. */
 internal class AlphaLuaPreferenceAccess(private val config:AlphaLuaConfig) {
     private fun group(p:AlphaPreferences,key:String)=if(isLayout(key))p.buttonLayout else p.luaAppearance
-    private fun isLayout(key:String)=key.contains("position") || key.contains("columns") ||
-        key.contains("row_gap") || key.contains("column_gap") || key.contains("empty_slots")
+    private fun isLayout(key:String)=isAlphaLuaLayoutKey(key)
     private fun put(p:AlphaPreferences,key:String,v:AlphaPreferenceValue)=
         if(isLayout(key))p.copy(buttonLayout=p.buttonLayout+(key to v))
         else p.copy(luaAppearance=p.luaAppearance+(key to v))
     fun getInt(key:String,default:Int)=AlphaLuaSetting(config,
-        { (group(it,key)[key] as? AlphaPreferenceValue.IntValue)?.value?:default },
+        { p -> AlphaRenderedValues(p).int(key,default) },
         { p,v -> put(p,key,AlphaPreferenceValue.IntValue(v)) })
     fun getBoolean(key:String,default:Boolean)=AlphaLuaSetting(config,
         { (group(it,key)[key] as? AlphaPreferenceValue.Bool)?.value?:default },

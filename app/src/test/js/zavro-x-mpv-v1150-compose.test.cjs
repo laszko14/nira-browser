@@ -11,7 +11,8 @@ test('fullscreen owns only Compose composition; existing surface and mini scroll
  assert.match(ui,/!fullscreen && !destroyed/);
  const compose=read('alpha/ui/AlphaFullscreenControls.kt');
  assert.match(compose,/session.state.collectAsState/);
- assert.match(compose,/HudBarContent\(/);
+ assert.match(compose,/AlphaConfiguredHud\(/);
+ assert.match(read('alpha/ui/AlphaConfiguredHud.kt'),/HudBarContent\(/);
  assert.match(compose,/StandardSeekbar\(/);
  assert.match(compose,/onDispose/);
  assert.doesNotMatch(compose,/MPVLib|SurfaceView|PlayerViewModel|koinInject|loadfile/);

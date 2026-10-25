@@ -339,3 +339,6 @@ Pierwsze oryginalne komponenty Compose Alpha v54 na istniejącym fullscreen: HUD
 
 ## 2026-10-25 — v1151
 Oryginalne LuaButtonGrid/Minimal Soft, fonty i edycja 30+8 z Alpha v54 na bazie v1150 cfd146e. Izolowany zapis schematu 1 i natywne whitelistowane działania; dowolny Lua/startup/audio nadal wyłączone. Szczegóły: [ZAVRO_X_MPV_V1151_HANDOFF.md](ZAVRO_X_MPV_V1151_HANDOFF.md). Bez merge.
+
+## 2026-10-25 — v1152
+Lokalny import eksportu Alpha v54 przez SAF: podgląd/zakresy, allowlista, 43 sloty i wygląd, rzeczywiste preferencje HUD, prywatny backup/undo. Baza v1151 62b8ead. Szczegóły: [ZAVRO_X_MPV_V1152_HANDOFF.md](ZAVRO_X_MPV_V1152_HANDOFF.md). Lua/startup/audio nieaktywne; bez merge.
