@@ -31,6 +31,7 @@ import com.prirai.android.nira.media.MediaUiSnapshot
 import com.prirai.android.nira.media.MediaTabState
 import com.prirai.android.nira.media.MediaSessionBinding
 import com.prirai.android.nira.media.MediaElementPlaybackBridge
+import com.prirai.android.nira.media.MpvDebugTrace
 import com.prirai.android.nira.media.VideoPlayerPolicy
 import com.prirai.android.nira.media.MpvPlaybackHeaders
 import com.prirai.android.nira.media.ZavroMpvActivity
@@ -308,21 +309,38 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         // Content-script Play offers are recommendations only. The trusted
         // Store session, active tab and explicit AUTO preference decide.
         MediaElementPlaybackBridge.onAutoOffer = auto@{ offer ->
+            fun log(code: String) = MpvDebugTrace.note(
+                MpvDebugTrace.Section.HANDOFF, code, offer.port.engineSession
+            )
             if (!isAdded || view == null || suspendedWebPlayback != null ||
-                MediaElementPlaybackBridge.busy()) return@auto
+                MediaElementPlaybackBridge.busy()) {
+                log("auto_busy")
+                return@auto
+            }
             val state = store.state
             val selected = state.tabs.firstOrNull { it.id == state.selectedTabId }
                 ?: return@auto
             val session = selected.engineState.engineSession ?: return@auto
-            if (session !== offer.port.engineSession || selected.content.loading ||
-                VideoPlayerPolicy.resolve(requireContext(), selected.content.url,
-                    selected.content.private) != VideoPlayerPolicy.Mode.AUTO) return@auto
+            if (session !== offer.port.engineSession) {
+                log("auto_wrong_session")
+                return@auto
+            }
+            if (selected.content.loading) {
+                log("auto_navigation")
+                return@auto
+            }
+            if (VideoPlayerPolicy.resolve(requireContext(), selected.content.url,
+                    selected.content.private) != VideoPlayerPolicy.Mode.AUTO) {
+                log("auto_mode_not_enabled")
+                return@auto
+            }
             val uri = runCatching { android.net.Uri.parse(offer.mediaUrl) }.getOrNull()
                 ?: return@auto
             if (!ZavroMpvActivity.allowedVideoUrl(uri)) return@auto
             val frame = runCatching { android.net.Uri.parse(offer.pageUrl) }.getOrNull()
                 ?.takeIf { ZavroMpvActivity.allowedVideoUrl(it) } ?: return@auto
             val safeReferrer = frame.buildUpon().clearQuery().fragment(null).build().toString()
+            log("auto_launch_request")
             launchInternalVideo(uri, safeReferrer, offer.pageUrl, offer)
         }
         val overlay = MediaFloatingUi(
@@ -1039,43 +1057,23 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         
         val menuItems = mutableListOf<com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem>()
 
-        menuItems.add(
-            com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
-                id = "open_video_link",
-                title = getString(R.string.open_video_link),
-                iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_external_link_24,
-                onClick = { showOpenVideoLinkDialog() }
-            )
+        // v1134: replace the three legacy external-MPV entries with reports.
+        // Actual AUTO/MPV/WEB/EXTERNAL policy remains below in the menu.
+        val diagnosticItems = listOf(
+            Triple("mpv_diag_web", "Diagnostyka 1/3 • Strona i Play", MpvDebugTrace.Section.WEB),
+            Triple("mpv_diag_handoff", "Diagnostyka 2/3 • AUTO / Gecko", MpvDebugTrace.Section.HANDOFF),
+            Triple("mpv_diag_stream", "Diagnostyka 3/3 • MPV / strumień", MpvDebugTrace.Section.MPV)
         )
-        // Users can opt back into the Android chooser without changing system defaults.
-        val playerPrefs = requireContext().getSharedPreferences("nira_video_player", android.content.Context.MODE_PRIVATE)
-        val askForPlayer = playerPrefs.getBoolean("ask_each_time", false)
-        menuItems.add(
-            com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
-                id = "toggle_video_player_choice",
-                title = if (askForPlayer) "Odtwarzacz: wybieraj za każdym razem"
-                    else "Odtwarzacz: MPV Alpha automatycznie",
-                iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_external_link_24,
-                onClick = {
-                    playerPrefs.edit().putBoolean("ask_each_time", !askForPlayer).apply()
-                    Toast.makeText(
-                        requireContext(),
-                        if (askForPlayer) "MPV Alpha będzie otwierany automatycznie"
-                        else "Przy otwieraniu filmu pojawi się wybór odtwarzacza",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
+        diagnosticItems.forEach { (id, title, section) ->
+            menuItems.add(
+                com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+                    id = id,
+                    title = title,
+                    iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_settings_24,
+                    onClick = { showMpvDiagnostics(section) }
+                )
             )
-        )
-        // On-device detector test: no ADB and no media URLs are exposed.
-        menuItems.add(
-            com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
-                id = "media_detector_diagnostics",
-                title = "Diagnostyka filmów",
-                iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_external_link_24,
-                onClick = { showMediaDetectorDiagnostics() }
-            )
-        )
+        }
         menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Divider)
         
         // QuadRow: History, Bookmarks, Print, Save as PDF
@@ -1382,6 +1380,40 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 menuItems
             ).show(it, preferBottom)
         }
+    }
+
+    /** Three copyable, sanitized reports: no URL, cookies or private browsing history. */
+    private fun showMpvDiagnostics(section: MpvDebugTrace.Section) {
+        val context = requireContext()
+        fun report(): String {
+            val state = context.components.store.state
+            val tab = state.tabs.firstOrNull { it.id == state.selectedTabId }
+            val session = tab?.engineState?.engineSession
+            val mode = if (tab == null) null else VideoPlayerPolicy
+                .resolve(context, tab.content.url, tab.content.private).name
+            return MpvDebugTrace.report(section, session, mode)
+        }
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(context)
+            .setTitle("Zavro x MPV • Diagnostyka ${section.name}")
+            .setMessage(report())
+            .setPositiveButton("Zamknij", null)
+            .setNeutralButton("Odśwież", null)
+            .setNegativeButton("Kopiuj raport", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                dialog.setMessage(report())
+            }
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE).setOnClickListener {
+                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                    as android.content.ClipboardManager
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
+                    "Zavro x MPV diagnostics", report()
+                ))
+                Toast.makeText(context, "Raport diagnostyczny skopiowany", Toast.LENGTH_SHORT).show()
+            }
+        }
+        dialog.show()
     }
 
     /** Read-only snapshot, taken from the native bridge after entering the menu. */
