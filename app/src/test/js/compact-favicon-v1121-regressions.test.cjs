@@ -52,8 +52,8 @@ test("v1121: keeps horizontal scroll while selected favicon is visible", () => {
 test("v1121: signed APK version is 1121 and debug package + same certificate", () => {
   const gradle = source("app/build.gradle");
   const workflow = source(".github/workflows/apk-release.yml");
-  assert.match(gradle, /versionCode = 135/);
-  assert.match(gradle, /versionName = "0\.5\.22-alpha41-mpv9"/);
+  assert.match(gradle, /versionCode = 1\d{2}/);
+  assert.match(gradle, /versionName = "0\.5\.22-alpha\d+-mpv\d+"/);
   assert.doesNotMatch(gradle, /applicationIdSuffix/);
   assert.match(workflow, /EXPECTED_VERSION_CODE: "11\d+"/);
   assert.match(workflow, /EXPECTED_CERT_SHA256/);

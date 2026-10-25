@@ -63,7 +63,7 @@ internal object MpvDebugTrace {
 
     @Synchronized
     fun report(section: Section, session: Any?, playerMode: String? = null): String = buildString {
-        appendLine("Zavro x MPV v1138 — ${section.name}")
+        appendLine("Zavro x MPV v1139 — ${section.name}")
         appendLine("Tryb odtwarzania: ${playerMode ?: "nie dotyczy"}")
         appendLine("Sesja Gecko: ${if (session == null) "BRAK" else "AKTYWNA"}")
         appendLine("Zapis tylko w RAM; brak URL, hostów, cookies, nagłówków i tokenów.")

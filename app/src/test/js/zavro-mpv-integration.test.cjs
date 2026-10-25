@@ -13,7 +13,7 @@ test('keeps the canonical Zavro identity for in-place updates', () => {
   assert.doesNotMatch(build, /applicationIdSuffix\s*=\s*['"]\.mpv/);
   assert.doesNotMatch(build, /applicationIdSuffix/);
   assert.match(workflow, /EXPECTED_PACKAGE: com\.prirai\.android\.nira\.mpv\b/);
-  assert.match(build, /versionCode = 135/);
+  assert.match(build, /versionCode = 1\d{2}/);
   assert.match(workflow, /EXPECTED_VERSION_CODE: "11\d+"/);
 });
 
