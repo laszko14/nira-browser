@@ -24,9 +24,9 @@ jobs:
     permissions:
       contents: read
     env:
-      EXPECTED_PACKAGE: com.prirai.android.nira.mpv
-      EXPECTED_VERSION_CODE: "1127"
-      EXPECTED_VERSION_NAME: 0.5.22-alpha33-mpv1
+      EXPECTED_PACKAGE: com.prirai.android.nira
+      EXPECTED_VERSION_CODE: "1128"
+      EXPECTED_VERSION_NAME: 0.5.22-alpha34-mpv2
       EXPECTED_CERT_SHA256: df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
 
     steps:
@@ -83,12 +83,12 @@ jobs:
             "$EXPECTED_VERSION_CODE" \
             "$EXPECTED_VERSION_NAME" \
             "$EXPECTED_CERT_SHA256"
-          echo "Built and verified exactly one update-safe arm64-v8a APK."
+          echo "Built one arm64-v8a APK with the canonical package and project cert. Device upgrade compatibility is not verified by CI."
 
-      - name: Upload only arm64 debug APK
+      - name: Upload signed arm64 debug update candidate
         uses: actions/upload-artifact@v4
         with:
-          name: zavro-x-mpv-arm64-apk-v1127
+          name: zavro-arm64-update-test-v1128
           path: app/build/outputs/apk/debug/*arm64-v8a*.apk
           if-no-files-found: error
           retention-days: 30
@@ -154,9 +154,9 @@ jobs:
     permissions:
       contents: write
     env:
-      EXPECTED_PACKAGE: com.prirai.android.nira.mpv
-      EXPECTED_VERSION_CODE: "1127"
-      EXPECTED_VERSION_NAME: 0.5.22-alpha33-mpv1
+      EXPECTED_PACKAGE: com.prirai.android.nira
+      EXPECTED_VERSION_CODE: "1128"
+      EXPECTED_VERSION_NAME: 0.5.22-alpha34-mpv2
       EXPECTED_CERT_SHA256: df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
 
     # Release only on a version tag or manual dispatch with an explicit tag.
