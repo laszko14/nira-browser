@@ -74,7 +74,7 @@ internal object MpvDebugTrace {
 
     @Synchronized
     fun report(section: Section, session: Any?, playerMode: String? = null): String = buildString {
-        appendLine("Zavro x MPV v1158 — ${section.name}")
+        appendLine("Zavro x MPV v1159 — ${section.name}")
         appendLine("Tryb odtwarzania: ${playerMode ?: "nie dotyczy"}")
         appendLine("Sesja Gecko: ${if (session == null) "BRAK" else "AKTYWNA"}")
         appendLine("Zapis tylko w RAM; brak URL, hostów, cookies, nagłówków i tokenów.")
@@ -105,7 +105,7 @@ internal object MpvDebugTrace {
         fun had(code: String) = relevant.any { it.code == code }
         fun count(code: String) = during.count { it.code == code }
         fun yes(value: Boolean) = if (value) "TAK" else "NIE"
-        appendLine("Zavro x MPV v1158 — SUPERTEST 40 s")
+        appendLine("Zavro x MPV v1159 — SUPERTEST 40 s")
         appendLine("Tryb: ${mode}; czas: ${(finishedMs - startedMs).coerceAtLeast(0L) / 1000} s")
         appendLine("JEDEN RAPORT • tylko RAM i kody diagnostyczne; bez adresów, hostów, cookies, tokenów i nagłówków.")
         appendLine()

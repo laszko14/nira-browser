@@ -16,7 +16,7 @@ test("v1122: separate colored group containers with scoped icons and counts", ()
   assert.match(native, /background = groupBackground\(group\.color\)/);
   assert.match(native, /"\(\$\{members\.size\}\) " \+ group\.name/);
   assert.match(native, /val groupedIds = visibleGroups\.flatMap/);
-  assert.match(native, /collapsedGroups/);
+  assert.match(native, /onGroupToggle\?\.invoke\(group\.id\)/);
   assert.match(native, /onNewTabInGroup\?\.invoke\(group\.id\)/);
   assert.match(host, /groupsState\?\.collect \{ groups/);
   assert.match(host, /portraitTabStrip\.updateGroups\(groups\)/);
@@ -42,7 +42,7 @@ test("v1122: side panel has a dedicated drag handle and preview that follows the
 });
 
 test("v1128: side drawer delegates all drop types to a persisted transaction", () => {
-  assert.match(side, /viewModel\.commitSidePanelDrop\(fromId, target, after\)/);
+  assert.match(side, /viewModel\.commitSidePanelDrop\(fromId, target, after, expectedProfile\)/);
   const model = read(base + "browser/tabs/compose/TabViewModel.kt");
   assert.match(model, /targetKey\.startsWith\("group_tab_"\)/);
   assert.match(model, /targetKey\.startsWith\("group_"\)/);
@@ -63,11 +63,11 @@ test("v1122: metadata and stable signing", () => {
 
 test("v1128: side-drawer drag commits one awaited transaction, not an async redraw", () => {
   const model = read(base + "browser/tabs/compose/TabViewModel.kt");
-  assert.match(side, /dragY = pointerRootY - listTopY/);
-  assert.match(side, /currentMove\(originY \+ change\.position\.y\)/);
-  assert.match(side, /viewModel\.commitSidePanelDrop\(fromId, target, after\)/);
+  assert.match(side, /dragY = pointerRoot\.y - listTopY/);
+  assert.match(side, /currentMove\(rowOrigin \+ change\.position\)/);
+  assert.match(side, /viewModel\.commitSidePanelDrop\(fromId, target, after, expectedProfile\)/);
   assert.match(model, /suspend fun commitSidePanelDrop\(/);
-  assert.match(model, /groupManager\.updateGroup\(group\.id, tabIds = reordered\)/);
+  assert.match(model, /groupManager\.moveTabRelative\(draggedId, group\.id, targetId, insertAfter\)/);
   assert.match(model, /saveCurrentOrder\(profileId\)/);
 });
 
@@ -93,7 +93,8 @@ test("v1128: address-bar previous/next follows persisted group and tab order", (
 });
 test("v1128: side panel supplements temporarily missing group headers from DB state", () => {
   assert.match(side, /unifiedGroupManager\.groupsState\.collectAsState\(\)/);
-  assert.match(side, /val groups = liveGroups \+ cachedGroups\.filter/);
+  assert.match(side, /val groups = liveGroups/);
+  assert.doesNotMatch(side, /liveGroups \+ cachedGroups/);
   assert.match(side, /group\.tabIds\.any \{ it in visibleTabIds \}/);
   assert.match(side, /group\.contextId == "private"/);
   assert.match(side, /groupMenuId = group\.id/);

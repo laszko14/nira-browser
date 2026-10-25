@@ -289,3 +289,14 @@ Ciche SENT/EXEC_OK i pojedyncze błędy, osobne WARN/top-level/callback; poprawi
 
 ### 2026-10-25 — v1158
 Opcjonalne, odwracalne rewizje istniejących przycisków DRC/DE: kopie oryginałów, zachowane sloty/styl i zgody; DRC bez kumulacji, pięć rzeczywistych profili DE z kanonicznej Alpha v54. Native command + AF readback, ochrona obcych filtrów, celowany rollback i osobne skorelowane DSP receipts; brak uznawania samego EXEC_OK za DSP. Review poprawił znikający wpis po nieudanym reinit, dodatkowe obce parametry etykiety i deduplikację błędów ACK/timeout. JUnit194/JS159/Lua77/DSP28 + prywatne regresje PASS; Android test kompilowany, nieuruchomiony. Pełne wyniki i ograniczenia w handoff v1158. Bez merge, prywatnych plików w Git/APK i bez Auto Audio.
+
+## 2026-10-25 — Zavro x MPV v1159 (Europe/Warsaw)
+
+- Audyt z bazy 09f708ee981d255c4bf9d649f60b2137a1181416, bez merge i subagentów; PR36/37 sprawdzone.
+- Naprawy transakcji grup, profili/prywatności, trwałości kolejności, drag/drop, zwinięcia i cyklu życia UI. Handoff: docs/ZAVRO_X_MPV_V1159_HANDOFF.md.
+- Testy obejmują rzeczywisty Room in-memory, plik DataStore po ponownym otwarciu i kontrolowane wyścigi; gesty/urządzenie NIEURUCHOMIONE.
+- Dokładny commit, Draft PR i wynik podpisującego CI w końcowym opisie PR. Nie pobierać APK do Codex; nie rozpoczynać następnej wersji.
+
+- Końcowy Gradle po review PASS4m41s: test/lint/assemble/compileAndroidTest; JUnit230/230, JS162/162, Lua77/77, DSP28/28. Brak destrukcyjnej migracji i resetu preferencji. Review autora,92 chronione pliki bez zmian + tylko numer w diagnostyce MPV.
+
+- Review szczegółowego lint: dwa nowe RestrictedApi w ręcznym ViewModelStore.put. Poprawione publicznym ViewModelProvider; końcowy Gradle PASS4m28s, JUnit230/230 i JS162/162,0 tych naruszeń. Pierwsze CI40233363285 anulowane, konieczny drugi push do tego samego Draft PR72. Bez zmian MPV/Lua/DSP.

@@ -35,6 +35,7 @@ import mozilla.components.browser.toolbar.BrowserToolbar
 import mozilla.components.concept.engine.EngineView
 import mozilla.components.concept.toolbar.ScrollableToolbar
 import mozilla.components.lib.state.ext.flowScoped
+import mozilla.components.lib.state.ext.flow
 import mozilla.components.support.ktx.android.content.res.resolveAttribute
 import com.prirai.android.nira.components.toolbar.modern.ModernScrollBehavior
 import androidx.core.view.isNotEmpty
@@ -77,6 +78,7 @@ class UnifiedToolbar @JvmOverloads constructor(
     
     // Store reference for tab updates
     private var browserStore: BrowserStore? = null
+    private var hostLifecycleOwner: LifecycleOwner? = null
     // Rapid toolbar clicks must not rebuild/select out of order.
     private val tabCycleMutex = Mutex()
     
@@ -268,6 +270,7 @@ class UnifiedToolbar @JvmOverloads constructor(
 
         // Store reference
         this.browserStore = store
+        this.hostLifecycleOwner = lifecycleOwner
 
         // Add components in order based on toolbar position
         val toolbarPos = if (prefs.toolbarPosition == ToolbarPosition.BOTTOM.ordinal) {
@@ -342,7 +345,7 @@ class UnifiedToolbar @JvmOverloads constructor(
                     val filteredTabs = state.tabs.filter { tab ->
                         if (tab.contextId == null) {
                             // Guest tabs from custom tabs - always show in current profile
-                            tab.content.private == false
+                            profile.id == "default" && !tab.content.private
                         } else {
                             tab.content.private == false && tab.contextId == expectedContextId
                         }
@@ -370,7 +373,7 @@ class UnifiedToolbar @JvmOverloads constructor(
                     val filteredTabs = state.tabs.filter { tab ->
                         if (tab.contextId == null && !isPrivateMode) {
                             // Guest tabs from custom tabs - show in normal mode
-                            tab.content.private == false
+                            currentProfile.id == "default" && !tab.content.private
                         } else {
                             tab.content.private == isPrivateMode && tab.contextId == expectedContextId
                         }
@@ -379,7 +382,8 @@ class UnifiedToolbar @JvmOverloads constructor(
                     tabGroupBar?.updateTabs(filteredTabs, state.selectedTabId)
 
                     context.components.sessionUseCases.reload()
-                }
+                },
+                lifecycleOwner = lifecycleOwner
             )
         }
 
@@ -390,8 +394,7 @@ class UnifiedToolbar @JvmOverloads constructor(
         // 3. Guest tabs from custom tabs (contextId == null) are shown in normal mode
         // 4. Tab bar updates automatically when profile switches or tabs change
         lifecycleOwner.lifecycleScope.launch {
-            store.flowScoped(dispatcher = Dispatchers.Main) { flow ->
-                flow.collect { state ->
+            store.flow(lifecycleOwner).collect { state ->
                     val profileManager = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(context)
                     val isPrivateMode = profileManager.isPrivateMode()
                     val currentProfile = profileManager.getActiveProfile()
@@ -417,7 +420,6 @@ class UnifiedToolbar @JvmOverloads constructor(
                     }
                     
                     tabGroupBar?.updateTabs(filteredTabs, state.selectedTabId)
-                }
             }
         }
 
@@ -634,7 +636,8 @@ class UnifiedToolbar @JvmOverloads constructor(
         action(android.R.drawable.ic_media_next, "Następna karta") { cycleTab(1) }
         action(android.R.drawable.ic_media_previous, "Poprzednia karta") { cycleTab(-1) }
         action(com.prirai.android.nira.R.drawable.ic_round_close, "Zamknij kartę") {
-            browserStore?.state?.selectedTabId?.let { context.components.tabsUseCases.removeTab(it) }
+            browserStore?.state?.selectedTabId?.takeIf { id -> tabsForActiveProfile().any { it.id == id } }
+                ?.let { context.components.tabsUseCases.removeTab(it) }
         }
         action(com.prirai.android.nira.R.drawable.ic_ios_back, "Wstecz") {
             contextualToolbarListener?.onBackClicked()
@@ -729,11 +732,13 @@ class UnifiedToolbar @JvmOverloads constructor(
                             val button = actions.getChildAt(index)
                             button.visibility == View.VISIBLE &&
                                 event.x < button.x + button.width / 2f
-                        } ?: (actions.childCount - 1)
+                        } ?: actions.childCount
                         val from = actions.indexOfChild(dragged)
-                        if (from != target) {
+                        val destination = com.prirai.android.nira.browser.tabs.compose.DragPlacement
+                            .destination(from, target, actions.childCount)
+                        if (from != destination) {
                             actions.removeView(dragged)
-                            actions.addView(dragged, target.coerceIn(0, actions.childCount))
+                            actions.addView(dragged, destination)
                             prefs.niraToolbarActionOrder = (0 until actions.childCount)
                                 .mapNotNull { ids[actions.getChildAt(it)] }.joinToString(",")
                         }
@@ -794,7 +799,7 @@ class UnifiedToolbar @JvmOverloads constructor(
     }
 
     private fun cycleTab(direction: Int) {
-        val owner = context as? LifecycleOwner ?: return
+        val owner = hostLifecycleOwner ?: return
         owner.lifecycleScope.launch {
             tabCycleMutex.withLock {
                 val profileManager = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(context)
@@ -821,6 +826,8 @@ class UnifiedToolbar @JvmOverloads constructor(
                 val current = ids.indexOf(selected)
                 if (current < 0) return@withLock
                 val next = (current + direction + ids.size) % ids.size
+                val activeNow = if (profileManager.isPrivateMode()) "private" else profileManager.getActiveProfile().id
+                if (activeNow != profileId || tabsForActiveProfile().none { it.id == ids[next] }) return@withLock
                 context.components.tabsUseCases.selectTab(ids[next])
             }
         }
@@ -828,13 +835,11 @@ class UnifiedToolbar @JvmOverloads constructor(
 
     private fun observeTabCountForBadge() {
         val store = browserStore ?: return
-        val owner = context as? LifecycleOwner ?: return
+        val owner = hostLifecycleOwner ?: return
         owner.lifecycleScope.launch {
-            store.flowScoped(dispatcher = Dispatchers.Main) { flow ->
-                flow.collect {
-                    tabCountDisplayCount = tabsForActiveProfile().size
-                    tabCountBadgeDrawable?.invalidateSelf()
-                }
+            store.flow().collect {
+                tabCountDisplayCount = tabsForActiveProfile().size
+                tabCountBadgeDrawable?.invalidateSelf()
             }
         }
         tabCountDisplayCount = tabsForActiveProfile().size

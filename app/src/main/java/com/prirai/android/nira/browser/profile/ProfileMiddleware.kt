@@ -62,11 +62,30 @@ class ProfileMiddleware(
                     return
                 }
 
-                val updatedTab = action.tab.copy(contextId = contextId)
+                val updatedTab = action.tab.copy(
+                    contextId = contextId,
+                    content = action.tab.content.copy(private = isPrivate)
+                )
                 next(TabListAction.AddTabAction(updatedTab, action.select))
                 return
             }
             else -> next(action)
         }
     }
+}
+
+/** Store.dispatch is synchronous. Relocation is not a user close or a new link. */
+internal object ProfileMigrationGuard {
+    private val moving = ThreadLocal.withInitial { emptySet<String>() }
+    fun contains(tabId: String): Boolean = tabId in moving.get()
+    fun <T> run(tabId: String, block: () -> T): T {
+        val previous = moving.get()
+        moving.set(previous + tabId)
+        return try { block() } finally { moving.set(previous) }
+    }
+    fun undoMiddleware(delegate: Middleware<BrowserState, BrowserAction>): Middleware<BrowserState, BrowserAction> =
+        { store, next, action ->
+            if (action is TabListAction.RemoveTabAction && contains(action.tabId)) next(action)
+            else delegate(store, next, action)
+        }
 }

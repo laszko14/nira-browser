@@ -380,7 +380,7 @@ open class Components(private val applicationContext: Context) {
                         ReaderViewMiddleware(),
                         ThumbnailsMiddleware(thumbnailStorage),
                         FaviconMiddleware(faviconCache),
-                        UndoMiddleware(),
+                        com.prirai.android.nira.browser.profile.ProfileMigrationGuard.undoMiddleware(UndoMiddleware()),
                         RegionMiddleware(
                                 applicationContext,
                                 LocationService.default()
