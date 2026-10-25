@@ -25,10 +25,11 @@ internal data class AlphaPreferences(
     val speed:Map<String,AlphaPreferenceValue> = emptyMap(),
     val gestures:Map<String,AlphaPreferenceValue> = emptyMap(),
     val slots:List<AlphaLuaButton?> = List(43) { null },
+    val audioRepairs:Map<String,com.prirai.android.nira.media.alpha.audio.AlphaAudioRepairBackup> = emptyMap(),
 ) {
     // Not deserializable as true: imported data cannot enable code execution.
     val luaExecutionEnabled:Boolean get()=false
-    init { require(schemaVersion==1 && slots.size==43) }
+    init { require(schemaVersion==1 && slots.size==43 && audioRepairs.size<=43 && audioRepairs.values.all {it.kind in setOf("drc","de")}) }
 }
 
 /**

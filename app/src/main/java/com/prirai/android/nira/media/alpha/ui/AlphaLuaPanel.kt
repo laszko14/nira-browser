@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.prirai.android.nira.media.alpha.*
+import com.prirai.android.nira.media.alpha.audio.*
 
 /** Host wiring only; the grid, skins, editor and fonts come from canonical Alpha v54. */
 @Composable
@@ -22,6 +23,9 @@ internal fun AlphaLuaPanel(
     onInteraction:()->Unit,
 ) {
     val context=LocalContext.current
+    val repairSource=remember(context) {runCatching {
+        AlphaAudioRepairSource(context.assets.open("mpv/zavro_drc_de_repair.lua").bufferedReader().use {it.readText()})
+    }.getOrNull()}
     val config=remember(context) { AlphaLuaRepository.get(context) }
     val prefs=remember(config) { AlphaLuaPreferences(config) }
     val snapshot by config.state.collectAsState()
@@ -48,7 +52,20 @@ internal fun AlphaLuaPanel(
     fun dismiss() { editing=false;minimized=false;onDragging(false);onInteraction() }
     fun action(id:String,long:Boolean) {
         onInteraction()
-        val result=AlphaLuaActions.invoke(id,long,config.state.value,session)
+        val current=config.state.value
+        val b=current.slots.filterNotNull().singleOrNull {it.id==id}?.takeIf {it.enabled}
+        val code=b?.let {if(long)it.longPressContent else it.content}
+        val kind=code?.let {repairSource?.kind(it)}
+        val dsp=session.dsp
+        val controller=session.lua
+        val result=if(kind!=null && dsp!=null && controller?.state?.value?.enabled==true && controller.state.value.ready) {
+            val request=dsp.prepare(kind)
+            if(request==null) AlphaLuaStatus.BUSY else {
+                val sent=controller.dispatch(repairSource!!.wrap(code!!,request)) {dsp.bridgeResult(request,it)}
+                if(sent!=AlphaLuaStatus.SENT)dsp.cancel(request)
+                sent
+            }
+        } else AlphaLuaActions.invoke(id,long,current,session)
         if(AlphaFeedbackPolicy.immediate(result))
             Toast.makeText(context,alphaLuaFeedback(result),Toast.LENGTH_SHORT).show()
     }
@@ -62,6 +79,19 @@ internal fun AlphaLuaPanel(
                 val result=execution.lastCompletion?:execution.status
                 if(AlphaFeedbackPolicy.completion(result))
                     Toast.makeText(context,alphaLuaFeedback(result),Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+    val dsp=session.dsp
+    if(dsp!=null) {
+        val feedback by dsp.state.collectAsState()
+        var lastDsp by remember(dsp) {mutableLongStateOf(feedback.completion)}
+        LaunchedEffect(feedback.completion) {
+            if(lastDsp!=feedback.completion) {
+                lastDsp=feedback.completion
+                feedback.last?.takeIf {feedback.notify && it!=AlphaDspResult.VERIFIED}?.let {
+                    Toast.makeText(context,alphaDspError(it),Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
@@ -94,6 +124,7 @@ internal fun AlphaLuaPanel(
                     CustomLuaScriptsSettings(session.customScripts)
                     AlphaLuaExecutionSettings(session.lua)
                     AlphaSettingsImport(config)
+                    AlphaAudioRepairSettings(config,repairSource)
                 },
                 onReset={resetConfirm=true},
                 prefs=prefs,engineStatus="Natywne pause/seek/speed + bridge Lua za zgodą użytkownika",

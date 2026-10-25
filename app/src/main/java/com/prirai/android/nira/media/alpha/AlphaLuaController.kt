@@ -32,6 +32,7 @@ internal class AlphaLuaController(
     val state=mutableState.asStateFlow()
     private val epoch=UUID.randomUUID().toString()
     private val pending=linkedMapOf<String,Long>()
+    private val completionCallbacks=mutableMapOf<String,(AlphaLuaStatus)->Unit>()
     private var sequence=0L
     private var closed=false
     private var started=false
@@ -62,7 +63,7 @@ internal class AlphaLuaController(
         val time=now()
         val expired=pending.filterValues { time-it>=5_000 }.keys.toList()
         if(expired.isNotEmpty()) {
-            expired.forEach(pending::remove)
+            expired.forEach {pending.remove(it);runCatching {completionCallbacks.remove(it)?.invoke(AlphaLuaStatus.TIMEOUT)}}
             update(state.value.copy(timeouts=state.value.timeouts+expired.size,
                 status=AlphaLuaStatus.TIMEOUT,lastCompletion=AlphaLuaStatus.TIMEOUT,completion=state.value.completion+1))
         }
@@ -119,6 +120,7 @@ internal class AlphaLuaController(
                 else->continue
             }
             if(pending.remove(id)==null)continue // Late, duplicate or other-session ACK.
+            runCatching {completionCallbacks.remove(id)?.invoke(outcome)}
             val old=state.value
             update(old.copy(status=outcome,lastCompletion=outcome,callbacks=old.callbacks+1,
                 succeeded=old.succeeded+if(outcome==AlphaLuaStatus.OK)1 else 0,
@@ -127,7 +129,7 @@ internal class AlphaLuaController(
                 completion=old.completion+1))
         }
     }
-    fun dispatch(code:String):AlphaLuaStatus {
+    fun dispatch(code:String,completed:((AlphaLuaStatus)->Unit)?=null):AlphaLuaStatus {
         tick()
         val rejected=when {
             closed || !canSend()->AlphaLuaStatus.UNAVAILABLE
@@ -144,16 +146,17 @@ internal class AlphaLuaController(
         }
         val id="$epoch-${++sequence}"
         pending[id]=now()
+        if(completed!=null)completionCallbacks[id]=completed
         return try {
             send(arrayOf("script-message","mpv_alpha_eval",code,id,epoch))
             update(state.value.copy(status=AlphaLuaStatus.SENT,sent=state.value.sent+1))
             AlphaLuaStatus.SENT // Never presented as successful execution.
-        } catch (_:Exception) { pending.remove(id);status(AlphaLuaStatus.SEND_FAILED);AlphaLuaStatus.SEND_FAILED }
-          catch (_:LinkageError) { pending.remove(id);status(AlphaLuaStatus.SEND_FAILED);AlphaLuaStatus.SEND_FAILED }
+        } catch (_:Exception) { pending.remove(id);completionCallbacks.remove(id);status(AlphaLuaStatus.SEND_FAILED);AlphaLuaStatus.SEND_FAILED }
+          catch (_:LinkageError) { pending.remove(id);completionCallbacks.remove(id);status(AlphaLuaStatus.SEND_FAILED);AlphaLuaStatus.SEND_FAILED }
     }
     fun close() {
         if(closed)return
-        closed=true;pending.clear()
+        closed=true;pending.clear();completionCallbacks.clear()
         update(state.value.copy(registered=false,ready=false,status=AlphaLuaStatus.UNAVAILABLE))
     }
 }

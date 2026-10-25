@@ -25,6 +25,27 @@ class AlphaLuaBridgeTest {
             bridge.onProperty(AlphaLuaBridge.PROPERTY,"""{"version":1,"epoch":"$epoch","ready":true,"results":[$entries]}""")
         }
     }
+    @Test fun passiveCallbacksCorrelateExactAckAndNeverReplayOnTimeoutOrDuplicate() {
+        val f=Fixture();f.ready()
+        val a=mutableListOf<AlphaLuaStatus>();val b=mutableListOf<AlphaLuaStatus>()
+        f.bridge.dispatch("return 1") {a.add(it)}
+        f.bridge.dispatch("return 2") {b.add(it)}
+        f.reply("ok","runtime");f.reply("ok","runtime")
+        assertEquals(listOf(AlphaLuaStatus.OK),a)
+        assertEquals(listOf(AlphaLuaStatus.RUNTIME_ERROR),b)
+        val timeout=mutableListOf<AlphaLuaStatus>()
+        f.bridge.dispatch("return 3") {timeout.add(it)}
+        f.time=5001;f.bridge.tick();f.reply("ok","runtime","ok")
+        assertEquals(listOf(AlphaLuaStatus.TIMEOUT),timeout)
+        assertEquals(3,f.commands.count {it[1]=="mpv_alpha_eval"})
+    }
+    @Test fun passiveConsumerExceptionCannotBreakExistingAckState() {
+        val f=Fixture();f.ready()
+        f.bridge.dispatch("return 1") {error("synthetic consumer failure")}
+        f.reply("ok")
+        assertEquals(1,f.bridge.state.value.succeeded)
+        assertEquals(AlphaLuaStatus.OK,f.bridge.state.value.status)
+    }
     @Test fun installationUsesConfigScriptsIsIdempotentAndLeavesUnrelatedFiles() {
         val root=Files.createTempDirectory("alpha-test").toFile()
         try {

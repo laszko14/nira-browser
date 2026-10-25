@@ -38,6 +38,8 @@ internal object AlphaLuaRepository {
             }
             override fun write(value:String):Boolean {
                 val old=prefs.getString("snapshot",null)
+                val previous=prefs.getString("previous_snapshot",null)
+                val corrupt=prefs.getString("corrupt_snapshot",null)
                 val editor=prefs.edit().putString("snapshot",value)
                 // Keep one previous revision, including corrupt data, for recovery.
                 if(old!=null) {
@@ -45,7 +47,10 @@ internal object AlphaLuaRepository {
                         editor.putString("previous_snapshot",old)
                     else editor.putString("corrupt_snapshot",old)
                 }
-                return editor.commit()
+                val ok=editor.commit()
+                if(!ok)prefs.edit().putString("snapshot",old).putString("previous_snapshot",previous)
+                    .putString("corrupt_snapshot",corrupt).commit()
+                return ok
             }
         }
         return AlphaLuaConfig(storage).also { instance=it }

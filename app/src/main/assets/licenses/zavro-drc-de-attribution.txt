@@ -1,0 +1,15 @@
+Zavro v1158 DRC/DE opt-in Lua button revisions
+
+The five DE parameter pairs in mpv/zavro_drc_de_repair.lua are adapted from
+RexDialogueAudio.kt in MPV Alpha v54 (REX-Player), commit
+c6107ce14a9f1768c73f975c5d60b1d8bd71aaed:
+https://github.com/laszko14/REX-Player/blob/c6107ce14a9f1768c73f975c5d60b1d8bd71aaed/app/src/main/kotlin/xyz/mpv/rex/ui/player/controls/RexDialogueAudio.kt
+Licensed under the Apache License, Version 2.0; full text is distributed as
+licenses/mpv-alpha-apache-2.0.txt.
+
+Adaptations: explicit per-button opt-in, private backup/restore, labelled AF
+replacement, native status plus AF verification, foreign-chain protection,
+rollback, stereo guard, correlated/redacted DSP receipts and verified OSD.
+DRC uses the three parameter sets explicitly supplied in the public task,
+not the different DRC presets in RexDrcAudio.kt. No private user scripts,
+XML exports or model weights are distributed in this application.

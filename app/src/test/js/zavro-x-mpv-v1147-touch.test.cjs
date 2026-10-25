@@ -21,6 +21,6 @@ test('current diagnostics header and first intercepted MOVE are preserved',()=>{
  const report=fs.readFileSync('app/src/main/java/com/prirai/android/nira/media/MpvDebugTrace.kt','utf8');
  assert.match(touch,/interceptedEvent=event/);
  assert.match(touch,/if \(event===interceptedEvent\) return true/);
- assert.match(report,/Zavro x MPV v1157 — SUPERTEST 40 s/);
+ assert.match(report,/Zavro x MPV v1158 — SUPERTEST 40 s/);
  assert.doesNotMatch(report,/Zavro x MPV v1145/);
 });
