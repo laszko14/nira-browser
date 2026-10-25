@@ -30,6 +30,9 @@ import com.prirai.android.nira.media.MediaUiSnapshot
 import com.prirai.android.nira.media.MediaTabState
 import com.prirai.android.nira.media.MediaSessionBinding
 import com.prirai.android.nira.media.MpvPlaybackHeaders
+import com.prirai.android.nira.media.ZavroMpvActivity
+import com.prirai.android.nira.media.MediaSource
+import com.prirai.android.nira.media.MediaPlaybackStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.combine
@@ -909,6 +912,9 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         if (inFullScreen) {
             // Entering fullscreen - completely hide and collapse all toolbars
             expandBrowserViewForFullscreen()
+            // Do not guess the video from the tab's first network URL.
+            // Automatic handoff stays disabled until element/frame binding
+            // and pause/restore ACKs are implemented and regression-tested.
         } else {
             // Exiting fullscreen - restore toolbars
             collapseBrowserViewFromFullscreen()
@@ -1354,6 +1360,53 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     }
 
     private fun launchVideoInMpv(uri: android.net.Uri, referrer: String? = null) {
+        // The canonical app now embeds libmpv. No applicationId suffix toggle.
+        if (!ZavroMpvActivity.allowedVideoUrl(uri)) {
+            Toast.makeText(requireContext(), R.string.video_link_invalid, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val page = referrer?.let { runCatching { android.net.Uri.parse(it) }.getOrNull() }
+        val safeReferrer = page?.takeIf { ZavroMpvActivity.allowedVideoUrl(it) }
+            ?.buildUpon()?.clearQuery()?.fragment(null)?.build()?.toString()
+        val prefs = requireContext().getSharedPreferences(
+            "nira_video_player", android.content.Context.MODE_PRIVATE
+        )
+        if (prefs.getBoolean("ask_each_time", false)) {
+            com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.choose_video_player)
+                .setItems(arrayOf("MPV w Zavro", "Zewnętrzny MPV Alpha / wybór aplikacji")) { _, option ->
+                    if (option == 0) launchInternalVideo(uri, safeReferrer)
+                    else launchVideoExternally(uri, safeReferrer)
+                }
+                .show()
+            return
+        }
+        // Manual playback from the existing detected-media panel is the only
+        // native handoff in E1/E2. Automatic Play requires a per-element ACK.
+        launchInternalVideo(uri, safeReferrer)
+    }
+
+    private fun launchInternalVideo(uri: android.net.Uri, safeReferrer: String?) {
+        // Derive privacy from the trusted BrowserStore even when no media
+        // detector session has been initialized (e.g. manual URL entry).
+        val store = requireContext().components.store.state
+        val privateTab = store.tabs.firstOrNull { it.id == store.selectedTabId }
+            ?.content?.private == true
+        val ticket = com.prirai.android.nira.media.PlaybackSourceRegistry.issue(
+            com.prirai.android.nira.media.PlaybackSourceRegistry.Source(
+                url = uri.toString(),
+                userAgent = GeckoSession.getDefaultUserAgent(),
+                referrer = safeReferrer,
+                isPrivate = privateTab,
+            )
+        )
+        startActivity(Intent(requireContext(), ZavroMpvActivity::class.java).apply {
+            // Signed URL, headers and incognito metadata stay in process RAM.
+            putExtra(ZavroMpvActivity.EXTRA_TICKET_ID, ticket)
+        })
+    }
+
+    private fun launchVideoExternally(uri: android.net.Uri, referrer: String?) {
         val viewIntent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "video/*")
             // MPV Alpha already accepts a validated legacy `headers` array.
@@ -1372,12 +1425,6 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                     ?.let { putExtra("headers", it) }
             }
         }
-        val playerPrefs = requireContext().getSharedPreferences("nira_video_player", android.content.Context.MODE_PRIVATE)
-        if (playerPrefs.getBoolean("ask_each_time", false)) {
-            openVideoChooser(viewIntent)
-            return
-        }
-
         // Signed MPV Alpha debug builds use the .debug applicationId suffix.
         // Prefer Alpha to the older release (REX Player), without an Android chooser.
         for (packageName in listOf("xyz.mpv.rex.debug", "xyz.mpv.rex")) {

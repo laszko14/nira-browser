@@ -22,7 +22,8 @@ allprojects {
         }
 
         mavenCentral()
-        
+        // Artifact repository used by MPV Alpha for its libmpv binaries.
+        maven { url = "https://mpvrex.github.io/mpvRex-libmpv" }
         maven { url = "https://jitpack.io" }
     }
 }

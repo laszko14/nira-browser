@@ -49,13 +49,13 @@ test("v1121: keeps horizontal scroll while selected favicon is visible", () => {
   assert.match(native, /scroller\.scrollTo\(newScroll\.coerceIn\(0, maxScroll\), 0\)/);
 });
 
-test("v1121: signed APK version is 1121 and same package + certificate", () => {
+test("v1121: signed APK version is 1121 and debug package + same certificate", () => {
   const gradle = source("app/build.gradle");
   const workflow = source(".github/workflows/apk-release.yml");
-  assert.match(gradle, /versionCode = 126/);
-  assert.match(gradle, /versionName = "0\.5\.22-alpha32"/);
+  assert.match(gradle, /versionCode = 128/);
+  assert.match(gradle, /versionName = "0\.5\.22-alpha34-mpv2"/);
   assert.match(gradle, /applicationIdSuffix = '\.debug'/);
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1126"/);
+  assert.match(workflow, /EXPECTED_VERSION_CODE: "1128"/);
   assert.match(workflow, /EXPECTED_CERT_SHA256/);
-  assert.match(workflow, /zavro-arm64-update-apk-v1126/);
+  assert.match(workflow, /zavro-arm64-update-test-v1128/);
 });

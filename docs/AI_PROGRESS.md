@@ -240,3 +240,9 @@
 - Przyczyna: Nira zachowywała `frameUrl`, ale do MPV przekazywała Referer strony nadrzędnej; anonimowy parser manifestu nie rozróżniał wskazówki, dostępnego manifestu i dostępnego segmentu.
 - Dodano stan weryfikacji bez zapisywania tokenów, ograniczony probe pierwszego segmentu `Range: bytes=0-0`, iframe Referer, obsługę 401/403/404/410 oraz zachowanie pełnego oryginalnego URL.
 - 49/49 testów JavaScript PASS. Testy Gradle i fizyczny fulltaboo/MPV pozostają do wykonania w CI/na telefonie.
+
+
+### 2026-10-25 — v1127 Zavro x MPV, oddzielna instalacja
+- Zweryfikowano libmpv z MPV Alpha (Maven 0.0.9), udostępnione BaseMPVView/MPVLib i gotowy podpisujący CI browser.
+- Branch feat/zavro-x-mpv-v1127-standalone (PR #40 draft) na bazie v1126. Wprowadzono osobny identyfikator com.prirai.android.nira.mpv, natywny odtwarzacz, 1.5×, seek -10 s, +10 s, +30 s; otwieranie strumieni z listy i próba fullscreen.
+- Pierwszy GitHub Actions 40142799308: poprawny podpisany build, sześć testów JS historycznie sprawdzało na sztywno v1126. Korekta sprawdzeń na nowy pakiet i wersję w tym commicie. Test na urządzeniu nadal niewykonany; nie mylić statycznego testu z działaniem mpv na stronie.

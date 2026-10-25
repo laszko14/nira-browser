@@ -26,8 +26,8 @@ android {
         minSdkVersion 27
         targetSdkVersion 37
         // Increment by 4 with each update, by 1 with each fix
-        versionCode = 126
-        versionName = "0.5.22-alpha32"
+        versionCode = 128
+        versionName = "0.5.22-alpha34-mpv2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -40,7 +40,7 @@ android {
         jvmToolchain(17)
     }
 
-    // Only CI's stable, secret-backed signing key produces update-safe APKs.
+    // Only CI's stable, secret-backed signing key can produce update-safe APKs.
     // Without these variables, local test/lint builds keep standard Android debug signing.
     signingConfigs {
         if (System.getenv("NIRA_SIGNING_STORE_FILE") &&
@@ -56,6 +56,7 @@ android {
         }
     }
 
+    // Keep the release applicationId and the stable .debug testing update track.
     buildTypes {
         release {
             minifyEnabled = true
@@ -63,7 +64,7 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
-            resValue "string", "app_name", "Zavro"
+            // Preserve the package of prior signed Zavro test APKs (v1126).
             applicationIdSuffix = '.debug'
             if (signingConfigs.findByName("updateDebug") != null) {
                 signingConfig = signingConfigs.getByName("updateDebug")
@@ -267,6 +268,9 @@ dependencies {
     implementation libs.kotlinx.serialization.json
 
     implementation libs.jsoup
+
+    // Same prebuilt Android libmpv JNI artifact used by MPV Alpha.
+    implementation 'com.github.sfsakhawat999:mpvRex-libmpv:0.0.9'
 }
 
 project.configurations.configureEach {

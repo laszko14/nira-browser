@@ -307,3 +307,13 @@ Na Nothing Phone (1) zainstalować `app-arm64-v8a-debug.apk`, wpisać publiczny 
 - Błędy HTTP 401/403 są oznaczane jako błąd autoryzacji, 404/410 jako wygasły link. Takich wpisów nie można uruchomić z panelu.
 - Wersja `0.5.22-alpha17`, efektywny ARM64 `versionCode=1111`, oczekiwany pakiet `com.prirai.android.nira.debug` i stały certyfikat `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00`.
 - Testy JS: 49/49 PASS. Lokalne Gradle zablokowane brakiem dostępu do dystrybucji; wymagane CI. Test realnej strony i telefonu NIE wykonany.
+
+
+## 2026-10-25 — Zavro x MPV v1127: niezależny prototyp
+- Źródło: feat/zavro-v1126-ungrouped-recovery, bazowy HEAD 764a3140c564423122ef34e1e321d6c699db30cb.
+- Gałąź: feat/zavro-x-mpv-v1127-standalone, Draft PR #40 https://github.com/laszko14/nira-browser/pull/40, NIE scalać bez testów urządzeniowych.
+- Osobny pakiet testowy com.prirai.android.nira.mpv; nazwa „Zavro x MPV”; ARM64 versionCode 1127, versionName 0.5.22-alpha33-mpv1; nie nadpisuje com.prirai.android.nira.debug.
+- Wbudowany faktyczny libmpv: zależność com.github.sfsakhawat999:mpvRex-libmpv:0.0.9, ta sama co w projekcie MPV Alpha; natywna aktywność ZavroMpvActivity z SurfaceView 1.5× i przyciskami -10/+10/+30 s, pauza, wyjście. Start ze znalezionego źródła HTTPS/HTTP, z ostrożnym User-Agent/Referer; niedostępne DRM/blob poza zakresem.
+- Próba przechwycenia wejścia strony w fullscreen na podstawie aktualnego wykrytego strumienia, z fallback Gecko. Pełna podmiana inline playerów Gecko nie jest jeszcze wykonana. Dobór strumienia z listy na stronach multi-video wymaga oceny w realnym teście.
+- CI: pierwotny run 40142799308: build arm64 + podpis SUCCESS i artefakt 12579950798, test Node 85/91 (6 błędów jedynie w starych asercjach metadanych v1126), aktualizacja tych asercji w tym commicie. Najnowszy run / artefakt sprawdź po ostatnim commicie, nie deklaruj bez weryfikacji.
+- Bez ręcznego testu na Nothing Phone (1). Testować stronę z jednym MP4, HLS i stronę z wieloma filmami. APK nie oznacza automatycznej zgodności wszystkich stron.
