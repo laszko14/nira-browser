@@ -469,10 +469,7 @@ class TabViewModel(
         launchMutation {
             val profileId = _currentProfileId.value ?: return@launchMutation
             val tab = _tabs.value.firstOrNull { it.id == tabId } ?: return@launchMutation
-            val existing = groupManager.getAllGroups().firstOrNull { tabId in it.tabIds }
-            if (existing != null) {
-                groupManager.removeTabFromGroup(tabId, notifyChange = true)
-            }
+            // createGroup detaches the source and inserts its new group in ONE Room transaction.
             groupManager.createGroup(
                 tabIds = listOf(tabId),
                 name = name.take(70).ifBlank { "Nowa grupa" },

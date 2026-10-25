@@ -1,0 +1,27 @@
+# v1160 — checkpoint 3: finalny kod zweryfikowany, przed push/CI
+- Gałąź: fix/zavro-x-mpv-v1160-multigroup-fab-layout.
+- Baza i ostatni zapisany commit w chwili checkpointu: fdf3a98e0c1f159c5f6b764d37c2e2574d4b841b.
+- Snapshot powstał PRZED końcowym commit/push. Najpierw sprawdzić HEAD/GitHub/PR: działania wydaniowe mogą być już ukończone.
+- Kod i dokumentacja gotowe do jednego commita i push; v1160 w chwili zapisu nie było na GitHub.
+- Brak PR/CI v1160 w chwili zapisu. Nie tworzyć duplikatu, jeżeli już powstał po tym checkpointcie.
+- Naprawione: FAB pomijał detached bottom strip i nie reagował na chrome bez resize.
+- BrowserChromeBounds + UnifiedToolbar zwracają rzeczywiste widoczne granice w viewport.
+- MediaFloatingUi używa preDraw z cleanup, pełnego hit targetu, insets/IME; obsługuje brak przecięcia.
+- BrowserFragment zmienia tylko callback geometrii. Odtwarzanie i wykrywanie bez zmian.
+- Menu boczne dostało Utwórz nową grupę → nazwa → wydziel wybraną kartę.
+- moveTabToNewGroup używa istniejącej jednej transakcji detach+insert, bez osobnego remove.
+- Room nie ma limitu jednej grupy; test VM tworzy3 i zachowuje wszystkie opublikowane członkostwa.
+- Room v3/pliki DataStore close-reopen: skład, kolejność, zwinięcie i częściowy restore PASS.
+- ManualGroupsTest3 i MediaButtonLayoutTest2 PASS; profile, native strip, klik ostatniej karty, obrót/insets/fullscreen.
+- AndroidTest rozszerzono o3grupy; kompilacja PASS, wykonanie NIEURUCHOMIONE (brak urządzenia).
+- Finalny Gradle PASS2m55s: testDebugUnitTest lintDebug assembleDebug compileDebugAndroidTestKotlin --offline --console=plain --max-workers=1.
+- Log: work/v1160-reviewed-gradle.log. JUnit235/235,0failure/error/skip.
+- JS162/162 PASS: work/v1160-reviewed-js.log. Lua77/77,DSP28/28 PASS: work/v1160-lua-dsp.log.
+- Lint0nowych: work/v1160-reviewed-lint-delta.json; historyczne1462Fatal/258Error/444Warning/19Hint bez zmian.
+- Integralność92plików:90bez zmian +2dokładne odwracalne patche UI; MPV trace tylko etykiety wersji.
+- Gradle160/ARM641160/name0.5.22-alpha66-mpv34, package com.prirai.android.nira.mpv, cert df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00.
+- Raport: docs/ZAVRO_X_MPV_V1160_HANDOFF.md; zachowano wszystkie źródła prawdy/klucze, bez migracji.
+- Następny krok: commit/push jeśli brak, Draft PR do fix/zavro-x-mpv-v1159-tabs-groups-toolbar-audit, poczekać na istniejący Android CI.
+- Potwierdzić run/head SHA, BUILD/TEST/LINT, log verifiera i artefakt zavro-x-mpv-arm64-v1160; nie pobierać APK.
+- Końcowy SHA/PR/run/artefakt dopisać w opisie PR i raporcie odpowiedzi, bez commita tylko na wyniki CI.
+- Nie powtarzać audytu, diagnoz, review ani zaliczonych testów bez zmian kodu. Bez subagentów, merge i następnej wersji.

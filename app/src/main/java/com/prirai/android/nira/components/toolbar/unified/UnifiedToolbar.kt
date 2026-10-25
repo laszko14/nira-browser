@@ -584,6 +584,17 @@ class UnifiedToolbar @JvmOverloads constructor(
     /** Toolbar anchor used by popups and browser chrome positioning. */
     fun getToolbarView(): View? = browserToolbar?.asView()
 
+    /** Uses the actual chrome geometry, including the detached bottom tab strip. */
+    internal fun mediaButtonReservations(parent: View, viewport: android.graphics.Rect): Pair<Int, Int> {
+        val bottomMode = prefs.toolbarPosition == ToolbarPosition.BOTTOM.ordinal
+        return com.prirai.android.nira.components.toolbar.BrowserChromeBounds.reservations(
+            parent, viewport,
+            if (bottomMode) emptyList() else listOf(toolbarSystem),
+            if (bottomMode) listOfNotNull(toolbarSystem, bottomComponentsContainer)
+            else listOfNotNull(bottomComponentsContainer)
+        )
+    }
+
     // Count remains on the leading side of the address field.
     private var tabCountDisplayCount = 0
     private var tabCountBadgeDrawable: android.graphics.drawable.Drawable? = null

@@ -13,6 +13,25 @@ import org.junit.runner.RunWith
 /** Real Android SQLite integration; does not claim to exercise touch gestures or MPV. */
 @RunWith(AndroidJUnit4::class)
 class TabGroupRoomDeviceTest {
+    @Test fun threeGroupsKeepIndependentIdsAndMembersAfterReload() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val db = Room.inMemoryDatabaseBuilder(context, TabGroupDatabase::class.java).build()
+        val tabs = (0..3).map { TabSessionState(id = "multi$it", content = ContentState(url = "about:homepage")) }
+        try {
+            val manager = UnifiedTabGroupManager(context, db, Dispatchers.IO) { tabs }
+            manager.initialize(); assertTrue(manager.awaitInitialized())
+            val first = manager.createGroup(tabs.map { it.id }, "Existing v1159")
+            val second = manager.createGroup(listOf(tabs[1].id), "Second")
+            val third = manager.createGroup(listOf(tabs[2].id), "Third")
+            val reload = UnifiedTabGroupManager(context, db, Dispatchers.IO) { tabs }
+            reload.initialize(); assertTrue(reload.awaitInitialized())
+            assertEquals(3, reload.getAllGroups().map { it.id }.toSet().size)
+            assertEquals(listOf(tabs[0].id, tabs[3].id), reload.getGroup(first.id)!!.tabIds)
+            assertEquals(listOf(tabs[1].id), reload.getGroup(second.id)!!.tabIds)
+            assertEquals(listOf(tabs[2].id), reload.getGroup(third.id)!!.tabIds)
+        } finally { db.close() }
+    }
+
     @Test fun concurrentAddsAndReorderSurviveManagerReload() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val db = Room.inMemoryDatabaseBuilder(context,TabGroupDatabase::class.java).build()
