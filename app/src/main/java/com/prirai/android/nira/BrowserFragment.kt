@@ -30,6 +30,7 @@ import com.prirai.android.nira.media.MediaFloatingUi
 import com.prirai.android.nira.media.MediaUiSnapshot
 import com.prirai.android.nira.media.MediaTabState
 import com.prirai.android.nira.media.MediaSessionBinding
+import com.prirai.android.nira.media.MediaElementPlaybackBridge
 import com.prirai.android.nira.media.MpvPlaybackHeaders
 import com.prirai.android.nira.media.ZavroMpvActivity
 import com.prirai.android.nira.media.MediaSource
@@ -72,6 +73,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         val privateTab: Boolean,
         val session: Any,
         val pageUrl: String,
+        val elementLeaseId: String?,
+        val fallbackMediaPaused: Boolean,
     )
     private var suspendedWebPlayback: SuspendedWebPlayback? = null
     private val internalMpvLauncher = registerForActivityResult(
@@ -87,8 +90,20 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         if (tab.engineState.engineSession !== held.session ||
             tab.contextId != held.contextId || tab.content.private != held.privateTab ||
             tab.content.url != held.pageUrl) return
-        // Never resume a site that navigated/replaced its media during handoff.
-        runCatching { tab.mediaSessionState?.controller?.play() }
+        // Per-element Gecko handoff wins: restore ONLY the same connected
+        // HTMLVideoElement and exact source that was paused on user request.
+        val session = tab.engineState.engineSession ?: return
+        val current = MediaTabState(
+            MediaSessionBinding(session, tab.id, tab.contextId, tab.content.private),
+            tab.content.url, tab.content.loading
+        )
+        if (held.elementLeaseId != null) {
+            MediaElementPlaybackBridge.restore(held.elementLeaseId, current)
+        } else if (held.fallbackMediaPaused) {
+            // Older player APIs may not expose the HTML5 element; only resume
+            // Gecko if this integration actually paused its media session.
+            runCatching { tab.mediaSessionState?.controller?.play() }
+        }
     }
 
     // Track last tab IDs for auto-grouping detection
@@ -1402,7 +1417,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
                 .setTitle(R.string.choose_video_player)
                 .setItems(arrayOf("MPV w Zavro", "Zewnętrzny MPV Alpha / wybór aplikacji")) { _, option ->
-                    if (option == 0) launchInternalVideo(uri, safeReferrer)
+                    if (option == 0) launchInternalVideo(uri, safeReferrer, referrer)
                     else launchVideoExternally(uri, safeReferrer)
                 }
                 .show()
@@ -1410,10 +1425,10 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         }
         // Manual playback from the existing detected-media panel is the only
         // native handoff in E1/E2. Automatic Play requires a per-element ACK.
-        launchInternalVideo(uri, safeReferrer)
+        launchInternalVideo(uri, safeReferrer, referrer)
     }
 
-    private fun launchInternalVideo(uri: android.net.Uri, safeReferrer: String?) {
+    private fun launchInternalVideo(uri: android.net.Uri, safeReferrer: String?, frameUrl: String?) {
         // Bind the handoff to the selected browser tab, GeckoSession and
         // document. Activity checks the same snapshot immediately before loadfile.
         val store = requireContext().components.store.state
@@ -1423,38 +1438,65 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             Toast.makeText(requireContext(), "Brak aktywnej karty wideo", Toast.LENGTH_SHORT).show()
             return
         }
-        val ticket = com.prirai.android.nira.media.PlaybackSourceRegistry.issue(
-            com.prirai.android.nira.media.PlaybackSourceRegistry.Source(
-                url = uri.toString(),
-                userAgent = GeckoSession.getDefaultUserAgent(),
-                referrer = safeReferrer,
-                owner = MediaSessionBinding(
-                    session, selected.id, selected.contextId, selected.content.private
-                ),
-                pageUrl = selected.content.url,
-            )
+        val requested = MediaTabState(
+            MediaSessionBinding(session, selected.id, selected.contextId, selected.content.private),
+            selected.content.url, selected.content.loading
         )
-        // Pause Gecko's currently playing media before opening native MPV, to
-        // prevent double audio. The precise HTMLVideoElement ACK remains E3.
-        if (selected.mediaSessionState?.playbackState == MediaSession.PlaybackState.PLAYING) {
-            runCatching {
-                selected.mediaSessionState?.controller?.pause()
-                suspendedWebPlayback = SuspendedWebPlayback(
-                    selected.id, selected.contextId, selected.content.private,
-                    session, selected.content.url
-                )
+        // Manual opt-in only. Ask the exact frame to pause the unique matching
+        // element. If its native port is absent/ambiguous, safely fall back to
+        // Gecko's media-session controller for the selected tab.
+        MediaElementPlaybackBridge.prepare(requested, uri.toString(), frameUrl) { leaseId ->
+            if (!isAdded || view == null) {
+                if (leaseId != null) MediaElementPlaybackBridge.restore(leaseId, requested)
+                return@prepare
             }
-        }
-        val intent = Intent(requireContext(), ZavroMpvActivity::class.java).apply {
-            // Signed URLs/credentials never leave process memory.
-            putExtra(ZavroMpvActivity.EXTRA_TICKET_ID, ticket)
-        }
-        try {
-            internalMpvLauncher.launch(intent)
-        } catch (error: RuntimeException) {
-            restoreWebPlaybackAfterMpv()
-            com.prirai.android.nira.media.PlaybackSourceRegistry.clear()
-            Toast.makeText(requireContext(), "Nie można uruchomić MPV", Toast.LENGTH_LONG).show()
+            val currentState = requireContext().components.store.state
+            val live = currentState.tabs.firstOrNull { it.id == currentState.selectedTabId }
+            if (live?.engineState?.engineSession !== session ||
+                live.contextId != selected.contextId ||
+                live.content.private != selected.content.private ||
+                live.content.url != selected.content.url) {
+                if (leaseId != null) MediaElementPlaybackBridge.restore(leaseId, requested)
+                Toast.makeText(requireContext(), "Zmieniła się karta filmu", Toast.LENGTH_SHORT).show()
+                return@prepare
+            }
+
+            var fallbackPaused = false
+            if (leaseId == null &&
+                live.mediaSessionState?.playbackState == MediaSession.PlaybackState.PLAYING) {
+                fallbackPaused = runCatching {
+                    live.mediaSessionState?.controller?.pause()
+                    true
+                }.getOrDefault(false)
+            }
+            suspendedWebPlayback = if (leaseId != null || fallbackPaused)
+                SuspendedWebPlayback(
+                    live.id, live.contextId, live.content.private,
+                    session, live.content.url, leaseId, fallbackPaused
+                ) else null
+
+            val ticket = com.prirai.android.nira.media.PlaybackSourceRegistry.issue(
+                com.prirai.android.nira.media.PlaybackSourceRegistry.Source(
+                    url = uri.toString(),
+                    userAgent = GeckoSession.getDefaultUserAgent(),
+                    referrer = safeReferrer,
+                    owner = MediaSessionBinding(
+                        session, live.id, live.contextId, live.content.private
+                    ),
+                    pageUrl = live.content.url,
+                )
+            )
+            val intent = Intent(requireContext(), ZavroMpvActivity::class.java).apply {
+                // Signed URLs and cookies never cross an Android Intent.
+                putExtra(ZavroMpvActivity.EXTRA_TICKET_ID, ticket)
+            }
+            try {
+                internalMpvLauncher.launch(intent)
+            } catch (error: RuntimeException) {
+                restoreWebPlaybackAfterMpv()
+                com.prirai.android.nira.media.PlaybackSourceRegistry.clear()
+                Toast.makeText(requireContext(), "Nie można uruchomić MPV", Toast.LENGTH_LONG).show()
+            }
         }
     }
 
