@@ -26,8 +26,8 @@ android {
         minSdkVersion 27
         targetSdkVersion 37
         // Increment by 4 with each update, by 1 with each fix
-        versionCode = 127
-        versionName = "0.5.22-alpha33-mpv1"
+        versionCode = 128
+        versionName = "0.5.22-alpha34-mpv2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -40,7 +40,7 @@ android {
         jvmToolchain(17)
     }
 
-    // Only CI's stable, secret-backed signing key produces update-safe APKs.
+    // Only CI's stable, secret-backed signing key can produce update-safe APKs.
     // Without these variables, local test/lint builds keep standard Android debug signing.
     signingConfigs {
         if (System.getenv("NIRA_SIGNING_STORE_FILE") &&
@@ -56,17 +56,15 @@ android {
         }
     }
 
+    // The canonical package is essential: the separate .mpv prototype cannot update Zavro.
     buildTypes {
         release {
-            applicationIdSuffix = '.mpv'
             minifyEnabled = true
             shrinkResources = true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
-            resValue "string", "app_name", "Zavro x MPV"
             // Independent test app: does not overwrite Zavro or its user data.
-            applicationIdSuffix = '.mpv'
             if (signingConfigs.findByName("updateDebug") != null) {
                 signingConfig = signingConfigs.getByName("updateDebug")
             }
