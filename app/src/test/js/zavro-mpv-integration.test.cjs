@@ -13,8 +13,8 @@ test('keeps the canonical Zavro identity for in-place updates', () => {
   assert.doesNotMatch(build, /applicationIdSuffix\s*=\s*['"]\.mpv/);
   assert.doesNotMatch(build, /applicationIdSuffix/);
   assert.match(workflow, /EXPECTED_PACKAGE: com\.prirai\.android\.nira\.mpv\b/);
-  assert.match(build, /versionCode = 130/);
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1130"/);
+  assert.match(build, /versionCode = 131/);
+  assert.match(workflow, /EXPECTED_VERSION_CODE: "1131"/);
 });
 
 test('embeds native libmpv and keeps the basic 1.5x and seek controls', () => {

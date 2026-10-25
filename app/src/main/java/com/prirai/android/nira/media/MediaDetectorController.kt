@@ -104,6 +104,23 @@ internal class MediaDetectorController(private val engine: Engine, private val s
                     if (!attached.containsKey(session)) {
                         try {
                             extension.registerContentMessageHandler(session, NATIVE_APP, handler(session))
+                            // Independent native port for per-element pause ACK and
+                            // restore; detector candidate protocol is unchanged.
+                            extension.registerContentMessageHandler(
+                                session, MediaElementPlaybackBridge.NATIVE_APP,
+                                object : MessageHandler {
+                                    override fun onPortConnected(
+                                        port: mozilla.components.concept.engine.webextension.Port
+                                    ) { MediaElementPlaybackBridge.connected(port) }
+                                    override fun onPortDisconnected(
+                                        port: mozilla.components.concept.engine.webextension.Port
+                                    ) { MediaElementPlaybackBridge.disconnected(port) }
+                                    override fun onPortMessage(
+                                        message: Any,
+                                        port: mozilla.components.concept.engine.webextension.Port
+                                    ) { MediaElementPlaybackBridge.received(port, message) }
+                                }
+                            )
                             attached[session] = Unit
                         } catch (_: Exception) { diagnostic("session_attach_failed") }
                     }
