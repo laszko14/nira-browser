@@ -71,6 +71,7 @@ internal class InlineMpvUi(
     private var controlMode=-1
     private var controlsVisible by mutableStateOf(true)
     private var alphaCompose:ComposeView?=null
+    private var alphaLuaEditRequest by mutableStateOf(0)
     private var hideControlsTask:Runnable?=null
     private var speed=1.5
     private var duration=Double.NaN
@@ -221,10 +222,30 @@ internal class InlineMpvUi(
                 return true
             }
         })
+        var luaGesture=false
         var x0=0f
         var y0=0f
         video.setOnTouchListener { view,event ->
             if (!fullscreen || destroyed) false else {
+                // Back can arrive before the old multi-pointer sequence ends.
+                if (event.actionMasked==MotionEvent.ACTION_DOWN) luaGesture=false
+                if (event.actionMasked==MotionEvent.ACTION_POINTER_DOWN && event.pointerCount>=3) {
+                    if (!luaGesture) {
+                        val cancel=MotionEvent.obtain(event)
+                        try {
+                            cancel.action=MotionEvent.ACTION_CANCEL
+                            gestures.onTouchEvent(cancel)
+                        } finally { cancel.recycle() }
+                        alphaLuaEditRequest++
+                    }
+                    luaGesture=true
+                    cancelHold()
+                }
+                if (luaGesture) {
+                    if (event.actionMasked==MotionEvent.ACTION_UP ||
+                        event.actionMasked==MotionEvent.ACTION_CANCEL) luaGesture=false
+                    return@setOnTouchListener true
+                }
                 // Cancel any previous hold before GestureDetector changes base speed.
                 if (event.actionMasked==MotionEvent.ACTION_DOWN) cancelHold()
                 gestures.onTouchEvent(event)
@@ -260,6 +281,7 @@ internal class InlineMpvUi(
         setContent {
             AlphaFullscreenControls(
                 session=alphaSession,
+                luaEditRequest=alphaLuaEditRequest,
                 controlsVisible=controlsVisible,
                 onInteraction={ revealControls() },
                 onDragging={ dragging=it },
@@ -441,6 +463,7 @@ internal class InlineMpvUi(
         dragging=false
         if (!fullscreen) {
             overlay.cancelGesture()
+            alphaLuaEditRequest=0
             fullscreen=true
             overlay.clipBounds=null
             // Do not remove/re-add the SurfaceView or call loadfile.

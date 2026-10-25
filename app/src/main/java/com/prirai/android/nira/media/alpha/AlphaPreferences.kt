@@ -7,7 +7,7 @@ import kotlinx.serialization.json.Json
 /**
  * Isolated, inert snapshot, not Android default SharedPreferences.
  * Typed values retain original Alpha key names/types for a future explicit mapper.
- * No XML importer, persistence, migrations on startup or playback side effects.
+ * The snapshot has no I/O or playback side effects; the v1151 panel store owns private persistence.
  */
 @Serializable
 internal sealed interface AlphaPreferenceValue {

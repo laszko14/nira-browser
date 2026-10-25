@@ -1,0 +1,159 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:ns0="http://schemas.android.com/tools">
+  <string name="alpha_panel_audit_active">Active</string>
+  <string name="alpha_panel_audit_active_background">Active background</string>
+  <string name="alpha_panel_audit_active_button">Active button</string>
+  <string name="alpha_panel_audit_active_button_background">Active button background</string>
+  <string name="alpha_panel_audit_active_button_color">Active button color</string>
+  <string name="alpha_panel_audit_active_button_transparency">Active button transparency</string>
+  <string name="alpha_panel_audit_active_speed_background">Active speed background</string>
+  <string name="alpha_panel_audit_active_speed_text">Active speed text</string>
+  <string name="alpha_panel_audit_active_speed_text_color">Active speed text color</string>
+  <string name="alpha_panel_audit_always_visible">Always visible</string>
+  <string name="alpha_panel_audit_always_visible_by_default">Always visible by default</string>
+  <string name="alpha_panel_audit_apply">Apply</string>
+  <string name="alpha_panel_audit_background_colors">Background colors</string>
+  <string name="alpha_panel_audit_background_transparency">Background transparency</string>
+  <string name="alpha_panel_audit_border">Border</string>
+  <string name="alpha_panel_audit_button_background">Button background</string>
+  <string name="alpha_panel_audit_button_background_color">Button background color</string>
+  <string name="alpha_panel_audit_button_height">Button height</string>
+  <string name="alpha_panel_audit_button_name">Button name</string>
+  <string name="alpha_panel_audit_button_width">Button width</string>
+  <string name="alpha_panel_audit_cancel">Cancel</string>
+  <string name="alpha_panel_audit_collapse_visibility_and_colors">Collapse visibility and colors ▲</string>
+  <string name="alpha_panel_audit_column_spacing">Column spacing</string>
+  <string name="alpha_panel_audit_columns">Columns</string>
+  <string name="alpha_panel_audit_contrast_outline_strength">Contrast outline strength</string>
+  <string name="alpha_panel_audit_corner_radius">Corner radius</string>
+  <string name="alpha_panel_audit_delete">Delete</string>
+  <string name="alpha_panel_audit_delete_button">Delete button</string>
+  <string name="alpha_panel_audit_delete_this_button">Delete this button?</string>
+  <string name="alpha_panel_audit_disable_to_keep_only_selected_buttons_visible_when_controls_are_hidden">Disable to keep only selected buttons visible when controls are hidden.</string>
+  <string name="alpha_panel_audit_downward_offset">Downward offset</string>
+  <string name="alpha_panel_audit_enabled">Enabled</string>
+  <string name="alpha_panel_audit_font_size">Font size</string>
+  <string name="alpha_panel_audit_font_weight">Font weight</string>
+  <string name="alpha_panel_audit_frequently_used">Frequently used</string>
+  <string name="alpha_panel_audit_grid_scale">Grid scale</string>
+  <string name="alpha_panel_audit_grid_scaling">Grid scaling</string>
+  <string name="alpha_panel_audit_height">Height</string>
+  <string name="alpha_panel_audit_hex_color">HEX color</string>
+  <string name="alpha_panel_audit_horizontal_spacing">Horizontal spacing</string>
+  <string name="alpha_panel_audit_left_side">\u0020• left side</string>
+  <string name="alpha_panel_audit_lua_button_index">Button %1$d / %2$d</string>
+  <string name="alpha_panel_audit_lua_button_list">‹ List of %1$d buttons</string>
+  <string name="alpha_panel_audit_lua_code_long_press">Lua code — long press</string>
+  <string name="alpha_panel_audit_lua_code_on_startup">Lua code — on startup</string>
+  <string name="alpha_panel_audit_lua_code_tap">Lua code — tap</string>
+  <string name="alpha_panel_audit_lua_individual_settings">Individual settings: %1$s</string>
+  <string name="alpha_panel_audit_lua_more_colors">More colors (%1$d)</string>
+  <string name="alpha_panel_audit_lua_readability_help" formatted="false">0% = normal text without outline; 60% = Bold, 90% = Black. 100% contrast = a thin, clear contour without a halo. Colors stay unchanged.</string>
+  <string name="alpha_panel_audit_lua_remove_help">Slot %1$d will become available. Other buttons will stay in place.</string>
+  <string name="alpha_panel_audit_more_colors_and_settings_are_available_in_the_appearance_tab">More colors and settings are available in the Appearance tab.</string>
+  <string name="alpha_panel_audit_move_to_the_8_right_slots">Move to the 8 right slots</string>
+  <string name="alpha_panel_audit_moving_settings_hidden">MOVING • SETTINGS HIDDEN</string>
+  <string name="alpha_panel_audit_natural">Natural</string>
+  <string name="alpha_panel_audit_normal">Normal</string>
+  <string name="alpha_panel_audit_normal_background">Normal background</string>
+  <string name="alpha_panel_audit_normal_button_background">Normal button background</string>
+  <string name="alpha_panel_audit_normal_text">Normal text</string>
+  <string name="alpha_panel_audit_position_and_visibility">Position and visibility</string>
+  <string name="alpha_panel_audit_readable">Readable</string>
+  <string name="alpha_panel_audit_reset_background_colors">Reset background colors</string>
+  <string name="alpha_panel_audit_reset_position">Reset position</string>
+  <string name="alpha_panel_audit_reset_sizes_and_spacing">Reset sizes and spacing</string>
+  <string name="alpha_panel_audit_reset_text_appearance">Reset text appearance</string>
+  <string name="alpha_panel_audit_reset_transparency_and_border">Reset transparency and border</string>
+  <string name="alpha_panel_audit_restore_defaults">Restore defaults</string>
+  <string name="alpha_panel_audit_restore_this_button_to_defaults">Restore this button to defaults</string>
+  <string name="alpha_panel_audit_right_offset">Right offset</string>
+  <string name="alpha_panel_audit_right_side_4_2">\u0020• right side 4×2</string>
+  <string name="alpha_panel_audit_rounding">Rounding</string>
+  <string name="alpha_panel_audit_row_spacing">Row spacing</string>
+  <string name="alpha_panel_audit_save_lua">Save Lua</string>
+  <string name="alpha_panel_audit_save_the_button_to_set_its_visibility_and_colors">Save the button to set its visibility and colors.</string>
+  <string name="alpha_panel_audit_scale">Scale</string>
+  <string name="alpha_panel_audit_show_fewer_colors">Show fewer colors</string>
+  <string name="alpha_panel_audit_show_lua_settings">Show Lua settings</string>
+  <string name="alpha_panel_audit_size_and_layout">Size and layout</string>
+  <string name="alpha_panel_audit_spacing_between_columns">Spacing between columns</string>
+  <string name="alpha_panel_audit_spacing_between_rows">Spacing between rows</string>
+  <string name="alpha_panel_audit_stays_visible_over_the_video_when_other_buttons_disappear">Stays visible over the video when other buttons disappear.</string>
+  <string name="alpha_panel_audit_strong">Strong</string>
+  <string name="alpha_panel_audit_text">Text</string>
+  <string name="alpha_panel_audit_text_color">Text color</string>
+  <string name="alpha_panel_audit_text_colors_and_readability">Text colors and readability</string>
+  <string name="alpha_panel_audit_this_button_s_visibility_and_colors">This button’s visibility and colors ▼</string>
+  <string name="alpha_panel_audit_transparency_and_border">Transparency and border</string>
+  <string name="alpha_panel_audit_v23_archive_off_screen">\u0020• v23 archive, off screen</string>
+  <string name="alpha_panel_audit_vertical_spacing">Vertical spacing</string>
+  <string name="alpha_panel_audit_visibility_global_default">Visibility: global default</string>
+  <string name="alpha_panel_audit_visibility_set_for_this_button_only">Visibility: set for this button only</string>
+  <string name="alpha_panel_audit_width">Width</string>
+  <string name="alpha_panel_audit_x_position">X position</string>
+  <string name="alpha_panel_audit_y_position">Y position</string>
+  <string name="alpha_panel_lua_minimal_soft_description" ns0:ignore="MissingTranslation">Muted colors, subtle active speed and automatic fade after 3 seconds. Turn off to use your saved button colors.</string>
+  <string name="alpha_panel_lua_minimal_soft_title" ns0:ignore="MissingTranslation">Minimal Soft — subtle Lua buttons</string>
+  <string name="alpha_panel_lua_v2_add" ns0:ignore="MissingTranslation"> + Add button</string>
+  <string name="alpha_panel_lua_v2_always" ns0:ignore="MissingTranslation">Always</string>
+  <string name="alpha_panel_lua_v2_appearance" ns0:ignore="MissingTranslation">Appearance</string>
+  <string name="alpha_panel_lua_v2_apply" ns0:ignore="MissingTranslation">Apply</string>
+  <string name="alpha_panel_lua_v2_archives" ns0:ignore="MissingTranslation">Archived buttons</string>
+  <string name="alpha_panel_lua_v2_auto_hide" ns0:ignore="MissingTranslation">Auto-hide panel while dragging</string>
+  <string name="alpha_panel_lua_v2_background_opacity" ns0:ignore="MissingTranslation">Background transparency</string>
+  <string name="alpha_panel_lua_v2_bg_color" ns0:ignore="MissingTranslation">Background color</string>
+  <string name="alpha_panel_lua_v2_border" ns0:ignore="MissingTranslation">Border</string>
+  <string name="alpha_panel_lua_v2_button_size" ns0:ignore="MissingTranslation">Button size</string>
+  <string name="alpha_panel_lua_v2_buttons" ns0:ignore="MissingTranslation">Buttons</string>
+  <string name="alpha_panel_lua_v2_cancel" ns0:ignore="MissingTranslation">Cancel</string>
+  <string name="alpha_panel_lua_v2_circle" ns0:ignore="MissingTranslation">Circle</string>
+  <string name="alpha_panel_lua_v2_colors" ns0:ignore="MissingTranslation">Colors and style</string>
+  <string name="alpha_panel_lua_v2_contrast" ns0:ignore="MissingTranslation">Video contrast</string>
+  <string name="alpha_panel_lua_v2_copy" ns0:ignore="MissingTranslation">Duplicate</string>
+  <string name="alpha_panel_lua_v2_corner" ns0:ignore="MissingTranslation">Corner rounding</string>
+  <string name="alpha_panel_lua_v2_default" ns0:ignore="MissingTranslation">Default</string>
+  <string name="alpha_panel_lua_v2_drag" ns0:ignore="MissingTranslation">Drag to reorder</string>
+  <string name="alpha_panel_lua_v2_edit" ns0:ignore="MissingTranslation">Editing</string>
+  <string name="alpha_panel_lua_v2_edit_btn" ns0:ignore="MissingTranslation">Edit</string>
+  <string name="alpha_panel_lua_v2_empty_slots" ns0:ignore="MissingTranslation">Show empty slots</string>
+  <string name="alpha_panel_lua_v2_font_size" ns0:ignore="MissingTranslation">Text size</string>
+  <string name="alpha_panel_lua_v2_font_weight" ns0:ignore="MissingTranslation">Text weight</string>
+  <string name="alpha_panel_lua_v2_hex" ns0:ignore="MissingTranslation">HEX color (#RRGGBB or #AARRGGBB)</string>
+  <string name="alpha_panel_lua_v2_icon" ns0:ignore="MissingTranslation">Icon (optional, up to 3 characters)</string>
+  <string name="alpha_panel_lua_v2_icons" ns0:ignore="MissingTranslation">Icons</string>
+  <string name="alpha_panel_lua_v2_layout" ns0:ignore="MissingTranslation">Layout and management</string>
+  <string name="alpha_panel_lua_v2_left_cols" ns0:ignore="MissingTranslation">Columns (left side)</string>
+  <string name="alpha_panel_lua_v2_light" ns0:ignore="MissingTranslation">Light</string>
+  <string name="alpha_panel_lua_v2_list" ns0:ignore="MissingTranslation">Button list</string>
+  <string name="alpha_panel_lua_v2_medium" ns0:ignore="MissingTranslation">Medium</string>
+  <string name="alpha_panel_lua_v2_minimal" ns0:ignore="MissingTranslation">Minimal</string>
+  <string name="alpha_panel_lua_v2_modern" ns0:ignore="MissingTranslation">Modern</string>
+  <string name="alpha_panel_lua_v2_move" ns0:ignore="MissingTranslation">Move to other side</string>
+  <string name="alpha_panel_lua_v2_never" ns0:ignore="MissingTranslation">Never</string>
+  <string name="alpha_panel_lua_v2_no_space" ns0:ignore="MissingTranslation">All 38 visible slots are occupied.</string>
+  <string name="alpha_panel_lua_v2_off" ns0:ignore="MissingTranslation">Off</string>
+  <string name="alpha_panel_lua_v2_remove" ns0:ignore="MissingTranslation">Delete</string>
+  <string name="alpha_panel_lua_v2_right_cols" ns0:ignore="MissingTranslation">Columns (right side)</string>
+  <string name="alpha_panel_lua_v2_rounded" ns0:ignore="MissingTranslation">Rounded</string>
+  <string name="alpha_panel_lua_v2_shadow" ns0:ignore="MissingTranslation">Text shadow</string>
+  <string name="alpha_panel_lua_v2_shape" ns0:ignore="MissingTranslation">Button shape</string>
+  <string name="alpha_panel_lua_v2_simple" ns0:ignore="MissingTranslation">Minimal</string>
+  <string name="alpha_panel_lua_v2_size" ns0:ignore="MissingTranslation">Size and appearance</string>
+  <string name="alpha_panel_lua_v2_square" ns0:ignore="MissingTranslation">Square</string>
+  <string name="alpha_panel_lua_v2_strong" ns0:ignore="MissingTranslation">Strong</string>
+  <string name="alpha_panel_lua_v2_text_color" ns0:ignore="MissingTranslation">Icon / text color</string>
+  <string name="alpha_panel_lua_v2_title" ns0:ignore="MissingTranslation">Lua button settings</string>
+  <string name="alpha_panel_lua_v2_typography" ns0:ignore="MissingTranslation">Typography and icons</string>
+  <string name="alpha_panel_lua_v3_advanced" ns0:ignore="MissingTranslation">Dimensions, spacing and active colors</string>
+  <string name="alpha_panel_lua_v3_classic" ns0:ignore="MissingTranslation">Classic</string>
+  <string name="alpha_panel_lua_v3_corner_tip" ns0:ignore="MissingTranslation">Corner rounding applies only to Rounded shape.</string>
+  <string name="alpha_panel_lua_v3_custom_override_hint" ns0:ignore="MissingTranslation">Buttons with individual colors keep their overrides. Change them under Buttons → Edit.</string>
+  <string name="alpha_panel_lua_v3_disabled_tip" ns0:ignore="MissingTranslation">The settings below apply to Minimal Soft v2. Select that style to see changes on buttons.</string>
+  <string name="alpha_panel_lua_v3_icon_tip" ns0:ignore="MissingTranslation">Icons change only for recognized buttons. Custom labels stay unchanged.</string>
+  <string name="alpha_panel_lua_v3_mode_v2" ns0:ignore="MissingTranslation">New v2</string>
+  <string name="alpha_panel_lua_v3_mode_v29" ns0:ignore="MissingTranslation">Older v29</string>
+  <string name="alpha_panel_lua_v3_preview" ns0:ignore="MissingTranslation">Preview on light and dark backgrounds</string>
+  <string name="alpha_panel_lua_v3_preview_tip" ns0:ignore="MissingTranslation">Preview is for checking contrast and does not change the video.</string>
+  <string name="alpha_panel_lua_v3_style" ns0:ignore="MissingTranslation">Button style</string>
+</resources>

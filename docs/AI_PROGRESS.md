@@ -265,3 +265,6 @@ Dodano izolowany adapter istniejącego observera i typowane komendy, snapshot pr
 
 ### 2026-10-25 — v1150
 Przeniesiono HUD i wyodrębnione oryginalne wizualne kontrolki Alpha do fullscreen ComposeView, zasilane AlphaSession. Mini i silnik bez przebudowy. Node 143/143, JVM 96/96 PASS; wynik lint/CI i ograniczenia wizualne opisuje handoff v1150.
+
+### 2026-10-25 — v1151
+Przeniesiono oryginalny panel Lua, style, edytory i 20 fontów Alpha v54; dodano prywatny zapis, backup i bezpieczne komendy przez AlphaSession. Node 146/146 i JUnit 102/102 PASS. Końcowe lokalne Gradle/CI, ograniczenia i telefon opisuje handoff v1151.
