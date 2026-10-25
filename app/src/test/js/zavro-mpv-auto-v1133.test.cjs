@@ -89,7 +89,8 @@ test("v1133 refuses background/autoplay, muted ads, DRM and ambiguous players",(
 });
 
 test("v1133 defers initial MPV load until view is attached and restores Gecko on auto failure",()=>{
-  assert.match(native,/surface\.post\s*\{/);
+  assert.match(native,/surface\.playFile\(url\)/);
+  assert.match(native,/override fun surfaceCreated\(holder: SurfaceHolder\)/);
   assert.match(native,/autoHandoff = source\.autoHandoff/);
   assert.match(native,/setResult\(Activity\.RESULT_CANCELED\)[\s\S]*?finish\(\)/);
   assert.match(native,/if \(autoHandoff\)[\s\S]*?finish\(\)/);

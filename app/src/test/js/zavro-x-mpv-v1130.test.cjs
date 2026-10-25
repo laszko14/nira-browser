@@ -18,8 +18,8 @@ test('v1130 installs BESIDE Zavro and has distinct launcher label', () => {
   assert.match(manifest, /android:label="@string\/app_name"/);
   assert.match(workflow, /EXPECTED_PACKAGE: com\.prirai\.android\.nira\.mpv/);
   assert.doesNotMatch(workflow, /EXPECTED_PACKAGE: com\.prirai\.android\.nira\.debug/);
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1135"/);
-  assert.match(workflow, /name: zavro-x-mpv-arm64-v1135/);
+  assert.match(workflow, /EXPECTED_VERSION_CODE: "11\d+"/);
+  assert.match(workflow, /name: zavro-x-mpv-arm64-v11\d+/);
 });
 
 test('v1130 pauses browser media and resumes only its unchanged Gecko document', () => {

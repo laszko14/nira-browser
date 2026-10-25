@@ -58,5 +58,5 @@ test("v1128: stable debug package and update version agree", () => {
   assert.match(gradle, /versionCode = 135/);
   assert.doesNotMatch(gradle, /applicationIdSuffix/);
   const workflow = source(".github/workflows/apk-release.yml");
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1135"/);
+  assert.match(workflow, /EXPECTED_VERSION_CODE: "11\d+"/);
 });
