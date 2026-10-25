@@ -80,6 +80,8 @@ internal class InlineMpvUi(
     }
     fun open(url:String,userAgent:String?,referrer:String?,
              rect:MediaElementPlaybackBridge.InlineRect):Boolean {
+        // MPVLib is process-global. Never open inline and fullscreen Activity concurrently.
+        if (!MpvEngineGate.claim(token)) return false
         val video=LayoutInflater.from(context).inflate(R.layout.zavro_mpv_surface,
             overlay,false) as ZavroMpvView
         video.userAgent=userAgent
@@ -177,6 +179,7 @@ internal class InlineMpvUi(
         runCatching { MPVLib.removeObserver(observer) }
         runCatching { player?.destroy() }
         player=null
+        MpvEngineGate.release(token)
         MpvDebugTrace.note(MpvDebugTrace.Section.MPV,"inline_closed",session)
     }
 }
