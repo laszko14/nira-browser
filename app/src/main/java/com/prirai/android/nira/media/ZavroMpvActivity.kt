@@ -30,6 +30,7 @@ import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.prirai.android.nira.R
 import com.prirai.android.nira.ext.components
 import `is`.xyz.mpv.BaseMPVView
@@ -69,6 +70,10 @@ class ZavroMpvActivity : AppCompatActivity() {
     private var audioManager: AudioManager? = null
     private var focusSuspended = false
     private var audioFocusAcquired = false
+    // Experimental opt-in filters: none is enabled until the user requests it.
+    private var denoiseLevel = 0
+    private var dialogueLevel = 0
+    private var highEq = false
     private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
         runOnUiThread {
             when (change) {
@@ -301,6 +306,7 @@ class ZavroMpvActivity : AppCompatActivity() {
             if (ready) runCatching { MPVLib.command("cycle", "sid") }
                 .onFailure { status?.text = "Nie można zmienić napisów" }
         })
+        row.addView(control("Filtry") { showAudioFilters() })
         row.addView(control("Ponów") { retry() })
         row.addView(control("PiP") { enterNativePip() })
         bottom.addView(row)
@@ -404,6 +410,51 @@ class ZavroMpvActivity : AppCompatActivity() {
 
     private fun seek(seconds: Int) {
         if (ready) runCatching { MPVLib.command("seek", seconds.toString(), "relative") }
+    }
+
+    private fun showAudioFilters() {
+        if (!ready || isFinishing) return
+        val options = arrayOf(
+            "Szum: $denoiseLevel/7  •  następny poziom",
+            "Głos: $dialogueLevel/3  •  następny poziom",
+            "EQ wysokie: ${if (highEq) "ON" else "OFF"}",
+            "Wyłącz wszystkie filtry",
+        )
+        MaterialAlertDialogBuilder(this)
+            .setTitle("MPV • Filtry audio (testowe)")
+            .setItems(options) { _, item ->
+                when (item) {
+                    0 -> denoiseLevel = (denoiseLevel + 1) % 8
+                    1 -> dialogueLevel = (dialogueLevel + 1) % 4
+                    2 -> highEq = !highEq
+                    3 -> { denoiseLevel = 0; dialogueLevel = 0; highEq = false }
+                }
+                applyAudioFilters()
+            }
+            .setNegativeButton("Zamknij", null)
+            .show()
+    }
+
+    private fun applyAudioFilters() {
+        if (!ready) return
+        val filters = mutableListOf<String>()
+        if (denoiseLevel > 0) {
+            // Gentle 1–4 and stronger 5–7; values are FFmpeg afftdn nr in dB.
+            val levels = intArrayOf(4, 6, 8, 10, 12, 16, 20)
+            filters += "lavfi=[afftdn=nr=${levels[denoiseLevel - 1]}]"
+        }
+        if (dialogueLevel > 0) {
+            val gains = arrayOf("1.0", "2.0", "3.0")
+            filters += "lavfi=[equalizer=f=2300:t=q:w=1:g=${gains[dialogueLevel - 1]}]"
+        }
+        if (highEq) filters += "lavfi=[equalizer=f=4300:t=q:w=1:g=1.5]"
+        // af set replaces only the filters owned by this experimental player.
+        // Never use speechnorm or constant loudness normalization.
+        runCatching { MPVLib.command("af", "set", filters.joinToString(",")) }
+            .onSuccess {
+                status?.text = if (filters.isEmpty()) "Filtry wyłączone"
+                    else "Żądanie filtrów wysłane • sprawdź działanie i dźwięk"
+            }.onFailure { status?.text = "MPV odrzuciło zmianę filtrów" }
     }
 
     private fun enterNativePip() {
