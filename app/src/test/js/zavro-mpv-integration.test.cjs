@@ -9,12 +9,12 @@ const build = fs.readFileSync('app/build.gradle', 'utf8');
 const workflow = fs.readFileSync('.github/workflows/apk-release.yml', 'utf8');
 
 test('keeps the canonical Zavro identity for in-place updates', () => {
-  assert.match(build, /applicationId = "com\.prirai\.android\.nira"/);
+  assert.match(build, /applicationId = "com\.prirai\.android\.nira\.mpv"/);
   assert.doesNotMatch(build, /applicationIdSuffix\s*=\s*['"]\.mpv/);
-  assert.match(build, /applicationIdSuffix\s*=\s*['"]\.debug/);
-  assert.match(workflow, /EXPECTED_PACKAGE: com\.prirai\.android\.nira\.debug\b/);
+  assert.doesNotMatch(build, /applicationIdSuffix/);
+  assert.match(workflow, /EXPECTED_PACKAGE: com\.prirai\.android\.nira\.mpv\b/);
   assert.match(build, /versionCode = 129/);
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1129"/);
+  assert.match(workflow, /EXPECTED_VERSION_CODE: "1130"/);
 });
 
 test('embeds native libmpv and keeps the basic 1.5x and seek controls', () => {
