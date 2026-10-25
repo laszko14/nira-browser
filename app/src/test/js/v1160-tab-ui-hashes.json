@@ -1,0 +1,12 @@
+{
+  "app/src/main/java/com/prirai/android/nira/BrowserFragment.kt": "c677698b115c66131e4b8a6e2eb309280334918e3f519ee454fd475848a02cef",
+  "app/src/main/java/com/prirai/android/nira/media/MediaFloatingUi.kt": "1a0b374d148e2a21ab59455b089252e1eb30da11c6ccd7db0243998e71ba5abc",
+  "app/src/main/java/com/prirai/android/nira/components/toolbar/BrowserChromeBounds.kt": "d0fb178fa24a153d257c09f8aa86dbfd6c9b7d255024af2ac2854a54c77fc932",
+  "app/src/main/java/com/prirai/android/nira/browser/tabs/TabsBottomSheetFragment.kt": "9ac18027d5bbef72e8a51ba26aefbe26c95cab74c345d39c57bdb7723396c865",
+  "app/src/main/java/com/prirai/android/nira/browser/tabs/compose/TabViewModel.kt": "c7a4f7e33755d2a27813292add7602f5ce15578a4499ded91b771b7ef57e4b29",
+  "app/src/main/java/com/prirai/android/nira/browser/tabs/compose/TabOrderManager.kt": "023ce75bd877150eb421cd7504ead316fa6c8f9faed0494757173e80718411ce",
+  "app/src/main/java/com/prirai/android/nira/browser/tabs/compose/UnifiedTabOrder.kt": "d31974e59bffafa99468f7d4dc6bd67872c2b8365df87fc4666f93a253907913",
+  "app/src/main/java/com/prirai/android/nira/browser/tabs/compose/UnifiedItemBuilder.kt": "87c8809c4cd8a94b9f5c7a4006d1e399a19c98acd7aad80ce1d6d1859ba645eb",
+  "app/src/main/java/com/prirai/android/nira/components/toolbar/modern/PortraitNativeTabStrip.kt": "a28e0eca84fdbf7790ded6e227a811b0ea02e875c7761ff53d18519e7b9b606f",
+  "app/src/main/java/com/prirai/android/nira/components/toolbar/unified/UnifiedToolbar.kt": "c2ff74747cd3ceb0d2f2a0544f1e308954f057243ee4ab20f8c506253e6e407e"
+}

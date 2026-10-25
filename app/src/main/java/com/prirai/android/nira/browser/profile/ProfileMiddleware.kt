@@ -37,7 +37,21 @@ class ProfileMiddleware(
                 
                 // If tab already has a contextId, respect it (explicitly set by caller)
                 if (action.tab.contextId != null) {
-                    next(action)
+                    // An explicit default request must not fall through to the active profile.
+                    // The sentinel never reaches Gecko as a separate cookie partition.
+                    if (action.tab.contextId == "profile_default") {
+                        next(TabListAction.AddTabAction(action.tab.copy(contextId = null), action.select))
+                    } else next(action)
+                    return
+                }
+
+                // Gecko WindowFeature supplies parentId/private but no contextId.
+                // Inherit its source partition, not a potentially newer selected profile.
+                val parent = store.state.tabs.firstOrNull { it.id == action.tab.parentId }
+                if (parent != null && parent.content.private == action.tab.content.private) {
+                    val inherited = if (parent.content.private) "private"
+                        else parent.contextId?.takeUnless { it == "profile_default" }
+                    next(TabListAction.AddTabAction(action.tab.copy(contextId = inherited), action.select))
                     return
                 }
                 

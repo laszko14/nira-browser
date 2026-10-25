@@ -618,31 +618,8 @@ class UnifiedTabGroupManager internal constructor(
         recordEvent(GroupEvent.AllGroupsCleared)
     }
 
-    /**
-     * Handles new tab creation from a link in another tab.
-     *
-     * This method automatically groups tabs opened from links to maintain browsing context.
-     * It works for both same-domain and cross-domain links, creating or extending groups
-     * to keep related tabs together.
-     *
-     * Grouping behavior:
-     * - If source tab is already in a group → adds new tab to that group
-     * - If source tab is not in a group → creates new group for both tabs
-     * - Skips system URLs (about:, chrome:) which should not be grouped
-     *
-     * This is typically called by TabGroupMiddleware when it detects a tab was
-     * opened from a link in another tab (via context menu, middle-click, etc.)
-     *
-     * Thread safety:
-     * - Runs on IO dispatcher via withContext
-     * - Safe to call from any thread
-     *
-     * @param newTabId ID of the newly created tab
-     * @param newTabUrl URL being loaded in the new tab
-     * @param sourceTabId ID of the tab the link was opened from (null if unknown)
-     * @param sourceTabUrl URL of the source tab (null if unknown)
-     */
-    suspend fun handleNewTabFromLink(
+    /** Explicit menu intent only; navigation ancestry and URL updates never call this. */
+    suspend fun groupExplicitlyOpenedLink(
         newTabId: String,
         newTabUrl: String,
         sourceTabId: String?,
@@ -651,6 +628,8 @@ class UnifiedTabGroupManager internal constructor(
     ) = mutate {
         if (!tabMatchesContext(newTabId, contextId) || sourceTabId == null ||
             !tabMatchesContext(sourceTabId, contextId) || newTabId == sourceTabId) return@mutate
+        // A later manual move wins over this delayed explicit request.
+        if (tabToGroupMap.containsKey(newTabId)) return@mutate
         // Only proceed if we have source information
         if (sourceTabUrl == null) {
             return@mutate
@@ -665,8 +644,8 @@ class UnifiedTabGroupManager internal constructor(
         val sourceGroupId = tabToGroupMap[sourceTabId]
 
         if (sourceGroupId != null) {
-            if (groupsCache[sourceGroupId]?.contextId == contextId)
-                addTabToGroup(newTabId, sourceGroupId)
+            // addTabToGroup validates privacy/context, including legacy default aliases.
+            addTabToGroup(newTabId, sourceGroupId)
         } else {
             createGroup(tabIds = listOf(sourceTabId, newTabId), contextId = contextId)
         }

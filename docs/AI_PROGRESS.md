@@ -310,3 +310,12 @@ Opcjonalne, odwracalne rewizje istniejących przycisków DRC/DE: kopie oryginał
 - Pełna końcowa walidacja w toku, wyniki w handoff v1160. Android/MPV na telefonie NIEURUCHOMIONE.
 
 - Końcowy review/Gradle PASS2m55s: JUnit235/235, JS162/162, Lua77/77, DSP28/28; assemble i compileAndroidTest PASS. Pierwszy pełny4m31s ujawnił1nowy CheckResult; naprawiony przed pierwszym push. Lint final:0nowych, dokładnie stan v1159 (1462Fatal/258Error/444Warning/19Hint). Kontrola92plików i etykiet MPV PASS. CI/certyfikat/artefakt potwierdzić po push w opisie PR.
+
+## 2026-10-25 — v1161, diagnoza i naprawa otwierania kart
+- Baza finalnego v1160 3075ba7, gałąź fix/zavro-x-mpv-v1161-tab-opening-group-audit; bez powtórnego pełnego audytu.
+- RED: parentId dopisuje10kart do grupy; opóźniony URL tworzy grupę; źródło default/A przypisywane do aktywnegoB.
+- Zwykłe BrowserActions nie grupują. Oddzielny jawny intent z menu „w grupie” zachowany; parentId zostaje nawigacją.
+- Naprawiono dziedziczenie partycji dla Gecko WindowFeature, jawny default i flagę private osobnego menu; ręczne członkostwo dziecka ma pierwszeństwo nad opóźnionym intentem.
+- Nowe celowane testy efektów GREEN, JS163/163; pełna walidacja, lint delta i podpisujące CI są kolejnym krokiem. Szczegóły wznowienia: CODEX_RESUME_V1161.md.
+
+- Końcowe lokalne test/lint/assemble/compileAndroidTest BUILD SUCCESSFUL4m35s. JUnit244/244, JS163/163, Lua77/77, DSP28/28; failure/error/skip0. Lint dokładnie stan v1160,0nowych/0usuniętych (1462Fatal/258Error/444Warning/19Hint). Review autora i kontrola integralności92+10plików PASS. Następnie jeden push/Draft PR do v1160 i podpisujące CI; metadane końcowe w opisie PR.

@@ -1,3 +1,9 @@
+# Aktualny punkt startu — Zavro x MPV v1161
+
+Baza3075ba7e29c34100a19d499263dfe7a90acebdcd, gałąź `fix/zavro-x-mpv-v1161-tab-opening-group-audit`. [Wznowienie](CODEX_RESUME_V1161.md), [diagnoza i macierz](ZAVRO_X_MPV_V1161_HANDOFF.md). Zwykłe linki pozostają solo; parentId jest nawigacją, grupowanie tylko przez osobne jawne polecenie. Naprawiono profil źródła dla Gecko WindowFeature i prywatność menu. Bez migracji, subagentów, merge i zmian MPV. Poniżej zachowano historię.
+
+---
+
 # Aktualny punkt startu — Zavro x MPV v1160
 
 Baza fdf3a98e0c1f159c5f6b764d37c2e2574d4b841b, gałąź `fix/zavro-x-mpv-v1160-multigroup-fab-layout`. Stan wznowienia: [CODEX_RESUME_V1160.md](CODEX_RESUME_V1160.md), pełny raport: [ZAVRO_X_MPV_V1160_HANDOFF.md](ZAVRO_X_MPV_V1160_HANDOFF.md). Dwie poprawki: geometria FAB względem dolnych kart i tworzenie grup w aktywnym menu bocznym. Bez migracji, subagentów i merge. Historyczne informacje zachowane poniżej.

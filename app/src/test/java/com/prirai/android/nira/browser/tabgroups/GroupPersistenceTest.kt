@@ -38,13 +38,13 @@ class GroupPersistenceTest {
             assertEquals(ids, reloaded.getGroup(group.id)!!.tabIds)
         } finally { database.close() }
     }
-    @Test fun rapidExplicitChildrenCreateOneGroup() = runTest {
+    @Test fun rapidExplicitGroupRequestsCreateOneGroup() = runTest {
         val database = db()
         try {
             val tabs = listOf(tab("parent")) + (1..10).map { tab("c$it") }
             val manager = UnifiedTabGroupManager(context, database, StandardTestDispatcher(testScheduler)) { tabs }
             manager.initialize(); assertTrue(manager.awaitInitialized())
-            (1..10).map { n -> async { manager.handleNewTabFromLink("c$n", "https://example.org/child", "parent", "https://example.org", null) } }.awaitAll()
+            (1..10).map { n -> async { manager.groupExplicitlyOpenedLink("c$n", "https://example.org/child", "parent", "https://example.org", null) } }.awaitAll()
             assertEquals(1, manager.getAllGroups().size)
             assertEquals(tabs.map { it.id }.toSet(), manager.getAllGroups().single().tabIds.toSet())
         } finally { database.close() }

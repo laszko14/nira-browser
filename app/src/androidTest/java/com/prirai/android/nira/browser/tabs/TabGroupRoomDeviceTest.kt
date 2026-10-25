@@ -6,6 +6,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.prirai.android.nira.browser.tabgroups.*
 import kotlinx.coroutines.*
 import mozilla.components.browser.state.state.*
+import mozilla.components.browser.state.store.BrowserStore
+import mozilla.components.browser.state.action.*
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -13,6 +15,30 @@ import org.junit.runner.RunWith
 /** Real Android SQLite integration; does not claim to exercise touch gestures or MPV. */
 @RunWith(AndroidJUnit4::class)
 class TabGroupRoomDeviceTest {
+    @Test fun parentedNavigationActionsLeaveExistingRoomMembersUntouched() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val db = Room.inMemoryDatabaseBuilder(context, TabGroupDatabase::class.java).build()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        try {
+            val source = TabSessionState(id = "source", content = ContentState(url = "https://example.org"))
+            lateinit var store: BrowserStore
+            val groups = UnifiedTabGroupManager(context, db, Dispatchers.IO) { store.state.tabs }
+            store = BrowserStore(initialState = BrowserState(tabs = listOf(source)),
+                middleware = listOf(TabGroupMiddleware(lazy { groups }, scope)))
+            groups.initialize(); assertTrue(groups.awaitInitialized())
+            val group = groups.createGroup(listOf(source.id), "Existing")
+            repeat(10) { n ->
+                val child = TabSessionState(id = "child$n", parentId = source.id, content = ContentState(url = "about:blank"))
+                store.dispatch(TabListAction.AddTabAction(child, false))
+                store.dispatch(ContentAction.UpdateUrlAction(child.id, "https://example.org/child$n"))
+            }
+            scope.coroutineContext.job.children.toList().joinAll()
+            assertEquals(11, store.state.tabs.size)
+            assertEquals(listOf(source.id), db.tabGroupDao().getTabIdsInGroup(group.id))
+            assertEquals(1, groups.getAllGroups().size)
+        } finally { scope.cancel(); db.close() }
+    }
+
     @Test fun threeGroupsKeepIndependentIdsAndMembersAfterReload() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val db = Room.inMemoryDatabaseBuilder(context, TabGroupDatabase::class.java).build()
