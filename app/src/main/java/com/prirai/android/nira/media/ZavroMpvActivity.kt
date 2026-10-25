@@ -49,6 +49,10 @@ class ZavroMpvActivity : AppCompatActivity() {
     private var player: ZavroMpvView? = null
     private var currentUrl: String? = null
     private var gateTicket: String? = null
+    private var traceSession: Any? = null
+    private fun trace(code: String) {
+        MpvDebugTrace.note(MpvDebugTrace.Section.MPV, code, traceSession)
+    }
     private var ready = false
     private var fileLoaded = false
     private var autoHandoff = false
@@ -175,6 +179,7 @@ class ZavroMpvActivity : AppCompatActivity() {
                 MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED -> runOnUiThread {
                     if (ready) {
                         fileLoaded = true
+                        trace("mpv_file_loaded")
                         timeoutAction?.let(handler::removeCallbacks)
                         status?.text = "MPV w Zavro • odtwarzanie"
                         updateHud()
@@ -183,16 +188,20 @@ class ZavroMpvActivity : AppCompatActivity() {
                 MPVLib.MpvEvent.MPV_EVENT_END_FILE -> runOnUiThread {
                     if (!ready || isFinishing) return@runOnUiThread
                     if (!fileLoaded) {
+                        trace("mpv_end_before_load")
                         if (autoHandoff) {
+                            trace("mpv_auto_rollback")
                             // Return Gecko to its paused element instead of trapping
                             // the user in a black screen after failed network opening.
                             setResult(Activity.RESULT_CANCELED)
                             finish()
                         } else {
+                            trace("mpv_manual_error")
                             status?.text = "Nie można otworzyć strumienia • " +
                                 "możliwy wygasły link, autoryzacja lub format. Ponów / Wróć"
                         }
                     } else {
+                        trace("mpv_end_after_load")
                         status?.text = "Koniec filmu • Ponów / Wróć"
                     }
                 }
@@ -207,6 +216,7 @@ class ZavroMpvActivity : AppCompatActivity() {
         val url = source?.url?.let { runCatching { Uri.parse(it) }.getOrNull() }
             ?.takeIf(::allowedVideoUrl)?.toString()
         if (ticket == null || url == null) {
+            trace("mpv_ticket_missing")
             Toast.makeText(this, "Film nieaktualny lub zmieniono kartę", Toast.LENGTH_LONG).show()
             finish()
             return
@@ -217,9 +227,13 @@ class ZavroMpvActivity : AppCompatActivity() {
             return
         }
         gateTicket = ticket
+        traceSession = source.owner.session
+        trace("mpv_ticket_valid")
+        trace(MpvDebugTrace.classifySource(url))
         autoHandoff = source.autoHandoff
         currentUrl = url
         if (!requestMediaAudioFocus()) {
+            trace("mpv_audio_focus_failed")
             Toast.makeText(this, "Brak dostępu do dźwięku", Toast.LENGTH_LONG).show()
             finish()
             return
@@ -248,10 +262,12 @@ class ZavroMpvActivity : AppCompatActivity() {
             MPVLib.observeProperty("pause", MPVLib.MpvFormat.MPV_FORMAT_FLAG)
             root.addView(surface, FrameLayout.LayoutParams(-1, -1))
         } catch (e: LinkageError) {
+            trace("mpv_linkage_failed")
             Toast.makeText(this, "Nie można uruchomić libmpv", Toast.LENGTH_LONG).show()
             finish()
             return
         } catch (e: RuntimeException) {
+            trace("mpv_init_failed")
             Toast.makeText(this, "Błąd inicjalizacji MPV", Toast.LENGTH_LONG).show()
             finish()
             return
@@ -264,12 +280,16 @@ class ZavroMpvActivity : AppCompatActivity() {
         // attached. Defer playback until the host view is in the hierarchy.
         surface.post {
             if (ready && !isFinishing && currentUrl == url) {
+                trace("mpv_surface_attached")
+                trace("mpv_loading")
                 loadStartMs = android.os.SystemClock.elapsedRealtime()
                 runCatching { surface.playFile(url) }.onFailure {
                     if (autoHandoff) {
+                        trace("mpv_auto_rollback")
                         setResult(Activity.RESULT_CANCELED)
                         finish()
                     } else {
+                        trace("mpv_manual_error")
                         status?.text = "Nie udało się przekazać źródła do MPV • Wróć do strony"
                     }
                 }
@@ -542,6 +562,7 @@ class ZavroMpvActivity : AppCompatActivity() {
 
     private fun retry() {
         val url = currentUrl ?: return
+        trace("mpv_retry")
         if (!ready) return
         fileLoaded = false
         status?.text = "Ponowne łączenie…"
@@ -556,7 +577,9 @@ class ZavroMpvActivity : AppCompatActivity() {
         timeoutAction?.let(handler::removeCallbacks)
         val action = Runnable {
             if (ready && !fileLoaded && !isFinishing) {
+                trace("mpv_timeout")
                 if (autoHandoff) {
+                    trace("mpv_auto_rollback")
                     setResult(Activity.RESULT_CANCELED)
                     finish()
                 } else {
@@ -611,6 +634,7 @@ class ZavroMpvActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        trace("mpv_destroyed")
         holdAction?.let(handler::removeCallbacks)
         timeoutAction?.let(handler::removeCallbacks)
         controlsHideTask?.let(handler::removeCallbacks)

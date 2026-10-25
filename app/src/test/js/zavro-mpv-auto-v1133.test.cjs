@@ -32,7 +32,7 @@ function sandbox({ source="https://cdn.example/long-movie.mp4", duration=NaN,
     addEventListener:(name,cb)=>{events[name]=cb;}
   };
   const port={
-    postMessage:message=>messages.push(message),
+    postMessage:message=>{if(message.event!=="diagnostic") messages.push(message);},
     onMessage:{addListener:cb=>portEvents.message=cb},
     onDisconnect:{addListener:cb=>portEvents.disconnect=cb},
   };

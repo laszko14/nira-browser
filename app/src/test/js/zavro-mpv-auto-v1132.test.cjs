@@ -12,7 +12,7 @@ const policy = fs.readFileSync("app/src/main/java/com/prirai/android/nira/media/
 function harness(url = "https://cdn.example/film.mp4", options = {}) {
   const messages = [], listeners = {}, callbacks = {};
   const port = {
-    postMessage: m => messages.push(m),
+    postMessage: m => { if(m.event !== "diagnostic") messages.push(m); },
     onMessage: { addListener: cb => callbacks.message = cb },
     onDisconnect: { addListener: cb => callbacks.disconnect = cb },
   };

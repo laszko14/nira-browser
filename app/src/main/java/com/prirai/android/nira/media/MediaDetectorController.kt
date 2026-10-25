@@ -38,11 +38,20 @@ internal class MediaDetectorController(private val engine: Engine, private val s
                 id = EXTENSION_ID,
                 url = "resource://android/assets/extensions/nira-media-detector/",
                 onSuccess = { extension ->
-                    try { attach(extension) } catch (_: Exception) { diagnostic("attach_failed") }
+                    MpvDebugTrace.note(MpvDebugTrace.Section.WEB, "extension_install_ok")
+                    try { attach(extension) } catch (_: Exception) {
+                        MpvDebugTrace.note(MpvDebugTrace.Section.WEB, "extension_attach_failed")
+                        diagnostic("attach_failed")
+                    }
                 },
-                onError = { MediaDetectorDiagnostics.installFailed(); diagnostic("install_failed") },
+                onError = {
+                    MpvDebugTrace.note(MpvDebugTrace.Section.WEB, "extension_install_failed")
+                    MediaDetectorDiagnostics.installFailed()
+                    diagnostic("install_failed")
+                },
             )
         } catch (_: Exception) {
+            MpvDebugTrace.note(MpvDebugTrace.Section.WEB, "extension_install_failed")
             MediaDetectorDiagnostics.installFailed()
             diagnostic("install_failed")
         }
@@ -122,7 +131,11 @@ internal class MediaDetectorController(private val engine: Engine, private val s
                                 }
                             )
                             attached[session] = Unit
-                        } catch (_: Exception) { diagnostic("session_attach_failed") }
+                            MpvDebugTrace.note(MpvDebugTrace.Section.WEB, "session_handler_attached", session)
+                        } catch (_: Exception) {
+                            MpvDebugTrace.note(MpvDebugTrace.Section.WEB, "session_handler_failed", session)
+                            diagnostic("session_attach_failed")
+                        }
                     }
                 }
             }
