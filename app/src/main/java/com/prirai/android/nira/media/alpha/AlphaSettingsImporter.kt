@@ -98,7 +98,7 @@ internal object AlphaSettingsImporter {
                 if(encoding!=null && !encoding.equals("UTF-8",true))
                     throw AlphaImportException(AlphaImportError.INVALID_XML)
             }
-            val handler=ExportHandler()
+            val handler=RootHandler()
             val factory=SAXParserFactory.newInstance().apply {
                 isNamespaceAware=false
                 isValidating=false
@@ -119,7 +119,81 @@ internal object AlphaSettingsImporter {
           catch(_:Exception) { throw AlphaImportException(AlphaImportError.INVALID_XML) }
     }
 
-    private class ExportHandler:DefaultHandler() {
+    private abstract class ImportHandler:DefaultHandler() {
+        abstract fun result():AlphaImportPlan
+        override fun error(e:org.xml.sax.SAXParseException) {throw AlphaImportException(AlphaImportError.INVALID_XML)}
+        override fun fatalError(e:org.xml.sax.SAXParseException) {throw AlphaImportException(AlphaImportError.INVALID_XML)}
+    }
+    private class RootHandler:ImportHandler() {
+        private var delegate:ImportHandler?=null
+        override fun startElement(uri:String?,localName:String?,qName:String,a:Attributes) {
+            val target=delegate?:when(qName) {
+                "mpvExSettings"->ExportHandler();"customButtons"->ButtonExportHandler()
+                else->throw AlphaImportException(AlphaImportError.BAD_STRUCTURE)
+            }.also {delegate=it}
+            target.startElement(uri,localName,qName,a)
+        }
+        override fun endElement(uri:String?,localName:String?,qName:String) {delegate?.endElement(uri,localName,qName)}
+        override fun characters(ch:CharArray,start:Int,length:Int) {delegate?.characters(ch,start,length)}
+        override fun result()=delegate?.result()?:throw AlphaImportException(AlphaImportError.BAD_STRUCTURE)
+    }
+    /** Canonical CustomButtonScreen v54 <customButtons><button slot="…">, without regex XML parsing. */
+    private class ButtonExportHandler:ImportHandler() {
+        private val stack=mutableListOf<String>()
+        private val rows=MutableList<AlphaLuaButton?>(43){null}
+        private val seen=mutableSetOf<Int>()
+        private val fields=linkedMapOf<String,String>()
+        private val content=StringBuilder()
+        private var slot=-1
+        private var closed=false
+        private var nodes=0
+        private val appearances=mutableMapOf<String,Set<String>>()
+        private val appearance=setOf("alwaysVisible","backgroundColor","textColor","activeBackgroundColor","activeTextColor","icon")
+        private val allowed=appearance+setOf("id","title","content","longPressContent","onStartup","enabled")
+        private fun reject():Nothing=throw AlphaImportException(AlphaImportError.BAD_BUTTONS)
+        override fun startElement(uri:String?,localName:String?,qName:String,a:Attributes) {
+            if(++nodes>1000)reject()
+            when(stack.size) {
+                0->if(qName!="customButtons" || a.length!=0 || closed)reject()
+                1->{
+                    if(qName!="button" || a.length!=1 || a.getQName(0)!="slot")reject()
+                    slot=a.getValue("slot").toIntOrNull()?:reject()
+                    if(slot !in 0..42 || !seen.add(slot))reject()
+                    fields.clear()
+                }
+                2->{if(qName !in allowed || a.length!=0 || fields.containsKey(qName))reject();content.clear()}
+                else->reject()
+            }
+            stack.add(qName)
+        }
+        override fun characters(ch:CharArray,start:Int,length:Int) {
+            if(stack.size==3) {if(content.length+length>1_048_576)reject();content.append(ch,start,length)}
+            else if((start until start+length).any {!ch[it].isWhitespace()})reject()
+        }
+        override fun endElement(uri:String?,localName:String?,qName:String) {
+            if(stack.lastOrNull()!=qName)reject()
+            if(stack.size==3)fields[qName]=content.toString()
+            if(stack.size==2) {
+                fun value(key:String)=fields[key]
+                fun bool(key:String):Boolean?=value(key)?.let {if(it=="true")true else if(it=="false")false else reject()}
+                fun color(key:String):Int?=value(key)?.let {it.toIntOrNull()?:reject()}
+                val id=value("id")?.takeIf {it.isNotBlank()}?:reject()
+                val row=AlphaLuaButton(id,value("title")?:reject(),value("content")?:reject(),
+                    value("longPressContent")?:"",value("onStartup")?:"",bool("enabled")?:true,
+                    bool("alwaysVisible"),color("backgroundColor"),color("textColor"),
+                    color("activeBackgroundColor"),color("activeTextColor"),value("icon"))
+                if(rows.filterNotNull().any {it.id==id})reject()
+                rows[slot]=row;appearances[id]=fields.keys.intersect(appearance)
+            }
+            stack.removeAt(stack.lastIndex)
+            if(stack.isEmpty())closed=true
+        }
+        override fun result():AlphaImportPlan {
+            if(!closed || stack.isNotEmpty())reject()
+            return AlphaImportPlan(emptyMap(),AlphaSlots.normalize(rows),0,0,emptySet(),false,appearances)
+        }
+    }
+    private class ExportHandler:ImportHandler() {
         private val stack=mutableListOf<String>()
         private val seen=mutableSetOf<String>()
         private val values=linkedMapOf<String,AlphaPreferenceValue>()
@@ -228,7 +302,7 @@ internal object AlphaSettingsImporter {
         }
         override fun error(e:org.xml.sax.SAXParseException) { reject(AlphaImportError.INVALID_XML) }
         override fun fatalError(e:org.xml.sax.SAXParseException) { reject(AlphaImportError.INVALID_XML) }
-        fun result():AlphaImportPlan {
+        override fun result():AlphaImportPlan {
             if(!closed || !preferences)reject()
             return AlphaImportPlan(values.toMap(),slots?.toList(),skipped,records,warnings.toSet(),versionDeclared,appearanceFields)
         }

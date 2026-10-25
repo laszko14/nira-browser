@@ -737,6 +737,7 @@ class ZavroMpvActivity : AppCompatActivity() {
             runCatching { MPVLib.removeObserver(mpvEvents) }
             runCatching { MPVLib.removeLogObserver(mpvLogs) }
             runCatching { player?.destroy() }
+            player?.cleanupCustomScripts()
         }
         player = null
         currentUrl = null
@@ -776,15 +777,34 @@ class ZavroMpvView(context: android.content.Context, attrs: AttributeSet) :
     private var alphaBridgeScript=""
     internal var alphaBridgeLoadConfigured=false
         private set
-    internal fun prepareAlphaBridge(configDir:String):Boolean {
+    internal fun prepareAlphaBridge(configDir:String,scriptStore:com.prirai.android.nira.media.alpha.scripts.CustomLuaStore?=null):Boolean {
         if(!alphaBridgePrepared) {
             alphaBridgePrepared=true
             alphaBridgeInstalled=com.prirai.android.nira.media.alpha.AlphaLuaBridge.install(java.io.File(configDir))
             if(alphaBridgeInstalled)alphaBridgeScript=java.io.File(configDir,
                 "scripts/"+com.prirai.android.nira.media.alpha.AlphaLuaBridge.FILE_NAME).absolutePath
+            // Device tests use isolated directories; never read the user's real store there.
+            if(alphaBridgeInstalled && (scriptStore!=null || java.io.File(configDir).canonicalFile==context.filesDir.canonicalFile)) {
+                customRuntime=runCatching {com.prirai.android.nira.media.alpha.scripts.CustomLuaRuntime.prepare(
+                    scriptStore?:com.prirai.android.nira.media.alpha.scripts.CustomLuaRepository.get(context),
+                    java.io.File(configDir),context.assets.open("mpv/zavro_custom_client.lua").bufferedReader().use {it.readText()})}.getOrNull()
+            }
+            customScriptsOption=(listOf(alphaBridgeScript).filter {it.isNotEmpty()}+
+                customRuntime?.paths.orEmpty()).joinToString(java.io.File.pathSeparator)
         }
         return alphaBridgeInstalled
     }
+
+    internal var customRuntime:com.prirai.android.nira.media.alpha.scripts.CustomLuaRuntime?=null
+        private set
+    internal var customOptionsAccepted=0
+        private set
+    internal var customOptionsRejected=0
+        private set
+    private var customScriptsOption=""
+    internal var customScriptsConfigured=false
+        private set
+    internal fun cleanupCustomScripts() {customRuntime?.cleanup();customRuntime=null}
 
     override fun initOptions() {
         // BaseMPVView sets config=yes/config-dir before this hook, then calls MPVLib.init.
@@ -794,8 +814,9 @@ class ZavroMpvView(context: android.content.Context, attrs: AttributeSet) :
         // Do not let an unrelated config file re-enable autoload or add scripts.
         val fileConfigDisabled=MPVLib.setOptionString("config","no")>=0
         val autoloadDisabled=MPVLib.setOptionString("load-scripts","no")>=0
-        val bridgeSelected=MPVLib.setOptionString("scripts",alphaBridgeScript)>=0
+        val bridgeSelected=MPVLib.setOptionString("scripts",customScriptsOption)>=0
         alphaBridgeLoadConfigured=alphaBridgeInstalled && fileConfigDisabled && autoloadDisabled && bridgeSelected
+        customScriptsConfigured=alphaBridgeLoadConfigured && customRuntime?.prepared==true
         setVo("gpu")
         MPVLib.setOptionString("hwdec", "mediacodec,no")
         MPVLib.setOptionString("speed", "1.5")
@@ -819,6 +840,11 @@ class ZavroMpvView(context: android.content.Context, attrs: AttributeSet) :
         MPVLib.setOptionString("cache-pause-wait", "2")
         MPVLib.setOptionString("demuxer-seekable-cache", "yes")
         MPVLib.setOptionString("network-timeout", "15")
+        // Only validated, explicitly confirmed local options; mandatory script/TLS/owner options
+        // are outside this allowlist. Native option parser supplies actual acceptance status.
+        customRuntime?.options.orEmpty().forEach { (key,value)->
+            if(MPVLib.setOptionString(key,value)>=0)customOptionsAccepted++ else customOptionsRejected++
+        }
         userAgent?.let { MPVLib.setOptionString("user-agent", it) }
         referrer?.let { MPVLib.setOptionString("referrer", it) }
     }

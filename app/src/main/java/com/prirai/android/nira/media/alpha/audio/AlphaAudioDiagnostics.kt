@@ -10,8 +10,8 @@ internal object AlphaAudioDiagnostics {
         return """
             AUDIO / ALPHA
             Audio controller: ${if(s.ready)"READY" else "UNAVAILABLE"}
-            Szum: ${if(s.noiseExternal)"EXTERNAL_UNVERIFIED" else "UNAVAILABLE_MODEL"}
-            Głos Lua: ${if(s.voiceExternal)"EXTERNAL_UNVERIFIED" else "UNAVAILABLE_DEFINITION"}
+            Szum: ${if(s.noiseExternal)"EXTERNAL_UNVERIFIED" else "OFF / MODEL_W_CUSTOM"}
+            Głos Lua: ${if(s.voiceExternal)"EXTERNAL_UNVERIFIED" else "OFF / KOD_PRZYCISKU"}
             EQ: ${if(!s.consistent)"UNCONFIRMED" else s.eq?.preset()?:"OFF"}
             Aktywne filtry kontrolera: ${if(s.eq!=null)1 else 0}
             Polecenia wysłane: ${s.sent}

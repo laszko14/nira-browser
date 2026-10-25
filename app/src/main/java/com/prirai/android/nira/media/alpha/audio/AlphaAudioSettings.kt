@@ -47,9 +47,9 @@ internal fun AudioEffectsSection(controller:AlphaAudioController) {
     Text("Filtry audio",style=MaterialTheme.typography.titleSmall,fontWeight=FontWeight.Bold,color=MaterialTheme.colorScheme.primary)
     AudioLevelChips("Szum (Lua)",0,7,{ },false)
     Text(if(state.noiseExternal)"Szum: filtr zewnętrznego Lua obecny, niezarządzany przez ten panel."
-        else "Szum 1–7 wymaga oryginalnego std.rnnn. Model nie jest dostarczony w tej wersji; nie zastosowano zamiennika.",style=MaterialTheme.typography.bodySmall)
+        else "Szum 1–7 wymaga oryginalnego std.rnnn. Zaimportuj model w Skrypty Lua i zasoby, rozpocznij następną sesję i użyj własnego przycisku. Nie zastosowano zamiennika.",style=MaterialTheme.typography.bodySmall)
     if(state.voiceExternal)Text("Głos Lua: filtr zewnętrzny obecny, parametry niezweryfikowane.",style=MaterialTheme.typography.bodySmall)
-    Text("Głos Lua 1–4: brak definicji w źródle v54. Potwierdzone profile głosu EQ są dostępne poniżej; to ten sam filtr EQ, nie niezależny Głos Lua.",style=MaterialTheme.typography.bodySmall)
+    Text("Głos Lua jest obsługiwany przez własny kod zaimportowanego przycisku. Ten panel zarządza wyłącznie EQ; nie włącza Szum/Głos ani nie zastępuje oryginalnych skryptów.",style=MaterialTheme.typography.bodySmall)
 }
 
 @Composable

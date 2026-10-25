@@ -97,7 +97,7 @@ internal fun AlphaSettingsImport(config:AlphaLuaConfig) {
             title={Text("Podgląd importu MPV Alpha")},
             text={
                 Column(Modifier.heightIn(max=460.dp).verticalScroll(rememberScrollState())) {
-                    Text("Format zgodny z eksportem MPV Alpha v54."+
+                    Text("Format zgodny z eksportem ustawień lub przycisków MPV Alpha v54."+
                         if(preview.versionDeclared)" Wersja schematu: 1." else " Eksporter nie zapisał numeru schematu.")
                     Text("Przyciski w pliku: ${found?.count { it!=null }?:0}")
                     if(found==null)Text("Brak przycisków w pliku — obecne pozostaną.")
@@ -113,7 +113,7 @@ internal fun AlphaSettingsImport(config:AlphaLuaConfig) {
                     Text("Pominięte wpisy połączeń bazy: ${preview.databaseRecords}.")
                     if(preview.warnings.isNotEmpty())Text(
                         "Ostrzeżenia: ${preview.warnings.size}. Wartości poza zakresem widoku będą ograniczone podczas renderowania; oryginały pozostaną w danych.")
-                    if(preview.matchedCount==0)Text("Brak ustawień obsługiwanych przez v1152.")
+                    if(preview.matchedCount==0)Text("Brak ustawień obsługiwanych przez tę wersję.")
                     if(!validCandidate)Text("Wybrany zakres przekracza limit modelu konfiguracji lub jest niepoprawny.")
                     Text("Natywna ścieżka prędkości obsługuje 0,5–3×. Dowolny Lua wymaga osobnej zgody w ustawieniach panelu; import jej nie włącza.")
                     Text("Transfer pozostaje ukryty bez rzeczywistego pomiaru. Układ może zostać dopasowany do dostępnego obszaru ekranu.")
@@ -121,7 +121,7 @@ internal fun AlphaSettingsImport(config:AlphaLuaConfig) {
                         Text("Indywidualne kolory i ikony są przenoszone tylko dla zgodnych ID; kody i kolejność pozostają.")
                     Text("Import nie uruchamia kodu ani akcji startowych. Poprzednie ustawienia będzie można przywrócić.")
                     listOf(
-                        AlphaImportScope.ALL to "Wszystko obsługiwane przez v1152",
+                        AlphaImportScope.ALL to "Wszystko obsługiwane przez tę wersję",
                         AlphaImportScope.BUTTONS_LAYOUT to "Tylko przyciski i układ",
                         AlphaImportScope.APPEARANCE to "Tylko wygląd Lua i HUD",
                     ).forEach { (scope,label) ->
