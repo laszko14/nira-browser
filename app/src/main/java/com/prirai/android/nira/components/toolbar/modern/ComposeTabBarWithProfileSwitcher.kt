@@ -313,9 +313,8 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
                 )
 
                 // If the original tab was in a group, put the duplicate in the same
-                // group before selecting it. For an ungrouped source tab,
-                // TabGroupMiddleware will auto-group the pair using the parent link
-                // when the new tab is added from the currently selected tab.
+                // group before selecting it. A duplicate of an ungrouped source
+                // stays ungrouped; navigation ancestry never requests grouping.
                 if (request.groupId != null) {
                     val groupManager =
                         com.prirai.android.nira.browser.tabgroups.UnifiedTabGroupManager.getInstance(context)

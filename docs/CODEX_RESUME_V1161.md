@@ -1,0 +1,28 @@
+# v1161 — checkpoint 3: finalny kod zweryfikowany, przed commit/push/CI
+- Gałąź fix/zavro-x-mpv-v1161-tab-opening-group-audit.
+- Baza / ostatni commit w chwili zapisu:3075ba7e29c34100a19d499263dfe7a90acebdcd.
+- To snapshot PRZED commit/push. Sprawdzić HEAD/GitHub/PR/CI: dalsze etapy mogą być już ukończone.
+- Kod, testy i docs gotowe. W chwili checkpointu v1161 nie było na GitHub, nie ma PR/CI.
+- RED→GREEN:10parentowanych linków zmieniało Sklep; about:blank→URL tworzyło grupę; źródło default/A dostawało aktywnyB.
+- TabGroupMiddleware nie reaguje grupowaniem na BrowserActions; pendingGrouping/usługi URL usunięte.
+- Jawny callback tylko z osobnego menu „w grupie”, z faktycznym child ID. Ta sama instancja w Components.
+- Wspólny opener zachowuje parentId/private/profil; parentId to nawigacja. Zwykła akcja nie wysyła intentu.
+- ProfileMiddleware: dziedziczenie partycji żywego rodzica przy zgodnym private; explicitdefault sentinel→null przed Gecko.
+- GroupManager: istniejąca serializowana transakcja, guard późniejszej ręcznej grupy dziecka/closed/foreign source i legacydefault.
+- Dead cross-domain helper usunięty z AppRequestInterceptor; aktywne ścieżki pliku byte-identical. Compose host tylko komentarz.
+- Dokładnej sekwencji Allegro/wyjęcia source na telefonie NIE odtworzono; mechanizmy i brak zmian source/grup potwierdzone danymi.
+- Finalny Gradle BUILD SUCCESSFUL4m35s: testDebugUnitTest lintDebug assembleDebug compileDebugAndroidTestKotlin --offline --console=plain --max-workers=1.
+- JUnit244/244 (235starych+9nowych),0failure/error/skip; log work/v1161-final-gradle.log.
+- JS163/163 work/v1161-js.log. Lua77/77,DSP28/28 work/v1161-lua-dsp.log, proces exit0.
+- Lint0nowych/0usuniętych;1462Fatal/258Error/444Warning/19Hint historyczne. work/v1161-lint-delta.json.
+- Nowe testy LinkOpening4,ContextMenuLink3,LinkPersistence1,ProfileTabPrivacy+1; stary GroupPersistence nadal testuje10jawnych requestów.
+- Real WindowFeature156.0.1 + mock EngineSession PASS; menu wywołuje prawdziwe TabsUseCases, native load jest rejestrowaną granicą.
+- Room/DS/Undo/manualmove/3grupy/10linków/source-slot/profil/private/closedsource i file reopen sprawdzone.
+- AndroidTest parented-navigation→Room unchanged dodany i skompilowany; urządzenia brak, wykonanie NIEURUCHOMIONE.
+-92hashkontrole MPV zachowane;10dodatkowych hashy FAB/manualgroups/order z v1160 PASS. Trace tylko2etykiety wersji.
+- Wersja161/ARM641161/name0.5.22-alpha67-mpv35; package com.prirai.android.nira.mpv i cert df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00 bez zmian.
+- Bez migracji, resetów, zmian ABI/deps/MPV. Handoff docs/ZAVRO_X_MPV_V1161_HANDOFF.md i historia AI_PROGRESS zaktualizowane.
+- Dalej: commit/push jeśli brak; Draft PR do fix/zavro-x-mpv-v1160-multigroup-fab-layout; istniejący CI uruchomi się na PR.
+- Potwierdzić run/head SHA, BUILD/TEST/LINT, verifier package/version/ABI/cert i artefakt zavro-x-mpv-arm64-v1161; bez pobierania APK.
+- Uzupełnić końcowy aneks w opisie PR o SHA/PR/run/artifact. Nie dodawać commita/CI tylko na te metadane.
+- Nie powtarzać audytów, diagnoz, review, niezmienionych testów ani udanego builda. Bez subagentów/merge/następnej wersji.

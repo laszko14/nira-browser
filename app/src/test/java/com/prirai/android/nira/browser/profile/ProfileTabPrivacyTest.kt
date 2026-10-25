@@ -34,4 +34,15 @@ class ProfileTabPrivacyTest {
         ProfileMiddleware(profiles).invoke(BrowserStore(), { action -> reduced = (action as TabListAction.AddTabAction).tab }, TabListAction.AddTabAction(tab, false))
         assertEquals(tab, reduced)
     }
+    @Test fun explicitPrivateOpeningDoesNotInheritTheNormalParentsPartition() {
+        val parent=TabSessionState(id="parent",contextId="profile_A",content=ContentState(url="https://example.org"))
+        val child=TabSessionState(id="child",parentId="parent",content=ContentState(url="https://example.org/child",private=true))
+        var result: TabSessionState?=null
+        ProfileMiddleware(ProfileManager(RuntimeEnvironment.getApplication())).invoke(
+            BrowserStore(initialState=BrowserState(tabs=listOf(parent))),
+            {result=(it as TabListAction.AddTabAction).tab},TabListAction.AddTabAction(child,false)
+        )
+        assertTrue(result!!.content.private);assertEquals("private",result!!.contextId)
+    }
+
 }
