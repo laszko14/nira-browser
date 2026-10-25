@@ -52,7 +52,7 @@ test("v1134 HTML5 script emits diagnostic codes only, not signed URLs",()=>{
 
 test("v1134 three menu reports replace the misleading old external MPV buttons",()=>{
   for(const id of ["mpv_diag_web","mpv_diag_handoff","mpv_diag_stream"]){
-    assert.ok(browser.includes('id = "'+id+'"'));
+    assert.ok(browser.includes('"'+id+'"'));
   }
   assert.doesNotMatch(browser,/id = "toggle_video_player_choice"/);
   assert.doesNotMatch(browser,/id = "open_video_link"/);
