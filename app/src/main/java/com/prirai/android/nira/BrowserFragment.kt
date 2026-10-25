@@ -912,30 +912,9 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         if (inFullScreen) {
             // Entering fullscreen - completely hide and collapse all toolbars
             expandBrowserViewForFullscreen()
-            if (BuildConfig.APPLICATION_ID.endsWith(".mpv")) {
-                // Only use a directly playable, current HTTP(S) stream. Some websites
-                // use DRM/blob URLs or fullscreen non-video content: keep Gecko there.
-                val snapshot = currentMediaSnapshot()
-                val best = snapshot?.entries
-                    ?.filter { it.playbackStatus !in setOf(
-                        MediaPlaybackStatus.EXPIRED, MediaPlaybackStatus.AUTH_ERROR,
-                        MediaPlaybackStatus.UNPLAYABLE
-                    ) && it.url.toUri().let { u ->
-                        u.scheme in listOf("http", "https") && !u.host.isNullOrBlank()
-                    } }
-                    ?.sortedWith(compareByDescending<com.prirai.android.nira.media.MediaEntry> {
-                        MediaSource.NETWORK in it.sources
-                    }.thenByDescending { MediaSource.DOM in it.sources })
-                    ?.firstOrNull()
-                if (best != null) {
-                    // Restore Gecko's UI state first; the native Activity owns fullscreen.
-                    binding.browserLayout.post {
-                        if (!isAdded) return@post
-                        super.onBackPressed()
-                        launchVideoInMpv(best.url.toUri(), best.frameUrl ?: snapshot?.tab?.pageUrl)
-                    }
-                }
-            }
+            // Do not guess the video from the tab's first network URL.
+            // Automatic handoff stays disabled until element/frame binding
+            // and pause/restore ACKs are implemented and regression-tested.
         } else {
             // Exiting fullscreen - restore toolbars
             collapseBrowserViewFromFullscreen()
@@ -1381,25 +1360,49 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     }
 
     private fun launchVideoInMpv(uri: android.net.Uri, referrer: String? = null) {
-        if (BuildConfig.APPLICATION_ID.endsWith(".mpv")) {
-            val safe = uri.scheme in listOf("https", "http") && !uri.host.isNullOrBlank() &&
-                uri.userInfo == null
-            if (!safe) {
-                Toast.makeText(requireContext(), R.string.video_link_invalid, Toast.LENGTH_SHORT).show()
-                return
-            }
-            val page = referrer?.let { runCatching { android.net.Uri.parse(it) }.getOrNull() }
-            val safeReferrer = page?.takeIf {
-                it.scheme in listOf("https", "http") && !it.host.isNullOrBlank() &&
-                    it.userInfo == null
-            }?.buildUpon()?.clearQuery()?.fragment(null)?.build()?.toString()
-            startActivity(Intent(requireContext(), ZavroMpvActivity::class.java).apply {
-                data = uri
-                putExtra(ZavroMpvActivity.EXTRA_REFERER, safeReferrer)
-                putExtra(ZavroMpvActivity.EXTRA_USER_AGENT, GeckoSession.getDefaultUserAgent())
-            })
+        // The canonical app now embeds libmpv. No applicationId suffix toggle.
+        if (!ZavroMpvActivity.allowedVideoUrl(uri)) {
+            Toast.makeText(requireContext(), R.string.video_link_invalid, Toast.LENGTH_SHORT).show()
             return
         }
+        val page = referrer?.let { runCatching { android.net.Uri.parse(it) }.getOrNull() }
+        val safeReferrer = page?.takeIf { ZavroMpvActivity.allowedVideoUrl(it) }
+            ?.buildUpon()?.clearQuery()?.fragment(null)?.build()?.toString()
+        val prefs = requireContext().getSharedPreferences(
+            "nira_video_player", android.content.Context.MODE_PRIVATE
+        )
+        if (prefs.getBoolean("ask_each_time", false)) {
+            com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.choose_video_player)
+                .setItems(arrayOf("MPV w Zavro", "Zewnętrzny MPV Alpha / wybór aplikacji")) { _, option ->
+                    if (option == 0) launchInternalVideo(uri, safeReferrer)
+                    else launchVideoExternally(uri, safeReferrer)
+                }
+                .show()
+            return
+        }
+        // Manual playback from the existing detected-media panel is the only
+        // native handoff in E1/E2. Automatic Play requires a per-element ACK.
+        launchInternalVideo(uri, safeReferrer)
+    }
+
+    private fun launchInternalVideo(uri: android.net.Uri, safeReferrer: String?) {
+        val privateTab = currentMediaSnapshot()?.tab?.binding?.isPrivate == true
+        val ticket = com.prirai.android.nira.media.PlaybackSourceRegistry.issue(
+            com.prirai.android.nira.media.PlaybackSourceRegistry.Source(
+                url = uri.toString(),
+                userAgent = GeckoSession.getDefaultUserAgent(),
+                referrer = safeReferrer,
+                isPrivate = privateTab,
+            )
+        )
+        startActivity(Intent(requireContext(), ZavroMpvActivity::class.java).apply {
+            // Signed URL, headers and incognito metadata stay in process RAM.
+            putExtra(ZavroMpvActivity.EXTRA_TICKET_ID, ticket)
+        })
+    }
+
+    private fun launchVideoExternally(uri: android.net.Uri, referrer: String?) {
         val viewIntent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "video/*")
             // MPV Alpha already accepts a validated legacy `headers` array.
@@ -1418,12 +1421,6 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                     ?.let { putExtra("headers", it) }
             }
         }
-        val playerPrefs = requireContext().getSharedPreferences("nira_video_player", android.content.Context.MODE_PRIVATE)
-        if (playerPrefs.getBoolean("ask_each_time", false)) {
-            openVideoChooser(viewIntent)
-            return
-        }
-
         // Signed MPV Alpha debug builds use the .debug applicationId suffix.
         // Prefer Alpha to the older release (REX Player), without an Android chooser.
         for (packageName in listOf("xyz.mpv.rex.debug", "xyz.mpv.rex")) {
