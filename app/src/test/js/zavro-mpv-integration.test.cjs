@@ -13,8 +13,8 @@ test('keeps the canonical Zavro identity for in-place updates', () => {
   assert.doesNotMatch(build, /applicationIdSuffix\s*=\s*['"]\.mpv/);
   assert.match(build, /applicationIdSuffix\s*=\s*['"]\.debug/);
   assert.match(workflow, /EXPECTED_PACKAGE: com\.prirai\.android\.nira\.debug\b/);
-  assert.match(build, /versionCode = 128/);
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1128"/);
+  assert.match(build, /versionCode = 129/);
+  assert.match(workflow, /EXPECTED_VERSION_CODE: "1129"/);
 });
 
 test('embeds native libmpv and keeps the basic 1.5x and seek controls', () => {
@@ -33,6 +33,11 @@ test('passes only an opaque in-process ticket, not signed media URLs in Intents'
   assert.match(registry, /UUID\.randomUUID\(\)/);
   assert.match(registry, /SystemClock\.elapsedRealtime\(\)/);
   assert.match(registry, /pending = null/);
+  assert.match(registry, /fresh\.binding\.session !== owner\.session/);
+  assert.match(registry, /fresh\.binding\.contextId != owner\.contextId/);
+  assert.match(player, /MPV_EVENT_FILE_LOADED/);
+  assert.match(player, /postDelayed\(action, 300L\)/);
+  assert.match(player, /MpvEngineGate\.claim/);
   assert.match(player, /FLAG_SECURE/);
 });
 
