@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Nira Media Detector",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "browser_specific_settings": {
     "gecko": {
       "id": "nira-media-detector@prirai.android.nira"
