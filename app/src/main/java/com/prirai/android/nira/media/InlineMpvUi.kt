@@ -160,6 +160,13 @@ internal class InlineMpvUi(
             MpvDebugTrace.note(MpvDebugTrace.Section.MPV,"inline_return",session)
         }
     }
+    /** Android Back collapses fullscreen without stopping or re-opening media. */
+    fun exitFullscreen(): Boolean {
+        if (!fullscreen || destroyed) return false
+        toggleFullscreen()
+        return true
+    }
+
     fun detach() {
         if (destroyed) return
         destroyed=true
