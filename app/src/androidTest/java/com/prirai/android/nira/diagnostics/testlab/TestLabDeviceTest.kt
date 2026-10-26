@@ -12,8 +12,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.TextView
-import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.prirai.android.nira.BrowserActivity
@@ -31,10 +29,8 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 
 /** Actual Android Window/JankStats/BrowserStore/Room, controlled UI workload. No native MPV/audio claim. */
-@OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 class TestLabDeviceTest {
-    @get:Rule val compose=createEmptyComposeRule()
     private val instrumentation=InstrumentationRegistry.getInstrumentation()
     private val app get()=instrumentation.targetContext.applicationContext as BrowserApp
     private lateinit var browser:BrowserActivity
@@ -87,19 +83,15 @@ class TestLabDeviceTest {
             if(::browser.isInitialized)browser.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
         await(15_000){!TestLab.busy}
+        TestLab.reports.value.values.forEach { report ->
+            println("TESTLAB_FIXTURE_RESULT type=${report.testType} phase=${report.status} durationMs=${report.durationMs} frames=${report.frameMetrics?.count} operations="+
+                report.operationMetrics.map{"${it.operation}:${it.started}/${it.accepted}/${it.succeeded}/${it.cancelled}"})
+        }
         group?.let{id->runBlocking {app.components.tabGroupManager.deleteGroup(id)}}
         onMain {
             tabs.forEach{app.components.tabsUseCases.removeTab(it)}
             selectedBefore?.takeIf{id->app.components.store.state.tabs.any{it.id==id}}?.let{app.components.tabsUseCases.selectTab(it)}
-            // EmptyComposeRule cancels surviving recomposers on its instrumentation thread.
-            // Dispose our live Browser compositions on Main first: AC store.flow(lifecycle)
-            // must unsubscribe its LifecycleRegistry observer on Main. Finishing this root
-            // Activity instead would intentionally kill the instrumentation process.
-            fun dispose(view:View) {
-                if(view is androidx.compose.ui.platform.AbstractComposeView)view.disposeComposition()
-                else if(view is android.view.ViewGroup)for(i in 0 until view.childCount)dispose(view.getChildAt(i))
-            }
-            if(::browser.isInitialized)dispose(browser.window.decorView)
+
         }
         TestLab.deleteReport()
         val prefs=UserPreferences(app)
@@ -122,10 +114,8 @@ class TestLabDeviceTest {
         for(type in TestType.entries) {
             stage="${type.name}:start-ui"
             screen=instrumentation.startActivitySync(Intent(app,TestLabActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as TestLabActivity
-            val tag="testlab-start-${type.name}"
-            compose.onNodeWithTag("testlab-list").performScrollToNode(hasTestTag(tag))
-            compose.onNodeWithTag(tag).assertIsEnabled().performClick()
-            compose.onNodeWithText("Rozpocznij i wróć").performClick()
+            clickUi("${type.labTitle()} — 60 s")
+            clickUi("Rozpocznij i wróć",scroll=false)
             screen=null
             stage="${type.name}:await-running"
             await(30_000){TestLab.ui.value.phase==LabPhase.RUNNING}
@@ -198,25 +188,58 @@ class TestLabDeviceTest {
         assertTrue(baseline.draws>0)
         // Export controls and a configuration recreation operate on the completed RAM report.
         screen=instrumentation.startActivitySync(Intent(app,TestLabActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as TestLabActivity
-        compose.onNodeWithTag("testlab-list").performScrollToNode(hasTestTag("testlab-report-COMPLEX"))
-        compose.onNodeWithTag("testlab-report-COMPLEX").performClick()
-        compose.onNodeWithText("Eksportuj JSON").assertIsDisplayed()
+        clickUi("Otwórz raport")
+        assertNotNull(uiNode("Eksportuj JSON"))
         onMain{screen?.recreate()}
-        compose.waitForIdle()
-        compose.onNodeWithText("Kopiuj raport").assertIsDisplayed().performClick()
+        clickUi("Kopiuj raport")
         val clip=app.getSystemService(android.content.ClipboardManager::class.java).primaryClip?.getItemAt(0)?.text.toString()
         assertTrue(clip.contains("Zavro TestLab"));assertFalse(clip.contains("TESTLAB_PRIVATE_FIXTURE"))
     }
+    /** Real accessibility actions keep production recomposers on Main and use real elapsed time. */
+    private fun uiNode(text:String,scroll:Boolean=true):android.view.accessibility.AccessibilityNodeInfo {
+        val until=SystemClock.elapsedRealtime()+20_000
+        while(SystemClock.elapsedRealtime()<until) {
+            val root=instrumentation.uiAutomation.rootInActiveWindow
+            val match=root?.findAccessibilityNodeInfosByText(text)?.firstOrNull{it.isVisibleToUser&&it.text?.toString()==text}
+            if(match!=null)return match
+            if(scroll&&root!=null) {
+                fun scrollable(node:android.view.accessibility.AccessibilityNodeInfo):android.view.accessibility.AccessibilityNodeInfo? {
+                    if(node.isScrollable)return node
+                    for(i in 0 until node.childCount)node.getChild(i)?.let{child->scrollable(child)?.let{return it}}
+                    return null
+                }
+                scrollable(root)?.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+            }
+            SystemClock.sleep(150)
+        }
+        error("TestLab UI text unavailable: $text (stage=$stage)")
+    }
+    private fun clickUi(text:String,scroll:Boolean=true) {
+        var node=uiNode(text,scroll)
+        while(!node.isClickable)node=node.parent?:error("TestLab UI text has no clickable parent: $text")
+        assertTrue(node.isEnabled)
+        assertTrue(node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK))
+        instrumentation.waitForIdleSync()
+    }
     private fun swipeFromLeftEdge() {
         val density=browser.resources.displayMetrics.density
-        val width=onMain{browser.window.decorView.width};val height=onMain{browser.window.decorView.height}
-        val start=SystemClock.uptimeMillis();val x=10*density;val y=height*0.5f
+        val bounds=onMain {
+            val view=browser.findViewById<View>(com.prirai.android.nira.R.id.gestureLayout)
+            val location=IntArray(2);view.getLocationOnScreen(location)
+            intArrayOf(location[0],location[1],view.width,view.height)
+        }
+        // Inside the app's 36dp edge, beyond Android's typical system-back strip.
+        val start=SystemClock.uptimeMillis();val x=bounds[0]+27*density;val screenY=bounds[1]+bounds[3]*0.5f
         fun send(action:Int,atX:Float) {
-            onMain {val event=MotionEvent.obtain(start,SystemClock.uptimeMillis(),action,atX,y,0);try{browser.dispatchTouchEvent(event)}finally{event.recycle()}}
+            val pointer=MotionEvent.PointerProperties().apply{id=0;toolType=MotionEvent.TOOL_TYPE_FINGER}
+            val coords=MotionEvent.PointerCoords().apply{this.x=atX;this.y=screenY;pressure=if(action==MotionEvent.ACTION_UP)0f else 1f;size=1f}
+            val event=MotionEvent.obtain(start,SystemClock.uptimeMillis(),action,1,arrayOf(pointer),arrayOf(coords),
+                0,0,1f,1f,0,0,android.view.InputDevice.SOURCE_TOUCHSCREEN,0)
+            try{instrumentation.sendPointerSync(event)}finally{event.recycle()}
         }
         send(MotionEvent.ACTION_DOWN,x)
-        repeat(20){i->send(MotionEvent.ACTION_MOVE,(x+(i+1)*8*density).coerceAtMost(width-20f));SystemClock.sleep(12)}
-        send(MotionEvent.ACTION_UP,(x+160*density).coerceAtMost(width-20f))
+        repeat(20){i->send(MotionEvent.ACTION_MOVE,(x+(i+1)*8*density).coerceAtMost(bounds[0]+bounds[2]-20f));SystemClock.sleep(12)}
+        send(MotionEvent.ACTION_UP,(x+160*density).coerceAtMost(bounds[0]+bounds[2]-20f))
     }
     private data class Trial(val draws:Long)
     private fun trial(label:String,ms:Long):Trial {

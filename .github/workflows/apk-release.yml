@@ -160,6 +160,7 @@ jobs:
           DISCOVERY_SET=DOM_C DISCOVERY_REPORT=app/build/reports/discovery-C-DOM.json node scripts/video-discovery/v1164/dom-fixtures.cjs
 
       - name: Protected Lua and DSP regressions
+        timeout-minutes: 10
         run: |
           if ! python3 -c 'import ctypes.util; assert ctypes.util.find_library("lua5.4")' || ! command -v ffmpeg >/dev/null; then
             sudo apt-get update -qq
