@@ -1,3 +1,8 @@
+# v1165 — zakończenie TestLab, 2026-10-26
+Gotowa testowa aktualizacja ARM64. Produkcja90d9f64, AndroidCI40379361457 SUCCESS:349JUnit(wtym73TestLab),JS200,Lua77,DSP28,BUILD/TEST/LINT/AndroidTestcompile. Lint0nowych względemv1164. Verifierpackage/1165/alpha71-mpv39/ARM64/cert PASS; APKartifact12676673428.
+Wznowienie dokończyło fixture: traversalvirtualnychAccessibilityCompose i prawdziwaBrowserFragment po restore, bez zmian produkcji/progów/gestów. Testowy04719a6:celowany40406053934 1/1PASS; pełny40407342362 24/24PASS (20Gecko+3Room+1UI7trybów), bez pominięć. Complex60000ms, inne6PARTIAL, realneframes/resources/cleanup/obrót/clipboard.
+DraftPR78 pozostaje otwarty, bez merge. FizycznyNothingPhone/realMPV/audio/SAFpicker NIERUN; pełne60s6pozostałychtrybów i porównywalny narzut telefonu do ręcznej weryfikacji. Szczegóły w CODEX_RESUME_V1165.md i ZAVRO_X_MPV_V1165_TESTLAB_HANDOFF.md.
+
 # v1165 — końcowe E/G i wydanie, 2026-10-26
 Implementacja/UI/typed raporty gotowe; pełnyJUnit348PASS +nowybackup7/7PASS, core72PASS, JS200 po korekcie nagłówka, Lua77/DSP28PASS. AndroidTestcompilePASS. Lint0nowychError/1świadomyComposeTestpinWarn. Pierwsze lokalne pakowanieOOM8GiB, kolejnein-process3GiB PASS8m4s. Wersja165/1165/alpha71-mpv39. Kod331da7e/DraftPR78; KVM40373745487 i signedCI40373745283 trwają; nie ogłaszać APK gotowym. Szczegóły i dokładne logi w CODEX_RESUME_V1165.md.
 
