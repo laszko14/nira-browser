@@ -68,3 +68,10 @@
 - JS195/195PASS;GradlepoevictionFULLPASS4m35s;lintnowych0(aktualnezliczeniapotwierdzićpoostatnimallowlistchange). Integralność92+10hashzachowanaodwracalnymiexactpatches.
 - Handoffutworzonyroboczodocs/ZAVRO_X_MPV_V1164_HANDOFF.md(ignored,forceadd),finalstatusliczbyzaktualizować. MetricszawierarealGeckotimingbaseline/intermediate.
 - Następnykrok:pushdiagnosticWIP,odczytać2Gecko wyniki,ustalićdokładnąprzyczynęSPA, minimalnyfix+RED/GREEN;potem18realtests/finalTEST/LINT,docsfinal,PRdov1163+signedARM64CI. NieogłaszaćAPKgotowym.
+
+## Checkpoint G — zaufany UUID kontra URI principalu
+- Diagnostic-only2SPA CI40315881821/a63331bjeszczewtoku. Nie rerunidentycznie;nowypushzmieniakod/testy.
+- SourceJSGecko WebRequest.sys:documentUrl=channel.documentURL, UUID=channel.documentInnerWindowId. OficjalnyChannelWrapper.cpp:GetDocumentURIbierzeLoadingPrincipal.URI(niebiezącątrasę). Toosobneodsender.url/getFrame.url.
+- Dodano3RED:GekcoUUIDcorrectzprincipalURLsprzedSPA(direct+early),opaquechildzprincipalURIrodzica. WszystkieGREENpoownsRequestDocument:UUIDauthoritative,legacybezUUIDnadaldokładnyURL. Parent/private/cookieStore,requestdocumentKeyiinvalidatedepochkontrolezachowane. StaraodpowiedźsprzedSPAodrzucana(testGREEN).
+- B21/21,C12/12,JS199/199poUUIDfix. AndroidTestrozszerzono18→20odoprawdziwefetchwblank/srcdoc,compilePASS4s.
+- NastępnyWIP[gecko-test]:20realtestów. Najpierwodczytaćdocelowywynik2diagnosticSPIczyURLmismatchpotwierdzaślad;potem20PASSprzedfinalPR/podpisem. ŻadenAPKjeszczeniegotowy.

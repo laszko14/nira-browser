@@ -172,16 +172,23 @@ function captureEarly(details) {
   if (earlyTimer === null) earlyTimer = setTimeout(purgeEarly, EARLY_TTL);
   return true;
 }
+// documentUrl is the loading principal URI, not necessarily the current
+// History API location (and an opaque child can inherit its parent's URI).
+// A trusted Gecko UUID is authoritative. Legacy senders retain exact URL checks.
+function ownsRequestDocument(owner, id, principalUrl) {
+  if (owner.geckoDocumentId) return id === owner.geckoDocumentId;
+  return typeof principalUrl !== "string" || principalUrl === (owner.frameUrl || owner.pageUrl);
+}
 function bindEarly(tabId, frameId) {
   const root = documents.get(tabId);
   const frame = frameId > 0 ? frames.get(tabId + ":" + frameId) : null;
   const owner = frame || root;
-  if (!root?.ready || !owner || frame && !frame.ready || !geckoId(owner.geckoDocumentId)) return;
+  if (!root?.ready || root.invalidated || !owner || frame && !frame.ready || !geckoId(owner.geckoDocumentId)) return;
   for (const [key, entry] of [...earlyRequests]) {
     if (entry.tabId !== tabId || entry.frameId !== frameId) continue;
     earlyRequests.delete(key);
     if (Date.now() - entry.at >= EARLY_TTL) { discovery("early_request_expired", entry.isPrivate); continue; }
-    if (entry.geckoDocumentId !== owner.geckoDocumentId || entry.documentUrl !== (frame ? frame.frameUrl : root.pageUrl) ||
+    if (!ownsRequestDocument(owner, entry.geckoDocumentId, entry.documentUrl) ||
         (entry.parentDocumentId && frame && entry.parentDocumentId !== frame.parentDocumentId) ||
         (typeof root.isPrivate === "boolean" && entry.isPrivate !== root.isPrivate) ||
         (root.cookieStoreId && entry.cookieStoreId && entry.cookieStoreId !== root.cookieStoreId)) {
@@ -470,8 +477,8 @@ function cancelManifestTasks(tabId) {
     if (key.startsWith(tabId + ":")) manifestLineage.delete(key);
 }
 
-// onBeforeRequest is passive metadata capture only. No request bodies, URLs,
-// headers or cookies are retained here. A delayed response from a previous
+// onBeforeRequest is passive metadata capture only. No bodies or credentials.
+// Only bounded document/response metadata is retained. A response from a previous
 // document carries the old key and is rejected by the new content script.
 function requestKey(details) {
   if (!details || !Number.isInteger(details.tabId) || details.tabId < 0 ||
@@ -483,16 +490,18 @@ function onBefore(details) {
   if (!key || details.type === "speculative" ||
       (details.frameId !== undefined && (!Number.isInteger(details.frameId) || details.frameId < 0))) return;
   const doc = documents.get(details.tabId);
-  if (!doc || !doc.ready) { captureEarly(details); return; }
+  if (!doc || !doc.ready || doc.invalidated) { captureEarly(details); return; }
   let frame = null;
   if (Number.isInteger(details.frameId) && details.frameId > 0) {
     frame = frames.get(details.tabId + ":" + details.frameId);
-    if (!frame || !frame.ready || frame.documentKey !== doc.documentKey ||
-        (typeof details.documentUrl === "string" && details.documentUrl !== frame.frameUrl))
+    if (!frame || !frame.ready || frame.documentKey !== doc.documentKey)
       { captureEarly(details); return; }
-  } else if (typeof details.documentUrl === "string" && details.documentUrl !== doc.pageUrl) { captureEarly(details); return; }
+  }
   const owner = frame || doc;
-  if (owner.geckoDocumentId && details.documentId !== owner.geckoDocumentId) { captureEarly(details); return; }
+  if (!ownsRequestDocument(owner, details.documentId, details.documentUrl) ||
+      (frame && details.parentDocumentId && frame.parentDocumentId && details.parentDocumentId !== frame.parentDocumentId) ||
+      (typeof doc.isPrivate === "boolean" && details.incognito !== doc.isPrivate) ||
+      (doc.cookieStoreId && details.cookieStoreId && doc.cookieStoreId !== details.cookieStoreId)) { captureEarly(details); return; }
   if (requests.has(key)) return; // A redirect retains its original document/sequence.
   requests.set(key, { documentKey: doc.documentKey, geckoDocumentId: owner.geckoDocumentId,
     frameKey: frame ? frame.frameKey : null, frameUrl: frame ? frame.frameUrl : null,
@@ -599,13 +608,12 @@ function onHeaders(details) {
   // response initiator must still match that document's page URL.
   const requestFrame = requestDocumentKey && requestDocumentKey.frameKey !== null ?
     frames.get(tabId + ":" + requestDocumentKey.frameId) : null;
-  if (!doc || !requestDocumentKey || doc.documentKey !== requestDocumentKey.documentKey ||
+  if (!doc || doc.invalidated || !requestDocumentKey || doc.documentKey !== requestDocumentKey.documentKey ||
       (requestDocumentKey.geckoDocumentId && requestDocumentKey.geckoDocumentId !== details.documentId) ||
       (requestDocumentKey.frameKey !== null &&
         (!requestFrame || requestFrame.frameKey !== requestDocumentKey.frameKey ||
           requestFrame.frameUrl !== requestDocumentKey.frameUrl)) ||
-      (typeof details.documentUrl === "string" &&
-        details.documentUrl !== (requestFrame ? requestFrame.frameUrl : doc.pageUrl))) {
+      !ownsRequestDocument(requestFrame || doc, details.documentId, details.documentUrl)) {
     anonymous("network_unassigned", details.incognito);
     discovery("frame_mismatch", details.incognito);
     return;

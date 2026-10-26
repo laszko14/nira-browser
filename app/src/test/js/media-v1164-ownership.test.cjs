@@ -68,3 +68,30 @@ test('v1164: a frame-change event during an outstanding enumeration is coalesced
  release([]);await new Promise(r=>setImmediate(r));await w.advance(100);await new Promise(r=>setImmediate(r));
  assert.equal(injected.length,1);assert.equal(calls,2);
 });
+async function spaRoot(w,ready=true){
+ await w.start();await w.ready();
+ w.history({tabId:7,frameId:0,documentId:w.sender().documentId,url:'https://page.test/next'});
+ w.frameDetails.set('7:0',{frameId:0,documentId:w.sender().documentId,parentFrameId:-1,url:'https://page.test/next'});
+ const root=await w.receive({schemaVersion:1,event:'document_started',pageUrl:'https://page.test/next'},w.sender());
+ if(ready)await w.receive({schemaVersion:1,event:'document_ready',documentKey:root.documentKey},w.sender());
+ return root;
+}
+test('v1164: loading-principal URL may remain frozen after SPA while the exact Gecko UUID owns a live request',async()=>{
+ const w=world();await spaRoot(w);const r=w.request();w.before(r);w.headers(r);await new Promise(r=>setImmediate(r));
+ assert.equal(w.sent.length,1);assert.equal(w.sent[0].message.pageUrl,'https://page.test/next');
+});
+test('v1164: a current SPA request waiting for native ACK is not rejected only for its frozen principal URL',async()=>{
+ const w=world(),root=await spaRoot(w,false);const r=w.request();w.before(r);w.headers(r);
+ await w.receive({schemaVersion:1,event:'document_ready',documentKey:root.documentKey},w.sender());
+ await new Promise(r=>setImmediate(r));assert.equal(w.sent.length,1);
+});
+test('v1164: a proven opaque frame may inherit the HTTP loading principal without inheriting root ownership',async()=>{
+ const w=world();await w.start();await w.ready();
+ const r=w.request({frameId:1,parentFrameId:0,documentId:w.sender(2).documentId,parentDocumentId:w.sender().documentId});
+ w.before(r);w.headers(r);const child=await w.frame(2,1,'about:blank');await new Promise(r=>setImmediate(r));
+ assert.equal(w.sent.length,1);assert.equal(w.sent[0].message.frameKey,child.frameKey);assert.equal(w.sent[0].message.frameUrl,'about:blank');
+});
+test('v1164: a request started before a SPA transition retains its old epoch and cannot be promoted',async()=>{
+ const w=world();await w.start();await w.ready();const old=w.request();w.before(old);
+ await spaRoot(w);w.headers(old);await new Promise(r=>setImmediate(r));assert.equal(w.sent.length,0);
+});

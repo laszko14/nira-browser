@@ -366,3 +366,5 @@ Opcjonalne, odwracalne rewizje istniejących przycisków DRC/DE: kopie oryginał
 
 - v1164 realGecko40314069715:16/18PASS,aboutblank/srcdoc/lifecycle/profileiprivatepositiveGREEN;pozostałypush/replace. Earlyambiguitybezstale/protocolerror,wymaganedalszerozbiciesanitizedcounters.ZawężonyWIP[gecko-spa]niezastępujefinal18.
 - Reviewregistry257ramek:evictionpo mintedkeyRED/GREEN. JUnit273full,3nativePorttestPASS,11targeted+AndroidTestPASS34s,JS195/195. FullGradlepoevictionPASS4m35s. APK/PRnadalniegotowe.
+
+- v1164 sourceChannelWrapperpotwierdzaznaczeniedocumentUrl=loadingprincipalURI. Nowe3RED/GREENoddzielająURIprincipalodUUIDwSPA/opaque;starepochodrzucany,parent/private/partitionzachowane. JS199/199,B21/21,C12/12,AndroidTest20metodcompilePASS4s. Nowyreal20WIPwymagany,dotychczas16/18PASSi2diagnosticSPAwtoku.

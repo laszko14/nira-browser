@@ -107,6 +107,8 @@ class GeckoDiscoveryDeviceTest {
     @Test fun nestedIframe() = expect("/nested", "fixture.mp4")
     @Test fun aboutBlankIframe() = expect("/blank", "fixture.mp4")
     @Test fun srcdocIframe() = expect("/srcdoc", "fixture.mp4")
+    @Test fun inheritedBlankNetworkPrincipal() = expect("/blank-network", "manifest-early")
+    @Test fun srcdocNetworkPrincipal() = expect("/srcdoc-network", "manifest-early")
     @Test fun redirect() = expect("/redirect-page", "fixture.mp4")
     @Test fun spaPushStateWithoutMutation() = expect("/spa", "manifest-spa")
     @Test fun spaReplaceStateWithoutMutation() = expect("/replace", "manifest-spa")
@@ -190,6 +192,7 @@ class GeckoDiscoveryDeviceTest {
             while (headers++ < 64) { if (reader.readLine().isNullOrEmpty()) break }
             var type = "text/html"; var status = "200 OK"; var extra = ""
             val video = "<video preload='none' src='${url("/fixture.mp4")}'></video>"
+            val networkScript = "<script>fetch('${url("/manifest-early")}')<\\/script>"
             val body = when (path) {
                 "/fixture.mp4", "/second.mp4" -> { type = "video/mp4"; mp4 }
                 "/stream.m3u8", "/manifest-early", "/manifest-spa" -> {
@@ -202,6 +205,8 @@ class GeckoDiscoveryDeviceTest {
                 "/cross" -> "<iframe src='http://localhost:${socket.localPort}/frame'></iframe>".toByteArray()
                 "/nested" -> "<iframe src='/cross'></iframe>".toByteArray()
                 "/blank" -> "<iframe id='f'></iframe><script>f.contentDocument.open();f.contentDocument.write(\"$video\");f.contentDocument.close();</script>".toByteArray()
+                "/blank-network" -> "<iframe id='f'></iframe><script>f.contentDocument.open();f.contentDocument.write(\"$networkScript\");f.contentDocument.close();</script>".toByteArray()
+                "/srcdoc-network" -> "<iframe srcdoc=\"<script>fetch('${url("/manifest-early")}')</script>\"></iframe>".toByteArray()
                 "/srcdoc" -> "<iframe srcdoc=\"${video.replace("'", "&apos;")}\"></iframe>".toByteArray()
                 "/redirect-page" -> "<script>fetch('/redirect-media')</script>".toByteArray()
                 "/redirect-media" -> { status = "302 Found"; extra = "Location: /fixture.mp4\r\n"; byteArrayOf() }
