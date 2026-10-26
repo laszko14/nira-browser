@@ -91,9 +91,23 @@ android {
         abi {
             enable = true
             reset()
-            include 'arm64-v8a'
+            // Explicit, non-publishable instrumentation build only. All six native
+            // dependencies were checked for x86_64; normal signing remains ARM64.
+            def discoveryAbi = providers.gradleProperty('geckoDiscoveryAbi').orNull
+            if (discoveryAbi != null && discoveryAbi != 'x86_64') {
+                throw new GradleException('geckoDiscoveryAbi supports x86_64 tests only')
+            }
+            if (discoveryAbi != null && gradle.startParameter.taskNames.any {
+                it.toLowerCase().contains('release') || it.toLowerCase().contains('publish')
+            }) throw new GradleException('Discovery test ABI must never be published')
+            include(discoveryAbi ?: 'arm64-v8a')
             universalApk = false
         }
+    }
+
+    if (providers.gradleProperty('geckoDiscoveryAbi').isPresent()) {
+        sourceSets.debug.java.srcDir('src/geckoDiscoveryTest/java')
+        sourceSets.debug.manifest.srcFile('src/geckoDiscoveryTest/AndroidManifest.xml')
     }
 
     composeOptions {

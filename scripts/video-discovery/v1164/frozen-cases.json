@@ -1,0 +1,52 @@
+{
+ "B": [
+  {"id":"early-root-headers-first","scenario":"early_root","expected":1},
+  {"id":"early-frame-headers-first","scenario":"early_frame","expected":1},
+  {"id":"early-root-before-only","scenario":"early_before","expected":1},
+  {"id":"early-redirect","scenario":"early_redirect","expected":1},
+  {"id":"two-simultaneous-frames","scenario":"two_frames","expected":2},
+  {"id":"two-tabs-identical-page","scenario":"two_tabs","expected":2},
+  {"id":"expired-request","scenario":"expired","expected":0},
+  {"id":"unknown-document-identity","scenario":"no_uuid","expected":0},
+  {"id":"invalid-frame-id","scenario":"invalid_frame","expected":0},
+  {"id":"navigation-before-response","scenario":"stale_navigation","expected":0},
+  {"id":"close-before-registration","scenario":"closed","expected":0},
+  {"id":"profile-cookie-store-mismatch","scenario":"profile_mismatch","expected":0},
+  {"id":"about-blank-inherited-frame","scenario":"blank","expected":1},
+  {"id":"srcdoc-inherited-frame","scenario":"srcdoc","expected":1},
+  {"id":"opaque-unproven-parent","scenario":"unproven","expected":0},
+  {"id":"same-url-stale-frame-sender","scenario":"stale_sender","expected":0},
+  {"id":"pushstate-passive-notification","scenario":"push","expectedControls":1},
+  {"id":"replace-state-passive-notification","scenario":"replace","expectedControls":1},
+  {"id":"irrelevant-fragment-no-reset","scenario":"hash","expectedControls":0},
+  {"id":"unique-request-flood-bounded","scenario":"flood","max":128},
+  {"id":"late-expired-response-after-registration","scenario":"late_expired","expected":0}
+ ],
+ "C": [
+  {"id":"private-early-root","scenario":"private_early","expected":1},
+  {"id":"delayed-signed-hls","scenario":"signed_early","expected":1},
+  {"id":"different-uuid-same-frame-url","scenario":"uuid_mismatch","expected":0},
+  {"id":"source-document-unregistered-frame","scenario":"foreign_parent","expected":0},
+  {"id":"frame-redirect-before-registration","scenario":"frame_redirect","expected":1},
+  {"id":"replacement-iframe-before-early-response","scenario":"frame_replaced","expected":0},
+  {"id":"native-root-readiness","scenario":"root_ready","expected":1},
+  {"id":"nested-srcdoc","scenario":"nested_srcdoc","expected":1},
+  {"id":"two-history-updates","scenario":"two_history","expectedControls":2},
+  {"id":"late-history-wrong-document","scenario":"stale_history","expectedControls":0},
+  {"id":"retired-frame-native-candidate","scenario":"retired_sender","expected":0},
+  {"id":"forged-page-provided-document-identity","scenario":"forged_uuid","expected":0}
+ ],
+ "DOM_B": [
+  {"id":"videojs-typed-config","html":"<video data-setup='{\"sources\":[{\"src\":\"https://cdn.test/videojs\",\"type\":\"video/mp4\"}]}'></video>","expected":["videojs"]},
+  {"id":"dashjs-initialize-literal","html":"<script>/* dashjs */ player.initialize(video, 'https://cdn.test/direct.mpd', false);</script>","expected":["direct.mpd"]},
+  {"id":"jwplayer-escaped-literal","html":"<script>/* jwplayer */ setup({file: 'https:\\/\\/cdn.test\\/escaped.m3u8'});</script>","expected":["escaped.m3u8"]},
+  {"id":"dynamic-config-title-poster","html":"<script type='application/json'>{\"player\":{\"title\":\"Full descriptive title\",\"poster\":\"https://cdn.test/poster.jpg\",\"sources\":[{\"src\":\"https://cdn.test/title.mp4\"}]}}</script>","expected":["title.mp4"],"poster":"https://cdn.test/poster.jpg"},
+  {"id":"late-player-without-dom-source","html":"<script>/* hls.js */ hls.loadSource('https://cdn.test/dynamic.m3u8');</script>","expected":["dynamic.m3u8"]}
+ ],
+ "DOM_C": [
+  {"id":"clappr-relative-source","html":"<script>/* Clappr */ new Player({source: '/clappr.m3u8'});</script>","expected":["clappr.m3u8"]},
+  {"id":"artplayer-playlist","html":"<script id='player-config' type='application/json'>{\"items\":[{\"sources\":[{\"url\":\"https://cdn.test/film1-low.mp4\"},{\"url\":\"https://cdn.test/film1-high.mp4\"}]},{\"file\":\"https://cdn.test/film2.mp4\"}]}</script>","expected":["film1-low.mp4","film1-high.mp4","film2.mp4"]},
+  {"id":"nonmedia-json-urls","html":"<script type='application/json'>{\"images\":[{\"url\":\"https://cdn.test/thumb.jpg\"}],\"src\":\"https://cdn.test/script.js\"}</script>","expected":[]},
+  {"id":"plyr-json-caption-not-video","html":"<div data-player-config='{\"sources\":[{\"src\":\"https://cdn.test/movie.webm\",\"type\":\"video/webm\"}],\"tracks\":[{\"src\":\"https://cdn.test/subtitles.vtt\"}]}'></div>","expected":["movie.webm"]}
+ ]
+}

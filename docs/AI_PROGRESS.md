@@ -341,3 +341,10 @@ Opcjonalne, odwracalne rewizje istniejących przycisków DRC/DE: kopie oryginał
 - v1163 final przedCI: JUnit265/265,JS179/179,Lua77/77,DSP28/28. PełnyGradle PASS4m42s,reviewdiagnostics7testów+assemble PASS33s,ostatniJS-onlyMIMEfix179/179.
 - Lint0nowych/0usuniętych1462Fatal/258Error/444Warning/19Hint. Końcoweidentycznefixtures89filmów88preeligible:61→88pre/62→89post,FP3→0,duplikaty1→0,HTTP7→7; kosztiwiadomościwJSON,bezdeklaracjiprzyspieszenia.
 - Przygotowano finalhandoff/checkpoint3;następne1commit/push+DraftPRwzględemv1162i1podpisująceCI.FaktyczneSHA/CI/APKdoaneksuwopisiePR,bezkolejnejwersji.
+
+## 2026-10-26 — v1164 etap A
+- Baza1c5ae61/v1163, gałąźfeat/zavro-x-mpv-v1164-gecko-advanced-discovery. StareA89/89,88/88pre,JS179/179,Kotlin75/75 odtworzone.
+- Zamrożone noweB/CzSHA przed zmianądetektora;Bnetwork10PASS/11FAIL,DOM_B wynikiwJSON,Cnieruszane.
+- Potwierdzono sourceGecko156.0.20260921121718:UUIDruntime/webRequest,parentDocumentId,webNavigation; oficjalna dokumentacja odczytana.
+- TestowyAPKx86/testyGeckocompilePASS1m38s;6JNIzależności obsługujeABI. LokalnyemulatorAPI35bezKVMstarted leczbootniepotwierdzony; faktyczna instrumentacjaNIEURUCHOMIONA.
+- DodanyosobnyworkflowGeckoKVMbezpublikacjiAPK/continue-on-error. WIP [gecko-baseline] uruchamia tylko instrumentację; checkpointCODEX_RESUME_V1164.md.

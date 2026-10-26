@@ -1,0 +1,27 @@
+# v1164 checkpoint A — baza, dokumentacja i infrastruktura
+- Baza1c5ae61d59e59ff973a249adff76ed9d704dafda/v1163/PR76/CI40284266103 SUCCESS.
+- Gałąź feat/zavro-x-mpv-v1164-gecko-advanced-discovery; jeszcze brak PR/finalnego APK. Zachować work/.
+- User akceptuje wiele sesji i WIP; jakość ważniejsza od limitów. Bez subagentów/merge/resetu danych/AutoAudio.
+- Nie powtarzać v1163 audytu. Nowy pełny prompt: /workspace/attachments/201886a3-82a8-4711-a2e9-437a6bc1facb/prompt2writing-block (1).md.
+- ETAP A: stare fixtures88/88pre,89/89post odtworzone(work/v1164-A-baseline.json); JS179/179,Kotlin75/75 GREEN.
+- Nowy frozen-cases.json +sha256 ustalony PRZED kodem detektora. B21networkscenarios10PASS/11FAIL; DOM_B5fixture cases, wyniki work/v1164-DOM-B-before.json.
+- Zestaw C(12network+4DOM) NIEURUCHOMIONY, zostawić do walidacji końcowej. Nie zmieniać oracle/sha.
+- Gecko Components156.0.1, AAR Gecko156.0.20260921121718. Odczytano rzeczywisty omni.ja: work/v1164-gecko-sources/.
+- Źródła potwierdzają runtime.sender.documentId, webRequest.documentId/parentDocumentId i webNavigation.getFrame/history. MDN dokumentujeUUID od153; o Gecko decyduje test, nie sam MDN.
+- Native docs: wiadomości przed setDelegate są kolejkowane; content scripts izolowane; match_about_blank nie gwarantuje document_start w pustej ramce.
+- Nie dodawać match_origin_as_fallback/MAIN world/fetch wrapperów automatycznie. Ewentualne webNavigation permission tylko uzasadnione korelacją/historią.
+- Wszystkie6zależności zJNI obsługują x86_64 iarm64; lista work/v1164-native-abis.json.
+- Dodano explicit -PgeckoDiscoveryAbi=x86_64: test-only ABI/harness source, zakaz release/publish. Standardowy ARM64 bez zmian, wersja nadal163/1163.
+- GeckoDiscoveryDeviceTest: prawdziwy BrowserApp/Components.engine/store/shipped extension/native repo, localhostServerSocket +rzeczywisty1sMP4,13metod. Żadnych mockówGecko.
+- TesthostActivity tylko sourceSet włączony flagą. Instrumentacja compile+assembleTest+x86APK PASS1m38s(work/v1164-gecko-baseline-build.log).
+- Lokalnie pobrano emulator37.2.12 i google_apisAPI35x86_64; AVDzavro_v1164_api35startowany bezKVM(którego brak).
+- Emulatorproces sesja8910; adb5554device, ale boot_completed pusty/adb shell zawiesza się. Sprawdzać krótkim timeout5s, nie mnożyć nieograniczonychadbcommands.
+- Jeszcze NIE wykonano instrumentacji. Nie oznaczać jej jako zaliczonej.
+- Nowy workflow GeckoView discovery instrumentation: KVM ubuntu/API35x86_64, bez continue-on-error, bez publikacji testowegoAPK.
+- PushWIP zawierający [gecko-baseline] uruchomi WYŁĄCZNIE nowy testowy workflow; standardowy produkcyjny workflow jest push-main/PR więc nie zbuduje wydania przed końcem.
+- Następnie czekać na prawdziwy RED/PASSGecko (pełne13metod możliwe wolne90s/timeout); nie ukrywaćbłędów, poprawiać fixture jeśli błędna infrastruktura.
+- Następny ETAP B: minimalny earlybuffer128/TTLkrótki zdocUUID+frameUUID+cookieStore/private, korelacja po rejestracji, zerozgadywaniazURL/selectedTab.
+- Potem C: aboutblank/srcdoc wyłącznie ztrusted getFrame ancestry+UUID; NativeProtocol pozwalał tylkoHTTPframeURL, wymagana zgodna walidacja exactabout(bez zmianyURLmedia/page).
+- E: webNavigation history do event-based rescan; hash nie powinien zerowaćrepo(state.observe obecnie clear na każdą zmianęURL).
+- D/F: DOM_B dowód dashjs initialize i posterinheritance; blobbridge/frameURL-only wymaga osobnej analizy, nie zmieniaćACKsamowolnie.
+- Checkpoint zaktualizować po B/C/GREEN, pełne C dopiero na końcu. Handoff/DiscoveryResults/final164/1164alpha70-mpv38 +CI/podpis/PR do v1163 dopiero po naprawach.
