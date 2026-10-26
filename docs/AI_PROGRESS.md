@@ -360,3 +360,6 @@ Opcjonalne, odwracalne rewizje istniejących przycisków DRC/DE: kopie oryginał
 
 - v1164 checkpointD/H: realGecko40305856842=11/13PASS,srcdocGREEN; sender.url zamrożony przy utworzeniu context i brak deklaratywnegoinitialblank potwierdzone sourceGecko. Zaimplementowano trustedgetFrameSPA oraz isolatedblankfallback zUUIDancestry, bez MAINworld.
 - BlobAUTO otrzymuje dokładnydoc/frameKey poNativeACK, bezzmianplaybackACK/rollback. JS67/67,AndroidTest18metodcompilePASS;Kotlin82/82 poidentity. NowyWIPuruchamia18realtestów. IndependentC/finalwalidacja/APKjeszczeniegotowe.
+
+- v1164 checkpointE: Cnetwork12/12,B21/21;C DOM5/5URLbezpoprawyrecall(qualityvariantsnieosobnefilmy). JS195/195,JUnitraport272/272,Lua77/77,DSP28/28. FinalGradlelintjeszczewtoku.
+- CI40313078091 nieukończone18testów:Brokenpipewserwerzetestowymprzycelowymcancel,procesAndroidcrashed. NaprawionowyłącznieobsługętransportowegoIOException;testzachowany. KolejnyGeckoWIPwymagany; brakgotowegoAPK.

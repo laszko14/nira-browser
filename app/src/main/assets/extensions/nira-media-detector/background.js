@@ -215,8 +215,9 @@ async function startDocument(message, sender) {
       Object.keys(message).sort().join(",") !== "event,pageUrl,schemaVersion" ||
       !safeUrl(message.pageUrl)) return null;
   // sender.url comes from Gecko and is not supplied by the page message.
-  if (typeof sender.url === "string" && !await currentLocation(sender, message.pageUrl)) return null;
   const previous = documents.get(sender.tab.id);
+  if (typeof sender.url === "string" && sender.url !== message.pageUrl &&
+      (!await currentLocation(sender, message.pageUrl) || documents.get(sender.tab.id) !== previous)) return null;
   const id = geckoId(sender.documentId);
   if (id && previous?.geckoDocumentId === id && !previous.invalidated && sameRoute(previous.pageUrl, message.pageUrl)) {
     previous.pageUrl = message.pageUrl;
@@ -286,7 +287,8 @@ async function startFrame(message, sender) {
 // frame ancestry/UUIDs, never a page-supplied frame ID or script body.
 function scheduleOpaqueFrames(tabId, root) {
   if (!root?.ready || !root.geckoDocumentId || !browser.webNavigation?.getAllFrames ||
-      !browser.tabs?.executeScript || root.opaqueTimer || root.opaqueBusy) return;
+      !browser.tabs?.executeScript || root.opaqueTimer) return;
+  if (root.opaqueBusy) { root.opaqueAgain = true; return; }
   root.opaqueTimer = setTimeout(async () => {
     root.opaqueTimer = null; root.opaqueBusy = true;
     try {
@@ -313,8 +315,14 @@ function scheduleOpaqueFrames(tabId, root) {
         }
         if (!progress) break;
       }
+      if (budget <= 0 && root.opaqueInjected.size < MAX_FRAMES) root.opaqueAgain = true;
     } catch (_) { /* inaccessible/destroyed frame: fail closed until next event */ }
-    finally { root.opaqueBusy = false; }
+    finally {
+      root.opaqueBusy = false;
+      if (root.opaqueAgain && documents.get(tabId) === root && !root.invalidated) {
+        root.opaqueAgain = false; scheduleOpaqueFrames(tabId, root);
+      }
+    }
   }, 100);
 }
 function validDom(message, sender) {

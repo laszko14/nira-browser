@@ -49,3 +49,22 @@ test('v1164: opaque fallback injects only into a proven child document, once per
  assert.equal(injected.length,1);assert.equal(injected[0].frameId,1);assert.equal(injected[0].file,'content.js');
  assert.equal(injected[0].matchAboutBlank,true);
 });
+test('v1164: a delayed current-location lookup cannot overwrite a newer root registration',async()=>{
+ const w=world();await w.start();await w.ready();let release;
+ w.browser.webNavigation.getFrame=()=>new Promise(resolve=>release=resolve);
+ const stale=w.receive({schemaVersion:1,event:'document_started',pageUrl:'https://page.test/next'},w.sender());
+ const newer=await w.start(w.sender(9,0,'https://page.test/new'));
+ release({frameId:0,documentId:w.sender().documentId,url:'https://page.test/next'});
+ assert.equal(await stale,null);
+ assert.equal(await w.receive({schemaVersion:1,event:'document_ready',documentKey:newer.documentKey},w.sender(9,0,'https://page.test/new')),true);
+});
+test('v1164: a frame-change event during an outstanding enumeration is coalesced, not lost',async()=>{
+ const w=world(),injected=[];let release,calls=0;
+ w.browser.tabs.executeScript=async(_,options)=>injected.push(options);
+ w.browser.webNavigation.getAllFrames=()=>++calls===1?new Promise(resolve=>release=resolve):Promise.resolve([
+  {frameId:1,documentId:w.sender(2).documentId,parentDocumentId:w.sender().documentId,parentFrameId:0,url:'about:blank'}]);
+ await w.start();await w.ready();await w.advance(100);
+ await w.receive({schemaVersion:1,event:'opaque_frames_changed',documentKey:1},w.sender());
+ release([]);await new Promise(r=>setImmediate(r));await w.advance(100);await new Promise(r=>setImmediate(r));
+ assert.equal(injected.length,1);assert.equal(calls,2);
+});

@@ -173,7 +173,10 @@ class GeckoDiscoveryDeviceTest {
         private val socket = ServerSocket(0)
         private val workers = Executors.newFixedThreadPool(4)
         private val acceptor = Thread({
-            while (!socket.isClosed) try { val client = socket.accept(); workers.execute { serve(client) } }
+            while (!socket.isClosed) try { val client = socket.accept(); workers.execute {
+                try { serve(client) }
+                catch (_: java.io.IOException) { client.close() } // expected browser cancellation / broken pipe
+            } }
             catch (_: Exception) { if (!socket.isClosed) throw IllegalStateException("fixture_accept") }
         }, "discovery-fixture").apply { isDaemon = true; start() }
         fun url(path: String) = "http://127.0.0.1:${socket.localPort}$path"

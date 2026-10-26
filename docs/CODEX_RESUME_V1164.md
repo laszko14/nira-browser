@@ -49,3 +49,13 @@
 - Rozszerzono realGecko13→18metod:replaceState,late navigationresponse,sameURLtabs/switch,removeframe,replaceframe; private positive. Timeout podaje tylkoliczniki/kategoriebezURL.
 - NastępnyWIP[gecko-test] uruchamia18realGecko; sprawdzićwynik, niezakładaćPASS. FinalPR/APK/164jeszczeniegotowe.
 - IndependentC nadalnieuruchomione. ZostajeA/B/Cmetryki,review,integrityreversiblepatches,pełnaTEST/LINT/Lua/DSP,finalversion+docs+DraftPRdov1163+podpisCI.
+
+## Checkpoint E — niezależna kontrola i infrastruktura anulowania
+- B21/21,C12/12networkPASS,0misassigned;B DOM5/5źródeł(v1163 4/5),C5/5URLw4przypadkachbezpoprawyrecall. Frozenoraclebez zmian.
+- CliczyURLlow/highjakoosobneexpected; niesąosobnymifilmami. Rawaliasmerge1przedipo, niepotwierdzonyscalonyfilm. Szczegółydocs/V1164_DISCOVERY_METRICS.json+DISCOVERY_RESULTS.
+- Afinał89/89,88/88pre,FP0,merge0,GET7;native204→216. Nie deklarowaćprzyspieszenia(hostcallbackmax5→7.3ms).
+- ReviewdodałRED/GREEN: opóźnionegetFrame nie nadpisujenowszegoroot; zmianaiframepodczasgetAllFramesnieginie(coalesce,finitebudget16batch/256total).
+- JS195/195 GREEN;JUnit272/272(testraport),Lua77/77,DSP28/28,verifierPASS. PełnyGradleassemble/test/lint/AndroidTest WTOKU; lintxmljeszczestarynieużywaćjako finaldelta.
+- CI40313078091 przerwane1/18przezBrokenpipewFixtureServer(oczekiwane anulowanieHTTPprzynawigacji), niebłądprodukcji. SerwerterazobsługujeIOExceptionrozłączenia; ten samtestpozostaje. NastępnyWIP[gecko-test]mawykonać18scenariuszy.
+- Wersjabumped164/1164alpha70-mpv38,APKworkflowmetadataiB/C/Lua/DSPchecks;jeszczebrakpodpisanegoAPK/DraftPR. No merge.
+- FinalnieczekaćnaGeckoPASS,lubdiagnozowaćnowykonkretnybłąd; dokończyćGradle/lintdelta,review/handoff,1finalPRpushuruchamiasigning+Gecko. APKniepobieraćdoCodex.

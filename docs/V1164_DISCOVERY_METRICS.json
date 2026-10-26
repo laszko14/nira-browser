@@ -1,0 +1,285 @@
+{
+  "baselineCommit": "1c5ae61d59e59ff973a249adff76ed9d704dafda",
+  "frozenOracle": "scripts/video-discovery/v1164/frozen-cases.sha256",
+  "A": {
+    "layer": "Chromium DOM and controlled background; not Gecko",
+    "before": {
+      "films": 89,
+      "preEligible": 88,
+      "pre": 88,
+      "post": 89,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 105,
+      "nativeMessages": 204,
+      "extraRequests": 7,
+      "recallPre": 1,
+      "recallPost": 1,
+      "precision": 1,
+      "initialScanMs": 269.7999999951571,
+      "callbackMs": 26.39999999664724,
+      "maxCallbackMs": 5,
+      "queries": 663,
+      "returned": 399,
+      "mutations": 6,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0
+    },
+    "after": {
+      "films": 89,
+      "preEligible": 88,
+      "pre": 88,
+      "post": 89,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 105,
+      "nativeMessages": 216,
+      "extraRequests": 7,
+      "recallPre": 1,
+      "recallPost": 1,
+      "precision": 1,
+      "initialScanMs": 385.20000000298023,
+      "callbackMs": 29.700000002980232,
+      "maxCallbackMs": 7.300000000745058,
+      "queries": 663,
+      "returned": 399,
+      "mutations": 6,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0
+    }
+  },
+  "network": {
+    "B": {
+      "before": {
+        "scenarios": 21,
+        "passed": 10,
+        "failed": 11,
+        "misassigned": 0,
+        "measured": {
+          "nativeMessages": 216,
+          "routedMessages": 1,
+          "extraGet": 0,
+          "unassigned": 215,
+          "maxSyncCallbackMs": 1.9256809999999973
+        }
+      },
+      "after": {
+        "scenarios": 21,
+        "passed": 21,
+        "failed": 0,
+        "misassigned": 0,
+        "measured": {
+          "nativeMessages": 6,
+          "routedMessages": 106,
+          "extraGet": 0,
+          "unassigned": 4,
+          "maxSyncCallbackMs": 0.7224110000000081
+        }
+      }
+    },
+    "C": {
+      "before": {
+        "scenarios": 12,
+        "passed": 7,
+        "failed": 5,
+        "misassigned": 0,
+        "measured": {
+          "nativeMessages": 6,
+          "routedMessages": 1,
+          "extraGet": 0,
+          "unassigned": 6,
+          "maxSyncCallbackMs": 1.4053499999999985
+        }
+      },
+      "after": {
+        "scenarios": 12,
+        "passed": 12,
+        "failed": 0,
+        "misassigned": 0,
+        "measured": {
+          "nativeMessages": 0,
+          "routedMessages": 5,
+          "extraGet": 0,
+          "unassigned": 0,
+          "maxSyncCallbackMs": 0.5918949999999938
+        }
+      }
+    }
+  },
+  "DOM": {
+    "B": {
+      "before": {
+        "expectedSources": 5,
+        "detectedSources": 4,
+        "passedCases": 3,
+        "caseCount": 5,
+        "measured": {
+          "preEligible": 5,
+          "pre": 4,
+          "post": 4,
+          "falsePositives": 0,
+          "duplicateMessages": 0,
+          "duplicateMaterials": 0,
+          "nativeMessages": 21,
+          "candidateMessages": 4,
+          "extraGet": 0,
+          "firstResultMs": [
+            55.08923199999981,
+            61.5235789999997,
+            62.33107099999961,
+            96.15223800000058
+          ],
+          "firstResultMedianMs": 62.33107099999961,
+          "maxCallbackMs": 0.5,
+          "initialMs": [
+            9.600000001490116,
+            28.5,
+            2.800000000745058,
+            3.100000001490116,
+            5.800000000745058
+          ],
+          "mutations": 0,
+          "queries": 37,
+          "urlAliasMergeGroups": 0
+        }
+      },
+      "after": {
+        "expectedSources": 5,
+        "detectedSources": 5,
+        "passedCases": 5,
+        "caseCount": 5,
+        "measured": {
+          "preEligible": 5,
+          "pre": 5,
+          "post": 5,
+          "falsePositives": 0,
+          "duplicateMessages": 0,
+          "duplicateMaterials": 0,
+          "nativeMessages": 23,
+          "candidateMessages": 5,
+          "extraGet": 0,
+          "firstResultMs": [
+            38.812496000000465,
+            63.23559000000023,
+            69.83556699999997,
+            86.41115899999932,
+            123.6970510000001
+          ],
+          "firstResultMedianMs": 69.83556699999997,
+          "maxCallbackMs": 0.8000000007450581,
+          "initialMs": [
+            5.300000000745058,
+            5,
+            7.199999999254942,
+            10.599999997764826,
+            4.600000001490116
+          ],
+          "mutations": 0,
+          "queries": 37,
+          "urlAliasMergeGroups": 0
+        }
+      }
+    },
+    "C": {
+      "before": {
+        "expectedSources": 5,
+        "detectedSources": 5,
+        "passedCases": 4,
+        "caseCount": 4,
+        "measured": {
+          "preEligible": 5,
+          "pre": 5,
+          "post": 5,
+          "falsePositives": 0,
+          "duplicateMessages": 0,
+          "duplicateMaterials": 0,
+          "nativeMessages": 21,
+          "candidateMessages": 5,
+          "extraGet": 0,
+          "firstResultMs": [
+            91.22335000000021,
+            93.65637199999992,
+            136.11513399999967
+          ],
+          "firstResultMedianMs": 93.65637199999992,
+          "maxCallbackMs": 0.3999999985098839,
+          "initialMs": [
+            44.100000001490116,
+            15.399999998509884,
+            43.100000001490116,
+            48.30000000074506
+          ],
+          "mutations": 0,
+          "queries": 28,
+          "urlAliasMergeGroups": 1
+        }
+      },
+      "after": {
+        "expectedSources": 5,
+        "detectedSources": 5,
+        "passedCases": 4,
+        "caseCount": 4,
+        "measured": {
+          "preEligible": 5,
+          "pre": 5,
+          "post": 5,
+          "falsePositives": 0,
+          "duplicateMessages": 0,
+          "duplicateMaterials": 0,
+          "nativeMessages": 20,
+          "candidateMessages": 5,
+          "extraGet": 0,
+          "firstResultMs": [
+            32.87819500000114,
+            87.50022600000011,
+            190.97941000000083
+          ],
+          "firstResultMedianMs": 87.50022600000011,
+          "maxCallbackMs": 0.4000000022351742,
+          "initialMs": [
+            6,
+            16.199999999254942,
+            7.699999999254942,
+            5.699999999254942
+          ],
+          "mutations": 0,
+          "queries": 28,
+          "urlAliasMergeGroups": 1
+        }
+      }
+    },
+    "oracleLimit": "Frozen DOM expected entries are source URLs, not independent films. DOM_C artplayer sources low/high are variants of one material; the raw URL-alias merge counter equals 1 in both versions, and is not a confirmed wrong-film merge. Oracle unchanged."
+  },
+  "Gecko": {
+    "version": "156.0.20260921121718",
+    "androidApi": 35,
+    "abi": "x86_64",
+    "baseline": {
+      "run": 40302900024,
+      "executed": 13,
+      "passed": 10,
+      "failed": [
+        "srcdocIframe",
+        "aboutBlankIframe",
+        "spaPushStateWithoutMutation"
+      ]
+    },
+    "intermediate": {
+      "run": 40305856842,
+      "executed": 13,
+      "passed": 11,
+      "failed": [
+        "aboutBlankIframe",
+        "spaPushStateWithoutMutation"
+      ]
+    },
+    "latest": {
+      "run": 40313078091,
+      "status": "aborted",
+      "executed": 1,
+      "reason": "uncaught expected SocketException Broken pipe in fixture HTTP worker after cancelled navigation; test infrastructure fixed"
+    },
+    "phone": "NOT RUN",
+    "publicWebsites": "NOT RUN"
+  }
+}
