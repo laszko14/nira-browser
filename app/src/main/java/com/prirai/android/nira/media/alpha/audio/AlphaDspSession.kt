@@ -138,7 +138,16 @@ internal class AlphaDspSession(
 internal object AlphaDspDiagnostics {
     private var owner:Any?=null
     private var current=AlphaDspState()
-    @Synchronized fun update(session:Any?,s:AlphaDspState) {owner=session;current=s}
+    @Synchronized fun update(session:Any?,s:AlphaDspState) {
+        if(session!=null&&owner===session&&com.prirai.android.nira.diagnostics.testlab.TestLab.busy) {
+            com.prirai.android.nira.diagnostics.testlab.TestLab.counterChange(com.prirai.android.nira.diagnostics.testlab.LabCode.DSP_TIMEOUT,s.timeouts,current.timeouts)
+            com.prirai.android.nira.diagnostics.testlab.TestLab.counterChange(com.prirai.android.nira.diagnostics.testlab.LabCode.DSP_CONFLICT,s.conflicts,current.conflicts)
+            com.prirai.android.nira.diagnostics.testlab.TestLab.counterChange(com.prirai.android.nira.diagnostics.testlab.LabCode.DSP_CONFIG_ERROR,s.configurationErrors,current.configurationErrors)
+            com.prirai.android.nira.diagnostics.testlab.TestLab.counterChange(com.prirai.android.nira.diagnostics.testlab.LabCode.DSP_ROLLBACK_UNCONFIRMED,s.rollbackUnconfirmed,current.rollbackUnconfirmed)
+            com.prirai.android.nira.diagnostics.testlab.TestLab.counterChange(com.prirai.android.nira.diagnostics.testlab.LabCode.DSP_LUA_ERROR,s.luaExceptions,current.luaExceptions)
+        }
+        owner=session;current=s
+    }
     @Synchronized fun report(session:Any?,unexpectedStarts:Int):String {
         val s=if(session!=null && owner===session)current else AlphaDspState()
         return """

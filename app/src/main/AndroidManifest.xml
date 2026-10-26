@@ -65,6 +65,9 @@
       </intent-filter>
     </activity>
 
+    <activity android:name=".diagnostics.testlab.TestLabActivity"
+        android:exported="false" android:theme="@style/AppThemeNotActionBar" />
+
     <!-- In-app libmpv playback; never exported to third-party apps. -->
     <activity
         android:name=".media.ZavroMpvActivity"

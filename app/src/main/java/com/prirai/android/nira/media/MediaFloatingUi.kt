@@ -1,5 +1,7 @@
 package com.prirai.android.nira.media
 
+import com.prirai.android.nira.diagnostics.testlab.*
+
 import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
@@ -173,6 +175,7 @@ internal class MediaFloatingUi(
             Toast.makeText(context, "Brak wykrytych filmów", Toast.LENGTH_SHORT).show()
             return
         }
+        val capture=TestLab.capture();val measurement=capture?.operation(LabOperation.FAB_OPEN)
         sheet?.dismiss()
         val dialog = BottomSheetDialog(context)
         val scroll = ScrollView(context).apply {
@@ -187,7 +190,11 @@ internal class MediaFloatingUi(
         dialog.setContentView(scroll)
         sheet = dialog
         sheetBody = body
-        dialog.setOnDismissListener { sheet = null; sheetBody = null }
+        dialog.setOnDismissListener {
+            dialog.window?.let(TestLab::detachWindow)
+            capture?.end(measurement,OperationOutcome.INTERRUPTED)
+            sheet = null; sheetBody = null
+        }
         // Force a fully expanded, content-sized sheet on the very first tap.
         // With one video there is no wasted full-screen blank area; with many,
         // ScrollView owns overflow while the sheet fills the available height.
@@ -214,6 +221,10 @@ internal class MediaFloatingUi(
         }
         fillSheet()
         dialog.show()
+        if(measurement!=null){
+            dialog.window?.let(TestLab::attachWindow)
+            androidx.core.view.OneShotPreDrawListener.add(body){capture?.end(measurement,proof=CompletionProof.FIRST_PREDRAW)}
+        }
     }
 
     private fun label(text: String, sizeSp: Float, bold: Boolean = false) = TextView(context).apply {

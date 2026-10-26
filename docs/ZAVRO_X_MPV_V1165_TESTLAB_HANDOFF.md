@@ -1,0 +1,95 @@
+# Zavro x MPV v1165 — Zavro TestLab
+
+**v1165 gotowa do testowej aktualizacji telefonu: Android CI SUCCESS, końcowa instrumentacja 24/24 PASS bez pominięć, podpisany APK ARM64 zweryfikowany. Fizyczny Nothing Phone (1) NIEURUCHOMIONY.**
+
+Baza v1164: `d890c68bd15d0f79e25ccd2935fb64ee955286b8`, PR #77. Gałąź: `feat/zavro-x-mpv-v1165-testlab-diagnostics`. Bez merge. Docelowo Gradle 165, ARM64 1165, `0.5.22-alpha71-mpv39`, `com.prirai.android.nira.mpv`. Stały certyfikat: `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00`.
+
+## Co wdrożono
+
+Jeden TestLabEngine i siedem trybów 60 s: kompleksowy, panele/gesty, karty/grupy, Gecko/strony, wideo/MPV, zasoby, stabilność. Wejście w ustawieniach i menu ⋮; instrukcja i 3 s przygotowania dopiero w Browser/MPV. Pasywny licznik, marker „Zacięło się teraz”, wcześniejsze zakończenie z rzeczywistym czasem. Rotacja i utrata okna nie rozpoczynają nowej sesji.
+
+Źródłami pozostają BrowserStore, transakcje UnifiedTabGroupManager/Room i TabOrderManager/DataStore. TestLab obserwuje wynik, nie wprowadza nowego systemu kart. Nie otwiera/przenosi/zamyka kart za użytkownika, nie kasuje „osieroconych” rekordów i nie wyciąga rodzica z selectedTabId. Normalne linki nadal pozostają bez grupy.
+
+Hooki obu paneli mierzą DOWN/rozpoznanie/ACCEPT/CANCEL i rzeczywisty pierwszy pre-draw. CompactSideTabs i UnifiedDragSystem kończą pomiar po istniejącym logicznym commit. Przewijanie obserwuje consumed, bez konsumowania gestu. Animatory toolbarów pozostają te same. Menu/FAB mają oddzielne potwierdzenie widoczności.
+
+Gecko: loading/progress/redirect/zmiany URL, błędy związane z rzeczywistym EngineSession. Detektor/MPV: istniejące zamknięte kody, callbacki time-pos/speed i delty liczników Lua/DSP. Brak nowych poleceń JNI, skanowania DOM/sieci, audio focus, zmian SurfaceView, filtrów, bridge Lua lub 43 przycisków. Handoff bez jednoznacznej korelacji ma UNKNOWN, bez wymyślonej latencji. Supertest 40 s zachowuje czas i dotychczasowy clipboard; wspólna bramka wyklucza pełne testy.
+
+## Raporty, trwałość i prywatność
+
+TXT i JSON schemaVersion 1 mają wspólny snapshot ≤256 KiB, jawne null/NOT_TESTED, źródła, pokrycie, agregaty, oś czasu i markery ±3 s. Agregaty przeżywają obcięcie szczegółów. W RAM najwyżej 7 raportów. Brak automatycznego eksportu i zewnętrznej analityki.
+
+SAF i FileProvider uruchamia użytkownik; payload w ViewModel nie zmienia się przy obrocie lub wyborze innego raportu. Sharecache jest serializowany, ma ≤2 unikalne pliki i READ grant; usunięcie cofa granty. Powrót z Settings kończy Activity zamiast wysyłać BrowserActivity.onNewIntent, chroniąc istniejący BrowserFragment/mini MPV.
+
+Recovery: opt-in OFF, AtomicFile w noBackupFilesDir, ≤64 KiB, najwyżej co 5 s, retencja 24 h sprawdzana przy odczycie. Normalny koniec usuwa plik. Czytnik odtwarza poprawny backup przed walidacją granic; test reprodukuje przerwanie po rotacji `.bak`. Nie podmieniamy handlera wyjątków. Do zapisu trafiają wyłącznie bezpieczne enum i ograniczone liczby, nigdy adresy/hosty/IP, cookies, tokeny, profile/karty, formularze, skrypty, ścieżki i Throwable.
+
+Room/DataStore aplikacji nie mają zmian schematów ani destrukcyjnych migracji. applicationId i klucz wydania pozostają niezmienione. Aktualizacja musi być zweryfikowana przez istniejący verifier CI; lokalny debug APK nie jest artefaktem do aktualizacji telefonu.
+
+## Znaczenie i ograniczenia wyników
+
+JankStats mierzy Android Window, CPU klatki API24+ i overrun API31+. Sumy wielu Window nie są FPS ekranu. Gecko compositor, klatki MPV/SurfaceView, oba tory audio, dokładna energia, PopupWindow i koniec systemowej animacji okna mają jawny brak źródła. FIRST_PREDRAW nie dowodzi prezentacji filmu.
+
+Zasoby obejmują własny proces. Heap/native/PSS/USS nie są sumowane; delty i ekstrema są niezależne. CPU jest ważone czasem i może przekroczyć 100% jednego rdzenia. Pending heartbeat jest oddzielony od ACK; opóźnienie nie jest ANR. Historia ApplicationExitInfo nie oznacza awarii w bieżącym teście.
+
+Analizator ma jawne progi i liczbę dowodów. Oddziela potwierdzoną niespójność danych, zmierzone opóźnienie i podejrzenie korelacji. Nie ma punktowej oceny zdrowia, automatycznej naprawy ani stwierdzenia wycieku na podstawie 60 s.
+
+## Wyniki automatyczne
+
+| Weryfikacja | Stan |
+|---|---|
+| Pełny Kotlin/JUnit | **349/349 PASS**, 0 pominięć, Android CI 40379361457; raport HTML z rzeczywistego przebiegu |
+| Testy TestLab | **73/73 PASS** w pełnym zestawie 349; test AtomicFile najpierw odtworzył przerwanie zapisu, potem przeszedł po poprawce |
+| JavaScript | **200/200 PASS** w zielonym CI; kontrola integralności po zmianie workflow dodatkowo 6/6 PASS |
+| Lua | 77 PASS w prawdziwym interpreterze z syntetycznym API MPV |
+| DSP | 28 PASS przez systemowy FFmpeg; nie Android i nie odsłuch |
+| Kompilacja AndroidTest | PASS; ostatnia zmiana fixture PASS w 6 s. Celowany UI: **1/1 PASS** (137,441 s); ten sam scenariusz w końcowym zestawie PASS (125,477 s) |
+| Android API35 / x86_64 KVM | **24/24 PASS**, 0 błędów, 0 pominięć: 20 Gecko + 3 rzeczywiste Room + 1 scenariusz siedmiu trybów UI; 211,257 s testów |
+| Lint | **0 nowych błędów i ostrzeżeń**; XML z CI porównany z v1164: niezmienione 1462 Fatal / 258 Error / 436 Warning / 19 Hint (dług historyczny). Zbędną zależność testową Compose usunięto |
+| Lokalny BUILD | PASS (8m 4s) po ograniczeniu narzędzi do jednego JVM 3 GiB; pierwszy przebieg przerwany OOM kontenera 8 GiB |
+| Podpisany BUILD/ABI/pakiet/certyfikat | PASS: Android CI 40379361457, job 121771097256, BUILD 2m8s; pakiet/1165/alpha71-mpv39/ARM64/stały SHA-256 potwierdzone; artefakt 12676673428 |
+
+Przywracalne, dokładne hunki v1165 dla 23 wspólnych plików są zakotwiczone w d890c68. Oryginalne hashe v1158/v1160 i warstwy v1163/v1164 nie zostały zastąpione. Dodatkowa kontrola wykrywa wprowadzenie poleceń/odczytów JNI w hookach mediów.
+
+Mikroprofil HOST_JVM_ONLY: 200 000 wywołań, agregator ~46,99 ns/wall i ~47,02 ns/CPU na wywołanie, ~0,00072 B/wywołanie; pętla odniesienia ~11,51 ns. To tylko agregator po warm-up, nie koszt JankStats, kolektorów, Androida ani telefonu. Test Androida ma własny kontrolowany workload i osobno raportuje CPU/pamięć/callbacki/opóźnienie Main OFF/ON. Nie wolno utożsamiać emulatora z Nothing Phone (1).
+
+## Code review i znane granice
+
+Własny review, bez subagentów; nie zastępuje niezależnego przeglądu. Sprawdzono tokeny i stare callbacki, jedno zatwierdzenie istniejących operacji, profile/prywatność, brak dodatkowych animatorów/poleceń playera, cleanup, bounds, atomic recovery, immutable eksport i podpis aktualizacji.
+
+Naprawione w trakcie implementacji: utrata ważnej obserwacji po szumie performance, niepoprawne wartości/skład źródeł, początek pomiaru w złym oknie, pozorna zerowa latencja, pozorny fullscreen po samej fladze, przypisanie ACK przy nakładających się prepare, brak wzajemnej blokady testów, nieatomowy odczyt recovery oraz presja pamięci narzędzi budujących. To ustalenia nowej diagnostyki; nie są dowodem wcześniejszych P0 w aplikacji.
+
+## Ręcznie na Nothing Phone (1) — NIEURUCHOMIONE
+
+1. Zaktualizuj podpisanym ARM64 APK bez odinstalowania. Sprawdź dotychczasowe karty/grupy/profile i ustawienia.
+2. Test Panele: lewa/prawa krawędź, cancel, outside tap, szerokość, scroll/drag przy krawędzi i zwiniętych grupach; pion/poziom. Licznik nie może przejmować dotyku.
+3. Karty: 10 linków pozostaje solo; ręczne grupowanie/przenoszenie/kolejność, zamknij/cofnij, A→B→prywatny→A; restart zachowuje dane.
+4. TestLab: marker przy zacięciu, wyjście do tła, obrót i zatrzymanie z UI. Sprawdź pełne 60 s poszczególnych trybów; automat przeprowadził pełne 60 s kompleksowego i krótsze pomiary pozostałych sześciu. Brak próby pozostaje NOT_TESTED.
+5. Wideo: realne HLS/blob/MSE/AUTO, mini↔fullscreen, pozycja/szybkość/ścieżki. Sprawdź słuchem brak podwójnego audio i brak nowego START_FILE wskutek TestLab. Lua/DSP oraz 43 przyciski pozostają działające.
+6. Eksport TXT/JSON, obrót przy SAF, share i usunięcie. Recovery domyślnie OFF; po opt-in niekompletny zapis nie jest przedstawiany jako pewny crash.
+7. Porównaj kilka równych przebiegów OFF/ON na telefonie; brak deklaracji FPS/RAM/CPU bez pomiarów urządzenia.
+
+## Wydanie i ostatni etap testów
+
+Produkcyjny commit: `90d9f64427a5f30d331f2a007e1c09b5f5ec03ce`. [Draft PR #78](https://github.com/laszko14/nira-browser/pull/78) do v1164, bez merge. [Android CI — SUCCESS](https://github.com/laszko14/nira-browser/actions/runs/40379361457). Podpisany [APK ARM64 v1165](https://github.com/laszko14/nira-browser/actions/runs/40379361457/artifacts/12676673428), artefakt `zavro-x-mpv-arm64-v1165`, 177335439 B (ZIP), retencja 30 dni. Verifier potwierdził wszystkie parametry aktualizacji wskazane powyżej. APK nie był pobierany do Codex.
+
+Po tym commicie zmieniono wyłącznie test UI, wybór zestawu instrumentacyjnego i dokumentację; kod produkcyjny APK pozostał identyczny. Trzy wcześniejsze przebiegi KVM zaliczyły 20 testów Gecko i 3 Room, ale nie nowy scenariusz TestLab. Ustalono błędy fixture: nieaktualne Window po odtworzeniu Activity, anulowanie efektów Compose przez testowy scheduler poza Main oraz użycie nieobsługiwanego przez virtual provider Compose `findAccessibilityNodeInfosByText`. Provider tworzy węzły i obsługuje akcje, lecz nie tę metodę wyszukiwania. Test obecnie przechodzi po rzeczywistych dzieciach Accessibility, korzysta z zegara Androida i natywnego wejścia FINGER/TOUCHSCREEN. Nie zmieniono działania ekranu, gestów aplikacji ani progów testów.
+
+Testowy commit `04719a60115078f33447f785fd979de05a561578`; [pomiar celowany KVM — SUCCESS](https://github.com/laszko14/nira-browser/actions/runs/40406053934). Log potwierdził jeszcze jedną przyczynę fixture: początkowo aktywny był `ComposeHomeFragment`, a samo dodanie kart do Store nie aktywowało strony i jej listenera paneli. Setup czeka teraz na odtworzenie sesji, utworzenie i wybór własnej karty oraz rzeczywisty BrowserFragment po istniejącej nawigacji aplikacji. Nie otwiera panelu za pomocą testowego hooka — nadal wykonuje prawdziwy gest wejścia Androida.
+
+Scenariusz celowany trwał 137,441 s: wszystkie siedem trybów uruchomiono przez UI. Kompleksowy zakończył pełne 60 000 ms, zebrał 1419 klatek Window oraz potwierdził 10 nowych kart, grupę, marker, przerwę pokrycia, prawdziwy panel z FIRST_PREDRAW, obrót i powrót. Log Gecko zawiera LANDSCAPE_PRIMARY i PORTRAIT_PRIMARY. Pozostałe sześć trybów poprawnie zakończono częściowo: 26/27/32/33/139/33 klatek Window odpowiednio panele/karty/Gecko/wideo/zasoby/stabilność. Każdy raport miał próbki zasobów; sprawdzono cleanup, brak prywatnych ID/tytułów, odtworzenie ekranu raportu i schowek. Pełne 60 s pozostałych sześciu trybów, systemowe gesty telefonu i rzeczywiste odtwarzanie MPV nie były tym scenariuszem weryfikowane.
+
+**[Pełna regresja — SUCCESS, 24/24 PASS](https://github.com/laszko14/nira-browser/actions/runs/40407342362)** na tym samym testowym commicie `04719a6`. XML artefaktu `12692366574` potwierdza 20 Gecko + 3 Room + 1 TestLab, bez błędów i pominięć; łączny czas testów 211,257 s. Scenariusz TestLab w tym przebiegu trwał 125,477 s, kompleksowy miał dokładnie 60 000 ms i 1479 klatek Window. Pozostałe tryby miały odpowiednio 33/33/32/32/137/32 klatki i poprawne raporty częściowe. Log Gecko potwierdza obie zmiany orientacji. To końcowy wynik, odrębny od wcześniejszych nieudanych iteracji fixture.
+
+Surowe obserwacje emulatora API35/x86_64 z zaliczonego przebiegu celowanego (nie telefonu):
+
+| Okno pomiaru | Czas | CPU własnego procesu | Java heap Δ | Native heap Δ | Callbacki draw | Jednorazowy Main ACK |
+|---|---:|---:|---:|---:|---:|---:|
+| OFF | 5,094 s | 2115 ms | +1224736 B | +803568 B | 140 | 54,65 ms |
+| ON_RESOURCES | 5,002 s | 2427 ms | +622592 B | +20512 B | 140 | 51,70 ms |
+
+To oddzielne okna podczas scenariusza; stan kart i JIT między nimi się zmienia. Nie jest to kontrolowany pomiar przyczynowego narzutu, dowód poprawy RAM/FPS ani miara klatek MPV. Do oceny narzutu na telefonie potrzeba dopasowanych, powtarzanych przebiegów w tym samym stanie aplikacji.
+
+Pierwszy przebieg CI 40373745283 miał nadmiernie długi krok narzędzi Lua/DSP, lecz ostatecznie także zakończył się SUCCESS. Kolejny 40379361457 przeszedł cały zestaw. Dodano limit 10 minut dla tego kroku, bez zmian Lua/DSP. Nie deklarujemy poprawy wydajności aplikacji na podstawie tej zmiany narzędziowej.
+
+Dalsze propozycje: kalibracja heurystyk raportami telefonu i niezależny review. Żadna kolejna wersja nie jest wdrażana automatycznie.
+
+Końcowy review: po `90d9f64` brak różnic w `app/src/main`, konfiguracji aplikacji i katalogu zależności. Nie wyłączono testów ani nie obniżono ich progów; poprawiono warunki fixture i użycie Accessibility. Domyślny wybór instrumentacji nadal uruchamia wszystkie 24 przypadki. Dokumentacja końcowa nie wymaga ponownego BUILD/TEST. Gotowość dotyczy testowej aktualizacji — akceptacja gestów systemowych, rzeczywistych stron/MPV, pełnych sesji pozostałych trybów i narzutu na Nothing Phone (1) pozostaje warunkiem weryfikacji urządzenia.

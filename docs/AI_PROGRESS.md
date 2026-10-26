@@ -1,3 +1,23 @@
+# v1165 — zakończenie TestLab, 2026-10-26
+Gotowa testowa aktualizacja ARM64. Produkcja90d9f64, AndroidCI40379361457 SUCCESS:349JUnit(wtym73TestLab),JS200,Lua77,DSP28,BUILD/TEST/LINT/AndroidTestcompile. Lint0nowych względemv1164. Verifierpackage/1165/alpha71-mpv39/ARM64/cert PASS; APKartifact12676673428.
+Wznowienie dokończyło fixture: traversalvirtualnychAccessibilityCompose i prawdziwaBrowserFragment po restore, bez zmian produkcji/progów/gestów. Testowy04719a6:celowany40406053934 1/1PASS; pełny40407342362 24/24PASS (20Gecko+3Room+1UI7trybów), bez pominięć. Complex60000ms, inne6PARTIAL, realneframes/resources/cleanup/obrót/clipboard.
+DraftPR78 pozostaje otwarty, bez merge. FizycznyNothingPhone/realMPV/audio/SAFpicker NIERUN; pełne60s6pozostałychtrybów i porównywalny narzut telefonu do ręcznej weryfikacji. Szczegóły w CODEX_RESUME_V1165.md i ZAVRO_X_MPV_V1165_TESTLAB_HANDOFF.md.
+
+# v1165 — końcowe E/G i wydanie, 2026-10-26
+Implementacja/UI/typed raporty gotowe; pełnyJUnit348PASS +nowybackup7/7PASS, core72PASS, JS200 po korekcie nagłówka, Lua77/DSP28PASS. AndroidTestcompilePASS. Lint0nowychError/1świadomyComposeTestpinWarn. Pierwsze lokalne pakowanieOOM8GiB, kolejnein-process3GiB PASS8m4s. Wersja165/1165/alpha71-mpv39. Kod331da7e/DraftPR78; KVM40373745487 i signedCI40373745283 trwają; nie ogłaszać APK gotowym. Szczegóły i dokładne logi w CODEX_RESUME_V1165.md.
+
+# v1165 F WIP — 2026-10-26
+UI7testers+explicitexports+Settings/Menu/mark/stop/history,64/64TestLabPASS20s. RecoveryNoBackupDir, immutableSAFpayloadVM, cache2uniqueFileProviderfiles. NoprivateURLs; returnBrowserwithoutNewIntent. JeszczebrakrealAndroidUI/overhead/finalregressionsCI/signedAPK;nextE/G/H wCODEX_RESUME_V1165.md.
+
+# v1165 D WIP — 2026-10-26
+DGecko/MPV/diagLuaDSP+gate40s:274/274targetedPASS39s; afterentryreview61/61TestLabPASS16s. FullscreenState≠predraw≠videoframe; onlyexistingpassivetaps. BrakUI/końcowegoCI/signedAPKv1165;nextFUI/export. CheckpointCODEX_RESUME_V1165.md.
+
+# v1165 C WIP — 2026-10-26
+Hooki realnych paneli/gestów/kart/Room/DataStore/toolbar/menu/FAB;93/93targetedPASS43s,52TestLab. Unknown-origin latency=null, przedraw≠animacja, popupWindowframesunsupported. BraktestuAndroidUI/końcowegoCI/APKv1165; nextDsafeMPVGeckoSupertestgate,thenFUI. SzczegółyCODEX_RESUME_V1165.md.
+
+# v1165 B3/E1 WIP — 2026-10-26
+Raporty TXT/JSON, rdzeń i Android runtime/recovery:47/47targetedPASS,work/v1165-runtime-wired-tests.log. Jeszcze brak UI/hooków/końcowegoCI/APKv1165; następny krokC/D/F w CODEX_RESUME_V1165.md. Zachować work/ i niezacommitowane poprawki. Bezmerge/subagentów/resetu.
+
 ## 2026-10-24 — ZAVRO v1115, PR #28 — podpisany ARM64 APK
 
 - Naprawiono animację top-toolbar, która ukrywała dolny pasek Compose; odseparowano pomiary viewportu i przeliczanie po rozmiarze dolnego paska.
@@ -371,3 +391,9 @@ Opcjonalne, odwracalne rewizje istniejących przycisków DRC/DE: kopie oryginał
 
 - v1164 finalna walidacja: rzeczywisty Gecko CI40316669098 SUCCESS **20/20**, w tym oba SPA oraz network-only inherited blank/srcdoc. Diagnostic2SPA wcześniej potwierdził wyłącznie frozenprincipalURI, nie zły UUID/partition. Oracle niezmienione.
 - Lokalny pełny Gradle PASS4m22s,JUnit276/276,JS199/199,Lua77/77,DSP28/28,lint0nowych/8historycznychusuniętych. Raporty/handoff/metrics gotowe; kolejny krok finalny commit/push/DraftPRdo v1163+podpisującyCI. Telefon/publicsites/realMPV nieuruchomione,APK jeszcze niepotwierdzony.
+
+## 2026-10-26 — v1165 TestLab A/B1/B2
+- Utworzono właściwą gałąź od d890c68(v1164), bez merge i bez powtarzania świeżego baseline. Architektura/kontrakty/metody/źródła w ZAVRO_TESTLAB_METRICS_SPEC.md.
+- JankStats stable1.0.0 potwierdzone officialdocs; jeszcze bez dependency/kolektora. Rdzeń pureKotlin i7trybów,60s monotonic/deadline,scope token,partial/cancel/cleanupgate/foregroundgaps,boundedmetrics.
+-31nowych tests,pełnyKotlin/JUnit307/307PASS25s. Realne edgeRED/GREEN: singlememorydelta,invalidAPIrange,mutableenv,sourceavailability,versionheaderlimit. UI/kolektory/narzut/eksportv1165jeszczebrak — to WIP, nie gotoweAPK.
+- Następne B3raportTXT/JSON; potem hookiC/D, runtimeE, UIF, testyG i signedCIH. Dokładne wznowienie CODEX_RESUME_V1165.md. JS/Lua/DSP nietknięte/niepowtarzane; wszystkie stare funkcje zachowane.

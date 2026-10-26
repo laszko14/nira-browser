@@ -26,8 +26,8 @@ android {
         minSdkVersion 27
         targetSdkVersion 37
         // Increment by 4 with each update, by 1 with each fix
-        versionCode = 164
-        versionName = "0.5.22-alpha70-mpv38"
+        versionCode = 165
+        versionName = "0.5.22-alpha71-mpv39"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -150,6 +150,8 @@ dependencies {
     implementation libs.kotlin.stdlib.jdk7
     implementation libs.androidx.constraintlayout
     implementation libs.material
+
+    implementation "androidx.metrics:metrics-performance:1.0.0"
 
     // Support libraries
     implementation libs.androidx.recyclerview

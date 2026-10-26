@@ -188,6 +188,7 @@ internal class InlineMpvUi(
         }
         override fun eventProperty(property:String,value:Double) {
             alphaAdapter.onNumber(property,value)
+            if(property=="speed"&&!destroyed)com.prirai.android.nira.diagnostics.testlab.TestLab.mediaSpeed(session,value)
             if (property=="duration" || property=="speed") main.post {
                 if (!destroyed) {
                     if (property=="duration") duration=value else speed=value
@@ -517,7 +518,12 @@ internal class InlineMpvUi(
             old.leftMargin!=params.leftMargin || old.topMargin!=params.topMargin)
             overlay.layoutParams=params
         updateControlsForWidth(rectangle.width())
-        if (wasHidden) trace("inline_surface_visible")
+        if (wasHidden) {
+            trace("inline_surface_visible")
+            val capture=com.prirai.android.nira.diagnostics.testlab.TestLab.capture()
+            val measurement=capture?.operation(com.prirai.android.nira.diagnostics.testlab.LabOperation.MPV_INLINE,measureLatency=false)
+            if(measurement!=null)androidx.core.view.OneShotPreDrawListener.add(overlay){capture.end(measurement,proof=com.prirai.android.nira.diagnostics.testlab.CompletionProof.FIRST_PREDRAW)}
+        }
     }
     private fun hideInline() {
         if (overlay.visibility!=View.INVISIBLE) {
@@ -527,6 +533,8 @@ internal class InlineMpvUi(
     }
     private fun toggleFullscreen() {
         if (destroyed) return
+        val capture=com.prirai.android.nira.diagnostics.testlab.TestLab.capture()
+        val measurement=capture?.operation(if(fullscreen)com.prirai.android.nira.diagnostics.testlab.LabOperation.MPV_INLINE else com.prirai.android.nira.diagnostics.testlab.LabOperation.MPV_FULLSCREEN)
         cancelHold()
         dragging=false
         if (!fullscreen) {
@@ -550,6 +558,7 @@ internal class InlineMpvUi(
         }
         updateControlsForWidth(if(fullscreen) windowHost.width else overlay.width,true)
         revealControls()
+        if(measurement!=null)androidx.core.view.OneShotPreDrawListener.add(overlay){capture.end(measurement,proof=com.prirai.android.nira.diagnostics.testlab.CompletionProof.FIRST_PREDRAW)}
     }
     /** Android Back collapses fullscreen without stopping or re-opening media. */
     fun exitFullscreen(): Boolean {

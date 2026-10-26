@@ -422,6 +422,7 @@ open class Components(private val applicationContext: Context) {
                         // opens a Room database on first touch).
                         tabGroupMiddleware,
                         profileMiddleware,  // Use the exposed instance
+                        com.prirai.android.nira.diagnostics.testlab.TestLabMiddleware(),
                         SessionPrioritizationMiddleware(),
                         TranslationsMiddleware(
                             engine = engine,

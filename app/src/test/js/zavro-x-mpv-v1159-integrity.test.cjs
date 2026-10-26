@@ -11,12 +11,14 @@ const uiPatches = require('./v1160-ui-patches.json');
 // Reviewed v1163 discovery-only hunks are reversible; original 92 hashes stay authoritative.
 const discoveryPatches = require('./v1163-discovery-patches.json');
 const advancedPatches = require('./v1164-discovery-patches.json');
+const {reverseTestLab,verifyPassiveNativeScope,layer:labLayer}=require('./v1165-testlab-integrity.cjs');
 assert.deepEqual(Object.keys(advancedPatches).sort(), [
   ...['background.js','content.js','manifest.json','playback-bridge.js'].map(name=>'app/src/main/assets/extensions/nira-media-detector/'+name),
   'app/src/main/java/com/prirai/android/nira/BrowserFragment.kt',
   ...['BlobHlsSelector','MediaDetectorController','MediaElementPlaybackBridge','MediaMessageProtocol','MediaRepository'].map(name=>'app/src/main/java/com/prirai/android/nira/media/'+name+'.kt')
 ].sort());
 function reverseAdvanced(path, bytes) {
+  bytes=reverseTestLab(path,bytes);
   if (!advancedPatches[path]) return bytes;
   let source = bytes.toString('utf8');
   for (const patch of advancedPatches[path].slice().reverse()) {
@@ -25,7 +27,7 @@ function reverseAdvanced(path, bytes) {
   }
   return source;
 }
-test('v1164: protected v1158 MPV, Lua, audio, fullscreen and Room schemas are retain original hashes after reversing exact UI-only patches', () => {
+test('v1165: protected v1158 MPV, Lua, audio, fullscreen and Room schemas are retain original hashes after reversing exact UI-only patches', () => {
   assert.deepEqual(Object.keys(uiPatches).sort(), [
     'app/src/main/java/com/prirai/android/nira/BrowserFragment.kt',
     'app/src/main/java/com/prirai/android/nira/media/MediaFloatingUi.kt'
@@ -55,19 +57,19 @@ test('v1164: protected v1158 MPV, Lua, audio, fullscreen and Room schemas are re
     assert.equal(actual, expected, path);
   }
 });
-test('v1164: verified ARM64 update identity is exact in Gradle, CI and verifier', () => {
+test('v1165: verified ARM64 update identity is exact in Gradle, CI and verifier', () => {
   const gradle = fs.readFileSync('app/build.gradle','utf8');
   const ci = fs.readFileSync('.github/workflows/apk-release.yml','utf8');
-  assert.match(gradle,/versionCode = 164\b/);
-  assert.match(gradle,/versionName = "0\.5\.22-alpha70-mpv38"/);
+  assert.match(gradle,/versionCode = 165\b/);
+  assert.match(gradle,/versionName = "0\.5\.22-alpha71-mpv39"/);
   assert.match(gradle,/applicationId = "com\.prirai\.android\.nira\.mpv"/);
-  assert.match(ci,/EXPECTED_VERSION_CODE: "1164"/);
-  assert.match(ci,/name: zavro-x-mpv-arm64-v1164/);
+  assert.match(ci,/EXPECTED_VERSION_CODE: "1165"/);
+  assert.match(ci,/name: zavro-x-mpv-arm64-v1165/);
   assert.match(ci,/EXPECTED_CERT_SHA256: df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00/);
   assert.match(ci,/bash scripts\/verify-update-apk\.sh/);
   assert.match(fs.readFileSync('scripts/verify-update-apk.sh','utf8'),/apksigner/);
 });
-test('v1164: data regressions and native View tests are executed by the CI unit-test task', () => {
+test('v1165: data regressions and native View tests are executed by the CI unit-test task', () => {
   const ci = fs.readFileSync('.github/workflows/apk-release.yml','utf8');
   assert.match(ci,/testDebugUnitTest compileDebugAndroidTestKotlin/);
   assert.match(ci,/node --test app\/src\/test\/js\/\*\.test\.cjs/);
@@ -76,13 +78,13 @@ test('v1164: data regressions and native View tests are executed by the CI unit-
   assert.doesNotMatch(drag.slice(drag.indexOf('private suspend fun performDrop')),/delay\((50|100)\)/);
 });
 
-test('v1164: v1160 floating button, manual groups and shared order remain byte-identical', () => {
+test('v1165: v1160 floating button, manual groups and shared order remain byte-identical', () => {
   for (const [path, expected] of Object.entries(require('./v1160-tab-ui-hashes.json'))) {
     assert.equal(crypto.createHash('sha256').update(reverseAdvanced(path, fs.readFileSync(path))).digest('hex'), expected, path);
   }
 });
 
-test('v1164: app diagnostics do not interpolate raw OAuth, favicon or cookie origins', () => {
+test('v1165: app diagnostics do not interpolate raw OAuth, favicon or cookie origins', () => {
   for (const path of [
     'app/src/main/java/com/prirai/android/nira/request/AppRequestInterceptor.kt',
     'app/src/main/java/com/prirai/android/nira/browser/tabs/compose/FaviconImage.kt',
@@ -92,4 +94,9 @@ test('v1164: app diagnostics do not interpolate raw OAuth, favicon or cookie ori
       assert.doesNotMatch(line, /\$uri|\$url|\$\{(?:policy\.origin|tab\.content\.url)\}/, path);
     }
   }
+});
+
+test('v1165: every shared diagnostic hunk reverses to v1164 and introduces no JNI polling or commands',()=>{
+ verifyPassiveNativeScope();
+ for(const path of Object.keys(labLayer.files))reverseTestLab(path,fs.readFileSync(path));
 });

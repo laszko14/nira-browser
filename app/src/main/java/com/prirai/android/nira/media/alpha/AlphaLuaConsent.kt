@@ -13,7 +13,15 @@ internal class AlphaLuaConsent(context:Context) {
 internal object AlphaLuaDiagnostics {
     private var owner:Any?=null
     private var current=AlphaLuaState()
-    @Synchronized fun update(session:Any?,value:AlphaLuaState) { owner=session;current=value }
+    @Synchronized fun update(session:Any?,value:AlphaLuaState) {
+        if(session!=null&&owner===session&&com.prirai.android.nira.diagnostics.testlab.TestLab.busy) {
+            com.prirai.android.nira.diagnostics.testlab.TestLab.counterChange(com.prirai.android.nira.diagnostics.testlab.LabCode.LUA_SYNTAX_ERROR,value.syntaxErrors,current.syntaxErrors)
+            com.prirai.android.nira.diagnostics.testlab.TestLab.counterChange(com.prirai.android.nira.diagnostics.testlab.LabCode.LUA_RUNTIME_ERROR,value.runtimeErrors,current.runtimeErrors)
+            com.prirai.android.nira.diagnostics.testlab.TestLab.counterChange(com.prirai.android.nira.diagnostics.testlab.LabCode.LUA_ACK_TIMEOUT,value.timeouts,current.timeouts)
+            com.prirai.android.nira.diagnostics.testlab.TestLab.counterChange(com.prirai.android.nira.diagnostics.testlab.LabCode.LUA_PROPERTY_ERROR,value.publishFailures,current.publishFailures)
+        }
+        owner=session;current=value
+    }
     @Synchronized fun lastStatus(session:Any?):String=if(session!=null && session===owner)current.status.name else "UNCONFIRMED"
     @Synchronized fun report(session:Any?):String {
         val value=if(session!=null && session===owner)current else AlphaLuaState()
