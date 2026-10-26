@@ -18,7 +18,7 @@ class TestLabExportsTest {
         var now=0L;val e=TestLabEngine({now},LabIdentity(1165,"0.5.22-alpha71-mpv39"));val t=e.start(TestType.COMPLEX)!!
         e.begin(t);now=1_000_000;e.stop(t);e.complete(t);return TestLabReportGenerator.generate(e.latest()!!)
     }
-    @Test fun simultaneousUserSharesAreBoundedAndUseIndependentReadOnlyProviderUris()=runBlocking {
+    @Test fun simultaneousUserSharesAreBoundedAndUseIndependentProviderUris()=runBlocking {
         val app=RuntimeEnvironment.getApplication();val report=bundle()
         TestLabExports.clean(app)
         try {

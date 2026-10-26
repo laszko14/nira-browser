@@ -4,7 +4,7 @@ import java.lang.ref.WeakReference
 
 /** Passive adapter. No player, network, JS, filter or session-control APIs exist here. */
 internal class TestLabMediaObserver(private val capture:LabCapture) {
-    private data class Handoff(val owner:WeakReference<Any>,val operation:OperationToken)
+    private data class Handoff(val owner:WeakReference<Any>,val operation:OperationToken,val ambiguous:Boolean=false)
     private val handoffs=ArrayList<Handoff>(16)
     private var player=WeakReference<Any>(null)
     private var playback:OperationToken?=null
@@ -23,17 +23,22 @@ internal class TestLabMediaObserver(private val capture:LabCapture) {
         capture.note(safe,httpStatus[code])
         when(code) {
             "prepare_sent"->if(owner!=null) {
+                val overlapped=handoffs.any{it.owner.get()===owner}
+                if(overlapped)capture.note(LabCode.HANDOFF_CORRELATION_AMBIGUOUS)
                 handoffs.removeAll{entry->
                     if(entry.owner.get()==null||entry.owner.get()===owner){capture.end(entry.operation,OperationOutcome.INTERRUPTED);true}else false
                 }
                 if(handoffs.size>=16){capture.end(handoffs.removeAt(0).operation,OperationOutcome.INTERRUPTED);capture.error(LabError.OPERATION_LIMIT)}
-                capture.operation(LabOperation.HANDOFF_ACK)?.let{handoffs.add(Handoff(WeakReference(owner),it))}
+                capture.operation(LabOperation.HANDOFF_ACK)?.let{handoffs.add(Handoff(WeakReference(owner),it,overlapped))}
             }
             "ack_ok","ack_failed","ack_timeout"->if(owner!=null) {
                 val index=handoffs.indexOfFirst{it.owner.get()===owner}
-                if(index>=0)capture.end(handoffs.removeAt(index).operation,when(code){
-                    "ack_ok"->OperationOutcome.SUCCESS;"ack_timeout"->OperationOutcome.TIMEOUT;else->OperationOutcome.FAILED
-                })
+                if(index>=0) {
+                    val entry=handoffs.removeAt(index)
+                    capture.end(entry.operation,if(entry.ambiguous)OperationOutcome.UNKNOWN else when(code){
+                        "ack_ok"->OperationOutcome.SUCCESS;"ack_timeout"->OperationOutcome.TIMEOUT;else->OperationOutcome.FAILED
+                    })
+                }
             }
             "mpv_start_file"->if(owner!=null) {
                 capture.end(playback,OperationOutcome.INTERRUPTED)

@@ -1,6 +1,6 @@
 package com.prirai.android.nira.diagnostics.testlab
 
-import android.view.View
+import androidx.core.view.isVisible
 import android.view.ViewTreeObserver
 import android.view.Window
 
@@ -25,7 +25,7 @@ internal class TestLabPanelProbe(private val side:PanelSide) {
         val decor=value.decorView
         val draw=object:ViewTreeObserver.OnPreDrawListener {
             override fun onPreDraw():Boolean {
-                if(decor.isShown&&decor.visibility==View.VISIBLE&&decor.width>0&&decor.height>0&&decor.alpha>0f) {
+                if(decor.isShown&&decor.isVisible&&decor.width>0&&decor.height>0&&decor.alpha>0f) {
                     TestLab.end(opened,proof=CompletionProof.FIRST_PREDRAW);opened=null
                     if(decor.viewTreeObserver.isAlive)decor.viewTreeObserver.removeOnPreDrawListener(this)
                     listener=null

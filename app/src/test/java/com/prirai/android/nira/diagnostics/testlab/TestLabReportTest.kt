@@ -38,7 +38,7 @@ class TestLabReportTest {
         val safe=setOf("0.5.22-alpha71-mpv39")+
             listOf(TestType.entries,LabPhase.entries,LabMetric.entries,LabOperation.entries,LabCode.entries,
                 Availability.entries,MetricSource.entries,Coverage.entries,Limitation.entries,LabError.entries,
-                LabInvariant.entries,ObservationKind.entries,CompletionProof.entries,PercentileMethod.entries)
+                LabInvariant.entries,ObservationKind.entries,CompletionProof.entries,PercentileMethod.entries,LabUnit.entries)
                 .flatten().map{it.name}
         val forbidden=setOf("url","domain","host","ip","cookies","authorization","title","profileid","profilename","tabid","path","script","exception","stacktrace","message")
         fun check(node:JsonElement){when(node){

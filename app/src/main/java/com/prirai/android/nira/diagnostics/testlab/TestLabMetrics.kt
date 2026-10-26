@@ -11,6 +11,7 @@ data class FrameSummary(
     val meanOverrunMs: Double?, val maxOverrunMs: Double?, val overrunSamples: Long,
     val overflowCount: Long, val invalidSamples: Long,
     val percentileMethod: PercentileMethod = PercentileMethod.HISTOGRAM_UPPER_BOUND_0_25_MS,
+    val cpuSamples:Long=0,val meanCpuMs:Double?=null,val maxCpuMs:Double?=null,
 )
 @Serializable enum class PercentileMethod { HISTOGRAM_UPPER_BOUND_0_25_MS }
 
@@ -21,6 +22,7 @@ class FrameAccumulator {
     private var jank = 0L
     private var total = 0.0
     private var maximum = 0L
+    private var cpuCount=0L;private var cpuTotal=0.0;private var cpuMaximum=0L
     private var overrunCount = 0L
     private var overrunTotal = 0.0
     private var overrunMaximum = Long.MIN_VALUE
@@ -29,13 +31,17 @@ class FrameAccumulator {
     fun add(durationNanos: Long, isJank: Boolean, overrunNanos: Long? = null) {
         addMeasured(durationNanos,isJank,overrunNanos?:0L,overrunNanos!=null)
     }
-    fun addMeasured(durationNanos:Long,isJank:Boolean,overrunNanos:Long,hasOverrun:Boolean) {
+    fun addMeasured(durationNanos:Long,isJank:Boolean,overrunNanos:Long,hasOverrun:Boolean,cpuNanos:Long=0L,hasCpu:Boolean=false) {
         if (durationNanos !in 1L..60_000_000_000L) { invalidCount++; return }
         count++; if (isJank) jank++
         total += durationNanos
         maximum = maxOf(maximum, durationNanos)
         val bucket = ((durationNanos + STEP - 1) / STEP).coerceAtMost(4095).toInt()
         histogram[bucket]++
+        if(hasCpu) {
+            if(cpuNanos in 0L..60_000_000_000L){cpuCount++;cpuTotal+=cpuNanos;cpuMaximum=maxOf(cpuMaximum,cpuNanos)}
+            else invalidCount++
+        }
         if (hasOverrun) {
             if (overrunNanos in -60_000_000_000L..60_000_000_000L) {
                 overrunCount++; overrunTotal += overrunNanos
@@ -59,6 +65,8 @@ class FrameAccumulator {
         if (overrunCount>0) overrunTotal/overrunCount/1_000_000.0 else null,
         if (overrunCount>0) overrunMaximum/1_000_000.0 else null,
         overrunCount,histogram.last(),invalidCount,
+        cpuSamples=cpuCount,meanCpuMs=if(cpuCount>0)cpuTotal/cpuCount/1_000_000.0 else null,
+        maxCpuMs=if(cpuCount>0)cpuMaximum/1_000_000.0 else null,
     )
     private companion object { const val STEP = 250_000L }
 }
@@ -86,6 +94,7 @@ data class ResourceSummary(
     val cpuDeltaMs: Long?, val cpuObservedWallMs: Double?,
     val cpuMeanOneCorePercent: Double?, val cpuMaxOneCorePercent: Double?,
     val invalidFields: Long, val outOfOrderSamples: Long,
+    val nativeHeapDeltaBytes:Long?=null,val pssDeltaBytes:Long?=null,val ussDeltaBytes:Long?=null,
 )
 
 /** Sample ring is bounded; first baseline and extrema are independent of ring eviction. */
@@ -97,9 +106,12 @@ class ResourceAccumulator(private val capacity: Int = 180) {
     private var firstJava: Long? = null
     private var lastJava: Long? = null
     private var javaMax: Long? = null
-    private var nativeMax: Long? = null
-    private var pssMax: Long? = null
-    private var ussMax: Long? = null
+    private class Range {
+        var maximum:Long?=null;private var first=0L;private var last=0L;private var count=0L
+        fun add(value:Long?){if(value!=null){if(count++==0L)first=value;last=value;maximum=maxOf(maximum?:value,value)}}
+        fun delta():Long?=if(count>=2)last-first else null
+    }
+    private val native=Range();private val pss=Range();private val uss=Range()
     private var lastCpu: Long? = null
     private var lastCpuOffset = 0L
     private var cpuMs = 0L
@@ -135,9 +147,7 @@ class ResourceAccumulator(private val capacity: Int = 180) {
             if(firstJava==null)firstJava=it
             lastJava=it;javaMax=maxOf(javaMax?:it,it)
         }
-        sample.nativeHeapBytes?.let { nativeMax=maxOf(nativeMax?:it,it) }
-        sample.pssBytes?.let { pssMax=maxOf(pssMax?:it,it) }
-        sample.ussBytes?.let { ussMax=maxOf(ussMax?:it,it) }
+        native.add(sample.nativeHeapBytes);pss.add(sample.pssBytes);uss.add(sample.ussBytes)
         val cpu=sample.cpuTimeMs
         if(cpu!=null) {
             val previous=lastCpu
@@ -156,10 +166,11 @@ class ResourceAccumulator(private val capacity: Int = 180) {
     fun snapshot() = ResourceSummary(
         samples.toList(),total,(total-capacity).coerceAtLeast(0),
         if(javaSamples>=2)lastJava!!-firstJava!! else null,
-        javaMax,nativeMax,pssMax,ussMax,
+        javaMax,native.maximum,pss.maximum,uss.maximum,
         if(cpuWallNanos>0)cpuMs else null,
         if(cpuWallNanos>0)cpuWallNanos/1_000_000.0 else null,
         if(cpuWallNanos>0)cpuMs*100_000_000.0/cpuWallNanos else null,
         cpuMax,invalid,outOfOrder,
+        nativeHeapDeltaBytes=native.delta(),pssDeltaBytes=pss.delta(),ussDeltaBytes=uss.delta(),
     )
 }

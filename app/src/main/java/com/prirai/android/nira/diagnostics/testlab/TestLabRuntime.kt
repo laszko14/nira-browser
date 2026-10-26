@@ -16,6 +16,7 @@ import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.metrics.performance.FrameDataApi24
 import androidx.metrics.performance.FrameDataApi31
 import androidx.metrics.performance.JankStats
 import androidx.metrics.performance.PerformanceMetricsState
@@ -53,7 +54,8 @@ internal class TestLabRuntime(
     private val mutableUi = MutableStateFlow(LabUiState())
     val ui: StateFlow<LabUiState> = mutableUi
     val trackedWindowCount: Int get() = windows.size
-    @Volatile private var heartbeatPending: Any?=null
+    private data class PendingHeartbeat(val epoch:Long,val foregroundGeneration:Long,val postedNanos:Long)
+    @Volatile private var heartbeatPending: PendingHeartbeat?=null
     private var lastRefresh:Double?=null
     private var lastKeyboard:Boolean?=null
     private data class WindowProbe(val counter:TextView,var jank:JankStats?=null,
@@ -153,8 +155,9 @@ internal class TestLabRuntime(
             if(cleaned)return
             publish()
             updateTags()
+            val label=counterText()
             windows.forEach{(window,probe)->
-                probe.counter.text=counterText()
+                if(!android.text.TextUtils.equals(probe.counter.text,label))probe.counter.text=label
                 val rate=window.decorView.display?.refreshRate?.toDouble()
                 if(rate!=null&&rate.isFinite()&&rate in 1.0..1000.0&&rate!=lastRefresh){
                     lastRefresh=rate;engine.note(s,LabCode.REFRESH_RATE_CHANGED,rate)
@@ -180,12 +183,16 @@ internal class TestLabRuntime(
                 if(engine.poll(s)) {withContext(Dispatchers.Main){finishIfNeeded()};break}
                 // One outstanding main-loop ACK; an old window epoch cannot report a false stall.
                 if(heartbeatPending==null&&activitiesVisible) {
-                    val marker=Any();heartbeatPending=marker
-                    val epoch=coverageEpoch;val posted=SystemClock.elapsedRealtimeNanos()
+                    val marker=PendingHeartbeat(coverageEpoch,engine.foregroundGeneration,SystemClock.elapsedRealtimeNanos());heartbeatPending=marker
                     main.post {
                         if(heartbeatPending===marker)heartbeatPending=null
-                        if(activitiesVisible&&epoch==coverageEpoch)engine.heartbeat(s,SystemClock.elapsedRealtimeNanos()-posted)
+                        if(activitiesVisible&&marker.epoch==coverageEpoch)engine.heartbeat(s,SystemClock.elapsedRealtimeNanos()-marker.postedNanos)
                     }
+                }
+                val pending=heartbeatPending
+                if(pending!=null&&activitiesVisible&&pending.epoch==coverageEpoch) {
+                    val age=SystemClock.elapsedRealtimeNanos()-pending.postedNanos
+                    if(heartbeatPending===pending&&pending.epoch==coverageEpoch)engine.pendingHeartbeat(s,age,pending.foregroundGeneration)
                 }
                 try {
                     collectResources(s,iteration++)
@@ -229,15 +236,17 @@ internal class TestLabRuntime(
             activeSessions=state?.tabs?.count{it.engineState.engineSession!=null}))
     }
     private fun collectHistoricalExits(s:SessionToken) {
-        if(Build.VERSION.SDK_INT<30)return
+        if(Build.VERSION.SDK_INT<30){engine.metricUnavailable(s,LabMetric.HISTORICAL_EXITS,Availability.NOT_SUPPORTED_BY_API);return}
         try {
-            app.getSystemService(android.app.ActivityManager::class.java)
-                .getHistoricalProcessExitReasons(app.packageName,0,8)
-                .filter{it.processName==app.packageName}.forEach {exit->
+            val exits=app.getSystemService(android.app.ActivityManager::class.java)
+                .getHistoricalProcessExitReasons(app.packageName,0,8).filter{it.processName==app.packageName}
+            engine.note(s,LabCode.PROCESS_EXIT_HISTORY_READ,exits.size.toDouble())
+            exits.forEach {exit->
                     // Observation of historical reason only; never description, trace, pid or process name.
                     if(exit.reason in 0..32)engine.note(s,LabCode.PROCESS_EXIT,exit.reason.toDouble())
+                    engine.note(s,LabCode.PROCESS_EXIT_STATUS,exit.status.toDouble())
                 }
-        } catch (_:RuntimeException){engine.error(s,LabError.COLLECTOR_FAILURE)}
+        } catch (_:RuntimeException){engine.error(s,LabError.COLLECTOR_FAILURE);engine.metricUnavailable(s,LabMetric.HISTORICAL_EXITS,Availability.COLLECTOR_FAILED)}
     }
     private fun attachJank(window:Window,probe:WindowProbe,s:SessionToken) {
         if(probe.jank!=null||engine.phase!=LabPhase.RUNNING)return
@@ -256,7 +265,8 @@ internal class TestLabRuntime(
                     }
                     val hasOverrun=Build.VERSION.SDK_INT>=31&&frame is FrameDataApi31
                     engine.frameMeasured(s,frame.frameDurationUiNanos,frame.isJank,
-                        if(hasOverrun)(frame as FrameDataApi31).frameOverrunNanos else 0L,hasOverrun,tags)
+                        if(hasOverrun)(frame as FrameDataApi31).frameOverrunNanos else 0L,hasOverrun,tags,
+                        if(frame is FrameDataApi24)frame.frameDurationCpuNanos else 0L,frame is FrameDataApi24)
                 }
             }
         } catch (_:RuntimeException) {engine.metricUnavailable(s,LabMetric.ANDROID_UI_FRAMES,Availability.COLLECTOR_FAILED)}
@@ -287,6 +297,7 @@ internal class TestLabRuntime(
         }
         probe.attachListener=listener;root.addOnAttachStateChangeListener(listener)
         val keyboard=android.view.ViewTreeObserver.OnGlobalLayoutListener {
+            if(!root.hasWindowFocus())return@OnGlobalLayoutListener
             val visible=ViewCompat.getRootWindowInsets(root)?.isVisible(WindowInsetsCompat.Type.ime())?:return@OnGlobalLayoutListener
             if(visible!=lastKeyboard){lastKeyboard=visible;engine.note(s,if(visible)LabCode.KEYBOARD_SHOWN else LabCode.KEYBOARD_HIDDEN)}
         }
@@ -362,7 +373,7 @@ data class LabUiState(val phase:LabPhase=LabPhase.IDLE,val type:TestType?=null,v
 
 internal fun LabCode.domain():LabDomain = when {
     name.startsWith("GECKO_")||name.startsWith("LOAD_")||name.startsWith("ENGINE_")||name.startsWith("EXTENSION_")||this==LabCode.SPA_NAVIGATION||this==LabCode.URL_CHANGE_IDLE->LabDomain.GECKO
-    name.startsWith("LUA_")||name.startsWith("DSP_")||name.startsWith("DETECTOR_")||name.startsWith("MPV_")||name.startsWith("BLOB_")||name.startsWith("ACK_")||this in setOf(LabCode.PREPARE,LabCode.AUTO_OFFER,LabCode.ROLLBACK,LabCode.FRAME_ELEMENT_MISMATCH,LabCode.FRAME_LOOKUP_FAILED,LabCode.FRAME_UNSUPPORTED,LabCode.AUDIO_FOCUS_FAILED,LabCode.LUA_ERROR,LabCode.DSP_ERROR)->LabDomain.VIDEO
-    this==LabCode.PROCESS_EXIT||this==LabCode.STABILITY_ERROR->LabDomain.STABILITY
+    name.startsWith("HANDOFF_")||name.startsWith("LUA_")||name.startsWith("DSP_")||name.startsWith("DETECTOR_")||name.startsWith("MPV_")||name.startsWith("BLOB_")||name.startsWith("ACK_")||this in setOf(LabCode.PREPARE,LabCode.AUTO_OFFER,LabCode.ROLLBACK,LabCode.FRAME_ELEMENT_MISMATCH,LabCode.FRAME_LOOKUP_FAILED,LabCode.FRAME_UNSUPPORTED,LabCode.AUDIO_FOCUS_FAILED,LabCode.LUA_ERROR,LabCode.DSP_ERROR)->LabDomain.VIDEO
+    name.startsWith("PROCESS_EXIT")||this==LabCode.STABILITY_ERROR->LabDomain.STABILITY
     else->LabDomain.UI
 }

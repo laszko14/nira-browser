@@ -39,17 +39,30 @@ object TestLabReportGenerator {
     private fun render(r: TestLabReport): String = buildString {
         appendLine("Zavro TestLab • ${r.testType} • ${r.appVersion.versionName} (${r.appVersion.versionCode})")
         appendLine("Stan: ${r.status}; rzeczywisty pomiar: ${number(r.durationMs / 1000)} s")
+        appendLine("Opóźnienie finalizacji poza logicznym pomiarem: ${number(r.finalizationDelayMs)} ms")
         appendLine("Okno na pierwszym planie: ${number(r.foregroundMs)} ms; brak pokrycia: ${number(r.noCoverageMs)} ms")
         appendLine("COMPLETED oznacza zakończenie pomiaru, nie potwierdzenie sprawności całej aplikacji.")
         if (r.exportTruncated) appendLine("EKSPORT OGRANICZONY: pominięto starsze szczegóły; agregaty zachowane.")
         appendLine("\nNajważniejsze obserwacje (korelacja czasowa nie dowodzi przyczyny):")
         if (r.anomalies.isEmpty()) appendLine("BRAK ZAREJESTROWANYCH OBSERWACJI; brak próby nie oznacza poprawności.")
-        r.anomalies.take(3).forEach { appendLine("${it.kind}: ${it.code} ${it.invariant ?: ""}; t=${number(it.offsetNanos?.div(1_000_000.0))} ms; wartość=${number(it.value)}") }
+        r.anomalies.take(3).forEach {
+            appendLine("${it.kind}: ${it.code} ${it.invariant ?: ""} ${it.operation ?: ""}; t=${number(it.offsetNanos?.div(1_000_000.0))} ms; wartość=${number(it.value)} ${it.unit ?: ""}; próg=${number(it.threshold)}, n=${it.evidenceCount ?: "BRAK DANYCH"}")
+            appendLine(when(it.kind){
+                ObservationKind.CONFIRMED_INVARIANT_FAILURE->"Dowód porównania stanu po operacji; wymaga odtworzenia scenariusza, nie automatycznej naprawy danych."
+                ObservationKind.OBSERVED_PERFORMANCE_ANOMALY->"Zmierzony czas przekroczył jawny próg diagnostyczny. Bez niezależnego pomiaru nie wskazuje przyczyny."
+                ObservationKind.SUSPECTED_CORRELATION->"Zaobserwowany sygnał, nie ustalona przyczyna. Wzrost pamięci nie dowodzi wycieku; błąd ACK nie dowodzi podwójnego audio."
+                ObservationKind.INSUFFICIENT_DATA->"Za mało danych do oceny."
+                ObservationKind.NOT_TESTED->"Nie zaobserwowano wymaganej próby."
+            })
+        }
         appendLine("\nKlatki Android UI Window (JankStats):")
+        appendLine("Liczba klatek jest sumą próbek przypiętych Window; nie oznacza unikalnych klatek ekranu ani FPS urządzenia.")
+        appendLine("ACK wiążemy z właścicielem i pojedynczą oczekującą próbą; nakładające się prepare bez identyfikatora żądania mają wynik UNKNOWN.")
         appendLine("To nie klatki kompozytora Gecko ani obraz wideo SurfaceView/MPV. PopupWindow menu nie udostępnia Window dla JankStats i nie jest objęty pomiarem klatek.")
         r.frameMetrics?.let { f ->
             appendLine("n=${f.count}, jank=${f.jankCount} (${number(f.jankPercent)}%), średnia=${number(f.meanMs)} ms, max=${number(f.maxMs)} ms")
             appendLine("P50=${number(f.p50Ms)}, P90=${number(f.p90Ms)}, P95=${number(f.p95Ms)}, P99=${number(f.p99Ms)} ms; histogram górnej granicy 0.25 ms")
+            appendLine("Czas CPU klatki z JankStats (nie CPU procesu): n=${f.cpuSamples}, średnia=${number(f.meanCpuMs)}, max=${number(f.maxCpuMs)} ms")
             appendLine("Przekroczenie budżetu: n=${f.overrunSamples}, średnia=${number(f.meanOverrunMs)}, max=${number(f.maxOverrunMs)} ms")
         } ?: appendLine("NIEPRZETESTOWANY: brak prawidłowych próbek klatek.")
         appendLine("\nŹródła i dostępność:")
@@ -76,9 +89,11 @@ object TestLabReportGenerator {
         val m = r.resourceMetrics
         appendLine("Próbki=${m.totalSamples}; odrzucone ze starszego bufora=${m.evictedSamples}")
         appendLine("Java delta=${m.javaHeapDeltaBytes}, max=${m.javaHeapMaxBytes}; native max=${m.nativeHeapMaxBytes}; PSS max=${m.pssMaxBytes}; USS max=${m.ussMaxBytes} B")
+        appendLine("Zmiany niezależne: native=${m.nativeHeapDeltaBytes}, PSS=${m.pssDeltaBytes}, USS=${m.ussDeltaBytes} B")
         appendLine("Pamięci nie sumujemy; wzrost pamięci w 60 s nie dowodzi wycieku.")
         appendLine("CPU ważone czasem: ${number(m.cpuMeanOneCorePercent)}% jednego rdzenia (może przekroczyć 100%); max=${number(m.cpuMaxOneCorePercent)}%; czas CPU=${m.cpuDeltaMs} ms / ścienny=${number(m.cpuObservedWallMs)} ms")
         appendLine("Heartbeat głównego Looper: n=${r.heartbeatSamples}, max=${number(r.maxHeartbeatDelayMs)} ms. Opóźnienie nie jest potwierdzeniem ANR.")
+        appendLine("Oczekująca wiadomość Main: n=${r.pendingHeartbeatSamples}, max wiek=${number(r.maxPendingHeartbeatMs)} ms; nie jest ACK ani potwierdzeniem ANR.")
         appendLine("Błędy: ${r.errorCounts}; nieukończone operacje=${r.incompleteOperations}; pominięte operacje=${r.droppedOperations}")
         appendLine("\nAgregaty zdarzeń:")
         r.eventCounts.forEach { (code, count) -> appendLine("$code=$count") }

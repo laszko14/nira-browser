@@ -22,6 +22,7 @@ class TestLabEngine(
     private var started:Long?=null
     private var endedOffset=0L
     private var targetStatus=LabPhase.COMPLETED
+    @Volatile var foregroundGeneration=0L;private set
     private var isForeground=false
     private var covered=0L
     private var coveredStart=0L
@@ -43,6 +44,7 @@ class TestLabEngine(
     private val unavailable=mutableMapOf<LabMetric,Availability>()
     private var positionSamples=0L;private var incrementalSeconds=0.0;private var positionJumps=0L;private var playerSessions=0L
     private var speedSamples=0L;private var speedChanges=0L;private var minSpeed:Double?=null;private var maxSpeed:Double?=null
+    private var pendingHeartbeatCount=0L;private var pendingHeartbeatMax:Long?=null
     private var heartbeatCount=0L
     private var heartbeatMax:Long?=null
     private var lastSlowFrameOffset=-1_000_000_000L
@@ -51,11 +53,12 @@ class TestLabEngine(
     @Synchronized fun start(testType:TestType):SessionToken? {
         if(phase in setOf(LabPhase.PREPARING,LabPhase.RUNNING,LabPhase.FINALIZING))return null
         token=SessionToken(++serial);type=testType;environment=LabEnvironment();started=null;endedOffset=0L
-        covered=0;coveredStart=0;isForeground=false;frames=FrameAccumulator();resources=ResourceAccumulator()
+        covered=0;coveredStart=0;isForeground=false;foregroundGeneration=0;frames=FrameAccumulator();resources=ResourceAccumulator()
         counts.fill(0);errors.fill(0);stats.fill(null);operations.clear();timeline.clear();markerTimes.clear()
         observations.clear();unavailable.clear();evicted=0;eventSerial=0;rateWindow=0;rateCount=0
         operationSerial=0;droppedOperations=0;heartbeatCount=0;heartbeatMax=null;activeOperationMask=0
         lastSlowFrameOffset=-1_000_000_000L
+        pendingHeartbeatCount=0;pendingHeartbeatMax=null
         positionSamples=0;incrementalSeconds=0.0;positionJumps=0;playerSessions=0
         speedSamples=0;speedChanges=0;minSpeed=null;maxSpeed=null
         phase=LabPhase.PREPARING
@@ -76,7 +79,7 @@ class TestLabEngine(
         val at=writable(session)?:return false
         if(visible==isForeground)return true
         if(isForeground)covered+=at-coveredStart
-        isForeground=visible
+        isForeground=visible;foregroundGeneration++
         if(visible)coveredStart=at
         append(at,if(visible)LabCode.FOREGROUND else LabCode.BACKGROUND)
         return true
@@ -152,12 +155,12 @@ class TestLabEngine(
         return frameMeasured(session,durationNanos,isJank,overrunNanos?:0L,overrunNanos!=null,tags)
     }
     /** Primitive-only entry point for JankStats; ordinary frames allocate no TestLab record. */
-    @Synchronized fun frameMeasured(session:SessionToken,durationNanos:Long,isJank:Boolean,overrunNanos:Long,hasOverrun:Boolean,tags:Long):Boolean {
+    @Synchronized fun frameMeasured(session:SessionToken,durationNanos:Long,isJank:Boolean,overrunNanos:Long,hasOverrun:Boolean,tags:Long,cpuNanos:Long=0L,hasCpu:Boolean=false):Boolean {
         if(token!=session||phase!=LabPhase.RUNNING||!isForeground)return false
         val start=started?:return false
         val at=clock.nowNanos()-start
         if(at !in 0 until DURATION_NS)return false
-        frames.addMeasured(durationNanos,isJank,overrunNanos,hasOverrun)
+        frames.addMeasured(durationNanos,isJank,overrunNanos,hasOverrun,cpuNanos,hasCpu)
         if(durationNanos !in 1..DURATION_NS)return false
         var bits=tags
         while(bits!=0L){
@@ -191,6 +194,16 @@ class TestLabEngine(
         if(!value.isFinite()||value !in 0.01..100.0){errors[LabError.INVALID_SAMPLE.ordinal]++;return}
         speedSamples++;if(changed)speedChanges++
         minSpeed=minOf(minSpeed?:value,value);maxSpeed=maxOf(maxSpeed?:value,value)
+    }
+    @Synchronized fun pendingHeartbeat(session:SessionToken,ageNanos:Long,generation:Long):Boolean {
+        val at=writable(session)?:return false
+        if(!isForeground||generation!=foregroundGeneration||ageNanos !in 0..DURATION_NS)return false
+        pendingHeartbeatCount++;pendingHeartbeatMax=maxOf(pendingHeartbeatMax?:ageNanos,ageNanos)
+        if(ageNanos>=250_000_000L) {
+            append(at,LabCode.MAIN_STALL_PENDING,value=ageNanos/1_000_000.0)
+            observe(Observation(ObservationKind.OBSERVED_PERFORMANCE_ANOMALY,LabCode.MAIN_STALL_PENDING,at,ageNanos/1_000_000.0))
+        }
+        return true
     }
     @Synchronized fun heartbeat(session:SessionToken,delayNanos:Long):Boolean {
         val at=writable(session)?:return false
@@ -267,6 +280,9 @@ class TestLabEngine(
         }else unavailable[metric]?:Availability.NOT_OBSERVED
         val availability=mapOf(
             LabMetric.ANDROID_UI_FRAMES to (if(frame==null&&frames.invalidCount>0)Availability.COLLECTOR_FAILED else measured(LabMetric.ANDROID_UI_FRAMES,frame!=null)),
+            LabMetric.FRAME_CPU_DURATION to measured(LabMetric.FRAME_CPU_DURATION,(frame?.cpuSamples?:0)>0),
+            LabMetric.HISTORICAL_EXITS to measured(LabMetric.HISTORICAL_EXITS,counts[LabCode.PROCESS_EXIT_HISTORY_READ.ordinal]>0),
+            LabMetric.MAIN_HEARTBEAT_PENDING_AGE to measured(LabMetric.MAIN_HEARTBEAT_PENDING_AGE,pendingHeartbeatCount>0),
             LabMetric.FRAME_OVERRUN to measured(LabMetric.FRAME_OVERRUN,(frame?.overrunSamples?:0)>0),
             LabMetric.JAVA_HEAP to measured(LabMetric.JAVA_HEAP,resource.javaHeapMaxBytes!=null),
             LabMetric.NATIVE_HEAP to measured(LabMetric.NATIVE_HEAP,resource.nativeHeapMaxBytes!=null),
@@ -280,6 +296,9 @@ class TestLabEngine(
             .associateWith{Availability.NOT_EXPOSED_BY_PLATFORM}
         val measuredSources=mapOf(
             LabMetric.ANDROID_UI_FRAMES to MetricSource.JANKSTATS_WINDOW,
+            LabMetric.FRAME_CPU_DURATION to MetricSource.JANKSTATS_API24,
+            LabMetric.MAIN_HEARTBEAT_PENDING_AGE to MetricSource.ELAPSED_PENDING_MAIN_MESSAGE,
+            LabMetric.HISTORICAL_EXITS to MetricSource.APPLICATION_EXIT_INFO,
             LabMetric.FRAME_OVERRUN to MetricSource.JANKSTATS_API31,
             LabMetric.JAVA_HEAP to MetricSource.RUNTIME_HEAP,LabMetric.NATIVE_HEAP to MetricSource.DEBUG_NATIVE_HEAP,
             LabMetric.PROCESS_PSS to MetricSource.DEBUG_MEMORY_INFO,LabMetric.PROCESS_USS to MetricSource.DEBUG_MEMORY_INFO,
@@ -290,7 +309,7 @@ class TestLabEngine(
         val events=timeline.toList()
         val markers=markerTimes.map{time->AnomalyMarker(time,events.filter{abs(it.offsetNanos-time)<=3_000_000_000L}
             .sortedBy{abs(it.offsetNanos-time)}.take(32).sortedBy{it.offsetNanos}.map{it.serial})}
-        val limitations=mutableListOf(Limitation.ANDROID_WINDOW_ONLY,Limitation.PREDRAW_NOT_WINDOW_ANIMATION_END,Limitation.NO_POPUP_WINDOW_FRAMES,Limitation.NO_GECKO_COMPOSITOR,
+        val limitations=mutableListOf(Limitation.ANDROID_WINDOW_ONLY,Limitation.MULTIPLE_WINDOW_FRAMES,Limitation.HANDOFF_OWNER_CORRELATION,Limitation.PREDRAW_NOT_WINDOW_ANIMATION_END,Limitation.NO_POPUP_WINDOW_FRAMES,Limitation.NO_GECKO_COMPOSITOR,
             Limitation.NO_MPV_PRESENTED_FRAMES,Limitation.MAIN_PROCESS_RESOURCES_ONLY,Limitation.NO_AUDIO_PATH_MEASUREMENT,
             Limitation.NO_PRECISE_ENERGY,Limitation.HISTOGRAM_PERCENTILES,Limitation.NO_CRASH_DOES_NOT_PROVE_STABILITY)
         if(covered<endedOffset)limitations.add(Limitation.COVERAGE_GAPS)
@@ -307,8 +326,11 @@ class TestLabEngine(
             foregroundMs=covered/1_000_000.0,noCoverageMs=(endedOffset-covered).coerceAtLeast(0)/1_000_000.0,
             evictedEvents=evicted,droppedOperations=droppedOperations,incompleteOperations=incomplete,
             playbackMetrics=if(positionSamples>0||speedSamples>0)PlaybackMetrics(positionSamples,incrementalSeconds,positionJumps,playerSessions,speedSamples,speedChanges,minSpeed,maxSpeed)else null,
+            maxPendingHeartbeatMs=pendingHeartbeatMax?.div(1_000_000.0),pendingHeartbeatSamples=pendingHeartbeatCount,
+            finalizationDelayMs=((offset()?:endedOffset)-endedOffset).coerceAtLeast(0)/1_000_000.0,
             maxHeartbeatDelayMs=heartbeatMax?.div(1_000_000.0),heartbeatSamples=heartbeatCount,limitations=limitations,
         )
+        lastReport=TestLabAnalyzer.analyze(lastReport!!)
         phase=targetStatus;return true
     }
     @Synchronized internal fun recovery(session:SessionToken):TestLabRecovery? {

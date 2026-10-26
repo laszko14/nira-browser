@@ -1,95 +1,83 @@
-# Zavro TestLab v1165 — kontrakt i plan wdrożenia
+# Zavro TestLab v1165 — specyfikacja pomiarów
 
-## Cel i baza
+Baza: v1164 `d890c68bd15d0f79e25ccd2935fb64ee955286b8`. Jeden silnik, siedem trybów, lokalny pomiar podczas działań użytkownika. Tester nie otwiera kart, nie grupuje ich i nie steruje filmem.
 
-Jeden dobrowolny, lokalny pomiar60s podczas normalnego używania przeglądarki; siedem trybów tego samego silnika. Baza v1164d890c68bd15d0f79e25ccd2935fb64ee955286b8, gałąźfeat/zavro-x-mpv-v1165-testlab-diagnostics. Bez merge, migracji, resetu, zewnętrznej telemetrii i wykonywania działań na kartach za użytkownika.
-
-Spec użytkownika w załączniku guzik writing-block jest źródłem wymagań. Decyzje techniczne poniżej są decyzjami implementacyjnymi, nie dodatkowymi życzeniami użytkownika. Implementacja w istniejącym module app/Kotlin/Compose, bez nowych modułów Gradle i bez subagentów. Szczegółowy prompt oraz wcześniejsze polecenia upoważniają do standardowych etapów bez dodatkowego zatwierdzania.
-
-## Architektura
-
-`TestLabRuntime → TestLabEngine → bounded aggregates/events → TestLabReportGenerator → TestLabActivity`
-
-- TestLabEngine: czysty, testowalny Kotlin; wspólny monotoniczny Clock, state machine, token sesji i operacji, walidacja danych, limity, wynik bez referencji Androida.
-- TestLabRuntime/Collectors: Application context, aktywne wyłącznie od przygotowania do cleanup, rejestracja ActivityLifecycleCallbacks/ComponentCallbacks2, JankStats dla rzeczywiście używanego Window, próbnik zasobów i pojedynczy heartbeat Main.
-- TestLab: lekka fasada dla hooków. Nieaktywna fasada nie uruchamia timerów, odczytów zasobów, kolektorów ani zapisu. Przyjmowane kody są enum, nie komunikat/URL/wyjątek.
-- Raport schemaVersion1: immutable DTO, JSON/TXT poza callbackami klatek. Brak danych to null/status, nie zero. Wynik oznacza stan pomiaru, nie punktową ocenę zdrowia aplikacji.
-- TestLabActivity: Material3/NiraTheme, siedem trybów, przygotowanie, powrót do istniejącej BrowserActivity, raporty/marker/stop/eksport/usuwanie. Brak automatycznego share.
-
-Tryby: COMPLEX, PANELS_GESTURES, TABS_GROUPS, GECKO_PAGES, VIDEO_MPV, RESOURCES, STABILITY. Każdy60_000ms. Wspólne lekkie kolektory; dokładniejszy wybrany obszar w jawnych limitach.
+```mermaid
+flowchart LR
+  UI[Ustawienia / menu] --> Runtime[TestLabRuntime]
+  Hooks[Gesty / reducer / Room / DataStore / istniejąca diagnostyka] --> Capture[LabCapture z tokenem sesji]
+  Runtime --> Engine[TestLabEngine]
+  Capture --> Engine
+  Engine --> Analyzer[Deterministyczne obserwacje]
+  Analyzer --> RAM[Raporty w RAM: maks. 7]
+  RAM --> Export[TXT / JSON na żądanie]
+```
 
 ## Czas i lifecycle
 
-IDLE→PREPARING→RUNNING→FINALIZING→COMPLETED; zakończenia PARTIAL/CANCELLED/FAILED. Token sesji odrzuca spóźnione callbacki z poprzedniej sesji. Wspólna baza SystemClock.elapsedRealtimeNanos; długość niezależna od zegara ściennego.
+- PREPARING → RUNNING → FINALIZING → COMPLETED; możliwe PARTIAL, CANCELLED, FAILED.
+- Odliczanie 3 s zaczyna się w rzeczywistym oknie Browser/MPV. Ustawienia nie dostarczają klatek do raportu. Przy braku odpowiedniego Activity przygotowanie nie podtrzymuje cyklicznego timera.
+- Pomiar: 60 000 ms według `SystemClock.elapsedRealtimeNanos`, niezależnie od zegara ściennego. Czas bez odpowiedniego Window jest jawny. Bez wake locka. Opóźnienie dostarczenia deadline/cleanup jest oddzielnym `finalizationDelayMs`.
+- Token sesji i operacji odrzuca stare callbacki. Zakończenie zamyka zapis, odłącza Window/listenery, anuluje i łączy zadanie próbnika, usuwa recovery, następnie publikuje raport.
+- Rotacja nie zmienia sesji. Settings wraca przez RESULT_OK i zamknięcie Activity; nie wysyła nowego Intent do BrowserActivity i nie odtwarza BrowserFragment/mini MPV.
+- Wspólna bramka wyklucza nakładanie z istniejącym Supertestem 40 s. Jego czas i dotychczasowe kopiowanie pozostają zachowane.
 
-PREPARING nie zbiera klatek ustawień. Countdown3s rozpoczyna się dopiero w rzeczywistym oknie Browser/MPV. Tło podczas przygotowania przerywa countdown do ponownego wejścia do takiego okna. RUNNING w tle nadal ma deadline; okresy bez odpowiedniego Window są jawne. Bez wake locka. Po uśpieniu deadline jest sprawdzany przed dopisaniem danych. Pomiar kończy się logicznie po60s, nawet jeśli Android dostarczy callback później; opóźnienie finalizacji osobno.
+## Metryki i rzeczywiste źródła
 
-Kończenie zamyka zapis przed cleanup. Kolektory odpinane na właściwym wątku; brak nowego startu podczas FINALIZING. Aktywności/Window nie mogą trafić do DTO/raportu. Dialogi paneli mają osobny hook okna. Przy rotacji stary Window odpięty, nowy przypięty; sesja i deadline pozostają.
-
-Supertest40s jest niezależny. Start jednego pełnego pomiaru przy drugim aktywnym jest odrzucany z informacją; nie zmieniamy czasu ani clipboard behavior dotychczasowego Supertestu.
-
-## Metryki i źródła
-
-| Metryka | Źródło / jednostka | Ograniczenie |
+| Metryka | Źródło i jednostka | Zakres / ograniczenie |
 |---|---|---|
-| Android UI frames/jank | AndroidX metrics-performance1.0.0/JankStats | Nie Gecko compositor ani klatki SurfaceView wideo |
-| UI duration | FrameData.frameDurationUiNanos | nanosekundy, raport ms |
-| CPU frame / deadline overrun | FrameDataApi24/Api31, jeśli rzeczywiście dostępne | null dla niedostępnej klasy/API; bez równoległego FrameMetrics |
-| Refresh rate | Display, Hz, historia zmian ograniczona | Jank określa biblioteka; brak stałego progu16.7ms |
-| Operacja | START/ACCEPT/CANCEL/FINISH w rzeczywistym przepływie | START nie dowodzi otwarcia/zapisu; cancellation nie jest failure |
-| Tab/group correctness | Wynik reducer/Room/DataStore po zakończeniu, tylko booleans/kody | ID wyłącznie chwilowo w adapterze, nie w storage/raporcie |
-| Java/native heap | Runtime/Debug, bytes | Nie sumować nakładających się obszarów |
-| PSS/USS | Debug.MemoryInfo, KiB→bytes | Własny proces; źródło i dostępność jawne |
-| CPU | Process.getElapsedCpuTime, delta ms / elapsed ns | % jednego rdzenia, może >100%; nie CPU wszystkich subprocess Gecko |
-| Main heartbeat | Jedna oczekująca wiadomość Main co1s | Stall nie jest ANR; tło/gapy wyłączają interpretację |
-| Battery/thermal/power save | Android system APIs | Bez deklaracji dokładnej energii zużytej w60s |
-| Gecko | BrowserStore/EngineObserver/istniejąca diagnostyka rozszerzenia | Load complete≠responsive compositor |
-| MPV | Istniejący allowlisted MpvDebugTrace + position samples | Żadnego Play/seek/reload; brak pomiaru obu torów audio |
-| Stability/exits | Obsłużone kategorie i ApplicationExitInfo API30+ | Bez exception.message, description, trace stream i logów innych aplikacji |
+| Klatki UI, jank | JankStats 1.0.0, frameDurationUiNanos | Przypięte Activity/Window paneli/FAB. Suma klatek Window, nie unikalne klatki ekranu ani FPS |
+| CPU klatki | FrameDataApi24.frameDurationCpuNanos, ms | Wartość JankStats; osobno od CPU procesu |
+| Przekroczenie budżetu | FrameDataApi31.frameOverrunNanos, ms | Wartości ujemne dozwolone; brak źródła = null/status |
+| Odświeżanie | Display.refreshRate, Hz | Jank klasyfikuje biblioteka; brak sztywnego progu 16,7 ms |
+| Operacje | START / ACCEPT / CANCEL / FINISH, względne ns | Panel: rzeczywisty DOWN, próg zatwierdzenia, pierwszy widoczny pre-draw. Nieznany początek nie produkuje zerowej latencji |
+| Toolbar | Istniejący AnimatorEnd/Cancel | Bez dodatkowego animatora. Osobno pasek główny i pomocnicze |
+| Karty / profile | Stan po reducerze BrowserStore | Brak dispatchu z obserwatora; parentId nie implikuje grupowania |
+| Grupy | Po zakończeniu transakcji Room | Readback tylko zmienionych grup podczas testu; brak karty w częściowej sesji nie jest podstawą kasowania danych |
+| Kolejność | Wynik DataStore.edit i publikacja | Zapis weryfikowany po zakończeniu; serializacja pozostaje na dispatcherze DataStore |
+| Java / native heap | Runtime / Debug, bajty | Niezależne wartości i delty; jedna próbka nie daje delty |
+| PSS / USS | Debug.MemoryInfo, KiB × 1024 | Wyłącznie własny proces; nie sumować z heapem ani ze sobą |
+| CPU procesu | Process.getElapsedCpuTime, ms / elapsed ns | Średnia ważona czasem, % jednego rdzenia, może >100%. Nie obejmuje podprocesów Gecko |
+| Heartbeat ACK | Jedna wiadomość Main, opóźnienie ns | Tylko odpowiednie okno na pierwszym planie; epoch usuwa stare pomiary |
+| Wiek oczekującej wiadomości | elapsed czas od wysłania, osobna metryka | Obserwacja także przed ACK; nie jest ANR. Generacja foreground odrzuca stary kontekst |
+| Bateria / thermal / power save | Systemowe API Androida | Bez precyzyjnej energii aplikacji; brak danych = null |
+| Historia zakończeń | ApplicationExitInfo API 30+, reason/status | Własny proces; bez description, traceStream, PID lub nazw procesów w raporcie. Nie jest awarią w bieżących 60 s |
+| Gecko | Reducer loading/progress/URL + RequestInterceptor | LOAD_COMPLETE nie dowodzi płynności kompozytora. Błąd wiązany z rzeczywistym EngineSession |
+| Wideo / handoff | Istniejące allowlisty trace/discovery | Tylko kody i liczniki; bez nowych skanów, JNI odczytów, poleceń lub audio focus |
+| Pozycja / prędkość MPV | Istniejące callbacki właściwości | Przyrosty ≤5 s oddzielone od nieciągłości. FILE_LOADED nie dowodzi PLAYBACK_STARTED; pauza nie daje postępu |
+| Lua / DSP | Delty istniejących liczników dla tego samego ownera | Brak kodu, etykiet, ID przycisków i prywatnych skryptów |
 
-JankStats zwraca obiekt wielokrotnego użytku; callback kopiuje wyłącznie skalary do agregatorów. API24+ dostarcza callback na wątku FrameMetrics. Zachowujemy domyślną heurystykę opartą na odświeżaniu. PerformanceMetricsState tagi są statycznymi nazwami operacji; kilka tagów może współistnieć. Przypisanie jest korelacją, nie automatyczną przyczyną.
+Gecko compositor, klatki SurfaceView/MPV, dokładna energia, oba tory audio, klatki PopupWindow menu i koniec systemowej animacji okna mają jawne NOT_EXPOSED_BY_PLATFORM. FIRST_PREDRAW potwierdza układ, nie koniec animacji ani prezentację filmu. Źródłowe zdarzenie fullscreen nie zastępuje pre-draw.
 
-Percentyle: jawny minimalny rozmiar próby (P50≥2/P90≥10/P95≥20/P99≥100). Stały histogram0.25ms z ograniczoną liczbą kubełków dla wszystkich próbek; wynik jest przybliżeniem z podaną metodą. Overflow nie może dawać pozornie dokładnego percentyla. Sumy i maxima obejmują wszystkie poprawne próbki.
+ACK korelujemy z właścicielem i jedną oczekującą próbą. Bez identyfikatora żądania nakładające się prepare mają UNKNOWN, bez pozornej latencji/sukcesu. Nie są automatycznie uznawane za błąd aplikacji.
 
-CPU średnie ważone rzeczywistym czasem między próbkami, a nie średnia nierównych interwałów. Niepoprawne/ujemne/nieskończone dane odrzucane i liczone; niedostępne pola pozostają null.
+## Agregacja i limity
 
-## Prywatność i limity
+- Histogram klatek: 4096 kubełków po 0,25 ms, obejmuje wszystkie poprawne próbki. Percentyle są górną granicą kubełka. Overflow nie daje pozornie dokładnego percentyla.
+- Minimum próbek: P50 ≥2, P90 ≥10, P95 ≥20, P99 ≥100. Średnia i maksimum obejmują wszystkie poprawne próbki.
+- Latencja operacji: wyłącznie pomyślne próby o znanym początku, histogram 1 ms; P95 od 20 próbek. Anulowanie jest odrębnym wynikiem.
+- Timeline ≤1024 wpisów; budżet 64/s kompleksowy, 128/s specjalistyczny. Agregaty obejmują odrzucone szczegóły. Liczba evicted/dropped jest jawna.
+- ≤128 aktywnych operacji, ≤32 markerów/obserwacji, ≤180 próbek zasobów. Baseline i ekstrema pamięci są niezależne od wyparcia próbek.
+- JankStats kopiuje wyłącznie prymitywy. Nie przechowuje FrameData ani listy states; zwykła klatka nie tworzy rekordu Kotlin i nie zapisuje na dysk.
+- OS próbnik co 1 s; PSS/USS co 5 s lub 2 s w RESOURCES. Jeden oczekujący heartbeat. Licznik zmienia tekst tylko przy zmianie wartości.
+- Tagowanie operacji jest korelacją. Kilka tagów nie powiela globalnej klatki; nie wolno sumować ich jako osobnych klatek ekranu.
 
-Wyłącznie enum/kod i ograniczone liczby przed zapisem; brak API event(message:String). Nie przyjmujemy URL, hostów/IP, nazw profili/tytułów/ID kart, headerów/cookies/tokenów, ścieżek prywatnych plików ani Throwable. Chwilowe porównania ID pozostają w adapterze i są usuwane po zakończeniu operacji.
+## Analizator
 
-Początkowe limity:1024 timeline events,128 równoczesnych operacji,32 markers/anomalies,180 resource samples,4096 histogram bins; report≤256KiB. Zdarzenia odrzucone/evicted raportowane. Kolektor nie zapisuje na dysk per-frame. Brak danych pamięci w danym API nie jest zerowym użyciem.
+Bez punktowego wskaźnika zdrowia. Pierwszeństwo ma CONFIRMED_INVARIANT_FAILURE z porównania danych po operacji. OBSERVED_PERFORMANCE_ANOMALY potwierdza pomiar, nie przyczynę. SUSPECTED_CORRELATION wymaga niezależnego odtworzenia. Brak próby / za mało próbek pozostaje jawny.
 
-Raport domyślnie RAM. Recovery opt-in domyślnie OFF: atomic private file, minimalny schema, max64KiB, ostatnia sesja, retencja24h, zapis najwyżej co5s, usuwanie/wyłączenie. Bez globalnego uncaught handler. Eksport tylko na żądanie, SAF/istniejący FileProvider; ograniczone pliki udostępnienia i retencja.
+Jawne progi heurystyczne: UI/panele 250 ms, karty 1000 ms, Gecko 5000 ms, wideo 3000 ms; skorelowana długa klatka 100 ms; wzrost pamięci 16 MiB. To progi diagnostyczne, nie gwarancje responsywności telefonu. Wzrost pamięci w 60 s nie dowodzi wycieku, ACK nie dowodzi stanu obu torów audio. CANCELLED nie wchodzi do wolnych sukcesów. Każda obserwacja ma kod, jednostkę, dostępny czas, próg i liczbę wspierających próbek.
 
-## Punkty integracji — zweryfikowane A
+## Prywatność, recovery i eksport
 
-- settings/fragment/HeadersSettingsFragment.kt rzeczywiście definiuje klasę SettingsFragment; preferences_headers.xml jest używany. Dodać osobny wpis bez przebudowy ustawień.
-- BrowserFragment.setupEdgePanelGestures rozpoznaje kierunek, osobno próg zatwierdzenia; .show() nie oznacza końca animacji. Nie zmieniać zwracanych Boolean ani przechwytywania MotionEvent.
-- SwipeGestureLayout zawiera faktyczne cancellation i pionowy pasywny sygnał; tylko hooki, bez modyfikowania gestu.
-- TabsBottomSheetFragment i BookmarksBottomSheetFragment: Window/first pre-draw/onStart/onDismiss/onCancel; osobne attach/detach i outcome.
-- TabGroupMiddleware.invoke w v1164 wyłącznie next(action); jawne grupowanie ma osobną metodę. Passive observer po next nie może uruchamiać Room dla zwykłych linków przy wyłączonym TestLab.
-- UnifiedTabGroupManager serializuje operacje mutate i persistPositions; walidować dopiero po zakończeniu, nie po launch z ViewModel.
-- TabOrderManager/UnifiedTabOrder/UnifiedDragSystem: potwierdzenie zapisanej kolejności i pojedynczy commit; nie wymuszać zapisów.
-- MediaDetectorDiagnostics ma już allowlist/kategorie, MpvDebugTrace.note odrzuca nieznane kody. Nowy odbiorca używa tych źródeł, nie kopiuje loggera.
-- MpvSupertest aktywny40s, sample ma własny session-bound guard i clipboard na końcu; zachować zachowanie, dodać jedynie bierny tap i konflikt startu.
+Wyłącznie zamknięte enum i ograniczone liczby PRZED zapisem. Bez URL, hostów/IP, tokenów, cookies, nagłówków, tytułów, nazw/ID profili i kart, formularzy, ścieżek, kodu skryptów ani Throwable. Opaque owner służy wyłącznie chwilowej korelacji; cleanup usuwa mapy/weak refs.
 
-## Plan implementacji i weryfikacji
+Raporty domyślnie RAM, najwyżej 7 ostatnich trybów. Recovery jest oddzielnym opt-in OFF: AtomicFile w noBackupFilesDir, ≤64 KiB, ostatnie 64 zdarzenia, najwyżej raz/5 s. Generacja blokuje stare zapisy. Retencja 24 h sprawdzana przy odczycie; normalne zakończenie usuwa plik. Nie podmieniamy uncaught exception handlera.
 
-- [x] A: baza/status + doc/API + mapa integracji, bez powtarzania testów v1164 (świeże CI40317975227/40317975157 zielone).
-- [x] B1: model/safe schema i agregatory: testy RED→GREEN dla null/units/percentiles/bounds/privacy.
-- [x] B2: TestLabEngine state machine/token/deadline/operations/coverage/anomalies: kontrolowany zegar, równoległe wywołania, stop60s/partial/cancel/no late writes.
-- [ ] C: faktyczne hooki paneli/gestów/tab/group/order; testy skutków i odrzuconych/starych callbacków; bez zmian danych użytkownika.
-- [ ] D: adapter Gecko i istniejące trace MPV/Lua/DSP; konflikt Supertest40s, bez nowego playera/JS detektora.
-- [ ] E: JankStats/lifecycle/OS probes/heartbeat/exit info/recovery; runtime tests z fake scheduler i Robolectric, potem prawdziwy emulator.
-- [ ] F: Material3 UI+7 przycisków/marker/countdown/passywny licznik/SAF/share/delete; rotacja i accessibility/insets.
-- [ ] G: testy A/B narzutu (host i emulator osobno), regresje Kotlin/JS/Lua/DSP/v1164Gecko; review, integralność chronionych plików i lint delta.
-- [ ] H:165/1165/alpha71-mpv39; draftPR do v1164; podpisujący CI/verifier ARM64/cert; bez merge/pobieraniaAPK doCodex.
+TXT i wersjonowany JSON schemaVersion 1 korzystają z tego samego przyciętego snapshotu; każdy ≤256 KiB UTF-8. Obcięcie usuwa starsze szczegóły i nie zmienia agregatów. Marker odwołuje się tylko do zachowanych zdarzeń. Brak danych to null/status.
 
-Każdy większy etap kończy się aktualnym checkpointem i w razie potrzeby WIP push, bez przedstawiania częściowej implementacji jako gotowego APK. Finalne raporty zawierają zakres naprawdę zaobserwowanych czynności i NOT_TESTED dla pozostałych.
+Clipboard, SAF i FileProvider uruchamia wyłącznie użytkownik. Pending SAF przechowuje dokładnie żądany raport w ViewModel: obrót nie przełącza go na nowszy, utrata procesu nie eksportuje przypadkowego raportu. Sharecache: ≤2 unikalne pliki, READ grant, retencja 24 h przy następnym otwarciu; usunięcie cofa URI grants. Brak zewnętrznej telemetrii.
 
-## Źródła
+## Weryfikacja i ograniczenia
 
-[Metrics stable1.0.0,08.10.2025](https://developer.android.com/jetpack/androidx/releases/metrics), [JankStats lifecycle/threading/reused FrameData](https://developer.android.com/topic/performance/jankstats), [FrameMetrics](https://developer.android.com/reference/android/view/FrameMetrics). Zależność nie występuje bezpośrednio w obecnym katalogu app; przed dodaniem sprawdzić transitive resolution.
-
-## F — zaimplementowane ograniczenia
-EkranSettings/menu wraca RESULT_OK do istniejącej BrowserActivity bez onNewIntent, aby nie odtwarzać BrowserFragment/miniMPV. 7modekarty startują wspólnyRuntime; RAMhistory≤7. SAFimmutablepayloadViewModel przeżywa obrót; brakpayloadpo processdeath→brakeksportu. Eksport/share/Clipboard tylko useraction. SharecacheMutex≤2pliki/256KiB,URIunikalne,READgrant,expiry24hlazy. RecoveryNoBackupDir/OFF/64KiB/5s/24hazy, bez backupuAndroid. Nadal wymagane realAndroidUItesty i narzutAB.
+Testy Kotlin/JUnit, Room/DataStore, JS integralności, Lua i FFmpeg są odrębne od Android UI. Mikroprofil JVM dotyczy tylko agregatora, nie narzutu JankStats/OS/telefonu. Porównanie emulatora używa kontrolowanego workloadu; nie dowodzi osiągów Nothing Phone (1). Systemowe gesty, realne strony, słuchowa ocena audio i ciągłość mini/fullscreen wymagają fizycznego telefonu. Stan wykonania i linki CI są w handoffie oraz CODEX_RESUME_V1165.md.

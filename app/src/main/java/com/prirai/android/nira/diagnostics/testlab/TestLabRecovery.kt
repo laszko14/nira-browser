@@ -25,6 +25,8 @@ internal class TestLabRecoveryStore(context:Context,
     private var active=false
     private var lastWrite:Long?=null
     private val json=Json{encodeDefaults=true;explicitNulls=true}
+    // KTX edit returns Unit; the consent flag must reflect the actual Boolean commit result.
+    @android.annotation.SuppressLint("UseKtx")
     @Synchronized fun setEnabled(value:Boolean):Boolean {
         if(!preferences.edit().putBoolean("crash_recovery",value).commit())return false
         enabled=value
@@ -52,11 +54,11 @@ internal class TestLabRecoveryStore(context:Context,
     }
     @Synchronized fun read():TestLabRecovery? {
         if(!enabled){file.delete();return null}
-        val base=file.baseFile
-        if(!base.exists())return null
-        if(base.length() !in 1..65_536 || wallMillis()-base.lastModified() !in 0..86_400_000L){file.delete();return null}
         return try {
+            // openRead restores a valid AtomicFile backup before examining the incomplete base.
             val data=file.openRead().use { stream ->
+                if(stream.channel.size() !in 1..65_536 || wallMillis()-file.baseFile.lastModified() !in 0..86_400_000L)
+                    throw java.io.IOException("Invalid recovery bounds")
                 val bytes=ByteArray(65_537);var read=0
                 while(read<bytes.size) {val count=stream.read(bytes,read,bytes.size-read);if(count<0)break;read+=count}
                 bytes.copyOf(read)

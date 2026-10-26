@@ -58,4 +58,11 @@ class TestLabMediaObserverTest {
         assertEquals(1L,e.latest()!!.eventCounts[LabCode.MPV_FULLSCREEN])
         assertEquals(0L,e.latest()!!.operationMetrics.first{it.operation==LabOperation.MPV_FULLSCREEN}.succeeded)
     }
+    @Test fun overlappingPreparesWithoutRequestIdentityCannotInventAnAckLatency() {
+        val(e,t,m)=capture();val owner=Any()
+        m.trace("prepare_sent",owner);m.trace("prepare_sent",owner);m.trace("ack_ok",owner)
+        m.close();e.stop(t);e.complete(t)
+        val ack=e.latest()!!.operationMetrics.first{it.operation==LabOperation.HANDOFF_ACK}
+        assertEquals(0L,ack.succeeded);assertEquals(1L,ack.unknown);assertNull(ack.latency)
+    }
 }

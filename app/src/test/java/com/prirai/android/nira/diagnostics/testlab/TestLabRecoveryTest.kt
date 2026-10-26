@@ -38,4 +38,16 @@ class TestLabRecoveryTest {
         file.writeBytes(ByteArray(65_537));file.setLastModified(wall);assertNull(store.read());assertFalse(file.exists())
         store.setEnabled(false)
     }
+    @Test fun interruptedAtomicWriteRestoresValidLegacyBackupBeforeCheckingSize() {
+        val app=RuntimeEnvironment.getApplication();val store=TestLabRecoveryStore(app,{0L},{1_000_000_000L})
+        store.setEnabled(true)
+        try {
+            val owner=store.begin();val data=TestLabRecovery(TestType.STABILITY,LabIdentity(1165,"0.5.22-alpha71-mpv39"),LabPhase.RUNNING,1000.0,emptyMap(),emptyList())
+            assertTrue(store.save(owner,data))
+            val base=File(app.noBackupFilesDir,"testlab-recovery.json")
+            assertTrue(base.renameTo(File(base.path+".bak")))
+            assertTrue(base.createNewFile()) // Killed after backup rotation, before writing the new base.
+            assertEquals(data,store.read())
+        } finally {store.setEnabled(false)}
+    }
 }

@@ -1,3 +1,6 @@
+# v1165 — końcowe E/G i wydanie, 2026-10-26
+Implementacja/UI/typed raporty gotowe; pełnyJUnit348PASS +nowybackup7/7PASS, core72PASS, JS200 po korekcie nagłówka, Lua77/DSP28PASS. AndroidTestcompilePASS. Lint0nowychError/1świadomyComposeTestpinWarn. Pierwsze lokalne pakowanieOOM8GiB, kolejnein-process3GiB trwa. Wersja165/1165/alpha71-mpv39. KVM20Gecko+1TestLab+3Room i signedCI przed nami; nie ogłaszać APK gotowym. Szczegóły i dokładne logi w CODEX_RESUME_V1165.md.
+
 # v1165 F WIP — 2026-10-26
 UI7testers+explicitexports+Settings/Menu/mark/stop/history,64/64TestLabPASS20s. RecoveryNoBackupDir, immutableSAFpayloadVM, cache2uniqueFileProviderfiles. NoprivateURLs; returnBrowserwithoutNewIntent. JeszczebrakrealAndroidUI/overhead/finalregressionsCI/signedAPK;nextE/G/H wCODEX_RESUME_V1165.md.
 
