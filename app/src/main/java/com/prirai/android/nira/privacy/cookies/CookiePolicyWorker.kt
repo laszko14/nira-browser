@@ -5,73 +5,70 @@ import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.prirai.android.nira.ext.components
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import mozilla.components.concept.engine.Engine
 import mozilla.components.support.ktx.kotlin.tryGetHostFromUrl
+import java.io.IOException
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
-/**
- * Periodic sweeper that walks every row in `site_cookie_policies` and,
- * for any origin whose `savedAt + hoursUntilClear` is in the past, calls
- * `engine.clearData(host)` to wipe cookies + DOM storage for that host.
- *
- * Scheduling is owned by [CookiePolicyScheduler.ensureScheduled]. We
- * intentionally run on the WorkManager default period
- * (`CookiePolicyScheduler.SWEEP_INTERVAL`) and *not* exact alarms,
- * because Doze mode and background-work restrictions make exact
- * scheduling unreliable above API 23 and the user's expressed
- * expectation ("every N hours") already assumes best-effort rather than
- * second-precision timing.
- *
- * Error handling: cookie-clear failures per-origin are logged and
- * skipped - the row is left untouched so the next sweep retries. If the
- * worker itself crashes, WorkManager will reschedule it per its
- * backoff policy; we therefore do not catch at the top level and
- * instead return [Result.failure] so the retry policy applies.
- */
-class CookiePolicyWorker(
-    appContext: Context,
-    params: WorkerParameters,
-) : CoroutineWorker(appContext, params) {
-
-    override suspend fun doWork(): Result {
-        val repo = CookiePolicyRepository.getInstance(applicationContext)
-        val engine: Engine = applicationContext.components.engine
-
-        val policies = repo.getAll()
-        if (policies.isEmpty()) return Result.success()
-
-        val now = System.currentTimeMillis()
-        var swept = 0
-        policies.forEach { policy ->
-            val dueAt = policy.savedAt + policy.hoursUntilClear.toLong() * HOUR_MILLIS
-            if (now < dueAt) return@forEach
-
-            val host = policy.origin.tryGetHostFromUrl().orEmpty()
-            if (host.isEmpty()) {
-                // Malformed origin - skip rather than wipe the whole engine.
-                Log.w(TAG, "Skipping policy with un-parseable origin: ${policy.origin}")
-                return@forEach
-            }
-
-            try {
-                engine.clearData(
-                    data = Engine.BrowsingData.select(
-                        Engine.BrowsingData.COOKIES,
-                        Engine.BrowsingData.DOM_STORAGES,
-                    ),
-                    host = host,
-                )
-                repo.markSweptNow(policy.origin)
-                swept++
-            } catch (t: Throwable) {
-                Log.w(TAG, "clearData failed for ${policy.origin}", t)
-            }
-        }
-
-        if (swept > 0) Log.i(TAG, "Cookie-policy sweep cleared $swept origin(s)")
-        return Result.success()
+/** Per-origin retention: timestamp advances only after Gecko acknowledges deletion. */
+class CookiePolicyWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
+    override suspend fun doWork(): Result = try {
+        sweepPolicies(CookiePolicyRepository.getInstance(applicationContext)) { applicationContext.components.engine }
+        Result.success()
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        Result.retry()
     }
 
     companion object {
+        internal suspend fun sweepPolicies(repo: CookiePolicyRepository, engineProvider: () -> Engine): Int {
+            val policies = repo.getAll()
+            val now = System.currentTimeMillis()
+            var engine: Engine? = null
+            var swept = 0
+            var failed = false
+            for (policy in policies) {
+                if (now < policy.savedAt + policy.hoursUntilClear.toLong() * HOUR_MILLIS) continue
+                val host = policy.origin.tryGetHostFromUrl().orEmpty()
+                if (host.isEmpty()) {
+                    Log.w(TAG, "invalid_cookie_origin")
+                    continue
+                }
+                try {
+                    // Gecko runtime/session work belongs to Main. Empty/not-due sweeps do not initialize it.
+                    withContext(Dispatchers.Main.immediate) {
+                        val target = engine ?: engineProvider().also { engine = it }
+                        suspendCancellableCoroutine<Unit> { continuation ->
+                            val settled = AtomicBoolean(false)
+                            continuation.invokeOnCancellation { settled.set(true) }
+                            target.clearData(
+                                data = Engine.BrowsingData.select(Engine.BrowsingData.COOKIES, Engine.BrowsingData.DOM_STORAGES),
+                                host = host,
+                                onSuccess = { if (settled.compareAndSet(false, true)) continuation.resume(Unit) },
+                                onError = { if (settled.compareAndSet(false, true)) continuation.resumeWithException(it) }
+                            )
+                        }
+                    }
+                    // A setting edited while Gecko was clearing must keep its newer window and stamp.
+                    repo.markSweptNow(policy)
+                    swept++
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    Log.w(TAG, "cookie_clear_failed type=${error.javaClass.simpleName}")
+                    failed = true
+                }
+            }
+            if (failed) throw IOException("Cookie sweep requires retry")
+            return swept
+        }
         private const val TAG = "CookiePolicyWorker"
         private const val HOUR_MILLIS = 60L * 60L * 1000L
     }

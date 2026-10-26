@@ -79,7 +79,17 @@ class ParallelDownloadService : Service() {
 
     private val serviceJob = SupervisorJob()
     private val scope = CoroutineScope(serviceJob + Dispatchers.IO)
-    private val jobs = mutableMapOf<String, Job>()
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var lastStartId = 0
+    private val tasks: DownloadTaskRegistry = DownloadTaskRegistry(scope) {
+        mainHandler.post {
+            if (serviceJob.isActive && tasksIdle()) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelfResult(lastStartId)
+            }
+        }
+    }
+    private fun tasksIdle(): Boolean = tasks.isIdle()
     private var receiverRegistered = false
 
     private val receiver = object : BroadcastReceiver() {
@@ -127,6 +137,7 @@ class ParallelDownloadService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        lastStartId = startId
         val id = intent?.getStringExtra(INTENT_EXTRA_DOWNLOAD_ID)
             ?: intent?.getStringExtra(android.app.DownloadManager.EXTRA_DOWNLOAD_ID)
             ?: return START_NOT_STICKY
@@ -145,12 +156,12 @@ class ParallelDownloadService : Service() {
             receiverRegistered = false
         }
         serviceJob.cancel()
+        mainHandler.removeCallbacksAndMessages(null)
         super.onDestroy()
     }
 
     private fun startOrResume(download: DownloadState) {
-        if (jobs[download.id]?.isActive == true) return
-        jobs[download.id] = scope.launch {
+        tasks.start(download.id) {
             try {
                 runDownload(download)
             } catch (ce: CancellationException) {
@@ -164,32 +175,18 @@ class ParallelDownloadService : Service() {
                 // `catch (_: Exception)` discarded this.
                 Log.e(TAG, "Download ${download.id} failed: ${t.javaClass.simpleName}")
                 update(download.id) { it.copy(status = DownloadState.Status.FAILED) }
-            } finally {
-                jobs.remove(download.id)
-                if (jobs.isEmpty()) {
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                    stopSelf()
-                }
             }
         }
     }
 
     private fun pause(id: String) {
-        jobs.remove(id)?.cancel()
-        update(id) { it.copy(status = DownloadState.Status.PAUSED) }
-        if (jobs.isEmpty()) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
-        }
+        tasks.stop(id) { update(id) { it.copy(status = DownloadState.Status.PAUSED) } }
     }
 
     private fun cancelDownload(id: String) {
-        jobs.remove(id)?.cancel()
-        sidecarDir(this, id).deleteRecursively()
-        update(id) { it.copy(status = DownloadState.Status.CANCELLED) }
-        if (jobs.isEmpty()) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
+        tasks.stop(id) {
+            sidecarDir(this, id).deleteRecursively()
+            update(id) { it.copy(status = DownloadState.Status.CANCELLED) }
         }
     }
 
@@ -254,22 +251,21 @@ class ParallelDownloadService : Service() {
         assembleAndPublish(download.copy(contentLength = total), dir, threadCount, total)
     }
 
-    private suspend fun downloadChunk(
+    internal suspend fun downloadChunk(
         download: DownloadState,
         start: Long,
         end: Long,
         part: File,
+        fetch: (Request) -> mozilla.components.concept.fetch.Response = { components.client.fetch(it) },
     ) {
-        val existing = if (part.exists()) part.length() else 0L
+        var existing = if (part.exists()) part.length() else 0L
         val expected = end - start + 1
-        if (existing >= expected) {
-            if (existing > expected) {
-                // Resuming from a corrupt sidecar - truncate down so the
-                // next copy is byte-exact.
-                RandomAccessFile(part, "rw").use { it.setLength(expected) }
-            }
-            return
+        if (existing > expected) {
+            // Excess bytes are evidence of a corrupt part, not proof that its prefix is correct.
+            RandomAccessFile(part, "rw").use { it.setLength(0) }
+            existing = 0
         }
+        if (existing == expected) return
         val rangeStart = start + existing
         val headers = MutableHeaders()
         headers.append("Range", "bytes=$rangeStart-$end")
@@ -279,45 +275,47 @@ class ParallelDownloadService : Service() {
             private = download.private,
             referrerUrl = download.referrerUrl,
         )
-        val response = components.client.fetch(request)
-        if (response.status != 206) {
-            response.close()
-            throw IOException("Chunk [$rangeStart-$end]: expected 206 Partial Content, got ${response.status}")
-        }
-        val job = currentCoroutineContext()[Job]
-        // Track actual bytes written. The previous revision trusted
-        // `input.read() == -1` as a sentinel for "chunk complete", which
-        // is unsafe: HTTP/2 stream resets, TCP RSTs, and server-side
-        // truncations also return -1 without throwing. If the server
-        // closed the body before sending `expected` bytes we throw and
-        // the enclosing coroutineScope cancels its siblings.
-        var writtenThisPass = 0L
-        response.body.useStream { input ->
-            RandomAccessFile(part, "rw").use { raf ->
-                raf.seek(existing)
-                val buffer = ByteArray(64 * 1024)
-                while (job?.isActive != false) {
-                    val read = input.read(buffer)
-                    if (read == -1) break
-                    raf.write(buffer, 0, read)
-                    writtenThisPass += read
-                }
-                // Flush to the storage layer. Without this a kill-and-
-                // restart can observe raf.length() == expected but with
-                // uninitialised tail bytes.
-                raf.fd.sync()
+        fetch(request).use { response ->
+            val range = parseRange(response.headers["Content-Range"])
+            if (response.status != 206 || range == null || range.first != rangeStart || range.last != end ||
+                range.total != download.contentLength) {
+                throw IOException("Invalid HTTP range response")
             }
-        }
-        if (job?.isActive == false) {
-            throw CancellationException()
-        }
-        val finalLen = part.length()
-        val expectedThisPass = expected - existing
-        if (writtenThisPass != expectedThisPass || finalLen != expected) {
-            throw IOException(
-                "Chunk [$rangeStart-$end] truncated: wrote=$writtenThisPass " +
-                    "expected=$expectedThisPass fileLen=$finalLen expectedLen=$expected"
-            )
+            val job = currentCoroutineContext()[Job]
+            // Track actual bytes written. The previous revision trusted
+            // `input.read() == -1` as a sentinel for "chunk complete", which
+            // is unsafe: HTTP/2 stream resets, TCP RSTs, and server-side
+            // truncations also return -1 without throwing. If the server
+            // closed the body before sending `expected` bytes we throw and
+            // the enclosing coroutineScope cancels its siblings.
+            var writtenThisPass = 0L
+            response.body.useStream { input ->
+                RandomAccessFile(part, "rw").use { raf ->
+                    raf.seek(existing)
+                    val buffer = ByteArray(64 * 1024)
+                    while (job?.isActive != false) {
+                        val read = input.read(buffer)
+                        if (read == -1) break
+                        raf.write(buffer, 0, read)
+                        writtenThisPass += read
+                    }
+                    // Flush to the storage layer. Without this a kill-and-
+                    // restart can observe raf.length() == expected but with
+                    // uninitialised tail bytes.
+                    raf.fd.sync()
+                }
+            }
+            if (job?.isActive == false) {
+                throw CancellationException()
+            }
+            val finalLen = part.length()
+            val expectedThisPass = expected - existing
+            if (writtenThisPass != expectedThisPass || finalLen != expected) {
+                throw IOException(
+                    "Chunk [$rangeStart-$end] truncated: wrote=$writtenThisPass " +
+                        "expected=$expectedThisPass fileLen=$finalLen expectedLen=$expected"
+                )
+            }
         }
     }
 
@@ -452,6 +450,15 @@ class ParallelDownloadService : Service() {
     }
 
     companion object {
+        internal data class HttpRange(val first: Long, val last: Long, val total: Long)
+        internal fun parseRange(value: String?): HttpRange? {
+            val match = Regex("bytes ([0-9]+)-([0-9]+)/([0-9]+)", RegexOption.IGNORE_CASE).matchEntire(value?.trim() ?: return null) ?: return null
+            val first = match.groupValues[1].toLongOrNull() ?: return null
+            val last = match.groupValues[2].toLongOrNull() ?: return null
+            val total = match.groupValues[3].toLongOrNull() ?: return null
+            return HttpRange(first, last, total).takeIf { first <= last && last < total }
+        }
+
         private const val TAG = "ParallelDownload"
         private const val CHANNEL_ID = "nira_parallel_downloads"
         private const val NOTIFICATION_ID = 7101

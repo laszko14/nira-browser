@@ -33,6 +33,9 @@ interface CookiePolicyDao {
     @Query("UPDATE site_cookie_policies SET savedAt = :now WHERE origin = :origin")
     suspend fun touch(origin: String, now: Long)
 
+    @Query("UPDATE site_cookie_policies SET savedAt = :now WHERE origin = :origin AND savedAt = :expectedStamp AND hoursUntilClear = :expectedHours")
+    suspend fun touchIfUnchanged(origin: String, expectedStamp: Long, expectedHours: Int, now: Long): Int
+
     @Query("DELETE FROM site_cookie_policies WHERE origin = :origin")
     suspend fun delete(origin: String)
 

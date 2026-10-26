@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -20,6 +21,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalConfiguration
+import com.prirai.android.nira.browser.tabs.compose.DragPlacement
+import com.prirai.android.nira.browser.tabs.compose.DropRow
 import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -38,6 +42,7 @@ import androidx.compose.material.icons.rounded.ViewList
 import androidx.compose.material3.*
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.DialogFragment
@@ -62,6 +67,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import mozilla.components.browser.state.state.TabSessionState
 import mozilla.components.lib.state.ext.flowScoped
+import mozilla.components.lib.state.ext.flow
 import androidx.core.content.edit
 
 /**
@@ -639,6 +645,11 @@ class TabsBottomSheetFragment : DialogFragment() {
         (binding.root as ViewGroup).addView(composeView)
     }
 
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (isSidePanel) dialog?.window?.setLayout(sidePanelWidth(), ViewGroup.LayoutParams.MATCH_PARENT)
+    }
+
     override fun onDestroyView() {
         super.onDestroyView()
         
@@ -666,6 +677,7 @@ class TabsBottomSheetFragment : DialogFragment() {
         // Add ComposeView
         val composeView = androidx.compose.ui.platform.ComposeView(requireContext()).apply {
             tag = "tabs_compose"
+            setViewCompositionStrategy(androidx.compose.ui.platform.ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 // Read AMOLED preference
                 val prefs = com.prirai.android.nira.preferences.UserPreferences(requireContext())
@@ -698,10 +710,17 @@ class TabsBottomSheetFragment : DialogFragment() {
         // Create ViewModel once and store it. TabViewModel.closeTab() now
         // performs removal + undo via TabsUseCases + UndoMiddleware directly,
         // so onTabRemove / onTabRestore glue is no longer needed here.
+        val modelStore = remember { androidx.lifecycle.ViewModelStore() }
         val viewModel = remember {
-            TabViewModel(requireContext(), unifiedGroupManager).also {
-                tabViewModel = it
-            }
+            androidx.lifecycle.ViewModelProvider(modelStore,
+                object : androidx.lifecycle.ViewModelProvider.Factory {
+                    @Suppress("UNCHECKED_CAST")
+                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                        TabViewModel(requireContext(), unifiedGroupManager) as T
+                })[TabViewModel::class.java].also { tabViewModel = it }
+        }
+        DisposableEffect(modelStore) {
+            onDispose { modelStore.clear() }
         }
 
         // Set up global snackbar manager scope
@@ -743,11 +762,9 @@ class TabsBottomSheetFragment : DialogFragment() {
 
             // Collect store updates
             launch {
-                store.flowScoped(viewLifecycleOwner, Dispatchers.Main) { flow ->
-                    flow.collect { state ->
-                        val filteredTabs = filterTabs(state.tabs)
-                        viewModel.loadTabsForProfile(profileId, filteredTabs, state.selectedTabId)
-                    }
+                store.flow(viewLifecycleOwner).collect { state ->
+                    val filteredTabs = filterTabs(state.tabs)
+                    viewModel.loadTabsForProfile(profileId, filteredTabs, state.selectedTabId)
                 }
             }
 
@@ -957,7 +974,6 @@ class TabsBottomSheetFragment : DialogFragment() {
      */
     @Composable
     private fun CompactSideTabs(viewModel: TabViewModel, tabs: List<TabSessionState>) {
-        val cachedGroups by viewModel.groups.collectAsState()
         val publishedGroups by unifiedGroupManager.groupsState.collectAsState()
         val activeProfileId by viewModel.currentProfileId.collectAsState()
         // The ViewModel can briefly lag while a BrowserStore refresh cancels an
@@ -973,19 +989,7 @@ class TabsBottomSheetFragment : DialogFragment() {
             }
             correctProfile && group.tabIds.any { it in visibleTabIds }
         }
-        // During a handoff either flow may briefly be one notification behind.
-        // Union by canonical group ID, favoring the most recent Room snapshot.
-        val liveGroupIds = liveGroups.map { it.id }.toSet()
-        val groups = liveGroups + cachedGroups.filter { group ->
-            group.id !in liveGroupIds &&
-                group.tabIds.any { it in visibleTabIds } &&
-                when (activeProfileId) {
-                    "default" -> group.contextId == null || group.contextId == "profile_default"
-                    "private" -> group.contextId == "private"
-                    null -> false
-                    else -> group.contextId == "profile_${activeProfileId}"
-                }
-        }
+        val groups = liveGroups
         val expanded by viewModel.expandedGroups.collectAsState()
         val selectedTabId by viewModel.selectedTabId.collectAsState()
         val savedOrder by viewModel.currentOrder.collectAsState()
@@ -995,15 +999,22 @@ class TabsBottomSheetFragment : DialogFragment() {
         var showNameUngroupedDialog by remember { mutableStateOf(false) }
         var ungroupedName by remember { mutableStateOf("Nowa grupa") }
         var ungroupedExpanded by remember { mutableStateOf(true) }
-        var dragTabId by remember { mutableStateOf<String?>(null) }
+        val orientation = LocalConfiguration.current.orientation
+        var dragTabId by remember(activeProfileId, orientation) { mutableStateOf<String?>(null) }
+        var dragGroupId by remember(activeProfileId, orientation) { mutableStateOf<String?>(null) }
+        var dragProfileId by remember(activeProfileId, orientation) { mutableStateOf<String?>(null) }
         var dragY by remember { mutableStateOf(0f) }
         var listTopY by remember { mutableStateOf(0f) }
+        var listLeftX by remember { mutableStateOf(0f) }
+        var listWidth by remember { mutableStateOf(0f) }
+        var dragX by remember { mutableStateOf(0f) }
         var hoveredKey by remember { mutableStateOf<String?>(null) }
         val draggedTab = tabs.firstOrNull { it.id == dragTabId }
+        val draggedGroup = groups.firstOrNull { it.id == dragGroupId }
         // Hovering a collapsed header while holding a tab opens the target group
         // without requiring the user to release the pointer first.
         LaunchedEffect(dragTabId, hoveredKey) {
-            val targetId = hoveredKey?.takeIf { it.startsWith("group_") }
+            val targetId = hoveredKey?.takeIf { it.startsWith("group_") && !it.startsWith("group_tab_") }
                 ?.removePrefix("group_")
             if (dragTabId != null && targetId != null && targetId !in expanded) {
                 kotlinx.coroutines.delay(450)
@@ -1032,7 +1043,7 @@ class TabsBottomSheetFragment : DialogFragment() {
             val seenTabs = mutableSetOf<String>()
             var recoveryHeaderAdded = false
             fun addUngroupedHeader() {
-                if (!recoveryHeaderAdded && ungroupedTabs.isNotEmpty()) {
+                if (!recoveryHeaderAdded && (ungroupedTabs.isNotEmpty() || dragTabId != null)) {
                     add("ungrouped_header" to "ungrouped")
                     recoveryHeaderAdded = true
                 }
@@ -1065,47 +1076,69 @@ class TabsBottomSheetFragment : DialogFragment() {
                     add("single" to tab.id)
                 }
             }
+            addUngroupedHeader()
         }
         val density = resources.displayMetrics.density
 
         // Use actual finger coordinates rather than accumulating scroll-sensitive deltas.
-        fun moveDrag(pointerRootY: Float) {
-            dragY = pointerRootY - listTopY
+        fun moveDrag(pointerRoot: Offset) {
+            dragY = pointerRoot.y - listTopY
+            dragX = pointerRoot.x - listLeftX
             val visible = listState.layoutInfo.visibleItemsInfo
             hoveredKey = visible.firstOrNull {
                 dragY >= it.offset && dragY < it.offset + it.size
             }?.key?.toString()
-            val viewport = listState.layoutInfo.viewportEndOffset
-            if (dragY < 48f * density || dragY > viewport - 48f * density) {
-                val speed = if (dragY < 48f * density) -15f else 15f
-                scope.launch { listState.scrollBy(speed * density) }
+        }
+        // One bounded scroll job follows the frame clock while the pointer stays
+        // inside the edge zone. No competing scroll jobs per pointer event.
+        LaunchedEffect(dragTabId, dragGroupId, dragY, dragX) {
+            if (dragTabId == null && dragGroupId == null) return@LaunchedEffect
+            if (dragX < 0f || dragX >= listWidth) return@LaunchedEffect
+            while (true) {
+                val viewport = listState.layoutInfo.viewportEndOffset.toFloat()
+                if (dragY < 0f || dragY >= viewport) break
+                val edge = 48f * density
+                val velocity = when {
+                    dragY < edge -> -8f * density * (1f - dragY / edge)
+                    dragY > viewport - edge -> 8f * density * (1f - (viewport - dragY) / edge)
+                    else -> break
+                }
+                androidx.compose.runtime.withFrameNanos { }
+                if (listState.scrollBy(velocity) == 0f) break
             }
         }
         fun finishDrag() {
-            val fromId = dragTabId ?: return
-            val visible = listState.layoutInfo.visibleItemsInfo
-            val selected = visible.firstOrNull {
-                dragY >= it.offset && dragY < it.offset + it.size
-            } ?: visible.minByOrNull {
-                kotlin.math.abs(dragY - (it.offset + it.size / 2f))
-            }
-            val target = selected?.key?.toString() ?: hoveredKey
-            val after = selected?.let { dragY >= it.offset + it.size / 2f } ?: true
+            val fromId = dragTabId
+            val fromGroupId = dragGroupId
+            val expectedProfile = dragProfileId
+            val info = listState.layoutInfo
+            val resolved = DragPlacement.sideTarget(
+                dragY, 0, info.viewportEndOffset,
+                info.visibleItemsInfo.map { DropRow(it.key.toString(), it.offset, it.size) },
+                x = dragX, viewportWidth = listWidth
+            )
             dragTabId = null
+            dragGroupId = null
             hoveredKey = null
-            if (target.isNullOrEmpty()) return
-            val originalKey = if (fromId in groupedIds)
-                "group_tab_$fromId" else "single_tab_$fromId"
+            val target = resolved?.key ?: return
+            val after = resolved.after
+            if (fromId == null && fromGroupId == null) return
+            val originalKey = if (fromId != null) {
+                if (fromId in groupedIds) "group_tab_$fromId" else "single_tab_$fromId"
+            } else "group_$fromGroupId"
             if (target == originalKey) return
-            // Wait until the group manager and shared order are committed.
             scope.launch {
                 try {
-                    if (!viewModel.commitSidePanelDrop(fromId, target, after)) {
-                        android.widget.Toast.makeText(
-                            requireContext(), "Nie udało się przenieść karty",
-                            android.widget.Toast.LENGTH_SHORT
-                        ).show()
+                    val committed = if (fromId != null) {
+                        viewModel.commitSidePanelDrop(fromId, target, after, expectedProfile)
+                    } else {
+                        viewModel.commitSidePanelGroupDrop(fromGroupId!!, target, after, expectedProfile)
                     }
+                    if (!committed && isAdded) android.widget.Toast.makeText(
+                        requireContext(), "Nie udało się przenieść elementu", android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                } catch (error: kotlinx.coroutines.CancellationException) {
+                    throw error
                 } catch (error: Exception) {
                     android.util.Log.e("ZavroTabDrop", "Drop failed", error)
                 }
@@ -1115,9 +1148,13 @@ class TabsBottomSheetFragment : DialogFragment() {
         Box(Modifier.fillMaxSize()) {
         LazyColumn(
             state = listState,
-            userScrollEnabled = dragTabId == null,
+            userScrollEnabled = dragTabId == null && dragGroupId == null,
             modifier = Modifier.fillMaxSize()
-                .onGloballyPositioned { listTopY = it.positionInRoot().y },
+                .onGloballyPositioned {
+                    listTopY = it.positionInRoot().y
+                    listLeftX = it.positionInRoot().x
+                    listWidth = it.size.width.toFloat()
+                },
             contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)
         ) {
             entries.forEach { (kind, id) ->
@@ -1126,8 +1163,27 @@ class TabsBottomSheetFragment : DialogFragment() {
                     val members = group.tabIds.mapNotNull { tabsById[it] }
                     if (members.isEmpty()) return@forEach
                     item(key = "group_" + group.id) {
+                        var headerRoot by remember(group.id) { mutableStateOf(Offset.Zero) }
                         Row(
                             modifier = Modifier.fillMaxWidth().height(44.dp)
+                                .onGloballyPositioned { headerRoot = it.positionInRoot() }
+                                .pointerInput(group.id, activeProfileId, orientation) {
+                                    detectDragGesturesAfterLongPress(
+                                        onDragStart = { offset ->
+                                            dragGroupId = group.id
+                                            dragTabId = null
+                                            dragProfileId = activeProfileId
+                                            dragY = headerRoot.y + offset.y - listTopY
+                                            dragX = headerRoot.x + offset.x - listLeftX
+                                        },
+                                        onDrag = { change, _ ->
+                                            change.consume()
+                                            moveDrag(headerRoot + change.position)
+                                        },
+                                        onDragEnd = ::finishDrag,
+                                        onDragCancel = { dragGroupId = null; hoveredKey = null }
+                                    )
+                                }
                                 .background(
                                     if (hoveredKey == "group_" + group.id)
                                         MaterialTheme.colorScheme.primaryContainer
@@ -1167,9 +1223,12 @@ class TabsBottomSheetFragment : DialogFragment() {
                                 onClick = { if (dragTabId == null) handleTabClickCompose(tab.id) },
                                 onClose = { handleTabCloseCompose(tab.id) },
                                 onMenu = { handleTabLongPressCompose(tab, true) },
-                                onDragStart = { rootY ->
+                                onDragStart = { root ->
                                     dragTabId = tab.id
-                                    dragY = rootY - listTopY
+                                    dragGroupId = null
+                                    dragProfileId = activeProfileId
+                                    dragY = root.y - listTopY
+                                    dragX = root.x - listLeftX
                                 },
                                 onDragMove = ::moveDrag,
                                 onDragFinish = ::finishDrag,
@@ -1223,9 +1282,12 @@ class TabsBottomSheetFragment : DialogFragment() {
                     onClick = { if (dragTabId == null) handleTabClickCompose(tab.id) },
                     onClose = { handleTabCloseCompose(tab.id) },
                     onMenu = { handleTabLongPressCompose(tab, false) },
-                    onDragStart = { rootY ->
+                    onDragStart = { root ->
                         dragTabId = tab.id
-                        dragY = rootY - listTopY
+                        dragGroupId = null
+                        dragProfileId = activeProfileId
+                        dragY = root.y - listTopY
+                                    dragX = root.x - listLeftX
                     },
                     onDragMove = ::moveDrag,
                     onDragFinish = ::finishDrag,
@@ -1238,6 +1300,18 @@ class TabsBottomSheetFragment : DialogFragment() {
         // The original row stays in place while dragged. An overlay follows
         // the finger so the user can see that long-press actually took hold.
         // Pointer events remain owned by the originating row, not this preview.
+        if (draggedGroup != null) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().offset {
+                    IntOffset(0, (dragY - 22f * density).roundToInt())
+                },
+                shadowElevation = 8.dp,
+                color = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Text("(${draggedGroup.tabIds.count { it in visibleTabIds }}) ${draggedGroup.name}",
+                    modifier = Modifier.padding(12.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
         if (draggedTab != null) {
             Surface(
                 modifier = Modifier
@@ -1328,12 +1402,14 @@ class TabsBottomSheetFragment : DialogFragment() {
         onClick: () -> Unit,
         onClose: () -> Unit,
         onMenu: () -> Unit,
-        onDragStart: (Float) -> Unit,
-        onDragMove: (Float) -> Unit,
+        onDragStart: (Offset) -> Unit,
+        onDragMove: (Offset) -> Unit,
         onDragFinish: () -> Unit,
         onDragCancel: () -> Unit
     ) {
-        var originY by remember { mutableStateOf(0f) }
+        var rowOrigin by remember { mutableStateOf(Offset.Zero) }
+        var handleOrigin by remember { mutableStateOf(Offset.Zero) }
+        val rowOrientation = LocalConfiguration.current.orientation
         val haptic = LocalHapticFeedback.current
         val currentStart by rememberUpdatedState(onDragStart)
         val currentMove by rememberUpdatedState(onDragMove)
@@ -1348,19 +1424,19 @@ class TabsBottomSheetFragment : DialogFragment() {
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth().height(46.dp)
-                    .onGloballyPositioned { originY = it.positionInRoot().y }
+                    .onGloballyPositioned { rowOrigin = it.positionInRoot() }
                     .clickable(onClick = onClick)
                     // Attach the long-press recognizer on the inside of click:
                     // normal taps still select; holding the row starts a drag.
-                    .pointerInput(tab.id) {
+                    .pointerInput(tab.id, rowOrientation) {
                         detectDragGesturesAfterLongPress(
                             onDragStart = { offset ->
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                currentStart(originY + offset.y)
+                                currentStart(rowOrigin + offset)
                             },
                             onDrag = { change, amount ->
                                 change.consume()
-                                currentMove(originY + change.position.y)
+                                currentMove(rowOrigin + change.position)
                             },
                             onDragEnd = { currentFinish() },
                             onDragCancel = { currentCancel() }
@@ -1382,15 +1458,16 @@ class TabsBottomSheetFragment : DialogFragment() {
                     contentDescription = "Przytrzymaj i przeciągnij kartę",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(30.dp)
-                        .pointerInput(tab.id) {
+                        .onGloballyPositioned { handleOrigin = it.positionInRoot() }
+                        .pointerInput(tab.id, rowOrientation) {
                         detectDragGesturesAfterLongPress(
                             onDragStart = { offset ->
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                currentStart(originY + offset.y)
+                                currentStart(handleOrigin + offset)
                             },
                             onDrag = { change, amount ->
                                 change.consume()
-                                currentMove(originY + change.position.y)
+                                currentMove(handleOrigin + change.position)
                             },
                             onDragEnd = { currentFinish() },
                             onDragCancel = { currentCancel() }
@@ -1493,6 +1570,29 @@ class TabsBottomSheetFragment : DialogFragment() {
         onRemoveFromGroup: () -> Unit,
         modifier: Modifier = Modifier
     ) {
+        var creatingGroup by remember(tab.id) { mutableStateOf(false) }
+        var groupName by remember(tab.id) { mutableStateOf("") }
+        if (creatingGroup) {
+            AlertDialog(
+                onDismissRequest = { creatingGroup = false },
+                title = { Text("Nowa grupa kart") },
+                text = {
+                    OutlinedTextField(
+                        value = groupName,
+                        onValueChange = { groupName = it.take(70) },
+                        label = { Text("Nazwa grupy") }, singleLine = true
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        tabViewModel?.moveTabToNewGroup(tab.id, groupName.trim().ifBlank { "Nowa grupa" })
+                        creatingGroup = false
+                        onDismiss()
+                    }) { Text("Utwórz i przenieś") }
+                },
+                dismissButton = { TextButton(onClick = { creatingGroup = false }) { Text("Anuluj") } }
+            )
+        }
         androidx.compose.animation.AnimatedVisibility(
             visible = true,
             enter = androidx.compose.animation.slideInVertically { it } + androidx.compose.animation.fadeIn(),
@@ -1539,7 +1639,12 @@ class TabsBottomSheetFragment : DialogFragment() {
                         modifier = Modifier.padding(vertical = 4.dp)
                     )
 
-                    // Menu options
+                    // This is the active side-panel menu (not TabMenuCompose).
+                    MenuOption(
+                        icon = androidx.compose.material.icons.Icons.Default.Add,
+                        text = "Utwórz nową grupę",
+                        onClick = { creatingGroup = true }
+                    )
                     if (isInGroup) {
                         MenuOption(
                             icon = androidx.compose.material.icons.Icons.Default.Clear,

@@ -37,7 +37,21 @@ class ProfileMiddleware(
                 
                 // If tab already has a contextId, respect it (explicitly set by caller)
                 if (action.tab.contextId != null) {
-                    next(action)
+                    // An explicit default request must not fall through to the active profile.
+                    // The sentinel never reaches Gecko as a separate cookie partition.
+                    if (action.tab.contextId == "profile_default") {
+                        next(TabListAction.AddTabAction(action.tab.copy(contextId = null), action.select))
+                    } else next(action)
+                    return
+                }
+
+                // Gecko WindowFeature supplies parentId/private but no contextId.
+                // Inherit its source partition, not a potentially newer selected profile.
+                val parent = store.state.tabs.firstOrNull { it.id == action.tab.parentId }
+                if (parent != null && parent.content.private == action.tab.content.private) {
+                    val inherited = if (parent.content.private) "private"
+                        else parent.contextId?.takeUnless { it == "profile_default" }
+                    next(TabListAction.AddTabAction(action.tab.copy(contextId = inherited), action.select))
                     return
                 }
                 
@@ -62,11 +76,30 @@ class ProfileMiddleware(
                     return
                 }
 
-                val updatedTab = action.tab.copy(contextId = contextId)
+                val updatedTab = action.tab.copy(
+                    contextId = contextId,
+                    content = action.tab.content.copy(private = isPrivate)
+                )
                 next(TabListAction.AddTabAction(updatedTab, action.select))
                 return
             }
             else -> next(action)
         }
     }
+}
+
+/** Store.dispatch is synchronous. Relocation is not a user close or a new link. */
+internal object ProfileMigrationGuard {
+    private val moving = ThreadLocal.withInitial { emptySet<String>() }
+    fun contains(tabId: String): Boolean = tabId in moving.get()
+    fun <T> run(tabId: String, block: () -> T): T {
+        val previous = moving.get()
+        moving.set(previous + tabId)
+        return try { block() } finally { moving.set(previous) }
+    }
+    fun undoMiddleware(delegate: Middleware<BrowserState, BrowserAction>): Middleware<BrowserState, BrowserAction> =
+        { store, next, action ->
+            if (action is TabListAction.RemoveTabAction && contains(action.tabId)) next(action)
+            else delegate(store, next, action)
+        }
 }

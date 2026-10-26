@@ -49,30 +49,15 @@ class TabLRUManager private constructor(context: Context) {
         saveToPrefs()
     }
     
-    fun getTabAtLRUOffset(currentTabId: String, offset: Int): String? {
-        val currentIndex = lruQueue.indexOf(currentTabId)
-        if (currentIndex == -1) return null
-        
-        val targetIndex = currentIndex + offset
-        
-        // Wrap around at boundaries for circular navigation
-        return when {
-            targetIndex < 0 -> {
-                // Wrap to the end (oldest/last unvisited tab)
-                lruQueue.lastOrNull()
-            }
-            targetIndex >= lruQueue.size -> {
-                // Wrap to the beginning (most recent tab)
-                lruQueue.firstOrNull()
-            }
-            else -> {
-                lruQueue[targetIndex]
-            }
-        }
+    fun getTabAtLRUOffset(currentTabId: String, offset: Int, eligibleIds: Set<String>): String? {
+        val visible = lruQueue.filter { it in eligibleIds }
+        val index = visible.indexOf(currentTabId)
+        if (index < 0 || visible.size < 2) return null
+        return visible[Math.floorMod(index + offset, visible.size)]
     }
-    
-    fun getMostRecentTab(): String? = lruQueue.firstOrNull()
-    
+
+    fun getMostRecentTab(eligibleIds: Set<String>): String? = lruQueue.firstOrNull { it in eligibleIds }
+
     private fun saveToPrefs() {
         prefs.edit { putString("lru_order", lruQueue.joinToString(",")) }
     }
@@ -95,4 +80,19 @@ class TabLRUManager private constructor(context: Context) {
             }
         }
     }
+}
+
+internal fun mozilla.components.browser.state.state.TabSessionState.sameSwipeScope(
+    source: mozilla.components.browser.state.state.TabSessionState
+): Boolean {
+    fun canonical(context: String?) = context?.takeUnless { it == "profile_default" }
+    return content.private == source.content.private && canonical(contextId) == canonical(source.contextId)
+}
+
+internal fun mozilla.components.browser.state.state.BrowserState.canFinishSwipe(
+    source: mozilla.components.browser.state.state.TabSessionState?, targetId: String
+): Boolean {
+    if (source == null || selectedTabId != source.id || targetId == source.id) return false
+    val current = tabs.firstOrNull { it.id == source.id } ?: return false
+    return current.sameSwipeScope(source) && tabs.any { it.id == targetId && it.sameSwipeScope(source) }
 }
