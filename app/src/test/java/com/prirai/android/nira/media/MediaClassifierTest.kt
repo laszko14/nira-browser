@@ -23,8 +23,8 @@ class MediaClassifierTest {
         assertEquals(MediaFormat.WEBM, mime?.format)
         assertEquals(MediaFormat.WEBM, MediaClassifier.fromDom(
             MediaDetectorMessage.Candidate("https://cdn.example.org/file.mp4", "video/webm"), regular)?.format)
-        assertNull(MediaClassifier.fromDom(
-            MediaDetectorMessage.Candidate("https://cdn.example.org/file.mp4", "video/ogg"), regular))
+        assertEquals(MediaFormat.OGG, MediaClassifier.fromDom(
+            MediaDetectorMessage.Candidate("https://cdn.example.org/file.mp4", "video/ogg"), regular)?.format)
     }
 
     @Test fun skipsSegmentsAndNonMedia() {

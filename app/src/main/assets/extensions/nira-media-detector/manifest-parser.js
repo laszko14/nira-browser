@@ -35,9 +35,14 @@ globalThis.NiraManifestParser = (() => {
     const lines = text.replace(/\r/g, "").split("\n").map(line => line.trim());
     if (lines[0] !== "#EXTM3U") throw new Error("invalid_hls");
     const variants = [], audioTracks = [], subtitleTracks = [];
-    let seconds = 0, firstSegmentUrl = null;
+    let seconds = 0, firstSegmentUrl = null, drm = false;
     for (let index = 0; index < lines.length; index++) {
       const line = lines[index];
+      if (/^#EXT-X-(?:SESSION-)?KEY:/.test(line)) {
+        const key = attributes(line.slice(line.indexOf(":") + 1));
+        if (key.METHOD && key.METHOD !== "NONE" &&
+            (key.METHOD !== "AES-128" || key.KEYFORMAT && key.KEYFORMAT !== "identity")) drm = true;
+      }
       if (line.startsWith("#EXTINF:")) {
         const value = Number(line.slice(8).split(",")[0]);
         if (Number.isFinite(value) && value > 0) seconds += value;
@@ -69,7 +74,9 @@ globalThis.NiraManifestParser = (() => {
         }
       }
     }
-    return { protocol: "HLS", kind: variants.length ? "master" : "media", variants,
+    if (!variants.length && !firstSegmentUrl && !lines.some(line => line.startsWith("#EXT-X-STREAM-INF:")))
+      throw new Error("invalid_hls");
+    return { protocol: "HLS", drm, kind: variants.length ? "master" : "media", variants,
       audioTracks, subtitleTracks, durationSeconds: seconds > 0 ? Math.ceil(seconds) : null,
       firstSegmentUrl };
   }
@@ -91,7 +98,8 @@ globalThis.NiraManifestParser = (() => {
   function parseDash(text, base, limit) {
     limit = bounded(text, limit);
     const mpd = /<MPD\b[^>]*>/i.exec(text)?.[0];
-    if (!mpd) throw new Error("invalid_dash");
+    if (!mpd || /<!DOCTYPE|<!ENTITY/i.test(text) ||
+        !(/<\/MPD\s*>\s*$/i.test(text) || /<MPD\b[^>]*\/>\s*$/i.test(text))) throw new Error("invalid_dash");
     const rootBase = url(textTag(text, "BaseURL") || base, base) || base;
     const variants = [], audioTracks = [], subtitleTracks = [];
     const sets = /<AdaptationSet\b[^>]*>[\s\S]*?<\/AdaptationSet>/gi;
@@ -118,7 +126,7 @@ globalThis.NiraManifestParser = (() => {
         if (target && resolved && target.length < limit) target.push(item);
       }
     }
-    return { protocol: "DASH", dynamic: /\btype\s*=\s*['"]dynamic['"]/i.test(mpd),
+    return { protocol: "DASH", drm: /<ContentProtection\b/i.test(text), dynamic: /\btype\s*=\s*['"]dynamic['"]/i.test(mpd),
       durationSeconds: duration(xmlAttr(mpd, "mediaPresentationDuration")), variants,
       audioTracks, subtitleTracks };
   }

@@ -1,0 +1,949 @@
+{
+  "engine": "Chromium 154.0.8037.57",
+  "automation": "Playwright 1.62.1",
+  "layer": "real DOM; WebExtension/native/network controlled adapters; no Android",
+  "total": {
+    "films": 89,
+    "preEligible": 88,
+    "pre": 61,
+    "post": 62,
+    "falsePositives": 3,
+    "duplicateMessages": 0,
+    "messages": 75,
+    "nativeMessages": 103,
+    "extraRequests": 7,
+    "recallPre": 0.6931818181818182,
+    "recallPost": 0.6966292134831461,
+    "precision": 0.9538461538461539,
+    "initialScanMs": 141.69999999925494,
+    "callbackMs": 3.699999999254942,
+    "maxCallbackMs": 1,
+    "queries": 610,
+    "returned": 572,
+    "mutations": 6,
+    "wrongMerges": 0,
+    "duplicateMaterials": 1
+  },
+  "cases": [
+    {
+      "id": "mp4",
+      "films": 1,
+      "preEligible": 1,
+      "pre": 1,
+      "post": 1,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 1,
+      "nativeMessages": 2,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0,
+      "cost": [
+        {
+          "callbacks": 0,
+          "callbackMs": 0,
+          "maxCallbackMs": 0,
+          "queries": 9,
+          "returned": 1,
+          "mutations": 0,
+          "runtimeMessages": 2,
+          "initialMs": 6
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "sources",
+      "films": 1,
+      "preEligible": 1,
+      "pre": 1,
+      "post": 1,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 2,
+      "nativeMessages": 3,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0,
+      "cost": [
+        {
+          "callbacks": 0,
+          "callbackMs": 0,
+          "maxCallbackMs": 0,
+          "queries": 9,
+          "returned": 5,
+          "mutations": 0,
+          "runtimeMessages": 3,
+          "initialMs": 2
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "hls-preplay",
+      "films": 1,
+      "preEligible": 1,
+      "pre": 1,
+      "post": 1,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 1,
+      "nativeMessages": 2,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0,
+      "cost": [
+        {
+          "callbacks": 0,
+          "callbackMs": 0,
+          "maxCallbackMs": 0,
+          "queries": 9,
+          "returned": 1,
+          "mutations": 0,
+          "runtimeMessages": 2,
+          "initialMs": 4.5
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "dash-preplay",
+      "films": 1,
+      "preEligible": 1,
+      "pre": 1,
+      "post": 1,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 1,
+      "nativeMessages": 2,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0,
+      "cost": [
+        {
+          "callbacks": 0,
+          "callbackMs": 0,
+          "maxCallbackMs": 0,
+          "queries": 9,
+          "returned": 1,
+          "mutations": 0,
+          "runtimeMessages": 2,
+          "initialMs": 2.199999999254942
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "mime-extensionless",
+      "films": 1,
+      "preEligible": 1,
+      "pre": 1,
+      "post": 1,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 1,
+      "nativeMessages": 2,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0,
+      "cost": [
+        {
+          "callbacks": 0,
+          "callbackMs": 0,
+          "maxCallbackMs": 0,
+          "queries": 9,
+          "returned": 3,
+          "mutations": 0,
+          "runtimeMessages": 2,
+          "initialMs": 3.2000000001862645
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "iframe",
+      "films": 1,
+      "preEligible": 1,
+      "pre": 1,
+      "post": 1,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 1,
+      "nativeMessages": 2,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0,
+      "cost": [
+        {
+          "callbacks": 0,
+          "callbackMs": 0,
+          "maxCallbackMs": 0,
+          "queries": 7,
+          "returned": 0,
+          "mutations": 0,
+          "runtimeMessages": 1,
+          "initialMs": 1.3999999994412065
+        },
+        {
+          "callbacks": 0,
+          "callbackMs": 0,
+          "maxCallbackMs": 0,
+          "queries": 9,
+          "returned": 1,
+          "mutations": 0,
+          "runtimeMessages": 2,
+          "initialMs": 2.099999999627471
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "nested-iframe",
+      "films": 1,
+      "preEligible": 1,
+      "pre": 1,
+      "post": 1,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 1,
+      "nativeMessages": 2,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0,
+      "cost": [
+        {
+          "callbacks": 0,
+          "callbackMs": 0,
+          "maxCallbackMs": 0,
+          "queries": 7,
+          "returned": 0,
+          "mutations": 0,
+          "runtimeMessages": 1,
+          "initialMs": 1.7999999998137355
+        },
+        {
+          "callbacks": 0,
+          "callbackMs": 0,
+          "maxCallbackMs": 0,
+          "queries": 7,
+          "returned": 0,
+          "mutations": 0,
+          "runtimeMessages": 1,
+          "initialMs": 1.199999999254942
+        },
+        {
+          "callbacks": 0,
+          "callbackMs": 0,
+          "maxCallbackMs": 0,
+          "queries": 9,
+          "returned": 1,
+          "mutations": 0,
+          "runtimeMessages": 2,
+          "initialMs": 4.800000000745058
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "dynamic",
+      "films": 1,
+      "preEligible": 1,
+      "pre": 1,
+      "post": 1,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 1,
+      "nativeMessages": 2,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0,
+      "cost": [
+        {
+          "callbacks": 1,
+          "callbackMs": 1,
+          "maxCallbackMs": 1,
+          "queries": 16,
+          "returned": 1,
+          "mutations": 1,
+          "runtimeMessages": 2,
+          "initialMs": 2.1000000005587935
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "lazy-source",
+      "films": 1,
+      "preEligible": 1,
+      "pre": 0,
+      "post": 0,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 0,
+      "nativeMessages": 1,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0,
+      "cost": [
+        {
+          "callbacks": 0,
+          "callbackMs": 0,
+          "maxCallbackMs": 0,
+          "queries": 9,
+          "returned": 4,
+          "mutations": 0,
+          "runtimeMessages": 1,
+          "initialMs": 8.299999999813735
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "jsonld",
+      "films": 1,
+      "preEligible": 1,
+      "pre": 1,
+      "post": 1,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 1,
+      "nativeMessages": 2,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0,
+      "cost": [
+        {
+          "callbacks": 0,
+          "callbackMs": 0,
+          "maxCallbackMs": 0,
+          "queries": 7,
+          "returned": 2,
+          "mutations": 0,
+          "runtimeMessages": 2,
+          "initialMs": 8.200000000186265
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "player-config",
+      "films": 1,
+      "preEligible": 1,
+      "pre": 1,
+      "post": 1,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 1,
+      "nativeMessages": 2,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0,
+      "cost": [
+        {
+          "callbacks": 0,
+          "callbackMs": 0,
+          "maxCallbackMs": 0,
+          "queries": 7,
+          "returned": 1,
+          "mutations": 0,
+          "runtimeMessages": 2,
+          "initialMs": 10.700000000186265
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "config-variants-playlist",
+      "films": 2,
+      "preEligible": 2,
+      "pre": 2,
+      "post": 2,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 3,
+      "nativeMessages": 4,
+      "wrongMerges": 0,
+      "duplicateMaterials": 1,
+      "cost": [
+        {
+          "callbacks": 0,
+          "callbackMs": 0,
+          "maxCallbackMs": 0,
+          "queries": 7,
+          "returned": 1,
+          "mutations": 0,
+          "runtimeMessages": 4,
+          "initialMs": 5.1000000005587935
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "hydration-wrapper",
+      "films": 1,
+      "preEligible": 1,
+      "pre": 0,
+      "post": 0,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 0,
+      "nativeMessages": 1,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0,
+      "cost": [
+        {
+          "callbacks": 0,
+          "callbackMs": 0,
+          "maxCallbackMs": 0,
+          "queries": 7,
+          "returned": 1,
+          "mutations": 0,
+          "runtimeMessages": 1,
+          "initialMs": 5.2999999998137355
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "relative-player-literal",
+      "films": 1,
+      "preEligible": 1,
+      "pre": 0,
+      "post": 0,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 0,
+      "nativeMessages": 1,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0,
+      "cost": [
+        {
+          "callbacks": 0,
+          "callbackMs": 0,
+          "maxCallbackMs": 0,
+          "queries": 7,
+          "returned": 1,
+          "mutations": 0,
+          "runtimeMessages": 1,
+          "initialMs": 30.90000000037253
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "many-40",
+      "films": 40,
+      "preEligible": 40,
+      "pre": 40,
+      "post": 40,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 40,
+      "nativeMessages": 41,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0,
+      "cost": [
+        {
+          "callbacks": 0,
+          "callbackMs": 0,
+          "maxCallbackMs": 0,
+          "queries": 87,
+          "returned": 40,
+          "mutations": 0,
+          "runtimeMessages": 41,
+          "initialMs": 7.7000000001862645
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "tail-after-130-placeholders",
+      "films": 20,
+      "preEligible": 20,
+      "pre": 0,
+      "post": 0,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 0,
+      "nativeMessages": 1,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0,
+      "cost": [
+        {
+          "callbacks": 0,
+          "callbackMs": 0,
+          "maxCallbackMs": 0,
+          "queries": 263,
+          "returned": 150,
+          "mutations": 0,
+          "runtimeMessages": 1,
+          "initialMs": 4
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "late-after-160-links",
+      "films": 1,
+      "preEligible": 1,
+      "pre": 0,
+      "post": 0,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 0,
+      "nativeMessages": 1,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0,
+      "cost": [
+        {
+          "callbacks": 1,
+          "callbackMs": 1,
+          "maxCallbackMs": 1,
+          "queries": 14,
+          "returned": 341,
+          "mutations": 1,
+          "runtimeMessages": 1,
+          "initialMs": 4.7999999998137355
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "open-shadow",
+      "films": 1,
+      "preEligible": 1,
+      "pre": 0,
+      "post": 0,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 0,
+      "nativeMessages": 1,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0,
+      "cost": [
+        {
+          "callbacks": 1,
+          "callbackMs": 0,
+          "maxCallbackMs": 0,
+          "queries": 14,
+          "returned": 0,
+          "mutations": 1,
+          "runtimeMessages": 1,
+          "initialMs": 1.099999999627471
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "after-play-only",
+      "films": 1,
+      "preEligible": 0,
+      "pre": 0,
+      "post": 1,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 1,
+      "nativeMessages": 2,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0,
+      "cost": [
+        {
+          "callbacks": 1,
+          "callbackMs": 0.7000000001862645,
+          "maxCallbackMs": 0.7000000001862645,
+          "queries": 18,
+          "returned": 2,
+          "mutations": 1,
+          "runtimeMessages": 2,
+          "initialMs": 1.5
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "multi-player",
+      "films": 2,
+      "preEligible": 2,
+      "pre": 2,
+      "post": 2,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 2,
+      "nativeMessages": 3,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0,
+      "cost": [
+        {
+          "callbacks": 0,
+          "callbackMs": 0,
+          "maxCallbackMs": 0,
+          "queries": 11,
+          "returned": 2,
+          "mutations": 0,
+          "runtimeMessages": 3,
+          "initialMs": 6.900000000372529
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "metadata-mime",
+      "films": 1,
+      "preEligible": 1,
+      "pre": 0,
+      "post": 0,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 0,
+      "nativeMessages": 1,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0,
+      "cost": [
+        {
+          "callbacks": 0,
+          "callbackMs": 0,
+          "maxCallbackMs": 0,
+          "queries": 7,
+          "returned": 2,
+          "mutations": 0,
+          "runtimeMessages": 1,
+          "initialMs": 1.6000000005587935
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "spa-navigation",
+      "films": 1,
+      "preEligible": 1,
+      "pre": 1,
+      "post": 1,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 2,
+      "nativeMessages": 4,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0,
+      "cost": [
+        {
+          "callbacks": 1,
+          "callbackMs": 0.39999999944120646,
+          "maxCallbackMs": 0.39999999944120646,
+          "queries": 18,
+          "returned": 2,
+          "mutations": 1,
+          "runtimeMessages": 4,
+          "initialMs": 4.699999999254942
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "dynamic-config-text",
+      "films": 1,
+      "preEligible": 1,
+      "pre": 1,
+      "post": 1,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 1,
+      "nativeMessages": 2,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0,
+      "cost": [
+        {
+          "callbacks": 1,
+          "callbackMs": 0.599999999627471,
+          "maxCallbackMs": 0.599999999627471,
+          "queries": 14,
+          "returned": 2,
+          "mutations": 1,
+          "runtimeMessages": 2,
+          "initialMs": 1.5
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "negative-declarations",
+      "films": 0,
+      "preEligible": 0,
+      "pre": 0,
+      "post": 0,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 0,
+      "nativeMessages": 1,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0,
+      "cost": [
+        {
+          "callbacks": 0,
+          "callbackMs": 0,
+          "maxCallbackMs": 0,
+          "queries": 7,
+          "returned": 4,
+          "mutations": 0,
+          "runtimeMessages": 1,
+          "initialMs": 3.599999999627471
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "negative-segments",
+      "films": 0,
+      "preEligible": 0,
+      "pre": 0,
+      "post": 0,
+      "falsePositives": 1,
+      "duplicateMessages": 0,
+      "messages": 1,
+      "nativeMessages": 2,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0,
+      "cost": [
+        {
+          "callbacks": 0,
+          "callbackMs": 0,
+          "maxCallbackMs": 0,
+          "queries": 13,
+          "returned": 3,
+          "mutations": 0,
+          "runtimeMessages": 2,
+          "initialMs": 4.5
+        }
+      ],
+      "extraRequests": 0
+    },
+    {
+      "id": "network-mime",
+      "films": 1,
+      "preEligible": 1,
+      "pre": 1,
+      "post": 1,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 1,
+      "nativeMessages": 1,
+      "cost": [],
+      "extraRequests": 0,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0
+    },
+    {
+      "id": "signed-revisions",
+      "films": 1,
+      "preEligible": 1,
+      "pre": 1,
+      "post": 1,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 2,
+      "nativeMessages": 2,
+      "cost": [],
+      "extraRequests": 0,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0
+    },
+    {
+      "id": "hls-master-variants",
+      "films": 1,
+      "preEligible": 1,
+      "pre": 1,
+      "post": 1,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 3,
+      "nativeMessages": 3,
+      "cost": [],
+      "extraRequests": 1,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0
+    },
+    {
+      "id": "hls-media-blob-network-source",
+      "films": 1,
+      "preEligible": 1,
+      "pre": 1,
+      "post": 1,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 3,
+      "nativeMessages": 3,
+      "cost": [],
+      "extraRequests": 2,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0
+    },
+    {
+      "id": "dash-template",
+      "films": 1,
+      "preEligible": 1,
+      "pre": 1,
+      "post": 1,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 1,
+      "nativeMessages": 1,
+      "cost": [],
+      "extraRequests": 1,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0
+    },
+    {
+      "id": "redirect-cdn",
+      "films": 1,
+      "preEligible": 1,
+      "pre": 0,
+      "post": 0,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 0,
+      "nativeMessages": 1,
+      "cost": [],
+      "extraRequests": 0,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0
+    },
+    {
+      "id": "negative-html-mp4",
+      "films": 0,
+      "preEligible": 0,
+      "pre": 0,
+      "post": 0,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 0,
+      "nativeMessages": 0,
+      "cost": [],
+      "extraRequests": 0,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0
+    },
+    {
+      "id": "negative-octet",
+      "films": 0,
+      "preEligible": 0,
+      "pre": 0,
+      "post": 0,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 0,
+      "nativeMessages": 0,
+      "cost": [],
+      "extraRequests": 0,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0
+    },
+    {
+      "id": "negative-segment-ts",
+      "films": 0,
+      "preEligible": 0,
+      "pre": 0,
+      "post": 0,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 0,
+      "nativeMessages": 0,
+      "cost": [],
+      "extraRequests": 0,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0
+    },
+    {
+      "id": "negative-segment-m4s",
+      "films": 0,
+      "preEligible": 0,
+      "pre": 0,
+      "post": 0,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 0,
+      "nativeMessages": 0,
+      "cost": [],
+      "extraRequests": 0,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0
+    },
+    {
+      "id": "negative-init",
+      "films": 0,
+      "preEligible": 0,
+      "pre": 0,
+      "post": 0,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 0,
+      "nativeMessages": 0,
+      "cost": [],
+      "extraRequests": 0,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0
+    },
+    {
+      "id": "negative-manifest",
+      "films": 0,
+      "preEligible": 0,
+      "pre": 0,
+      "post": 0,
+      "falsePositives": 1,
+      "duplicateMessages": 0,
+      "messages": 1,
+      "nativeMessages": 1,
+      "cost": [],
+      "extraRequests": 1,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0
+    },
+    {
+      "id": "negative-drm",
+      "films": 0,
+      "preEligible": 0,
+      "pre": 0,
+      "post": 0,
+      "falsePositives": 1,
+      "duplicateMessages": 0,
+      "messages": 1,
+      "nativeMessages": 1,
+      "cost": [],
+      "extraRequests": 1,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0
+    },
+    {
+      "id": "negative-auth",
+      "films": 0,
+      "preEligible": 0,
+      "pre": 0,
+      "post": 0,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 1,
+      "nativeMessages": 1,
+      "cost": [],
+      "extraRequests": 0,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0
+    },
+    {
+      "id": "negative-stale-doc",
+      "films": 0,
+      "preEligible": 0,
+      "pre": 0,
+      "post": 0,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 0,
+      "nativeMessages": 1,
+      "cost": [],
+      "extraRequests": 0,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0
+    },
+    {
+      "id": "tab-close-pending",
+      "films": 0,
+      "preEligible": 0,
+      "pre": 0,
+      "post": 0,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 1,
+      "nativeMessages": 1,
+      "cost": [],
+      "extraRequests": 1,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0
+    }
+  ]
+}

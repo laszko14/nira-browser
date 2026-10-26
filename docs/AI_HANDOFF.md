@@ -1,3 +1,9 @@
+# Aktualny punkt startu — Zavro x MPV v1163
+
+Baza b6908c9238d43fbfa69d3cc77445d650b0e9bb35, gałąź `feat/zavro-x-mpv-v1163-max-video-discovery`. [Handoff](ZAVRO_X_MPV_V1163_HANDOFF.md), [wznowienie](CODEX_RESUME_V1163.md).16grup napraw/rozszerzeń detektora, wspólnefixtures89filmów;61→88 przedPlay i62→89 po. Android/realGecko NIEURUCHOMIONE. Końcowy SHA, PR, CI i podpisanyAPK mają być potwierdzone w aneksie opisu PR po jedynym push. Nie zaczynać następnej wersji.
+
+---
+
 # Aktualny punkt startu — Zavro x MPV v1162
 
 Baza a3fa1232265348cb3ac3405c6e56594a6634a3b0, gałąź `fix/zavro-x-mpv-v1162-app-wide-reliability-audit`. [Handoff](ZAVRO_X_MPV_V1162_HANDOFF.md), [inwentarz](ZAVRO_X_MPV_V1162_INVENTORY.md), [wznowienie](CODEX_RESUME_V1162.md). Audyt przekrojowy,12usterek na granicach profili/gestów/download/cookies/PWA/logów. Dane, pakiet, certyfikat i integracja MPV zachowane. Nie utożsamiać testów hosta z telefonem. Poniżej zachowano historię.

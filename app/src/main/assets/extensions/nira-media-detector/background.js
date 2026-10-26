@@ -1,7 +1,7 @@
 "use strict";
 
 // Stage 3.2: passive Gecko WebExtension response inspection. No body access, blocking,
-// cookie/authorization capture, URL logging, persistent storage or additional fetches.
+// cookie/authorization capture, URL logging or persistent storage. Bounded manifest probes below.
 const MAX_URL_BYTES = 8192;
 const MAX_MIME_BYTES = 128;
 const MAX_SEEN = 128;
@@ -148,6 +148,8 @@ function startFrame(message, sender) {
   if (!root) return null; // Never assign a subframe to the selected/active tab.
   const frame = { tabId: sender.tab.id, frameId: sender.frameId, frameUrl: message.frameUrl,
     pageUrl: root.pageUrl, documentKey: root.documentKey, frameKey: ++nextFrameKey };
+  const previous = frames.get(frameId(sender));
+  if (previous) cancelFrameTasks(previous.tabId, previous.frameKey);
   frames.set(frameId(sender), frame);
   while (frames.size > MAX_FRAMES) frames.delete(frames.keys().next().value);
   return { pageUrl: root.pageUrl, documentKey: root.documentKey,
@@ -185,6 +187,14 @@ function validDom(message, sender) {
 browser.runtime.onMessage.addListener((message, sender) => {
   if (message && message.event === "document_started") return Promise.resolve(startDocument(message, sender));
   if (message && message.event === "frame_started") return Promise.resolve(startFrame(message, sender));
+  if (message && message.event === "frame_ended") {
+    const frame = isExtensionSender(sender) && frames.get(frameId(sender));
+    const valid = !!frame && sender.frameId > 0 && sender.url === frame.frameUrl &&
+      message.schemaVersion === 1 && Object.keys(message).sort().join(",") === "event,frameKey,schemaVersion" &&
+      message.frameKey === frame.frameKey;
+    if (valid) { cancelFrameTasks(frame.tabId, frame.frameKey); frames.delete(frameId(sender)); }
+    return Promise.resolve(valid);
+  }
   if (!validDom(message, sender)) return Promise.resolve(null);
   const reply = { ...message };
   if ("groupId" in reply) reply.groupId = sender.frameId === 0 ?
@@ -208,7 +218,13 @@ if (browser.tabs && browser.tabs.onRemoved && typeof browser.tabs.onRemoved.addL
 }
 
 function manifestKey(task) {
-  return task.tabId + ":" + task.documentKey + ":" + String(task.isPrivate) + ":" + task.url;
+  return task.tabId + ":" + task.documentKey + ":" + (task.frameKey || 0) + ":" + String(task.isPrivate) + ":" + task.url;
+}
+function cancelFrameTasks(tabId, frameKey) {
+  for (let i = manifestQueue.length - 1; i >= 0; i--)
+    if (manifestQueue[i].tabId === tabId && manifestQueue[i].frameKey === frameKey) manifestQueue.splice(i, 1);
+  for (const value of manifestInflight.values())
+    if (value.tabId === tabId && value.frameKey === frameKey) value.controller?.abort();
 }
 function cancelManifestTasks(tabId) {
   for (let index = manifestQueue.length - 1; index >= 0; index--)
@@ -243,7 +259,7 @@ function onBefore(details) {
         (typeof details.documentUrl === "string" && details.documentUrl !== frame.frameUrl))
       return;
   } else if (typeof details.documentUrl === "string" && details.documentUrl !== doc.pageUrl) return;
-  requests.delete(key);
+  if (requests.has(key)) return; // A redirect retains its original document/sequence.
   requests.set(key, { documentKey: doc.documentKey,
     frameKey: frame ? frame.frameKey : null, frameUrl: frame ? frame.frameUrl : null,
     frameId: frame ? frame.frameId : 0, requestSequence: ++nextRequestSequence });
@@ -263,6 +279,25 @@ const anonymous = (event, isPrivate, count) => {
   try { Promise.resolve(browser.runtime.sendNativeMessage("nira.media.detector", message))
     .catch(() => {}); } catch (_) {}
 };
+// Anonymous categories are deliberately NOT attributed to any profile/tab.
+const discoveryStats = new Map();
+let discoveryTimer = null;
+function discovery(code, isPrivate, count = 1) {
+  if (typeof isPrivate !== "boolean") return;
+  const key = code + ":" + isPrivate;
+  discoveryStats.set(key, Math.min(100000, (discoveryStats.get(key) || 0) + count));
+  if (discoveryTimer !== null) return;
+  discoveryTimer = setTimeout(() => {
+    discoveryTimer = null;
+    for (const [key, count] of discoveryStats) {
+      const [code, privacy] = key.split(":");
+      Promise.resolve(browser.runtime.sendNativeMessage("nira.media.detector", {
+        schemaVersion: 1, event: "discovery_stats", code, count, isPrivate: privacy === "true",
+      })).catch(() => {});
+    }
+    discoveryStats.clear();
+  }, 1000);
+}
 const segmentBuckets = { regular: 0, private: 0 };
 let segmentFlushPending = false;
 function flushSegments() {
@@ -286,6 +321,8 @@ function onHeaders(details) {
   if (!details || typeof details !== "object") return;
   const key = requestKey(details);
   const requestDocumentKey = key ? requests.get(key) : null;
+  // onHeadersReceived also fires for redirects. Keep ownership until the final response.
+  if (typeof details.statusCode === "number" && details.statusCode >= 300 && details.statusCode < 400) return;
   if (key) requests.delete(key);
   if (["image", "imageset", "ping", "beacon", "script", "stylesheet", "font", "csp_report"].includes(details.type)) return;
   if (!probeSent && typeof details.url === "string" &&
@@ -324,21 +361,22 @@ function onHeaders(details) {
       (typeof details.documentUrl === "string" &&
         details.documentUrl !== (requestFrame ? requestFrame.frameUrl : doc.pageUrl))) {
     anonymous("network_unassigned", details.incognito);
+    discovery("frame_mismatch", details.incognito);
     return;
   }
   const now = Date.now();
-  const rateKey = tabId + ":" + String(details.incognito);
-  const slot = routedRate.get(rateKey);
-  if (!slot || now - slot.since >= 5000) routedRate.set(rateKey, { since: now, count: 1 });
-  else if (slot.count >= MAX_ROUTED_PER_5S) return;
-  else slot.count++;
-  while (routedRate.size > 64) routedRate.delete(routedRate.keys().next().value);
   const sizeBytes = contentSize(details, format);
-  const dedupKey = tabId + ":" + doc.documentKey + ":" + String(details.incognito) +
-    ":" + details.url + ":" + format;
+  const dedupKey = tabId + ":" + doc.documentKey + ":" + (requestFrame?.frameKey || 0) + ":" + String(details.incognito) +
+    ":" + details.url + ":" + format + ":" + details.statusCode + ":" + (contentType || "");
   const previously = seen.get(dedupKey);
   if (previously && now - previously.at < RECENT_MS &&
       (sizeBytes === null || previously.sizeBytes === sizeBytes)) return;
+  const rateKey = tabId + ":" + String(details.incognito);
+  const slot = routedRate.get(rateKey);
+  if (!slot || now - slot.since >= 5000) routedRate.set(rateKey, { since: now, count: 1 });
+  else if (slot.count >= MAX_ROUTED_PER_5S) { discovery("queue_limit", details.incognito); return; }
+  else slot.count++;
+  while (routedRate.size > 64) routedRate.delete(routedRate.keys().next().value);
   seen.delete(dedupKey);
   seen.set(dedupKey, { at: now, sizeBytes });
   while (seen.size > MAX_SEEN) seen.delete(seen.keys().next().value);
@@ -386,6 +424,24 @@ function onHeaders(details) {
   } catch (_) { anonymous("network_unassigned", details.incognito); }
 }
 
+async function rejectManifest(task) {
+  if (!currentTask(task)) return;
+  const message = { schemaVersion: 1, event: "media_candidate", source: "network",
+    url: task.url, contentType: task.format === "HLS" ? "application/vnd.apple.mpegurl" : "application/dash+xml",
+    provenance: "observed", verification: "unplayable", isPrivate: task.isPrivate,
+    documentKey: task.documentKey, pageUrl: task.pageUrl, groupId: task.groupId };
+  if (task.frameKey && task.frameUrl) { message.frameKey = task.frameKey; message.frameUrl = task.frameUrl; }
+  if (Number.isSafeInteger(task.requestSequence)) message.requestSequence = task.requestSequence;
+  await browser.tabs.sendMessage(task.tabId, message, { frameId: 0 });
+}
+function currentTask(task) {
+  const doc = documents.get(task.tabId);
+  if (!doc || doc.documentKey !== task.documentKey || doc.pageUrl !== task.pageUrl) return false;
+  if (!task.frameKey) return true;
+  return [...frames.values()].some(frame => frame.tabId === task.tabId &&
+    frame.documentKey === task.documentKey && frame.frameKey === task.frameKey &&
+    frame.frameUrl === task.frameUrl);
+}
 function queueManifest(task) {
   if (typeof fetch !== "function" || !globalThis.NiraManifestParser) return;
   const now = Date.now();
@@ -393,7 +449,7 @@ function queueManifest(task) {
   const cached = manifestCache.get(key);
   if (cached && now - cached < MANIFEST_TTL_MS) return;
   if (manifestInflight.has(key) || manifestQueue.some(item => manifestKey(item) === key)) return;
-  if (manifestQueue.length >= MAX_MANIFEST_QUEUE) return;
+  if (manifestQueue.length >= MAX_MANIFEST_QUEUE) { discovery("queue_limit", task.isPrivate); return; }
   manifestQueue.push(task);
   drainManifests();
 }
@@ -401,7 +457,7 @@ function drainManifests() {
   while (manifestActive < MAX_MANIFEST_ACTIVE && manifestQueue.length) {
     const task = manifestQueue.shift();
     const current = documents.get(task.tabId);
-    if (!current || current.documentKey !== task.documentKey || current.pageUrl !== task.pageUrl) continue;
+    if (!currentTask(task)) continue;
     manifestActive++;
     inspectManifest(task).catch(() => {}).finally(() => {
       manifestActive--;
@@ -412,23 +468,24 @@ function drainManifests() {
 async function inspectManifest(task) {
   const controller = typeof AbortController === "function" ? new AbortController() : null;
   const key = manifestKey(task);
-  manifestInflight.set(key, { tabId: task.tabId, controller });
+  manifestInflight.set(key, { tabId: task.tabId, frameKey: task.frameKey, controller });
+  let response = null, reader = null, segment = null;
   const timeout = setTimeout(() => { if (controller) controller.abort(); }, 4000);
   try {
-    const response = await fetch(task.url, {
+    response = await fetch(task.url, {
       method: "GET", credentials: "omit", redirect: "follow", cache: "no-store",
       referrer: task.frameUrl || task.pageUrl,
       signal: controller ? controller.signal : undefined,
     });
-    if (!response || !response.ok) return;
+    if (!response || !response.ok) { discovery("unavailable", task.isPrivate); return; }
     const finalUrl = safeUrl(response.url) ? response.url : task.url;
     const responseType = response.headers && response.headers.get("content-type");
-    if (classify(finalUrl, responseType) !== task.format) return;
+    if (classify(finalUrl, responseType) !== task.format) { discovery("manifest_invalid", task.isPrivate); return; }
     const declared = response.headers && response.headers.get("content-length");
     if (declared && (!/^\d+$/.test(declared) || Number(declared) > MAX_MANIFEST_BYTES)) return;
     if (!response.body || typeof response.body.getReader !== "function" ||
         typeof TextDecoder !== "function") return;
-    const reader = response.body.getReader();
+    reader = response.body.getReader();
     const decoder = new TextDecoder("utf-8", { fatal: false });
     let bytes = 0, text = "";
     while (true) {
@@ -446,11 +503,11 @@ async function inspectManifest(task) {
       NiraManifestParser.parseHls(text, finalUrl, 8) :
       NiraManifestParser.parseDash(text, finalUrl, 8);
     const current = documents.get(task.tabId);
-    if (!current || current.documentKey !== task.documentKey || current.pageUrl !== task.pageUrl) return;
+    if (!currentTask(task) || controller?.signal.aborted) return;
     const verified = { schemaVersion: 1, event: "media_candidate", source: "network",
       provenance: "observed", verification: "manifest_verified",
       httpStatus: Number.isInteger(response.status) ? response.status : 200,
-      url: finalUrl, isPrivate: task.isPrivate, documentKey: task.documentKey,
+      url: task.url, isPrivate: task.isPrivate, documentKey: task.documentKey,
       pageUrl: task.pageUrl, groupId: task.groupId,
       contentType: task.format === "HLS" ? "application/vnd.apple.mpegurl" : "application/dash+xml" };
     if (Number.isSafeInteger(task.requestSequence)) verified.requestSequence = task.requestSequence;
@@ -458,19 +515,30 @@ async function inspectManifest(task) {
       verified.frameKey = task.frameKey;
       verified.frameUrl = task.frameUrl;
     }
+    if (parsed.drm) {
+      discovery("drm", task.isPrivate);
+      verified.verification = "unplayable";
+      await browser.tabs.sendMessage(task.tabId, verified, { frameId: 0 });
+      return;
+    }
+    discovery("manifest_valid", task.isPrivate);
+    // A validated MPD/master is still NEEDS_VERIFICATION, never stream-confirmed.
+    if (task.format === "DASH")
+      await browser.tabs.sendMessage(task.tabId, verified, { frameId: 0 });
     if (task.format === "HLS" && parsed.kind === "media" && safeUrl(parsed.firstSegmentUrl)) {
       await browser.tabs.sendMessage(task.tabId, verified, { frameId: 0 });
-      const segment = await fetch(parsed.firstSegmentUrl, {
+      segment = await fetch(parsed.firstSegmentUrl, {
         method: "GET", credentials: "omit", redirect: "follow", cache: "no-store",
         referrer: task.frameUrl || task.pageUrl, headers: { Range: "bytes=0-0" },
         signal: controller ? controller.signal : undefined,
       });
       const segmentType = segment?.headers?.get?.("content-type")?.split(";")[0].trim().toLowerCase();
       const finalSegmentPath = segment && safeUrl(segment.url) ? pathOf(segment.url) : "";
-      const plausibleSegment = segmentPath(finalSegmentPath) ||
-        !!segmentType && (segmentType.startsWith("video/") || segmentType.startsWith("audio/") ||
-          segmentType === "application/octet-stream" || segmentType === "binary/octet-stream");
-      if (segment && (segment.ok || segment.status === 206) && plausibleSegment &&
+      const plausibleSegment = segmentType ?
+        (segmentType.startsWith("video/") || segmentType.startsWith("audio/") ||
+          segmentType === "application/octet-stream" || segmentType === "binary/octet-stream") :
+        segmentPath(finalSegmentPath);
+      if (currentTask(task) && !controller?.signal.aborted && segment && (segment.ok || segment.status === 206) && plausibleSegment &&
           !/\.(?:m3u8|mpd)$/i.test(finalSegmentPath)) {
         if (segment.body && typeof segment.body.cancel === "function")
           await segment.body.cancel().catch(() => {});
@@ -483,6 +551,7 @@ async function inspectManifest(task) {
     // DASH representations can refer to initialization/segment templates, not
     // playable MP4 files. Keep the observed MPD; never export fake direct videos.
     for (const variant of (task.format === "HLS" ? parsed.variants || [] : [])) {
+      if (!currentTask(task) || controller?.signal.aborted) return;
       if (!safeUrl(variant.url)) continue;
       const lineageKey = streamGroupKey(task.tabId, task.documentKey, task.isPrivate,
         task.frameKey, variant.url);
@@ -506,9 +575,25 @@ async function inspectManifest(task) {
     }
     manifestCache.set(key, Date.now());
     while (manifestCache.size > 32) manifestCache.delete(manifestCache.keys().next().value);
-  } finally { clearTimeout(timeout); manifestInflight.delete(key); }
+  } catch (error) {
+    if (currentTask(task) && !controller?.signal.aborted) {
+      discovery("manifest_invalid", task.isPrivate);
+      if (/^(?:invalid_hls|invalid_dash)$/.test(error?.message || "")) await rejectManifest(task);
+    }
+  } finally {
+    clearTimeout(timeout);
+    try { if (reader) { await reader.cancel().catch(() => {}); reader.releaseLock?.(); } } catch (_) {}
+    for (const body of [response?.body, segment?.body])
+      try { await body?.cancel?.().catch(() => {}); } catch (_) {}
+    if (manifestInflight.get(key)?.controller === controller) manifestInflight.delete(key);
+  }
 }
 if (browser.webRequest && browser.webRequest.onHeadersReceived) {
   browser.webRequest.onHeadersReceived.addListener(onHeaders,
     { urls: ["http://*/*", "https://*/*"] }, ["responseHeaders"]);
 }
+
+for (const event of [browser.webRequest?.onCompleted, browser.webRequest?.onErrorOccurred])
+  if (event && typeof event.addListener === "function") event.addListener(details => {
+    const key = requestKey(details); if (key) requests.delete(key);
+  }, { urls: ["http://*/*", "https://*/*"] });

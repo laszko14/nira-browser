@@ -80,6 +80,10 @@ internal class MediaDetectorController(private val engine: Engine, private val s
                 }
                 val decoded = (message as? JSONObject)?.toString()?.let(MediaMessageProtocol::decode)
                 when (decoded) {
+                    is MediaDetectorMessage.DiscoveryStat -> {
+                        val privateMode = decoded.isPrivate ?: return false
+                        MediaDetectorDiagnostics.discoveryAnonymous(privateMode, decoded.code, decoded.count)
+                    }
                     MediaDetectorMessage.NetworkProbe -> {
                         MediaDetectorDiagnostics.networkProbe()
                         diagnostic("webrequest_callback_received")
@@ -179,6 +183,15 @@ internal class MediaDetectorController(private val engine: Engine, private val s
                 if (result.removed > 0) MediaDetectorDiagnostics.navigationRemoved(context, result.removed)
                 return true
             }
+            if (decoded is MediaDetectorMessage.DiscoveryStat) {
+                val key = decoded.documentKey ?: return false
+                if (!repository.isCurrentDocument(tab, key)) {
+                    MediaDetectorDiagnostics.stale(context)
+                    return false
+                }
+                MediaDetectorDiagnostics.discovery(context, decoded.code, decoded.count)
+                return true
+            }
             val candidate = decoded as? MediaDetectorMessage.Candidate
             if (candidate == null) {
                 MediaDetectorDiagnostics.validationError(context)
@@ -199,6 +212,7 @@ internal class MediaDetectorController(private val engine: Engine, private val s
             if (window == null || now - window.since >= 5000L) {
                 rate[registeredSession] = Window(now, 1)
             } else if (window.count >= 96) {
+                MediaDetectorDiagnostics.discovery(context, "queue_limit", 1)
                 return false
             } else {
                 window.count++

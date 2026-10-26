@@ -90,6 +90,8 @@ test("DASH MPD does not emit BaseURL child as a fake video", async () => {
   d.start();
   d.response("https://cdn.test/manifest.mpd", "mpd", "application/dash+xml");
   await tick(); await tick();
-  assert.equal(d.routed.length, 1);
+  assert.equal(d.routed.length, 2);
   assert.equal(d.routed[0].url, "https://cdn.test/manifest.mpd");
+  assert.equal(d.routed[1].url, d.routed[0].url);
+  assert.equal(d.routed[1].verification, "manifest_verified");
 });

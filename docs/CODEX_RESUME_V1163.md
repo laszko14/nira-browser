@@ -1,0 +1,25 @@
+# v1163 — checkpoint 3, przed CI (2026-10-26)
+- Baza b6908c9238d43fbfa69d3cc77445d650b0e9bb35 / v1162 / PR75 / CI40277823346 SUCCESS.
+- Gałąź feat/zavro-x-mpv-v1163-max-video-discovery. Ten checkpoint zapisany PRZED commit/push: po wznowieniu najpierw sprawdzić faktyczny HEAD/GitHub, nie dublować PR/CI.
+- Zachować work/. Bez subagentów, merge, pobierania APK i zmian package/certyfikatu/danych.
+- Final163/1163,0.5.22-alpha69-mpv37; .mpv,arm64 i dotychczasowy certyfikat.
+- Gotowe16grup poprawek/ograniczeń; dokładny raport ZAVRO_X_MPV_V1163_HANDOFF.md.
+- Porcje128/8ms/+32ms, mutationroot32, shadow/lazy/MIME/JSONwrappers/relative/baseURI, grupyvariantówbezmergeplaylist.
+- Network redirect/status/frame ownership, dedup przed rate96, cancel/retire iframe, currentTask before emit, cleanup odpowiedzi.
+- Parser waliduje header-onlyHLS i MPD/DRM; HTMLpod.ts nie potwierdza stream. OGG/MOV oraz extensionlessHLS blob selector naprawione.
+- VIDEO DISCOVERY: additive strict eventstatsv1, zakressesja/dokument/profil, bez URL. W Superteście1appendix i2etykietywersji, resztaMPVbez zmian.
+- Wspólna finalmacierz89filmów/88preeligible: baza61pre/62post, nowe88pre/89post; precision95.38→100%,FP3→0,duplicates1→0,wrongmerges0.
+- GET7→7; candidate messages75→105; allnative103→201. KosztJS wzrósł, nie deklarowaćFPS/RAM/przyspieszenia.
+- FinalJSON scripts/video-discovery/{baseline-v1162,result-v1163}.json +runner/lock/README gotowe, Chromium154.0.8037.57/Playwright1.62.1.
+- Fixtures testują DOM/adaptery, nie Gecko/Android. Wymagany testAPK na NothingPhone1 w handoff.
+- JUnit265/265, JS179/179, Lua77/77,DSP28/28; pełnyGradle TEST/LINT/BUILD/compileAndroidTest PASS4m42s.
+- Po review diagnosticsphase7Kotlin+assemble PASS33s,ostatniJS-onlyMIMEfix pełne179JS. FinalneCI przebuduje wszystkieassets/Kotlin.
+- Lint0nowych/0usuniętych:1462Fatal/258Error/444Warning/19Hint. work/v1163-lint-delta.json.
+- Oryginalne92hashes po odwróceniu9dokładnychdiscoverypatchy i2v1160UI;10v1160UIhashes zachowane. Nie zmieniono bazhash.
+- Pozytywny testblob wymagaRobolectric Application35; poprawnyRED log work/v1163-red-blob-valid-fixture.log (wcześniejszeinvalidfixture niejestbłędemapp).
+- Gitdiffcheck PASS, własnycodeReview, brakurządzenia(adbdevicespuste). Wszystkiepomiaryhosta, nieprawdziwewitryny.
+- NowyCIstep Playwrightnpmci+installChromium +fixtureJSONartifact, istniejące3jobs podpis/test/lint bezdodatkowegoAPK.
+- Dokładny następnykrok: finalgitstage(explicitbezwork/,docsforce),commit,push1raz;DraftPR do fix/zavro-x-mpv-v1162-app-wide-reliability-audit.
+- Potem monitorować1runCI;zweryfikowaćsukceswszystkich3jobs,APKarm64/package1163/versionName/certificateSHA wloguverify.
+- UzupełnićfaktyczneSHA/PR/CI/artefakt w opisiePRbezkolejnegopush,zweryfikowaćistnienieartefaktu,oddaćlinkiużytkownikowi.
+- NieogłaszaćgotowegoAPKprzedpodpisanymSUCCESS. Nieprzeprowadzaćmerge, niedublowaćzaliczonychtestówbeznowychzmian.

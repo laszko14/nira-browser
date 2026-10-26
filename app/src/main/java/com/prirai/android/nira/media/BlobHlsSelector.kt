@@ -19,8 +19,7 @@ internal object BlobHlsSelector {
                     val parsed=android.net.Uri.parse(it.url)
                     parsed.scheme in listOf("https","http") &&
                         !parsed.host.isNullOrBlank() &&
-                        parsed.userInfo == null &&
-                        parsed.path.orEmpty().endsWith(".m3u8",true)
+                        parsed.userInfo == null
                 }.getOrDefault(false)
         }
         // A quality variant group can have multiple entries. Never silently
