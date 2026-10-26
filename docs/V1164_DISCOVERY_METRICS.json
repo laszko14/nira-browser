@@ -73,7 +73,7 @@
           "routedMessages": 106,
           "extraGet": 0,
           "unassigned": 4,
-          "maxSyncCallbackMs": 1.1449770000000115,
+          "maxSyncCallbackMs": 0.3759820000000005,
           "peakEarly": 128,
           "peakRequests": 1,
           "peakFrames": 2
@@ -104,7 +104,7 @@
           "routedMessages": 5,
           "extraGet": 0,
           "unassigned": 0,
-          "maxSyncCallbackMs": 0.4734729999999985,
+          "maxSyncCallbackMs": 0.4233620000000009,
           "peakEarly": 1,
           "peakRequests": 1,
           "peakFrames": 2
@@ -280,12 +280,113 @@
       ]
     },
     "latest": {
-      "run": 40314069715,
-      "executed": 18,
-      "passed": 16,
-      "failed": [
-        "spaPushStateWithoutMutation",
-        "spaReplaceStateWithoutMutation"
+      "run": 40316669098,
+      "commit": "792d9dddbbbe1d874680f084805fdf156e0206c1",
+      "executed": 20,
+      "passed": 20,
+      "failed": [],
+      "artifact": 12647133520,
+      "cases": [
+        {
+          "name": "lateResponseAfterNavigationIsRejected",
+          "seconds": 6.62,
+          "passed": true
+        },
+        {
+          "name": "srcdocNetworkPrincipal",
+          "seconds": 2.352,
+          "passed": true
+        },
+        {
+          "name": "removedFrameRetiresOnlyItsOwnResults",
+          "seconds": 1.297,
+          "passed": true
+        },
+        {
+          "name": "crossOriginIframe",
+          "seconds": 0.894,
+          "passed": true
+        },
+        {
+          "name": "hlsBeforePlay",
+          "seconds": 1.015,
+          "passed": true
+        },
+        {
+          "name": "profileIsolation",
+          "seconds": 1.451,
+          "passed": true
+        },
+        {
+          "name": "privateIsolation",
+          "seconds": 3.41,
+          "passed": true
+        },
+        {
+          "name": "mp4BeforePlay",
+          "seconds": 0.942,
+          "passed": true
+        },
+        {
+          "name": "inheritedBlankNetworkPrincipal",
+          "seconds": 1.794,
+          "passed": true
+        },
+        {
+          "name": "redirect",
+          "seconds": 0.786,
+          "passed": true
+        },
+        {
+          "name": "selectedTabSwitchDoesNotMisassignSameUrl",
+          "seconds": 0.755,
+          "passed": true
+        },
+        {
+          "name": "replacementFrameCannotInheritOldMedia",
+          "seconds": 1.071,
+          "passed": true
+        },
+        {
+          "name": "nestedIframe",
+          "seconds": 1.093,
+          "passed": true
+        },
+        {
+          "name": "dynamicVideo",
+          "seconds": 0.76,
+          "passed": true
+        },
+        {
+          "name": "srcdocIframe",
+          "seconds": 0.76,
+          "passed": true
+        },
+        {
+          "name": "spaPushStateWithoutMutation",
+          "seconds": 1.894,
+          "passed": true
+        },
+        {
+          "name": "aboutBlankIframe",
+          "seconds": 1.265,
+          "passed": true
+        },
+        {
+          "name": "closedSessionCannotRetainResultsAndReopenStillWorks",
+          "seconds": 1.165,
+          "passed": true
+        },
+        {
+          "name": "spaReplaceStateWithoutMutation",
+          "seconds": 2.017,
+          "passed": true
+        },
+        {
+          "name": "earlyNetworkBeforeRegistration",
+          "seconds": 0.913,
+          "passed": true
+        }
       ]
     },
     "phone": "NOT RUN",
@@ -390,7 +491,136 @@
           "firstResultMs": 787
         }
       ],
-      "scope": "open synthetic fixture to first accepted native repository result; entries are not unique films; not phone or MPV"
+      "scope": "open synthetic fixture to first accepted native repository result; entries are not unique films; not phone or MPV",
+      "final": [
+        {
+          "case": "/blank",
+          "acceptedEntries": 1,
+          "firstResultMs": 854
+        },
+        {
+          "case": "/basic",
+          "acceptedEntries": 1,
+          "firstResultMs": 215
+        },
+        {
+          "case": "/cross",
+          "acceptedEntries": 1,
+          "firstResultMs": 494
+        },
+        {
+          "case": "/dynamic",
+          "acceptedEntries": 1,
+          "firstResultMs": 326
+        },
+        {
+          "case": "/early",
+          "acceptedEntries": 1,
+          "firstResultMs": 464
+        },
+        {
+          "case": "/hls",
+          "acceptedEntries": 1,
+          "firstResultMs": 522
+        },
+        {
+          "case": "/blank-network",
+          "acceptedEntries": 1,
+          "firstResultMs": 1470
+        },
+        {
+          "case": "/basic",
+          "acceptedEntries": 1,
+          "firstResultMs": 462
+        },
+        {
+          "case": "/nested",
+          "acceptedEntries": 1,
+          "firstResultMs": 611
+        },
+        {
+          "case": "/basic",
+          "acceptedEntries": 1,
+          "firstResultMs": 1729
+        },
+        {
+          "case": "/redirect-page",
+          "acceptedEntries": 1,
+          "firstResultMs": 353
+        },
+        {
+          "case": "/spa",
+          "acceptedEntries": 1,
+          "firstResultMs": 1470
+        },
+        {
+          "case": "/replace",
+          "acceptedEntries": 1,
+          "firstResultMs": 1605
+        },
+        {
+          "case": "/srcdoc",
+          "acceptedEntries": 1,
+          "firstResultMs": 431
+        },
+        {
+          "case": "/srcdoc-network",
+          "acceptedEntries": 1,
+          "firstResultMs": 1308
+        }
+      ]
+    },
+    "diagnostic": {
+      "run": 40315881821,
+      "executed": 2,
+      "failed": 2,
+      "cause": "exact UUID/parent/partition; only loading-principal URL matches frozen sender context, not current route; corrected after diagnosis"
     }
+  },
+  "validation": {
+    "JUnit": {
+      "tests": 276,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "JS": {
+      "tests": 199,
+      "failures": 0
+    },
+    "Lua": {
+      "tests": 77,
+      "environment": "system Lua, synthetic MP API; not Android"
+    },
+    "DSP": {
+      "tests": 28,
+      "environment": "system FFmpeg; not Android"
+    },
+    "lint": {
+      "before": {
+        "Error": 258,
+        "Warning": 444,
+        "Fatal": 1462,
+        "Hint": 19
+      },
+      "after": {
+        "Error": 258,
+        "Warning": 436,
+        "Fatal": 1462,
+        "Hint": 19
+      },
+      "new": [],
+      "removed": [
+        "('NewerVersionAvailable', 'Warning', 'A newer version of org.mockito:mockito-core than 5.20.0 is available: 5.24.0', ('/workspace/nira-browser/app/build.gradle',))",
+        "('NewerVersionAvailable', 'Warning', 'A newer version of org.robolectric:robolectric than 4.16 is available: 4.17', ('/workspace/nira-browser/app/build.gradle',))",
+        "('NewerVersionAvailable', 'Warning', 'A newer version of org.jetbrains.kotlinx:kotlinx-coroutines-test than 1.10.2 is available: 1.11.0', ('/workspace/nira-browser/app/build.gradle',))",
+        "('ChromeOsAbiSupport', 'Warning', 'Missing x86_64 ABI support for ChromeOS', ('/workspace/nira-browser/app/build.gradle',))",
+        "('UseTomlInstead', 'Warning', 'Use version catalog instead', ('/workspace/nira-browser/app/build.gradle',))",
+        "('UseTomlInstead', 'Warning', 'Use version catalog instead', ('/workspace/nira-browser/app/build.gradle',))",
+        "('UseTomlInstead', 'Warning', 'Use version catalog instead', ('/workspace/nira-browser/app/build.gradle',))",
+        "('UseTomlInstead', 'Warning', 'Use version catalog instead', ('/workspace/nira-browser/app/build.gradle',))"
+      ]
+    },
+    "gradle": "assembleDebug testDebugUnitTest lintDebug compileDebugAndroidTestKotlin PASS4m22s; signed release CI still pending"
   }
 }

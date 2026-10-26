@@ -40,15 +40,19 @@ Lokalny emulator bez KVM wystartował po957 s, następnie zawiesił wątki QEMU 
 
 5. CI40314069715: **18 wykonanych,16 PASS/2 FAIL** — tylko pushState/replaceState. Initial blank, srcdoc, frame retirement/replacement, cancelled response oraz private positive przeszły. Dalsza diagnostyka ownership SPA używa wyłącznie kategorii licznikowych, bez URL.
 
+6. Diagnostic-only CI40315881821:2/2 oczekiwanych RED przed poprawką. `early_url_context_match`1→2, UUID/parent/partition mismatch0, stale/protocol0. To dowód błędnego porównania principal URI ze zmienioną trasą, bez ujawniania adresów. Poprawka opiera ownership o zaufany UUID; 3 nowe regresje RED→GREEN i odrzucenie starej epoki zachowane. Pełne **20/20 PASS**,0skipped/failed w [CI40316669098](https://github.com/laszko14/nira-browser/actions/runs/40316669098), commit792d9dddbbbe1d874680f084805fdf156e0206c1. Wliczone oba SPA oraz network-only inherited blank/srcdoc. Nie modyfikowano frozen oracle, żeby uzyskać ten wynik.
+
 ## Granice i bezpieczeństwo
 
-- Wczesny bufor128/TTL2,5s przechowuje wyłącznie metadane odpowiedzi. Dopasowanie wymaga zaufanego UUID dokumentu, ramki i zgodności trybu/kontekstu. Brak dowodu własności oznacza odrzucenie.
+- Wczesny bufor128/TTL2,5s przechowuje wyłącznie metadane odpowiedzi. Dopasowanie wymaga zaufanego UUID dokumentu, ramki i zgodności trybu/kontekstu. `documentUrl` pochodzi z loading principal i nie jest porównywany z trasą SPA przy zgodnym UUID; legacy bez UUID nadal wymaga dokładnego URL. Brak dowodu własności oznacza odrzucenie.
 - Opaque: tylko dokładne about:blank/about:srcdoc jako URL ramki, z dowiedzionym rodzicem/UUID; nigdy jako URL odtwarzania lub strony. Brak wsparcia arbitrary data/blob sandbox przez origin fallback.
 - Dynamiczna iniekcja dotyczy wyłącznie dostarczonego content.js w izolowanym świecie, przez uprzywilejowane API ramek. Bez MAIN-world bridge, eval kodu strony, fetch/XHR/MSE wrapping ani rozszerzenia dostępu do cookies.
 - Blob: wymagany bieżący discoveryDocumentKey i dokładny discoveryFrameKey. Brak źródła, wiele strumieni, DRM, stara oferta albo niewiarygodna tożsamość pozostaje WEB. Bez nowego silnika MPV; ACK/rollback, port i element UUID zachowane.
 - MPV AUTO w opaque frames nie jest deklarowane jako w pełni obsługiwane; fallback dotyczy detekcji. Scenariusze MSE/EME, których nie da się wiarygodnie powiązać z publicznym HLS, pozostają ograniczeniem.
 - Kolejka Native Messaging:4 równoczesne,128 oczekujących,64 starty/5s, jeden retry, TTL12,5s; zmiana epoki/pagehide anuluje kolejkę. Istniejące limity parsera i routingu nie zostały zwiększone.
 - Diagnostyka VIDEO DISCOVERY używa allowlisty kodów/liczników; nie zapisuje URL/hostów, tokenów, cookies, nagłówków ani pełnych wyjątków. Anonimowe zdarzenia background pozostają bez profilu i są rozdzielone prywatnością.
+
+W kontrolowanym flood B zmierzono128 wpisów early (bez przekroczenia limitu). Rejestry i kolejki mają niezależne limity; szczegóły buforów w JSON. Rzeczywiste Gecko16/18 miało pierwsze wyniki dla blank874ms i srcdoc787ms (wejście w fixture→repozytorium, nie uruchomienie MPV). Nie porównywać ich jako przyspieszenia do timeoutów bazy.
 
 Fizyczny Nothing Phone(1), publiczne serwisy, realne MSE→MPV, słuchanie DSP, gesty i ciągłość mini/fullscreen: **NIEURUCHOMIONE**. Nie deklarujemy pełnej skuteczności na prawdziwych witrynach.
 

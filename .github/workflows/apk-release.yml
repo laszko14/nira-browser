@@ -161,7 +161,15 @@ jobs:
 
       - name: Protected Lua and DSP regressions
         run: |
+          if ! python3 -c 'import ctypes.util; assert ctypes.util.find_library("lua5.4")' || ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y liblua5.4-0 ffmpeg
+          fi
+          python3 scripts/test-alpha-lua-bridge.py
+          python3 scripts/test-custom-lua-host.py
+          python3 scripts/test-lua-environment.py
           python3 scripts/test-drc-de-lua.py
+          python3 scripts/test-alpha-audio-dsp.py
           python3 scripts/test-drc-de-dsp.py
 
       - name: Upload video discovery metrics

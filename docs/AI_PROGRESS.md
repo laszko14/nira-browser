@@ -368,3 +368,6 @@ Opcjonalne, odwracalne rewizje istniejących przycisków DRC/DE: kopie oryginał
 - Reviewregistry257ramek:evictionpo mintedkeyRED/GREEN. JUnit273full,3nativePorttestPASS,11targeted+AndroidTestPASS34s,JS195/195. FullGradlepoevictionPASS4m35s. APK/PRnadalniegotowe.
 
 - v1164 sourceChannelWrapperpotwierdzaznaczeniedocumentUrl=loadingprincipalURI. Nowe3RED/GREENoddzielająURIprincipalodUUIDwSPA/opaque;starepochodrzucany,parent/private/partitionzachowane. JS199/199,B21/21,C12/12,AndroidTest20metodcompilePASS4s. Nowyreal20WIPwymagany,dotychczas16/18PASSi2diagnosticSPAwtoku.
+
+- v1164 finalna walidacja: rzeczywisty Gecko CI40316669098 SUCCESS **20/20**, w tym oba SPA oraz network-only inherited blank/srcdoc. Diagnostic2SPA wcześniej potwierdził wyłącznie frozenprincipalURI, nie zły UUID/partition. Oracle niezmienione.
+- Lokalny pełny Gradle PASS4m22s,JUnit276/276,JS199/199,Lua77/77,DSP28/28,lint0nowych/8historycznychusuniętych. Raporty/handoff/metrics gotowe; kolejny krok finalny commit/push/DraftPRdo v1163+podpisującyCI. Telefon/publicsites/realMPV nieuruchomione,APK jeszcze niepotwierdzony.

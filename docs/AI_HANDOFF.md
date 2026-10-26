@@ -1,3 +1,9 @@
+# Aktualny punkt startu — Zavro x MPV v1164
+
+Gałąź `feat/zavro-x-mpv-v1164-gecko-advanced-discovery`, baza1c5ae61/v1163. [Handoff](ZAVRO_X_MPV_V1164_HANDOFF.md), [wyniki](ZAVRO_X_MPV_V1164_DISCOVERY_RESULTS.md), [wznowienie](CODEX_RESUME_V1164.md). Rzeczywisty Gecko20/20PASS w CI40316669098; lokalnie JUnit276, JS199, Lua77, DSP28; BUILD/TEST/LINT/AndroidTestPASS,0nowych lint. Końcowy Draft PR i podpisujący CI w przygotowaniu; APK niepotwierdzony do czasu aneksu PR. Bez merge, pobierania APK do Codex i kolejnej wersji.
+
+---
+
 # Aktualny punkt startu — Zavro x MPV v1163
 
 Baza b6908c9238d43fbfa69d3cc77445d650b0e9bb35, gałąź `feat/zavro-x-mpv-v1163-max-video-discovery`. [Handoff](ZAVRO_X_MPV_V1163_HANDOFF.md), [wznowienie](CODEX_RESUME_V1163.md).16grup napraw/rozszerzeń detektora, wspólnefixtures89filmów;61→88 przedPlay i62→89 po. Android/realGecko NIEURUCHOMIONE. Końcowy SHA, PR, CI i podpisanyAPK mają być potwierdzone w aneksie opisu PR po jedynym push. Nie zaczynać następnej wersji.
