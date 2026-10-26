@@ -107,5 +107,5 @@ test('v1165: app diagnostics do not interpolate raw OAuth, favicon or cookie ori
 
 test('v1165: every shared diagnostic hunk reverses to v1164 and introduces no JNI polling or commands',()=>{
  verifyPassiveNativeScope();
- for(const path of Object.keys(labLayer.files))reverseTestLab(path,fs.readFileSync(path));
+ for(const path of Object.keys(labLayer.files))reverseTestLab(path,reverseIndependentV1166(path,fs.readFileSync(path)));
 });
