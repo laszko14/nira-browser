@@ -348,3 +348,6 @@ Opcjonalne, odwracalne rewizje istniejących przycisków DRC/DE: kopie oryginał
 - Potwierdzono sourceGecko156.0.20260921121718:UUIDruntime/webRequest,parentDocumentId,webNavigation; oficjalna dokumentacja odczytana.
 - TestowyAPKx86/testyGeckocompilePASS1m38s;6JNIzależności obsługujeABI. LokalnyemulatorAPI35bezKVMstarted leczbootniepotwierdzony; faktyczna instrumentacjaNIEURUCHOMIONA.
 - DodanyosobnyworkflowGeckoKVMbezpublikacjiAPK/continue-on-error. WIP [gecko-baseline] uruchamia tylko instrumentację; checkpointCODEX_RESUME_V1164.md.
+
+- Gecko baselineCI40301729041: emulatorKVMAPI35 uruchomiony37,7s, faktycznie rozpoczęto instrumentację; crash1/13 przed detektorem zClassNotFound testhostActivity. To błąd konfiguracji harnessu(Java sourceSet nie skompilował dodanego.kt), nie dowód regresji silnika. Host przeniesiony doJava, bez zmianApp/MPV. PonownybaselineCI po tej konkretnej poprawce, nie identyczny rerun.
+- LokalnyTCG emulator jednakboot_completed=1po>17min; instalacja pierwszego x86APK trwa. Nie kwalifikować infrastruktury jako niedostępnej na podstawie wcześniejszego wolnego startu.
