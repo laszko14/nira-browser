@@ -434,7 +434,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                         // An embedded player commonly signs the URL for its own origin.
                         // Use the trusted frame URL captured by webRequest correlation;
                         // fall back to the top document only for top-frame media.
-                        launchVideoInMpv(uri, entry.frameUrl ?: fresh?.tab?.pageUrl)
+                        launchDetectedVideoInAlpha(uri)
                     }
                 } else {
                     Toast.makeText(requireContext(), R.string.video_link_invalid, Toast.LENGTH_SHORT).show()
@@ -1849,6 +1849,34 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             }
         }
         openVideoChooser(viewIntent)
+    }
+
+    /**
+     * Explicit FAB tile Play: MPV Alpha only, with a single trusted user-clicked
+     * http(s) media URI. No chooser, auto-fallback, cookies, referrer or extras.
+     * blob:/MSE and session-only sources stay inside Gecko and cannot be shared.
+     */
+    private fun launchDetectedVideoInAlpha(uri: android.net.Uri) {
+        val safe = uri.scheme in listOf("https", "http") &&
+            !uri.host.isNullOrBlank() && uri.userInfo == null &&
+            ZavroMpvActivity.allowedVideoUrl(uri)
+        if (!safe) {
+            Toast.makeText(requireContext(), "Tego źródła nie można otworzyć poza stroną", Toast.LENGTH_LONG).show()
+            return
+        }
+        val player = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "video/any")
+            setClassName("xyz.mpv.rex.debug", "xyz.mpv.rex.ui.player.PlayerActivity")
+        }
+        try {
+            startActivity(player)
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(requireContext(), "Zainstaluj MPV Alpha, aby otworzyć film", Toast.LENGTH_LONG).show()
+        } catch (_: SecurityException) {
+            Toast.makeText(requireContext(), "MPV Alpha nie pozwala na otwarcie tego filmu", Toast.LENGTH_LONG).show()
+        } catch (_: IllegalArgumentException) {
+            Toast.makeText(requireContext(), "Nieobsługiwany adres filmu", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun openVideoChooser(viewIntent: Intent) {
