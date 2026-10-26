@@ -200,7 +200,14 @@ class TestLabDeviceTest {
         val until=SystemClock.elapsedRealtime()+20_000
         while(SystemClock.elapsedRealtime()<until) {
             val root=instrumentation.uiAutomation.rootInActiveWindow
-            val match=root?.findAccessibilityNodeInfosByText(text)?.firstOrNull{it.isVisibleToUser&&it.text?.toString()==text}
+            // Compose's virtual provider implements createNodeInfo/performAction, but not
+            // findAccessibilityNodeInfosByText. Traverse its exposed children like UiAutomator.
+            fun findText(node:android.view.accessibility.AccessibilityNodeInfo):android.view.accessibility.AccessibilityNodeInfo? {
+                if(node.isVisibleToUser&&node.text?.toString()==text)return node
+                for(i in 0 until node.childCount)node.getChild(i)?.let{child->findText(child)?.let{return it}}
+                return null
+            }
+            val match=root?.let(::findText)
             if(match!=null)return match
             if(scroll&&root!=null) {
                 fun scrollable(node:android.view.accessibility.AccessibilityNodeInfo):android.view.accessibility.AccessibilityNodeInfo? {

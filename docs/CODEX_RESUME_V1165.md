@@ -24,3 +24,11 @@
 - Reviewfixy:AtomicFileopenReadprzedwalidacją(.bak); overlappingprepare→UNKNOWNbezfałszywegoACKlatency; pendingMainage≠ACK/ANR; fullscreenstate≠firstpredraw≠videoframe; ViewModelimmutableSAFpayload; returnbezBrowser.onNewIntent.
 - Następny krok: po compile/lint publikować aktualny nativefixture+boundedCI, sprawdzićnowyPRCI/KVMdo końca, analizować realnewyniki i dopiero wtedy końcowyhandoff/PR/linkAPK. Nie ponawiaćzaliczonychtestsbez zmiany zależności.
 - FizycznyNothingPhone(1)/systemgestures/nativeMPV/audio/listening/SAFdialog NIEURUCHOMIONE. Bez symulowania potwierdzenia. Nie wdrażaćkolejnejwersji ani AutoAudio.
+- Nativefixture+CIlimit opublikowane API jako90d9f64427a5f30d331f2a007e1c09b5f5ec03ce. TreeAPI7140b947==gitwrite-tree, localHEAD wyrównany CASpo fetch (bezreset/merge), work zachowane. compileAndroidTest+lintPASS3m59s; nowy lint0nowych wwork/v1165-lint-delta.json. Nowy PRKVM40379361396 queued; sprawdzićtakże nowyAndroidCI.
+
+## Wznowienie — rzeczywisty stan po90d9f64
+- Lokalny/remoteHEAD90d9f64; PR78Draft nadalbaza d890c68. Zachowano lokalną dopiskęcheckpointu iwork/. Braknowszego kodu.
+- AndroidCI40379361457 SUCCESS: BUILD/UNIT/JS/CHROMIUM/LUA/DSP/LINT i signedartifact12676673428. Niczego ztejzaliczonejregresji nie powtarzaćbez zmianyprodukcji.
+- KVM40379361396:23/24PASS; ostatniFAIL COMLEX:start-ui, tekstTestkompleksowy. Raportwork/v1165-KVM-third-reports. Activity RESUMED i Displayed, bez crasha. ŹródłoCompose1.12 work/ComposeAccessibility-1.12.kt:provider nie nadpisuje findAccessibilityNodeInfosByText; test używał nieobsługiwanej metody.
+- Minimalnafix:DFS po prawdziwych childrenAccessibility zamiast providerfindText, bez zmianprodukcyjnegoUI/progów. Compilelogwork/v1165-accessibility-tree-compile.log, sesja83223; workflowDispatchchoiceall/testlab dodany do istniejącegoGecko, defaultallbez zmian. Integralność6/6PASS work/v1165-focused-workflow-integrity.log.
+- GHTOKEN CLI po wznowieniu znówdziała; można normalnygitpush i ghworkflowrun --field suite=testlab po test-onlycommit[skip ci]. Potem pełneall24instrumentation, bez ponownegoBUILD349JUnitJS200Lua77DSP28. PoPASS końcowyhandoff i PR; APKpochodzi z90d9.
