@@ -341,3 +341,33 @@ Opcjonalne, odwracalne rewizje istniejących przycisków DRC/DE: kopie oryginał
 - v1163 final przedCI: JUnit265/265,JS179/179,Lua77/77,DSP28/28. PełnyGradle PASS4m42s,reviewdiagnostics7testów+assemble PASS33s,ostatniJS-onlyMIMEfix179/179.
 - Lint0nowych/0usuniętych1462Fatal/258Error/444Warning/19Hint. Końcoweidentycznefixtures89filmów88preeligible:61→88pre/62→89post,FP3→0,duplikaty1→0,HTTP7→7; kosztiwiadomościwJSON,bezdeklaracjiprzyspieszenia.
 - Przygotowano finalhandoff/checkpoint3;następne1commit/push+DraftPRwzględemv1162i1podpisująceCI.FaktyczneSHA/CI/APKdoaneksuwopisiePR,bezkolejnejwersji.
+
+## 2026-10-26 — v1164 etap A
+- Baza1c5ae61/v1163, gałąźfeat/zavro-x-mpv-v1164-gecko-advanced-discovery. StareA89/89,88/88pre,JS179/179,Kotlin75/75 odtworzone.
+- Zamrożone noweB/CzSHA przed zmianądetektora;Bnetwork10PASS/11FAIL,DOM_B wynikiwJSON,Cnieruszane.
+- Potwierdzono sourceGecko156.0.20260921121718:UUIDruntime/webRequest,parentDocumentId,webNavigation; oficjalna dokumentacja odczytana.
+- TestowyAPKx86/testyGeckocompilePASS1m38s;6JNIzależności obsługujeABI. LokalnyemulatorAPI35bezKVMstarted leczbootniepotwierdzony; faktyczna instrumentacjaNIEURUCHOMIONA.
+- DodanyosobnyworkflowGeckoKVMbezpublikacjiAPK/continue-on-error. WIP [gecko-baseline] uruchamia tylko instrumentację; checkpointCODEX_RESUME_V1164.md.
+
+- Gecko baselineCI40301729041: emulatorKVMAPI35 uruchomiony37,7s, faktycznie rozpoczęto instrumentację; crash1/13 przed detektorem zClassNotFound testhostActivity. To błąd konfiguracji harnessu(Java sourceSet nie skompilował dodanego.kt), nie dowód regresji silnika. Host przeniesiony doJava, bez zmianApp/MPV. PonownybaselineCI po tej konkretnej poprawce, nie identyczny rerun.
+- LokalnyTCG emulator jednakboot_completed=1po>17min; instalacja pierwszego x86APK trwa. Nie kwalifikować infrastruktury jako niedostępnej na podstawie wcześniejszego wolnego startu.
+
+- Gecko baseline2CI40302900024 po naprawieJavahost: rzeczywiście13wykonanych,10PASS/3RED(srcdoc,aboutblank,SPA pushState); bezwyłączania testów. MP4/HLS/early/basic/cross/nested/profiles/private/reopen działają na bazie.
+- B/C/E/G implementacja: early128/2.5sUUIDbuffer+Native-ready, trusted getFrame ancestry/opaque, zdarzenioweSPA, NativeIPC4active/128queued/64per5s/retry1, metadata/dashliteral.
+- Native frameTracking opt-in w v1 +media_frame lifecycle, odrzucanie retiredFrame/wrongURL/profile, rootHLSbinding iambiguoussameURLframes; bridgeACK/player bez zmian. DesignV1164_FRAME_IDENTITY_DESIGN.md.
+- LokalneB21/21,DOM_B5/5,A89/89(88/88pre),Kotlin82/82,JS57/57celowane. CnadalNIEURUCHOMIONE. Source version1.7.0+webNavigation uzasadnioneimplementacjąGecko, bezMAIN/originfallback/cookies.
+- Lokalnyemulatorboot957s,potemhangingQEMUCPU iutrataADBprzyinstalacji:braklokalnejinstrumentacji. CIzKVMdowiódłdostępnościGecko, kontynuowaćtam,nieudawaćwynikufizycznegotelefonu.
+
+- v1164 checkpointD/H: realGecko40305856842=11/13PASS,srcdocGREEN; sender.url zamrożony przy utworzeniu context i brak deklaratywnegoinitialblank potwierdzone sourceGecko. Zaimplementowano trustedgetFrameSPA oraz isolatedblankfallback zUUIDancestry, bez MAINworld.
+- BlobAUTO otrzymuje dokładnydoc/frameKey poNativeACK, bezzmianplaybackACK/rollback. JS67/67,AndroidTest18metodcompilePASS;Kotlin82/82 poidentity. NowyWIPuruchamia18realtestów. IndependentC/finalwalidacja/APKjeszczeniegotowe.
+
+- v1164 checkpointE: Cnetwork12/12,B21/21;C DOM5/5URLbezpoprawyrecall(qualityvariantsnieosobnefilmy). JS195/195,JUnitraport272/272,Lua77/77,DSP28/28. FinalGradlelintjeszczewtoku.
+- CI40313078091 nieukończone18testów:Brokenpipewserwerzetestowymprzycelowymcancel,procesAndroidcrashed. NaprawionowyłącznieobsługętransportowegoIOException;testzachowany. KolejnyGeckoWIPwymagany; brakgotowegoAPK.
+
+- v1164 realGecko40314069715:16/18PASS,aboutblank/srcdoc/lifecycle/profileiprivatepositiveGREEN;pozostałypush/replace. Earlyambiguitybezstale/protocolerror,wymaganedalszerozbiciesanitizedcounters.ZawężonyWIP[gecko-spa]niezastępujefinal18.
+- Reviewregistry257ramek:evictionpo mintedkeyRED/GREEN. JUnit273full,3nativePorttestPASS,11targeted+AndroidTestPASS34s,JS195/195. FullGradlepoevictionPASS4m35s. APK/PRnadalniegotowe.
+
+- v1164 sourceChannelWrapperpotwierdzaznaczeniedocumentUrl=loadingprincipalURI. Nowe3RED/GREENoddzielająURIprincipalodUUIDwSPA/opaque;starepochodrzucany,parent/private/partitionzachowane. JS199/199,B21/21,C12/12,AndroidTest20metodcompilePASS4s. Nowyreal20WIPwymagany,dotychczas16/18PASSi2diagnosticSPAwtoku.
+
+- v1164 finalna walidacja: rzeczywisty Gecko CI40316669098 SUCCESS **20/20**, w tym oba SPA oraz network-only inherited blank/srcdoc. Diagnostic2SPA wcześniej potwierdził wyłącznie frozenprincipalURI, nie zły UUID/partition. Oracle niezmienione.
+- Lokalny pełny Gradle PASS4m22s,JUnit276/276,JS199/199,Lua77/77,DSP28/28,lint0nowych/8historycznychusuniętych. Raporty/handoff/metrics gotowe; kolejny krok finalny commit/push/DraftPRdo v1163+podpisującyCI. Telefon/publicsites/realMPV nieuruchomione,APK jeszcze niepotwierdzony.

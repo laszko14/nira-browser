@@ -8,9 +8,10 @@ package com.prirai.android.nira.media
  * ambiguous candidates. No network probing or URL rewriting.
  */
 internal object BlobHlsSelector {
-    fun select(entries: List<MediaEntry>, frameUrl: String): MediaEntry? {
+    fun select(entries: List<MediaEntry>, frameUrl: String, frameKey: Long? = null): MediaEntry? {
         val viable=entries.filter {
-            it.frameUrl == frameUrl &&
+            (if (frameKey == null) !it.frameAmbiguous else (it.frameKey ?: 0L) == frameKey) &&
+                it.frameUrl == frameUrl &&
                 it.format == MediaFormat.HLS &&
                 MediaSource.NETWORK in it.sources &&
                 it.playbackStatus !in setOf(MediaPlaybackStatus.EXPIRED,

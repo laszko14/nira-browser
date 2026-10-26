@@ -1,0 +1,29 @@
+# v1164 — checkpoint przed końcowym Draft PR / podpisem
+- Repo /workspace/nira-browser, gałąź feat/zavro-x-mpv-v1164-gecko-advanced-discovery; baza1c5ae61d59e59ff973a249adff76ed9d704dafda/v1163. Nie resetować, nie merge, bez subagentów.
+- Ostatni kod produkcyjny:792d9dddbbbe1d874680f084805fdf156e0206c1. Sprawdzić rzeczywisty HEAD; kolejny commit obejmuje końcowe docs/CI, nie nowy silnik.
+- Pełny prompt: attachments/201886a3-82a8-4711-a2e9-437a6bc1facb/prompt2writing-block (1).md; nie powtarzać audytu ani zaliczonych testów bez nowych zmian.
+- Zachować nieśledzone work/ (logi, raporty, AAR source, lokalne APK); nie dodawać go do Git. Docs ignorowane — force add wskazanych plików.
+- Gotowe: early128/TTL2.5s+UUID/partition+nativeACK, trusted frame lifecycle/registry256, opaque detection, SPA epochs/hash, metadata/dash, nativeIPC4/128/64per5s/retry1/TTL12.5s, exact blob discovery identity.
+- Rzeczywiste różnice Gecko: frozen runtime.sender.url oraz webRequest.documentUrl z LoadingPrincipal.URI; current route sprawdzana getFrame+UUID, request ownership po UUID, legacy bezUUID nadal exactURL.
+- Initial uncommitted blank nie dostaje deklaratywnego skryptu (Gecko bug1415539): ograniczony isolated executeScript content.js, getAllFrames UUID/parent proof, duplicate guard,16batch/256total. Bez MAIN/originfallback.
+- Native opt-in frameTracking/media_frame, retire/replacement/URL/profile guard, rootHLS frame0 i blobOffer exactdoc/frame. MPV ACK/player/rollback/Lua/DSP bez przebudowy; AUTO opaque nie obiecane.
+- Review naprawił RED/GREEN: awaitgetFrame nie nadpisuje nowszego root; event podczas enumeracji nie ginie; eviction257ramek według mintedkey, nie kolejności przyjścia.
+- Baza Gecko CI40302900024:10/13PASS; po części11/13; po blank16/18; dwa harness crashes osobno (host packaging, oczekiwany Broken pipe), naprawione, nie błędy produkcji.
+- Diagnostic CI40315881821:2SPA RED, tylko early_url_context_match; UUID/parent/partition mismatch0. Przyczyna potwierdzona, poprawiona w792d9dd.
+- FINALNY REAL GECKO CI40316669098 **SUCCESS,20/20,0skipped/failed**, API35x86_64/Gecko156.0.20260921121718, artifact12647133520 (wyłącznie raporty, nie APK).
+- Includes MP4/HLS/early/dynamic/cross/nested/blank/srcdoc/network-only opaque/redirect/push+replace/latecancel/frame removal+replacement/sameURLtab switch/profile/privatepositive/close+reopen.
+- A89/89 materiałów,88/88pre,FP0/merge0/duplicates0,GET7→7; native204→216, nie deklarować przyspieszenia.
+- Bnetwork10/21→21/21,C7/12→12/12,0misassigned; frozenSHA bez zmian. DOM_B4/5→5/5 źródeł, C5/5URL bez zmianyrecall.
+- C expected to URL, low/high są wariantami jednego filmu; rawaliasmerge1 przed/po nie jest błędnym filmmerge. Nie poprawiano oracle; opis w RESULTS/METRICS.
+- Ostatni lokalny pełny Gradle assembleDebug/testDebugUnitTest/lintDebug/compileDebugAndroidTestKotlin **PASS4m22s** work/v1164-release-validation.log.
+- JUnit276/276; JS199/199; Lua77/77; DSP28/28; verifier PASS; integralność92hashv1158+10tab/UI z dokładnie odwracalnymi hunks, bez podmiany bazowych hashy.
+- Lint0nowych/8usuniętych:1462Fatal/258Error/436Warning/19Hint, historyczne abortOnError=false. Nie nazywać całego repo lint-clean.
+- Lokalny ARM64APK metadata1164/alpha70-mpv38/com.prirai.android.nira.mpv, testhostabsent; to nie dowód stałego podpisu. Stały certdf90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00 potwierdza dopiero CI.
+- Wersja Gradle164/ARM641164/versionName0.5.22-alpha70-mpv38. APKworkflow wymaga stałych Secrets+verifier ABI/package/version/cert, artifactzavro-x-mpv-arm64-v1164.
+- CI apk-release test job poszerzony oB/C + wszystkieLua/DSP (liblua5.4-0/ffmpeg instalowane tylko gdybrak); jeszcze NIE wykonany końcowy podpisujący PR run.
+- Handoff/DiscoveryResults/Design/Metrics gotowe; AI_HANDOFF wskazujev1164. Przed finalnym commit sprawdzić status/diff, dodać docs force, zachować work.
+- Dokładny następny krok: finalcommit+push, stworzyć JEDEN Draft PR do feat/zavro-x-mpv-v1163-max-video-discovery (upewnić się brak jużPR), nie merge. Monitorować AndroidCI build/test/lint i Gecko do zielonego wyniku.
+- Jeśli CI fail: odczytać rzeczywistą przyczynę, minimalna poprawka, bez identycznego rerun. Po sukcesie potwierdzić istniejący signedartifact, verifierlog, commitSHA, linkiCI/PR/APK; NIE pobierać APK doCodex.
+- Ostateczne SHA/CI/artifact dopisać do opisu PR (bez kolejnego docs push/zbędnegoCI). Nie oznaczać podpisu przed verifier+artefaktem.
+- Fizyczny NothingPhone1/publicsites/realMPV/DSPodsłuch **NIEURUCHOMIONE**. Lokalny TCGboot957s potemhang/ADB lost; realGecko dowody wyłącznie KVM CI.
+- Ręczna lista25scenariuszy w HANDOFF; aktualizacja bez uninstall/datareset. Następnej wersji nie wdrażać automatycznie.

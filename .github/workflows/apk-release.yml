@@ -25,8 +25,8 @@ jobs:
       contents: read
     env:
       EXPECTED_PACKAGE: com.prirai.android.nira.mpv
-      EXPECTED_VERSION_CODE: "1163"
-      EXPECTED_VERSION_NAME: 0.5.22-alpha69-mpv37
+      EXPECTED_VERSION_CODE: "1164"
+      EXPECTED_VERSION_NAME: 0.5.22-alpha70-mpv38
       EXPECTED_CERT_SHA256: df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
 
     steps:
@@ -88,7 +88,7 @@ jobs:
       - name: Upload standalone Zavro x MPV arm64 debug build
         uses: actions/upload-artifact@v4
         with:
-          name: zavro-x-mpv-arm64-v1163
+          name: zavro-x-mpv-arm64-v1164
           path: app/build/outputs/apk/debug/*arm64-v8a*.apk
           if-no-files-found: error
           retention-days: 30
@@ -153,12 +153,32 @@ jobs:
           npm ci --ignore-scripts --prefix scripts/video-discovery
           scripts/video-discovery/node_modules/.bin/playwright install --with-deps chromium
           DISCOVERY_REPORT=app/build/reports/video-discovery.json node scripts/video-discovery/fixtures.cjs
+          sha256sum -c scripts/video-discovery/v1164/frozen-cases.sha256
+          DISCOVERY_SET=B DISCOVERY_REPORT=app/build/reports/discovery-B-network.json node scripts/video-discovery/v1164/network-fixtures.cjs
+          DISCOVERY_SET=C DISCOVERY_REPORT=app/build/reports/discovery-C-network.json node scripts/video-discovery/v1164/network-fixtures.cjs
+          DISCOVERY_SET=DOM_B DISCOVERY_REPORT=app/build/reports/discovery-B-DOM.json node scripts/video-discovery/v1164/dom-fixtures.cjs
+          DISCOVERY_SET=DOM_C DISCOVERY_REPORT=app/build/reports/discovery-C-DOM.json node scripts/video-discovery/v1164/dom-fixtures.cjs
+
+      - name: Protected Lua and DSP regressions
+        run: |
+          if ! python3 -c 'import ctypes.util; assert ctypes.util.find_library("lua5.4")' || ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y liblua5.4-0 ffmpeg
+          fi
+          python3 scripts/test-alpha-lua-bridge.py
+          python3 scripts/test-custom-lua-host.py
+          python3 scripts/test-lua-environment.py
+          python3 scripts/test-drc-de-lua.py
+          python3 scripts/test-alpha-audio-dsp.py
+          python3 scripts/test-drc-de-dsp.py
 
       - name: Upload video discovery metrics
         uses: actions/upload-artifact@v4
         with:
-          name: video-discovery-v1163
-          path: app/build/reports/video-discovery.json
+          name: video-discovery-v1164
+          path: |
+            app/build/reports/video-discovery.json
+            app/build/reports/discovery-*.json
           if-no-files-found: error
 
       - name: Upload test reports
@@ -174,8 +194,8 @@ jobs:
       contents: write
     env:
       EXPECTED_PACKAGE: com.prirai.android.nira.mpv
-      EXPECTED_VERSION_CODE: "1163"
-      EXPECTED_VERSION_NAME: 0.5.22-alpha69-mpv37
+      EXPECTED_VERSION_CODE: "1164"
+      EXPECTED_VERSION_NAME: 0.5.22-alpha70-mpv38
       EXPECTED_CERT_SHA256: df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
 
     # Release only on a version tag or manual dispatch with an explicit tag.

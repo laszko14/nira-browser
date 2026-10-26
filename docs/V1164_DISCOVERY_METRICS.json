@@ -1,0 +1,626 @@
+{
+  "baselineCommit": "1c5ae61d59e59ff973a249adff76ed9d704dafda",
+  "frozenOracle": "scripts/video-discovery/v1164/frozen-cases.sha256",
+  "A": {
+    "layer": "Chromium DOM and controlled background; not Gecko",
+    "before": {
+      "films": 89,
+      "preEligible": 88,
+      "pre": 88,
+      "post": 89,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 105,
+      "nativeMessages": 204,
+      "extraRequests": 7,
+      "recallPre": 1,
+      "recallPost": 1,
+      "precision": 1,
+      "initialScanMs": 269.7999999951571,
+      "callbackMs": 26.39999999664724,
+      "maxCallbackMs": 5,
+      "queries": 663,
+      "returned": 399,
+      "mutations": 6,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0
+    },
+    "after": {
+      "films": 89,
+      "preEligible": 88,
+      "pre": 88,
+      "post": 89,
+      "falsePositives": 0,
+      "duplicateMessages": 0,
+      "messages": 105,
+      "nativeMessages": 216,
+      "extraRequests": 7,
+      "recallPre": 1,
+      "recallPost": 1,
+      "precision": 1,
+      "initialScanMs": 385.20000000298023,
+      "callbackMs": 29.700000002980232,
+      "maxCallbackMs": 7.300000000745058,
+      "queries": 663,
+      "returned": 399,
+      "mutations": 6,
+      "wrongMerges": 0,
+      "duplicateMaterials": 0
+    }
+  },
+  "network": {
+    "B": {
+      "before": {
+        "scenarios": 21,
+        "passed": 10,
+        "failed": 11,
+        "misassigned": 0,
+        "measured": {
+          "nativeMessages": 216,
+          "routedMessages": 1,
+          "extraGet": 0,
+          "unassigned": 215,
+          "maxSyncCallbackMs": 1.9256809999999973
+        }
+      },
+      "after": {
+        "scenarios": 21,
+        "passed": 21,
+        "failed": 0,
+        "misassigned": 0,
+        "measured": {
+          "nativeMessages": 6,
+          "routedMessages": 106,
+          "extraGet": 0,
+          "unassigned": 4,
+          "maxSyncCallbackMs": 0.3759820000000005,
+          "peakEarly": 128,
+          "peakRequests": 1,
+          "peakFrames": 2
+        }
+      }
+    },
+    "C": {
+      "before": {
+        "scenarios": 12,
+        "passed": 7,
+        "failed": 5,
+        "misassigned": 0,
+        "measured": {
+          "nativeMessages": 6,
+          "routedMessages": 1,
+          "extraGet": 0,
+          "unassigned": 6,
+          "maxSyncCallbackMs": 1.4053499999999985
+        }
+      },
+      "after": {
+        "scenarios": 12,
+        "passed": 12,
+        "failed": 0,
+        "misassigned": 0,
+        "measured": {
+          "nativeMessages": 0,
+          "routedMessages": 5,
+          "extraGet": 0,
+          "unassigned": 0,
+          "maxSyncCallbackMs": 0.4233620000000009,
+          "peakEarly": 1,
+          "peakRequests": 1,
+          "peakFrames": 2
+        }
+      }
+    }
+  },
+  "DOM": {
+    "B": {
+      "before": {
+        "expectedSources": 5,
+        "detectedSources": 4,
+        "passedCases": 3,
+        "caseCount": 5,
+        "measured": {
+          "preEligible": 5,
+          "pre": 4,
+          "post": 4,
+          "falsePositives": 0,
+          "duplicateMessages": 0,
+          "duplicateMaterials": 0,
+          "nativeMessages": 21,
+          "candidateMessages": 4,
+          "extraGet": 0,
+          "firstResultMs": [
+            55.08923199999981,
+            61.5235789999997,
+            62.33107099999961,
+            96.15223800000058
+          ],
+          "firstResultMedianMs": 62.33107099999961,
+          "maxCallbackMs": 0.5,
+          "initialMs": [
+            9.600000001490116,
+            28.5,
+            2.800000000745058,
+            3.100000001490116,
+            5.800000000745058
+          ],
+          "mutations": 0,
+          "queries": 37,
+          "urlAliasMergeGroups": 0
+        }
+      },
+      "after": {
+        "expectedSources": 5,
+        "detectedSources": 5,
+        "passedCases": 5,
+        "caseCount": 5,
+        "measured": {
+          "preEligible": 5,
+          "pre": 5,
+          "post": 5,
+          "falsePositives": 0,
+          "duplicateMessages": 0,
+          "duplicateMaterials": 0,
+          "nativeMessages": 23,
+          "candidateMessages": 5,
+          "extraGet": 0,
+          "firstResultMs": [
+            38.812496000000465,
+            63.23559000000023,
+            69.83556699999997,
+            86.41115899999932,
+            123.6970510000001
+          ],
+          "firstResultMedianMs": 69.83556699999997,
+          "maxCallbackMs": 0.8000000007450581,
+          "initialMs": [
+            5.300000000745058,
+            5,
+            7.199999999254942,
+            10.599999997764826,
+            4.600000001490116
+          ],
+          "mutations": 0,
+          "queries": 37,
+          "urlAliasMergeGroups": 0
+        }
+      }
+    },
+    "C": {
+      "before": {
+        "expectedSources": 5,
+        "detectedSources": 5,
+        "passedCases": 4,
+        "caseCount": 4,
+        "measured": {
+          "preEligible": 5,
+          "pre": 5,
+          "post": 5,
+          "falsePositives": 0,
+          "duplicateMessages": 0,
+          "duplicateMaterials": 0,
+          "nativeMessages": 21,
+          "candidateMessages": 5,
+          "extraGet": 0,
+          "firstResultMs": [
+            91.22335000000021,
+            93.65637199999992,
+            136.11513399999967
+          ],
+          "firstResultMedianMs": 93.65637199999992,
+          "maxCallbackMs": 0.3999999985098839,
+          "initialMs": [
+            44.100000001490116,
+            15.399999998509884,
+            43.100000001490116,
+            48.30000000074506
+          ],
+          "mutations": 0,
+          "queries": 28,
+          "urlAliasMergeGroups": 1
+        }
+      },
+      "after": {
+        "expectedSources": 5,
+        "detectedSources": 5,
+        "passedCases": 4,
+        "caseCount": 4,
+        "measured": {
+          "preEligible": 5,
+          "pre": 5,
+          "post": 5,
+          "falsePositives": 0,
+          "duplicateMessages": 0,
+          "duplicateMaterials": 0,
+          "nativeMessages": 20,
+          "candidateMessages": 5,
+          "extraGet": 0,
+          "firstResultMs": [
+            32.87819500000114,
+            87.50022600000011,
+            190.97941000000083
+          ],
+          "firstResultMedianMs": 87.50022600000011,
+          "maxCallbackMs": 0.4000000022351742,
+          "initialMs": [
+            6,
+            16.199999999254942,
+            7.699999999254942,
+            5.699999999254942
+          ],
+          "mutations": 0,
+          "queries": 28,
+          "urlAliasMergeGroups": 1
+        }
+      }
+    },
+    "oracleLimit": "Frozen DOM expected entries are source URLs, not independent films. DOM_C artplayer sources low/high are variants of one material; the raw URL-alias merge counter equals 1 in both versions, and is not a confirmed wrong-film merge. Oracle unchanged."
+  },
+  "Gecko": {
+    "version": "156.0.20260921121718",
+    "androidApi": 35,
+    "abi": "x86_64",
+    "baseline": {
+      "run": 40302900024,
+      "executed": 13,
+      "passed": 10,
+      "failed": [
+        "srcdocIframe",
+        "aboutBlankIframe",
+        "spaPushStateWithoutMutation"
+      ]
+    },
+    "intermediate": {
+      "run": 40305856842,
+      "executed": 13,
+      "passed": 11,
+      "failed": [
+        "aboutBlankIframe",
+        "spaPushStateWithoutMutation"
+      ]
+    },
+    "latest": {
+      "run": 40316669098,
+      "commit": "792d9dddbbbe1d874680f084805fdf156e0206c1",
+      "executed": 20,
+      "passed": 20,
+      "failed": [],
+      "artifact": 12647133520,
+      "cases": [
+        {
+          "name": "lateResponseAfterNavigationIsRejected",
+          "seconds": 6.62,
+          "passed": true
+        },
+        {
+          "name": "srcdocNetworkPrincipal",
+          "seconds": 2.352,
+          "passed": true
+        },
+        {
+          "name": "removedFrameRetiresOnlyItsOwnResults",
+          "seconds": 1.297,
+          "passed": true
+        },
+        {
+          "name": "crossOriginIframe",
+          "seconds": 0.894,
+          "passed": true
+        },
+        {
+          "name": "hlsBeforePlay",
+          "seconds": 1.015,
+          "passed": true
+        },
+        {
+          "name": "profileIsolation",
+          "seconds": 1.451,
+          "passed": true
+        },
+        {
+          "name": "privateIsolation",
+          "seconds": 3.41,
+          "passed": true
+        },
+        {
+          "name": "mp4BeforePlay",
+          "seconds": 0.942,
+          "passed": true
+        },
+        {
+          "name": "inheritedBlankNetworkPrincipal",
+          "seconds": 1.794,
+          "passed": true
+        },
+        {
+          "name": "redirect",
+          "seconds": 0.786,
+          "passed": true
+        },
+        {
+          "name": "selectedTabSwitchDoesNotMisassignSameUrl",
+          "seconds": 0.755,
+          "passed": true
+        },
+        {
+          "name": "replacementFrameCannotInheritOldMedia",
+          "seconds": 1.071,
+          "passed": true
+        },
+        {
+          "name": "nestedIframe",
+          "seconds": 1.093,
+          "passed": true
+        },
+        {
+          "name": "dynamicVideo",
+          "seconds": 0.76,
+          "passed": true
+        },
+        {
+          "name": "srcdocIframe",
+          "seconds": 0.76,
+          "passed": true
+        },
+        {
+          "name": "spaPushStateWithoutMutation",
+          "seconds": 1.894,
+          "passed": true
+        },
+        {
+          "name": "aboutBlankIframe",
+          "seconds": 1.265,
+          "passed": true
+        },
+        {
+          "name": "closedSessionCannotRetainResultsAndReopenStillWorks",
+          "seconds": 1.165,
+          "passed": true
+        },
+        {
+          "name": "spaReplaceStateWithoutMutation",
+          "seconds": 2.017,
+          "passed": true
+        },
+        {
+          "name": "earlyNetworkBeforeRegistration",
+          "seconds": 0.913,
+          "passed": true
+        }
+      ]
+    },
+    "phone": "NOT RUN",
+    "publicWebsites": "NOT RUN",
+    "timing": {
+      "baseline": [
+        {
+          "case": "/basic",
+          "acceptedEntries": 1,
+          "firstResultMs": 171
+        },
+        {
+          "case": "/cross",
+          "acceptedEntries": 1,
+          "firstResultMs": 1658
+        },
+        {
+          "case": "/dynamic",
+          "acceptedEntries": 1,
+          "firstResultMs": 379
+        },
+        {
+          "case": "/hls",
+          "acceptedEntries": 1,
+          "firstResultMs": 550
+        },
+        {
+          "case": "/early",
+          "acceptedEntries": 1,
+          "firstResultMs": 372
+        },
+        {
+          "case": "/basic",
+          "acceptedEntries": 1,
+          "firstResultMs": 949
+        },
+        {
+          "case": "/nested",
+          "acceptedEntries": 1,
+          "firstResultMs": 743
+        },
+        {
+          "case": "/redirect-page",
+          "acceptedEntries": 1,
+          "firstResultMs": 306
+        }
+      ],
+      "intermediate": [
+        {
+          "case": "/blank",
+          "acceptedEntries": 1,
+          "firstResultMs": 874
+        },
+        {
+          "case": "/basic",
+          "acceptedEntries": 1,
+          "firstResultMs": 181
+        },
+        {
+          "case": "/cross",
+          "acceptedEntries": 1,
+          "firstResultMs": 1064
+        },
+        {
+          "case": "/dynamic",
+          "acceptedEntries": 1,
+          "firstResultMs": 566
+        },
+        {
+          "case": "/early",
+          "acceptedEntries": 1,
+          "firstResultMs": 395
+        },
+        {
+          "case": "/hls",
+          "acceptedEntries": 1,
+          "firstResultMs": 479
+        },
+        {
+          "case": "/basic",
+          "acceptedEntries": 1,
+          "firstResultMs": 565
+        },
+        {
+          "case": "/nested",
+          "acceptedEntries": 1,
+          "firstResultMs": 877
+        },
+        {
+          "case": "/basic",
+          "acceptedEntries": 1,
+          "firstResultMs": 2033
+        },
+        {
+          "case": "/redirect-page",
+          "acceptedEntries": 1,
+          "firstResultMs": 595
+        },
+        {
+          "case": "/srcdoc",
+          "acceptedEntries": 1,
+          "firstResultMs": 787
+        }
+      ],
+      "scope": "open synthetic fixture to first accepted native repository result; entries are not unique films; not phone or MPV",
+      "final": [
+        {
+          "case": "/blank",
+          "acceptedEntries": 1,
+          "firstResultMs": 854
+        },
+        {
+          "case": "/basic",
+          "acceptedEntries": 1,
+          "firstResultMs": 215
+        },
+        {
+          "case": "/cross",
+          "acceptedEntries": 1,
+          "firstResultMs": 494
+        },
+        {
+          "case": "/dynamic",
+          "acceptedEntries": 1,
+          "firstResultMs": 326
+        },
+        {
+          "case": "/early",
+          "acceptedEntries": 1,
+          "firstResultMs": 464
+        },
+        {
+          "case": "/hls",
+          "acceptedEntries": 1,
+          "firstResultMs": 522
+        },
+        {
+          "case": "/blank-network",
+          "acceptedEntries": 1,
+          "firstResultMs": 1470
+        },
+        {
+          "case": "/basic",
+          "acceptedEntries": 1,
+          "firstResultMs": 462
+        },
+        {
+          "case": "/nested",
+          "acceptedEntries": 1,
+          "firstResultMs": 611
+        },
+        {
+          "case": "/basic",
+          "acceptedEntries": 1,
+          "firstResultMs": 1729
+        },
+        {
+          "case": "/redirect-page",
+          "acceptedEntries": 1,
+          "firstResultMs": 353
+        },
+        {
+          "case": "/spa",
+          "acceptedEntries": 1,
+          "firstResultMs": 1470
+        },
+        {
+          "case": "/replace",
+          "acceptedEntries": 1,
+          "firstResultMs": 1605
+        },
+        {
+          "case": "/srcdoc",
+          "acceptedEntries": 1,
+          "firstResultMs": 431
+        },
+        {
+          "case": "/srcdoc-network",
+          "acceptedEntries": 1,
+          "firstResultMs": 1308
+        }
+      ]
+    },
+    "diagnostic": {
+      "run": 40315881821,
+      "executed": 2,
+      "failed": 2,
+      "cause": "exact UUID/parent/partition; only loading-principal URL matches frozen sender context, not current route; corrected after diagnosis"
+    }
+  },
+  "validation": {
+    "JUnit": {
+      "tests": 276,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "JS": {
+      "tests": 199,
+      "failures": 0
+    },
+    "Lua": {
+      "tests": 77,
+      "environment": "system Lua, synthetic MP API; not Android"
+    },
+    "DSP": {
+      "tests": 28,
+      "environment": "system FFmpeg; not Android"
+    },
+    "lint": {
+      "before": {
+        "Error": 258,
+        "Warning": 444,
+        "Fatal": 1462,
+        "Hint": 19
+      },
+      "after": {
+        "Error": 258,
+        "Warning": 436,
+        "Fatal": 1462,
+        "Hint": 19
+      },
+      "new": [],
+      "removed": [
+        "('NewerVersionAvailable', 'Warning', 'A newer version of org.mockito:mockito-core than 5.20.0 is available: 5.24.0', ('/workspace/nira-browser/app/build.gradle',))",
+        "('NewerVersionAvailable', 'Warning', 'A newer version of org.robolectric:robolectric than 4.16 is available: 4.17', ('/workspace/nira-browser/app/build.gradle',))",
+        "('NewerVersionAvailable', 'Warning', 'A newer version of org.jetbrains.kotlinx:kotlinx-coroutines-test than 1.10.2 is available: 1.11.0', ('/workspace/nira-browser/app/build.gradle',))",
+        "('ChromeOsAbiSupport', 'Warning', 'Missing x86_64 ABI support for ChromeOS', ('/workspace/nira-browser/app/build.gradle',))",
+        "('UseTomlInstead', 'Warning', 'Use version catalog instead', ('/workspace/nira-browser/app/build.gradle',))",
+        "('UseTomlInstead', 'Warning', 'Use version catalog instead', ('/workspace/nira-browser/app/build.gradle',))",
+        "('UseTomlInstead', 'Warning', 'Use version catalog instead', ('/workspace/nira-browser/app/build.gradle',))",
+        "('UseTomlInstead', 'Warning', 'Use version catalog instead', ('/workspace/nira-browser/app/build.gradle',))"
+      ]
+    },
+    "gradle": "assembleDebug testDebugUnitTest lintDebug compileDebugAndroidTestKotlin PASS4m22s; signed release CI still pending"
+  }
+}

@@ -1617,11 +1617,19 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             pendingBlobOffer=null
             return
         }
+        val discoveryKey = offer.discoveryDocumentKey
+        if (discoveryKey == null || offer.discoveryFrameKey == null ||
+            com.prirai.android.nira.media.MediaDetectorController.uiRepository.value
+                ?.isCurrentDocument(snapshot.tab, discoveryKey) != true) {
+            pendingBlobOffer = null
+            MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF, "blob_candidate_ambiguous", offer.port.engineSession)
+            return
+        }
         val viable=snapshot.entries.filter { it.frameUrl == offer.pageUrl &&
             it.format == com.prirai.android.nira.media.MediaFormat.HLS &&
             com.prirai.android.nira.media.MediaSource.NETWORK in it.sources }
         val candidate=com.prirai.android.nira.media.BlobHlsSelector.select(
-            snapshot.entries,offer.pageUrl)
+            snapshot.entries,offer.pageUrl,offer.discoveryFrameKey)
         if (candidate == null) {
             MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF,
                 if (viable.size>1) "blob_candidate_ambiguous"

@@ -33,6 +33,8 @@ internal class MediaEntry(
     val frameUrl: String? = null,
     val playbackStatus: MediaPlaybackStatus = MediaPlaybackStatus.NEEDS_VERIFICATION,
     val httpStatus: Int? = null,
+    val frameAmbiguous: Boolean = false,
+    val frameKey: Long? = null,
 ) {
     override fun toString(): String = "MediaEntry(format=$format, sources=$sources, url=<redacted>)"
 }
@@ -104,6 +106,7 @@ internal class MediaRepository(
         var bitrate: Long? = null
         var codecs: String? = null
         var frameUrl: String? = null
+        var frameKey: Long? = null
         var playbackStatus = MediaPlaybackStatus.NEEDS_VERIFICATION
         var httpStatus: Int? = null
         var highestNetworkRequestSequence: Long = 0
@@ -149,20 +152,25 @@ internal class MediaRepository(
                 MediaSource.NETWORK -> network = true
             }
         }
-        fun copy() = MediaEntry(serial, url, format, buildSet {
+        fun copy(ambiguous: Boolean = false) = MediaEntry(serial, url, format, buildSet {
             if (dom) add(MediaSource.DOM)
             if (page) add(MediaSource.PAGE)
             if (network) add(MediaSource.NETWORK)
         }, groupId, title, titleKind, durationSeconds, sizeBytes, posterUrl,
             quality, bitrate, codecs, revisions.size.coerceAtLeast(1), frameUrl,
-            playbackStatus, httpStatus)
+            playbackStatus, httpStatus, ambiguous, frameKey)
     }
 
+    private class FrameBinding(val id: Long, val key: Long, val url: String, var active: Boolean)
     private class Scope(
         var binding: MediaSessionBinding, var pageUrl: String, var loading: Boolean,
         var documentKey: Long = 0, var registered: Boolean = false, var access: Long = 0,
         val entries: LinkedHashMap<String, Record> = LinkedHashMap(),
-    )
+    ) {
+        var frameTracking = false
+        var frameFloor = 0L
+        val frames = linkedMapOf<Long, FrameBinding>()
+    }
     private val scopes = IdentityHashMap<Any, Scope>()
     private val mutableRevision = MutableStateFlow(0L)
     val revision: StateFlow<Long> = mutableRevision.asStateFlow()
@@ -195,18 +203,31 @@ internal class MediaRepository(
                 // reset the document high-water mark. An old extension message
                 // can never re-register itself into the new partition.
                 changes.add(Change(scope.binding, scope.entries.size, false))
-                scope.entries.clear()
+                scope.entries.clear(); scope.frames.clear()
                 scope.binding = actual.binding
                 scope.pageUrl = actual.pageUrl
                 scope.loading = actual.loading
                 scope.registered = false
                 continue
             }
+            // A fragment is not a new document/material. Keep the document high-water
+            // mark and media, but require subsequent messages to use the current URL.
+            val fragmentOnly = actual.pageUrl != scope.pageUrl &&
+                actual.pageUrl.substringBefore('#') == scope.pageUrl.substringBefore('#') &&
+                !(!scope.loading && actual.loading)
+            if (fragmentOnly) {
+                scope.entries.values.filter { it.frameKey == null && it.frameUrl == scope.pageUrl }
+                    .forEach { it.frameUrl = actual.pageUrl }
+                scope.pageUrl = actual.pageUrl
+                scope.loading = actual.loading
+                changed()
+                continue
+            }
             val navigated = actual.pageUrl != scope.pageUrl || (!scope.loading && actual.loading)
             scope.loading = actual.loading
             if (navigated) {
                 changes.add(Change(scope.binding, scope.entries.size, true))
-                scope.entries.clear()
+                scope.entries.clear(); scope.frames.clear()
                 scope.registered = false
                 scope.pageUrl = actual.pageUrl
                 // Keep documentKey as a high-water mark. A late event from the
@@ -233,21 +254,61 @@ internal class MediaRepository(
     }
 
     /** Document keys are minted by the extension background, never by the website. */
-    @Synchronized fun registerDocument(tab: MediaTabState, pageUrl: String, documentKey: Long): DocumentResult {
+    @Synchronized fun registerDocument(tab: MediaTabState, pageUrl: String, documentKey: Long, frameTracking: Boolean = false): DocumentResult {
         if (documentKey !in 1..9007199254740991L || pageUrl != tab.pageUrl ||
             !pageUrl.startsWith("https://") && !pageUrl.startsWith("http://")) {
             return DocumentResult(false)
         }
         val current = scope(tab, create = true) ?: return DocumentResult(false)
         if (documentKey < current.documentKey) return DocumentResult(false)
-        if (documentKey == current.documentKey) return DocumentResult(current.registered)
+        if (documentKey == current.documentKey) {
+            current.frameTracking = current.frameTracking || frameTracking
+            return DocumentResult(current.registered)
+        }
         val removed = current.entries.size
         current.entries.clear()
         current.documentKey = documentKey
+        current.frames.clear(); current.frameFloor = 0L; current.frameTracking = frameTracking
         current.registered = true
         current.access = tick()
         changed()
         return DocumentResult(true, removed)
+    }
+
+    @Synchronized fun registerFrame(tab: MediaTabState, frame: MediaDetectorMessage.Frame): Boolean {
+        val current = scope(tab, create = false) ?: return false
+        if (!current.registered || !current.frameTracking || current.documentKey != frame.documentKey ||
+            current.pageUrl.substringBefore('#') != frame.pageUrl.substringBefore('#')) return false
+        val previous = current.frames[frame.frameId]
+        if (frame.frameKey <= current.frameFloor || previous != null && frame.frameKey < previous.key) return false
+        if (previous != null && previous.key == frame.frameKey && previous.url != frame.frameUrl) return false
+        if (!frame.active) {
+            if (previous?.key != frame.frameKey || previous.url != frame.frameUrl) return false
+            previous.active = false
+            current.entries.entries.removeAll { it.value.frameKey == frame.frameKey }
+        } else {
+            if (previous != null && previous.key == frame.frameKey && !previous.active) return false
+            if (previous != null && previous.key != frame.frameKey)
+                current.entries.entries.removeAll { it.value.frameKey == previous.key }
+            current.frames[frame.frameId] = FrameBinding(frame.frameId, frame.frameKey, frame.frameUrl, true)
+            while (current.frames.size > 256) {
+                // Native messages from different frames may arrive out of order.
+                // Evict by minted key so no retained binding falls below the floor.
+                val oldestId = current.frames.minBy { it.value.key }.key
+                val evicted = current.frames.remove(oldestId)!!
+                current.frameFloor = maxOf(current.frameFloor, evicted.key)
+                current.entries.entries.removeAll { it.value.frameKey == evicted.key }
+            }
+        }
+        changed(); return true
+    }
+    private fun frameCurrent(scope: Scope, key: Long?, url: String?): Boolean =
+        key == null || !scope.frameTracking || scope.frames.values.any { it.key == key && it.url == url && it.active }
+
+    private fun copies(scope: Scope): List<MediaEntry> = scope.entries.values.map { record ->
+        val count = scope.frames.values.count { it.active && it.url == record.frameUrl } +
+            if (record.frameUrl == scope.pageUrl) 1 else 0
+        record.copy(ambiguous = count > 1)
     }
 
     @Synchronized fun isCurrentDocument(tab: MediaTabState, documentKey: Long): Boolean =
@@ -261,7 +322,8 @@ internal class MediaRepository(
         val current = scope(tab, create = false) ?: return InsertResult.STALE
         if (!current.registered || current.documentKey == 0L || current.documentKey != documentKey ||
             current.pageUrl != pageUrl || media.tabId != tab.binding.tabId ||
-            media.contextId != tab.binding.contextId || media.isPrivate != tab.binding.isPrivate) {
+            media.contextId != tab.binding.contextId || media.isPrivate != tab.binding.isPrivate ||
+            !frameCurrent(current, metadata?.frameKey, metadata?.frameUrl)) {
             return InsertResult.STALE
         }
         current.access = tick()
@@ -285,6 +347,7 @@ internal class MediaRepository(
                     source == MediaSource.NETWORK && media.format in
                         setOf(MediaFormat.HLS, MediaFormat.DASH))) found.groupId = groupId
             found.metadata(metadata, found.format)
+            if (source == MediaSource.NETWORK && metadata?.frameKey == null) found.frameUrl = current.pageUrl
             changed()
             return InsertResult.DUPLICATE
         }
@@ -294,6 +357,8 @@ internal class MediaRepository(
         added.observeUrl(media.url, provenance, tick())
         added.mark(if (provenance == MediaProvenance.MANIFEST_DERIVED) MediaSource.PAGE else source)
         added.metadata(metadata, media.format)
+        added.frameKey = metadata?.frameKey
+        if (source == MediaSource.NETWORK && metadata?.frameKey == null) added.frameUrl = current.pageUrl
         current.entries[identity] = added
         while (current.entries.size > perTabLimit) current.entries.remove(current.entries.keys.first())
         // Deterministic global FIFO eviction, bounded even under unique URL floods.
@@ -317,7 +382,7 @@ internal class MediaRepository(
 
     @Synchronized fun forTab(binding: MediaSessionBinding): List<MediaEntry> =
         scopes[binding.session]?.takeIf { same(it.binding, binding) }
-            ?.entries?.values?.map { it.copy() } ?: emptyList()
+            ?.let(::copies) ?: emptyList()
 
     /**
      * Strict UI read. BrowserStore's current page/loading state must match
@@ -329,7 +394,7 @@ internal class MediaRepository(
                 // Store may publish loading=false before the detector observes it.
                 // A new load (false -> true) must still hide stale results immediately.
                 (!tab.loading || it.loading) && it.registered
-        }?.entries?.values?.map { it.copy() } ?: emptyList()
+        }?.let(::copies) ?: emptyList()
 
     /** Sanitized aggregates used by diagnostics; no URLs escape via this API. */
     @Synchronized fun counts(contextId: String?, privateMode: Boolean): List<TabCounts> =

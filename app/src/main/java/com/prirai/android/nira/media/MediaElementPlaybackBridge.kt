@@ -41,6 +41,8 @@ internal object MediaElementPlaybackBridge {
         val viewportW: Double = 0.0,
         val viewportH: Double = 0.0,
         val viewportWidth: Double = 0.0,
+        val discoveryDocumentKey: Long? = null,
+        val discoveryFrameKey: Long? = null,
     ) {
         override fun toString() = "AutoOffer(<redacted>)"
     }
@@ -349,6 +351,14 @@ internal object MediaElementPlaybackBridge {
                 val blob = data.optString("sourceKind") == "blob" &&
                     data.optString("mediaUrl").isEmpty()
                 val parsed = runCatching { android.net.Uri.parse(url) }.getOrNull()
+                fun discoveryNumber(name: String, minimum: Long): Long? = (data.opt(name) as? Number)
+                    ?.toDouble()?.takeIf { it.isFinite() && it >= minimum && it <= 9007199254740991.0 && it % 1.0 == 0.0 }?.toLong()
+                val discoveryDocument = discoveryNumber("discoveryDocumentKey", 1)
+                val discoveryFrame = discoveryNumber("discoveryFrameKey", 0)
+                if (blob && (discoveryDocument == null || discoveryFrame == null)) {
+                    MpvDebugTrace.note(MpvDebugTrace.Section.HANDOFF, "blob_candidate_ambiguous", port.engineSession)
+                    return@post
+                }
                 if (!UUID_PATTERN.matches(frameKey) || !UUID_PATTERN.matches(elementKey) ||
                     page.length !in 8..8192 ||
                     (!blob && (url.length !in 8..8192 ||
@@ -364,7 +374,7 @@ internal object MediaElementPlaybackBridge {
                 onAutoOffer?.invoke(AutoOffer(port,frameKey,elementKey,page,url,
                     data.optBoolean("topFrame",false) && rect != null,
                     rect?.x?:0.0,rect?.y?:0.0,rect?.w?:0.0,rect?.h?:0.0,rect?.dpr?:1.0,
-                    blob,vw,vh,rect?.viewportWidth?:0.0))
+                    blob,vw,vh,rect?.viewportWidth?:0.0,discoveryDocument,discoveryFrame))
                 return@post
             }
             if (data.optString("event") == "iframe_geometry") {
