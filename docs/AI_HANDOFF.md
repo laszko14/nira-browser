@@ -1,3 +1,9 @@
+# Aktualny punkt startu — Zavro x MPV v1162
+
+Baza a3fa1232265348cb3ac3405c6e56594a6634a3b0, gałąź `fix/zavro-x-mpv-v1162-app-wide-reliability-audit`. [Handoff](ZAVRO_X_MPV_V1162_HANDOFF.md), [inwentarz](ZAVRO_X_MPV_V1162_INVENTORY.md), [wznowienie](CODEX_RESUME_V1162.md). Audyt przekrojowy,12usterek na granicach profili/gestów/download/cookies/PWA/logów. Dane, pakiet, certyfikat i integracja MPV zachowane. Nie utożsamiać testów hosta z telefonem. Poniżej zachowano historię.
+
+---
+
 # Aktualny punkt startu — Zavro x MPV v1161
 
 Baza3075ba7e29c34100a19d499263dfe7a90acebdcd, gałąź `fix/zavro-x-mpv-v1161-tab-opening-group-audit`. [Wznowienie](CODEX_RESUME_V1161.md), [diagnoza i macierz](ZAVRO_X_MPV_V1161_HANDOFF.md). Zwykłe linki pozostają solo; parentId jest nawigacją, grupowanie tylko przez osobne jawne polecenie. Naprawiono profil źródła dla Gecko WindowFeature i prywatność menu. Bez migracji, subagentów, merge i zmian MPV. Poniżej zachowano historię.
