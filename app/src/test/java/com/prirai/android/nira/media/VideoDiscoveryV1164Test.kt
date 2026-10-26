@@ -93,6 +93,8 @@ class VideoDiscoveryV1164Test {
             assertEquals(1,repo.currentEntries(tab).size) // manual selection is still available
             assertTrue(repo.currentEntries(tab).single().frameAmbiguous)
             assertNull(BlobHlsSelector.select(repo.currentEntries(tab),url))
+            assertNotNull(BlobHlsSelector.select(repo.currentEntries(tab),url,11))
+            assertNull(BlobHlsSelector.select(repo.currentEntries(tab),url,12))
             assertTrue(repo.registerFrame(tab,MediaDetectorMessage.Frame(tab.pageUrl,1,url,2,12,false)))
             assertNotNull(BlobHlsSelector.select(repo.currentEntries(tab),url))
         }

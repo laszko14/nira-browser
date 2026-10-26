@@ -357,3 +357,6 @@ Opcjonalne, odwracalne rewizje istniejących przycisków DRC/DE: kopie oryginał
 - Native frameTracking opt-in w v1 +media_frame lifecycle, odrzucanie retiredFrame/wrongURL/profile, rootHLSbinding iambiguoussameURLframes; bridgeACK/player bez zmian. DesignV1164_FRAME_IDENTITY_DESIGN.md.
 - LokalneB21/21,DOM_B5/5,A89/89(88/88pre),Kotlin82/82,JS57/57celowane. CnadalNIEURUCHOMIONE. Source version1.7.0+webNavigation uzasadnioneimplementacjąGecko, bezMAIN/originfallback/cookies.
 - Lokalnyemulatorboot957s,potemhangingQEMUCPU iutrataADBprzyinstalacji:braklokalnejinstrumentacji. CIzKVMdowiódłdostępnościGecko, kontynuowaćtam,nieudawaćwynikufizycznegotelefonu.
+
+- v1164 checkpointD/H: realGecko40305856842=11/13PASS,srcdocGREEN; sender.url zamrożony przy utworzeniu context i brak deklaratywnegoinitialblank potwierdzone sourceGecko. Zaimplementowano trustedgetFrameSPA oraz isolatedblankfallback zUUIDancestry, bez MAINworld.
+- BlobAUTO otrzymuje dokładnydoc/frameKey poNativeACK, bezzmianplaybackACK/rollback. JS67/67,AndroidTest18metodcompilePASS;Kotlin82/82 poidentity. NowyWIPuruchamia18realtestów. IndependentC/finalwalidacja/APKjeszczeniegotowe.

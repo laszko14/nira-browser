@@ -34,6 +34,7 @@ internal class MediaEntry(
     val playbackStatus: MediaPlaybackStatus = MediaPlaybackStatus.NEEDS_VERIFICATION,
     val httpStatus: Int? = null,
     val frameAmbiguous: Boolean = false,
+    val frameKey: Long? = null,
 ) {
     override fun toString(): String = "MediaEntry(format=$format, sources=$sources, url=<redacted>)"
 }
@@ -157,7 +158,7 @@ internal class MediaRepository(
             if (network) add(MediaSource.NETWORK)
         }, groupId, title, titleKind, durationSeconds, sizeBytes, posterUrl,
             quality, bitrate, codecs, revisions.size.coerceAtLeast(1), frameUrl,
-            playbackStatus, httpStatus, ambiguous)
+            playbackStatus, httpStatus, ambiguous, frameKey)
     }
 
     private class FrameBinding(val id: Long, val key: Long, val url: String, var active: Boolean)

@@ -29,7 +29,7 @@ function world(){
  function request(extra={}){return{tabId:7,requestId:'r',frameId:0,parentFrameId:-1,documentId:uuid(1),documentUrl:'https://page.test/watch',url:'https://cdn.test/movie.mp4',incognito:false,cookieStoreId:'firefox-container-1',type:'xmlhttprequest',statusCode:200,responseHeaders:[{name:'Content-Type',value:'video/mp4'}],...extra};}
  async function advance(ms){now+=ms;for(const[id,t]of [...timers])if(t.at<=now){timers.delete(id);t.fn();}await tick();}
  return{browser,sender,start,ready,frame,request,sent,controls,native,receive,before,headers,removed,
- advance,history:e=>history?.(e),navigate:e=>navigate?.(e)};
+ advance,frameDetails,history:e=>history?.(e),navigate:e=>navigate?.(e)};
 }
 async function run(c){
  const w=world();let r=w.request();

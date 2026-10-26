@@ -8,6 +8,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.prirai.android.nira.BrowserApp
 import java.net.ServerSocket
 import java.net.Socket
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.runBlocking
@@ -49,13 +51,21 @@ class GeckoDiscoveryDeviceTest {
         if (::server.isInitialized) server.close()
     }
     private fun await(label: String, predicate: () -> Boolean) = runBlocking {
-        withTimeout(90_000) {
+        try { withTimeout(90_000) {
             while (true) {
                 var done = false
                 instrumentation.runOnMainSync { done = predicate() }
                 if (done) break
                 delay(50) // bounded condition wait; no fixed playback/registration sleep
             }
+        } } catch (timeout: kotlinx.coroutines.TimeoutCancellationException) {
+            var summary = ""
+            instrumentation.runOnMainSync {
+                val selected = app.components.store.state.selectedTabId
+                val counters = MediaDetectorDiagnostics.snapshot(selected)
+                summary = "label=$label entries=${counters.selectedTabMediaCount} stale=${counters.staleCount} validation=${counters.validationErrorCount} discovery=${counters.discovery} anonymous=${counters.anonymousDiscovery}"
+            }
+            throw AssertionError(summary, timeout)
         }
     }
     private fun open(path: String, profile: String? = null, privateMode: Boolean = false): String {
@@ -99,6 +109,38 @@ class GeckoDiscoveryDeviceTest {
     @Test fun srcdocIframe() = expect("/srcdoc", "fixture.mp4")
     @Test fun redirect() = expect("/redirect-page", "fixture.mp4")
     @Test fun spaPushStateWithoutMutation() = expect("/spa", "manifest-spa")
+    @Test fun spaReplaceStateWithoutMutation() = expect("/replace", "manifest-spa")
+    @Test fun selectedTabSwitchDoesNotMisassignSameUrl() {
+        val a = open("/basic")
+        await("first same URL") { entries(a).isNotEmpty() }
+        val b = open("/basic")
+        await("second same URL") { entries(b).isNotEmpty() }
+        instrumentation.runOnMainSync { app.components.tabsUseCases.selectTab(a) }
+        assertEquals(1, entries(a).size)
+        assertEquals(1, entries(b).size)
+    }
+    @Test fun lateResponseAfterNavigationIsRejected() {
+        val id = open("/late")
+        await("late request issued") { server.waiting.get() > 0 }
+        instrumentation.runOnMainSync { app.components.sessionUseCases.loadUrl(server.url("/negative")) }
+        await("new navigation complete") { app.components.store.state.tabs.first { it.id == id }.content.let { !it.loading && it.url.endsWith("/negative") } }
+        server.gate.countDown()
+        await("late response completed") { server.completed.get() > 0 }
+        assertTrue(entries(id).isEmpty())
+    }
+    @Test fun removedFrameRetiresOnlyItsOwnResults() {
+        val id = open("/remove-frame")
+        await("frame initially present") { entries(id).any { it.frameKey != null } }
+        server.gate.countDown()
+        await("removal applied") { server.completed.get() > 0 && entries(id).none { it.frameKey != null } }
+    }
+    @Test fun replacementFrameCannotInheritOldMedia() {
+        val id = open("/replace-frame")
+        await("old frame initially present") { entries(id).any { it.url.contains("fixture.mp4") } }
+        server.gate.countDown()
+        await("replacement new result") { entries(id).any { it.url.contains("second.mp4") } }
+        assertTrue(entries(id).none { it.url.contains("fixture.mp4") })
+    }
     @Test fun profileIsolation() {
         val a = open("/basic", "discovery-profile-A")
         await("profile A") { entries(a).isNotEmpty() }
@@ -114,6 +156,7 @@ class GeckoDiscoveryDeviceTest {
         await("private loaded") { !app.components.store.state.tabs.first { it.id == b }.content.loading }
         assertTrue(entries(b).isEmpty())
         assertTrue(entries(a).isNotEmpty())
+        expect("/basic", "fixture.mp4", privateMode = true)
     }
     @Test fun closedSessionCannotRetainResultsAndReopenStillWorks() {
         val id = open("/basic")
@@ -124,6 +167,9 @@ class GeckoDiscoveryDeviceTest {
     }
 
     private class FixtureServer(private val mp4: ByteArray) : AutoCloseable {
+        val gate = CountDownLatch(1)
+        val waiting = AtomicInteger(0)
+        val completed = AtomicInteger(0)
         private val socket = ServerSocket(0)
         private val workers = Executors.newFixedThreadPool(4)
         private val acceptor = Thread({
@@ -141,7 +187,7 @@ class GeckoDiscoveryDeviceTest {
             var type = "text/html"; var status = "200 OK"; var extra = ""
             val video = "<video preload='none' src='${url("/fixture.mp4")}'></video>"
             val body = when (path) {
-                "/fixture.mp4" -> { type = "video/mp4"; mp4 }
+                "/fixture.mp4", "/second.mp4" -> { type = "video/mp4"; mp4 }
                 "/stream.m3u8", "/manifest-early", "/manifest-spa" -> {
                     type = "application/vnd.apple.mpegurl"; "#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXTINF:1,\nfixture.mp4\n#EXT-X-ENDLIST".toByteArray()
                 }
@@ -155,6 +201,19 @@ class GeckoDiscoveryDeviceTest {
                 "/srcdoc" -> "<iframe srcdoc=\"${video.replace("'", "&apos;")}\"></iframe>".toByteArray()
                 "/redirect-page" -> "<script>fetch('/redirect-media')</script>".toByteArray()
                 "/redirect-media" -> { status = "302 Found"; extra = "Location: /fixture.mp4\r\n"; byteArrayOf() }
+                "/replace" -> "<script>document.addEventListener('DOMContentLoaded',()=>{history.replaceState({},'', '/replace-next');fetch('/manifest-spa');});</script>".toByteArray()
+                "/late" -> "<script>fetch('/late-response')</script>".toByteArray()
+                "/late-response" -> {
+                    waiting.incrementAndGet(); gate.await(15, TimeUnit.SECONDS)
+                    type = "video/mp4"; completed.incrementAndGet(); mp4
+                }
+                "/remove-frame", "/replace-frame" -> {
+                    val action = if (path == "/remove-frame") "f.remove()" else "f.src='/second-frame'"
+                    "<iframe id='f' src='/frame'></iframe><script>fetch('/gate').then(()=>{$action;fetch('/done')});</script>".toByteArray()
+                }
+                "/second-frame" -> "<video preload='none' src='${url("/second.mp4")}'></video>".toByteArray()
+                "/gate" -> { waiting.incrementAndGet(); gate.await(15, TimeUnit.SECONDS); byteArrayOf() }
+                "/done" -> { completed.incrementAndGet(); byteArrayOf() }
                 "/spa" -> "<script>document.addEventListener('DOMContentLoaded',()=>{history.pushState({},'', '/spa-next');fetch('/manifest-spa');});</script>".toByteArray()
                 else -> "<p>no media</p>".toByteArray()
             }
@@ -162,6 +221,6 @@ class GeckoDiscoveryDeviceTest {
                 write("HTTP/1.1 $status\r\nContent-Type: $type\r\nContent-Length: ${body.size}\r\n${extra}Connection: close\r\n\r\n".toByteArray()); write(body); flush()
             }
         }
-        override fun close() { socket.close(); workers.shutdownNow() }
+        override fun close() { gate.countDown(); socket.close(); workers.shutdownNow() }
     }
 }

@@ -40,6 +40,49 @@
   let port = null, connectAttempts = 0, lastGesture = null, probeNonce = null;
   const GESTURE_WINDOW_MS = 10_000;
   const lastAutoOffer = new WeakMap();
+  let pendingIdentityVideo = null, pendingIdentityState = null, identityLookup = null, offeredIdentity = null, identityEpoch = 0, identityReadyVersion = 0;
+  function validDiscoveryIdentity(value) {
+    return value && Number.isSafeInteger(value.documentKey) && value.documentKey > 0 &&
+      Number.isSafeInteger(value.frameKey) && value.frameKey >= 0;
+  }
+  function resolveBlobIdentity(video, fromReady = false) {
+    if (fromReady && (!pendingIdentityState || pendingIdentityState.video !== video ||
+        pendingIdentityState.page !== location.href || pendingIdentityState.source !== (video.currentSrc || video.src) ||
+        pendingIdentityState.gestureAt !== lastGesture?.at)) {
+      pendingIdentityVideo = null; pendingIdentityState = null; return;
+    }
+    pendingIdentityVideo = video;
+    if (!fromReady) pendingIdentityState = { video, page: location.href,
+      source: video.currentSrc || video.src, gestureAt: lastGesture?.at };
+    if (identityLookup || !browser.runtime.sendMessage) return;
+    const state = pendingIdentityState, epoch = identityEpoch, readyVersion = identityReadyVersion;
+    identityLookup = Promise.resolve(browser.runtime.sendMessage({ schemaVersion: 1, event: "frame_identity" }))
+      .then(identity => {
+        if (!validDiscoveryIdentity(identity) || pendingIdentityState !== state || epoch !== identityEpoch ||
+            location.href !== state.page || !video.isConnected || (video.currentSrc || video.src) !== state.source) return;
+        pendingIdentityVideo = null; pendingIdentityState = null; offeredIdentity = { video, identity };
+        try { videoPlayed({ target: video }); } finally { offeredIdentity = null; }
+      }).catch(() => {}).finally(() => {
+        identityLookup = null;
+        if (pendingIdentityState && (pendingIdentityState !== state || identityReadyVersion > readyVersion))
+          resolveBlobIdentity(pendingIdentityState.video, true);
+      });
+  }
+  if (browser.runtime.onMessage?.addListener) browser.runtime.onMessage.addListener((message, sender) => {
+    if (sender?.id === browser.runtime.id && message?.schemaVersion === 1 &&
+        message.event === "discovery_rescan" && message.kind === "history") {
+      identityEpoch++; lastGesture = null; pendingIdentityVideo = null;
+      pendingIdentityState = null; offeredIdentity = null; return;
+    }
+    if (sender?.id !== browser.runtime.id || message?.schemaVersion !== 1 ||
+        !(message.event === "discovery_identity_ready" ||
+          message.event === "discovery_rescan" && message.kind === "root_ready")) return;
+    identityReadyVersion++;
+    if (pendingIdentityVideo) resolveBlobIdentity(pendingIdentityVideo, true);
+  });
+  if (typeof window !== "undefined") window.addEventListener("pagehide", () => {
+    identityEpoch++; pendingIdentityVideo = null; pendingIdentityState = null; offeredIdentity = null;
+  }, { passive: true });
   let inlineLease = null, lastLayout = 0, trackedFrame = null;
   function uniqueIframe(frameUrl) {
     if (typeof window === "undefined" || window !== window.top ||
@@ -258,7 +301,7 @@
     if (blob) diagnostic("source_blob");
     // Blob is only offered as an element identity, never as a playable URL.
     // Native must independently find exactly one matching network HLS source.
-    const blobEligible = blob && Number.isFinite(video.duration) &&
+    const blobEligible = blob && video.paused === false && video.isConnected && !video.ended && Number.isFinite(video.duration) &&
       video.duration >= 180 && !video.muted && !video.loop &&
       video.readyState >= 2 && !!rectOf(video) &&
       rectOf(video).w >= 320 && rectOf(video).h >= 180 &&
@@ -298,6 +341,8 @@
     // Permit only when there is exactly one active non-muted player, playback
     // is visibly underway, and a trusted gesture just happened in this frame.
     if (!related && video.currentTime <= 0 && video.readyState < 3) return;
+    if (blob && offeredIdentity?.video !== video) { resolveBlobIdentity(video); return; }
+    const discoveryIdentity = blob ? offeredIdentity.identity : null;
     lastAutoOffer.set(video,Date.now());
     lastGesture = null;
     diagnostic("auto_offered");
@@ -308,7 +353,9 @@
       topFrame:typeof window !== "undefined" && window === window.top,
       viewportW:typeof window !== "undefined" ? window.innerWidth : 0,
       viewportH:typeof window !== "undefined" ? window.innerHeight : 0,
-      ...(r || {})};
+      ...(r || {}),
+      ...(discoveryIdentity ? { discoveryDocumentKey: discoveryIdentity.documentKey,
+        discoveryFrameKey: discoveryIdentity.frameKey } : {})};
     send({version:1,event:"auto_offer",...offer});
     protocolOneShot("auto_offer",offer);
   }

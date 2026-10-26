@@ -39,3 +39,13 @@
 - NastępniepushWIP[gecko-test] uruchomiwyłączniededykowanyGeckoCI, bezprodukcjiAPK; czekaćnazielonytestnowegokodu/problemyplatformowe.
 - Dalsze: dokładniejszeblobassociation wymagarozważeniaidentityUUIDnaofercie; nativeFrameRegistryblokujeznanedwasameURL, leczmostoffermaobecniejedynieURL/stringframeKey. Nie twierdzićżeidentyfikuje arbitraryunregisteredframe. Designudokumentowaćprzedmodyfikacją; ACK/rollbackzachować.
 - PotemrozszerzyćHrealtestydelayed/replace/framecleanup, metrykiB/C+firstResult, review,regresjepełne,lintdelta,bump164/1164alpha70-mpv38,finalDraftPRdov1163+CI+podpisAPK.
+
+## Checkpoint D/H — rzeczywiste różnice Gecko i korelacja blob
+- CI40305856842:13wykonanych,11PASS/2FAIL(SPApush,initialaboutblank). srcdoc naprawione; nie obniżano testów.
+- Dowód platformy: ExtensionContent ustawia this.url raz przy tworzeniu; runtime sender.url pozostaje sprzed HistoryAPI. Rejestracja nowejtrasy weryfikuje UUID+getFrame.currentURL, nie zgaduje zselectedTab.
+- SourceGecko bug1415539: brak deklaratywnego content w uncommittedinitialblank. Ograniczony fallback getAllFrames(UUID/parentchain), isolated executeScript content.js, max256known/16injection, guardduplicate. BezMAINworld/originfallback.
+- Late onBeforeNavigate nie usuwa nowszej rejestracji(timeStampguard); testRED/GREEN. AktualnieJS67/67 GREEN, AndroidTest18metodcompilePASS4s.
+- Native blob oferta ma trusted discoveryDoc/frameKey; aktualnydoc/exactframe sprawdzany przed istniejącymAUTO. Direct/ACK/rollback bezprzebudowy. JS6testówblob+14protectedPASS; Kotlin82/82 poidentity PASS33s.
+- Rozszerzono realGecko13→18metod:replaceState,late navigationresponse,sameURLtabs/switch,removeframe,replaceframe; private positive. Timeout podaje tylkoliczniki/kategoriebezURL.
+- NastępnyWIP[gecko-test] uruchamia18realGecko; sprawdzićwynik, niezakładaćPASS. FinalPR/APK/164jeszczeniegotowe.
+- IndependentC nadalnieuruchomione. ZostajeA/B/Cmetryki,review,integrityreversiblepatches,pełnaTEST/LINT/Lua/DSP,finalversion+docs+DraftPRdov1163+podpisCI.

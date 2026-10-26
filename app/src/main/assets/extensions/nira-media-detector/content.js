@@ -1,6 +1,9 @@
 "use strict";
 
 (() => {
+  // Isolated-world guard: fallback blank injection can race declarative injection.
+  if (globalThis.__niraDiscoveryV1164) return;
+  Object.defineProperty(globalThis, "__niraDiscoveryV1164", { value: true });
   // Only the extension's background can mint root/frame correlation keys.
   // No video playback, network probe, script execution or persistent URL storage.
   const FRAME = typeof window.top !== "undefined" && window !== window.top;
@@ -18,6 +21,17 @@
   const SLICE_MS = 8, MAX_JOBS = 64, MAX_ROOTS = 32;
   const seen = new Map(), groups = new WeakMap();
   let nextGroup = 0;
+  const opaqueFrameVersions = new WeakMap();
+  function inspectFrame(element) {
+    if (FRAME || element.tagName !== "IFRAME") return;
+    const version = element.getAttribute("src") + "\0" + element.getAttribute("srcdoc");
+    if (opaqueFrameVersions.get(element) === version) return;
+    opaqueFrameVersions.set(element, version);
+    ensureDocument().then(root => {
+      if (root && alive) return browser.runtime.sendMessage({ schemaVersion: 1,
+        event: "opaque_frames_changed", documentKey: root.documentKey });
+    }).catch(() => {});
+  }
 
   function resetNavigation() {
     if (activeUrl === location.href) return;
@@ -528,11 +542,13 @@
   }
   function collect(root) {
     scanRoot = root;
+    inspectFrame(root);
     scanCollection("video", inspect);
     scanDeclarations(); scanStructuredData(); scanPlayerConfigs();
     if (document.createTreeWalker) {
       const walker = document.createTreeWalker(root, 1);
       jobs.push({ walker, callback(element) {
+        inspectFrame(element);
         if (element.shadowRoot) {
           observeRoot(element.shadowRoot);
           enqueueRoot(element.shadowRoot);
@@ -606,7 +622,7 @@
   }
   const observer = new MutationObserver(scheduleScan);
   const observerOptions = { childList: true, subtree: true, attributes: true, characterData: true,
-    attributeFilter: ["src", "type", "content", "href", "title", "aria-label",
+    attributeFilter: ["src", "srcdoc", "type", "content", "href", "title", "aria-label",
       "data-title", "data-video-title", "data-src", "data-video-url", "data-video-src",
       "data-hls", "data-mpd", "data-plyr-source", "data-playback-url", "data-manifest-url",
       "data-source-url", "data-mp4", "data-m3u8", "data-stream", "data-config",

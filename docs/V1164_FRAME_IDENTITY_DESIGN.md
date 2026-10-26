@@ -15,3 +15,9 @@ Plan zgodności:
 - Nie zmienia się mostu prepare/ACK/rollback, Lua/DSP/libmpv ani zasadDRM. Opaque-frame source można wykryć; dotychczasowy mostAUTO pozostajeHTTP-only, więc nie deklarować pełnegoAUTOabout/srcdoc.
 
 Rollback: usunąć addytywne flag/event i registry w tym commicie, zachowując bazę1c5ae61; nie migrować bazy/preferencji. Testy muszą pokazaćRED na root HLS i rejestracji protokołu, GREEN na retire/replacement/ambiguity oraz kompatybilność starych pakietów. Instrumentacja Gecko weryfikuje rzeczywisty lifecycle osobno od adapteraJS.
+
+## Dalsza korelacja blob offer (przed implementacją)
+
+Sama lista zarejestrowanych ramek nie dowodzi właściciela oferty blob: druga ramka może dopiero czekać na rejestrację. Dlatego oferta blob otrzyma wyłącznie metadane tożsamości z wewnętrznego runtime.frame_identity (zaufany sender, bez identyfikatorów od strony). Dopiero po Native frame_ready oferta zawiera discoveryDocumentKey i discoveryFrameKey. Gdy tożsamość nie jest gotowa, pojedyncza oczekująca oferta może zostać wznowiona przez zdarzenie identity_ready, bez pollingu/Play/HTTP.
+
+Native AutoOffer doda dwa opcjonalne pola; dla blob będą wymagane. BrowserFragment sprawdzi aktualny dokument repozytorium, selector porówna dokładny frameKey. Root używa0. Dotychczasowe port/elementUUID, probe, prepare,ACK,rollback,geometry i sterowanie MPV pozostają. Brak tożsamości/DRM/niejednoznaczny strumień pozostajeWEB. DirectHTTP oferty pozostają zgodne. Testy mają odtworzyć brakID oraz opóźnioneID z zachowaniem gestu, zniknięcieelementu i obcegotransportu.
