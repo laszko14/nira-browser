@@ -43,6 +43,8 @@ internal class MediaFloatingUi(
     private val openVideo: (Long) -> Unit,
 ) {
     private val context = parent.context
+    private val gridPrefs = context.getSharedPreferences("zavro_media_grid", Context.MODE_PRIVATE)
+    private var gridSettingsExpanded = false
     private fun dp(value: Int) = (value * context.resources.displayMetrics.density + 0.5f).toInt()
     private val size = dp(56)
     private val padding = dp(16)
@@ -271,7 +273,71 @@ internal class MediaFloatingUi(
             return
         }
         val groups = snapshot.entries.groupBy { it.groupId ?: "url:" + it.url }
-        body.addView(label("Wykryte pliki  •  ${groups.size}", 19f, true))
+        // Portrait and landscape keep independent, locally stored grid geometry.
+        val suffix = if (context.resources.configuration.orientation ==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE) "landscape" else "portrait"
+        val rowsKey = "rows_" + suffix
+        val widthKey = "tile_width_" + suffix
+        val rowLimit = gridPrefs.getInt(rowsKey, 3).coerceIn(1, 10)
+        val tileWidth = gridPrefs.getInt(widthKey, 290).coerceIn(220, 420)
+        val toolbar = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        toolbar.addView(label("Wykryte filmy • ${groups.size}", 15f, true),
+            LinearLayout.LayoutParams(0, -2, 1f))
+        toolbar.addView(TextView(context).apply {
+            text = "⚙"
+            textSize = 21f
+            gravity = Gravity.CENTER
+            contentDescription = "Ustawienia siatki wykrytych filmów"
+            setTextColor(Color.WHITE)
+            setOnClickListener { gridSettingsExpanded = !gridSettingsExpanded; fillSheet() }
+        }, LinearLayout.LayoutParams(dp(45), dp(40)))
+        body.addView(toolbar)
+        if (gridSettingsExpanded) {
+            body.addView(label("Rzędy: $rowLimit (1–10)", 12f))
+            body.addView(android.widget.SeekBar(context).apply {
+                max = 9
+                progress = rowLimit - 1
+                setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+                    override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
+                    override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {}
+                    override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {
+                        gridPrefs.edit().putInt(rowsKey, (seekBar?.progress ?: 0) + 1).apply()
+                        fillSheet()
+                    }
+                })
+            })
+            body.addView(label("Szerokość kafelka: $tileWidth dp", 12f))
+            body.addView(android.widget.SeekBar(context).apply {
+                max = 20
+                progress = (tileWidth - 220) / 10
+                setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+                    override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
+                    override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {}
+                    override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {
+                        gridPrefs.edit().putInt(widthKey, 220 + (seekBar?.progress ?: 7) * 10).apply()
+                        fillSheet()
+                    }
+                })
+            })
+        }
+        // The horizontal viewport keeps 1–10 complete rows accessible even on small screens.
+        val horizontal = android.widget.HorizontalScrollView(context).apply {
+            isHorizontalScrollBarEnabled = true
+            isFillViewport = false
+        }
+        val grid = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        val gridRows = (0 until minOf(rowLimit, groups.size)).map {
+            LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.TOP
+                grid.addView(this, LinearLayout.LayoutParams(-2, -2))
+            }
+        }
+        horizontal.addView(grid, android.widget.FrameLayout.LayoutParams(-2, -2))
+        body.addView(horizontal, LinearLayout.LayoutParams(-1, -2))
         groups.values.forEachIndexed { index, found ->
             // Prefer network-confirmed playable URLs; keep the current stream ID until the user chooses an external player.
             val variants = found.sortedWith(
@@ -357,7 +423,12 @@ internal class MediaFloatingUi(
             )
             item.addView(TextView(context).apply {
                 text = "▶"
-                textSize = 28f
+                textSize = 23f
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(6).toFloat()
+                    setColor(Color.TRANSPARENT)
+                    setStroke(dp(1), Color.rgb(190, 190, 190))
+                }
                 gravity = Gravity.CENTER
                 setTextColor(if (playable) Color.WHITE else Color.GRAY)
                 contentDescription = "Otwórz w odtwarzaczu"
@@ -373,9 +444,10 @@ internal class MediaFloatingUi(
                     }
                 }
             }, LinearLayout.LayoutParams(dp(48), dp(58)))
-            body.addView(item, LinearLayout.LayoutParams(-1, -2))
-            body.addView(View(context).apply { setBackgroundColor(Color.rgb(93, 93, 93)) },
-                LinearLayout.LayoutParams(-1, dp(1)))
+            gridRows[index % gridRows.size].addView(item,
+                LinearLayout.LayoutParams(dp(tileWidth), -2).apply {
+                    setMargins(dp(3), dp(3), dp(3), dp(3))
+                })
         }
     }
 
