@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Context.MODE_PRIVATE
 import android.view.Choreographer
 import com.prirai.android.nira.components.Components
+import com.prirai.android.nira.display.HighRefreshRateController
+import android.content.res.Configuration
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -23,6 +25,8 @@ import java.util.concurrent.TimeUnit
 class BrowserApp : Application() {
 
     private val logger = Logger("BrowserApp")
+    internal var displayPolicy: HighRefreshRateController? = null
+        private set
 
     // Default to Dispatchers.Default so launches that don't explicitly ask for
     // Main don't pile onto the main looper right after draw. Sites that need
@@ -34,6 +38,11 @@ class BrowserApp : Application() {
     
     // Track startup timing
     private var appStartTime = 0L
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        displayPolicy?.reapply()
+    }
 
     override fun attachBaseContext(base: Context?) {
         super.attachBaseContext(base)
@@ -68,6 +77,8 @@ class BrowserApp : Application() {
         if (!isMainProcess()) {
             return
         }
+
+        displayPolicy = HighRefreshRateController(this)
 
         // LogFactProcessor forwards every mozilla-components Fact to logcat
         // for the life of the process. That's useful while developing but it

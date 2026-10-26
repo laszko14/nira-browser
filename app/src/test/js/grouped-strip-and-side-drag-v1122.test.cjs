@@ -71,13 +71,19 @@ test("v1128: side-drawer drag commits one awaited transaction, not an async redr
   assert.match(model, /saveCurrentOrder\(profileId\)/);
 });
 
-test("v1128: floating media button and expanded list match the selected reference", () => {
+test("v1166: FAB remains docked and the expanded tile panel has bounded responsive height", () => {
   const ui = read(base + "media/MediaFloatingUi.kt");
   assert.match(ui, /FrameLayout\.LayoutParams\(dp\(29\), dp\(29\), Gravity\.CENTER\)/);
   assert.match(ui, /downloadGlyph\.visibility = if \(amount > 0\) View\.GONE/);
   assert.match(ui, /behavior\.skipCollapsed = true/);
   assert.match(ui, /behavior\.state = BottomSheetBehavior\.STATE_EXPANDED/);
-  assert.match(ui, /height = body\.measuredHeight\.coerceIn\(dp\(130\), maxHeight\)/);
+  assert.match(ui, /compose\.measuredHeight\.coerceIn\(dp\(170\), maxHeight\)/);
+  assert.match(ui, /DetectedVideoTiles\(/);
+  assert.match(ui, /videoTiles\.value = value/);
+  const grid = read(base + "media/DetectedVideoTiles.kt");
+  assert.match(grid, /GridCells\.Fixed\(rows\)/);
+  assert.match(grid, /verticalScroll\(rememberScrollState\(\)\)/);
+  assert.match(grid, /height\(wholeHeight\.dp\)/);
 });
 
 test("v1128: address-bar previous/next follows persisted group and tab order", () => {

@@ -1,6 +1,10 @@
 package com.prirai.android.nira.media
 
 import com.prirai.android.nira.diagnostics.testlab.*
+import com.prirai.android.nira.BrowserApp
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 
 import android.content.ClipData
 import android.content.ClipDescription
@@ -69,7 +73,7 @@ internal class MediaFloatingUi(
     private var isFullscreen = false
     private var displayed: MediaUiSnapshot? = null
     private var sheet: BottomSheetDialog? = null
-    private var sheetBody: LinearLayout? = null
+    private val videoTiles = mutableStateOf<MediaUiSnapshot?>(null)
     private val placementListener = android.view.ViewTreeObserver.OnPreDrawListener {
         place()
         true
@@ -126,7 +130,7 @@ internal class MediaFloatingUi(
         button.visibility = if (!isFullscreen) View.VISIBLE else View.GONE
         if (button.visibility == View.VISIBLE) button.bringToFront()
         if (sheet?.isShowing == true) {
-            if (amount == 0 || isFullscreen) sheet?.dismiss() else fillSheet()
+            if (amount == 0 || isFullscreen) sheet?.dismiss() else videoTiles.value = value
         }
     }
 
@@ -171,33 +175,50 @@ internal class MediaFloatingUi(
     }
 
     private fun showSheet() {
-        if (current()?.entries.isNullOrEmpty()) {
+        val opened = current()
+        if (opened == null || opened.entries.isEmpty()) {
             Toast.makeText(context, "Brak wykrytych filmów", Toast.LENGTH_SHORT).show()
             return
         }
-        val capture=TestLab.capture();val measurement=capture?.operation(LabOperation.FAB_OPEN)
+        val capture = TestLab.capture()
+        val measurement = capture?.operation(LabOperation.FAB_OPEN)
         sheet?.dismiss()
+        videoTiles.value = opened
         val dialog = BottomSheetDialog(context)
-        val scroll = ScrollView(context).apply {
-            isFillViewport = false
-            setBackgroundColor(Color.rgb(63, 63, 63))
+        val compose = ComposeView(context).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+            setContent {
+                DetectedVideoTiles(
+                    snapshot = videoTiles.value,
+                    onPlay = { streamId ->
+                        val fresh = current()
+                        val entry = fresh?.entries?.firstOrNull { it.id == streamId }
+                        if (fresh == null || !sameSelection(opened.tab, fresh.tab) ||
+                            entry == null || entry.playbackStatus in setOf(
+                                MediaPlaybackStatus.EXPIRED, MediaPlaybackStatus.AUTH_ERROR,
+                                MediaPlaybackStatus.UNPLAYABLE
+                            )) {
+                            stale()
+                            videoTiles.value = fresh
+                        } else {
+                            openVideo(streamId)
+                        }
+                    },
+                    onClose = { dialog.dismiss() }
+                )
+            }
         }
-        val body = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(12), dp(12), dp(24))
-        }
-        scroll.addView(body, FrameLayout.LayoutParams(-1, -2))
-        dialog.setContentView(scroll)
+        dialog.setContentView(compose)
         sheet = dialog
-        sheetBody = body
         dialog.setOnDismissListener {
-            dialog.window?.let(TestLab::detachWindow)
-            capture?.end(measurement,OperationOutcome.INTERRUPTED)
-            sheet = null; sheetBody = null
+            dialog.window?.let { window ->
+                (context.applicationContext as? BrowserApp)?.displayPolicy?.detachDialog(window)
+                TestLab.detachWindow(window)
+            }
+            capture?.end(measurement, OperationOutcome.INTERRUPTED)
+            sheet = null
+            videoTiles.value = null
         }
-        // Force a fully expanded, content-sized sheet on the very first tap.
-        // With one video there is no wasted full-screen blank area; with many,
-        // ScrollView owns overflow while the sheet fills the available height.
         dialog.setOnShowListener {
             val sheetView = dialog.findViewById<FrameLayout>(
                 com.google.android.material.R.id.design_bottom_sheet
@@ -205,188 +226,27 @@ internal class MediaFloatingUi(
             val bounds = Rect()
             parent.getWindowVisibleDisplayFrame(bounds)
             val maxHeight = (bounds.height() - dp(24)).coerceAtLeast(dp(180))
-            val sheetWidth = (parent.width - dp(28)).coerceAtLeast(dp(240))
-            body.measure(
-                View.MeasureSpec.makeMeasureSpec(sheetWidth, View.MeasureSpec.AT_MOST),
-                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-            )
-            sheetView.layoutParams = sheetView.layoutParams.apply {
-                height = body.measuredHeight.coerceIn(dp(130), maxHeight)
-            }
-            sheetView.requestLayout()
             val behavior = BottomSheetBehavior.from(sheetView)
             behavior.skipCollapsed = true
             behavior.isFitToContents = true
-            sheetView.post { behavior.state = BottomSheetBehavior.STATE_EXPANDED }
+            // Compose content can grow to 10 rows while header remains pinned.
+            compose.post {
+                sheetView.layoutParams = sheetView.layoutParams.apply {
+                    height = compose.measuredHeight.coerceIn(dp(170), maxHeight)
+                }
+                sheetView.requestLayout()
+                behavior.state = BottomSheetBehavior.STATE_EXPANDED
+            }
+            dialog.window?.let { window ->
+                (context.applicationContext as? BrowserApp)?.displayPolicy?.attachDialog(window)
+            }
         }
-        fillSheet()
         dialog.show()
-        if(measurement!=null){
+        if (measurement != null) {
             dialog.window?.let(TestLab::attachWindow)
-            androidx.core.view.OneShotPreDrawListener.add(body){capture?.end(measurement,proof=CompletionProof.FIRST_PREDRAW)}
-        }
-    }
-
-    private fun label(text: String, sizeSp: Float, bold: Boolean = false) = TextView(context).apply {
-        this.text = text
-        textSize = sizeSp
-        setTextColor(if (bold) Color.WHITE else Color.rgb(206, 206, 206))
-        if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
-        setPadding(0, dp(4), 0, dp(4))
-    }
-
-
-    private fun sizeLabel(entry: MediaEntry): String {
-        // HLS/DASH Content-Length would describe only the manifest, not the movie.
-        if (entry.format == MediaFormat.HLS || entry.format == MediaFormat.DASH)
-            return "...MB"
-        val bytes = entry.sizeBytes ?: return "...MB"
-        return when {
-            bytes >= 1_000_000_000L -> String.format(Locale("pl", "PL"), "%.2f GB", bytes / 1e9)
-            bytes >= 1_000_000L -> String.format(Locale("pl", "PL"), "%.1f MB", bytes / 1e6)
-            else -> String.format(Locale("pl", "PL"), "%.0f KB", bytes / 1000.0)
-        }
-    }
-
-    private fun durationLabel(seconds: Int?): String? {
-        val duration = seconds ?: return null
-        val hours = duration / 3600
-        val minutes = (duration % 3600) / 60
-        val rest = duration % 60
-        return if (hours > 0) String.format(Locale.ROOT, "%d:%02d:%02d", hours, minutes, rest)
-            else String.format(Locale.ROOT, "%d:%02d", minutes, rest)
-    }
-
-    private fun friendlyFileName(url: String): String? {
-        val raw = try { URI(url).path?.substringAfterLast('/') } catch (_: Exception) { null }
-        val part = raw?.substringBeforeLast('.', raw)?.replace(Regex("[_-]+"), " ")?.trim()
-            ?: return null
-        if (part.length !in 3..65 || !part.any { it.isLetter() } ||
-            part.lowercase(Locale.ROOT) in setOf("video", "master", "playlist", "index",
-                "stream", "watch", "download", "manifest")) return null
-        return part
-    }
-
-    private fun originLabel(entry: MediaEntry): String = when {
-        MediaSource.NETWORK in entry.sources -> "Potwierdzone odpowiedzią sieciową"
-        MediaSource.PAGE in entry.sources -> "Znalezione na stronie"
-        else -> "Znalezione w odtwarzaczu"
-    }
-
-    private fun fillSheet() {
-        val body = sheetBody ?: return
-        val snapshot = current()
-        body.removeAllViews()
-        if (snapshot == null || snapshot.entries.isEmpty()) {
-            sheet?.dismiss()
-            return
-        }
-        val groups = snapshot.entries.groupBy { it.groupId ?: "url:" + it.url }
-        body.addView(label("Wykryte pliki  •  ${groups.size}", 19f, true))
-        groups.values.forEachIndexed { index, found ->
-            // Prefer network-confirmed playable URLs; keep the current stream ID for MPV.
-            val variants = found.sortedWith(
-                compareByDescending<MediaEntry> { MediaSource.NETWORK in it.sources }
-                    .thenByDescending { MediaSource.DOM in it.sources }
-            )
-            val entry = variants.first()
-            val bestTitle = variants.filter { !it.title.isNullOrBlank() }.maxByOrNull {
-                when (it.titleKind) {
-                    "video" -> 3
-                    "link" -> 2
-                    "page" -> 1
-                    else -> 0
-                }
+            androidx.core.view.OneShotPreDrawListener.add(compose) {
+                capture?.end(measurement, proof = CompletionProof.FIRST_PREDRAW)
             }
-            val name = bestTitle?.title ?: variants.firstNotNullOfOrNull { friendlyFileName(it.url) }
-                ?: "Film ${index + 1}"
-            val item = LinearLayout(context).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(8), dp(12), dp(4), dp(12))
-                background = GradientDrawable().apply {
-                    cornerRadius = dp(5).toFloat()
-                    setColor(Color.rgb(65, 65, 65))
-                }
-            }
-            val iconColumn = LinearLayout(context).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            }
-            // Draw a simple 1DM-style film reel icon locally. No poster loading.
-            iconColumn.addView(object : View(context) {
-                private val ink = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                    color = Color.WHITE
-                }
-                override fun onDraw(canvas: android.graphics.Canvas) {
-                    super.onDraw(canvas)
-                    val cx = width / 2f
-                    val cy = height / 2f - dp(2)
-                    val radius = dp(15).toFloat()
-                    ink.style = android.graphics.Paint.Style.STROKE
-                    ink.strokeWidth = dp(3).toFloat()
-                    canvas.drawCircle(cx, cy, radius, ink)
-                    ink.style = android.graphics.Paint.Style.FILL
-                    for (a in 0..3) {
-                        val angle = Math.PI * a / 2.0
-                        val dx = kotlin.math.cos(angle).toFloat() * dp(8)
-                        val dy = kotlin.math.sin(angle).toFloat() * dp(8)
-                        canvas.drawCircle(cx + dx, cy + dy, dp(3).toFloat(), ink)
-                    }
-                    canvas.drawCircle(cx, cy, dp(3).toFloat(), ink)
-                    canvas.drawRoundRect(
-                        android.graphics.RectF(cx + dp(9), cy + dp(11), cx + dp(20), cy + dp(17)),
-                        dp(2).toFloat(), dp(2).toFloat(), ink
-                    )
-                }
-            }.apply { contentDescription = "Ikona filmu" },
-                LinearLayout.LayoutParams(dp(62), dp(42)))
-            iconColumn.addView(label(sizeLabel(entry), 11f).apply {
-                gravity = Gravity.CENTER
-                maxLines = 1
-            }, LinearLayout.LayoutParams(dp(76), -2))
-            item.addView(iconColumn, LinearLayout.LayoutParams(dp(80), -2))
-            val details = LinearLayout(context).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(5), 0, dp(6), 0)
-            }
-            details.addView(label(name, 15f, true).apply {
-                maxLines = 1
-                ellipsize = android.text.TextUtils.TruncateAt.END
-            })
-            val technical = buildList {
-                add(entry.format.name)
-                entry.quality?.takeIf { it.isNotBlank() }?.let { add(it) }
-                entry.bitrate?.let { add("${it / 1000} kb/s") }
-                if (variants.size > 1) add("${variants.size} źródła")
-            }.joinToString("  •  ")
-            details.addView(label(technical, 12f))
-            details.addView(label(durationLabel(entry.durationSeconds) ?: "Czas nieznany", 12f))
-            item.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
-            val playable = entry.playbackStatus !in setOf(
-                MediaPlaybackStatus.EXPIRED, MediaPlaybackStatus.AUTH_ERROR, MediaPlaybackStatus.UNPLAYABLE
-            )
-            item.addView(TextView(context).apply {
-                text = "▶"
-                textSize = 28f
-                gravity = Gravity.CENTER
-                setTextColor(if (playable) Color.WHITE else Color.GRAY)
-                contentDescription = "Odtwórz w MPV Alpha"
-                isEnabled = playable
-                setOnClickListener {
-                    val now = current()
-                    if (now == null || !sameSelection(snapshot.tab, now.tab) ||
-                        now.entries.none { it.id == entry.id }) {
-                        stale()
-                        fillSheet()
-                    } else {
-                        openVideo(entry.id)
-                    }
-                }
-            }, LinearLayout.LayoutParams(dp(48), dp(58)))
-            body.addView(item, LinearLayout.LayoutParams(-1, -2))
-            body.addView(View(context).apply { setBackgroundColor(Color.rgb(93, 93, 93)) },
-                LinearLayout.LayoutParams(-1, dp(1)))
         }
     }
 
