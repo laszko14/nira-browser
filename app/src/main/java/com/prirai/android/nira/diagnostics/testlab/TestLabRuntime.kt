@@ -164,7 +164,7 @@ internal class TestLabRuntime(
         }
     }
     private fun counterText():String = if(engine.phase==LabPhase.PREPARING)"TESTLAB • START ${mutableUi.value.countdownSeconds?:3}"
-        else "TESTLAB • 00:${(mutableUi.value.remainingSeconds?:0).toString().padStart(2,'0')}"
+        else "TESTLAB • ${labClock(mutableUi.value.remainingSeconds?:0)}"
     private fun publish() {
         val s=session?:return
         val now=SystemClock.elapsedRealtimeNanos()

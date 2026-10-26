@@ -90,3 +90,6 @@ Każdy większy etap kończy się aktualnym checkpointem i w razie potrzeby WIP 
 ## Źródła
 
 [Metrics stable1.0.0,08.10.2025](https://developer.android.com/jetpack/androidx/releases/metrics), [JankStats lifecycle/threading/reused FrameData](https://developer.android.com/topic/performance/jankstats), [FrameMetrics](https://developer.android.com/reference/android/view/FrameMetrics). Zależność nie występuje bezpośrednio w obecnym katalogu app; przed dodaniem sprawdzić transitive resolution.
+
+## F — zaimplementowane ograniczenia
+EkranSettings/menu wraca RESULT_OK do istniejącej BrowserActivity bez onNewIntent, aby nie odtwarzać BrowserFragment/miniMPV. 7modekarty startują wspólnyRuntime; RAMhistory≤7. SAFimmutablepayloadViewModel przeżywa obrót; brakpayloadpo processdeath→brakeksportu. Eksport/share/Clipboard tylko useraction. SharecacheMutex≤2pliki/256KiB,URIunikalne,READgrant,expiry24hlazy. RecoveryNoBackupDir/OFF/64KiB/5s/24hazy, bez backupuAndroid. Nadal wymagane realAndroidUItesty i narzutAB.

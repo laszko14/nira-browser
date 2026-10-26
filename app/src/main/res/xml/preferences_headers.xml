@@ -7,6 +7,13 @@
     <androidx.preference.PreferenceCategory
         android:title="">
     
+    <androidx.preference.Preference
+        android:key="zavro_testlab"
+        android:icon="@drawable/mozac_ic_settings_24"
+        android:title="@string/testlab_title"
+        android:summary="@string/testlab_summary"
+        android:singleLineTitle="false" />
+
     <!-- Core Settings -->
     <androidx.preference.Preference
         android:fragment="com.prirai.android.nira.settings.fragment.GeneralSettingsFragment"

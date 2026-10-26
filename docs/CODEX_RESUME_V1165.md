@@ -1,3 +1,20 @@
+# v1165 — checkpoint F implémenté / E-G-H à finir (2026-10-26)
+- RemoteD2f307e2 pushpotwierdzony;branchfeat/zavro-x-mpv-v1165-testlab-diagnostics,based890c68. Nie resetować/untrackedwork/zachowaćzmiany; bezsubagentów/merge.
+- F:TestLabActivityNiraTheme/AppCompat(light/dark/AMOLED/dynamic),7modecards/instructions/60s/start, activecountdown/marker/partialstop, RAMhistorymax7, statusniejesthealthscore.
+- Settings entrypreferences_headers+HeadersSettingsFragment ActivityResult; menuBrowserentry+marker+stop. ReturnRESULT_OKfinishesSettingsthenLab; NIE wysyłaNewIntentdoBrowserActivity/NIE restartujeBrowserFragment/miniMPV.
+- ReportsVMgeneratesDefaultoffMain;detailLazyColumnvirtualizesTXT, JSON/TXTviaSAF, immutablependingpayloadVMsurvivesrotation/doesnotexportnewerreportoncallback. Clipboard/share/deleteonlyuseractions,noautomaticexports.
+- FileProviderexistingauthority,uniqueUUIDreportURI,cacheMutexbounds2files≤256KiBeach,24h lazycleanup/revokeondelete. Activitysharingflagguardsdoubletap. Test8parallelshares2files+uniquecontentURI. Reporttypedgenerationprivacytestsretained.
+- Recovery optinOFF UIcheckbox;file NOW noBackupFilesDir toavoidAndroidcloudbackup,64KiB/5s/24h lazyexpiry; normalfinishdeletes. Incompletecopy/deleteUI explicit, doesnotassertcrash. NoBackupURIneverexported.
+- Fixedcountdowntime60→01:00(not00:60). UImodebuttonsactuallystartsharedengine; remainversion164WIP, notreadyAPK.
+- Latest64/64TestLabPASS20s(work/v1165-F-exports-tests.log), UIappcodecompilePASS30s(work/v1165-F-ui-compile-tests.log); VM+runtime+recoverytargetPASS14s. NoRobolectricclaimasrealAndroidUI.
+- D274/274targetedPASS39s inclMPV/Lua/DSPKotlin+AppBoundaries remainsvalid exceptFnewUI/Manifest/Recoverypath. C93PASS. FullKotlin/JS/Lua/DSPscript/LINT/AndroidTestcompile/finalBUILDnotyet.
+- NEXT E/G: add actualAndroidTest(KVMexistinggecko-discoveryworkflow, testonlyx86_64) UI7buttons/rotation/WindowJank/resources/60s/cleanup/overheadAB. LocalTCGemulatorfailedinv1164—niepowtarzać. NoNothingPhone/testaudio.
+- DesignreviewstillpendingE:cpuFrameDataApi24optional duration; historicalexitavailability/status; pendingheartbeatage toobserveMainstallbeforeACK; logicaldurationvsfinalizationdelay. Testfirst, nofakeANR/noenergy/noGeckovideoFPSclaims. ResourceNative/PSS/USSdeltas + deterministicAnalyzer (oplatency/ACK/memorysuspicions) ifneededbyprompt; exposeheuristicsasnotcausality.
+- E/Gstrictintegrity:changedprotectedfilesonlypassivehooks. Generateexactreversiblev1165patchlayer anchored d890c68;preserve1158/1160hashes &v1164layers. JSwillotherwiseFAIL—stillnotrunafterhooks.
+- Haftervalidation:bump165/ARM641165/0.5.22-alpha71-mpv39,packagecom.prirai.android.nira.mpv/certdf90...same;draftPRdov1164, bothgreenActions,signedARM64APK.NotdownloadsignedAPK. NoPR/APKv1165currently.
+- NewFfiles:TestLabActivity.kt,TestLabViewModel.kt,TestLabExports.kt,strings_testlab.xml; testsTestLabViewModelTest/TestLabExportsTest. ExistingfacadehistoryinD. RuntimeclockformatslabClock;RecoverytestsupdatednoBackupDir.
+- Mainriskincomplete:realgestures/UI/SAFrotation/exportgrants/nativeplaybackondeviceunrun;testersnotdeclarefullyvalidatedyet. StabilizeE/Gthenfinalhandoff/checklist.
+
 # v1165 — checkpoint D / entrée F (2026-10-26)
 - RemoteC a63c312 (pushpotwierdzony); gałąź feat/zavro-x-mpv-v1165-testlab-diagnostics / bazad890c68. Zachowaćwork/ i wszelkie niezacommitowanezmiany. Bezmerge/subagentów/resetów.
 - D:274/274targetedPASS39s (work/v1165-D-review-green.log:core+media+AppBoundaries). Poentry/historia/review61/61TestLabPASS16s(work/v1165-D-final-core.log). JS/Lua/DSPhost/finalbuild/lint/AndroidUI JESZCZE niewykonane wv1165.

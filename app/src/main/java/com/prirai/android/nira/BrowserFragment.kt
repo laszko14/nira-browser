@@ -1135,6 +1135,17 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         
         val menuItems = mutableListOf<com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem>()
 
+        menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+            id="zavro_testlab",title="Zavro TestLab • 60 s",iconRes=mozilla.components.ui.icons.R.drawable.mozac_ic_settings_24,
+            onClick={startActivity(android.content.Intent(requireContext(),com.prirai.android.nira.diagnostics.testlab.TestLabActivity::class.java))}))
+        if(com.prirai.android.nira.diagnostics.testlab.TestLab.busy) {
+            menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+                id="testlab_marker",title="TestLab: Zacięło się teraz",iconRes=mozilla.components.ui.icons.R.drawable.mozac_ic_settings_24,
+                onClick={if(com.prirai.android.nira.diagnostics.testlab.TestLab.mark())Toast.makeText(requireContext(),"Znacznik zapisany",Toast.LENGTH_SHORT).show()}))
+            menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+                id="testlab_stop",title="Zakończ TestLab • raport częściowy",iconRes=mozilla.components.ui.icons.R.drawable.mozac_ic_cross_24,
+                onClick={com.prirai.android.nira.diagnostics.testlab.TestLab.stop()}))
+        }
         // One short diagnostic instead of three manual reports.
         // The same 40-second capture can also be started inside native MPV.
         menuItems.add(

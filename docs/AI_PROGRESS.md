@@ -1,3 +1,6 @@
+# v1165 F WIP — 2026-10-26
+UI7testers+explicitexports+Settings/Menu/mark/stop/history,64/64TestLabPASS20s. RecoveryNoBackupDir, immutableSAFpayloadVM, cache2uniqueFileProviderfiles. NoprivateURLs; returnBrowserwithoutNewIntent. JeszczebrakrealAndroidUI/overhead/finalregressionsCI/signedAPK;nextE/G/H wCODEX_RESUME_V1165.md.
+
 # v1165 D WIP — 2026-10-26
 DGecko/MPV/diagLuaDSP+gate40s:274/274targetedPASS39s; afterentryreview61/61TestLabPASS16s. FullscreenState≠predraw≠videoframe; onlyexistingpassivetaps. BrakUI/końcowegoCI/signedAPKv1165;nextFUI/export. CheckpointCODEX_RESUME_V1165.md.
 

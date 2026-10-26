@@ -19,7 +19,7 @@ internal class TestLabRecoveryStore(context:Context,
     private val wallMillis:()->Long={System.currentTimeMillis()},
 ) {
     private val preferences=context.getSharedPreferences("testlab",Context.MODE_PRIVATE)
-    private val file=AtomicFile(File(context.filesDir,"testlab-recovery.json"))
+    private val file=AtomicFile(File(context.noBackupFilesDir,"testlab-recovery.json"))
     @Volatile var enabled=runCatching{preferences.getBoolean("crash_recovery",false)}.getOrDefault(false);private set
     private var generation=0L
     private var active=false
