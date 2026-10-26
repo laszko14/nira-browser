@@ -1,6 +1,6 @@
 # Zavro x MPV v1165 — Zavro TestLab
 
-**Stan przed CI: implementacja ukończona, weryfikacja wydania trwa. Podpisany APK i testy emulatora jeszcze NIEGOTOWE.**
+**Stan przed CI: implementacja ukończona, weryfikacja wydania trwa. Podpisany APK istnieje i przeszedł verifier CI; końcowe testy emulatora i regresji trwają.**
 
 Baza v1164: `d890c68bd15d0f79e25ccd2935fb64ee955286b8`, PR #77. Gałąź: `feat/zavro-x-mpv-v1165-testlab-diagnostics`. Bez merge. Docelowo Gradle 165, ARM64 1165, `0.5.22-alpha71-mpv39`, `com.prirai.android.nira.mpv`. Stały certyfikat: `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00`.
 
@@ -43,8 +43,8 @@ Analizator ma jawne progi i liczbę dowodów. Oddziela potwierdzoną niespójno�
 | DSP | 28 PASS przez systemowy FFmpeg; nie Android i nie odsłuch |
 | Kompilacja AndroidTest | PASS; wykonanie KVM oczekuje |
 | Lint | Oddzielono 2175 historycznych pozycji; 0 nowych błędów; 1 świadome ostrzeżenie: ui-test 1.12.0 przypięte do produkcyjnego ui 1.12.0 |
-| Lokalny BUILD | Pierwsze pakowanie przerwane OOM kontenera 8 GiB; kolejny przebieg używa jednego JVM 3 GiB, trwa pakowanie |
-| Podpisany BUILD/ABI/pakiet/certyfikat | Oczekuje GitHub Actions; bez pobierania APK do Codex |
+| Lokalny BUILD | PASS (8m 4s) po ograniczeniu narzędzi do jednego JVM 3 GiB; pierwszy przebieg przerwany OOM kontenera 8 GiB |
+| Podpisany BUILD/ABI/pakiet/certyfikat | PASS: job 121751093279, BUILD 3m32s; pakiet/1165/alpha71-mpv39/ARM64/stały SHA-256 potwierdzone; artefakt 12675005153 |
 
 Przywracalne, dokładne hunki v1165 dla 23 wspólnych plików są zakotwiczone w d890c68. Oryginalne hashe v1158/v1160 i warstwy v1163/v1164 nie zostały zastąpione. Dodatkowa kontrola wykrywa wprowadzenie poleceń/odczytów JNI w hookach mediów.
 
@@ -68,4 +68,4 @@ Naprawione w trakcie implementacji: utrata ważnej obserwacji po szumie performa
 
 ## Wydanie — do uzupełnienia po CI
 
-Commit, Draft PR, Actions, certyfikat i link do gotowego signed APK zostaną podane po rzeczywistej weryfikacji. Nie wykonano merge. Dalsze propozycje: kalibracja heurystyk raportami telefonu, szersze publiczne źródła Window i niezależny review; żadna kolejna wersja nie jest wdrażana automatycznie.
+Kod: `331da7e8f7c5c834b8852a9592a4aa88f62bd800`. [Draft PR #78](https://github.com/laszko14/nira-browser/pull/78) do v1164. Uruchomione: [Android CI](https://github.com/laszko14/nira-browser/actions/runs/40373745283) i [KVM Gecko/TestLab/Room](https://github.com/laszko14/nira-browser/actions/runs/40373745487). Podpisany [APK ARM64 v1165](https://github.com/laszko14/nira-browser/actions/runs/40373745283/artifacts/12675005153), artefakt `zavro-x-mpv-arm64-v1165`, 177335439 B (ZIP), retencja 30 dni. Verifier 2026-10-26 18:03 UTC potwierdził pakiet, versionCode, versionName, pojedyncze ABI i certyfikat wskazane powyżej. APK nie był pobierany do Codex. Końcowe wyniki regresji i KVM oczekują. Nie wykonano merge. Dalsze propozycje: kalibracja heurystyk raportami telefonu, szersze publiczne źródła Window i niezależny review; żadna kolejna wersja nie jest wdrażana automatycznie.

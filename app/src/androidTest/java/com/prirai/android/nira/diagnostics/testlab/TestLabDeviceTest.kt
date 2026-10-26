@@ -47,6 +47,19 @@ class TestLabDeviceTest {
     private val tabs=mutableListOf<String>()
     private var group:String?=null
     private var selectedBefore:String?=null
+    private var stage="setup"
+    private val browserLifecycle=androidx.test.runner.lifecycle.ActivityLifecycleCallback { activity,state ->
+        if(activity is BrowserActivity && state==androidx.test.runner.lifecycle.Stage.RESUMED) {
+            // Returning from the tester may apply the browser's saved orientation and recreate
+            // the Activity. Never inspect an old Window or keep driving its detached workload.
+            browser=activity
+            if(paint?.context!==activity) {
+                paint?.running=false;(paint?.parent as? android.view.ViewGroup)?.removeView(paint)
+                paint=WorkloadView(activity)
+                activity.addContentView(paint,FrameLayout.LayoutParams(48,48,android.view.Gravity.TOP or android.view.Gravity.END))
+            }
+        }
+    }
 
     @Before fun setup() {
         val prefs=UserPreferences(app)
@@ -54,14 +67,11 @@ class TestLabDeviceTest {
         migrationPopup=prefs.pendingDefaultMigrationPopup;edgeEnabled=prefs.niraEdgePanelsEnabled
         prefs.firstLaunch=false;prefs.defaultProfileMigrationDone=true;prefs.pendingDefaultMigrationPopup=false;prefs.niraEdgePanelsEnabled=true
         TestLab.deleteReport()
+        onMain {androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry.getInstance().addLifecycleCallback(browserLifecycle)}
         browser=instrumentation.startActivitySync(Intent(app,BrowserActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as BrowserActivity
         selectedBefore=app.components.store.state.selectedTabId
         onMain {browser.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_PORTRAIT}
-        onMain {
-            paint=WorkloadView(browser)
-            browser.addContentView(paint,FrameLayout.LayoutParams(48,48,android.view.Gravity.TOP or android.view.Gravity.END))
-        }
         // Warm-up belongs to the experiment, never to the 60-second report.
         SystemClock.sleep(3000)
     }
@@ -72,6 +82,7 @@ class TestLabDeviceTest {
                 .getActivitiesInStage(androidx.test.runner.lifecycle.Stage.RESUMED)
                 .filterIsInstance<TestLabActivity>().forEach{it.finish()}
             screen=null
+            androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry.getInstance().removeLifecycleCallback(browserLifecycle)
             paint?.running=false;(paint?.parent as? android.view.ViewGroup)?.removeView(paint);paint=null
             if(::browser.isInitialized)browser.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
@@ -80,6 +91,15 @@ class TestLabDeviceTest {
         onMain {
             tabs.forEach{app.components.tabsUseCases.removeTab(it)}
             selectedBefore?.takeIf{id->app.components.store.state.tabs.any{it.id==id}}?.let{app.components.tabsUseCases.selectTab(it)}
+            // EmptyComposeRule cancels surviving recomposers on its instrumentation thread.
+            // Dispose our live Browser compositions on Main first: AC store.flow(lifecycle)
+            // must unsubscribe its LifecycleRegistry observer on Main. Finishing this root
+            // Activity instead would intentionally kill the instrumentation process.
+            fun dispose(view:View) {
+                if(view is androidx.compose.ui.platform.AbstractComposeView)view.disposeComposition()
+                else if(view is android.view.ViewGroup)for(i in 0 until view.childCount)dispose(view.getChildAt(i))
+            }
+            if(::browser.isInitialized)dispose(browser.window.decorView)
         }
         TestLab.deleteReport()
         val prefs=UserPreferences(app)
@@ -89,25 +109,37 @@ class TestLabDeviceTest {
         // The instrumentation runner closes its isolated app at the end of the suite.
     }
     @Test fun allSevenUiModesUseRealCollectorsOneCompletesSixtySecondsAndOthersStopPartially() {
+        try { runSevenModes() } catch(t:Throwable) {
+            // Preserve the original scenario failure if a test-rule teardown also fails.
+            println("TESTLAB_FIXTURE_FAILURE stage=$stage type=${t.javaClass.simpleName}")
+            t.printStackTrace()
+            throw t
+        }
+    }
+    private fun runSevenModes() {
         val baseline=trial("OFF",5000)
         val results=mutableMapOf<TestType,TestLabReport>()
         for(type in TestType.entries) {
+            stage="${type.name}:start-ui"
             screen=instrumentation.startActivitySync(Intent(app,TestLabActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as TestLabActivity
             val tag="testlab-start-${type.name}"
             compose.onNodeWithTag("testlab-list").performScrollToNode(hasTestTag(tag))
             compose.onNodeWithTag(tag).assertIsEnabled().performClick()
             compose.onNodeWithText("Rozpocznij i wróć").performClick()
             screen=null
+            stage="${type.name}:await-running"
             await(30_000){TestLab.ui.value.phase==LabPhase.RUNNING}
             assertEquals(type,TestLab.ui.value.type)
             val counter=onMain {browser.window.decorView.findViewWithTag<TextView>(TestLabRuntime.COUNTER_TAG)}
             assertNotNull(counter);assertFalse(counter.isClickable);assertFalse(counter.isFocusable)
             if(type==TestType.COMPLEX) {
+                stage="COMPLEX:tabs-room"
                 onMain {repeat(10){tabs.add(app.components.tabsUseCases.addTab("about:blank",selectTab=true,contextId="profile_default"))}}
                 group=runBlocking {withTimeout(15_000){
                     app.components.tabGroupManager.awaitInitialized()
                     app.components.tabGroupManager.createGroup(tabs.take(2),name="TESTLAB_PRIVATE_FIXTURE",contextId=null).id
                 }}
+                stage="COMPLEX:left-panel"
                 swipeFromLeftEdge()
                 await(10_000){onMain {
                     val nav=browser.supportFragmentManager.primaryNavigationFragment
@@ -120,12 +152,14 @@ class TestLabDeviceTest {
                     nav?.childFragmentManager?.findFragmentByTag("NiraSideTabs")?.let{(it as? androidx.fragment.app.DialogFragment)?.dismiss()}
                 }
                 onMain {TestLab.mark();browser.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE}
+                stage="COMPLEX:rotation-gap"
                 SystemClock.sleep(500)
                 onMain {browser.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_PORTRAIT}
                 // A real ineligible Activity creates a coverage gap, without sending a new Browser intent.
                 screen=instrumentation.startActivitySync(Intent(app,TestLabActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as TestLabActivity
                 SystemClock.sleep(1000)
                 onMain{screen?.finish();screen=null}
+                stage="COMPLEX:await-completed"
                 await(75_000){TestLab.ui.value.phase==LabPhase.COMPLETED}
             } else {
                 if(type==TestType.RESOURCES)trial("ON_RESOURCES",5000) else SystemClock.sleep(1200)
@@ -133,6 +167,7 @@ class TestLabDeviceTest {
                 await(15_000){!TestLab.busy}
                 assertEquals(LabPhase.PARTIAL,TestLab.ui.value.phase)
             }
+            stage="${type.name}:report"
             val report=TestLab.reports.value[type]?:error("No report for completed mode")
             results[type]=report
             assertTrue(report.resourceMetrics.totalSamples>0)
@@ -147,6 +182,7 @@ class TestLabDeviceTest {
             val root=Json.parseToJsonElement(json).jsonObject
             assertEquals(1,root.getValue("schemaVersion").jsonPrimitive.int)
         }
+        stage="final-assertions"
         assertEquals(7,results.size)
         val full=results.getValue(TestType.COMPLEX)
         assertEquals(60_000.0,full.durationMs,0.0)
