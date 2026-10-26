@@ -47,6 +47,7 @@ import kotlin.math.roundToInt
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
+import com.prirai.android.nira.diagnostics.testlab.*
 import android.content.Context
 import androidx.compose.foundation.background
 
@@ -159,6 +160,7 @@ class DragCoordinator(
 
     // Drop operation job
     private var dropOperationJob: Job? = null
+    private var testLabDrag:Pair<LabCapture,OperationToken>?=null
     private var dragProfileId: String? = null
     private var latestPointerPosition: Offset = Offset.Zero
 
@@ -237,6 +239,9 @@ class DragCoordinator(
      * Start dragging an item with bounds information
      */
     fun startDrag(item: DraggableItemType, startPosition: Offset, itemBounds: Rect, itemSize: IntSize) {
+        testLabDrag?.let{it.first.end(it.second,OperationOutcome.INTERRUPTED)}
+        val capture=TestLab.capture();val operation=capture?.operation(if(item is DraggableItemType.Group)LabOperation.GROUP_DRAG else LabOperation.TAB_DRAG)
+        testLabDrag=if(capture!=null&&operation!=null)capture to operation else null
         dragProfileId = viewModel.currentProfileId.value
         latestPointerPosition = startPosition
         _dragState.value = UnifiedDragState(
@@ -413,6 +418,7 @@ class DragCoordinator(
      * End drag and perform drop operation
      */
     fun endDrag() {
+        val lab=testLabDrag;testLabDrag=null
         val current = _dragState.value
         val draggedItem = current.draggedItem
         val target = if (scrollContainerBounds?.contains(latestPointerPosition) != false) {
@@ -427,15 +433,19 @@ class DragCoordinator(
             // Perform drop operation
             dropOperationJob = scope.launch {
                 try {
-                    performDrop(draggedItem, target, profileId)
+                    val committed=performDrop(draggedItem, target, profileId)
+                    lab?.let{it.first.end(it.second,if(committed)OperationOutcome.SUCCESS else OperationOutcome.CANCELLED)}
                 } catch (e: kotlinx.coroutines.CancellationException) {
+                    lab?.let{it.first.end(it.second,OperationOutcome.INTERRUPTED)}
                     throw e
                 } catch (e: Exception) {
+                    lab?.let{it.first.end(it.second,OperationOutcome.FAILED)}
                     android.util.Log.e("DragCoordinator", "Drop operation failed", e)
                 }
             }
         }
 
+        if(draggedItem==null||target==null)lab?.let{it.first.end(it.second,OperationOutcome.CANCELLED)}
         // Clear drag state
         _dragState.value = UnifiedDragState()
         _draggedItemBounds.value = null
@@ -446,6 +456,7 @@ class DragCoordinator(
      * Cancel drag without performing drop
      */
     fun cancelDrag() {
+        testLabDrag?.let{it.first.end(it.second,OperationOutcome.CANCELLED)};testLabDrag=null
         _dragState.value = UnifiedDragState()
         _draggedItemBounds.value = null
         stopAutoScroll()
@@ -558,14 +569,14 @@ class DragCoordinator(
     /**
      * Perform drop operation based on dragged item and target
      */
-    private suspend fun performDrop(item: DraggableItemType, target: DropTarget, profileId: String?) {
+    private suspend fun performDrop(item: DraggableItemType, target: DropTarget, profileId: String?):Boolean =
         viewModel.commitUnifiedDrop(item, target, profileId)
-    }
 
     /**
      * Cleanup resources
      */
     fun cleanup() {
+        testLabDrag?.let{it.first.end(it.second,OperationOutcome.INTERRUPTED)};testLabDrag=null
         autoScrollJob?.cancel()
         dropOperationJob?.cancel()
         dropTargets.clear()

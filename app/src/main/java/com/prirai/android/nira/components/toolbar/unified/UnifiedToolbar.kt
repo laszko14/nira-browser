@@ -1,5 +1,7 @@
 package com.prirai.android.nira.components.toolbar.unified
 
+import com.prirai.android.nira.diagnostics.testlab.*
+
 import android.animation.ValueAnimator
 import android.content.Context
 import android.util.AttributeSet
@@ -1121,6 +1123,8 @@ class UnifiedToolbar @JvmOverloads constructor(
         val targetTranslation = if (show) 0f else auxTotalHeight.toFloat()
 
         suppressReconcileDuringAnimation = true
+        val capture=TestLab.capture()
+        val measurement=capture?.operation(if(show)LabOperation.TOOLBAR_RESTORE else LabOperation.TOOLBAR_MINIMIZE)
 
         minimalAnimator = ValueAnimator.ofFloat(startTranslation, targetTranslation).apply {
             duration = ANIMATION_DURATION_MS
@@ -1176,10 +1180,12 @@ class UnifiedToolbar @JvmOverloads constructor(
                     // not-laid-out value the animator was using).
                     reconcileEngineViewHeight()
                     minimalAnimator = null
+                    capture?.end(measurement,proof=CompletionProof.ANIMATOR_END)
                 }
 
                 override fun onAnimationCancel(animation: android.animation.Animator) {
                     cancelled = true
+                    capture?.end(measurement,OperationOutcome.CANCELLED)
                 }
             })
 

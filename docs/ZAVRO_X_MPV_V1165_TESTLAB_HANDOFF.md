@@ -1,3 +1,6 @@
+# v1165 C WIP — 2026-10-26
+Hooki realnych paneli/gestów/kart/Room/DataStore/toolbar/menu/FAB;93/93targetedPASS43s,52TestLab. Unknown-origin latency=null, przedraw≠animacja, popupWindowframesunsupported. BraktestuAndroidUI/końcowegoCI/APKv1165; nextDsafeMPVGeckoSupertestgate,thenFUI. SzczegółyCODEX_RESUME_V1165.md.
+
 # Aktualizacja B3/E1 — WIP
 47/47targetedJUnitPASS (15s); dodano boundedreportgenerator, JankStatsruntime/lifecycle/pasywnycounter, własnyprocesresource/heartbeat/exitprobes, opt-inrecovery64KiB/24h/5s oraz mutualexclusiongate. Hooki przeglądarki/Supertest i UI jeszcze niewdrożone. Żadnego signedAPKv1165 ani testu telefonu na tym etapie. Pełnycheckpoint wCODEX_RESUME_V1165.md.
 

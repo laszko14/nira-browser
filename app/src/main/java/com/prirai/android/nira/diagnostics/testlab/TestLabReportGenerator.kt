@@ -46,7 +46,7 @@ object TestLabReportGenerator {
         if (r.anomalies.isEmpty()) appendLine("BRAK ZAREJESTROWANYCH OBSERWACJI; brak próby nie oznacza poprawności.")
         r.anomalies.take(3).forEach { appendLine("${it.kind}: ${it.code} ${it.invariant ?: ""}; t=${number(it.offsetNanos?.div(1_000_000.0))} ms; wartość=${number(it.value)}") }
         appendLine("\nKlatki Android UI Window (JankStats):")
-        appendLine("To nie klatki kompozytora Gecko ani obraz wideo SurfaceView/MPV.")
+        appendLine("To nie klatki kompozytora Gecko ani obraz wideo SurfaceView/MPV. PopupWindow menu nie udostępnia Window dla JankStats i nie jest objęty pomiarem klatek.")
         r.frameMetrics?.let { f ->
             appendLine("n=${f.count}, jank=${f.jankCount} (${number(f.jankPercent)}%), średnia=${number(f.meanMs)} ms, max=${number(f.maxMs)} ms")
             appendLine("P50=${number(f.p50Ms)}, P90=${number(f.p90Ms)}, P95=${number(f.p95Ms)}, P99=${number(f.p99Ms)} ms; histogram górnej granicy 0.25 ms")
@@ -54,6 +54,8 @@ object TestLabReportGenerator {
         } ?: appendLine("NIEPRZETESTOWANY: brak prawidłowych próbek klatek.")
         appendLine("\nŹródła i dostępność:")
         LabMetric.entries.forEach { appendLine("$it: ${r.metricAvailability[it]} / ${r.metricSources[it]}") }
+        appendLine("FIRST_PREDRAW potwierdza widoczny układ, nie koniec animacji okna systemowego. Tego końca nie zmierzono.")
+        appendLine("PROCESS_EXIT oznacza odczyt historycznej przyczyny zakończenia własnego procesu, nie awarię podczas tego testu.")
         appendLine("\nOperacje: START ≠ ACCEPT ≠ zakończenie. Anulowanie gestu nie jest błędem.")
         r.testCoverage.forEach { (operation, coverage) ->
             appendLine("$operation: ${if (coverage == Coverage.NOT_TESTED) "NIEPRZETESTOWANY" else coverage}")

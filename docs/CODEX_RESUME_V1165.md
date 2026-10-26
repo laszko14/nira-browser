@@ -1,3 +1,20 @@
+# v1165 — checkpoint C (2026-10-26)
+- Ostatni potwierdzony remote przed C:cab5d148cb3b15118c9da7e64faee87e553f03a4. Baza d890c68; gałąź feat/zavro-x-mpv-v1165-testlab-diagnostics, bezmerge/subagentów/resetu.
+- C podłączony,93/93targetedPASS43s (52TestLab+regresje kart/grup/toolbar),work/v1165-C-complete-targeted.log; gitdiffcheck czysty. NIE test urządzenia.
+- Gesty:SwipeGestureLayout tylko bierny timestampDOWN, nie zmieniono intercept/return. BrowserFragment rozpoznanieSTART/thresholdACCEPT/CANCEL, queuePanel→Dialogfirstpredraw. PanelProbe onStart/onStop/dismiss/onCancel/onDismiss obaFragmenty. Unknown-origin success bezwymyślonej zerowejlatencji.
+- Realne sidebarCompactSideTabsdrag ma własny tor (nieUnifiedDragSystem): hooki długiegodotyku/drop/cancel, koniec po Booleancommit. UnifiedDragSystem też instrumentowany, bez drugiegocommitu. Captureboundtoken zapobiega przenoszeniu callbacków do nowegoTestLab.
+- Scroll:ComposeNestedScrollConnection obserwuje WYŁĄCZNIE consumed, zawsze zwracaZero; RecyclerView rightpanel OnScrollListener usuwanyDestroy. ResizeUP kończy poFIRST_PREDRAW, cancel osobno, brak dodatkowego listeneraoff.
+- BrowserObserver tworzyRuntimepoBEGIN, MiddlewarepoProfileMiddleware, offvolatile null; observe reducer new/link/close/select/restoreUndo/profile/private/engine/loading/progress/urlredirect. Żadnegodispatch/Roominit/grouping. Pendingload≤128, cleanup usuwaID.
+- UnifiedTabGroupManager noweopcjonalne labprovider przedlastliveTabs (zachowano trailinglambdas). Pomiary publiccreate/move/delete/expand/collapse; post-commit Roomreadback tylko zmienionychgrup przyaktywnym teście; missinglivetab pomijany, brakcleanup/zmianyrekordów. Diagnosticsreadfailure nie cofa committedmutation.
+- TabOrderManager labproviderprzedactiveProfile; ORDER_SAVEpoedit+publish, porównanie snapshotpreferences zserializacją wykonaną nadal W DataStoredispatcher (reviewfix zachowującywydajność). Expand/collapse teżfaktycznyDataStorepath.
+- Nowe testy:10linków realBrowserStore +lateclosedload/privacy, realRoom tworzenie2grup/przeniesienie/ungroup/privateReject, controlledDataStore.await pokazuje brak sukcesuprzedcommit, injectedbrokenstore→ORDER_NOT_PERSISTED. To injectedfaultdiagnostics, NIE potwierdzonybłąd aplikacji.
+- Toolbar:istniejącyAnimatorEnd/Cancel ModernToolbarSystem top + UnifiedToolbaraux, braknowychanimatorów. Menu/FAB firstpredraw; WindowFABdoJankStats. PopupWindowmenu nie udostępniaWindow publicznie→metrykaNOT_EXPOSED, explicit limitation. Windowanimationend≠predraw teżjawnieNOT_EXPOSED.
+- NoweplikiC:LabCapture,TestLabBrowserObserver,TestLabPanelProbe,TestLabScrollProbe +2JUnitclasses. Engine opstartoffset/measureLatencyfalse; OperationStatslatencydenominator osobno odliczby sukcesów.
+- PozostałoD Geckoerrorhook/allowlistedMPV+detector+Lua/DSPtaps +gateSupertest40s; F UI7testów/marker/stop/export/recovery; E/G Androidemulator/overhead/integrityJS/lint/fulltests/review; Hversion165/1165/alpha71-mpv39,DraftPR+signedCI/APK.
+- Chronionepliki JS hash zmienione TYLKO hookamiC; trzeba dodać ścisłą dokładnieodwracalną v1165patchlayer anchored d890c68, nie zastępowaćhashy1158/1160/1164. Jeszcze nie uruchomiono JS/Lua/DSP/finalbuild/lint poC. Wersjastill164, brakPR/APKv1165.
+- Następnykonkretnykrok:D TestLabMediaObserver zTESTAMI, biernytapMpvDebugTrace przedjegoexistingdedup, sampleMpvSupertest przed40sactiveguard, DiagnosticSessionGate wspólny acquire/release i czytelnyconflicttoast.
+- Gradle:GRADLE_USER_HOME=/workspace/.gradle ANDROID_HOME=/workspace/android-sdk ANDROID_USER_HOME=/workspace/.android bashgradlew... --offline --no-configuration-cache --console=plain --max-workers=1. Nie równoleglićGradle.
+
 # v1165 — checkpoint B3/E1 (2026-10-26)
 - Gałąź feat/zavro-x-mpv-v1165-testlab-diagnostics, baza d890c68. NIE resetować/untracked work/ zachować, bez subagentów/merge.
 - B1/B2 poprzedni WIP6696111 wypchnięty. Nowy etap B3/E1 obejmuje poniższe pliki, z testami47/47PASS (work/v1165-runtime-wired-tests.log,15s).

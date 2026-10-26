@@ -1,3 +1,6 @@
+# v1165 C WIP — 2026-10-26
+Hooki realnych paneli/gestów/kart/Room/DataStore/toolbar/menu/FAB;93/93targetedPASS43s,52TestLab. Unknown-origin latency=null, przedraw≠animacja, popupWindowframesunsupported. BraktestuAndroidUI/końcowegoCI/APKv1165; nextDsafeMPVGeckoSupertestgate,thenFUI. SzczegółyCODEX_RESUME_V1165.md.
+
 # v1165 B3/E1 WIP — 2026-10-26
 Raporty TXT/JSON, rdzeń i Android runtime/recovery:47/47targetedPASS,work/v1165-runtime-wired-tests.log. Jeszcze brak UI/hooków/końcowegoCI/APKv1165; następny krokC/D/F w CODEX_RESUME_V1165.md. Zachować work/ i niezacommitowane poprawki. Bezmerge/subagentów/resetu.
 

@@ -44,7 +44,7 @@ class TestLabEngine(
     private var heartbeatCount=0L
     private var heartbeatMax:Long?=null
     private var lastSlowFrameOffset=-1_000_000_000L
-    private data class ActiveOperation(val operation:LabOperation,val offset:Long,var accepted:Boolean=false)
+    private data class ActiveOperation(val operation:LabOperation,val offset:Long,val measureLatency:Boolean=true,var accepted:Boolean=false)
 
     @Synchronized fun start(testType:TestType):SessionToken? {
         if(phase in setOf(LabPhase.PREPARING,LabPhase.RUNNING,LabPhase.FINALIZING))return null
@@ -102,14 +102,16 @@ class TestLabEngine(
     }
     private fun opStats(operation:LabOperation):OperationStats = stats[operation.ordinal]
         ?:OperationStats(operation).also{stats[operation.ordinal]=it}
-    @Synchronized fun operation(session:SessionToken,operation:LabOperation):OperationToken? {
+    @Synchronized fun operation(session:SessionToken,operation:LabOperation,startOffsetNanos:Long?=null,measureLatency:Boolean=true):OperationToken? {
         val at=writable(session)?:return null
         if(!type.includes(operation.domain))return null
+        val origin=startOffsetNanos?:at
+        if(origin !in 0..at)return null
         opStats(operation).started++
         if(operations.size>=128){droppedOperations++;errors[LabError.OPERATION_LIMIT.ordinal]++;return null}
         val serial=++operationSerial
-        operations[serial]=ActiveOperation(operation,at)
-        append(at,LabCode.OP_START,operation)
+        operations[serial]=ActiveOperation(operation,origin,measureLatency)
+        append(at,LabCode.OP_START,operation,if(startOffsetNanos!=null)(at-origin)/1_000_000.0 else null)
         updateMask()
         return OperationToken(session.serial,serial)
     }
@@ -130,7 +132,7 @@ class TestLabEngine(
         val valid=outcome!=OperationOutcome.SUCCESS||!active.operation.needsAccept||active.accepted
         val actual=if(valid)outcome else OperationOutcome.UNKNOWN
         if(!valid)errors[LabError.INSTRUMENTATION_PROTOCOL.ordinal]++
-        opStats(active.operation).finish(actual,at-active.offset,proof)
+        opStats(active.operation).finish(actual,if(active.measureLatency)at-active.offset else null,proof)
         if(actual==OperationOutcome.TIMEOUT)errors[LabError.OPERATION_TIMEOUT.ordinal]++
         if(actual==OperationOutcome.FAILED)errors[LabError.OPERATION_FAILED.ordinal]++
         append(at,if(actual==OperationOutcome.CANCELLED)LabCode.OP_CANCEL else LabCode.OP_FINISH,active.operation)
@@ -257,7 +259,7 @@ class TestLabEngine(
             LabMetric.PROCESS_USS to measured(LabMetric.PROCESS_USS,resource.ussMaxBytes!=null),
             LabMetric.PROCESS_CPU to measured(LabMetric.PROCESS_CPU,resource.cpuMeanOneCorePercent!=null),
             LabMetric.MAIN_HEARTBEAT to measured(LabMetric.MAIN_HEARTBEAT,heartbeatCount>0),
-        )+listOf(LabMetric.GECKO_COMPOSITOR_FRAMES,LabMetric.MPV_PRESENTED_FRAMES,LabMetric.APP_ENERGY,LabMetric.DUAL_AUDIO)
+        )+listOf(LabMetric.SYSTEM_WINDOW_ANIMATION_END,LabMetric.POPUP_WINDOW_FRAMES,LabMetric.GECKO_COMPOSITOR_FRAMES,LabMetric.MPV_PRESENTED_FRAMES,LabMetric.APP_ENERGY,LabMetric.DUAL_AUDIO)
             .associateWith{Availability.NOT_EXPOSED_BY_PLATFORM}
         val measuredSources=mapOf(
             LabMetric.ANDROID_UI_FRAMES to MetricSource.JANKSTATS_WINDOW,
@@ -270,7 +272,7 @@ class TestLabEngine(
         val events=timeline.toList()
         val markers=markerTimes.map{time->AnomalyMarker(time,events.filter{abs(it.offsetNanos-time)<=3_000_000_000L}
             .sortedBy{abs(it.offsetNanos-time)}.take(32).sortedBy{it.offsetNanos}.map{it.serial})}
-        val limitations=mutableListOf(Limitation.ANDROID_WINDOW_ONLY,Limitation.NO_GECKO_COMPOSITOR,
+        val limitations=mutableListOf(Limitation.ANDROID_WINDOW_ONLY,Limitation.PREDRAW_NOT_WINDOW_ANIMATION_END,Limitation.NO_POPUP_WINDOW_FRAMES,Limitation.NO_GECKO_COMPOSITOR,
             Limitation.NO_MPV_PRESENTED_FRAMES,Limitation.MAIN_PROCESS_RESOURCES_ONLY,Limitation.NO_AUDIO_PATH_MEASUREMENT,
             Limitation.NO_PRECISE_ENERGY,Limitation.HISTOGRAM_PERCENTILES,Limitation.NO_CRASH_DOES_NOT_PROVE_STABILITY)
         if(covered<endedOffset)limitations.add(Limitation.COVERAGE_GAPS)

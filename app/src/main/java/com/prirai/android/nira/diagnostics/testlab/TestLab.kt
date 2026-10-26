@@ -42,8 +42,15 @@ internal object TestLab {
         }
         return true
     }
+    fun capture():LabCapture?=runtime?.capture
+    fun browserObserver():TestLabBrowserObserver?=runtime?.browserObserver
     fun stop(){runtime?.stop()}
     fun mark():Boolean=runtime?.mark()?:false
+    fun gestureOrigin():GestureOrigin?=runtime?.gestureOrigin()
+    fun panelGesture(side:PanelSide,origin:GestureOrigin?):OperationToken?=runtime?.panelGesture(side,origin)
+    fun queuePanel(side:PanelSide,op:OperationToken?){runtime?.queuePanel(side,op)}
+    fun panelOpening(side:PanelSide):OperationToken?=runtime?.panelOpening(side)
+    fun panelClosing(side:PanelSide,knownStart:Boolean):OperationToken?=runtime?.panelClosing(side,knownStart)
     fun operation(op:LabOperation):OperationToken?=runtime?.operation(op)
     fun accept(token:OperationToken?){if(token!=null)runtime?.accept(token)}
     fun end(token:OperationToken?,outcome:OperationOutcome=OperationOutcome.SUCCESS,proof:CompletionProof=CompletionProof.SOURCE_CALLBACK){if(token!=null)runtime?.end(token,outcome,proof)}

@@ -1,5 +1,7 @@
 package com.prirai.android.nira.browser.tabs
 
+import com.prirai.android.nira.diagnostics.testlab.*
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -223,8 +225,27 @@ class TabsBottomSheetFragment : DialogFragment() {
         setStyle(STYLE_NORMAL, R.style.FullScreenDialogTheme)
     }
 
+    private var testLabSideDrag:Pair<LabCapture,OperationToken>?=null
+    private var testLabResize:Pair<LabCapture,OperationToken>?=null
+    private fun startTestLabDrag(group:Boolean) {
+        finishTestLabDrag(OperationOutcome.INTERRUPTED)
+        val capture=TestLab.capture()?:return
+        val op=capture.operation(if(group)LabOperation.GROUP_DRAG else LabOperation.TAB_DRAG)?:return
+        testLabSideDrag=capture to op
+    }
+    private fun finishTestLabDrag(outcome:OperationOutcome) {
+        testLabSideDrag?.let{it.first.end(it.second,outcome)};testLabSideDrag=null
+    }
+    private val testLabPanel = com.prirai.android.nira.diagnostics.testlab.TestLabPanelProbe(
+        com.prirai.android.nira.diagnostics.testlab.PanelSide.LEFT)
+    override fun dismiss() {testLabPanel.closing();super.dismiss()}
+    override fun onCancel(dialog:android.content.DialogInterface) {testLabPanel.cancelled();super.onCancel(dialog)}
+    override fun onDismiss(dialog:android.content.DialogInterface) {testLabPanel.dismissed();super.onDismiss(dialog)}
+    override fun onStop() {testLabPanel.stop();super.onStop()}
+
     override fun onStart() {
         super.onStart()
+        if (isSidePanel) dialog?.window?.let(testLabPanel::start)
 
         // Make dialog fullscreen
         dialog?.window?.let { window ->
@@ -651,6 +672,8 @@ class TabsBottomSheetFragment : DialogFragment() {
     }
 
     override fun onDestroyView() {
+        finishTestLabDrag(OperationOutcome.INTERRUPTED)
+        testLabResize?.let{it.first.end(it.second,OperationOutcome.INTERRUPTED)};testLabResize=null
         super.onDestroyView()
         
         // Notify that the tab sheet was dismissed to trigger auto-scroll in tab bar
@@ -942,6 +965,9 @@ class TabsBottomSheetFragment : DialogFragment() {
         grip.setOnTouchListener { _, event ->
             when (event.actionMasked) {
                 android.view.MotionEvent.ACTION_DOWN -> {
+                    testLabResize?.let{it.first.end(it.second,OperationOutcome.INTERRUPTED)}
+                    val capture=TestLab.capture();val op=capture?.operation(LabOperation.PANEL_RESIZE)
+                    testLabResize=if(capture!=null&&op!=null)capture to op else null
                     downX = event.rawX
                     initialWidth = dialog?.window?.attributes?.width?.takeIf { it > 0 } ?: sidePanelWidth()
                     true
@@ -954,12 +980,21 @@ class TabsBottomSheetFragment : DialogFragment() {
                     val desired = (initialWidth + event.rawX - downX).toInt().coerceIn(min, max)
                     dialog?.window?.setLayout(desired, ViewGroup.LayoutParams.MATCH_PARENT)
                     if (event.actionMasked == android.view.MotionEvent.ACTION_UP) {
+                        val measurement=testLabResize;testLabResize=null
+                        if(desired==initialWidth)measurement?.let{it.first.end(it.second,OperationOutcome.CANCELLED)}
+                        else if(measurement!=null)dialog?.window?.decorView?.let{decor->
+                            androidx.core.view.OneShotPreDrawListener.add(decor){measurement?.let{it.first.end(it.second,proof=CompletionProof.FIRST_PREDRAW)}}
+                        }
                         val key = if (resources.configuration.orientation ==
                             android.content.res.Configuration.ORIENTATION_LANDSCAPE) "width_landscape" else "width_portrait"
                         requireContext().getSharedPreferences("nira_side_panel_width", android.content.Context.MODE_PRIVATE)
                             .edit().putInt(key, desired).apply()
                     }
                     true
+                }
+                android.view.MotionEvent.ACTION_CANCEL -> {
+                    testLabResize?.let{it.first.end(it.second,OperationOutcome.CANCELLED)};testLabResize=null
+                    false
                 }
                 else -> false
             }
@@ -995,6 +1030,8 @@ class TabsBottomSheetFragment : DialogFragment() {
         val savedOrder by viewModel.currentOrder.collectAsState()
         val scope = rememberCoroutineScope()
         val listState = rememberLazyListState()
+        val labScroll=remember {TestLabNestedScrollProbe()}
+        DisposableEffect(labScroll){onDispose{labScroll.close()}}
         var groupMenuId by remember { mutableStateOf<String?>(null) }
         var showNameUngroupedDialog by remember { mutableStateOf(false) }
         var ungroupedName by remember { mutableStateOf("Nowa grupa") }
@@ -1108,6 +1145,8 @@ class TabsBottomSheetFragment : DialogFragment() {
             }
         }
         fun finishDrag() {
+            val lab=testLabSideDrag;testLabSideDrag=null
+            fun cancelled(){lab?.let{it.first.end(it.second,OperationOutcome.CANCELLED)}}
             val fromId = dragTabId
             val fromGroupId = dragGroupId
             val expectedProfile = dragProfileId
@@ -1120,13 +1159,13 @@ class TabsBottomSheetFragment : DialogFragment() {
             dragTabId = null
             dragGroupId = null
             hoveredKey = null
-            val target = resolved?.key ?: return
+            val target = resolved?.key ?: run{cancelled();return}
             val after = resolved.after
-            if (fromId == null && fromGroupId == null) return
+            if (fromId == null && fromGroupId == null) {cancelled();return}
             val originalKey = if (fromId != null) {
                 if (fromId in groupedIds) "group_tab_$fromId" else "single_tab_$fromId"
             } else "group_$fromGroupId"
-            if (target == originalKey) return
+            if (target == originalKey) {cancelled();return}
             scope.launch {
                 try {
                     val committed = if (fromId != null) {
@@ -1134,12 +1173,15 @@ class TabsBottomSheetFragment : DialogFragment() {
                     } else {
                         viewModel.commitSidePanelGroupDrop(fromGroupId!!, target, after, expectedProfile)
                     }
+                    lab?.let{it.first.end(it.second,if(committed)OperationOutcome.SUCCESS else OperationOutcome.CANCELLED)}
                     if (!committed && isAdded) android.widget.Toast.makeText(
                         requireContext(), "Nie udało się przenieść elementu", android.widget.Toast.LENGTH_SHORT
                     ).show()
                 } catch (error: kotlinx.coroutines.CancellationException) {
+                    lab?.let{it.first.end(it.second,OperationOutcome.INTERRUPTED)}
                     throw error
                 } catch (error: Exception) {
+                    lab?.let{it.first.end(it.second,OperationOutcome.FAILED)}
                     android.util.Log.e("ZavroTabDrop", "Drop failed", error)
                 }
             }
@@ -1149,7 +1191,7 @@ class TabsBottomSheetFragment : DialogFragment() {
         LazyColumn(
             state = listState,
             userScrollEnabled = dragTabId == null && dragGroupId == null,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize().nestedScroll(labScroll)
                 .onGloballyPositioned {
                     listTopY = it.positionInRoot().y
                     listLeftX = it.positionInRoot().x
@@ -1170,6 +1212,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                                 .pointerInput(group.id, activeProfileId, orientation) {
                                     detectDragGesturesAfterLongPress(
                                         onDragStart = { offset ->
+                                            startTestLabDrag(true)
                                             dragGroupId = group.id
                                             dragTabId = null
                                             dragProfileId = activeProfileId
@@ -1181,7 +1224,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                                             moveDrag(headerRoot + change.position)
                                         },
                                         onDragEnd = ::finishDrag,
-                                        onDragCancel = { dragGroupId = null; hoveredKey = null }
+                                        onDragCancel = { finishTestLabDrag(OperationOutcome.CANCELLED);dragGroupId = null; hoveredKey = null }
                                     )
                                 }
                                 .background(
@@ -1224,6 +1267,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                                 onClose = { handleTabCloseCompose(tab.id) },
                                 onMenu = { handleTabLongPressCompose(tab, true) },
                                 onDragStart = { root ->
+                                    startTestLabDrag(false)
                                     dragTabId = tab.id
                                     dragGroupId = null
                                     dragProfileId = activeProfileId
@@ -1232,7 +1276,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                                 },
                                 onDragMove = ::moveDrag,
                                 onDragFinish = ::finishDrag,
-                                onDragCancel = { dragTabId = null; hoveredKey = null }
+                                onDragCancel = { finishTestLabDrag(OperationOutcome.CANCELLED);dragTabId = null; hoveredKey = null }
                             )
                         }
                     }
@@ -1283,6 +1327,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                     onClose = { handleTabCloseCompose(tab.id) },
                     onMenu = { handleTabLongPressCompose(tab, false) },
                     onDragStart = { root ->
+                        startTestLabDrag(false)
                         dragTabId = tab.id
                         dragGroupId = null
                         dragProfileId = activeProfileId
@@ -1291,7 +1336,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                     },
                     onDragMove = ::moveDrag,
                     onDragFinish = ::finishDrag,
-                    onDragCancel = { dragTabId = null; hoveredKey = null }
+                    onDragCancel = { finishTestLabDrag(OperationOutcome.CANCELLED);dragTabId = null; hoveredKey = null }
                 )
                 }
             }

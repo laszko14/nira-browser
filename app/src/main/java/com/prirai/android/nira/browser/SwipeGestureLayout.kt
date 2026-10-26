@@ -21,6 +21,8 @@ class SwipeGestureLayout @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : FrameLayout(context, attrs, defStyleAttr) {
 
+    internal var testLabGestureOrigin: com.prirai.android.nira.diagnostics.testlab.GestureOrigin? = null
+        private set
     var isSwipeEnabled = true
 
     /** Passive vertical scroll signal; never intercepts GeckoView's page gestures. */
@@ -34,6 +36,7 @@ class SwipeGestureLayout @JvmOverloads constructor(
     private fun observePageGesture(event: MotionEvent) {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                testLabGestureOrigin=com.prirai.android.nira.diagnostics.testlab.TestLab.gestureOrigin()
                 verticalStartX = event.x
                 verticalStartY = event.y
                 verticalLastY = event.y

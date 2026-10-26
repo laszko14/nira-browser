@@ -37,6 +37,8 @@ internal class TestLabRuntime(
     private val main = Handler(Looper.getMainLooper())
     private val scope = CoroutineScope(SupervisorJob()+Dispatchers.Default)
     private var session: SessionToken? = null
+    @Volatile var capture:LabCapture?=null;private set
+    @Volatile var browserObserver:TestLabBrowserObserver?=null;private set
     private var countdownAt: Long? = null
     private var cleaned = false
     private val activities = IdentityHashMap<Activity,Window>()
@@ -45,6 +47,7 @@ internal class TestLabRuntime(
     private var lastOrientation: Int?=null
     private var worker: Job?=null
     private var recoveryGeneration=0L
+    private val panelOpeners=arrayOfNulls<OperationToken>(2)
     private val mutableUi = MutableStateFlow(LabUiState())
     val ui: StateFlow<LabUiState> = mutableUi
     val trackedWindowCount: Int get() = windows.size
@@ -72,6 +75,27 @@ internal class TestLabRuntime(
         finishIfNeeded()
     }
     fun mark():Boolean=session?.let(engine::mark)?:false
+    fun gestureOrigin():GestureOrigin?=session?.let{s->engine.elapsedNanos(s)?.let{GestureOrigin(s,it)}}
+    fun panelGesture(side:PanelSide,origin:GestureOrigin?):OperationToken? {
+        if(origin==null)return null
+        return engine.operation(origin.session,side.openOperation,origin.offsetNanos).also{syncTags()}
+    }
+    fun queuePanel(side:PanelSide,op:OperationToken?) {
+        if(op==null||op.session!=session?.serial)return
+        panelOpeners[side.ordinal]?.let{engine.end(it,OperationOutcome.INTERRUPTED)}
+        panelOpeners[side.ordinal]=op
+    }
+    fun panelOpening(side:PanelSide):OperationToken? {
+        val pending=panelOpeners[side.ordinal];panelOpeners[side.ordinal]=null
+        val op=pending?:session?.let{engine.operation(it,side.openOperation,measureLatency=false)}
+        if(op!=null)accept(op)
+        return op
+    }
+    fun panelClosing(side:PanelSide,knownStart:Boolean):OperationToken? {
+        val op=session?.let{engine.operation(it,side.closeOperation,measureLatency=knownStart)}
+        if(op!=null)accept(op)
+        return op
+    }
     fun operation(op:LabOperation):OperationToken?=session?.let {engine.operation(it,op).also{syncTags()}}
     fun accept(op:OperationToken)=engine.accept(op).also{syncTags()}
     fun end(op:OperationToken,outcome:OperationOutcome,proof:CompletionProof)=engine.end(op,outcome,proof).also{syncTags()}
@@ -113,6 +137,8 @@ internal class TestLabRuntime(
                         val rates=rate?.takeIf{it.isFinite()&&it in 1.0..1000.0}?.let{listOf(it)}?:emptyList()
                         engine.begin(s,LabEnvironment(Build.VERSION.SDK_INT,Runtime.getRuntime().availableProcessors(),rates))
                         engine.foreground(s,true)
+                        capture=LabCapture(engine,s,::syncTags)
+                        browserObserver=TestLabBrowserObserver(capture!!)
                         if(Build.VERSION.SDK_INT<31)engine.metricUnavailable(s,LabMetric.FRAME_OVERRUN,Availability.NOT_SUPPORTED_BY_API)
                         if(probesEnabled)startWorker(s)
                         windows.forEach{(window,probe)->attachJank(window,probe,s)}
@@ -277,9 +303,10 @@ internal class TestLabRuntime(
         val s=session?:return
         if(cleaned||engine.phase!=LabPhase.FINALIZING)return
         cleaned=true;worker?.cancel();main.removeCallbacksAndMessages(null)
+        browserObserver?.close();browserObserver=null;capture=null
         app.unregisterActivityLifecycleCallbacks(this);app.unregisterComponentCallbacks(this)
         windows.keys.toList().forEach(::detachWindow);activities.clear();activitiesVisible=false
-        heartbeatPending=null;countdownAt=null
+        heartbeatPending=null;countdownAt=null;panelOpeners.fill(null)
         publish()
         if(worker==null&&recovery==null){engine.complete(s);publish();scope.cancel()}
         else scope.launch(Dispatchers.Main.immediate) {
@@ -321,7 +348,7 @@ data class LabUiState(val phase:LabPhase=LabPhase.IDLE,val type:TestType?=null,v
     val remainingSeconds:Int?=null,val report:TestLabReport?=null)
 
 internal fun LabCode.domain():LabDomain = when {
-    name.startsWith("LOAD_")||name.startsWith("ENGINE_")||name.startsWith("EXTENSION_")||this==LabCode.SPA_NAVIGATION->LabDomain.GECKO
+    name.startsWith("LOAD_")||name.startsWith("ENGINE_")||name.startsWith("EXTENSION_")||this==LabCode.SPA_NAVIGATION||this==LabCode.URL_CHANGE_IDLE->LabDomain.GECKO
     name.startsWith("DETECTOR_")||name.startsWith("MPV_")||name.startsWith("BLOB_")||name.startsWith("ACK_")||this in setOf(LabCode.PREPARE,LabCode.AUTO_OFFER,LabCode.ROLLBACK,LabCode.FRAME_ELEMENT_MISMATCH,LabCode.AUDIO_FOCUS_FAILED,LabCode.LUA_ERROR,LabCode.DSP_ERROR)->LabDomain.VIDEO
     this==LabCode.PROCESS_EXIT||this==LabCode.STABILITY_ERROR->LabDomain.STABILITY
     else->LabDomain.UI

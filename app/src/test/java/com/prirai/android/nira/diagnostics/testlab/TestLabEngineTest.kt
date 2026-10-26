@@ -195,4 +195,18 @@ class TestLabEngineTest {
         org.junit.Assert.assertEquals(20L,e.latest()!!.eventCounts[LabCode.DETECTOR_NETWORK])
         org.junit.Assert.assertEquals(1,e.latest()!!.timeline.size)
     }
+    @org.junit.Test fun gestureLatencyUsesMeasuredDownAndUnknownOriginsNeverInventZeroLatency() {
+        var clock=0L;val e=TestLabEngine({clock},LabIdentity(1165,"0.5.22-alpha71-mpv39"))
+        val t=e.start(TestType.PANELS_GESTURES)!!;e.begin(t)
+        clock=20_000_000
+        val gesture=e.operation(t,LabOperation.LEFT_PANEL_OPEN,startOffsetNanos=0)!!
+        e.accept(gesture);clock=40_000_000;e.end(gesture,OperationOutcome.SUCCESS,CompletionProof.FIRST_PREDRAW)
+        val close=e.operation(t,LabOperation.LEFT_PANEL_CLOSE,measureLatency=false)!!
+        e.accept(close);e.end(close,OperationOutcome.SUCCESS)
+        org.junit.Assert.assertNull(e.operation(t,LabOperation.RIGHT_PANEL_OPEN,startOffsetNanos=-1))
+        e.stop(t);e.complete(t)
+        org.junit.Assert.assertEquals(40.0,e.latest()!!.operationMetrics.first{it.operation==LabOperation.LEFT_PANEL_OPEN}.latency!!.meanMs,0.0)
+        val closed=e.latest()!!.operationMetrics.first{it.operation==LabOperation.LEFT_PANEL_CLOSE}
+        org.junit.Assert.assertEquals(1L,closed.succeeded);org.junit.Assert.assertNull(closed.latency)
+    }
 }
