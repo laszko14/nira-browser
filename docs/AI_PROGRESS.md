@@ -371,3 +371,9 @@ Opcjonalne, odwracalne rewizje istniejących przycisków DRC/DE: kopie oryginał
 
 - v1164 finalna walidacja: rzeczywisty Gecko CI40316669098 SUCCESS **20/20**, w tym oba SPA oraz network-only inherited blank/srcdoc. Diagnostic2SPA wcześniej potwierdził wyłącznie frozenprincipalURI, nie zły UUID/partition. Oracle niezmienione.
 - Lokalny pełny Gradle PASS4m22s,JUnit276/276,JS199/199,Lua77/77,DSP28/28,lint0nowych/8historycznychusuniętych. Raporty/handoff/metrics gotowe; kolejny krok finalny commit/push/DraftPRdo v1163+podpisującyCI. Telefon/publicsites/realMPV nieuruchomione,APK jeszcze niepotwierdzony.
+
+## 2026-10-26 — v1165 TestLab A/B1/B2
+- Utworzono właściwą gałąź od d890c68(v1164), bez merge i bez powtarzania świeżego baseline. Architektura/kontrakty/metody/źródła w ZAVRO_TESTLAB_METRICS_SPEC.md.
+- JankStats stable1.0.0 potwierdzone officialdocs; jeszcze bez dependency/kolektora. Rdzeń pureKotlin i7trybów,60s monotonic/deadline,scope token,partial/cancel/cleanupgate/foregroundgaps,boundedmetrics.
+-31nowych tests,pełnyKotlin/JUnit307/307PASS25s. Realne edgeRED/GREEN: singlememorydelta,invalidAPIrange,mutableenv,sourceavailability,versionheaderlimit. UI/kolektory/narzut/eksportv1165jeszczebrak — to WIP, nie gotoweAPK.
+- Następne B3raportTXT/JSON; potem hookiC/D, runtimeE, UIF, testyG i signedCIH. Dokładne wznowienie CODEX_RESUME_V1165.md. JS/Lua/DSP nietknięte/niepowtarzane; wszystkie stare funkcje zachowane.

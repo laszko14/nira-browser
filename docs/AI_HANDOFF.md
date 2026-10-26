@@ -1,3 +1,9 @@
+# Aktualne zadanie — Zavro x MPV v1165 TestLab (WIP)
+
+Baza v1164d890c68/PR77, nowa gałąź feat/zavro-x-mpv-v1165-testlab-diagnostics. [Wznowienie](CODEX_RESUME_V1165.md), [spec i plan](ZAVRO_TESTLAB_METRICS_SPEC.md), [roboczy handoff](ZAVRO_X_MPV_V1165_TESTLAB_HANDOFF.md). GotoweA/B1/B2: pureKotlin silnik/agregatory/kontrakt,31nowych testów; pełnyJUnit307PASS. Androidkolektory/hooki/UI/eksport jeszcze niegotowe, brak APK/PRv1165. KontynuowaćB3, bez powtórnego audytu i bez merge.
+
+---
+
 # Aktualny punkt startu — Zavro x MPV v1164
 
 Gałąź `feat/zavro-x-mpv-v1164-gecko-advanced-discovery`, baza1c5ae61/v1163. [Handoff](ZAVRO_X_MPV_V1164_HANDOFF.md), [wyniki](ZAVRO_X_MPV_V1164_DISCOVERY_RESULTS.md), [wznowienie](CODEX_RESUME_V1164.md). Rzeczywisty Gecko20/20PASS w CI40316669098; lokalnie JUnit276, JS199, Lua77, DSP28; BUILD/TEST/LINT/AndroidTestPASS,0nowych lint. Końcowy Draft PR i podpisujący CI w przygotowaniu; APK niepotwierdzony do czasu aneksu PR. Bez merge, pobierania APK do Codex i kolejnej wersji.

@@ -1,0 +1,24 @@
+# v1165 TestLab — checkpoint A/B1/B2
+- Repo /workspace/nira-browser; branch feat/zavro-x-mpv-v1165-testlab-diagnostics, baza d890c68bd15d0f79e25ccd2935fb64ee955286b8/v1164/PR77, bez merge/subagentów.
+- Pełny nowy prompt: /workspace/attachments/5a4fa890-c300-4b93-a4c4-e7e06fee6810/guzikwriting-block (1).md. Użytkownik autoryzuje implementację do signedAPK, bez standardowych pytań, akceptuje wiele sesji.
+- Nie resetować work/ ani niezacommitowanych zmian; zachować logi. Docs ignorowane — force add wskazanych plików.
+- v1164 kompletne: AndroidCI40317975227 SUCCESS/signedartifact12647189422; Gecko40317975157 SUCCESS20/20; źródło d890c68. Nie powtarzać baseline testów bez zmian.
+- A: odczytano punkty integracji i APIJankStats. Stabilna metrics-performance1.0.0 (08.10.2025), callback ponownie używa FrameData i jest na FrameMetrics thread API24+. Nie dodano jeszcze zależności — sprawdzić transitive resolution przed dodaniem.
+- Spec i plan: docs/ZAVRO_TESTLAB_METRICS_SPEC.md. User spec wybrał jeden wspólny silnik,7trybów,60s; implementacja Kotlin/Compose w app, bez nowego Gradlemodułu.
+- B1: TestLabMetrics.kt: frame histogram4096/0.25ms, thresholdn2/10/20/100, overflow=null, valid jankflag zJankStats; resource ring180/weightedCPU%onecore, niezależne extrema/baseline. Zero próbek=null, jedna pamięćdelta=null, nieprawidłowe wartości nie trafiają doJSON.
+- B2: TestLabContract.kt,TestLabEngine.kt,TestLabOperationStats.kt. PureKotlin,clockinjected,typedDTOenums/noStringevents,IDs tylko anonimowe tokens, state machine/deadline/partial/cancel/restart, latecallbackguards,coveragegaps,OperationSTART/ACCEPT/CANCEL/FINISH, sourceproof, boundedtimeline/anomalies/markers.
+- Modele to fundament, NIE gotowe7przycisków. Nie deklarować OS/JankStats/Gecko/MPV pomiarów: runtime/kolektory/UI jeszcze NIEZAIMPLEMENTOWANE.
+- Testy: TestLabMetricsTest10 + TestLabEngineTest21 =31nowych. Pełny Kotlin/JUnit307/307PASS25s,0fail/error/skip (work/v1165-stageB-core-suite.log). APIabsenceRED + rzeczywiste edgeRED/GREEN:singlememorydelta,hugeAPIvalues,mutableenvironmentafterfinish,missingmetricsource,unboundedversionheader.
+- Nie uruchamiano ponownie JS/Lua/DSP (dotąd niezmienione starepliki); nie ma finalnego BUILD/LINT/AndroidTest/AndroidUI/narzutu v1165.
+- Gradlewersja nadal164/ARM641164/alpha70-mpv38. Finalnie165/1165/0.5.22-alpha71-mpv39, com.prirai.android.nira.mpv, ARM64, certdf90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00.
+- Następny krok B3: ReportGeneratorTXT/JSON + privacy/size/null/NOT_TESTED/export tests. Potem C: prawdziwe hooki gestures/panels/tab/groups/order; D traceGecko/MPV; E runtimeJank/CPU/memory/heartbeat/recovery; F UI/export; G profiling/regressions; H signedCI/PRdo v1164.
+- Potencjalne następne testy rdzenia: event count batches(20 kandydatów≠1batch), frameinvalid dostępność, bounded obserwacje nie mogą wyprzeć potwierdzonych invariantów przez słabsze performance anomalies. To przegląd projektu, jeszcze nie odtworzone/naprawione — testować przed zmianą.
+- HeadersSettingsFragment.kt faktycznie zawiera klasę SettingsFragment; preferences_headers używane. NiraTheme obsługuje light/dark/AMOLED/dynamic, użyć ponownie.
+- BrowserFragment.setupEdgePanelGestures: recognizestart≠thresholdaccept≠Dialog.show≠widoczność/endanimacji. Nie zmieniać Boolean/interceptMotionEvent. Tabs i Bookmarks to osobneDialogWindow; jeżeli systemanimation nie daje końca, raportować niedostępne, nie używaćdelay jako dowoduFINISH.
+- TabGroupMiddleware.invoke tylko next(action). Zwykłe linki NIEURUCHAMIAJĄ Room/autogroup. Hooki bezlazyRoominit kiedy TestLaboff; efekty dopiero po prawdziwym commit/suspendmutate, nie przedlaunch.
+- MpvDebugTrace.note alreadyallowlisted i bounded240. Bierny tap beztworzenia nowegoMPV/logów. MpvSupertest40s musi zostać, mutual exclusionodPREPARING, bezzmianyclipboard/timer. Nie umieszczaćTestLab w43-slotowymLua.
+- Runtimeplan: dynamical ActivityLifecycleCallbacks/ComponentCallbacks tylko przy teście, Browser/MPV/dialog window eligible, countdown3s poza60s; foregroundgaps/rotation; nie mierzyćsettings jako browserWindow. Mainheartbeatjedno oczekujące message, epochguard przezpause/restart.
+- PSS/USS/heap/CPU nie sumować, CPUobejmuje własnyproces≠Geckosubprocess. JankStats≠Gecko compositor/SurfaceView videoframes. Brak próby/metryki=NOT_TESTED/null, niehealthy/0.
+- Recovery opt-inOFF, atomicprivate max64KiB/24h/min5s, no globaluncaught handler, no URL/host/tabID/profile/script/path/Throwable. EksportświadomySAF/FileProvider; raport≤256KiB.
+- LokalnyemulatorTCG z v1164 nieużyteczny (boot957s,potemhangADB). KVM GitHub realGecko dostępne; rozszerzyć istniejącyworkflow o v1165/testLabDeviceTest po gotowych kolektorach/UI. Nie pobierać signedAPK doCodex.
+- Nie ma v1165PR ani APK. WIPpush na v1165 nie uruchamia obecnego podpisującegoCI (tylko mainpush/PR); aktualnyworkflowGeckopush jeszcze tylko v1164.
