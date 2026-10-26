@@ -73,7 +73,10 @@
           "routedMessages": 106,
           "extraGet": 0,
           "unassigned": 4,
-          "maxSyncCallbackMs": 0.7224110000000081
+          "maxSyncCallbackMs": 1.1449770000000115,
+          "peakEarly": 128,
+          "peakRequests": 1,
+          "peakFrames": 2
         }
       }
     },
@@ -101,7 +104,10 @@
           "routedMessages": 5,
           "extraGet": 0,
           "unassigned": 0,
-          "maxSyncCallbackMs": 0.5918949999999938
+          "maxSyncCallbackMs": 0.4734729999999985,
+          "peakEarly": 1,
+          "peakRequests": 1,
+          "peakFrames": 2
         }
       }
     }
@@ -274,12 +280,117 @@
       ]
     },
     "latest": {
-      "run": 40313078091,
-      "status": "aborted",
-      "executed": 1,
-      "reason": "uncaught expected SocketException Broken pipe in fixture HTTP worker after cancelled navigation; test infrastructure fixed"
+      "run": 40314069715,
+      "executed": 18,
+      "passed": 16,
+      "failed": [
+        "spaPushStateWithoutMutation",
+        "spaReplaceStateWithoutMutation"
+      ]
     },
     "phone": "NOT RUN",
-    "publicWebsites": "NOT RUN"
+    "publicWebsites": "NOT RUN",
+    "timing": {
+      "baseline": [
+        {
+          "case": "/basic",
+          "acceptedEntries": 1,
+          "firstResultMs": 171
+        },
+        {
+          "case": "/cross",
+          "acceptedEntries": 1,
+          "firstResultMs": 1658
+        },
+        {
+          "case": "/dynamic",
+          "acceptedEntries": 1,
+          "firstResultMs": 379
+        },
+        {
+          "case": "/hls",
+          "acceptedEntries": 1,
+          "firstResultMs": 550
+        },
+        {
+          "case": "/early",
+          "acceptedEntries": 1,
+          "firstResultMs": 372
+        },
+        {
+          "case": "/basic",
+          "acceptedEntries": 1,
+          "firstResultMs": 949
+        },
+        {
+          "case": "/nested",
+          "acceptedEntries": 1,
+          "firstResultMs": 743
+        },
+        {
+          "case": "/redirect-page",
+          "acceptedEntries": 1,
+          "firstResultMs": 306
+        }
+      ],
+      "intermediate": [
+        {
+          "case": "/blank",
+          "acceptedEntries": 1,
+          "firstResultMs": 874
+        },
+        {
+          "case": "/basic",
+          "acceptedEntries": 1,
+          "firstResultMs": 181
+        },
+        {
+          "case": "/cross",
+          "acceptedEntries": 1,
+          "firstResultMs": 1064
+        },
+        {
+          "case": "/dynamic",
+          "acceptedEntries": 1,
+          "firstResultMs": 566
+        },
+        {
+          "case": "/early",
+          "acceptedEntries": 1,
+          "firstResultMs": 395
+        },
+        {
+          "case": "/hls",
+          "acceptedEntries": 1,
+          "firstResultMs": 479
+        },
+        {
+          "case": "/basic",
+          "acceptedEntries": 1,
+          "firstResultMs": 565
+        },
+        {
+          "case": "/nested",
+          "acceptedEntries": 1,
+          "firstResultMs": 877
+        },
+        {
+          "case": "/basic",
+          "acceptedEntries": 1,
+          "firstResultMs": 2033
+        },
+        {
+          "case": "/redirect-page",
+          "acceptedEntries": 1,
+          "firstResultMs": 595
+        },
+        {
+          "case": "/srcdoc",
+          "acceptedEntries": 1,
+          "firstResultMs": 787
+        }
+      ],
+      "scope": "open synthetic fixture to first accepted native repository result; entries are not unique films; not phone or MPV"
+    }
   }
 }

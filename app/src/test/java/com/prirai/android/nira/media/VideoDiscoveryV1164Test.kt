@@ -44,6 +44,23 @@ class VideoDiscoveryV1164Test {
         assertNotNull(MediaMessageProtocol.decode("""{"schemaVersion":1,"event":"media_frame","pageUrl":"https://page.test/watch","documentKey":1,"frameUrl":"about:blank","frameId":7,"frameKey":9,"active":true}"""))
         assertNull(MediaMessageProtocol.decode("""{"schemaVersion":1,"event":"media_frame","pageUrl":"https://page.test/watch","documentKey":1,"frameUrl":"about:config","frameId":7,"frameKey":9,"active":true}"""))
     }
+    @Test fun outOfOrderFrameRegistrationEvictsTheOldestKeyInsteadOfTheFirstArrival() {
+        val tab = MediaTabState(MediaSessionBinding(Any(), "tab", null, false), "https://page.test/watch", false)
+        val repo = MediaRepository(); repo.observe(listOf(tab)); repo.registerDocument(tab, tab.pageUrl, 1, true)
+        val url = "https://frame.test/embed"
+        assertTrue(repo.registerFrame(tab, MediaDetectorMessage.Frame(tab.pageUrl, 1, url, 1, 2, true)))
+        assertTrue(repo.registerFrame(tab, MediaDetectorMessage.Frame(tab.pageUrl, 1, url, 2, 1, true)))
+        val candidate = MediaDetectorMessage.Candidate("https://cdn.test/movie.m3u8", source=MediaSource.NETWORK,
+            privateHint=false, frameUrl=url, frameKey=2)
+        val media = MediaClassifier.fromNetwork(candidate, tab.binding)!!
+        repo.add(tab, tab.pageUrl, 1, media, MediaSource.NETWORK, metadata=candidate)
+        for (key in 3L..257L)
+            assertTrue(repo.registerFrame(tab, MediaDetectorMessage.Frame(tab.pageUrl, 1, url, key, key, true)))
+        assertEquals(1, repo.currentEntries(tab).size) // key2 survives; older key1 is evicted
+        assertTrue(repo.registerFrame(tab, MediaDetectorMessage.Frame(tab.pageUrl, 1, url, 1, 2, false)))
+        assertTrue(repo.currentEntries(tab).isEmpty())
+        assertFalse(repo.registerFrame(tab, MediaDetectorMessage.Frame(tab.pageUrl, 1, url, 2, 1, true)))
+    }
     @org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
     class RootBlobBindingTest {
         @org.robolectric.annotation.Config(sdk=[35],application=android.app.Application::class,manifest=org.robolectric.annotation.Config.NONE)

@@ -59,3 +59,12 @@
 - CI40313078091 przerwane1/18przezBrokenpipewFixtureServer(oczekiwane anulowanieHTTPprzynawigacji), niebłądprodukcji. SerwerterazobsługujeIOExceptionrozłączenia; ten samtestpozostaje. NastępnyWIP[gecko-test]mawykonać18scenariuszy.
 - Wersjabumped164/1164alpha70-mpv38,APKworkflowmetadataiB/C/Lua/DSPchecks;jeszczebrakpodpisanegoAPK/DraftPR. No merge.
 - FinalnieczekaćnaGeckoPASS,lubdiagnozowaćnowykonkretnybłąd; dokończyćGradle/lintdelta,review/handoff,1finalPRpushuruchamiasigning+Gecko. APKniepobieraćdoCodex.
+
+## Checkpoint F — nadpisuje poprzedni status CI
+- CI40314069715:18wykonanych,16PASS/2FAILtylkoSPA push+replace. aboutblank,srcdoc,frameRemove/Replace,lateCancel,sameURLswitch,profileiprivatepositivePASS. Nie dodawaćniepotrzebnejrekoncyliacjiramki:realcleanupdziała.
+- SPA:entries0/stale0/validation0;anonymous early_request_ambiguous rośnie. Brakjeszczedowoduktóraskładowaownershipniepasuje(UUID/documentURL/partition). Podejrzeniefrozenrequest.documentURL, nieoznaczaćjakopotwierdzone.
+- Dodanosanitizedrozbicieearlyambiguity(kodyUUID/URLvsfrozenSender/parent/partition/afterRegistration), bezdanychURL. WIP[gecko-spa]mauruchomićtylko2metodydiagnostyczne;finalPRzawszecałe18.
+- Review:nowyregistryevictionnaprawionywedługnajmniejszegomintedkey, niekolejnościdostarczenia. Test257ramekRED/GREEN. JUnit273pełnePASS;3dodatkowenatywnePorttests(blobstrictnumeric/directcompat/senderbound)PASS22s;11celowanych+AndroidTestPASS34s poostatnichdiagnostics.
+- JS195/195PASS;GradlepoevictionFULLPASS4m35s;lintnowych0(aktualnezliczeniapotwierdzićpoostatnimallowlistchange). Integralność92+10hashzachowanaodwracalnymiexactpatches.
+- Handoffutworzonyroboczodocs/ZAVRO_X_MPV_V1164_HANDOFF.md(ignored,forceadd),finalstatusliczbyzaktualizować. MetricszawierarealGeckotimingbaseline/intermediate.
+- Następnykrok:pushdiagnosticWIP,odczytać2Gecko wyniki,ustalićdokładnąprzyczynęSPA, minimalnyfix+RED/GREEN;potem18realtests/finalTEST/LINT,docsfinal,PRdov1163+signedARM64CI. NieogłaszaćAPKgotowym.

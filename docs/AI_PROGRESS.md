@@ -363,3 +363,6 @@ Opcjonalne, odwracalne rewizje istniejących przycisków DRC/DE: kopie oryginał
 
 - v1164 checkpointE: Cnetwork12/12,B21/21;C DOM5/5URLbezpoprawyrecall(qualityvariantsnieosobnefilmy). JS195/195,JUnitraport272/272,Lua77/77,DSP28/28. FinalGradlelintjeszczewtoku.
 - CI40313078091 nieukończone18testów:Brokenpipewserwerzetestowymprzycelowymcancel,procesAndroidcrashed. NaprawionowyłącznieobsługętransportowegoIOException;testzachowany. KolejnyGeckoWIPwymagany; brakgotowegoAPK.
+
+- v1164 realGecko40314069715:16/18PASS,aboutblank/srcdoc/lifecycle/profileiprivatepositiveGREEN;pozostałypush/replace. Earlyambiguitybezstale/protocolerror,wymaganedalszerozbiciesanitizedcounters.ZawężonyWIP[gecko-spa]niezastępujefinal18.
+- Reviewregistry257ramek:evictionpo mintedkeyRED/GREEN. JUnit273full,3nativePorttestPASS,11targeted+AndroidTestPASS34s,JS195/195. FullGradlepoevictionPASS4m35s. APK/PRnadalniegotowe.

@@ -52,7 +52,9 @@ internal object MediaMessageProtocol {
         "no_source", "no_candidate", "manifest_invalid", "manifest_valid",
         "frame_mismatch", "unavailable", "drm", "early_request_seen", "early_request_bound",
         "early_request_expired", "early_request_ambiguous", "frame_registered",
-        "iframe_about_blank", "iframe_srcdoc", "spa_navigation", "player_config_detected")
+        "iframe_about_blank", "iframe_srcdoc", "spa_navigation", "player_config_detected",
+        "early_uuid_mismatch", "early_url_context_match", "early_url_mismatch",
+        "early_parent_mismatch", "early_partition_mismatch", "early_after_registration")
     private const val MAX_MESSAGE_BYTES = 16 * 1024
     private const val MAX_URL_BYTES = 8 * 1024
     private val validMime = Regex("[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+(?:\\s*;[ -~]*)?")

@@ -9,8 +9,10 @@ const tick=()=>new Promise(r=>setImmediate(r));
 const uuid=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0');
 function world(){
  let receive,before,headers,removed,history,navigate,now=100000;
- const costs={callbacks:0,totalCallbackMs:0,maxCallbackMs:0};
- const measured=fn=>(...args)=>{const start=performance.now();try{return fn(...args);}finally{const ms=performance.now()-start;costs.callbacks++;costs.totalCallbackMs+=ms;costs.maxCallbackMs=Math.max(costs.maxCallbackMs,ms);}};
+ const costs={callbacks:0,totalCallbackMs:0,maxCallbackMs:0,peakEarly:0,peakRequests:0,peakFrames:0};
+ const buffers=()=>vm.runInNewContext('({early:typeof earlyRequests===\"undefined\"?0:earlyRequests.size,requests:requests.size,frames:frames.size,documents:documents.size})',ctx);
+ const sampleBuffers=()=>{const b=buffers();costs.peakEarly=Math.max(costs.peakEarly,b.early);costs.peakRequests=Math.max(costs.peakRequests,b.requests);costs.peakFrames=Math.max(costs.peakFrames,b.frames);};
+ const measured=fn=>(...args)=>{const start=performance.now();try{return fn(...args);}finally{const ms=performance.now()-start;costs.callbacks++;costs.totalCallbackMs+=ms;costs.maxCallbackMs=Math.max(costs.maxCallbackMs,ms);sampleBuffers();}};
  const sent=[],controls=[],native=[],frameDetails=new Map(),timers=new Map();let timer=0;
  const browser={runtime:{id:'fixture',onMessage:{addListener:f=>receive=f},sendNativeMessage:async(_,m)=>{native.push(m);return true;}},
  tabs:{sendMessage:async(tab,m,options)=>{(m.event==='media_candidate'?sent:controls).push({tab,message:m,options});return true;},onRemoved:{addListener:f=>removed=f}},
@@ -22,15 +24,15 @@ function world(){
  for(const name of ['manifest-parser.js','background.js'])vm.runInNewContext(fs.readFileSync(path.join(assets,name),'utf8'),ctx);
  const sender=(doc=1,frameId=0,url='https://page.test/watch',tab=7)=>({id:'fixture',tab:{id:tab,incognito:false,cookieStoreId:'firefox-container-1'},frameId,url,documentId:uuid(doc)});
  let root;
- async function start(s=sender()){root=await receive({schemaVersion:1,event:'document_started',pageUrl:s.url},s);return root;}
- async function ready(s=sender()){return receive({schemaVersion:1,event:'document_ready',documentKey:root?.documentKey},s);}
+ async function start(s=sender()){root=await receive({schemaVersion:1,event:'document_started',pageUrl:s.url},s);sampleBuffers();return root;}
+ async function ready(s=sender()){const result=await receive({schemaVersion:1,event:'document_ready',documentKey:root?.documentKey},s);sampleBuffers();return result;}
  async function frame(doc=2,id=1,url='https://frame.test/embed',parentDoc=1,parentFrameId=0){
  const s=sender(doc,id,url);frameDetails.set('7:'+id,{frameId:id,documentId:uuid(doc),parentDocumentId:uuid(parentDoc),parentFrameId,url});
  const reply=await receive({schemaVersion:1,event:'frame_started',frameUrl:url},s);
- if(reply?.frameKey)await receive({schemaVersion:1,event:'frame_ready',frameKey:reply.frameKey},s);return reply;}
+ if(reply?.frameKey)await receive({schemaVersion:1,event:'frame_ready',frameKey:reply.frameKey},s);sampleBuffers();return reply;}
  function request(extra={}){return{tabId:7,requestId:'r',frameId:0,parentFrameId:-1,documentId:uuid(1),documentUrl:'https://page.test/watch',url:'https://cdn.test/movie.mp4',incognito:false,cookieStoreId:'firefox-container-1',type:'xmlhttprequest',statusCode:200,responseHeaders:[{name:'Content-Type',value:'video/mp4'}],...extra};}
  async function advance(ms){now+=ms;for(const[id,t]of [...timers])if(t.at<=now){timers.delete(id);t.fn();}await tick();}
- return{browser,sender,start,ready,frame,request,sent,controls,native,costs,receive:measured(receive),before:measured(before),headers:measured(headers),removed,
+ return{browser,sender,start,ready,frame,request,sent,controls,native,costs,buffers,receive:measured(receive),before:measured(before),headers:measured(headers),removed,
  advance,frameDetails,history:e=>history?.(e),navigate:e=>navigate?.(e)};
 }
 async function run(c){
@@ -93,10 +95,10 @@ async function run(c){
  const actual=c.expectedControls===undefined?w.sent.length:w.controls.filter(x=>x.message.event==='discovery_rescan').length;
  const expected=c.expectedControls??c.expected;
  const pass=c.max!==undefined?actual<=c.max:actual===expected;
- return{id:c.id,actual,expected:c.max===undefined?expected:'<='+c.max,pass,misassigned:w.sent.filter(x=>x.tab!==7&&!(c.scenario==='two_tabs'&&x.tab===8)).length,callbackCost:w.costs,nativeMessages:w.native.length,extraGet:0,messages:w.sent.length,unassigned:w.native.filter(x=>x.event==='network_unassigned').length};
+ return{id:c.id,actual,expected:c.max===undefined?expected:'<='+c.max,pass,misassigned:w.sent.filter(x=>x.tab!==7&&!(c.scenario==='two_tabs'&&x.tab===8)).length,callbackCost:w.costs,remainingBuffers:w.buffers(),nativeMessages:w.native.length,extraGet:0,messages:w.sent.length,unassigned:w.native.filter(x=>x.event==='network_unassigned').length};
 }
 async function main(){const group=process.env.DISCOVERY_SET||'B';const results=[];for(const c of frozen[group])results.push(await run(c));
- const report={measured:{nativeMessages:results.reduce((n,x)=>n+x.nativeMessages,0),routedMessages:results.reduce((n,x)=>n+x.messages,0),extraGet:results.reduce((n,x)=>n+x.extraGet,0),unassigned:results.reduce((n,x)=>n+x.unassigned,0),maxSyncCallbackMs:Math.max(0,...results.map(x=>x.callbackCost.maxCallbackMs))},layer:'JS production background with controlled Gecko adapters; not Android',set:group,scenarios:results.length,passed:results.filter(x=>x.pass).length,failed:results.filter(x=>!x.pass).length,misassigned:results.reduce((n,x)=>n+x.misassigned,0),cases:results};
+ const report={measured:{nativeMessages:results.reduce((n,x)=>n+x.nativeMessages,0),routedMessages:results.reduce((n,x)=>n+x.messages,0),extraGet:results.reduce((n,x)=>n+x.extraGet,0),unassigned:results.reduce((n,x)=>n+x.unassigned,0),maxSyncCallbackMs:Math.max(0,...results.map(x=>x.callbackCost.maxCallbackMs)),peakEarly:Math.max(0,...results.map(x=>x.callbackCost.peakEarly)),peakRequests:Math.max(0,...results.map(x=>x.callbackCost.peakRequests)),peakFrames:Math.max(0,...results.map(x=>x.callbackCost.peakFrames))},layer:'JS production background with controlled Gecko adapters; not Android',set:group,scenarios:results.length,passed:results.filter(x=>x.pass).length,failed:results.filter(x=>!x.pass).length,misassigned:results.reduce((n,x)=>n+x.misassigned,0),cases:results};
  if(process.env.DISCOVERY_REPORT)fs.writeFileSync(process.env.DISCOVERY_REPORT,JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report,null,2));
  if(!process.env.DISCOVERY_BASELINE)assert.equal(report.failed,0);
 }

@@ -176,6 +176,7 @@ class GeckoDiscoveryDeviceTest {
             while (!socket.isClosed) try { val client = socket.accept(); workers.execute {
                 try { serve(client) }
                 catch (_: java.io.IOException) { client.close() } // expected browser cancellation / broken pipe
+                catch (_: InterruptedException) { Thread.currentThread().interrupt(); client.close() } // fixture shutdown
             } }
             catch (_: Exception) { if (!socket.isClosed) throw IllegalStateException("fixture_accept") }
         }, "discovery-fixture").apply { isDaemon = true; start() }

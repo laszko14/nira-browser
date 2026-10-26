@@ -38,6 +38,8 @@ Testy wykorzystują rzeczywisty BrowserApp, EngineView/EngineSession, dostarczon
 
 Lokalny emulator bez KVM wystartował po957 s, następnie zawiesił wątki QEMU i stracił ADB podczas instalacji. Lokalna instrumentacja NIEURUCHOMIONA. CI z KVM jest faktycznym źródłem wyników Androida. Testowy x86_64 nie jest publikowany; wydanie pozostaje wyłącznie ARM64.
 
+5. CI40314069715: **18 wykonanych,16 PASS/2 FAIL** — tylko pushState/replaceState. Initial blank, srcdoc, frame retirement/replacement, cancelled response oraz private positive przeszły. Dalsza diagnostyka ownership SPA używa wyłącznie kategorii licznikowych, bez URL.
+
 ## Granice i bezpieczeństwo
 
 - Wczesny bufor128/TTL2,5s przechowuje wyłącznie metadane odpowiedzi. Dopasowanie wymaga zaufanego UUID dokumentu, ramki i zgodności trybu/kontekstu. Brak dowodu własności oznacza odrzucenie.

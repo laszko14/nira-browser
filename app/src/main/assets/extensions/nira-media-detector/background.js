@@ -185,7 +185,17 @@ function bindEarly(tabId, frameId) {
         (entry.parentDocumentId && frame && entry.parentDocumentId !== frame.parentDocumentId) ||
         (typeof root.isPrivate === "boolean" && entry.isPrivate !== root.isPrivate) ||
         (root.cookieStoreId && entry.cookieStoreId && entry.cookieStoreId !== root.cookieStoreId)) {
-      discovery("early_request_ambiguous", entry.isPrivate); continue;
+      discovery("early_request_ambiguous", entry.isPrivate);
+      if (entry.geckoDocumentId !== owner.geckoDocumentId) discovery("early_uuid_mismatch", entry.isPrivate);
+      if (entry.documentUrl !== (frame ? frame.frameUrl : root.pageUrl))
+        discovery(entry.documentUrl === owner.senderUrl ? "early_url_context_match" : "early_url_mismatch", entry.isPrivate);
+      if (entry.parentDocumentId && frame && entry.parentDocumentId !== frame.parentDocumentId)
+        discovery("early_parent_mismatch", entry.isPrivate);
+      if ((typeof root.isPrivate === "boolean" && entry.isPrivate !== root.isPrivate) ||
+          (root.cookieStoreId && entry.cookieStoreId && entry.cookieStoreId !== root.cookieStoreId))
+        discovery("early_partition_mismatch", entry.isPrivate);
+      if (entry.at >= owner.registeredAt) discovery("early_after_registration", entry.isPrivate);
+      continue;
     }
     requests.set(key, { documentKey: root.documentKey, geckoDocumentId: owner.geckoDocumentId,
       frameKey: frame?.frameKey || null, frameUrl: frame?.frameUrl || null,

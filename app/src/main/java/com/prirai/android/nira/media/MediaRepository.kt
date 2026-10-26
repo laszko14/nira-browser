@@ -292,7 +292,10 @@ internal class MediaRepository(
                 current.entries.entries.removeAll { it.value.frameKey == previous.key }
             current.frames[frame.frameId] = FrameBinding(frame.frameId, frame.frameKey, frame.frameUrl, true)
             while (current.frames.size > 256) {
-                val evicted = current.frames.remove(current.frames.keys.first())!!
+                // Native messages from different frames may arrive out of order.
+                // Evict by minted key so no retained binding falls below the floor.
+                val oldestId = current.frames.minBy { it.value.key }.key
+                val evicted = current.frames.remove(oldestId)!!
                 current.frameFloor = maxOf(current.frameFloor, evicted.key)
                 current.entries.entries.removeAll { it.value.frameKey == evicted.key }
             }
