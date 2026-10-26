@@ -55,7 +55,7 @@ class AppRequestInterceptor(val context: Context) : RequestInterceptor {
         isSubframeRequest: Boolean
     ): InterceptionResponse? {
         if (uri.startsWith("https://accounts.firefox.com")) {
-            Log.d("FxaAuth", "onLoadRequest: url=$uri fxaInterceptorNull=${fxaInterceptor == null}")
+            Log.d("FxaAuth", "oauth_request interceptor_present=${fxaInterceptor != null}")
         }
         // Let the FxA interceptor handle the OAuth redirect first.
         fxaInterceptor?.onLoadRequest(

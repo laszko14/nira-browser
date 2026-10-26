@@ -1,0 +1,29 @@
+# v1162 — checkpoint 3: gotowe, przed commit/push/CI
+- Gałąź fix/zavro-x-mpv-v1162-app-wide-reliability-audit.
+- Baza/ostatni commit w chwili zapisu a3fa1232265348cb3ac3405c6e56594a6634a3b0 / v1161 / PR74 / CI40241236669 SUCCESS.
+- Snapshot PRZED końcowym commit/push; sprawdzić HEAD/GitHub/PR/CI, dalsze etapy mogą już być ukończone.
+- W chwili checkpointu v1162 tylko lokalnie, remote branch nie istnieje, brak PR/CI. Nie tworzyć duplikatu.
+- Inwentarz309plików/14aktywności/4usług/76kluczy XML + dynamiczne ustawienia; ZAVRO_X_MPV_V1162_INVENTORY.md.
+- Audyt A–K: startup/arch/UI/gesty/tabs/Gecko/media/MPV/lifecycle/perf/security/settings; granice wykonania w handoff.
+-12naprawionych usterek:2P0,7P1,3P2;8efektów RED, reszta konkretne przepływy + regresje/kod.
+- LRU/profile i late-animation/finishing guards w Toolbar/Home; brak zmiany primaryOrder/formatu LRU.
+- CANCEL oddzielny odfinish, rollback preview, konsumowane własne UP/CANCEL; Home slowUP/resetDOWN.
+- CookieWorker awaitonSuccess/onError/cancel/retry, CAS nowszej policy, lazy engine tylko due host na Main.
+- Download status+exactContentRange przed zapisem; corrupt oversized sidecar pobierany od nowa.
+- DownloadTaskRegistry: właściciel/generacje, transitive joins także pre-dispatchcancel, safe pause/resume/delete, inneID równoległe.
+- OAuth/favicon/cookie logi bezrawURL/wyjątków; exportedPWA tylkoHTTP(S), poprawnequery/localhost/IDN zachowane.
+- Bez zmian schematów, prefs, data keys, pakietu/certyfikatu i MPV/detektora; trace tylko2etykiety.
+-17nowych testów: AppBoundaries5,DownloadCookie7,DownloadOwnership4,WebAppLaunch1.
+- Pełny JUnit261/261 + build/test/lint/assemble/compileAndroidTest PASS4m11s, log work/v1162-final-gradle.log.
+- Po jednym nowym UseKtx równoważna poprawka toUri; celowanyPWA1/1+lint/assemble/compileAndroidTest PASS3m53s: work/v1162-reviewed-gradle.log.
+- Lint0nowych/0usuniętych:1462Fatal/258Error/444Warning/19Hint; work/v1162-reviewed-lint-delta.json.
+- JS164/164 work/v1162-js.log; Lua77/77,DSP28/28 work/v1162-lua-dsp.log exit0.92+10integrity tests PASS.
+- Manualny review autora/diffcheck PASS; bez subagentów. AndroidTest skompilowany, urządzenia brak, wykonanie NIEURUCHOMIONE.
+- Bez pomiarów FPS/RAM/CPU/baterii; zmierzono tylko engineProvider1→0 i deterministyczną kolejność I/O.
+- Wersja162/ARM641162/name0.5.22-alpha68-mpv36, package com.prirai.android.nira.mpv, cert df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00.
+- Raport ZAVRO_X_MPV_V1162_HANDOFF.md; AI_PROGRESS/AI_HANDOFF zaktualizowane. work/ zachować poza commit.
+- Dalej commit/push jeśli brak, Draft PR do fix/zavro-x-mpv-v1161-tab-opening-group-audit, pojedynczy istniejącyCI.
+- Potwierdzić run/headSHA/build/test/lint, verifier package/version/ABI/cert, artefakt zavro-x-mpv-arm64-v1162, bez APK download.
+- Uzupełnić końcowy aneks w PR o SHA/PR/run/artifact, bez kolejnego commita/CI tylko na metadane. Nie powtarzać zaliczonych diagnoz/testów.
+- Ryzyka: taskkill/download, ETagzmianatreści, przyszły cookieDBfallback, globalneper-origin cookies, SDKlogi i wszystkieUI/settings/native na telefonie. Bez automatycznej następnej wersji.
+- Bez merge, force/reset, usuwania danych, zmiany ABI/key/package, nowych native features i AutoAudio.

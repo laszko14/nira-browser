@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
  * screens, the sweeper) should go through this and never touch the DAO
  * directly.
  */
-class CookiePolicyRepository private constructor(
+class CookiePolicyRepository internal constructor(
     private val dao: CookiePolicyDao,
 ) {
 
@@ -37,8 +37,8 @@ class CookiePolicyRepository private constructor(
     }
 
     /** Called by the sweeper after it has wiped cookies for [origin]. */
-    suspend fun markSweptNow(origin: String) {
-        dao.touch(origin, System.currentTimeMillis())
+    suspend fun markSweptNow(policy: CookiePolicy) {
+        dao.touchIfUnchanged(policy.origin, policy.savedAt, policy.hoursUntilClear, System.currentTimeMillis())
     }
 
     suspend fun remove(origin: String) {
