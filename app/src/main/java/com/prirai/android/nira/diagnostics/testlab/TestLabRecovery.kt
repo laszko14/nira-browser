@@ -20,7 +20,7 @@ internal class TestLabRecoveryStore(context:Context,
 ) {
     private val preferences=context.getSharedPreferences("testlab",Context.MODE_PRIVATE)
     private val file=AtomicFile(File(context.filesDir,"testlab-recovery.json"))
-    @Volatile var enabled=preferences.getBoolean("crash_recovery",false);private set
+    @Volatile var enabled=runCatching{preferences.getBoolean("crash_recovery",false)}.getOrDefault(false);private set
     private var generation=0L
     private var active=false
     private var lastWrite:Long?=null
@@ -32,6 +32,7 @@ internal class TestLabRecoveryStore(context:Context,
         return true
     }
     @Synchronized fun begin():Long {active=true;lastWrite=null;return ++generation}
+    @Synchronized fun isDue(owner:Long):Boolean = enabled&&active&&owner==generation&&(lastWrite==null||nanos()-lastWrite!!>=5_000_000_000L)
     @Synchronized fun save(owner:Long,input:TestLabRecovery):Boolean {
         if(!enabled||!active||owner!=generation)return false
         val at=nanos();val previous=lastWrite

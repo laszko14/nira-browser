@@ -63,6 +63,7 @@ internal object MpvDebugTrace {
     @Synchronized
     fun note(section: Section, code: String, session: Any? = null) {
         if (code !in allowed) return
+        com.prirai.android.nira.diagnostics.testlab.TestLab.mediaTrace(code,session)
         // Drop repeated polling/metadata spam without losing a new decision.
         val last = events.lastOrNull()
         val now = SystemClock.elapsedRealtime()

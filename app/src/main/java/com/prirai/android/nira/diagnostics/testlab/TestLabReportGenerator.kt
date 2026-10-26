@@ -67,6 +67,11 @@ object TestLabReportGenerator {
         }
         if (r.operationMetrics.none { it.operation == LabOperation.MPV_PLAYBACK && it.started > 0 })
             appendLine("MPV — BRAK PRÓBY ODTWARZANIA")
+        r.playbackMetrics?.let{m->
+            appendLine("MPV time-pos: n=${m.positionSamples}, zaobserwowane przyrosty≤5s=${number(m.incrementalSeconds)} s, nieciągłości=${m.discontinuities}, anonimowe sesje=${m.anonymousSessions}")
+            appendLine("Prędkość z callbacków MPV: n=${m.speedSamples}, zmiany=${m.speedChanges}, min=${number(m.minSpeed)}, max=${number(m.maxSpeed)}")
+            appendLine("Stała pozycja może oznaczać pauzę; przyrost pozycji nie dowodzi pomiaru klatek ani prawidłowości obu torów audio.")
+        }
         appendLine("\nZasoby: własny proces aplikacji; podprocesy Gecko nie są objęte pomiarem.")
         val m = r.resourceMetrics
         appendLine("Próbki=${m.totalSamples}; odrzucone ze starszego bufora=${m.evictedSamples}")

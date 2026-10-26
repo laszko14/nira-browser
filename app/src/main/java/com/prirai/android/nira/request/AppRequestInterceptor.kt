@@ -230,6 +230,9 @@ class AppRequestInterceptor(val context: Context) : RequestInterceptor {
             return RequestInterceptor.ErrorResponse(uri)
         }
 
+        com.prirai.android.nira.diagnostics.testlab.TestLab.geckoError(session)
+        if(riskLevel==ErrorCategory.SSL)com.prirai.android.nira.diagnostics.testlab.TestLab.note(com.prirai.android.nira.diagnostics.testlab.LabCode.GECKO_TLS_ERROR)
+        if(riskLevel==ErrorCategory.Malware)com.prirai.android.nira.diagnostics.testlab.TestLab.note(com.prirai.android.nira.diagnostics.testlab.LabCode.GECKO_BLOCKED)
         val errorPageUri = ErrorPages.createUrlEncodedErrorPage(
             context = context,
             errorType = errorType,

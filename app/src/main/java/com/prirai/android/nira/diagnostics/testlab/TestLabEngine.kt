@@ -41,6 +41,8 @@ class TestLabEngine(
     private val markerTimes=ArrayList<Long>(32)
     private val observations=ArrayList<Observation>(32)
     private val unavailable=mutableMapOf<LabMetric,Availability>()
+    private var positionSamples=0L;private var incrementalSeconds=0.0;private var positionJumps=0L;private var playerSessions=0L
+    private var speedSamples=0L;private var speedChanges=0L;private var minSpeed:Double?=null;private var maxSpeed:Double?=null
     private var heartbeatCount=0L
     private var heartbeatMax:Long?=null
     private var lastSlowFrameOffset=-1_000_000_000L
@@ -54,6 +56,8 @@ class TestLabEngine(
         observations.clear();unavailable.clear();evicted=0;eventSerial=0;rateWindow=0;rateCount=0
         operationSerial=0;droppedOperations=0;heartbeatCount=0;heartbeatMax=null;activeOperationMask=0
         lastSlowFrameOffset=-1_000_000_000L
+        positionSamples=0;incrementalSeconds=0.0;positionJumps=0;playerSessions=0
+        speedSamples=0;speedChanges=0;minSpeed=null;maxSpeed=null
         phase=LabPhase.PREPARING
         return token
     }
@@ -177,6 +181,17 @@ class TestLabEngine(
         if(sample.offsetNanos>at)return false
         resources.add(sample);return true
     }
+    @Synchronized internal fun position(session:SessionToken,increment:Double,jump:Boolean,newOwner:Boolean) {
+        if(writable(session)==null||!type.includes(LabDomain.VIDEO))return
+        if(!increment.isFinite()||increment !in 0.0..5.0){errors[LabError.INVALID_SAMPLE.ordinal]++;return}
+        positionSamples++;incrementalSeconds+=increment;if(jump)positionJumps++;if(newOwner)playerSessions++
+    }
+    @Synchronized internal fun speed(session:SessionToken,value:Double,changed:Boolean) {
+        if(writable(session)==null||!type.includes(LabDomain.VIDEO))return
+        if(!value.isFinite()||value !in 0.01..100.0){errors[LabError.INVALID_SAMPLE.ordinal]++;return}
+        speedSamples++;if(changed)speedChanges++
+        minSpeed=minOf(minSpeed?:value,value);maxSpeed=maxOf(maxSpeed?:value,value)
+    }
     @Synchronized fun heartbeat(session:SessionToken,delayNanos:Long):Boolean {
         val at=writable(session)?:return false
         if(!isForeground||delayNanos !in 0..DURATION_NS)return false
@@ -258,6 +273,8 @@ class TestLabEngine(
             LabMetric.PROCESS_PSS to measured(LabMetric.PROCESS_PSS,resource.pssMaxBytes!=null),
             LabMetric.PROCESS_USS to measured(LabMetric.PROCESS_USS,resource.ussMaxBytes!=null),
             LabMetric.PROCESS_CPU to measured(LabMetric.PROCESS_CPU,resource.cpuMeanOneCorePercent!=null),
+            LabMetric.MPV_POSITION_UPDATES to measured(LabMetric.MPV_POSITION_UPDATES,positionSamples>0),
+            LabMetric.MPV_SPEED_VALUES to measured(LabMetric.MPV_SPEED_VALUES,speedSamples>0),
             LabMetric.MAIN_HEARTBEAT to measured(LabMetric.MAIN_HEARTBEAT,heartbeatCount>0),
         )+listOf(LabMetric.SYSTEM_WINDOW_ANIMATION_END,LabMetric.POPUP_WINDOW_FRAMES,LabMetric.GECKO_COMPOSITOR_FRAMES,LabMetric.MPV_PRESENTED_FRAMES,LabMetric.APP_ENERGY,LabMetric.DUAL_AUDIO)
             .associateWith{Availability.NOT_EXPOSED_BY_PLATFORM}
@@ -266,6 +283,7 @@ class TestLabEngine(
             LabMetric.FRAME_OVERRUN to MetricSource.JANKSTATS_API31,
             LabMetric.JAVA_HEAP to MetricSource.RUNTIME_HEAP,LabMetric.NATIVE_HEAP to MetricSource.DEBUG_NATIVE_HEAP,
             LabMetric.PROCESS_PSS to MetricSource.DEBUG_MEMORY_INFO,LabMetric.PROCESS_USS to MetricSource.DEBUG_MEMORY_INFO,
+            LabMetric.MPV_POSITION_UPDATES to MetricSource.MPV_PROPERTY_CALLBACK,LabMetric.MPV_SPEED_VALUES to MetricSource.MPV_PROPERTY_CALLBACK,
             LabMetric.PROCESS_CPU to MetricSource.PROCESS_CPU_TIME,LabMetric.MAIN_HEARTBEAT to MetricSource.MAIN_LOOPER_ACK,
         )
         val sources=LabMetric.entries.associateWith{measuredSources[it]?:MetricSource.UNAVAILABLE}
@@ -288,6 +306,7 @@ class TestLabEngine(
             anomalyMarkers=markers,anomalies=observations.toList(),testCoverage=coverage,
             foregroundMs=covered/1_000_000.0,noCoverageMs=(endedOffset-covered).coerceAtLeast(0)/1_000_000.0,
             evictedEvents=evicted,droppedOperations=droppedOperations,incompleteOperations=incomplete,
+            playbackMetrics=if(positionSamples>0||speedSamples>0)PlaybackMetrics(positionSamples,incrementalSeconds,positionJumps,playerSessions,speedSamples,speedChanges,minSpeed,maxSpeed)else null,
             maxHeartbeatDelayMs=heartbeatMax?.div(1_000_000.0),heartbeatSamples=heartbeatCount,limitations=limitations,
         )
         phase=targetStatus;return true

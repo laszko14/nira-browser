@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap
 /** Observes the reducer, never dispatches, selects, groups or persists a tab. IDs die at cleanup. */
 internal class TestLabBrowserObserver(private val capture:LabCapture):Middleware<BrowserState,BrowserAction> {
     private val loads=ConcurrentHashMap<String,OperationToken>()
+    private val loadOwners=ConcurrentHashMap<String,java.lang.ref.WeakReference<Any>>()
     @Volatile private var closed=false
     val pendingLoads:Int get()=loads.size
     override fun invoke(store:Store<BrowserState,BrowserAction>,next:(BrowserAction)->Unit,action:BrowserAction) {
@@ -65,11 +66,15 @@ internal class TestLabBrowserObserver(private val capture:LabCapture):Middleware
                 val live=after.tabs.any{it.id==action.sessionId}
                 if(live&&action.loading) {
                     if(!loads.containsKey(action.sessionId)) {
-                        if(loads.size>=128) {capture.error();loads.keys.firstOrNull()?.let{loads.remove(it)?.let{op->capture.end(op,OperationOutcome.INTERRUPTED)}}}
-                        capture.operation(LabOperation.PAGE_LOAD)?.let{loads[action.sessionId]=it}
+                        if(loads.size>=128) {capture.error();loads.keys.firstOrNull()?.let{key->loadOwners.remove(key);loads.remove(key)?.let{op->capture.end(op,OperationOutcome.INTERRUPTED)}}}
+                        capture.operation(LabOperation.PAGE_LOAD)?.let{op->
+                            loads[action.sessionId]=op
+                            after.tabs.firstOrNull{it.id==action.sessionId}?.engineState?.engineSession?.let{loadOwners[action.sessionId]=java.lang.ref.WeakReference(it)}
+                        }
                         capture.note(LabCode.LOAD_START)
                     }
                 } else if(live&&!action.loading) {
+                    loadOwners.remove(action.sessionId)
                     loads.remove(action.sessionId)?.let{capture.end(it);capture.note(LabCode.LOAD_COMPLETE)}
                 }
             }
@@ -78,13 +83,23 @@ internal class TestLabBrowserObserver(private val capture:LabCapture):Middleware
                 val old=before.tabs.firstOrNull{it.id==action.sessionId}
                 if(old!=null&&old.content.url!=action.url)capture.note(if(old.content.loading)LabCode.LOAD_REDIRECT else LabCode.URL_CHANGE_IDLE)
             }
-            is EngineAction.LinkEngineSessionAction->capture.note(LabCode.ENGINE_SESSION_READY)
+            is EngineAction.LinkEngineSessionAction->{
+                capture.note(LabCode.ENGINE_SESSION_READY)
+                for(tab in after.tabs)if(loads.containsKey(tab.id))tab.engineState.engineSession?.let{loadOwners[tab.id]=java.lang.ref.WeakReference(it)}
+            }
             is EngineAction.UnlinkEngineSessionAction->capture.note(LabCode.ENGINE_SESSION_LOST)
             else->Unit
         }
-        if(kind==LabOperation.TAB_CLOSE)loads.keys.filter{key->after.tabs.none{it.id==key}}.forEach{key->loads.remove(key)?.let{capture.end(it,OperationOutcome.CANCELLED)}}
+        if(kind==LabOperation.TAB_CLOSE)loads.keys.filter{key->after.tabs.none{it.id==key}}.forEach{key->loadOwners.remove(key);loads.remove(key)?.let{capture.end(it,OperationOutcome.CANCELLED)}}
     }
-    fun close(){closed=true;loads.values.forEach{capture.end(it,OperationOutcome.INTERRUPTED)};loads.clear()}
+    fun error(owner:Any) {
+        if(closed)return
+        capture.note(LabCode.LOAD_ERROR)
+        loadOwners.entries.filter{it.value.get()===owner}.forEach{entry->
+            loadOwners.remove(entry.key);loads.remove(entry.key)?.let{capture.end(it,OperationOutcome.FAILED)}
+        }
+    }
+    fun close(){closed=true;loadOwners.clear();loads.values.forEach{capture.end(it,OperationOutcome.INTERRUPTED)};loads.clear()}
 }
 
 internal class TestLabMiddleware:Middleware<BrowserState,BrowserAction> {

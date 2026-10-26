@@ -43,4 +43,18 @@ class TestLabBrowserObserverTest {
         assertEquals(0L,engine.latest()!!.operationMetrics.first{it.operation==LabOperation.PAGE_LOAD}.succeeded)
         assertEquals(0L,engine.latest()!!.operationMetrics.first{it.operation==LabOperation.LINK_OPEN}.started)
     }
+    @Test fun geckoErrorFailsOnlyTheBoundEngineAndNeverTheCurrentlySelectedOtherTab() {
+        val e=TestLabEngine({0L},LabIdentity(1165,"0.5.22-alpha71-mpv39"));val t=e.start(TestType.COMPLEX)!!;e.begin(t)
+        val observer=TestLabBrowserObserver(LabCapture(e,t));val store=BrowserStore(middleware=listOf(observer))
+        val first=org.mockito.Mockito.mock(mozilla.components.concept.engine.EngineSession::class.java)
+        val second=org.mockito.Mockito.mock(mozilla.components.concept.engine.EngineSession::class.java)
+        store.dispatch(TabListAction.AddTabAction(TabSessionState(id="first",content=ContentState(url="about:blank"),engineState=EngineState(engineSession=first))))
+        store.dispatch(TabListAction.AddTabAction(TabSessionState(id="second",content=ContentState(url="about:blank"),engineState=EngineState(engineSession=second))))
+        store.dispatch(ContentAction.UpdateLoadingStateAction("first",true));store.dispatch(ContentAction.UpdateLoadingStateAction("second",true))
+        observer.error(first)
+        store.dispatch(ContentAction.UpdateLoadingStateAction("first",false));store.dispatch(ContentAction.UpdateLoadingStateAction("second",false))
+        observer.close();e.stop(t);e.complete(t)
+        val loads=e.latest()!!.operationMetrics.first{it.operation==LabOperation.PAGE_LOAD}
+        assertEquals(1L,loads.failed);assertEquals(1L,loads.succeeded)
+    }
 }

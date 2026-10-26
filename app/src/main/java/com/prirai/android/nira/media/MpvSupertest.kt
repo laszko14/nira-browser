@@ -1,5 +1,8 @@
 package com.prirai.android.nira.media
 
+import com.prirai.android.nira.diagnostics.testlab.DiagnosticSessionGate
+import com.prirai.android.nira.diagnostics.testlab.DiagnosticOwner
+import com.prirai.android.nira.diagnostics.testlab.TestLab
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -34,6 +37,7 @@ internal object MpvSupertest {
     @Synchronized
     fun start(context: Context, session: Any?, mode: String): Boolean {
         if (active != null) return false
+        if (!DiagnosticSessionGate.shared.acquire(DiagnosticOwner.SUPERTEST)) return false
         val capture = Capture(session, mode.take(32), SystemClock.elapsedRealtime(),
             context.applicationContext)
         active = capture
@@ -56,6 +60,7 @@ internal object MpvSupertest {
     /** Called only by the active, session-bound native libmpv player. */
     @Synchronized
     fun sample(session: Any?, position: Double) {
+        TestLab.mediaPosition(session,position)
         val capture = active ?: return
         if (session == null || capture.owner !== session || !position.isFinite() ||
             position < 0.0) return
@@ -73,6 +78,7 @@ internal object MpvSupertest {
         val report = synchronized(this) {
             if (active !== capture) return
             active = null
+            try {
             val result = MpvDebugTrace.superReport(
                 capture.owner, capture.mode, capture.startMs,
                 SystemClock.elapsedRealtime(), capture.samples,
@@ -80,6 +86,7 @@ internal object MpvSupertest {
             )
             lastReport = result
             result
+            } finally {DiagnosticSessionGate.shared.release(DiagnosticOwner.SUPERTEST)}
         }
         runCatching {
             val clipboard = capture.appContext.getSystemService(Context.CLIPBOARD_SERVICE)

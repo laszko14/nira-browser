@@ -187,6 +187,7 @@ class ZavroMpvActivity : AppCompatActivity() {
             }
         }
         override fun eventProperty(property: String, value: Double) {
+            if(property=="speed")com.prirai.android.nira.diagnostics.testlab.TestLab.mediaSpeed(traceSession,value)
             if (property == "time-pos" || property == "duration") runOnUiThread {
                 if (ready) {
                     if (property == "time-pos") {
@@ -442,7 +443,7 @@ class ZavroMpvActivity : AppCompatActivity() {
             Toast.makeText(this, "SUPERTEST 40 s rozpoczęty • raport skopiuje się sam",
                 Toast.LENGTH_LONG).show()
         } else {
-            Toast.makeText(this, "Test trwa: ${MpvSupertest.remainingSeconds()} s",
+            Toast.makeText(this, if(com.prirai.android.nira.diagnostics.testlab.TestLab.busy) "TestLab jest aktywny — Supertest 40 s niedostępny" else "Test trwa: ${MpvSupertest.remainingSeconds()} s",
                 Toast.LENGTH_SHORT).show()
         }
         updateSupertestCountdown()

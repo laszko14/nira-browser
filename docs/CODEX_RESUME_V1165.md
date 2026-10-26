@@ -1,3 +1,19 @@
+# v1165 — checkpoint D / entrée F (2026-10-26)
+- RemoteC a63c312 (pushpotwierdzony); gałąź feat/zavro-x-mpv-v1165-testlab-diagnostics / bazad890c68. Zachowaćwork/ i wszelkie niezacommitowanezmiany. Bezmerge/subagentów/resetów.
+- D:274/274targetedPASS39s (work/v1165-D-review-green.log:core+media+AppBoundaries). Poentry/historia/review61/61TestLabPASS16s(work/v1165-D-final-core.log). JS/Lua/DSPhost/finalbuild/lint/AndroidUI JESZCZE niewykonane wv1165.
+- TestLabMediaObserver:closed secondallowlist trace/discovery, bounded16handoffs iweakowner refs;ACKmatchedprepareowner; unknownstringsdropped. Onlytimeposdeltas≤5s; seek/back/jump oddzielnie, paused≠progress, FILE_LOADED≠PLAYBACK_STARTED. Newfile nie jest automatycznieunexpectedreload.
+- PlaybackMetrics przekazuje rzeczywiste position/speedcallbacksamples iagregaty, nullbezobserwacji; nie odczytuje dodatkowychJNIproperties. ExistingMpvSupertest.sampletap przedactiveguard;tracehookpoallowlistprzedexistingdedup (40sreportdedupbez zmian).
+- SharedDiagnosticSessionGate acquire/release obydwukierunkowo;existingSupertest40s/clipboardzachowane. RED potwierdził brakgate wstarymSupertest, GREEN sprawdza39sactive/40sfinish i retry. Konflikttoast jasnywBrowser/MPV.
+- GeckoObserver maweakEngineSessionownershippendingload; AppRequestInterceptorhookbezURI/ErrorText, LOAD_ERROR+SSL/securitytypedcodes. Test2realsreducers/mockEngineSession: błąd pierwszej sesjinie dotyczy drugiejselectedtab.
+- MediaDetectorDiagnostics tapsacceptedDOM/network/format, duplicate/reject/stale i boundeddiscoverybatch. Żadnychzmian JS/networkscanning/filtrowaniawykrywania.
+- Lua/DSP:tylko delta istniejącychowner-checkedcounters wAlphaLuaDiagnostics.update/AlphaDspDiagnostics.update, niegromadzą starychbłędów; brakscript/source/ID/buttonnames. Nie zmienianoBridgeLua/43slots/filtrów/AF commands.
+- Review RED/GREEN:fullscreen flagtracealone NIE kończyoperation. Inlineplace/toggle kończąpoactualFIRST_PREDRAW; nativeFullscreenActivitypresence teżpredrawbezlatencyunknownorigin. To geometriaWindow, nieSurfaceViewvideoframes. Existingpositionpreserved/unexpectedreloadcodes sąjawnieźródłowe.
+- Ffoundation:TestLab.start catch/finally releasegate po initfailure(61sttest invalidversion→retry), boundedRAMhistorymax7typedreports, deletepertype. UI jeszcze NIEZAIMPLEMENTOWANE.
+- RuntimeReview:PREPARINGbezeligibleActivity nie planuje ciągłegotickera; RUNNINGbackgroundtick1Hz, foreground250ms. Recovery.snapshottylkogdyisDue(5s), bezsamplerecordalloc1Hzprzythrottle.
+- NEXTF:TestLabActivityNiraTheme7testers/instructions/startreturnBrowser/countdown/marker/stop, safeReportViewModelrotationsnapshotSAF/Clipboard/FileProvidershare/delete,recoveryoptinUI. Fixcounter60sformat01:00(zamiastobecnego00:60) ztestem.
+- NastępnieE/G:actualKVMAndroidTest+Gecko integration/overhead, frameCPUoptional + resource/anomalyreview wgpromptu, ściśleodwracalnyprotectedhashpatchlayer1165anchored d890c68, fullKotlin/JS/Lua/DSP/lintdelta/build/AndroidTestcompile. Nieomijaćverifyrzeczywistegourządzenia;NothingPhoneNIEURUCHOMIONE.
+- H:165/ARM641165/0.5.22-alpha71-mpv39,pakietcom.prirai.android.nira.mpv,certdf90...unchanged. DraftPRdov1164, zieloneActions/signedAPK. Versionstill164, brakPR/APKv1165. NiepobieraćsignedAPKdoCodex.
+
 # v1165 — checkpoint C (2026-10-26)
 - Ostatni potwierdzony remote przed C:cab5d148cb3b15118c9da7e64faee87e553f03a4. Baza d890c68; gałąź feat/zavro-x-mpv-v1165-testlab-diagnostics, bezmerge/subagentów/resetu.
 - C podłączony,93/93targetedPASS43s (52TestLab+regresje kart/grup/toolbar),work/v1165-C-complete-targeted.log; gitdiffcheck czysty. NIE test urządzenia.

@@ -1,3 +1,6 @@
+# v1165 D WIP — 2026-10-26
+DGecko/MPV/diagLuaDSP+gate40s:274/274targetedPASS39s; afterentryreview61/61TestLabPASS16s. FullscreenState≠predraw≠videoframe; onlyexistingpassivetaps. BrakUI/końcowegoCI/signedAPKv1165;nextFUI/export. CheckpointCODEX_RESUME_V1165.md.
+
 # v1165 C WIP — 2026-10-26
 Hooki realnych paneli/gestów/kart/Room/DataStore/toolbar/menu/FAB;93/93targetedPASS43s,52TestLab. Unknown-origin latency=null, przedraw≠animacja, popupWindowframesunsupported. BraktestuAndroidUI/końcowegoCI/APKv1165; nextDsafeMPVGeckoSupertestgate,thenFUI. SzczegółyCODEX_RESUME_V1165.md.
 

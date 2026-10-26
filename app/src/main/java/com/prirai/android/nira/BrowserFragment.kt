@@ -1469,7 +1469,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 Toast.LENGTH_LONG).show()
         } else {
             Toast.makeText(context,
-                "Supertest już trwa: ${com.prirai.android.nira.media.MpvSupertest.remainingSeconds()} s",
+                if(com.prirai.android.nira.diagnostics.testlab.TestLab.busy) "TestLab jest aktywny — Supertest 40 s niedostępny" else "Supertest już trwa: ${com.prirai.android.nira.media.MpvSupertest.remainingSeconds()} s",
                 Toast.LENGTH_SHORT).show()
         }
     }

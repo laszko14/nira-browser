@@ -20,8 +20,8 @@ import kotlinx.serialization.Serializable
 @Serializable enum class Coverage { NOT_SELECTED, NOT_TESTED, ATTEMPTED, CANCELLED_ONLY, OBSERVED_COMPLETION }
 @Serializable enum class ObservationKind { CONFIRMED_INVARIANT_FAILURE, OBSERVED_PERFORMANCE_ANOMALY, SUSPECTED_CORRELATION, INSUFFICIENT_DATA, NOT_TESTED }
 @Serializable enum class Availability { MEASURED, MEASURED_WITH_GAPS, NOT_OBSERVED, INSUFFICIENT_SAMPLES, NOT_SUPPORTED_BY_API, PERMISSION_DENIED, COLLECTOR_FAILED, NOT_EXPOSED_BY_PLATFORM }
-@Serializable enum class LabMetric { ANDROID_UI_FRAMES, FRAME_OVERRUN, JAVA_HEAP, NATIVE_HEAP, PROCESS_PSS, PROCESS_USS, PROCESS_CPU, MAIN_HEARTBEAT, SYSTEM_WINDOW_ANIMATION_END, POPUP_WINDOW_FRAMES, GECKO_COMPOSITOR_FRAMES, MPV_PRESENTED_FRAMES, APP_ENERGY, DUAL_AUDIO }
-@Serializable enum class MetricSource { JANKSTATS_WINDOW, JANKSTATS_API31, RUNTIME_HEAP, DEBUG_NATIVE_HEAP, DEBUG_MEMORY_INFO, PROCESS_CPU_TIME, MAIN_LOOPER_ACK, UNAVAILABLE }
+@Serializable enum class LabMetric { ANDROID_UI_FRAMES, FRAME_OVERRUN, JAVA_HEAP, NATIVE_HEAP, PROCESS_PSS, PROCESS_USS, PROCESS_CPU, MAIN_HEARTBEAT, SYSTEM_WINDOW_ANIMATION_END, POPUP_WINDOW_FRAMES, GECKO_COMPOSITOR_FRAMES, MPV_PRESENTED_FRAMES, MPV_POSITION_UPDATES, MPV_SPEED_VALUES, APP_ENERGY, DUAL_AUDIO }
+@Serializable enum class MetricSource { JANKSTATS_WINDOW, JANKSTATS_API31, RUNTIME_HEAP, DEBUG_NATIVE_HEAP, DEBUG_MEMORY_INFO, PROCESS_CPU_TIME, MAIN_LOOPER_ACK, MPV_PROPERTY_CALLBACK, UNAVAILABLE }
 @Serializable enum class LabOperation(val domain:LabDomain,val needsAccept:Boolean=false) {
     LEFT_PANEL_OPEN(LabDomain.PANELS,true), LEFT_PANEL_CLOSE(LabDomain.PANELS,true),
     RIGHT_PANEL_OPEN(LabDomain.PANELS,true), RIGHT_PANEL_CLOSE(LabDomain.PANELS,true),
@@ -46,6 +46,12 @@ import kotlinx.serialization.Serializable
     DETECTOR_REJECTED, DETECTOR_STALE, DETECTOR_FRAME_MISMATCH, DETECTOR_QUEUE_LIMIT,
     AUTO_OFFER, PREPARE, ACK_OK, ACK_FAILED, ACK_TIMEOUT, ROLLBACK,
     FRAME_ELEMENT_MISMATCH, BLOB_MATCH, BLOB_MISSING, BLOB_AMBIGUOUS,
+    FRAME_LOOKUP_FAILED, FRAME_UNSUPPORTED, MPV_POSITION_DISCONTINUITY, MPV_SPEED_OBSERVED,
+    MPV_SURFACE_VISIBLE, MPV_SURFACE_HIDDEN, MPV_POSITION_PRESERVED, MPV_TIMEOUT, MPV_END_BEFORE_LOAD, MPV_OPEN_FAILED,
+    DETECTOR_ABOUT_BLANK, DETECTOR_SRCDOC, DETECTOR_EARLY_REQUEST, DETECTOR_EARLY_BOUND,
+    DETECTOR_AMBIGUOUS, DETECTOR_NO_SOURCE, DETECTOR_MANIFEST_VALID,
+    LUA_SYNTAX_ERROR, LUA_RUNTIME_ERROR, LUA_ACK_TIMEOUT, LUA_PROPERTY_ERROR,
+    GECKO_TLS_ERROR, GECKO_BLOCKED, DSP_LUA_ERROR, DSP_TIMEOUT, DSP_CONFLICT, DSP_CONFIG_ERROR, DSP_ROLLBACK_UNCONFIRMED,
     MPV_START_FILE, MPV_FILE_LOADED, MPV_PLAYBACK_STARTED, MPV_CACHE_WAIT, MPV_CACHE_RESUME,
     MPV_RETRY, MPV_HTTP_ERROR, MPV_TLS_ERROR, MPV_POSITION_CHANGE, MPV_SPEED_CHANGE,
     MPV_INLINE, MPV_FULLSCREEN, MPV_RETURN, MPV_UNEXPECTED_RELOAD, AUDIO_FOCUS_FAILED,
@@ -82,6 +88,8 @@ data class OperationToken internal constructor(internal val session:Long,interna
     val failed:Long,val timedOut:Long,val interrupted:Long,val unknown:Long,val latency:LatencySummary?,
     val taggedFrames:Long,val taggedJank:Long,val maxTaggedFrameMs:Double?,val completionProofs:Map<CompletionProof,Long>,
 )
+@Serializable data class PlaybackMetrics(val positionSamples:Long,val incrementalSeconds:Double,val discontinuities:Long,
+    val anonymousSessions:Long,val speedSamples:Long,val speedChanges:Long,val minSpeed:Double?,val maxSpeed:Double?)
 @Serializable data class TestLabReport(
     val schemaVersion:Int=1,val testType:TestType,val appVersion:LabIdentity,val durationMs:Double,val status:LabPhase,
     val environment:LabEnvironment,val metricAvailability:Map<LabMetric,Availability>,val metricSources:Map<LabMetric,MetricSource>,
@@ -90,5 +98,5 @@ data class OperationToken internal constructor(internal val session:Long,interna
     val anomalyMarkers:List<AnomalyMarker>,val anomalies:List<Observation>,val testCoverage:Map<LabOperation,Coverage>,
     val foregroundMs:Double,val noCoverageMs:Double,val evictedEvents:Long,val droppedOperations:Long,
     val incompleteOperations:Int,val maxHeartbeatDelayMs:Double?,val heartbeatSamples:Long,
-    val limitations:List<Limitation>,val exportTruncated:Boolean=false,
+    val limitations:List<Limitation>,val exportTruncated:Boolean=false,val playbackMetrics:PlaybackMetrics?=null,
 )
