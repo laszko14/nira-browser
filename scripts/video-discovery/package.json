@@ -1,0 +1,1 @@
+{"name":"zavro-video-discovery-fixtures","private":true,"version":"1.0.0","scripts":{"test":"node fixtures.cjs"},"devDependencies":{"playwright":"1.62.1"}}

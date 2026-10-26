@@ -250,6 +250,9 @@ internal class MediaRepository(
         return DocumentResult(true, removed)
     }
 
+    @Synchronized fun isCurrentDocument(tab: MediaTabState, documentKey: Long): Boolean =
+        scope(tab, create = false)?.let { it.registered && it.documentKey == documentKey } == true
+
     @Synchronized fun add(
         tab: MediaTabState, pageUrl: String, documentKey: Long,
         media: DetectedMedia, source: MediaSource, groupId: String? = null,

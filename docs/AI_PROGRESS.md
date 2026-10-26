@@ -327,3 +327,17 @@ Opcjonalne, odwracalne rewizje istniejących przycisków DRC/DE: kopie oryginał
 - Wdrożono minimalne poprawki i zabezpieczenia własności download jobów, opóźnionych animacji oraz CAS policy. Celowane efekty GREEN; pełna walidacja kolejna. Wznowienie CODEX_RESUME_V1162.md; inwentarz ZAVRO_X_MPV_V1162_INVENTORY.md.
 
 - Pełny Gradle PASS4m11s, JUnit261/261, JS164/164, Lua77/77, DSP28/28. Jeden nowy UseKtx poprawiony równoważnym toUri; post-review PWA1/1+lint/assemble/compileAndroidTest PASS3m53s. Lint0nowych/0usuniętych (1462Fatal/258Error/444Warning/19Hint). Review autora i integralność92+10 PASS.12naprawionych usterek; brak urządzenia, bez twierdzeń o FPS/RAM. CI/artefakt i końcowy SHA uzupełnić w opisie PR po push.
+
+## 2026-10-26 — v1163, diagnoza detektora
+- Baza b6908c9 / PR75 / CI40277823346 SUCCESS; gałąź feat/zavro-x-mpv-v1163-max-video-discovery.
+- Kontrolowane Chromium DOM fixtures i rzeczywiste listenery background: RED pominięte lazy/source/wrappers/ogon listy/shadow +4błędy frame/redirect/status/lifecycle.
+- Minimalne rozszerzenia istniejących skanów i walidacji, limity HTTP512KiB/4s/2active/8queue zachowane, brak nowych uprawnień i MPV zmian.
+- Celowane JS56/56 GREEN; pierwszy pomiar DOM po zmianach w toku; dokładny następny krok CODEX_RESUME_V1163.md.
+
+- v1163 checkpoint2: JS176/176, mediaKotlin75/75, Lua77/77,DSP28/28 GREEN. Końcowy Gradle/lint w toku.
+- Finalna macierz89filmów:61→88 przedPlay,62→89 poPlay; FP3→0,duplikaty wariantów1→0,bez błędnychscaleń; HTTP7→7. Warstwafixtures, nie Android.
+- Dodano bezpieczne VIDEO DISCOVERY do istniejącejdiagnostyki/Supertestu; byte-identical MPV poza tąsekcją/etykietąwersji. Checkpoint CODEX_RESUME_V1163.md.
+
+- v1163 final przedCI: JUnit265/265,JS179/179,Lua77/77,DSP28/28. PełnyGradle PASS4m42s,reviewdiagnostics7testów+assemble PASS33s,ostatniJS-onlyMIMEfix179/179.
+- Lint0nowych/0usuniętych1462Fatal/258Error/444Warning/19Hint. Końcoweidentycznefixtures89filmów88preeligible:61→88pre/62→89post,FP3→0,duplikaty1→0,HTTP7→7; kosztiwiadomościwJSON,bezdeklaracjiprzyspieszenia.
+- Przygotowano finalhandoff/checkpoint3;następne1commit/push+DraftPRwzględemv1162i1podpisująceCI.FaktyczneSHA/CI/APKdoaneksuwopisiePR,bezkolejnejwersji.

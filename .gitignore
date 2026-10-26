@@ -70,3 +70,6 @@ out
 
 # Local release helper (personal tooling, not shipped)
 /release.bat
+
+# Controlled detector fixture tooling only
+/scripts/video-discovery/node_modules/

@@ -62,13 +62,11 @@ internal object MediaClassifier {
                 "application/vnd.apple.mpegurl", "application/x-mpegurl",
                 "audio/mpegurl", "audio/x-mpegurl", "application/dash+xml")) return null
         val format = when {
-            mime in setOf("video/mp4", "video/webm",
-                "application/vnd.apple.mpegurl", "application/x-mpegurl",
-                "audio/mpegurl", "audio/x-mpegurl", "application/dash+xml") -> mimes[mime]
+            mime in mimes -> mimes[mime]
             mime != null && mime !in setOf("application/octet-stream", "binary/octet-stream") -> null
             ext == "m3u8" -> MediaFormat.HLS
             ext == "mpd" -> MediaFormat.DASH
-            ext in setOf("mp4", "m4v", "webm") -> direct[ext]
+            ext in direct -> direct[ext]
             else -> null
         } ?: return null
         return DetectedMedia(candidate.url, format, binding.tabId, binding.contextId, binding.isPrivate)

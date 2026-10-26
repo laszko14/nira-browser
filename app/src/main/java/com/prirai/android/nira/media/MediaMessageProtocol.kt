@@ -35,12 +35,18 @@ internal sealed interface MediaDetectorMessage {
     class Document(val pageUrl: String, val documentKey: Long) : MediaDetectorMessage {
         override fun toString() = "MediaDocument(redacted)"
     }
+    class DiscoveryStat(val code: String, val count: Int, val documentKey: Long?,
+                        val isPrivate: Boolean?) : MediaDetectorMessage
     data object NetworkProbe : MediaDetectorMessage
     class NetworkUnassigned(val isPrivate: Boolean) : MediaDetectorMessage
     class NetworkSegments(val isPrivate: Boolean, val count: Int) : MediaDetectorMessage
 }
 
 internal object MediaMessageProtocol {
+    internal val discoveryCodes = setOf("scan_elements", "scan_yield", "queue_limit",
+        "duplicate", "native_rejected", "before_play", "after_play", "iframe",
+        "no_source", "no_candidate", "manifest_invalid", "manifest_valid",
+        "frame_mismatch", "unavailable", "drm")
     private const val MAX_MESSAGE_BYTES = 16 * 1024
     private const val MAX_URL_BYTES = 8 * 1024
     private val validMime = Regex("[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+(?:\\s*;[ -~]*)?")
@@ -85,6 +91,17 @@ internal object MediaMessageProtocol {
         fun documentKey(): Long? = (fields["documentKey"] as? JsonPrimitive)
             ?.takeIf { !it.isString }?.longOrNull?.takeIf { it in 1..9007199254740991L }
         return when (string("event")) {
+            "discovery_stats" -> {
+                val bound = "documentKey" in fields
+                if (fields.keys != setOf("schemaVersion", "event", "code", "count",
+                        if (bound) "documentKey" else "isPrivate")) return null
+                val code = string("code")?.takeIf { it in discoveryCodes } ?: return null
+                val count = (fields["count"] as? JsonPrimitive)?.takeIf { !it.isString }
+                    ?.intOrNull?.takeIf { it in 1..100000 } ?: return null
+                val key = if (bound) documentKey() ?: return null else null
+                val privateMode = if (!bound) privacy() ?: return null else null
+                MediaDetectorMessage.DiscoveryStat(code, count, key, privateMode)
+            }
             "network_probe" -> if (fields.keys == setOf("schemaVersion", "event"))
                 MediaDetectorMessage.NetworkProbe else null
             "network_unassigned" -> if (fields.keys == setOf("schemaVersion", "event", "isPrivate"))

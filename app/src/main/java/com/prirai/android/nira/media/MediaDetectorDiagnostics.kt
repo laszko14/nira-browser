@@ -6,12 +6,12 @@ package com.prirai.android.nira.media
  */
 internal object MediaDetectorDiagnostics {
     private class TabCounters(
-        var contextId: String?, var isPrivate: Boolean,
+        var contextId: String?, var isPrivate: Boolean, var session: java.lang.ref.WeakReference<Any>,
         var count: Int = 0, var last: MediaFormat? = null,
         var dom: Int = 0, var network: Int = 0, var hls: Int = 0, var dash: Int = 0,
         var duplicates: Int = 0, var validation: Int = 0,
         var stale: Int = 0, var clearedByNavigation: Int = 0,
-    )
+    ) { val discovery = mutableMapOf<String, Int>() }
     private val tabs = mutableMapOf<String, TabCounters>()
     private var repository: MediaRepository? = null
     @Synchronized fun setRepository(value: MediaRepository) { repository = value }
@@ -22,13 +22,15 @@ internal object MediaDetectorDiagnostics {
     // Anonymous data is explicitly outside every profile. Split by private mode.
     private val unassigned = intArrayOf(0, 0)
     private val segments = intArrayOf(0, 0)
+    private val discoveryUnassigned = arrayOf(mutableMapOf<String, Int>(), mutableMapOf<String, Int>())
     private fun bucket(isPrivate: Boolean) = if (isPrivate) 1 else 0
     private fun tab(binding: MediaSessionBinding): TabCounters {
-        val counters = tabs.getOrPut(binding.tabId) { TabCounters(binding.contextId, binding.isPrivate) }
+        val counters = tabs.getOrPut(binding.tabId) { TabCounters(binding.contextId, binding.isPrivate, java.lang.ref.WeakReference(binding.session)) }
         if (counters.contextId != binding.contextId || counters.isPrivate != binding.isPrivate) {
-            tabs[binding.tabId] = TabCounters(binding.contextId, binding.isPrivate)
+            tabs[binding.tabId] = TabCounters(binding.contextId, binding.isPrivate, java.lang.ref.WeakReference(binding.session))
             return tabs.getValue(binding.tabId)
         }
+        counters.session = java.lang.ref.WeakReference(binding.session)
         return counters
     }
 
@@ -53,7 +55,22 @@ internal object MediaDetectorDiagnostics {
         val validationErrorCount: Int,
         val staleCount: Int,
         val clearedByNavigation: Int,
+        val discovery: Map<String, Int>,
+        val anonymousDiscovery: Map<String, Int>,
     ) {
+        fun discoveryReport(): String = buildString {
+            appendLine("VIDEO DISCOVERY")
+            appendLine("Repozytorium — bieżące źródła: $allTabMediaCount")
+            appendLine("Duplikaty / stare / walidacja: $duplicateCount / $staleCount / $validationErrorCount")
+            for (code in MediaMessageProtocol.discoveryCodes.sorted()) {
+                val value = discovery[code] ?: 0
+                val anonymous = anonymousDiscovery[code] ?: 0
+                appendLine("$code: profil=$value, bez przypisania profilu=$anonymous")
+            }
+            appendLine("no_source: brak jawnego src w sprawdzonym video; nie dowodzi braku filmu w stronie.")
+            appendLine("before_play/after_play: przed/po zaobserwowanym Play w tym dokumencie; nie potwierdzają odtwarzania MPV.")
+        }.trimEnd()
+
         fun asPolishReport(): String = buildString {
             appendLine("Nira — diagnostyka detektora")
             appendLine("Rozszerzenie: $installState")
@@ -79,10 +96,28 @@ internal object MediaDetectorDiagnostics {
                 appendLine("Wykrycia w tej karcie: $selectedTabMediaCount")
                 appendLine("Ostatni format: ${selectedLastFormat?.name ?: "brak"}")
             }
+            appendLine(discoveryReport())
             appendLine("Odrzucone zdarzenia: $rejectedCount")
             appendLine("Liczniki chwilowe, bez adresów, nagłówków i tokenów.")
             append("Brak wykrycia nie dowodzi braku filmu; webRequest bez tabId nie przypisuje karty.")
         }
+    }
+
+    @Synchronized fun discoveryReportForSession(session: Any?): String {
+        val selected = tabs.entries.firstOrNull { session != null && it.value.session.get() === session }
+            ?: return "VIDEO DISCOVERY\nBrak powiązanej sesji detektora."
+        return snapshot(selected.key, selected.value.isPrivate, selected.value.contextId).discoveryReport()
+    }
+
+    private fun accumulate(map: MutableMap<String, Int>, code: String, count: Int) {
+        if (code !in MediaMessageProtocol.discoveryCodes || count !in 1..100000) return
+        map[code] = ((map[code] ?: 0).toLong() + count).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+    }
+    @Synchronized fun discovery(binding: MediaSessionBinding, code: String, count: Int) {
+        accumulate(tab(binding).discovery, code, count)
+    }
+    @Synchronized fun discoveryAnonymous(isPrivate: Boolean, code: String, count: Int) {
+        accumulate(discoveryUnassigned[bucket(isPrivate)], code, count)
     }
 
     @Synchronized fun installed() { installState = "Zainstalowane" }
@@ -142,6 +177,9 @@ internal object MediaDetectorDiagnostics {
             segments[bucket(isPrivate)], unassigned[bucket(isPrivate)],
             sameProfile.sumOf { it.validation },
             sameProfile.sumOf { it.stale }, sameProfile.sumOf { it.clearedByNavigation },
+            MediaMessageProtocol.discoveryCodes.associateWith { code ->
+                sameProfile.sumOf { it.discovery[code] ?: 0 }
+            }, discoveryUnassigned[bucket(isPrivate)].toMap(),
         )
     }
 
@@ -154,5 +192,6 @@ internal object MediaDetectorDiagnostics {
         rejectedCount = 0
         unassigned.fill(0)
         segments.fill(0)
+        discoveryUnassigned.forEach { it.clear() }
     }
 }
