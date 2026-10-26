@@ -8,7 +8,6 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.Display
-import android.view.WindowManager
 import com.prirai.android.nira.BuildConfig
 import java.lang.ref.WeakReference
 import kotlin.math.abs
