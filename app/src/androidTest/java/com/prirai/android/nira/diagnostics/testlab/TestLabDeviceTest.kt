@@ -66,7 +66,22 @@ class TestLabDeviceTest {
         onMain {androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry.getInstance().addLifecycleCallback(browserLifecycle)}
         browser=instrumentation.startActivitySync(Intent(app,BrowserActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as BrowserActivity
+        await(20_000){app.components.store.state.restoreComplete}
         selectedBefore=app.components.store.state.selectedTabId
+        val page=onMain {app.components.tabsUseCases.addTab("about:blank",selectTab=true,contextId="profile_default").also{tabs.add(it)}}
+        await(15_000){app.components.store.state.selectedTabId==page}
+        onMain {
+            val host=browser.supportFragmentManager.primaryNavigationFragment
+            println("TESTLAB_FIXTURE_INITIAL fragment=${host?.childFragmentManager?.primaryNavigationFragment?.javaClass?.simpleName}")
+            // An empty restored session navigates to ComposeHomeFragment. Adding a Store tab
+            // alone does not navigate back, and that homepage has no Browser edge-panel listener.
+            browser.openToBrowser(com.prirai.android.nira.BrowserDirection.FromGlobal)
+        }
+        await(20_000){onMain {
+            val pageFragment=browser.supportFragmentManager.primaryNavigationFragment?.childFragmentManager?.primaryNavigationFragment
+            pageFragment is com.prirai.android.nira.BrowserFragment &&
+                pageFragment.view?.findViewById<com.prirai.android.nira.browser.SwipeGestureLayout>(com.prirai.android.nira.R.id.gestureLayout)?.let{it.isLaidOut&&it.isSwipeEnabled}==true
+        }}
         onMain {browser.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_PORTRAIT}
         // Warm-up belongs to the experiment, never to the 60-second report.
         SystemClock.sleep(3000)
