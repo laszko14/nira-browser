@@ -124,6 +124,77 @@ function contentSize(details, format) {
   return Number.isSafeInteger(bytes) && bytes > 0 && bytes <= MAX_MEDIA_BYTES ? bytes : null;
 }
 
+// Gecko 153+ supplies these UUIDs in trusted sender/request metadata. Never
+// accept an identity supplied in the page's message body or infer it from URL.
+const geckoId = value => typeof value === "string" && /^[a-f0-9{}-]{16,64}$/i.test(value) ? value : null;
+const opaqueFrame = value => value === "about:blank" || value === "about:srcdoc";
+const sameRoute = (a, b) => {
+  try { const x = new URL(a), y = new URL(b); x.hash = y.hash = ""; return x.href === y.href; }
+  catch (_) { return a === b; }
+};
+const earlyRequests = new Map(), pendingFrameStarts = new Map();
+const EARLY_LIMIT = 128, EARLY_TTL = 2500;
+let earlyTimer = null;
+function purgeEarly() {
+  earlyTimer = null;
+  const now = Date.now();
+  for (const [key, entry] of earlyRequests)
+    if (now - entry.at >= EARLY_TTL) {
+      earlyRequests.delete(key); discovery("early_request_expired", entry.isPrivate);
+    }
+  for (const [key, entry] of pendingFrameStarts)
+    if (now - entry.at >= EARLY_TTL) pendingFrameStarts.delete(key);
+  if (earlyRequests.size || pendingFrameStarts.size) earlyTimer = setTimeout(purgeEarly, EARLY_TTL);
+}
+function clearEarly(tabId, frameId) {
+  for (const [key, entry] of pendingFrameStarts)
+    if (entry.tabId === tabId && (frameId === undefined || entry.frameId === frameId)) pendingFrameStarts.delete(key);
+  for (const [key, entry] of earlyRequests)
+    if (entry.tabId === tabId && (frameId === undefined || entry.frameId === frameId)) earlyRequests.delete(key);
+}
+function captureEarly(details) {
+  const key = requestKey(details), id = geckoId(details.documentId);
+  if (!key || !id || !Number.isInteger(details.frameId) || details.frameId < 0 ||
+      !["string"].includes(typeof details.documentUrl) ||
+      !(safeUrl(details.documentUrl) || opaqueFrame(details.documentUrl)) ||
+      ["main_frame", "sub_frame", "speculative"].includes(details.type) ||
+      typeof details.incognito !== "boolean") return false;
+  if (earlyRequests.has(key)) return true; // redirect: retain original epoch/time
+  if (earlyRequests.size >= EARLY_LIMIT) {
+    const first = earlyRequests.keys().next().value;
+    earlyRequests.delete(first); discovery("queue_limit", details.incognito);
+  }
+  earlyRequests.set(key, { tabId: details.tabId, frameId: details.frameId,
+    geckoDocumentId: id, parentDocumentId: geckoId(details.parentDocumentId),
+    documentUrl: details.documentUrl, cookieStoreId: details.cookieStoreId,
+    isPrivate: details.incognito, at: Date.now(), response: null });
+  discovery("early_request_seen", details.incognito);
+  if (earlyTimer === null) earlyTimer = setTimeout(purgeEarly, EARLY_TTL);
+  return true;
+}
+function bindEarly(tabId, frameId) {
+  const root = documents.get(tabId);
+  const frame = frameId > 0 ? frames.get(tabId + ":" + frameId) : null;
+  const owner = frame || root;
+  if (!root?.ready || !owner || frame && !frame.ready || !geckoId(owner.geckoDocumentId)) return;
+  for (const [key, entry] of [...earlyRequests]) {
+    if (entry.tabId !== tabId || entry.frameId !== frameId) continue;
+    earlyRequests.delete(key);
+    if (Date.now() - entry.at >= EARLY_TTL) { discovery("early_request_expired", entry.isPrivate); continue; }
+    if (entry.geckoDocumentId !== owner.geckoDocumentId || entry.documentUrl !== (frame ? frame.frameUrl : root.pageUrl) ||
+        (entry.parentDocumentId && frame && entry.parentDocumentId !== frame.parentDocumentId) ||
+        (typeof root.isPrivate === "boolean" && entry.isPrivate !== root.isPrivate) ||
+        (root.cookieStoreId && entry.cookieStoreId && entry.cookieStoreId !== root.cookieStoreId)) {
+      discovery("early_request_ambiguous", entry.isPrivate); continue;
+    }
+    requests.set(key, { documentKey: root.documentKey, geckoDocumentId: owner.geckoDocumentId,
+      frameKey: frame?.frameKey || null, frameUrl: frame?.frameUrl || null,
+      frameId, requestSequence: ++nextRequestSequence });
+    while (requests.size > MAX_REQUESTS) requests.delete(requests.keys().next().value);
+    discovery("early_request_bound", entry.isPrivate);
+    if (entry.response) onHeaders(entry.response); // metadata only; never replay HTTP
+  }
+}
 function startDocument(message, sender) {
   if (!isMainSender(sender) || !message || message.schemaVersion !== 1 ||
       message.event !== "document_started" ||
@@ -131,29 +202,70 @@ function startDocument(message, sender) {
       !safeUrl(message.pageUrl)) return null;
   // sender.url comes from Gecko and is not supplied by the page message.
   if (typeof sender.url === "string" && sender.url !== message.pageUrl) return null;
+  const previous = documents.get(sender.tab.id);
+  const id = geckoId(sender.documentId);
+  if (id && previous?.geckoDocumentId === id && !previous.invalidated && sameRoute(previous.pageUrl, message.pageUrl)) {
+    previous.pageUrl = message.pageUrl;
+    for (const frame of frames.values()) if (frame.tabId === sender.tab.id) frame.pageUrl = message.pageUrl;
+    return { documentKey: previous.documentKey };
+  }
   const documentKey = ++nextDocumentKey;
   cancelManifestTasks(sender.tab.id);
   documents.delete(sender.tab.id);
   for (const [id, frame] of frames) if (frame.tabId === sender.tab.id) frames.delete(id);
-  documents.set(sender.tab.id, { documentKey, pageUrl: message.pageUrl });
+  documents.set(sender.tab.id, { documentKey, pageUrl: message.pageUrl, geckoDocumentId: id,
+    isPrivate: typeof sender.tab.incognito === "boolean" ? sender.tab.incognito : null,
+    cookieStoreId: sender.tab.cookieStoreId, ready: !id, invalidated: false });
   while (documents.size > MAX_DOCUMENTS) documents.delete(documents.keys().next().value);
   return { documentKey };
 }
-function startFrame(message, sender) {
+async function startFrame(message, sender) {
   if (!isExtensionSender(sender) || sender.frameId === 0 || !message ||
       message.schemaVersion !== 1 || message.event !== "frame_started" ||
       Object.keys(message).sort().join(",") !== "event,frameUrl,schemaVersion" ||
-      !safeUrl(message.frameUrl) || sender.url !== message.frameUrl) return null;
+      !(safeUrl(message.frameUrl) || opaqueFrame(message.frameUrl)) || sender.url !== message.frameUrl) return null;
   const root = documents.get(sender.tab.id);
-  if (!root) return null; // Never assign a subframe to the selected/active tab.
+  if (!root || !root.ready) return null; // Never infer the parent from active tab/URL.
+  const id = geckoId(sender.documentId);
+  let info = null;
+  if (id && browser.webNavigation?.getFrame) {
+    try { info = await browser.webNavigation.getFrame({ tabId: sender.tab.id, frameId: sender.frameId }); } catch (_) {}
+    if (!info || info.documentId !== id || info.url !== sender.url || documents.get(sender.tab.id) !== root) return null;
+    const parent = info.parentFrameId === 0 ? root : frames.get(sender.tab.id + ":" + info.parentFrameId);
+    if (!parent || info.parentDocumentId !== parent.geckoDocumentId) {
+      if (info.parentFrameId > 0) {
+        if (pendingFrameStarts.size >= 64) pendingFrameStarts.delete(pendingFrameStarts.keys().next().value);
+        pendingFrameStarts.set(frameId(sender), { tabId: sender.tab.id, frameId: sender.frameId,
+          parentFrameId: info.parentFrameId, parentDocumentId: info.parentDocumentId,
+          documentKey: root.documentKey, at: Date.now() });
+        if (earlyTimer === null) earlyTimer = setTimeout(purgeEarly, EARLY_TTL);
+      }
+      return null;
+    }
+  } else if (opaqueFrame(sender.url)) return null;
+  const existing = frames.get(frameId(sender));
+  if (id && existing?.geckoDocumentId === id && existing.documentKey === root.documentKey && existing.frameUrl === sender.url) {
+    bindEarly(sender.tab.id, sender.frameId);
+    return { pageUrl: root.pageUrl, documentKey: root.documentKey, frameUrl: existing.frameUrl, frameKey: existing.frameKey, frameId: existing.frameId };
+  }
   const frame = { tabId: sender.tab.id, frameId: sender.frameId, frameUrl: message.frameUrl,
-    pageUrl: root.pageUrl, documentKey: root.documentKey, frameKey: ++nextFrameKey };
+    pageUrl: root.pageUrl, documentKey: root.documentKey, frameKey: ++nextFrameKey,
+    geckoDocumentId: id, parentDocumentId: info?.parentDocumentId || root.geckoDocumentId, ready: false };
   const previous = frames.get(frameId(sender));
-  if (previous) cancelFrameTasks(previous.tabId, previous.frameKey);
+  if (previous) { cancelFrameTasks(previous.tabId, previous.frameKey); retireNativeFrame(previous); }
   frames.set(frameId(sender), frame);
-  while (frames.size > MAX_FRAMES) frames.delete(frames.keys().next().value);
+  for (const [key, entry] of [...pendingFrameStarts]) {
+    if (entry.tabId !== frame.tabId || entry.parentFrameId !== frame.frameId) continue;
+    if (Date.now() - entry.at < EARLY_TTL && entry.documentKey === root.documentKey && entry.parentDocumentId === frame.geckoDocumentId)
+      Promise.resolve(browser.tabs?.sendMessage?.(frame.tabId, { schemaVersion: 1, event: "discovery_rescan", kind: "parent_ready" }, { frameId: entry.frameId })).catch(() => {});
+    pendingFrameStarts.delete(key);
+  }
+  while (frames.size > MAX_FRAMES) {
+    const key = frames.keys().next().value, old = frames.get(key);
+    retireNativeFrame(old); cancelFrameTasks(old.tabId, old.frameKey); frames.delete(key);
+  }
   return { pageUrl: root.pageUrl, documentKey: root.documentKey,
-    frameUrl: frame.frameUrl, frameKey: frame.frameKey };
+    frameUrl: frame.frameUrl, frameKey: frame.frameKey, frameId: frame.frameId };
 }
 function validDom(message, sender) {
   if (!isExtensionSender(sender) || !message || typeof message !== "object" ||
@@ -177,22 +289,46 @@ function validDom(message, sender) {
       ("titleKind" in message && !["video", "link", "page"].includes(message.titleKind)) ||
       ("durationSeconds" in message && !validSeconds(message.durationSeconds)) ||
       ("posterUrl" in message && !safeUrl(message.posterUrl))) return false;
-  if (sender.frameId === 0) return true;
+  if (sender.frameId === 0) {
+    const root = documents.get(sender.tab.id);
+    return !!root && (!root.geckoDocumentId || root.geckoDocumentId === sender.documentId) &&
+      (typeof sender.url !== "string" || sender.url === root.pageUrl);
+  }
   const frame = frames.get(frameId(sender));
   const root = documents.get(sender.tab.id);
-  return !!frame && !!root && sender.url === frame.frameUrl &&
+  return !!frame && !!root && (!frame.geckoDocumentId || frame.geckoDocumentId === sender.documentId) && sender.url === frame.frameUrl &&
     frame.pageUrl === root.pageUrl && frame.documentKey === root.documentKey;
 
 }
 browser.runtime.onMessage.addListener((message, sender) => {
   if (message && message.event === "document_started") return Promise.resolve(startDocument(message, sender));
+  if (message && message.event === "document_ready") {
+    const root = isMainSender(sender) && documents.get(sender.tab.id);
+    const valid = !!root && !root.invalidated && message.schemaVersion === 1 &&
+      Object.keys(message).sort().join(",") === "documentKey,event,schemaVersion" &&
+      message.documentKey === root.documentKey && (!root.geckoDocumentId || root.geckoDocumentId === sender.documentId);
+    if (valid) {
+      root.ready = true; bindEarly(sender.tab.id, 0);
+      Promise.resolve(browser.tabs?.sendMessage?.(sender.tab.id, { schemaVersion: 1, event: "discovery_rescan", kind: "root_ready" })).catch(() => {});
+    }
+    return Promise.resolve(valid);
+  }
   if (message && message.event === "frame_started") return Promise.resolve(startFrame(message, sender));
+  if (message && message.event === "frame_ready") {
+    const frame = isExtensionSender(sender) && frames.get(frameId(sender));
+    const valid = !!frame && message.schemaVersion === 1 &&
+      Object.keys(message).sort().join(",") === "event,frameKey,schemaVersion" &&
+      message.frameKey === frame.frameKey && sender.url === frame.frameUrl &&
+      (!frame.geckoDocumentId || sender.documentId === frame.geckoDocumentId);
+    if (valid) { frame.ready = true; bindEarly(sender.tab.id, sender.frameId); }
+    return Promise.resolve(valid);
+  }
   if (message && message.event === "frame_ended") {
     const frame = isExtensionSender(sender) && frames.get(frameId(sender));
     const valid = !!frame && sender.frameId > 0 && sender.url === frame.frameUrl &&
       message.schemaVersion === 1 && Object.keys(message).sort().join(",") === "event,frameKey,schemaVersion" &&
-      message.frameKey === frame.frameKey;
-    if (valid) { cancelFrameTasks(frame.tabId, frame.frameKey); frames.delete(frameId(sender)); }
+      message.frameKey === frame.frameKey && (!frame.geckoDocumentId || frame.geckoDocumentId === sender.documentId);
+    if (valid) { cancelFrameTasks(frame.tabId, frame.frameKey); retireNativeFrame(frame); frames.delete(frameId(sender)); }
     return Promise.resolve(valid);
   }
   if (!validDom(message, sender)) return Promise.resolve(null);
@@ -211,7 +347,7 @@ browser.runtime.onMessage.addListener((message, sender) => {
 });
 if (browser.tabs && browser.tabs.onRemoved && typeof browser.tabs.onRemoved.addListener === "function") {
   browser.tabs.onRemoved.addListener(id => {
-    cancelManifestTasks(id);
+    cancelManifestTasks(id); clearEarly(id);
     documents.delete(id);
     for (const [key, value] of frames) if (value.tabId === id) frames.delete(key);
   });
@@ -219,6 +355,13 @@ if (browser.tabs && browser.tabs.onRemoved && typeof browser.tabs.onRemoved.addL
 
 function manifestKey(task) {
   return task.tabId + ":" + task.documentKey + ":" + (task.frameKey || 0) + ":" + String(task.isPrivate) + ":" + task.url;
+}
+function retireNativeFrame(frame) {
+  const root = documents.get(frame.tabId);
+  if (!root?.ready || root.documentKey !== frame.documentKey) return;
+  Promise.resolve(browser.tabs?.sendMessage?.(frame.tabId, { schemaVersion: 1,
+    event: "discovery_frame_retired", documentKey: frame.documentKey,
+    frameId: frame.frameId, frameKey: frame.frameKey, frameUrl: frame.frameUrl }, { frameId: 0 })).catch(() => {});
 }
 function cancelFrameTasks(tabId, frameKey) {
   for (let i = manifestQueue.length - 1; i >= 0; i--)
@@ -249,18 +392,21 @@ function requestKey(details) {
 }
 function onBefore(details) {
   const key = requestKey(details);
-  if (!key) return;
+  if (!key || details.type === "speculative" ||
+      (details.frameId !== undefined && (!Number.isInteger(details.frameId) || details.frameId < 0))) return;
   const doc = documents.get(details.tabId);
-  if (!doc) return;
+  if (!doc || !doc.ready) { captureEarly(details); return; }
   let frame = null;
   if (Number.isInteger(details.frameId) && details.frameId > 0) {
     frame = frames.get(details.tabId + ":" + details.frameId);
-    if (!frame || frame.documentKey !== doc.documentKey ||
+    if (!frame || !frame.ready || frame.documentKey !== doc.documentKey ||
         (typeof details.documentUrl === "string" && details.documentUrl !== frame.frameUrl))
-      return;
-  } else if (typeof details.documentUrl === "string" && details.documentUrl !== doc.pageUrl) return;
+      { captureEarly(details); return; }
+  } else if (typeof details.documentUrl === "string" && details.documentUrl !== doc.pageUrl) { captureEarly(details); return; }
+  const owner = frame || doc;
+  if (owner.geckoDocumentId && details.documentId !== owner.geckoDocumentId) { captureEarly(details); return; }
   if (requests.has(key)) return; // A redirect retains its original document/sequence.
-  requests.set(key, { documentKey: doc.documentKey,
+  requests.set(key, { documentKey: doc.documentKey, geckoDocumentId: owner.geckoDocumentId,
     frameKey: frame ? frame.frameKey : null, frameUrl: frame ? frame.frameUrl : null,
     frameId: frame ? frame.frameId : 0, requestSequence: ++nextRequestSequence });
   while (requests.size > MAX_REQUESTS) requests.delete(requests.keys().next().value);
@@ -323,6 +469,17 @@ function onHeaders(details) {
   const requestDocumentKey = key ? requests.get(key) : null;
   // onHeadersReceived also fires for redirects. Keep ownership until the final response.
   if (typeof details.statusCode === "number" && details.statusCode >= 300 && details.statusCode < 400) return;
+  if (key && !requestDocumentKey && earlyRequests.has(key)) {
+    const entry = earlyRequests.get(key);
+    if (Date.now() - entry.at >= EARLY_TTL) { earlyRequests.delete(key); discovery("early_request_expired", entry.isPrivate); return; }
+    if (safeUrl(details.url)) entry.response = { tabId: details.tabId, requestId: details.requestId,
+      frameId: details.frameId, documentId: details.documentId, documentUrl: details.documentUrl,
+      url: details.url, type: details.type, incognito: details.incognito, statusCode: details.statusCode,
+      responseHeaders: (details.responseHeaders || []).filter(h => h && typeof h.name === "string" &&
+        ["content-type", "content-length", "content-range", "content-encoding"].includes(h.name.toLowerCase()))
+        .slice(0, 4).map(h => ({ name: h.name, value: typeof h.value === "string" ? h.value.slice(0, 128) : "" })) };
+    return;
+  }
   if (key) requests.delete(key);
   if (["image", "imageset", "ping", "beacon", "script", "stylesheet", "font", "csp_report"].includes(details.type)) return;
   if (!probeSent && typeof details.url === "string" &&
@@ -355,6 +512,7 @@ function onHeaders(details) {
   const requestFrame = requestDocumentKey && requestDocumentKey.frameKey !== null ?
     frames.get(tabId + ":" + requestDocumentKey.frameId) : null;
   if (!doc || !requestDocumentKey || doc.documentKey !== requestDocumentKey.documentKey ||
+      (requestDocumentKey.geckoDocumentId && requestDocumentKey.geckoDocumentId !== details.documentId) ||
       (requestDocumentKey.frameKey !== null &&
         (!requestFrame || requestFrame.frameKey !== requestDocumentKey.frameKey ||
           requestFrame.frameUrl !== requestDocumentKey.frameUrl)) ||
@@ -474,7 +632,7 @@ async function inspectManifest(task) {
   try {
     response = await fetch(task.url, {
       method: "GET", credentials: "omit", redirect: "follow", cache: "no-store",
-      referrer: task.frameUrl || task.pageUrl,
+      referrer: safeUrl(task.frameUrl) ? task.frameUrl : task.pageUrl,
       signal: controller ? controller.signal : undefined,
     });
     if (!response || !response.ok) { discovery("unavailable", task.isPrivate); return; }
@@ -529,7 +687,7 @@ async function inspectManifest(task) {
       await browser.tabs.sendMessage(task.tabId, verified, { frameId: 0 });
       segment = await fetch(parsed.firstSegmentUrl, {
         method: "GET", credentials: "omit", redirect: "follow", cache: "no-store",
-        referrer: task.frameUrl || task.pageUrl, headers: { Range: "bytes=0-0" },
+        referrer: safeUrl(task.frameUrl) ? task.frameUrl : task.pageUrl, headers: { Range: "bytes=0-0" },
         signal: controller ? controller.signal : undefined,
       });
       const segmentType = segment?.headers?.get?.("content-type")?.split(";")[0].trim().toLowerCase();
@@ -596,4 +754,28 @@ if (browser.webRequest && browser.webRequest.onHeadersReceived) {
 for (const event of [browser.webRequest?.onCompleted, browser.webRequest?.onErrorOccurred])
   if (event && typeof event.addListener === "function") event.addListener(details => {
     const key = requestKey(details); if (key) requests.delete(key);
+    if (details.error || !earlyRequests.get(key)?.response) earlyRequests.delete(key);
   }, { urls: ["http://*/*", "https://*/*"] });
+
+if (browser.webNavigation?.onBeforeNavigate) browser.webNavigation.onBeforeNavigate.addListener(details => {
+  clearEarly(details.tabId, details.frameId === 0 ? undefined : details.frameId);
+  if (details.frameId === 0) {
+    cancelManifestTasks(details.tabId); documents.delete(details.tabId);
+    for (const [key, frame] of frames) if (frame.tabId === details.tabId) frames.delete(key);
+  } else {
+    const key = details.tabId + ":" + details.frameId, frame = frames.get(key);
+    if (frame) { cancelFrameTasks(details.tabId, frame.frameKey); retireNativeFrame(frame); }
+    frames.delete(key);
+  }
+});
+if (browser.webNavigation?.onHistoryStateUpdated) browser.webNavigation.onHistoryStateUpdated.addListener(details => {
+  const root = documents.get(details.tabId);
+  const owner = details.frameId === 0 ? root : frames.get(details.tabId + ":" + details.frameId);
+  if (!root || !owner || !geckoId(details.documentId) || details.documentId !== owner.geckoDocumentId ||
+      !safeUrl(details.url) || sameRoute(details.url, details.frameId === 0 ? root.pageUrl : owner.frameUrl)) return;
+  clearEarly(details.tabId, details.frameId === 0 ? undefined : details.frameId);
+  cancelManifestTasks(details.tabId);
+  if (details.frameId === 0) root.invalidated = true;
+  Promise.resolve(browser.tabs?.sendMessage?.(details.tabId,
+    { schemaVersion: 1, event: "discovery_rescan", kind: "history" }, { frameId: details.frameId })).catch(() => {});
+});

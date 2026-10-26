@@ -25,3 +25,17 @@
 - E: webNavigation history do event-based rescan; hash nie powinien zerowaćrepo(state.observe obecnie clear na każdą zmianęURL).
 - D/F: DOM_B dowód dashjs initialize i posterinheritance; blobbridge/frameURL-only wymaga osobnej analizy, nie zmieniaćACKsamowolnie.
 - Checkpoint zaktualizować po B/C/GREEN, pełne C dopiero na końcu. Handoff/DiscoveryResults/final164/1164alpha70-mpv38 +CI/podpis/PR do v1163 dopiero po naprawach.
+
+## Checkpoint B/C/E/G — nadpisuje odpowiednie stare stany powyżej
+- HEADprzedtymcheckpointem39480c43f44d1fb0e75019d10bdbbf9d4d218302. Po wznowieniu sprawdzićGit/CI, nie zakładać tegoHEAD.
+- CI40301729041niebyłtestemdetektora(ClassNotFoundhost). CI40302900024 to PRAWIDŁOWYbaselineGecko:13testów,10PASS/3RED(srcdoc/aboutblank/SPA).
+- NoweprodJS/Kotlinjużgotowe: BGearly128/TTL2500docUUID/private/cookieStore; FrameNativeACK(root/frame_ready) przedreplay; parent_readytylkodlaczekającegodziecka; eventSPA ihashretention.
+- ContentIPC4active/128queue/64per5s/max1retry/12.5s expiry, epochguardA→B→A/pagehide; standardA89/89i88/88preutrzymane.
+- NativeProtocolframeTrackingoptionalMediaDoc,media_frameeventstrict; MediaRepositoryframehighwater/retire/ambiguity/rootHLS URL; BlobHlsSelectorframeAmbiguousguard. ACK/player/Lua niezmienione.
+- Nowe7JUnit VideoDiscoveryV1164Test razemmedia82/82; JS57/57celowane; B21/21; DOM_B5/5. A-after-early89/89; poostatnimframe_readyjeszczererunA.
+- IndependentC12network+4DOMjeszczeNIEURUCHOMIONE. FrozenSHAbez zmian. Nie zmieniaćexpecteddlaimplementacji.
+- Poszerzonomanifest1.7.0webNavigation; APIzweryfikowanewsource+docs, finalniepotwierdzić13/13Geckonowegokodu.
+- LokalneTCG957sboot,potemhangingQEMUCPU/ADBdeviceNotFoundpodczasinstall. RealneGeckoTYLKOwynikiCI; fizycznytelefonNIEURUCHOMIONY.
+- NastępniepushWIP[gecko-test] uruchomiwyłączniededykowanyGeckoCI, bezprodukcjiAPK; czekaćnazielonytestnowegokodu/problemyplatformowe.
+- Dalsze: dokładniejszeblobassociation wymagarozważeniaidentityUUIDnaofercie; nativeFrameRegistryblokujeznanedwasameURL, leczmostoffermaobecniejedynieURL/stringframeKey. Nie twierdzićżeidentyfikuje arbitraryunregisteredframe. Designudokumentowaćprzedmodyfikacją; ACK/rollbackzachować.
+- PotemrozszerzyćHrealtestydelayed/replace/framecleanup, metrykiB/C+firstResult, review,regresjepełne,lintdelta,bump164/1164alpha70-mpv38,finalDraftPRdov1163+CI+podpisAPK.

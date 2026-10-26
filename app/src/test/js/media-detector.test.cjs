@@ -8,7 +8,7 @@ const assets = path.join(__dirname, "../../main/assets/extensions/nira-media-det
 function background(route = async () => false, initialize = true, fetchImpl = undefined) {
   let receive, rawProbe, before, filter, extras;
   let requestId = 0;
-  const native = [], timers = [], routed = [];
+  const native = [], timers = [], routed = [], controls = [];
   const browser = {
     runtime: {
       id: "detector",
@@ -16,7 +16,7 @@ function background(route = async () => false, initialize = true, fetchImpl = un
       sendNativeMessage: async (...args) => { native.push(args); return true; },
     },
     tabs: { sendMessage: async (...args) => {
-      routed.push(args); return route(...args);
+      (args[1].event === "media_candidate" ? routed : controls).push(args); return route(...args);
     } },
     webRequest: {
       onBeforeRequest: { addListener: callback => { before = callback; } },
@@ -37,7 +37,12 @@ function background(route = async () => false, initialize = true, fetchImpl = un
     rawProbe(request);
   };
   const flushTimers = () => { while (timers.length) timers.shift()(); };
-  return { receive, probe, before, rawProbe, native, filter, extras, routed, flushTimers };
+  return { receive: async (message, sender) => {
+    const reply = await receive(message, sender);
+    if (message?.event === "frame_started" && reply?.frameKey)
+      await receive({ schemaVersion: 1, event: "frame_ready", frameKey: reply.frameKey }, sender);
+    return reply;
+  }, probe, before, rawProbe, native, filter, extras, routed, controls, flushTimers };
 }
 function response(url, contentType = "video/mp4", extra = {}) {
   return { url, statusCode: 200, tabId: 7, incognito: false,
@@ -55,6 +60,7 @@ function page() {
   const winHandlers = new Map();
   const native = [], diagnostics = [], videos = [], timers = [], extra = new Map();
   let observerCallback;
+  let nativeReply = async () => true;
   const location = { href: "https://site.example/watch/1" };
   class HTMLVideoElement {
     constructor(url, mime = null, paused = false) {
@@ -77,16 +83,17 @@ function page() {
     sendNativeMessage: async (...args) => {
       if (args[1].event === "media_candidate") native.push(args);
       if (args[1].event === "discovery_stats") diagnostics.push(args[1]);
-      return true;
+      return args[1].event === "media_candidate" ? nativeReply(args[1]) : true;
     },
   } };
   class MutationObserver {
     constructor(callback) { observerCallback = callback; }
     observe() {}
+    disconnect() {}
   }
   vm.runInNewContext(fs.readFileSync(path.join(assets, "content.js"), "utf8"), {
     browser, HTMLVideoElement, document, window, location, MutationObserver, URL, Date,
-    setTimeout: callback => timers.push(callback),
+    setTimeout: callback => timers.push(callback), clearTimeout: () => {},
   });
   const flush = () => new Promise(resolve => setImmediate(resolve));
   const fire = async (type, video, trusted = true) => {
@@ -105,6 +112,8 @@ function page() {
     await flush();
   };
   return { HTMLVideoElement, videos, extra, native, diagnostics, fire, navigate, mutate, location, document,
+    setNativeReply: fn => { nativeReply = fn; },
+    hide: () => { for (const fn of winHandlers.get("pagehide") || []) fn({}); },
     onNetwork: (msg, from = { id: "detector" }) => networkReceiver(msg, from) };
 }
 
@@ -894,4 +903,21 @@ test('v1163: an HTML error at a .ts path never confirms the HLS stream',async()=
   await tick();await tick();await tick();
   assert.equal(calls,2);
   assert.equal(b.routed.some(x=>x[1].verification==='stream_verified'),false);
+});
+
+test('v1164: native candidate backpressure is four in flight and pagehide drops queued work',async()=>{
+  const p=page();let active=0,maximum=0;const releases=[];
+  p.setNativeReply(()=>{active++;maximum=Math.max(maximum,active);return new Promise(resolve=>releases.push(()=>{active--;resolve(true);}));});
+  for(let i=0;i<12;i++)p.videos.push(new p.HTMLVideoElement('https://cdn.example/queued-'+i+'.mp4',null,true));
+  await p.mutate();assert.equal(maximum,4);assert.equal(p.native.length,4);
+  p.hide();for(const release of releases)release();await tick();await tick();
+  assert.equal(p.native.length,4);assert.equal(active,0);
+});
+test('v1164: accepted native batches continue without losing remaining candidates',async()=>{
+  const p=page();let active=0,maximum=0;const releases=[];
+  p.setNativeReply(()=>{active++;maximum=Math.max(maximum,active);return new Promise(resolve=>releases.push(()=>{active--;resolve(true);}));});
+  for(let i=0;i<12;i++)p.videos.push(new p.HTMLVideoElement('https://cdn.example/continued-'+i+'.mp4',null,true));
+  await p.mutate();assert.equal(maximum,4);
+  for(let round=0;round<4;round++){for(const release of releases.splice(0))release();await tick();await tick();}
+  assert.equal(p.native.length,12);assert.equal(active,0);assert.equal(maximum,4);
 });

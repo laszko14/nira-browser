@@ -24,7 +24,8 @@ function world(){
  async function ready(s=sender()){return receive({schemaVersion:1,event:'document_ready',documentKey:root?.documentKey},s);}
  async function frame(doc=2,id=1,url='https://frame.test/embed',parentDoc=1,parentFrameId=0){
  const s=sender(doc,id,url);frameDetails.set('7:'+id,{frameId:id,documentId:uuid(doc),parentDocumentId:uuid(parentDoc),parentFrameId,url});
- return receive({schemaVersion:1,event:'frame_started',frameUrl:url},s);}
+ const reply=await receive({schemaVersion:1,event:'frame_started',frameUrl:url},s);
+ if(reply?.frameKey)await receive({schemaVersion:1,event:'frame_ready',frameKey:reply.frameKey},s);return reply;}
  function request(extra={}){return{tabId:7,requestId:'r',frameId:0,parentFrameId:-1,documentId:uuid(1),documentUrl:'https://page.test/watch',url:'https://cdn.test/movie.mp4',incognito:false,cookieStoreId:'firefox-container-1',type:'xmlhttprequest',statusCode:200,responseHeaders:[{name:'Content-Type',value:'video/mp4'}],...extra};}
  async function advance(ms){now+=ms;for(const[id,t]of [...timers])if(t.at<=now){timers.delete(id);t.fn();}await tick();}
  return{browser,sender,start,ready,frame,request,sent,controls,native,receive,before,headers,removed,

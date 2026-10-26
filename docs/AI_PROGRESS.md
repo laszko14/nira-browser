@@ -351,3 +351,9 @@ Opcjonalne, odwracalne rewizje istniejących przycisków DRC/DE: kopie oryginał
 
 - Gecko baselineCI40301729041: emulatorKVMAPI35 uruchomiony37,7s, faktycznie rozpoczęto instrumentację; crash1/13 przed detektorem zClassNotFound testhostActivity. To błąd konfiguracji harnessu(Java sourceSet nie skompilował dodanego.kt), nie dowód regresji silnika. Host przeniesiony doJava, bez zmianApp/MPV. PonownybaselineCI po tej konkretnej poprawce, nie identyczny rerun.
 - LokalnyTCG emulator jednakboot_completed=1po>17min; instalacja pierwszego x86APK trwa. Nie kwalifikować infrastruktury jako niedostępnej na podstawie wcześniejszego wolnego startu.
+
+- Gecko baseline2CI40302900024 po naprawieJavahost: rzeczywiście13wykonanych,10PASS/3RED(srcdoc,aboutblank,SPA pushState); bezwyłączania testów. MP4/HLS/early/basic/cross/nested/profiles/private/reopen działają na bazie.
+- B/C/E/G implementacja: early128/2.5sUUIDbuffer+Native-ready, trusted getFrame ancestry/opaque, zdarzenioweSPA, NativeIPC4active/128queued/64per5s/retry1, metadata/dashliteral.
+- Native frameTracking opt-in w v1 +media_frame lifecycle, odrzucanie retiredFrame/wrongURL/profile, rootHLSbinding iambiguoussameURLframes; bridgeACK/player bez zmian. DesignV1164_FRAME_IDENTITY_DESIGN.md.
+- LokalneB21/21,DOM_B5/5,A89/89(88/88pre),Kotlin82/82,JS57/57celowane. CnadalNIEURUCHOMIONE. Source version1.7.0+webNavigation uzasadnioneimplementacjąGecko, bezMAIN/originfallback/cookies.
+- Lokalnyemulatorboot957s,potemhangingQEMUCPU iutrataADBprzyinstalacji:braklokalnejinstrumentacji. CIzKVMdowiódłdostępnościGecko, kontynuowaćtam,nieudawaćwynikufizycznegotelefonu.

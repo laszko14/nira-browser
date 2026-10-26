@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 jobs:
   gecko:
-    if: github.event_name != 'push' || contains(github.event.head_commit.message, '[gecko-baseline]')
+    if: github.event_name != 'push' || (contains(github.event.head_commit.message, '[gecko-baseline]') || contains(github.event.head_commit.message, '[gecko-test]'))
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions:

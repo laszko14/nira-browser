@@ -10,7 +10,7 @@ package com.prirai.android.nira.media
 internal object BlobHlsSelector {
     fun select(entries: List<MediaEntry>, frameUrl: String): MediaEntry? {
         val viable=entries.filter {
-            it.frameUrl == frameUrl &&
+            !it.frameAmbiguous && it.frameUrl == frameUrl &&
                 it.format == MediaFormat.HLS &&
                 MediaSource.NETWORK in it.sources &&
                 it.playbackStatus !in setOf(MediaPlaybackStatus.EXPIRED,

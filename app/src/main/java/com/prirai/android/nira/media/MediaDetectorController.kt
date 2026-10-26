@@ -175,13 +175,18 @@ internal class MediaDetectorController(private val engine: Engine, private val s
             val context = tab.binding
             val decoded = (message as? JSONObject)?.toString()?.let(MediaMessageProtocol::decode)
             if (decoded is MediaDetectorMessage.Document) {
-                val result = repository.registerDocument(tab, decoded.pageUrl, decoded.documentKey)
+                val result = repository.registerDocument(tab, decoded.pageUrl, decoded.documentKey, decoded.frameTracking)
                 if (!result.accepted) {
                     MediaDetectorDiagnostics.stale(context)
                     return false
                 }
                 if (result.removed > 0) MediaDetectorDiagnostics.navigationRemoved(context, result.removed)
                 return true
+            }
+            if (decoded is MediaDetectorMessage.Frame) {
+                val accepted = repository.registerFrame(tab, decoded)
+                if (!accepted) MediaDetectorDiagnostics.stale(context)
+                return accepted
             }
             if (decoded is MediaDetectorMessage.DiscoveryStat) {
                 val key = decoded.documentKey ?: return false
