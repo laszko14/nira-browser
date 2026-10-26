@@ -1,3 +1,6 @@
+# Aktualizacja B3/E1 — WIP
+47/47targetedJUnitPASS (15s); dodano boundedreportgenerator, JankStatsruntime/lifecycle/pasywnycounter, własnyprocesresource/heartbeat/exitprobes, opt-inrecovery64KiB/24h/5s oraz mutualexclusiongate. Hooki przeglądarki/Supertest i UI jeszcze niewdrożone. Żadnego signedAPKv1165 ani testu telefonu na tym etapie. Pełnycheckpoint wCODEX_RESUME_V1165.md.
+
 # v1165 Zavro TestLab — dokument roboczy
 
 **NIEUKOŃCZONE. Brak APK v1165 i Draft PR.** Stan A/B1/B2: architektura oraz pureKotlin silnik/agregatory z31nowymi testami. Pełny Kotlin/JUnit307/307PASS. Siedem trybów zdefiniowanych w kontrakcie; Androidowe kolektory, hooki, UI/eksport/recovery i pomiary narzutu jeszcze nie są wdrożone.

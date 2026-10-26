@@ -73,7 +73,7 @@ data class OperationToken internal constructor(internal val session:Long,interna
         require(refreshRatesHz.size<=16 && refreshRatesHz.all{it.isFinite()&&it in 1.0..1000.0})
     }
 }
-@Serializable data class LabEvent(val serial:Long,val offsetNanos:Long,val code:LabCode,val operation:LabOperation?=null,val value:Double?=null,val operationTags:List<LabOperation> = emptyList())
+@Serializable data class LabEvent(val serial:Long,val offsetNanos:Long,val code:LabCode,val operation:LabOperation?=null,val value:Double?=null,val operationTags:List<LabOperation> = emptyList(),val count:Int=1)
 @Serializable data class AnomalyMarker(val offsetNanos:Long,val nearbyEventSerials:List<Long>)
 @Serializable data class Observation(val kind:ObservationKind,val code:LabCode,val offsetNanos:Long?,val value:Double?=null,val invariant:LabInvariant?=null)
 @Serializable data class LatencySummary(val samples:Long,val meanMs:Double,val maxMs:Double,val p95Ms:Double?,val histogramStepMs:Double=1.0)

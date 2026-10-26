@@ -167,4 +167,32 @@ class TestLabEngineTest {
         assertEquals(1L,report.errorCounts[LabError.INVALID_SAMPLE])
     }
 
+    @Test fun performanceNoiseCannotHideAConfirmedInvariantFailure() {
+        val e=engine();val t=running(e)
+        repeat(40){advance(1);e.heartbeat(t,500_000_000)}
+        e.invariant(t,LabInvariant.PROFILE_MISMATCH);advance(1)
+        assertTrue(finish(e,t).anomalies.any{it.kind==ObservationKind.CONFIRMED_INVARIANT_FAILURE})
+    }
+    @Test fun allInvalidFramesAreACollectorFailureNotAnEmptyHealthyMeasurement() {
+        val e=engine();val t=running(e)
+        assertFalse(e.frame(t,0,false));advance(1);val report=finish(e,t)
+        assertEquals(Availability.COLLECTOR_FAILED,report.metricAvailability[LabMetric.ANDROID_UI_FRAMES])
+        assertEquals(1L,report.errorCounts[LabError.INVALID_SAMPLE])
+    }
+    @Test fun unreasonableFiniteEventPayloadIsNotStored() {
+        val e=engine();val t=running(e)
+        assertFalse(e.note(t,LabCode.LOAD_PROGRESS,Double.MAX_VALUE));advance(1)
+        assertNull(finish(e,t).eventCounts[LabCode.LOAD_PROGRESS])
+    }
+
+    @org.junit.Test fun batchedEventsPreserveCandidateCountsWithoutOneRowPerCandidate() {
+        var clock=0L
+        val e=TestLabEngine({clock},LabIdentity(1165,"0.5.22-alpha71-mpv39"))
+        val t=e.start(TestType.VIDEO_MPV)!!;e.begin(t)
+        e.note(t,LabCode.DETECTOR_NETWORK,count=20)
+        org.junit.Assert.assertFalse(e.note(t,LabCode.DETECTOR_NETWORK,count=0))
+        clock=1_000_000;e.stop(t);e.complete(t)
+        org.junit.Assert.assertEquals(20L,e.latest()!!.eventCounts[LabCode.DETECTOR_NETWORK])
+        org.junit.Assert.assertEquals(1,e.latest()!!.timeline.size)
+    }
 }

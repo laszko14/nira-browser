@@ -27,13 +27,16 @@ class FrameAccumulator {
     var invalidCount = 0L; private set
 
     fun add(durationNanos: Long, isJank: Boolean, overrunNanos: Long? = null) {
+        addMeasured(durationNanos,isJank,overrunNanos?:0L,overrunNanos!=null)
+    }
+    fun addMeasured(durationNanos:Long,isJank:Boolean,overrunNanos:Long,hasOverrun:Boolean) {
         if (durationNanos !in 1L..60_000_000_000L) { invalidCount++; return }
         count++; if (isJank) jank++
         total += durationNanos
         maximum = maxOf(maximum, durationNanos)
         val bucket = ((durationNanos + STEP - 1) / STEP).coerceAtMost(4095).toInt()
         histogram[bucket]++
-        if (overrunNanos != null) {
+        if (hasOverrun) {
             if (overrunNanos in -60_000_000_000L..60_000_000_000L) {
                 overrunCount++; overrunTotal += overrunNanos
                 overrunMaximum = maxOf(overrunMaximum, overrunNanos)

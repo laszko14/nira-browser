@@ -7,7 +7,7 @@ import kotlin.math.abs
  * A runtime owns collectors. Every writer must present the current session token.
  */
 class TestLabEngine(
-    private val clock:()->Long,
+    private val clock:NanoClock,
     private val identity:LabIdentity,
     private val maxEvents:Int=1024,
 ) {
@@ -59,9 +59,9 @@ class TestLabEngine(
     }
     @Synchronized fun begin(session:SessionToken,device:LabEnvironment=LabEnvironment()):Boolean {
         if(token!=session||phase!=LabPhase.PREPARING)return false
-        environment=device.copy(refreshRatesHz=device.refreshRatesHz.toList());started=clock();phase=LabPhase.RUNNING;return true
+        environment=device.copy(refreshRatesHz=device.refreshRatesHz.toList());started=clock.nowNanos();phase=LabPhase.RUNNING;return true
     }
-    private fun offset():Long? = started?.let { start -> (clock()-start).takeIf{it>=0} }
+    private fun offset():Long? = started?.let { start -> (clock.nowNanos()-start).takeIf{it>=0} }
     private fun writable(session:SessionToken):Long? {
         if(token!=session||phase!=LabPhase.RUNNING)return null
         return offset()?.takeIf{it<DURATION_NS}
@@ -77,20 +77,20 @@ class TestLabEngine(
         append(at,if(visible)LabCode.FOREGROUND else LabCode.BACKGROUND)
         return true
     }
-    private fun append(at:Long,code:LabCode,operation:LabOperation?=null,value:Double?=null,tags:List<LabOperation> = emptyList()) {
-        counts[code.ordinal]++
+    private fun append(at:Long,code:LabCode,operation:LabOperation?=null,value:Double?=null,tags:List<LabOperation> = emptyList(),count:Int=1) {
+        counts[code.ordinal]+=count
         val window=at/1_000_000_000L
         if(window!=rateWindow){rateWindow=window;rateCount=0}
         val budget=if(type==TestType.COMPLEX)64 else 128
         if(rateCount>=budget){evicted++;errors[LabError.EVENT_LIMIT.ordinal]++;return}
         rateCount++
-        timeline.addLast(LabEvent(++eventSerial,at,code,operation,value,tags))
+        timeline.addLast(LabEvent(++eventSerial,at,code,operation,value,tags,count))
         if(timeline.size>maxEvents){timeline.removeFirst();evicted++}
     }
-    @Synchronized fun note(session:SessionToken,code:LabCode,value:Double?=null):Boolean {
+    @Synchronized fun note(session:SessionToken,code:LabCode,value:Double?=null,count:Int=1):Boolean {
         val at=writable(session)?:return false
-        if(value!=null&&!value.isFinite()){errors[LabError.INVALID_SAMPLE.ordinal]++;return false}
-        append(at,code,value=value);return true
+        if(count !in 1..100_000 || value!=null&&(!value.isFinite()||kotlin.math.abs(value)>9_007_199_254_740_991.0)){errors[LabError.INVALID_SAMPLE.ordinal]++;return false}
+        append(at,code,value=value,count=count);return true
     }
     @Synchronized fun error(session:SessionToken,error:LabError):Boolean {
         val at=writable(session)?:return false
@@ -143,9 +143,15 @@ class TestLabEngine(
         activeOperationMask=mask
     }
     @Synchronized fun frame(session:SessionToken,durationNanos:Long,isJank:Boolean,overrunNanos:Long?=null,tags:Long=0L):Boolean {
-        val at=writable(session)?:return false
-        if(!isForeground)return false
-        frames.add(durationNanos,isJank,overrunNanos)
+        return frameMeasured(session,durationNanos,isJank,overrunNanos?:0L,overrunNanos!=null,tags)
+    }
+    /** Primitive-only entry point for JankStats; ordinary frames allocate no TestLab record. */
+    @Synchronized fun frameMeasured(session:SessionToken,durationNanos:Long,isJank:Boolean,overrunNanos:Long,hasOverrun:Boolean,tags:Long):Boolean {
+        if(token!=session||phase!=LabPhase.RUNNING||!isForeground)return false
+        val start=started?:return false
+        val at=clock.nowNanos()-start
+        if(at !in 0 until DURATION_NS)return false
+        frames.addMeasured(durationNanos,isJank,overrunNanos,hasOverrun)
         if(durationNanos !in 1..DURATION_NS)return false
         var bits=tags
         while(bits!=0L){
@@ -191,7 +197,16 @@ class TestLabEngine(
         observe(Observation(ObservationKind.CONFIRMED_INVARIANT_FAILURE,LabCode.INVARIANT_FAILURE,at,invariant=invariant))
         return true
     }
-    private fun observe(observation:Observation){if(observations.size<32)observations.add(observation)}
+    private fun observe(observation:Observation) {
+        val same=observations.indexOfFirst{it.kind==observation.kind&&it.code==observation.code&&it.invariant==observation.invariant}
+        if(same>=0) {
+            if((observation.value?:0.0)>(observations[same].value?:0.0))observations[same]=observation
+            return
+        }
+        if(observations.size<32){observations.add(observation);return}
+        val worst=observations.indices.maxBy{observations[it].kind.ordinal}
+        if(observation.kind.ordinal<observations[worst].kind.ordinal)observations[worst]=observation
+    }
     @Synchronized fun poll(session:SessionToken):Boolean {
         if(token!=session||phase!=LabPhase.RUNNING||(offset()?:0)<DURATION_NS)return false
         closing(LabPhase.COMPLETED);return true
@@ -234,7 +249,7 @@ class TestLabEngine(
             if(metric in unavailable)Availability.MEASURED_WITH_GAPS else Availability.MEASURED
         }else unavailable[metric]?:Availability.NOT_OBSERVED
         val availability=mapOf(
-            LabMetric.ANDROID_UI_FRAMES to measured(LabMetric.ANDROID_UI_FRAMES,frame!=null),
+            LabMetric.ANDROID_UI_FRAMES to (if(frame==null&&frames.invalidCount>0)Availability.COLLECTOR_FAILED else measured(LabMetric.ANDROID_UI_FRAMES,frame!=null)),
             LabMetric.FRAME_OVERRUN to measured(LabMetric.FRAME_OVERRUN,(frame?.overrunSamples?:0)>0),
             LabMetric.JAVA_HEAP to measured(LabMetric.JAVA_HEAP,resource.javaHeapMaxBytes!=null),
             LabMetric.NATIVE_HEAP to measured(LabMetric.NATIVE_HEAP,resource.nativeHeapMaxBytes!=null),
@@ -260,11 +275,13 @@ class TestLabEngine(
             Limitation.NO_PRECISE_ENERGY,Limitation.HISTOGRAM_PERCENTILES,Limitation.NO_CRASH_DOES_NOT_PROVE_STABILITY)
         if(covered<endedOffset)limitations.add(Limitation.COVERAGE_GAPS)
         if(evicted>0)limitations.add(Limitation.BOUNDED_TIMELINE)
+        val finalErrors=errors.copyOf()
+        finalErrors[LabError.INVALID_SAMPLE.ordinal]+=frames.invalidCount+resource.invalidFields+resource.outOfOrderSamples
         lastReport=TestLabReport(
             testType=type,appVersion=identity,durationMs=endedOffset/1_000_000.0,status=targetStatus,environment=environment,
             metricAvailability=availability,metricSources=sources,frameMetrics=frame,
             operationMetrics=LabOperation.entries.filter{type.includes(it.domain)}.map{stats[it.ordinal]?.snapshot()?:OperationStats(it).snapshot()},
-            resourceMetrics=resource,errorCounts=LabError.entries.filter{errors[it.ordinal]>0}.associateWith{errors[it.ordinal]},
+            resourceMetrics=resource,errorCounts=LabError.entries.filter{finalErrors[it.ordinal]>0}.associateWith{finalErrors[it.ordinal]},
             eventCounts=LabCode.entries.filter{counts[it.ordinal]>0}.associateWith{counts[it.ordinal]},timeline=events,
             anomalyMarkers=markers,anomalies=observations.toList(),testCoverage=coverage,
             foregroundMs=covered/1_000_000.0,noCoverageMs=(endedOffset-covered).coerceAtLeast(0)/1_000_000.0,
@@ -272,6 +289,11 @@ class TestLabEngine(
             maxHeartbeatDelayMs=heartbeatMax?.div(1_000_000.0),heartbeatSamples=heartbeatCount,limitations=limitations,
         )
         phase=targetStatus;return true
+    }
+    @Synchronized internal fun recovery(session:SessionToken):TestLabRecovery? {
+        if(token!=session||phase!=LabPhase.RUNNING)return null
+        return TestLabRecovery(type,identity,phase,(offset()?:0).coerceIn(0,DURATION_NS)/1_000_000.0,
+            LabError.entries.filter{errors[it.ordinal]>0}.associateWith{errors[it.ordinal]},timeline.takeLast(64))
     }
     fun latest():TestLabReport?=lastReport
     @Synchronized fun deleteReport(){lastReport=null}

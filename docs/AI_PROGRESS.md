@@ -1,3 +1,6 @@
+# v1165 B3/E1 WIP — 2026-10-26
+Raporty TXT/JSON, rdzeń i Android runtime/recovery:47/47targetedPASS,work/v1165-runtime-wired-tests.log. Jeszcze brak UI/hooków/końcowegoCI/APKv1165; następny krokC/D/F w CODEX_RESUME_V1165.md. Zachować work/ i niezacommitowane poprawki. Bezmerge/subagentów/resetu.
+
 ## 2026-10-24 — ZAVRO v1115, PR #28 — podpisany ARM64 APK
 
 - Naprawiono animację top-toolbar, która ukrywała dolny pasek Compose; odseparowano pomiary viewportu i przeliczanie po rozmiarze dolnego paska.

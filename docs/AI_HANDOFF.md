@@ -1,3 +1,6 @@
+# v1165 B3/E1 WIP — 2026-10-26
+Raporty TXT/JSON, rdzeń i Android runtime/recovery:47/47targetedPASS,work/v1165-runtime-wired-tests.log. Jeszcze brak UI/hooków/końcowegoCI/APKv1165; następny krokC/D/F w CODEX_RESUME_V1165.md. Zachować work/ i niezacommitowane poprawki. Bezmerge/subagentów/resetu.
+
 # Aktualne zadanie — Zavro x MPV v1165 TestLab (WIP)
 
 Baza v1164d890c68/PR77, nowa gałąź feat/zavro-x-mpv-v1165-testlab-diagnostics. [Wznowienie](CODEX_RESUME_V1165.md), [spec i plan](ZAVRO_TESTLAB_METRICS_SPEC.md), [roboczy handoff](ZAVRO_X_MPV_V1165_TESTLAB_HANDOFF.md). GotoweA/B1/B2: pureKotlin silnik/agregatory/kontrakt,31nowych testów; pełnyJUnit307PASS. Androidkolektory/hooki/UI/eksport jeszcze niegotowe, brak APK/PRv1165. KontynuowaćB3, bez powtórnego audytu i bez merge.

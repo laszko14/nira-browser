@@ -1,4 +1,20 @@
-# v1165 TestLab — checkpoint A/B1/B2
+# v1165 — checkpoint B3/E1 (2026-10-26)
+- Gałąź feat/zavro-x-mpv-v1165-testlab-diagnostics, baza d890c68. NIE resetować/untracked work/ zachować, bez subagentów/merge.
+- B1/B2 poprzedni WIP6696111 wypchnięty. Nowy etap B3/E1 obejmuje poniższe pliki, z testami47/47PASS (work/v1165-runtime-wired-tests.log,15s).
+- B3: TestLabReportGenerator — typed JSON/TXT, explicitnull/NOT_TESTED, confidenceorder, wspólnyboundedexport≤256KiB; przycięcie szczegółów zachowuje agregaty/markerrefs.6testów raportu.
+- Engine review RED/GREEN: confirmedinvariant nie ginie po performancenoise; invalidframeavailability/errorcounts; odrzucenie Double.MAX. Batchcount1..100000 bezrowperitem. NanoClockprimitive + frameMeasured bezrecordobiektu zwykłejklatki.
+- E1: TestLabRuntime — dynamic ActivityLifecycleCallbacks/ComponentCallbacks, countdown3s+tick250ms tylko eligible Browser/MPV, detach/rotation/gaps, scopedworker1s, PSS5s/2sresources, CPU/heap/battery/thermal/heartbeat epochguard, JankStats1.0.0 + immutableprimitiveframecopy, passivecounter/windowhooks.
+- Runtime test corrected timing: tickgranularity250ms (testobservesafter3.5s, PREPARINGafter2s); countdownanchoronResume, tickerrealigned. Są testy3lifecycle/counter/cleanup, NIE urządzenie.
+- TestLab façade defaultinactive, no startup hooks. Actualinstalledpackageversion viaPackageManager (ABIversionCode differsBuildConfig). Gateunitconcurrent20starts1winner. Supertest notwiredyet!
+- Recovery opt-in OFF, AtomicFile≤64KiB, typedlast64events,24h/min5s, synchronizedgenerationprevents oldwrites/deletes;2tests. Runtime worker saves; normalfinalize cancels/joinsjob, deletesrecoveryIOthenengine.complete. No globalcrashhandler.
+- Scope: UI, basefilehooki i użytkowydostęp jeszcze NIEGOTOWE. Sevenmodes not yet presented as ready. No finalbuild/lint/deviceoverhead/CI/APKv1165. Gradleversionstill164.
+- NEXT: C rzeczywiste hooki panels/SwipeGestureLayout; tab BrowserStore middleware finalreducer, groupcommit/OrderSave dataStore aftercommit. D safeMPV/Gecko adapters + mutual gateSupertest. F TestLabActivityNiraTheme sevenbuttons/export/recovery UI.
+- Ostatnie fullJUnit poza nowymruntime:307PASS priorB2. Current targeted47PASS. ExistingJS/Lua/DSPnochangessofar, niepowtarzano.
+- Offline Gradle configurationcache potrafił zachować failedmissingAAR z pierwszegoRED: dependenciesarerescached; używać --no-configuration-cache jeśli ten błąd powróci. Online dependencyresolve done; Jankstatssourcesonly work/jankstats-sources.jar (donotcommit).
+- Integrations need regression integrity exactreversiblev1165layer anchored d890c68. Nie podmieniać frozenMPV/Lua hashes.
+- Wymagane final docs/CI/PR/signedARM64:165/1165/alpha71-mpv39,packagecom.prirai.android.nira.mpv/certdf90... unchanged. NiepobieraćsignedAPK.
+
+## Poprzednia mapa / baza
 - Repo /workspace/nira-browser; branch feat/zavro-x-mpv-v1165-testlab-diagnostics, baza d890c68bd15d0f79e25ccd2935fb64ee955286b8/v1164/PR77, bez merge/subagentów.
 - Pełny nowy prompt: /workspace/attachments/5a4fa890-c300-4b93-a4c4-e7e06fee6810/guzikwriting-block (1).md. Użytkownik autoryzuje implementację do signedAPK, bez standardowych pytań, akceptuje wiele sesji.
 - Nie resetować work/ ani niezacommitowanych zmian; zachować logi. Docs ignorowane — force add wskazanych plików.
