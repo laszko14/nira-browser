@@ -55,14 +55,14 @@ test('v1164: protected v1158 MPV, Lua, audio, fullscreen and Room schemas are re
     assert.equal(actual, expected, path);
   }
 });
-test('v1164: verified ARM64 update identity is exact in Gradle, CI and verifier', () => {
+test('v1166: verified ARM64 update identity is exact in Gradle, CI and verifier', () => {
   const gradle = fs.readFileSync('app/build.gradle','utf8');
   const ci = fs.readFileSync('.github/workflows/apk-release.yml','utf8');
-  assert.match(gradle,/versionCode = 164\b/);
-  assert.match(gradle,/versionName = "0\.5\.22-alpha70-mpv38"/);
+  assert.match(gradle,/versionCode = 166\b/);
+  assert.match(gradle,/versionName = "0\.5\.22-alpha72-mpv40"/);
   assert.match(gradle,/applicationId = "com\.prirai\.android\.nira\.mpv"/);
-  assert.match(ci,/EXPECTED_VERSION_CODE: "1164"/);
-  assert.match(ci,/name: zavro-x-mpv-arm64-v1164/);
+  assert.match(ci,/EXPECTED_VERSION_CODE: "1166"/);
+  assert.match(ci,/name: zavro-x-mpv-arm64-v1166/);
   assert.match(ci,/EXPECTED_CERT_SHA256: df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00/);
   assert.match(ci,/bash scripts\/verify-update-apk\.sh/);
   assert.match(fs.readFileSync('scripts/verify-update-apk.sh','utf8'),/apksigner/);
