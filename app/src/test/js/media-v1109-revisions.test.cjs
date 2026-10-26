@@ -42,7 +42,7 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
 
 test("rotating signed HLS URL remains in one group while preserving exact revisions", async () => {
   const d = detector();
-  d.start();
+  await d.start();
   const a = "https://cdn.test/hls/index.m3u8?s=100&t=A";
   const b = "https://cdn.test/hls/index.m3u8?s=243&t=B";
   d.response(a, "a");
@@ -66,7 +66,7 @@ test("inspected HLS children are marked derived and never inherit master query",
       } } };
   };
   const d = detector(fetchManifest);
-  d.start();
+  await d.start();
   d.response("https://cdn.test/master.m3u8?token=old", "old");
   await tick(); await tick();
   assert.equal(d.routed.length, 2);
@@ -87,9 +87,11 @@ test("DASH MPD does not emit BaseURL child as a fake video", async () => {
       } } };
   };
   const d = detector(fetchManifest);
-  d.start();
+  await d.start();
   d.response("https://cdn.test/manifest.mpd", "mpd", "application/dash+xml");
   await tick(); await tick();
-  assert.equal(d.routed.length, 1);
+  assert.equal(d.routed.length, 2);
   assert.equal(d.routed[0].url, "https://cdn.test/manifest.mpd");
+  assert.equal(d.routed[1].url, d.routed[0].url);
+  assert.equal(d.routed[1].verification, "manifest_verified");
 });

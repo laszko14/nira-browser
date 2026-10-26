@@ -32,15 +32,29 @@ internal sealed interface MediaDetectorMessage {
                     val requestSequence: Long? = null) : MediaDetectorMessage {
         override fun toString() = "MediaCandidate(redacted)"
     }
-    class Document(val pageUrl: String, val documentKey: Long) : MediaDetectorMessage {
+    class Document(val pageUrl: String, val documentKey: Long, val frameTracking: Boolean = false) : MediaDetectorMessage {
         override fun toString() = "MediaDocument(redacted)"
     }
+    class Frame(val pageUrl: String, val documentKey: Long, val frameUrl: String,
+                val frameId: Long, val frameKey: Long, val active: Boolean) : MediaDetectorMessage {
+        override fun toString() = "MediaFrame(redacted)"
+    }
+    class DiscoveryStat(val code: String, val count: Int, val documentKey: Long?,
+                        val isPrivate: Boolean?) : MediaDetectorMessage
     data object NetworkProbe : MediaDetectorMessage
     class NetworkUnassigned(val isPrivate: Boolean) : MediaDetectorMessage
     class NetworkSegments(val isPrivate: Boolean, val count: Int) : MediaDetectorMessage
 }
 
 internal object MediaMessageProtocol {
+    internal val discoveryCodes = setOf("scan_elements", "scan_yield", "queue_limit",
+        "duplicate", "native_rejected", "before_play", "after_play", "iframe",
+        "no_source", "no_candidate", "manifest_invalid", "manifest_valid",
+        "frame_mismatch", "unavailable", "drm", "early_request_seen", "early_request_bound",
+        "early_request_expired", "early_request_ambiguous", "frame_registered",
+        "iframe_about_blank", "iframe_srcdoc", "spa_navigation", "player_config_detected",
+        "early_uuid_mismatch", "early_url_context_match", "early_url_mismatch",
+        "early_parent_mismatch", "early_partition_mismatch", "early_after_registration")
     private const val MAX_MESSAGE_BYTES = 16 * 1024
     private const val MAX_URL_BYTES = 8 * 1024
     private val validMime = Regex("[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+(?:\\s*;[ -~]*)?")
@@ -85,6 +99,17 @@ internal object MediaMessageProtocol {
         fun documentKey(): Long? = (fields["documentKey"] as? JsonPrimitive)
             ?.takeIf { !it.isString }?.longOrNull?.takeIf { it in 1..9007199254740991L }
         return when (string("event")) {
+            "discovery_stats" -> {
+                val bound = "documentKey" in fields
+                if (fields.keys != setOf("schemaVersion", "event", "code", "count",
+                        if (bound) "documentKey" else "isPrivate")) return null
+                val code = string("code")?.takeIf { it in discoveryCodes } ?: return null
+                val count = (fields["count"] as? JsonPrimitive)?.takeIf { !it.isString }
+                    ?.intOrNull?.takeIf { it in 1..100000 } ?: return null
+                val key = if (bound) documentKey() ?: return null else null
+                val privateMode = if (!bound) privacy() ?: return null else null
+                MediaDetectorMessage.DiscoveryStat(code, count, key, privateMode)
+            }
             "network_probe" -> if (fields.keys == setOf("schemaVersion", "event"))
                 MediaDetectorMessage.NetworkProbe else null
             "network_unassigned" -> if (fields.keys == setOf("schemaVersion", "event", "isPrivate"))
@@ -96,9 +121,24 @@ internal object MediaMessageProtocol {
                 privacy()?.let { MediaDetectorMessage.NetworkSegments(it, count) }
             }
             "media_document" -> {
-                if (fields.keys != setOf("schemaVersion", "event", "pageUrl", "documentKey")) return null
+                val tracking = "frameTracking" in fields
+                if (fields.keys != setOf("schemaVersion", "event", "pageUrl", "documentKey") +
+                        (if (tracking) setOf("frameTracking") else emptySet())) return null
                 val page = string("pageUrl")?.takeIf(::validUrl) ?: return null
-                MediaDetectorMessage.Document(page, documentKey() ?: return null)
+                val flag = if (tracking) (fields["frameTracking"] as? JsonPrimitive)
+                    ?.takeIf { !it.isString }?.booleanOrNull ?: return null else false
+                MediaDetectorMessage.Document(page, documentKey() ?: return null, flag)
+            }
+            "media_frame" -> {
+                if (fields.keys != setOf("schemaVersion", "event", "pageUrl", "documentKey",
+                        "frameUrl", "frameId", "frameKey", "active")) return null
+                val page = string("pageUrl")?.takeIf(::validUrl) ?: return null
+                val frame = string("frameUrl")?.takeIf { validUrl(it) || it == "about:blank" || it == "about:srcdoc" } ?: return null
+                fun positive(name: String) = (fields[name] as? JsonPrimitive)?.takeIf { !it.isString }
+                    ?.longOrNull?.takeIf { it in 1..9007199254740991L }
+                val active = (fields["active"] as? JsonPrimitive)?.takeIf { !it.isString }?.booleanOrNull ?: return null
+                MediaDetectorMessage.Frame(page, documentKey() ?: return null, frame,
+                    positive("frameId") ?: return null, positive("frameKey") ?: return null, active)
             }
             "media_candidate" -> {
                 val expected = setOf("schemaVersion", "event", "source", "url")
@@ -156,7 +196,9 @@ internal object MediaMessageProtocol {
                 val pageUrl = if (hasDoc) string("pageUrl")?.takeIf(::validUrl) ?: return null else null
                 val key = if (hasDoc) documentKey() ?: return null else null
                 val privateHint = if (source == MediaSource.NETWORK) privacy() ?: return null else null
-                val frameUrl = if (hasFrame) string("frameUrl")?.takeIf(::validUrl) ?: return null else null
+                val frameUrl = if (hasFrame) string("frameUrl")?.takeIf {
+                    validUrl(it) || it == "about:blank" || it == "about:srcdoc"
+                } ?: return null else null
                 val frameKey = if (hasFrame)
                     (fields["frameKey"] as? JsonPrimitive)?.takeIf { !it.isString }
                         ?.longOrNull?.takeIf { it in 1..9007199254740991L } ?: return null

@@ -38,11 +38,20 @@ internal class MediaDetectorController(private val engine: Engine, private val s
                 id = EXTENSION_ID,
                 url = "resource://android/assets/extensions/nira-media-detector/",
                 onSuccess = { extension ->
-                    try { attach(extension) } catch (_: Exception) { diagnostic("attach_failed") }
+
+                    try { attach(extension) } catch (_: Exception) {
+
+                        diagnostic("attach_failed")
+                    }
                 },
-                onError = { MediaDetectorDiagnostics.installFailed(); diagnostic("install_failed") },
+                onError = {
+
+                    MediaDetectorDiagnostics.installFailed()
+                    diagnostic("install_failed")
+                },
             )
         } catch (_: Exception) {
+
             MediaDetectorDiagnostics.installFailed()
             diagnostic("install_failed")
         }
@@ -71,6 +80,10 @@ internal class MediaDetectorController(private val engine: Engine, private val s
                 }
                 val decoded = (message as? JSONObject)?.toString()?.let(MediaMessageProtocol::decode)
                 when (decoded) {
+                    is MediaDetectorMessage.DiscoveryStat -> {
+                        val privateMode = decoded.isPrivate ?: return false
+                        MediaDetectorDiagnostics.discoveryAnonymous(privateMode, decoded.code, decoded.count)
+                    }
                     MediaDetectorMessage.NetworkProbe -> {
                         MediaDetectorDiagnostics.networkProbe()
                         diagnostic("webrequest_callback_received")
@@ -105,7 +118,11 @@ internal class MediaDetectorController(private val engine: Engine, private val s
                         try {
                             extension.registerContentMessageHandler(session, NATIVE_APP, handler(session))
                             attached[session] = Unit
-                        } catch (_: Exception) { diagnostic("session_attach_failed") }
+
+                        } catch (_: Exception) {
+
+                            diagnostic("session_attach_failed")
+                        }
                     }
                 }
             }
@@ -126,12 +143,26 @@ internal class MediaDetectorController(private val engine: Engine, private val s
             val context = tab.binding
             val decoded = (message as? JSONObject)?.toString()?.let(MediaMessageProtocol::decode)
             if (decoded is MediaDetectorMessage.Document) {
-                val result = repository.registerDocument(tab, decoded.pageUrl, decoded.documentKey)
+                val result = repository.registerDocument(tab, decoded.pageUrl, decoded.documentKey, decoded.frameTracking)
                 if (!result.accepted) {
                     MediaDetectorDiagnostics.stale(context)
                     return false
                 }
                 if (result.removed > 0) MediaDetectorDiagnostics.navigationRemoved(context, result.removed)
+                return true
+            }
+            if (decoded is MediaDetectorMessage.Frame) {
+                val accepted = repository.registerFrame(tab, decoded)
+                if (!accepted) MediaDetectorDiagnostics.stale(context)
+                return accepted
+            }
+            if (decoded is MediaDetectorMessage.DiscoveryStat) {
+                val key = decoded.documentKey ?: return false
+                if (!repository.isCurrentDocument(tab, key)) {
+                    MediaDetectorDiagnostics.stale(context)
+                    return false
+                }
+                MediaDetectorDiagnostics.discovery(context, decoded.code, decoded.count)
                 return true
             }
             val candidate = decoded as? MediaDetectorMessage.Candidate
@@ -154,6 +185,7 @@ internal class MediaDetectorController(private val engine: Engine, private val s
             if (window == null || now - window.since >= 5000L) {
                 rate[registeredSession] = Window(now, 1)
             } else if (window.count >= 96) {
+                MediaDetectorDiagnostics.discovery(context, "queue_limit", 1)
                 return false
             } else {
                 window.count++

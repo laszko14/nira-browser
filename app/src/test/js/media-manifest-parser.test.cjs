@@ -70,3 +70,14 @@ test("manifest parsers reject oversized input and unsafe schemes", () => {
   const result = parser.parseHls("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nfile:///secret", "https://cdn.example/a.m3u8", 8);
   assert.equal(result.variants.length, 0);
 });
+
+test('v1163: header-only playlists and broken MPDs fail validation',()=>{
+  assert.throws(()=>parser.parseHls('#EXTM3U\n# comment','https://cdn.test/a.m3u8',8));
+  assert.throws(()=>parser.parseDash('<MPD><Period>','https://cdn.test/a.mpd',8));
+});
+test('v1163: DRM manifests are identified without emitting segment videos',()=>{
+  const hls=parser.parseHls('#EXTM3U\n#EXT-X-KEY:METHOD=SAMPLE-AES,KEYFORMAT="com.apple.streamingkeydelivery",URI="skd://key"\n#EXTINF:6,\na.ts','https://cdn.test/a.m3u8',8);
+  assert.equal(hls.drm,true);
+  const dash=parser.parseDash('<MPD><Period><AdaptationSet><ContentProtection schemeIdUri="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"/></AdaptationSet></Period></MPD>','https://cdn.test/a.mpd',8);
+  assert.equal(dash.drm,true);
+});

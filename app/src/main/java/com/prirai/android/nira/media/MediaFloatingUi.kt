@@ -39,7 +39,7 @@ internal data class MediaUiSnapshot(val tab: MediaTabState, val entries: List<Me
 internal class MediaFloatingUi(
     private val parent: ViewGroup,
     private val current: () -> MediaUiSnapshot?,
-    private val safeToolbarSpace: () -> Pair<Int, Int>,
+    private val safeToolbarSpace: (Rect) -> Pair<Int, Int>,
     private val openVideo: (Long) -> Unit,
 ) {
     private val context = parent.context
@@ -68,8 +68,10 @@ internal class MediaFloatingUi(
     private var displayed: MediaUiSnapshot? = null
     private var sheet: BottomSheetDialog? = null
     private var sheetBody: LinearLayout? = null
-    private var lastWidth = 0
-    private var lastHeight = 0
+    private val placementListener = android.view.ViewTreeObserver.OnPreDrawListener {
+        place()
+        true
+    }
 
     init {
         // Same two-state appearance as the supplied 1DM reference:
@@ -104,16 +106,8 @@ internal class MediaFloatingUi(
         button.addView(count, FrameLayout.LayoutParams(dp(29), dp(29), Gravity.CENTER))
         parent.addView(button, ViewGroup.LayoutParams(size, size))
         button.setOnClickListener { showSheet() }
-        parent.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
-            if (right - left != lastWidth || bottom - top != lastHeight) {
-                lastWidth = right - left
-                lastHeight = bottom - top
-                button.post { place() }
-            } else {
-                button.post { place() }
-            }
-        }
-        button.post { place() }
+        // Chrome visibility/translation and IME insets can change without resizing parent.
+        parent.viewTreeObserver.addOnPreDrawListener(placementListener)
     }
 
     private fun circle(color: Int) = GradientDrawable().apply {
@@ -142,31 +136,36 @@ internal class MediaFloatingUi(
     fun detach() {
         sheet?.dismiss()
         sheet = null
+        if (parent.viewTreeObserver.isAlive) {
+            parent.viewTreeObserver.removeOnPreDrawListener(placementListener)
+        }
         parent.removeView(button)
     }
 
-    private fun bounds(): FloatArray {
+    private fun bounds(): FloatArray? {
         // browserLayout is already bounded by Nira's host activity. Keep within
         // window visible frame (including IME resize/pan) and toolbar reservations.
         val visible = Rect()
         parent.getWindowVisibleDisplayFrame(visible)
         val location = IntArray(2)
         parent.getLocationOnScreen(location)
-        val (topToolbar, bottomToolbar) = safeToolbarSpace()
-        val minY = maxOf(padding, visible.top - location[1] + padding, topToolbar + padding).toFloat()
-        val windowBottom = (visible.bottom - location[1]).coerceAtMost(parent.height)
+        visible.offset(-location[0], -location[1])
+        if (!visible.intersect(0, 0, parent.width, parent.height)) return null
+        val (topToolbar, bottomToolbar) = safeToolbarSpace(visible)
+        val minY = maxOf(padding, visible.top + padding, topToolbar + padding).toFloat()
+        val windowBottom = visible.bottom.coerceAtMost(parent.height)
         val maxY = maxOf(minY, (windowBottom - size - bottomToolbar - padding).toFloat())
-        val minX = padding.toFloat()
-        val maxX = maxOf(minX, (parent.width - size - padding).toFloat())
+        val minX = (visible.left + padding).toFloat()
+        val maxX = maxOf(minX, (visible.right - size - padding).toFloat())
         return floatArrayOf(minX, maxX, minY, maxY)
     }
 
     // Always dock at bottom-right. Never persist or restore finger-dragged offsets.
     private fun place() {
         if (parent.width <= 0 || parent.height <= 0) return
-        val b = bounds()
-        button.translationX = b[1]
-        button.translationY = b[3]
+        val b = bounds() ?: return
+        if (button.x != b[1]) button.x = b[1]
+        if (button.y != b[3]) button.y = b[3]
     }
 
     private fun showSheet() {
@@ -274,7 +273,7 @@ internal class MediaFloatingUi(
         val groups = snapshot.entries.groupBy { it.groupId ?: "url:" + it.url }
         body.addView(label("Wykryte pliki  •  ${groups.size}", 19f, true))
         groups.values.forEachIndexed { index, found ->
-            // Prefer network-confirmed playable URLs; keep the current stream ID for MPV.
+            // Prefer network-confirmed playable URLs; keep the current stream ID until the user chooses an external player.
             val variants = found.sortedWith(
                 compareByDescending<MediaEntry> { MediaSource.NETWORK in it.sources }
                     .thenByDescending { MediaSource.DOM in it.sources }
@@ -361,7 +360,7 @@ internal class MediaFloatingUi(
                 textSize = 28f
                 gravity = Gravity.CENTER
                 setTextColor(if (playable) Color.WHITE else Color.GRAY)
-                contentDescription = "Odtwórz w MPV Alpha"
+                contentDescription = "Otwórz w odtwarzaczu"
                 isEnabled = playable
                 setOnClickListener {
                     val now = current()

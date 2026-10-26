@@ -253,12 +253,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         val overlay = MediaFloatingUi(
             parent = binding.browserLayout,
             current = { if (isAdded) currentMediaSnapshot() else null },
-            safeToolbarSpace = {
-                val height = unifiedToolbar?.getToolbarView()?.height ?: 0
-                if (cachedToolbarPosition ==
-                    com.prirai.android.nira.components.toolbar.ToolbarPosition.BOTTOM.ordinal) {
-                    0 to height
-                } else height to 0
+            safeToolbarSpace = { viewport ->
+                unifiedToolbar?.mediaButtonReservations(binding.browserLayout, viewport) ?: (0 to 0)
             },
             openVideo = { streamId ->
                 // Resolve on click, not when the bottom sheet rendered: the signed URL
