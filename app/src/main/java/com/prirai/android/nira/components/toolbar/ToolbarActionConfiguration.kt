@@ -16,17 +16,25 @@ object ToolbarActionConfiguration {
     fun normalizedHidden(raw: String): Set<String> =
         raw.split(",").filter { it in editableIds }.toSet()
 
-    fun getOrder(prefs: UserPreferences, landscape: Boolean): List<String> =
-        normalizedOrder(if (landscape) prefs.niraToolbarLandscapeActionOrder
-            else prefs.niraToolbarPortraitActionOrder)
+    fun getOrder(prefs: UserPreferences, landscape: Boolean): List<String> {
+        val saved = if (landscape) prefs.niraToolbarLandscapeActionOrder
+            else prefs.niraToolbarPortraitActionOrder
+        // Honor the previous toolbar drag order until a separate orientation is configured.
+        return normalizedOrder(saved.ifBlank { prefs.niraToolbarActionOrder })
+    }
 
     fun getHidden(prefs: UserPreferences, landscape: Boolean): Set<String> =
         normalizedHidden(if (landscape) prefs.niraToolbarLandscapeHiddenActions
             else prefs.niraToolbarPortraitHiddenActions)
 
-    fun getSize(prefs: UserPreferences, landscape: Boolean): Int =
-        (if (landscape) prefs.niraToolbarLandscapeActionSizeDp
-        else prefs.niraToolbarPortraitActionSizeDp).coerceIn(24, 64)
+    fun getSize(prefs: UserPreferences, landscape: Boolean): Int {
+        val key = if (landscape) "nira_toolbar_landscape_action_size_dp"
+            else "nira_toolbar_portrait_action_size_dp"
+        val size = if (!prefs.preferences.contains(key)) prefs.niraToolbarActionSlotDp
+            else if (landscape) prefs.niraToolbarLandscapeActionSizeDp
+            else prefs.niraToolbarPortraitActionSizeDp
+        return size.coerceIn(24, 64)
+    }
 
     fun storeOrder(prefs: UserPreferences, landscape: Boolean, order: List<String>) {
         val safe = normalizedOrder(order.joinToString(",")).joinToString(",")
