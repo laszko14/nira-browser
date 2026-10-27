@@ -130,7 +130,7 @@ object TestLabReportGenerator {
             } ?: appendLine("NOT_MEASURED — kolektor metadanych nie zwrócił snapshotu.")
         }
         if(r.testType in setOf(TestType.FULL_AUDIT,TestType.VIDEO_DISCOVERY,TestType.VIDEO_METADATA)) {
-            appendLine("\\nMEDIA FUNNEL — anonimowe zdarzenia native, bez dowodu poprawności materiału:")
+            appendLine("\nMEDIA FUNNEL — anonimowe zdarzenia native, bez dowodu poprawności materiału:")
             r.mediaFunnel?.let { funnel ->
                 appendLine("Etapy: ${funnel.stages} (CANDIDATE=próby zaakceptowane w repo; DISCOVERED/STORED=unikalne rekordy, także baza sprzed testu)")
                 appendLine("ASSOCIATED=indywidualny tytuł lub miniatura przy rekordzie, bez niezależnego potwierdzenia zgodności filmu.")
