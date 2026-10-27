@@ -18,3 +18,6 @@ Rollback: stop using the isolated `tools/zavro-development-system-stage1-2026102
 
 ## Stage 2 Build Control
 See `docs/dev-system/BUILD_CONTROL_STAGE2.md`. The new controller is read-only, validates both variants and blocks dispatch unconditionally. Execute Node 22 tests with `node --test devtools/tests/build-control.test.mjs`.
+
+## Stage 3 — Ordinary ChatGPT integration
+Connector-triggered GitHub Actions without a new plugin is implemented. See `docs/dev-system/CHATGPT_INTEGRATION_STAGE3.md`. Probe GitHub Actions **40466137395** passed 26/26 Node tests; intentionally invalid build request **40466190188** failed preflight and skipped dispatch. Creating a `devtools/build-requests/<variant>-<sha>.json` file can start a signed ARM64 build: do this ONLY when the human explicitly orders compilation. The build dispatch itself has not yet been exercised.

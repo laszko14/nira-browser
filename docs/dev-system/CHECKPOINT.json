@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
   "project": "Zavro Development System",
-  "last_completed_stage": 2,
-  "current_stage": 2,
-  "stage_state": "COMPLETED",
-  "next_stage": 3,
+  "last_completed_stage": 3,
+  "current_stage": 3,
+  "stage_state": "COMPLETED_WITH_UNTESTED_BUILD_DISPATCH",
+  "next_stage": 4,
   "next_stage_requires": "Dalej",
   "infrastructure_branch": "tools/zavro-development-system-stage1-20261027",
   "baseline_sha": "0823f24eb48e2eefbe38c7616bc1d55e73917b37",
@@ -21,7 +21,7 @@
     "No atomic multi-client dispatch idempotency",
     "Workflow registration GET and real POST must be independently verified in Stage 3"
   ],
-  "resume": "Only after user says Dalej: re-read this checkpoint and live Github SHA. Stage 3 must implement authenticated and lock-safe dispatch; Stage 2 has no POST. Preserve both Android variants.",
+  "resume": "After user says Dalej, verify branch head, docs and target refs, then implement Stage 4 logs/artifacts and test an actual build only upon explicit justified approval. Do not repeat stages 1-3.",
   "verification": {
     "branch_write_verified": true,
     "actual_branch_and_workflow_preflight": "clean+mpv PASSED with authenticated GitHub connector",
@@ -34,5 +34,25 @@
     "android_build_executed": false,
     "workflow_dispatch_executed": false,
     "code_commit_sha": "37fd6f6ce28b474b0c465f31b90324b4dff5756e"
+  },
+  "stage3": {
+    "mode": "connected-GitHub-push-trigger",
+    "probe_workflow": ".github/workflows/zavro-chat-probe.yml",
+    "build_workflow": ".github/workflows/zavro-chat-build.yml",
+    "validator": "devtools/build-request-validator.mjs",
+    "build_dispatch_implemented": true,
+    "build_dispatch_executed": false,
+    "build_apk_executed": false,
+    "latest_clean_pin": "3330a0b3a057008886fde392f788a1941e0dfb84",
+    "mpv_pin": "d63f414acecae84c3507c3f4bb998e690281b91e",
+    "actual_tests": {
+      "first_probe_run": 40465189634,
+      "regression_failure_run": 40466030198,
+      "passing_26_test_run": 40466137395,
+      "negative_denial_run": 40466190188,
+      "security_tests": "26/26 PASS on GitHub",
+      "deny_dispatch_skipped": true
+    },
+    "caveat": "Do not claim working APK dispatch or plugin; only isolated push-trigger and fail-closed denial are directly confirmed."
   }
 }
