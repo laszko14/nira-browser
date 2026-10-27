@@ -1,3 +1,17 @@
+
+
+## 2026-10-27 — Zavro Clean v1180, metadata engine (prace w toku)
+
+- Baza v1179: `856281be65561c4fd54c0b97fd7ba28ca6018f51` (PR #94), niezależna gałąź `feat/zavro-clean-v1180-metadata-engine-20261027` bez merge.
+- Parser DASH: dziedziczenie width/height/fps/kodeków, hierarchiczne BaseURL i okresy; SegmentTemplate/SegmentList nie stają się fałszywymi MP4.
+- Parser HLS: oddzielne peak/average bitrate, FPS i grupy ścieżek; WebExtension przekazuje rozdzielczość 2D i ilość wariantów do walidowanego modelu Android.
+- Miniatury: usunięto bezwarunkowy pierwszy IMG; słabszy kandydat nie zastępuje mocniejszego.
+- Estimate rozmiaru tylko gdy bitrate jawnie oznaczony jako średni; nie stosuj peak bitrate jako średniego.
+- VersionName 0.5.22-alpha85-clean, kod Gradle 180 -> finalne ARM64 versionCode=1180.
+- Testy: nowe testy Node/DASH/HLS i Kotlin walidacji kontraktu; wynik CI i APK do potwierdzenia.
+- Nie ukończono: pełny tryb rozszerzonej diagnostyki strony ZIP, pełny model każdej ścieżki audio/napisów i UI wyboru jakości; nie oznaczać tego jako complete.
+
+---
 # Checkpoint — ZAVRO v1115 (2026-10-24)
 
 - Baza v1114: `feat/zavro-v1114-settings-stability`, stan `281b1bc0e21e1f452641d8ba7ca03071aba8c7fa`.

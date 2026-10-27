@@ -19,6 +19,27 @@ class MediaMessageProtocolTest {
         assertEquals(2500000L, decoded.bitrate)
         assertEquals("avc1.640028,mp4a.40.2", decoded.codecs)
     }
+    @Test fun acceptsAndBoundsStructuredVariantMetadata() {
+        val original = """{"schemaVersion":1,"event":"media_candidate","source":"network",
+          "url":"https://cdn.example/a.m3u8","isPrivate":false,
+          "pageUrl":"https://site.example/watch","documentKey":7,
+          "width":1920,"height":1080,"frameRate":29.97002997,
+          "variantCount":3,"bitrateKind":"average","bitrate":1800000}"""
+        val decoded = MediaMessageProtocol.decode(original) as MediaDetectorMessage.Candidate
+        assertEquals(1920, decoded.width)
+        assertEquals(1080, decoded.height)
+        assertEquals(3, decoded.variantCount)
+        assertEquals("average", decoded.bitrateKind)
+        assertEquals(29.97002997, decoded.frameRate!!, 0.00000001)
+        for (bad in listOf(
+            original.replace("\"width\":1920", "\"width\":0"),
+            original.replace("\"height\":1080", "\"height\":100000"),
+            original.replace("\"frameRate\":29.97002997", "\"frameRate\":300"),
+            original.replace("\"variantCount\":3", "\"variantCount\":1000"),
+            original.replace("\"bitrateKind\":\"average\"", "\"bitrateKind\":\"exact\"")
+        )) assertNull(MediaMessageProtocol.decode(bad))
+    }
+
     private fun message(url: String = "https://example.org/flower.mp4?token=secret") =
         """{"schemaVersion":1,"event":"media_candidate","source":"dom","url":"$url"}"""
 
