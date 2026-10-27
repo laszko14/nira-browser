@@ -68,7 +68,10 @@ jobs:
 
   dispatch:
     needs: preflight
-    if: needs.preflight.result == 'success' && needs.preflight.outputs.status == 'ready'
+    # Stage 8 safety gate: default DISABLED. The repository owner must explicitly set
+    # ZAVRO_ALLOW_SIGNED_BUILD_DISPATCH to ENABLED_BY_REPOSITORY_OWNER before any actual build.
+    # A validated request file alone is not authorization to compile an APK.
+    if: needs.preflight.result == 'success' && needs.preflight.outputs.status == 'ready' && vars.ZAVRO_ALLOW_SIGNED_BUILD_DISPATCH == 'ENABLED_BY_REPOSITORY_OWNER'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
