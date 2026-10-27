@@ -332,7 +332,7 @@
     const owners = Array.from(declarations).filter(node =>
       node.matches && (node.matches(
         "[data-video-url],[data-video-src],[data-hls],[data-mpd],[data-player-config]") ||
-        /\\.(?:mp4|m4v|webm|m3u8|mpd)(?:[?#]|$)/i.test(attribute(node, "href") || "")));
+        /\.(?:mp4|m4v|webm|m3u8|mpd)(?:[?#]|$)/i.test(attribute(node, "href") || "")));
     if (owners.length !== 1) return false;
     return posterOnly || owners[0] === element ||
       typeof owners[0].contains === "function" && owners[0].contains(element);
@@ -374,7 +374,7 @@
     const set = attribute(img, "data-srcset") || attribute(img, "srcset");
     if (typeof set === "string" && set.length <= 2048) {
       for (const candidate of set.split(",").slice(0, 8)) {
-        const value = absolute(candidate.trim().split(/\\s+/)[0]);
+        const value = absolute(candidate.trim().split(/\s+/)[0]);
         if (value) return value;
       }
     }
