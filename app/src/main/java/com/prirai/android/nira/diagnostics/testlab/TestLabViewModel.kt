@@ -58,6 +58,6 @@ internal fun TestType.labInstruction():String=when(this) {
     TestType.TABS_GROUPS->"Otwieraj linki, przełączaj karty, przenoś je między grupami, zmień profil i sprawdź Zamknij → Cofnij."
     TestType.GECKO_PAGES->"Ładuj strony, użyj Wstecz/Dalej, przewijaj i przełączaj karty. Dane kompozytora Gecko są niedostępne."
     TestType.VIDEO_DISCOVERY->"Otwieraj strony z filmami, panel wykrywania oraz Play i menu ⋮. Test rejestruje detekcję i żądania otwarcia zewnętrznego odtwarzacza, a nie jego klatki."
-    TestType.RESOURCES->"Korzystaj normalnie z wielu kart i odtwarzacza. CPU i pamięć dotyczą własnego procesu, bez podprocesów Gecko."
+    TestType.RESOURCES->"Korzystaj z wielu kart i stron WWW. Rejestrujemy pamięć, CPU własnego procesu, opóźnienia Main i częstotliwość ekranu — nie FPS silnika Gecko."
     TestType.STABILITY->"Przełączaj funkcje, obracaj telefon i wracaj z tła. Odczyt historii zakończeń procesu nie dowodzi nowej awarii."
 }
