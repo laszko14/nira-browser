@@ -308,11 +308,16 @@
       const own = absolute(rawPoster);
       if (own) return own;
     }
-    const container = video.closest && video.closest("article,figure,[class*='video'],[class*='player']");
-    const image = container && container.querySelector && container.querySelector("img");
-    const imageSource = image &&
-      (image.currentSrc || image.src || attribute(image, "data-src"));
-    return imageSource ? absolute(imageSource) : null;
+    // Generic first-img lookup can select avatars, adverts or another video.
+    // Only use a single explicitly labelled thumbnail on this video's own card.
+    const scoped = scopedMediaCard(video);
+    if (!scoped?.card) return null;
+    const candidates = scoped.card.querySelectorAll(
+      'img[itemprop="thumbnailUrl"],img[data-poster],img[data-thumbnail],img.video-poster,img.video-thumbnail');
+    if (candidates.length !== 1) return null;
+    const img = candidates[0];
+    return absolute(img.currentSrc || attribute(img, "data-src") ||
+      attribute(img, "data-poster") || attribute(img, "data-thumbnail") || img.src);
   }
   function durationOf(video) {
     const value = video && video.duration;

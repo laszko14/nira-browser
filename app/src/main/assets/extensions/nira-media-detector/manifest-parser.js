@@ -80,7 +80,12 @@ globalThis.NiraManifestParser = (() => {
           variants.push({ url: resolved, width: resolution ? number(resolution[1]) : null,
             height: resolution ? number(resolution[2]) : null,
             bitrate: number(data["AVERAGE-BANDWIDTH"] || data.BANDWIDTH),
-            codecs: data.CODECS || null, audioGroup: data.AUDIO || null });
+            bitrateKind: number(data["AVERAGE-BANDWIDTH"]) ? "average" : "peak",
+            averageBitrate: number(data["AVERAGE-BANDWIDTH"]),
+            peakBitrate: number(data.BANDWIDTH),
+            frameRate: /^(?:\d{1,3})(?:\.\d{1,3})?$/.test(data["FRAME-RATE"] || "") ? Number(data["FRAME-RATE"]) : null,
+            codecs: data.CODECS || null, audioGroup: data.AUDIO || null,
+            subtitleGroup: data.SUBTITLES || null });
         }
       }
     }
@@ -113,53 +118,99 @@ globalThis.NiraManifestParser = (() => {
         return Number.isInteger(value) && value > 0 && value <= 0x10ffff ? String.fromCodePoint(value) : "";
       }) : null;
   }
+  // Bounded XML tree: works in MV2 backgrounds without depending on DOMParser.
+  // A manifest is data, never executable XML (external DTD/entities rejected).
+  function mpdTree(xml) {
+    if (/<!DOCTYPE|<!ENTITY/i.test(xml)) throw new Error("invalid_dash");
+    const tokens = xml.replace(/<!--[\s\S]*?-->/g, "").replace(/<\?[\s\S]*?\?>/g, "")
+      .match(/<[^>]*>|[^<]+/g) || [];
+    if (tokens.length > 15000) throw new Error("invalid_dash");
+    const stack = [];
+    let root = null, count = 0;
+    for (const token of tokens) {
+      if (token.startsWith("</")) {
+        const name = /^<\/([\w:.-]+)\s*>$/.exec(token)?.[1]?.split(":").pop();
+        if (!stack.length || stack.pop().name !== name) throw new Error("invalid_dash");
+      } else if (token.startsWith("<")) {
+        const match = /^<([\w:.-]+)(?:\s[^<>]*)?\/?>$/.exec(token);
+        if (!match || ++count > 5000 || stack.length > 16) throw new Error("invalid_dash");
+        const node = { name: match[1].split(":").pop(), tag: token, text: "", children: [] };
+        if (stack.length) stack[stack.length-1].children.push(node);
+        else if (root) throw new Error("invalid_dash");
+        else root = node;
+        if (!token.endsWith("/>")) stack.push(node);
+      } else if (stack.length && stack[stack.length-1].text.length < 2048)
+        stack[stack.length-1].text += token.slice(0, 2048);
+      else if (!stack.length && token.trim()) throw new Error("invalid_dash");
+    }
+    if (stack.length || root?.name !== "MPD") throw new Error("invalid_dash");
+    return root;
+  }
+  const nodes = (parent, name) => parent.children.filter(node => node.name === name);
+  const first = (parent, name) => nodes(parent, name)[0] || null;
+  const attr = (node, name) => node ? xmlAttr(node.tag, name) : null;
+  const xmlDecode = s => s.replace(/&amp;/gi, "&").replace(/&quot;/gi, '"')
+    .replace(/&apos;/gi, "'").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">");
+  function scopeBase(node, base) {
+    const value = first(node, "BaseURL")?.text?.trim();
+    return value ? url(xmlDecode(value), base) || base : base;
+  }
+  function fps(raw) {
+    const m = /^(\d{1,4})(?:\/(\d{1,4}))?$/.exec(raw || "");
+    if (!m || Number(m[2] || 1) === 0) return null;
+    const n = Number(m[1]) / Number(m[2] || 1);
+    return n > 0 && n <= 240 ? n : null;
+  }
   function parseDash(text, base, limit) {
     limit = bounded(text, limit);
-    const mpd = /<MPD\b[^>]*>/i.exec(text)?.[0];
-    if (!mpd || /<!DOCTYPE|<!ENTITY/i.test(text) ||
-        !(/<\/MPD\s*>\s*$/i.test(text) || /<MPD\b[^>]*\/>\s*$/i.test(text))) throw new Error("invalid_dash");
-    const rootBase = url(textTag(text, "BaseURL") || base, base) || base;
+    const root = mpdTree(text), periods = nodes(root, "Period");
+    if (!periods.length) throw new Error("invalid_dash");
+    const rootBase = scopeBase(root, base);
     const variants = [], audioTracks = [], subtitleTracks = [];
-    const sets = /<AdaptationSet\b[^>]*>[\s\S]*?<\/AdaptationSet>/gi;
-    let set;
-    while ((set = sets.exec(text))) {
-      const setTag = /<AdaptationSet\b[^>]*>/i.exec(set[0])?.[0] || "";
-      const mime = xmlAttr(setTag, "mimeType") || "";
-      const content = xmlAttr(setTag, "contentType") || mime.split("/")[0];
-      const language = xmlAttr(setTag, "lang");
-      const codecs = xmlAttr(setTag, "codecs");
-      const setBaseValue = textTag(set[0].replace(/<Representation\b[\s\S]*?<\/Representation>/gi, ""), "BaseURL");
-      const setBase = setBaseValue ? url(setBaseValue, rootBase) || rootBase : rootBase;
-      const reps = /<Representation\b[^>]*(?:\/>|>[\s\S]*?<\/Representation>)/gi;
-      let rep;
-      while ((rep = reps.exec(set[0]))) {
-        const tag = /<Representation\b[^>]*>/i.exec(rep[0])?.[0] || rep[0];
-        const repBase = textTag(rep[0], "BaseURL");
-        const resolved = repBase ? url(repBase, setBase) : null;
-        const item = { url: resolved, width: number(xmlAttr(tag, "width")),
-          height: number(xmlAttr(tag, "height")), bitrate: number(xmlAttr(tag, "bandwidth")),
-          codecs: xmlAttr(tag, "codecs") || codecs || null, language: language || null };
-        const target = content === "video" ? variants : content === "audio" ? audioTracks :
-          content === "text" || /subtitle/i.test(mime) ? subtitleTracks : null;
-        // SegmentTemplate representations often have no direct BaseURL. Keep
-        // their bitrate as metadata, never claim them as playable MP4 URLs.
-        if (target && target.length < limit) target.push(item);
+    let periodDuration = 0, completeDuration = true;
+    const dynamic = (attr(root, "type") || "").toLowerCase() === "dynamic";
+    for (let periodIndex = 0; periodIndex < periods.length; periodIndex++) {
+      const period = periods[periodIndex];
+      const d = duration(attr(period, "duration"));
+      if (d === null) completeDuration = false; else periodDuration += d;
+      const basePeriod = scopeBase(period, rootBase);
+      const segmentedPeriod = !!(first(period, "SegmentTemplate") || first(period, "SegmentList"));
+      for (const set of nodes(period, "AdaptationSet")) {
+        const baseSet = scopeBase(set, basePeriod);
+        const segmentedSet = segmentedPeriod ||
+          !!(first(set, "SegmentTemplate") || first(set, "SegmentList") || first(set, "SegmentBase"));
+        for (const rep of nodes(set, "Representation")) {
+          const mime = attr(rep, "mimeType") || attr(set, "mimeType") || "";
+          const type = attr(rep, "contentType") || attr(set, "contentType") || mime.split("/")[0];
+          const dest = type === "video" ? variants : type === "audio" ? audioTracks :
+            (type === "text" || /subtitle|ttml|vtt/i.test(mime)) ? subtitleTracks : null;
+          if (!dest || dest.length >= limit) continue;
+          const segmented = segmentedSet ||
+            !!(first(rep, "SegmentTemplate") || first(rep, "SegmentList") || first(rep, "SegmentBase"));
+          const direct = first(rep, "BaseURL")?.text?.trim();
+          const frameRateRaw = attr(rep, "frameRate") || attr(set, "frameRate");
+          dest.push({
+            url: direct && !segmented ? url(xmlDecode(direct), baseSet) : null,
+            width: number(attr(rep, "width") || attr(set, "width")),
+            height: number(attr(rep, "height") || attr(set, "height")),
+            frameRate: fps(frameRateRaw), frameRateRaw: frameRateRaw || null,
+            bitrate: number(attr(rep, "bandwidth") || attr(set, "bandwidth")),
+            bitrateKind: "declared",
+            codecs: attr(rep, "codecs") || attr(set, "codecs") || null,
+            language: attr(rep, "lang") || attr(set, "lang") || null,
+            periodIndex, representationId: attr(rep, "id") || null, segmented
+          });
+        }
       }
     }
-    const dynamic = /\btype\s*=\s*['"]dynamic['"]/i.test(mpd);
-    const periodDurations = [...text.matchAll(/<Period\b[^>]*>/gi)]
-      .map(match => duration(xmlAttr(match[0], "duration")));
-    const totalPeriods = periodDurations.length > 0 && periodDurations.every(value => value !== null)
-      ? periodDurations.reduce((a, b) => a + b, 0) : null;
-    const mediaDuration = duration(xmlAttr(mpd, "mediaPresentationDuration")) || totalPeriods;
-    // Only a single video representation plus at most one audio track can be
-    // combined without guessing which resolution the player selected.
-    const chosenBitrate = variants.length === 1 && audioTracks.length <= 1 &&
-      [variants[0], ...audioTracks].every(item => Number.isSafeInteger(item.bitrate) && item.bitrate > 0)
-      ? variants[0].bitrate + (audioTracks[0]?.bitrate || 0) : null;
+    const rates = [...variants, ...audioTracks];
+    const bitrate = periods.length === 1 && variants.length === 1 &&
+      audioTracks.length <= 1 && rates.every(x => Number.isSafeInteger(x.bitrate) && x.bitrate > 0)
+      ? rates.reduce((a, x) => a + x.bitrate, 0) : null;
     return { protocol: "DASH", drm: /<ContentProtection\b/i.test(text), dynamic,
-      live: dynamic, durationSeconds: dynamic ? null : mediaDuration,
-      bitrate: chosenBitrate, variants, audioTracks, subtitleTracks };
+      live: dynamic, durationSeconds: dynamic ? null :
+        (duration(attr(root, "mediaPresentationDuration")) || (completeDuration ? periodDuration : null)),
+      bitrate, variants, audioTracks, subtitleTracks, periodCount: periods.length };
   }
   return { parseHls, parseDash };
 })();
