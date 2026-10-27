@@ -55,3 +55,5 @@ jobs:
               '## Zavro connector probe: PASS\n\nNo Android build or secrets accessed.\n');
           }
           NODE
+      - name: Run Build Control and bridge security tests (no Android)
+        run: node --test devtools/tests/build-control.test.mjs devtools/tests/build-request-validator.test.mjs
