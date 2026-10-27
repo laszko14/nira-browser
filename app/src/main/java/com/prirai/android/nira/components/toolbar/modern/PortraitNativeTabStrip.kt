@@ -258,7 +258,13 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
             }
         }
         val image = ImageView(context).apply {
-            scaleType = ImageView.ScaleType.FIT_CENTER
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            // Clip the favicon itself, not just the surrounding circular pill.
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.TRANSPARENT)
+            }
+            clipToOutline = true
             contentDescription = "Ikona strony: $title"
         }
         val faviconSize = (size * 0.58f).roundToInt().coerceAtLeast(6)
