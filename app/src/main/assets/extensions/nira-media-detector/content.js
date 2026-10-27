@@ -311,34 +311,46 @@
     }
     return found.size === 1 ? found.values().next().value : null;
   }
-  // Titles are attached only to a single-media card, NEVER a page-wide heading.
-  // The same card is also the group owner for its alternative quality sources.
+  // A valid local media owner is independent of whether its title is known.
+  // This lets an untitled video retain its own poster without borrowing one
+  // from an ancestor gallery, a sibling player, or a cross-origin iframe.
+  const MEDIA_CARDS = "figure,article,li,[data-video-id],[data-media-id]," +
+    ".video-card,.video-item,.video-tile,.video-entry,.media-card,.media-item," +
+    ".video-container,.playlist-item";
+  function mediaCardOwner(card, element, posterOnly = false) {
+    if (!card || !card.querySelectorAll) return false;
+    const players = card.querySelectorAll("video,iframe");
+    if (players.length > 1) return false;
+    if (players.length === 1) {
+      const player = players[0];
+      return posterOnly || element === card || element === player ||
+        typeof player.contains === "function" && player.contains(element) ||
+        typeof element.contains === "function" && element.contains(player);
+    }
+    const declarations = card.querySelectorAll(
+      "[data-video-url],[data-video-src],[data-hls],[data-mpd],[data-player-config],a[href]");
+    const owners = Array.from(declarations).filter(node =>
+      node.matches && (node.matches(
+        "[data-video-url],[data-video-src],[data-hls],[data-mpd],[data-player-config]") ||
+        /\\.(?:mp4|m4v|webm|m3u8|mpd)(?:[?#]|$)/i.test(attribute(node, "href") || "")));
+    if (owners.length !== 1) return false;
+    return posterOnly || owners[0] === element ||
+      typeof owners[0].contains === "function" && owners[0].contains(element);
+  }
+  function ownedMediaCard(element, posterOnly = false) {
+    if (!element || !element.parentElement) return null;
+    for (let card = element, depth = 0; card && depth < 6; card = card.parentElement, depth++) {
+      if (!card.matches || !card.matches(MEDIA_CARDS)) continue;
+      if (mediaCardOwner(card, element, posterOnly)) return card;
+    }
+    return null;
+  }
+  // Individual title matching still requires an unambiguous local caption.
   function scopedMediaCard(element) {
     if (!element || !element.parentElement) return null;
-    const cards = "figure,article,li,[data-video-id],[data-media-id],.video-card,.video-item,.video-tile,.video-entry,.media-card,.media-item,.video-container,.playlist-item";
     for (let card = element, depth = 0; card && depth < 6; card = card.parentElement, depth++) {
-      if (!card.matches || !card.matches(cards) || !card.querySelectorAll) continue;
-      const players = card.querySelectorAll("video,iframe");
-      if (players.length > 1) continue; // Multiple videos: no reliable title owner.
-      if (players.length === 1) {
-        const player = players[0];
-        // A sibling media link is not automatically another quality of the
-        // embedded player; it must not borrow that player's card heading.
-        if (element !== card && element !== player &&
-            !(player.contains && player.contains(element)) &&
-            !(element.contains && element.contains(player))) continue;
-      }
-      if (!players.length) {
-        const declarations = card.querySelectorAll(
-          "[data-video-url],[data-video-src],[data-hls],[data-mpd],[data-player-config],a[href]");
-        // Ignore non-media navigation links, not direct media declarations.
-        const owners = Array.from(declarations).filter(node =>
-          node.matches && (node.matches(
-            "[data-video-url],[data-video-src],[data-hls],[data-mpd],[data-player-config]") ||
-            /\.(?:mp4|m4v|webm|m3u8|mpd)(?:[?#]|$)/i.test(attribute(node, "href") || "")));
-        if (owners.length !== 1 || !owners.some(node =>
-          node === element || typeof node.contains === "function" && node.contains(element))) continue;
-      }
+      if (!card.matches || !card.matches(MEDIA_CARDS) ||
+          !mediaCardOwner(card, element)) continue;
       const title = cardTitle(card);
       if (title) return { title, card };
     }
@@ -347,37 +359,62 @@
   function videoTitle(element) {
     return explicitVideoTitle(element) || scopedMediaCard(element)?.title || null;
   }
-  // A single image inside a verified single-media card may be its poster.
-  // Never take the first image of an unbounded gallery or neighboring card.
+  // Never use arbitrary external images as posters. The fallback requires
+  // exactly one image in the verified media card; otherwise explicit markings.
+  function posterImageUrl(img) {
+    if (!img) return null;
+    for (const name of ["data-poster", "data-thumbnail", "data-thumb",
+      "data-original", "data-lazy-src", "data-src"]) {
+      const value = absolute(attribute(img, name));
+      if (value) return value;
+    }
+    // currentSrc resolves ordinary srcset; lazy srcset can exist pre-load.
+    const current = absolute(img.currentSrc);
+    if (current) return current;
+    const set = attribute(img, "data-srcset") || attribute(img, "srcset");
+    if (typeof set === "string" && set.length <= 2048) {
+      for (const candidate of set.split(",").slice(0, 8)) {
+        const value = absolute(candidate.trim().split(/\\s+/)[0]);
+        if (value) return value;
+      }
+    }
+    return absolute(img.src);
+  }
   function singleCardPoster(card) {
     if (!card || typeof card.querySelectorAll !== "function") return null;
     const images = card.querySelectorAll("img");
     if (images.length !== 1) return null;
-    const img = images[0];
-    return absolute(attribute(img, "data-poster") || attribute(img, "data-thumbnail") ||
-      attribute(img, "data-src") || img.currentSrc || img.src);
+    return posterImageUrl(images[0]);
+  }
+  function posterForCard(card) {
+    if (!card) return null;
+    // Explicit poster/thumbnail data on the one-media card outranks unrelated
+    // site images and is usable even before the image element lazy-loads.
+    for (const name of ["data-poster", "data-thumbnail", "data-thumb"]) {
+      const value = absolute(attribute(card, name));
+      if (value) return value;
+    }
+    const explicit = card.querySelectorAll(
+      'img[itemprop="thumbnailUrl"],img[data-poster],img[data-thumbnail],' +
+      'img[data-thumb],img.video-poster,img.video-thumbnail,img.poster,img.thumbnail');
+    if (explicit.length > 16) return null;
+    const urls = new Set();
+    for (const img of explicit) {
+      const url = posterImageUrl(img);
+      if (url) urls.add(url);
+      if (urls.size > 1) return null; // Multiple unrelated thumbnails.
+    }
+    if (urls.size === 1) return urls.values().next().value;
+    return explicit.length ? null : singleCardPoster(card);
   }
   function posterFor(video) {
     if (!video) return null;
     const rawPoster = video.poster || attribute(video, "poster") ||
       attribute(video, "data-poster");
-    if (rawPoster) {
-      const own = absolute(rawPoster);
-      if (own) return own;
-    }
-    // Generic first-img lookup can select avatars, adverts or another video.
-    // Only use a single explicitly labelled thumbnail on this video's own card.
-    const scoped = scopedMediaCard(video);
-    if (!scoped?.card) return null;
-    const candidates = scoped.card.querySelectorAll(
-      'img[itemprop="thumbnailUrl"],img[data-poster],img[data-thumbnail],img.video-poster,img.video-thumbnail');
-    if (candidates.length === 1) {
-      const img = candidates[0];
-      return absolute(img.currentSrc || attribute(img, "data-src") ||
-        attribute(img, "data-poster") || attribute(img, "data-thumbnail") || img.src);
-    }
-    if (candidates.length > 1) return null;
-    return singleCardPoster(scoped.card);
+    const own = absolute(rawPoster);
+    if (own) return own;
+    // Title-independent: an untitled video still has a verified local owner.
+    return posterForCard(ownedMediaCard(video));
   }
   function durationOf(video) {
     const value = video && video.duration;
@@ -573,14 +610,16 @@
       // MIME hint. Avoid walking cards and allocating groups for navigation.
       if (!href || !/\.(?:mp4|m4v|webm|ogv|ogg|mov|m3u8|mpd)(?:[?#]|$)/i.test(href)) return;
       const scoped = scopedMediaCard(element);
+      const posterCard = ownedMediaCard(element);
       const directTitle = mediaTitleHint(element.textContent);
       const title = directTitle || scoped?.title || null;
       submit(href, "page", null, groupFor(scoped?.card || element),
         title, title ? (directTitle ? "link" : "video") : null,
-        null, singleCardPoster(scoped?.card || element));
+        null, posterForCard(posterCard));
     });
     scanCollection("[data-video-url],[data-video-src],[data-hls],[data-mpd],[data-src],[data-plyr-source],[data-file],[data-stream-url],[data-playback-url],[data-manifest-url],[data-source-url],[data-mp4],[data-m3u8],[data-stream]", element => {
       const scoped = scopedMediaCard(element);
+      const posterCard = ownedMediaCard(element);
       const named = explicitVideoTitle(element) || scoped?.title || null;
       for (const name of ["data-video-url", "data-video-src", "data-hls",
         "data-mpd", "data-src", "data-plyr-source", "data-file", "data-stream-url",
@@ -592,7 +631,7 @@
             name === "data-mpd" ? "application/dash+xml" : null), groupFor(scoped?.card || element),
           named, named ? (explicitVideoTitle(element) ? "player" : "video") : null,
           null, absolute(attribute(element, "data-poster") || attribute(element, "data-thumbnail")) ||
-            singleCardPoster(scoped?.card));
+            posterForCard(posterCard));
       }
     });
     scanCollection('meta[property^="og:video"],meta[name="twitter:player:stream"]', element => {
@@ -604,6 +643,23 @@
           return document.querySelector && attribute(document.querySelector(selector) || {}, "content");
         })());
     });
+  }
+  // JSON-LD/player config thumbnail: one unambiguous URL or a single
+  // ImageObject. Multiple distinct options are not a verified poster choice.
+  function mediaThumbnail(value) {
+    let options = Array.isArray(value) ? value.slice(0, 8) : [value];
+    if (Array.isArray(value) && value.length > 8) return null;
+    const distinct = new Set();
+    for (const item of options) {
+      const raw = typeof item === "string" ? item :
+        item && typeof item === "object" && !Array.isArray(item) &&
+        (item["@type"] === "ImageObject" || !item["@type"]) ?
+          (typeof item.url === "string" ? item.url : item.contentUrl) : null;
+      const url = absolute(raw);
+      if (url) distinct.add(url);
+      if (distinct.size > 1) return null;
+    }
+    return distinct.size === 1 ? distinct.values().next().value : null;
   }
   // Weakly tied to the script element and exact listed media URLs, not a
   // title, index or host. Repeated scans cannot create a new variant group.
@@ -645,7 +701,8 @@
           // is a document/player location, never assumed to be a stream URL.
           const urls = [...new Set(sources.map(absolute).filter(Boolean))].slice(0, 9);
           const group = structuredGroup(element, urls);
-          const poster = typeof node.thumbnailUrl === "string" ? node.thumbnailUrl : null;
+          const poster = mediaThumbnail(node.thumbnailUrl) ||
+            mediaThumbnail(node.thumbnail) || mediaThumbnail(node.image);
           for (const url of urls) submit(url, "page", null, group,
             name, name ? "structured" : null, null, poster);
         }
@@ -772,8 +829,8 @@
       const group = (!independent && parentGroup) ||
         (["sources", "renditions", "variants", "encodings"].some(key =>
           Array.isArray(node[key])) ? groupFor(node) : null);
-      const poster = (typeof node.poster === "string" ? node.poster :
-        (typeof node.thumbnailUrl === "string" ? node.thumbnailUrl : null)) ||
+      const poster = mediaThumbnail(node.poster) ||
+        mediaThumbnail(node.thumbnailUrl) || mediaThumbnail(node.image) ||
         (!independent ? parentPoster : null);
       const mime = typeof node.type === "string" ? node.type :
         (typeof node.mimeType === "string" ? node.mimeType : null);
@@ -942,6 +999,12 @@
     }
     return owners === 1 ? card : null;
   }
+  function posterMutationRoot(element) {
+    const target = element && element.closest &&
+      element.closest("img,picture,[data-poster],[data-thumbnail],[data-thumb]");
+    if (!target) return null;
+    return ownedMediaCard(target, true);
+  }
   function scheduleScan(records) {
     // Observe the changed subtree, including source/script parent changes.
     if (Array.isArray(records) && records.length) {
@@ -952,6 +1015,8 @@
         if (changedScript) { scriptVersions.delete(changedScript); structuredVersions.delete(changedScript); }
         const titleCard = titleMutationRoot(changed);
         if (titleCard) enqueueRoot(titleCard);
+        const posterCard = posterMutationRoot(changed);
+        if (posterCard) enqueueRoot(posterCard);
         if (record.type === "attributes" || record.type === "characterData") {
           const element = target.nodeType === 3 ? target.parentElement : target;
           enqueueRoot(element && element.closest && element.closest("video,script") || element);
@@ -960,6 +1025,8 @@
           const added = node.nodeType === 3 ? node.parentElement : node;
           const card = titleMutationRoot(added);
           if (card) enqueueRoot(card);
+          const posterCard = posterMutationRoot(added);
+          if (posterCard) enqueueRoot(posterCard);
           enqueueRoot(added);
         }
       }
@@ -981,7 +1048,8 @@
   const observer = new MutationObserver(scheduleScan);
   const observerOptions = { childList: true, subtree: true, attributes: true, characterData: true,
     attributeFilter: ["src", "srcdoc", "type", "content", "href", "title", "aria-label",
-      "data-title", "data-video-title", "data-poster", "data-thumbnail", "poster",
+      "data-title", "data-video-title", "data-poster", "data-thumbnail", "data-thumb",
+      "data-original", "data-lazy-src", "data-srcset", "srcset", "poster",
       "data-src", "data-video-url", "data-video-src",
       "data-hls", "data-mpd", "data-plyr-source", "data-playback-url", "data-manifest-url",
       "data-source-url", "data-mp4", "data-m3u8", "data-stream", "data-config",
