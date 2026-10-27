@@ -121,7 +121,7 @@ private object SideDrawerPalette {
  * H is the measured row height; gaps outside LazyColumn items do not count.
  * Text keeps usable sp sizes and the subtitle disappears if two lines do not fit.
  */
-private data class SideDrawerRowGeometry(
+internal data class SideDrawerRowGeometry(
     val height: Dp,
     val radius: Dp,
     val accent: Dp,
@@ -137,7 +137,7 @@ private data class SideDrawerRowGeometry(
     val showSubtitle: Boolean
 )
 
-private object SideDrawerHeight {
+internal object SideDrawerHeight {
     const val MIN = 24
     const val MAX = 112
     const val STEP = 2
