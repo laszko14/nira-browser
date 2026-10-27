@@ -153,15 +153,17 @@ internal class MediaRepository(
                 } else "HTML5"
             }
             if (candidate.source == MediaSource.NETWORK &&
-                format !in setOf(MediaFormat.HLS, MediaFormat.DASH) &&
+                (format !in setOf(MediaFormat.HLS, MediaFormat.DASH) ||
+                  format == MediaFormat.HLS && candidate.verification == "manifest_verified") &&
                 candidate.sizeBytes != null) {
                 sizeBytes = candidate.sizeBytes
                 sizeEstimated = false
-                sizeOrigin = "HTTP_LENGTH"
+                sizeOrigin = if (format == MediaFormat.HLS) "HLS_BYTERANGE" else "HTTP_LENGTH"
             }
             if (candidate.quality != null) quality = candidate.quality
             if (candidate.bitrate != null) bitrate = candidate.bitrate
-            if (!isLive && format in setOf(MediaFormat.HLS, MediaFormat.DASH) &&
+            if (!isLive && (sizeBytes == null || sizeEstimated) &&
+                format in setOf(MediaFormat.HLS, MediaFormat.DASH) &&
                 durationSeconds != null && bitrate != null) {
                 val estimate = bitrate!! * durationSeconds!!.toLong() / 8L
                 if (estimate in 1L..1_000_000_000_000L) {
