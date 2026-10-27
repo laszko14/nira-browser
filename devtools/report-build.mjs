@@ -51,8 +51,11 @@ export function buildReport({run,jobs,artifacts,config,variant,logs={}}){
  assert(variant==='clean'||variant==='mpv','INVALID_VARIANT');
  const t=config.targets?.[variant];
  assert(t&&SHA.test(t.pinned_sha)&&CERT.test(t.certificate_sha256)&&safeInt(t.version_code),'INVALID_TARGET');
- assert(run&&safeInt(run.id)&&run.head_sha===t.pinned_sha&&run.head_branch===t.branch&&run.name==='Android CI','RUN_PROVENANCE_MISMATCH');
- assert(run.workflow_id===392221495&&run.event!=='push','WORKFLOW_UNRECOGNIZED');
+ assert(run&&safeInt(run.id)&&run.head_sha===t.pinned_sha&&run.name==='Android CI','RUN_PROVENANCE_MISMATCH');
+ const isPR=run.event==='pull_request'&&run.head_branch===t.branch;
+ const isPinnedTag=run.event==='workflow_dispatch'&&run.head_branch==='zavro-build-'+variant+'-'+run.head_sha;
+ assert(isPR||isPinnedTag,'RUN_PROVENANCE_MISMATCH');
+ assert(run.workflow_id===392221495,'WORKFLOW_UNRECOGNIZED');
  assert(run.head_repository?.id===undefined||run.head_repository?.id===1428971613,'REPO_MISMATCH');
  assert(run.status==='completed'||['queued','in_progress','requested','waiting','pending'].includes(run.status),'RUN_STATUS_UNKNOWN');
  assert(Array.isArray(jobs)&&Array.isArray(artifacts),'INVALID_COLLECTION');
@@ -81,7 +84,7 @@ export function buildReport({run,jobs,artifacts,config,variant,logs={}}){
  const state=artifact?'CI_VERIFIED_APK_ARTIFACT':runOK?'VERIFICATION_REQUIRED':done?'FAILED_OR_INCOMPLETE':'RUNNING';
  return {schema_version:1,variant,run_id:run.id,commit_sha:run.head_sha,branch:run.head_branch,
   run_url:'https://github.com/'+REPO+'/actions/runs/'+run.id,status:run.status,conclusion:run.conclusion??null,
-  run_attempt:run.run_attempt??null,version_code:t.version_code,version_name:t.version_name,package:t.package,abi:'arm64-v8a',
+  run_attempt:run.run_attempt??null,run_source:isPinnedTag?'PINNED_DISPATCH_TAG':'PULL_REQUEST',version_code:t.version_code,version_name:t.version_name,package:t.package,abi:'arm64-v8a',
   expected_certificate_sha256:t.certificate_sha256,jobs:mapping,failures,state,issues,artifact_observed:candidate,
   ci_verified_log_observed:ciVerified,independently_inspected_apk_bytes:false,artifact,build_started_by_reporter:false};
 }
