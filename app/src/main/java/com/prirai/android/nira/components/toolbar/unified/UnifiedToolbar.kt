@@ -638,11 +638,23 @@ class UnifiedToolbar @JvmOverloads constructor(
         // indicator (with its security callbacks) as an invisible child for long-press.
         // The outer wrapper keeps its original ConstraintLayout id and geometry, so
         // the URL starts after the new count instead of leaving a gap outside the pill.
-        val securityId = mozilla.components.browser.toolbar.R.id.mozac_browser_toolbar_security_indicator
-        val originalIndicator = toolbar.asView().findViewById<View>(securityId)
+        // AC versions differ in whether the security-indicator resource id is public.
+        // Locate its concrete view instead of depending on an unstable library R symbol.
+        fun findSecurityIcon(root: View): View? {
+            if (root.javaClass.simpleName == "SiteSecurityIconView") return root
+            if (root is ViewGroup) {
+                for (i in 0 until root.childCount) {
+                    val found = findSecurityIcon(root.getChildAt(i))
+                    if (found != null) return found
+                }
+            }
+            return null
+        }
+        val originalIndicator = findSecurityIcon(toolbar.asView())
         val indicatorParent = originalIndicator?.parent as? ViewGroup
         if (originalIndicator != null && indicatorParent != null) {
             val position = indicatorParent.indexOfChild(originalIndicator)
+            val securityId = originalIndicator.id
             val oldParams = originalIndicator.layoutParams
             indicatorParent.removeView(originalIndicator)
             originalIndicator.id = View.NO_ID
