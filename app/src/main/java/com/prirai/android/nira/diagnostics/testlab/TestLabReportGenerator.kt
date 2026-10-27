@@ -113,6 +113,10 @@ object TestLabReportGenerator {
             r.videoMetadata?.let { v ->
                 appendLine("Źródła=${v.observedSources}; czas znany=${v.durationKnown}; czas nieznany=${v.durationUnknown}; LIVE=${v.live}")
                 appendLine("Rozmiar dokładny=${v.sizeExact}; szacowany=${v.sizeEstimated}; nieznany=${v.sizeUnknown}")
+                appendLine("Tytuły powiązane=${v.titlesAssociated}; fallback=${v.titlesFallback}; konflikty=${v.titleConflicts}")
+                appendLine("Miniatury przypisane=${v.postersAssociated}; rozdzielczość znana=${v.resolutionKnown}; jakość znana=${v.qualityKnown}; z samej rozdzielczości=${v.qualityDerived}")
+                appendLine("FPS=${v.fpsKnown}; kodeki=${v.codecsKnown}; bitrate=${v.bitrateKnown}; wiele wariantów=${v.variantsKnown}")
+                appendLine("Miniatura przypisana nie oznacza załadowanej miniatury; jakość z rozdzielczości nie potwierdza przełączania wariantów.")
                 appendLine("Kafelki w otwartym panelu=${v.uiDisplayed}; aktualizacje=${v.updates}; nawigacje=${v.navigations}; limit ewidencji=${v.droppedSources}")
                 v.examples.forEach {
                     appendLine("Film #${it.film} | format=${it.format} | czas=${it.durationSeconds ?: "BRAK"} s (${it.durationStatus}/${it.durationSource}) | rozmiar=${it.sizeBytes ?: "BRAK"} B (${it.sizeStatus}/${it.sizeSource}) | panel=${it.uiDisplayed} | aktualizacje=${it.updates}")

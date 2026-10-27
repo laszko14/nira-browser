@@ -117,6 +117,20 @@ function page() {
     onNetwork: (msg, from = { id: "detector" }) => networkReceiver(msg, from) };
 }
 
+test("v1181: encoded individual titles are decoded without changing signed source URL", async () => {
+  const p = page();
+  const url = "https://cdn.example.org/movie%2Fpart.mp4?token=a%2Fb";
+  const video = new p.HTMLVideoElement(url, "video/mp4", false);
+  video.getAttribute = key => key === "data-video-title" ?
+    "Scena &#8211; zwiastun %E2%80%93 odcinek &amp; dodatki" : null;
+  p.videos.push(video);
+  await p.fire("loadedmetadata", video);
+  assert.equal(p.native.length, 1);
+  assert.equal(p.native[0][1].title, "Scena – zwiastun – odcinek & dodatki");
+  assert.equal(p.native[0][1].titleKind, "player");
+  assert.equal(p.native[0][1].url, url);
+});
+
 test("background validates without changing signed URLs or trusting supplied IDs", async () => {
   const { receive } = background();
   const message = candidate("https://example.org/flower.mp4?signature=secret");

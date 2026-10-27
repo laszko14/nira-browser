@@ -127,4 +127,11 @@ data class OperationToken internal constructor(internal val session:Long,interna
     val sizeUnknown: Int, val uiDisplayed: Int, val updates: Int,
     val navigations: Int, val droppedSources: Int,
     val examples: List<VideoMetadataFilm>,
+    // Anonymous presence counters, not proof that a thumbnail loaded or a quality is playable.
+    val titlesAssociated: Int = 0, val titlesFallback: Int = 0,
+    val titleConflicts: Int = 0, val postersAssociated: Int = 0,
+    val resolutionKnown: Int = 0, val qualityKnown: Int = 0,
+    val qualityDerived: Int = 0, val fpsKnown: Int = 0,
+    val codecsKnown: Int = 0, val bitrateKnown: Int = 0,
+    val variantsKnown: Int = 0,
 )
