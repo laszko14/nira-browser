@@ -160,6 +160,9 @@ export async function progress(request,config,{load=async()=>null,save=async()=>
   if(action==='INSPECT')evidence=await inspect();
   if(action==='PREPARE')evidence={implementation_applied:false,isolation_only:true,branch_plan:'tools/zavro-isolated-'+request.variant+'-'+request.sha.slice(0,12)};
   if(action==='VERIFY_TEST'){
+   // Scope-check before any remote read or historical JS verification; never invent missing Kotlin evidence.
+   const necessary=chooseTests(request.changed_files,request.variant,config).tasks;
+   guard(necessary.length===1&&necessary[0]==='js','REQUIRES_ADDITIONAL_TESTS');
    // Check current HEAD and signed CI configuration before accepting old test evidence.
    const a=await audit();
    guard(a.sha===request.sha&&a.static_audit==='PASS'&&a.android_compilation_executed===false,'TARGET_AUDIT_FAILED');
