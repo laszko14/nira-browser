@@ -196,6 +196,7 @@ function stage3Harness() {
     location: {href:"https://site.example/list"},
     MAX_SCRIPT_CHARS:48000,
     structuredGroups: new WeakMap(),
+    structuredVersions: new WeakSet(),
     attribute: (el, key) => el.getAttribute(key),
     scanCollection: (selector, callback) => {
       if (selector === 'script[type="application/ld+json"]')
@@ -271,6 +272,10 @@ test("JSON-LD quality variants get one stable, object-specific group", () => {
   assert.ok(h.submitted.slice(0,3).every(v=>v.group===gA && v.title==="Film A"));
   assert.ok(h.submitted.slice(3).every(v=>v.group===gB && v.title==="Film B"));
   h.scanStructured();
+  assert.equal(h.submitted.length, 5); // unchanged scripts are not reparsed
+  // A real MutationObserver clears this cache when the script changes.
+  h.runtime.structuredVersions.delete(h.scripts[0]);
+  h.scanStructured();
   assert.equal(h.submitted.length, 10);
   assert.ok(h.submitted.slice(5,8).every(v=>v.group===gA));
   assert.ok(h.submitted.slice(8).every(v=>v.group===gB));
@@ -305,5 +310,18 @@ test("oversized or broken JSON-LD does not create a title", () => {
   h.scripts.push(new Element("script", {}, "", "{broken}"));
   h.scripts.push(new Element("script", {}, "", " ".repeat(48001)));
   h.scanStructured();
+  assert.equal(h.submitted.length, 0);
+});
+
+
+test("ordinary site navigation links bypass expensive media card matching", () => {
+  const h = stage3Harness();
+  const card = new Element("li");
+  card.add(new Element("h3", {}, "", "Film A"));
+  const nonMedia = card.add(new Element("a", {href:"https://site.example/category"}, "", "Category"));
+  // The guard must return before trying to read any ancestor or make groups.
+  nonMedia.parentElement = {getAttribute: () => {throw Error("unexpected card walk");}};
+  h.links.push(nonMedia);
+  h.scanLinks();
   assert.equal(h.submitted.length, 0);
 });
