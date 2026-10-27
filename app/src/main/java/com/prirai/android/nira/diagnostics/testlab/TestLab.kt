@@ -64,9 +64,6 @@ internal object TestLab {
         if(delta>0){capture.note(code,count=delta.coerceAtMost(100_000L).toInt());if(delta>100_000L)capture.error(LabError.EVENT_LIMIT)}
     }
     fun geckoError(owner:Any){runtime?.browserObserver?.error(owner)}
-    fun mediaTrace(code:String,owner:Any?){runtime?.mediaObserver?.trace(code,owner)}
-    fun mediaPosition(owner:Any?,position:Double){runtime?.mediaObserver?.position(owner,position)}
-    fun mediaSpeed(owner:Any?,speed:Double){runtime?.mediaObserver?.speed(owner,speed)}
     fun discovery(code:String,count:Int){runtime?.mediaObserver?.discovery(code,count)}
     fun browserObserver():TestLabBrowserObserver?=runtime?.browserObserver
     fun stop(){runtime?.stop()}

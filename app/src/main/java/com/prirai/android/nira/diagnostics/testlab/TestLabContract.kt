@@ -4,12 +4,12 @@ import kotlinx.serialization.Serializable
 
 @Serializable enum class LabDomain { UI, PANELS, TABS, GECKO, VIDEO, RESOURCES, STABILITY }
 @Serializable enum class TestType {
-    COMPLEX, PANELS_GESTURES, TABS_GROUPS, GECKO_PAGES, VIDEO_MPV, RESOURCES, STABILITY;
+    COMPLEX, PANELS_GESTURES, TABS_GROUPS, GECKO_PAGES, VIDEO_DISCOVERY, RESOURCES, STABILITY;
     fun includes(domain: LabDomain): Boolean = domain==LabDomain.UI || this==COMPLEX || when(this) {
         PANELS_GESTURES->domain==LabDomain.PANELS
         TABS_GROUPS->domain==LabDomain.TABS
         GECKO_PAGES->domain==LabDomain.GECKO
-        VIDEO_MPV->domain==LabDomain.VIDEO
+        VIDEO_DISCOVERY->domain==LabDomain.VIDEO
         RESOURCES->domain==LabDomain.RESOURCES
         STABILITY->domain==LabDomain.STABILITY
         COMPLEX->true
@@ -32,7 +32,7 @@ import kotlinx.serialization.Serializable
     TAB_SWITCH(LabDomain.TABS), TAB_CLOSE(LabDomain.TABS), TAB_UNDO(LabDomain.TABS), TAB_MOVE(LabDomain.TABS),
     ORDER_SAVE(LabDomain.TABS), PROFILE_SWITCH(LabDomain.TABS), PRIVATE_SWITCH(LabDomain.TABS), SESSION_RESTORE(LabDomain.TABS),
     PAGE_LOAD(LabDomain.GECKO), HISTORY_NAVIGATION(LabDomain.GECKO), PAGE_SCROLL(LabDomain.GECKO),
-    HANDOFF_ACK(LabDomain.VIDEO), MPV_PLAYBACK(LabDomain.VIDEO), MPV_INLINE(LabDomain.VIDEO), MPV_FULLSCREEN(LabDomain.VIDEO),
+    HANDOFF_ACK(LabDomain.VIDEO), VIDEO_PANEL(LabDomain.VIDEO), VIDEO_EXTERNAL_OPEN(LabDomain.VIDEO), VIDEO_MENU(LabDomain.VIDEO),
     TOOLBAR_HIDE(LabDomain.UI), TOOLBAR_SHOW(LabDomain.UI), TOOLBAR_MINIMIZE(LabDomain.UI), TOOLBAR_RESTORE(LabDomain.UI), MENU_OPEN(LabDomain.UI), FAB_OPEN(LabDomain.UI),
     ORIENTATION_CHANGE(LabDomain.UI), KEYBOARD_CHANGE(LabDomain.UI);
     val tag:String = name.lowercase(java.util.Locale.ROOT)
@@ -57,7 +57,7 @@ import kotlinx.serialization.Serializable
     MPV_START_FILE, MPV_FILE_LOADED, MPV_PLAYBACK_STARTED, MPV_CACHE_WAIT, MPV_CACHE_RESUME,
     MPV_RETRY, MPV_HTTP_ERROR, MPV_TLS_ERROR, MPV_POSITION_CHANGE, MPV_SPEED_CHANGE,
     MPV_INLINE, MPV_FULLSCREEN, MPV_RETURN, MPV_UNEXPECTED_RELOAD, AUDIO_FOCUS_FAILED,
-    LUA_ERROR, DSP_ERROR, MEMORY_TRIM, ORIENTATION_CHANGED, REFRESH_RATE_CHANGED,
+    LUA_ERROR, DSP_ERROR, MEMORY_TRIM, ORIENTATION_CHANGED, REFRESH_RATE_CHANGED, VIDEO_PANEL_OPEN, VIDEO_MENU_OPEN, VIDEO_EXTERNAL_REQUEST,
     KEYBOARD_SHOWN, KEYBOARD_HIDDEN, STABILITY_ERROR, PROCESS_EXIT, PROCESS_EXIT_STATUS, PROCESS_EXIT_HISTORY_READ,
 }
 @Serializable enum class LabError { INSTRUMENTATION_PROTOCOL, INVALID_SAMPLE, OPERATION_TIMEOUT, OPERATION_FAILED, COLLECTOR_FAILURE, EVENT_LIMIT, OPERATION_LIMIT }
@@ -71,14 +71,16 @@ data class OperationToken internal constructor(internal val session:Long,interna
     init {
         require(versionCode>0)
         require(versionName.length in 1..64) { "App version too long" }
-        require(Regex("[0-9]+(?:\\.[0-9]+){1,3}-alpha[0-9]+-mpv[0-9]+").matches(versionName)) { "Unsupported app version format" }
+        require(Regex("[0-9]+(?:\\.[0-9]+){1,3}-alpha[0-9]+-clean").matches(versionName)) { "Unsupported app version format" }
     }
 }
-@Serializable data class LabEnvironment(val apiLevel:Int?=null,val logicalProcessors:Int?=null,val refreshRatesHz:List<Double> = emptyList()) {
+@Serializable data class LabEnvironment(val apiLevel:Int?=null,val logicalProcessors:Int?=null,val refreshRatesHz:List<Double> = emptyList(),val currentRefreshHz:Double?=null,val requestedRefreshHz:Double?=null) {
     init {
         require(apiLevel==null||apiLevel in 21..200)
         require(logicalProcessors==null||logicalProcessors in 1..1024)
         require(refreshRatesHz.size<=16 && refreshRatesHz.all{it.isFinite()&&it in 1.0..1000.0})
+        require(currentRefreshHz==null || currentRefreshHz.isFinite()&&currentRefreshHz in 1.0..1000.0)
+        require(requestedRefreshHz==null || requestedRefreshHz.isFinite()&&requestedRefreshHz in 1.0..1000.0)
     }
 }
 @Serializable data class LabEvent(val serial:Long,val offsetNanos:Long,val code:LabCode,val operation:LabOperation?=null,val value:Double?=null,val operationTags:List<LabOperation> = emptyList(),val count:Int=1)

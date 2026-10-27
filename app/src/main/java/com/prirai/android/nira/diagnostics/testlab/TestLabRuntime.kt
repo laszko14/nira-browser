@@ -21,7 +21,6 @@ import androidx.metrics.performance.FrameDataApi31
 import androidx.metrics.performance.JankStats
 import androidx.metrics.performance.PerformanceMetricsState
 import com.prirai.android.nira.BrowserActivity
-import com.prirai.android.nira.media.ZavroMpvActivity
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,7 +30,7 @@ import java.util.IdentityHashMap
 internal class TestLabRuntime(
     private val app: Application,
     val engine: TestLabEngine,
-    private val eligible: (Activity)->Boolean = { it is BrowserActivity || it is ZavroMpvActivity },
+    private val eligible: (Activity)->Boolean = { it is BrowserActivity },
     private val probesEnabled: Boolean = true,
     private val recovery: TestLabRecoveryStore? = null,
 ) : Application.ActivityLifecycleCallbacks, ComponentCallbacks2 {
@@ -47,7 +46,6 @@ internal class TestLabRuntime(
     private val windows = IdentityHashMap<Window,WindowProbe>()
     @Volatile private var coverageEpoch=0L
     private var lastOrientation: Int?=null
-    private var nativeWindowCovered=false
     private var worker: Job?=null
     private var recoveryGeneration=0L
     private val panelOpeners=arrayOfNulls<OperationToken>(2)
@@ -137,14 +135,14 @@ internal class TestLabRuntime(
                     val elapsed=SystemClock.elapsedRealtimeNanos()-start
                     if(elapsed>=3_000_000_000L) {
                         val rate=activities.keys.firstOrNull()?.window?.decorView?.display?.refreshRate?.toDouble()
-                        val rates=rate?.takeIf{it.isFinite()&&it in 1.0..1000.0}?.let{listOf(it)}?:emptyList()
-                        engine.begin(s,LabEnvironment(Build.VERSION.SDK_INT,Runtime.getRuntime().availableProcessors(),rates))
+                        val rates=activities.keys.firstOrNull()?.window?.decorView?.display?.supportedModes?.map { it.refreshRate.toDouble() }?.filter { it.isFinite() && it in 1.0..1000.0 }?.distinct()?.take(16) ?: emptyList()
+                        engine.begin(s,LabEnvironment(Build.VERSION.SDK_INT,Runtime.getRuntime().availableProcessors(),rates,rate,activities.values.firstOrNull()?.attributes?.preferredRefreshRate?.toDouble()?.takeIf{it>0.0}))
                         engine.foreground(s,true)
                         capture=LabCapture(engine,s,::syncTags)
                         browserObserver=TestLabBrowserObserver(capture!!)
                         if(engine.currentType().includes(LabDomain.VIDEO)||engine.currentType().includes(LabDomain.GECKO))mediaObserver=TestLabMediaObserver(capture!!)
                         if(Build.VERSION.SDK_INT<31)engine.metricUnavailable(s,LabMetric.FRAME_OVERRUN,Availability.NOT_SUPPORTED_BY_API)
-                        activities.keys.forEach(::observeNativeWindow)
+                        
                         if(probesEnabled)startWorker(s)
                         windows.forEach{(window,probe)->attachJank(window,probe,s)}
                     }
@@ -330,20 +328,11 @@ internal class TestLabRuntime(
             engine.complete(s);publish();scope.cancel()
         }
     }
-    private fun observeNativeWindow(activity:Activity) {
-        val capture=capture?:return
-        if(activity !is ZavroMpvActivity){nativeWindowCovered=false;return}
-        if(nativeWindowCovered)return
-        val op=capture.operation(LabOperation.MPV_FULLSCREEN,measureLatency=false)?:return
-        nativeWindowCovered=true
-        androidx.core.view.OneShotPreDrawListener.add(activity.window.decorView){capture.end(op,proof=CompletionProof.FIRST_PREDRAW)}
-    }
     override fun onActivityResumed(activity:Activity) {
         if(!eligible(activity)||cleaned)return
         if(engine.phase==LabPhase.PREPARING&&activities.isEmpty())countdownAt=SystemClock.elapsedRealtimeNanos()
         activities[activity]=activity.window;coverageEpoch++;activitiesVisible=true
         attachWindow(activity.window);session?.let{engine.foreground(it,true)}
-        observeNativeWindow(activity)
         main.removeCallbacks(tick);main.post(tick)
         val orientation=activity.resources.configuration.orientation
         if(lastOrientation!=null&&lastOrientation!=orientation)note(LabCode.ORIENTATION_CHANGED,orientation.toDouble())
@@ -373,7 +362,7 @@ data class LabUiState(val phase:LabPhase=LabPhase.IDLE,val type:TestType?=null,v
 
 internal fun LabCode.domain():LabDomain = when {
     name.startsWith("GECKO_")||name.startsWith("LOAD_")||name.startsWith("ENGINE_")||name.startsWith("EXTENSION_")||this==LabCode.SPA_NAVIGATION||this==LabCode.URL_CHANGE_IDLE->LabDomain.GECKO
-    name.startsWith("HANDOFF_")||name.startsWith("LUA_")||name.startsWith("DSP_")||name.startsWith("DETECTOR_")||name.startsWith("MPV_")||name.startsWith("BLOB_")||name.startsWith("ACK_")||this in setOf(LabCode.PREPARE,LabCode.AUTO_OFFER,LabCode.ROLLBACK,LabCode.FRAME_ELEMENT_MISMATCH,LabCode.FRAME_LOOKUP_FAILED,LabCode.FRAME_UNSUPPORTED,LabCode.AUDIO_FOCUS_FAILED,LabCode.LUA_ERROR,LabCode.DSP_ERROR)->LabDomain.VIDEO
+    name.startsWith("DETECTOR_")||this==LabCode.VIDEO_PANEL_OPEN||this==LabCode.VIDEO_EXTERNAL_REQUEST||this==LabCode.VIDEO_MENU_OPEN->LabDomain.VIDEO
     name.startsWith("PROCESS_EXIT")||this==LabCode.STABILITY_ERROR->LabDomain.STABILITY
     else->LabDomain.UI
 }

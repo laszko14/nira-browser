@@ -25,9 +25,7 @@ internal object TestLabAnalyzer {
                 report.timeline.lastOrNull{it.code==code}?.offsetNanos,count.toDouble(),unit=LabUnit.COUNT,
                 threshold=1.0,evidenceCount=count))
         }
-        listOf(LabCode.ACK_FAILED,LabCode.ACK_TIMEOUT,LabCode.ROLLBACK,LabCode.MPV_UNEXPECTED_RELOAD,
-            LabCode.DETECTOR_REJECTED,LabCode.DETECTOR_QUEUE_LIMIT,LabCode.MPV_HTTP_ERROR,LabCode.MPV_TLS_ERROR,
-            LabCode.LUA_RUNTIME_ERROR,LabCode.LUA_ACK_TIMEOUT,LabCode.DSP_TIMEOUT,LabCode.DSP_CONFIG_ERROR).forEach(::counted)
+        listOf(LabCode.DETECTOR_REJECTED, LabCode.DETECTOR_QUEUE_LIMIT, LabCode.DETECTOR_STALE, LabCode.EXTENSION_FAILED, LabCode.GECKO_TLS_ERROR).forEach(::counted)
         val memory=report.resourceMetrics
         fun growth(code:LabCode,delta:Long?) {
             if(delta!=null&&delta>=16L*1024*1024)findings.add(Observation(ObservationKind.SUSPECTED_CORRELATION,

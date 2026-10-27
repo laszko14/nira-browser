@@ -67,7 +67,7 @@ class TestLabActivity:AppCompatActivity() {
     private fun start(type:TestType) {
         if(TestLab.start(application,type))returnToBrowser()
         else message(if(TestLab.lastStartFailure==LabStartFailure.CONFLICT)
-            "Inny test jest aktywny. Zakończ Supertest 40 s lub TestLab." else "Nie udało się przygotować pomiaru. Możesz spróbować ponownie.")
+            "Inny test jest aktywny. Zakończ aktywny TestLab." else "Nie udało się przygotować pomiaru. Możesz spróbować ponownie.")
     }
     private fun copy(text:String) {
         getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Zavro TestLab",text))
@@ -141,13 +141,13 @@ class TestLabActivity:AppCompatActivity() {
                 item {
                     Text("Dobrowolny pomiar lokalny • 60 s",style=MaterialTheme.typography.titleMedium)
                     Text("Raporty domyślnie pozostają w RAM. Brak adresów, nazw profili, cookies i treści stron. Test nie steruje kartami ani odtwarzaniem.",style=MaterialTheme.typography.bodyMedium)
-                    Text("Zakończony pomiar nie oznacza sprawności całej aplikacji. Klatki dotyczą Android UI Window; obraz Gecko/MPV nie jest bezpośrednio mierzony.",style=MaterialTheme.typography.bodySmall)
+                    Text("Zakończony pomiar nie oznacza sprawności całej aplikacji. Klatki dotyczą Android UI Window; obraz Gecko i wideo nie są bezpośrednio mierzone.",style=MaterialTheme.typography.bodySmall)
                 }
                 if(active)item {
                     Card(Modifier.fillMaxWidth()) {Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         Text(status.type?.labTitle().orEmpty(),style=MaterialTheme.typography.titleMedium)
                         Text(when(status.phase){
-                            LabPhase.PREPARING->"Przygotowanie. Odliczanie 3 s ruszy w przeglądarce lub MPV."
+                            LabPhase.PREPARING->"Przygotowanie. Odliczanie 3 s ruszy w przeglądarce."
                             LabPhase.FINALIZING->"Kończenie i zwalnianie kolektorów…"
                             else->"Pozostało ${labClock(status.remainingSeconds?:60)}"
                         },Modifier.testTag("testlab-status"))

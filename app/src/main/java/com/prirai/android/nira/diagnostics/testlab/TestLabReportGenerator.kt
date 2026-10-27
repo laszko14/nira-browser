@@ -50,21 +50,21 @@ object TestLabReportGenerator {
             appendLine(when(it.kind){
                 ObservationKind.CONFIRMED_INVARIANT_FAILURE->"Dowód porównania stanu po operacji; wymaga odtworzenia scenariusza, nie automatycznej naprawy danych."
                 ObservationKind.OBSERVED_PERFORMANCE_ANOMALY->"Zmierzony czas przekroczył jawny próg diagnostyczny. Bez niezależnego pomiaru nie wskazuje przyczyny."
-                ObservationKind.SUSPECTED_CORRELATION->"Zaobserwowany sygnał, nie ustalona przyczyna. Wzrost pamięci nie dowodzi wycieku; błąd ACK nie dowodzi podwójnego audio."
+                ObservationKind.SUSPECTED_CORRELATION->"Zaobserwowany sygnał, nie ustalona przyczyna. Wzrost pamięci nie dowodzi wycieku."
                 ObservationKind.INSUFFICIENT_DATA->"Za mało danych do oceny."
                 ObservationKind.NOT_TESTED->"Nie zaobserwowano wymaganej próby."
             })
         }
         appendLine("\nKlatki Android UI Window (JankStats):")
         appendLine("Liczba klatek jest sumą próbek przypiętych Window; nie oznacza unikalnych klatek ekranu ani FPS urządzenia.")
-        appendLine("ACK wiążemy z właścicielem i pojedynczą oczekującą próbą; nakładające się prepare bez identyfikatora żądania mają wynik UNKNOWN.")
-        appendLine("To nie klatki kompozytora Gecko ani obraz wideo SurfaceView/MPV. PopupWindow menu nie udostępnia Window dla JankStats i nie jest objęty pomiarem klatek.")
+        appendLine("To nie klatki kompozytora Gecko ani odtwarzania wideo. PopupWindow menu nie udostępnia Window dla JankStats i nie jest objęty pomiarem klatek.")
         r.frameMetrics?.let { f ->
             appendLine("n=${f.count}, jank=${f.jankCount} (${number(f.jankPercent)}%), średnia=${number(f.meanMs)} ms, max=${number(f.maxMs)} ms")
             appendLine("P50=${number(f.p50Ms)}, P90=${number(f.p90Ms)}, P95=${number(f.p95Ms)}, P99=${number(f.p99Ms)} ms; histogram górnej granicy 0.25 ms")
             appendLine("Czas CPU klatki z JankStats (nie CPU procesu): n=${f.cpuSamples}, średnia=${number(f.meanCpuMs)}, max=${number(f.maxCpuMs)} ms")
             appendLine("Przekroczenie budżetu: n=${f.overrunSamples}, średnia=${number(f.meanOverrunMs)}, max=${number(f.maxOverrunMs)} ms")
         } ?: appendLine("NIEPRZETESTOWANY: brak prawidłowych próbek klatek.")
+        appendLine("Obsługiwane tryby Hz: ${r.environment.refreshRatesHz}; aktualny: ${r.environment.currentRefreshHz ?: "BRAK DANYCH"}; żądany: ${r.environment.requestedRefreshHz ?: "BRAK DANYCH"}")
         appendLine("\nŹródła i dostępność:")
         LabMetric.entries.forEach { appendLine("$it: ${r.metricAvailability[it]} / ${r.metricSources[it]}") }
         appendLine("FIRST_PREDRAW potwierdza widoczny układ, nie koniec animacji okna systemowego. Tego końca nie zmierzono.")
@@ -78,13 +78,7 @@ object TestLabReportGenerator {
             o.latency?.let { appendLine("Czas tylko zakończonych prób: n=${it.samples}, średnia=${number(it.meanMs)}, max=${number(it.maxMs)}, P95=${number(it.p95Ms)} ms") }
             appendLine("Dowód zakończenia: ${o.completionProofs}; skorelowane klatki=${o.taggedFrames}, jank=${o.taggedJank}, max=${number(o.maxTaggedFrameMs)} ms")
         }
-        if (r.operationMetrics.none { it.operation == LabOperation.MPV_PLAYBACK && it.started > 0 })
-            appendLine("MPV — BRAK PRÓBY ODTWARZANIA")
-        r.playbackMetrics?.let{m->
-            appendLine("MPV time-pos: n=${m.positionSamples}, zaobserwowane przyrosty≤5s=${number(m.incrementalSeconds)} s, nieciągłości=${m.discontinuities}, anonimowe sesje=${m.anonymousSessions}")
-            appendLine("Prędkość z callbacków MPV: n=${m.speedSamples}, zmiany=${m.speedChanges}, min=${number(m.minSpeed)}, max=${number(m.maxSpeed)}")
-            appendLine("Stała pozycja może oznaczać pauzę; przyrost pozycji nie dowodzi pomiaru klatek ani prawidłowości obu torów audio.")
-        }
+        appendLine("Zewnętrzny odtwarzacz: zarejestrowane żądanie otwarcia nie dowodzi rozpoczęcia odtwarzania.")
         appendLine("\nZasoby: własny proces aplikacji; podprocesy Gecko nie są objęte pomiarem.")
         val m = r.resourceMetrics
         appendLine("Próbki=${m.totalSamples}; odrzucone ze starszego bufora=${m.evictedSamples}")
@@ -102,6 +96,6 @@ object TestLabReportGenerator {
         appendLine("\nOś czasu (względna monotoniczna; ograniczona; wcześniejsze usunięte=${r.evictedEvents}):")
         r.timeline.forEach { appendLine("#${it.serial} ${number(it.offsetNanos / 1_000_000.0)} ms ${it.code} ${it.operation ?: ""} ${it.value ?: ""} ${it.operationTags}") }
         appendLine("\nOgraniczenia: ${r.limitations}")
-        appendLine("Brak pomiaru rzeczywistych klatek MPV, podwójnego audio ani dokładnego zużycia energii. Brak awarii w tym teście nie dowodzi stabilności.")
+        appendLine("Brak bezpośredniego pomiaru klatek kompozytora Gecko, obrazu wideo ani dokładnego zużycia energii. Brak awarii w tym teście nie dowodzi stabilności.")
     }
 }
