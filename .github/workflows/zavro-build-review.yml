@@ -1,0 +1,49 @@
+name: Zavro Build Control Read-Only Review
+on:
+  push:
+    branches:
+      - tools/zavro-development-system-stage1-20261027
+    paths:
+      - 'devtools/build-review-probes/*.json'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: zavro-build-review
+  cancel-in-progress: false
+jobs:
+  review:
+    if: github.repository == 'laszko14/nira-browser' && github.actor == 'laszko14'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Test Build Control review and existing controls
+        run: node --test devtools/tests/build-review.test.mjs devtools/tests/build-control.test.mjs
+      - name: Inspect actual source HEAD and workflow; never dispatch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE_SHA: ${{ github.event.before }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node devtools/build-review.mjs > "$RUNNER_TEMP/zavro-build-review.json"
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const r=JSON.parse(readFileSync(process.env.RUNNER_TEMP+'/zavro-build-review.json','utf8'));
+          if(r.stage!=='READ_ONLY_BUILD_REVIEW'||r.build_started!==false||
+             r.dispatch_enabled!==false||r.tag_created!==false||
+             r.release_created!==false||r.apk_created!==false)throw Error('REVIEW_ESCAPED');
+          console.log('ZAVRO_BUILD_REVIEW_LIVE_PASS '+r.variant+' '+r.sha+' '+r.decision);
+          NODE
+      - name: Upload sanitized readiness report
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zavro-build-review-${{ github.run_id }}
+          path: ${{ runner.temp }}/zavro-build-review.json
+          retention-days: 7
+          if-no-files-found: error
