@@ -396,7 +396,7 @@
   }
 
   function submit(value, source = "page", type = null, group = null, title = null,
-    titleKind = null, duration = null, poster = null) {
+    titleKind = null, duration = null, poster = null, dimensions = null) {
     const url = absolute(value);
     if (!url) return;
     const mediaPath = new URL(url).pathname.toLowerCase();
@@ -413,7 +413,8 @@
     const posterUrl = absolute(poster);
     // A later loadedmetadata event may reveal duration/title for the SAME URL.
     const key = JSON.stringify([activeUrl, url, source, type || "", group || "",
-      named || "", kind || "", seconds, posterUrl || ""]);
+      named || "", kind || "", seconds, posterUrl || "",
+      dimensions?.width || null, dimensions?.height || null]);
     if (seen.has(key)) { note("duplicate"); return; }
     offers++;
     if (!named) note("title_unknown");
@@ -433,6 +434,10 @@
     }
     if (seconds !== null) message.durationSeconds = seconds;
     if (posterUrl) message.posterUrl = posterUrl;
+    if (Number.isSafeInteger(dimensions?.width) && dimensions.width > 0 && dimensions.width <= 16384)
+      message.width = dimensions.width;
+    if (Number.isSafeInteger(dimensions?.height) && dimensions.height > 0 && dimensions.height <= 8640)
+      message.height = dimensions.height;
     ensureDocument().then(root => {
       if (!alive || epoch !== navigationEpoch || !root || navigation !== location.href) { seen.delete(key); return; }
       return Promise.resolve(browser.runtime.sendMessage(message)).then(validated => {
@@ -443,6 +448,8 @@
             validated.titleKind !== message.titleKind ||
             validated.durationSeconds !== message.durationSeconds ||
             validated.posterUrl !== message.posterUrl ||
+            validated.width !== message.width ||
+            validated.height !== message.height ||
             !alive || epoch !== navigationEpoch || navigation !== location.href) {
           context = null; seen.delete(key); return;
         }
@@ -482,7 +489,8 @@
     const seconds = durationOf(video);
     const poster = posterFor(video);
     if (preferred) submit(preferred, playing ? "dom" : "page", mime, group,
-      title, title ? kind : null, seconds, poster);
+      title, title ? kind : null, seconds, poster,
+      { width: video.videoWidth, height: video.videoHeight });
     if (video.src && video.src !== preferred)
       submit(video.src, "page", null, group, title, title ? kind : null, seconds, poster);
     // Each declared source matters, even before currentSrc becomes available.
@@ -912,7 +920,7 @@
     if (event.type === "emptied") seen.clear();
     inspect(event.target);
   }
-  for (const event of ["play", "playing", "loadedmetadata", "durationchange", "emptied"]) {
+  for (const event of ["play", "playing", "loadedmetadata", "durationchange", "resize", "emptied"]) {
     document.addEventListener(event, onMediaEvent, { capture: true, passive: true });
   }
   const observer = new MutationObserver(scheduleScan);

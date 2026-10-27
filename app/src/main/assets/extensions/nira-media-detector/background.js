@@ -372,6 +372,8 @@ function validDom(message, sender) {
   if ("titleKind" in message) permitted.push("titleKind");
   if ("durationSeconds" in message) permitted.push("durationSeconds");
   if ("posterUrl" in message) permitted.push("posterUrl");
+  if ("width" in message) permitted.push("width");
+  if ("height" in message) permitted.push("height");
   if (keys !== permitted.sort().join(",") ||
       ("contentType" in message && !safeMime(message.contentType)) ||
       ("groupId" in message && !validGroup(message.groupId)) ||
@@ -379,7 +381,11 @@ function validDom(message, sender) {
       ("title" in message && !validTitle(message.title)) ||
       ("titleKind" in message && !["player", "structured", "video", "link", "page"].includes(message.titleKind)) ||
       ("durationSeconds" in message && !validSeconds(message.durationSeconds)) ||
-      ("posterUrl" in message && !safeUrl(message.posterUrl))) return false;
+      ("posterUrl" in message && !safeUrl(message.posterUrl)) ||
+      ("width" in message && (!Number.isSafeInteger(message.width) ||
+        message.width < 1 || message.width > 16384)) ||
+      ("height" in message && (!Number.isSafeInteger(message.height) ||
+        message.height < 1 || message.height > 8640))) return false;
   if (sender.frameId === 0) {
     const root = documents.get(sender.tab.id);
     return !!root && !root.invalidated && (typeof sender.url !== "string" || ownerSender(root, sender));
