@@ -39,6 +39,7 @@ internal class MediaEntry(
     val durationOrigin: String? = null,
     val sizeOrigin: String? = null,
     val isLive: Boolean = false,
+    val titleAmbiguous: Boolean = false,
 ) {
     override fun toString(): String = "MediaEntry(format=$format, sources=$sources, url=<redacted>)"
 }
@@ -101,8 +102,10 @@ internal class MediaRepository(
         var dom = false
         var page = false
         var network = false
+        private val titleResolver = MediaTitleResolver.State()
         var title: String? = null
         var titleKind: String? = null
+        var titleAmbiguous = false
         var durationSeconds: Int? = null
         var sizeBytes: Long? = null
         var sizeEstimated = false
@@ -120,21 +123,11 @@ internal class MediaRepository(
         var highestNetworkRequestSequence: Long = 0
         fun metadata(candidate: MediaDetectorMessage.Candidate?, format: MediaFormat) {
             if (candidate == null) return
-            fun priority(kind: String?): Int = when (kind) {
-                "player" -> 5
-                "structured" -> 4
-                "video" -> 3
-                "link" -> 2
-                "page" -> 1
-                else -> 0
-            }
-            // Longer text is not evidence that it belongs to this movie.
-            // Never overwrite an equally reliable title with an unrelated one.
-            if (candidate.title != null &&
-                (title == null || priority(candidate.titleKind) > priority(titleKind))) {
-                title = candidate.title
-                titleKind = candidate.titleKind
-            }
+            titleResolver.offer(candidate.title, candidate.titleKind)
+            val titleDecision = titleResolver.snapshot()
+            title = titleDecision.text
+            titleKind = titleDecision.kind
+            titleAmbiguous = titleDecision.ambiguous
             if (candidate.posterUrl != null && candidate.source != MediaSource.NETWORK)
                 posterUrl = candidate.posterUrl
             if (candidate.isLive == true) {
@@ -199,7 +192,7 @@ internal class MediaRepository(
         }, groupId, title, titleKind, durationSeconds, sizeBytes, posterUrl,
             quality, bitrate, codecs, revisions.size.coerceAtLeast(1), frameUrl,
             playbackStatus, httpStatus, ambiguous, frameKey,
-            sizeEstimated, durationOrigin, sizeOrigin, isLive)
+            sizeEstimated, durationOrigin, sizeOrigin, isLive, titleAmbiguous)
     }
 
     private class FrameBinding(val id: Long, val key: Long, val url: String, var active: Boolean)
