@@ -60,6 +60,46 @@ jobs:
         run: node --test devtools/tests/build-control.test.mjs devtools/tests/build-request-validator.test.mjs devtools/tests/report-build.test.mjs
       - name: Run Stage 4 ZIP verifier security tests (no APK download)
         run: python3 -m unittest discover -s devtools/tests -p test_verify_apk_artifact.py -v
+      - name: Smart CI selection and audit tests (no Gradle)
+        run: node --test devtools/tests/smart-ci.test.mjs
+      - name: Validate pinned Clean and MPV build metadata (read-only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node devtools/smart-ci.mjs audit clean > "$RUNNER_TEMP/smart-ci-clean.json"
+          node devtools/smart-ci.mjs audit mpv > "$RUNNER_TEMP/smart-ci-mpv.json"
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const base=process.env.RUNNER_TEMP;
+          for(const variant of ['clean','mpv']){
+            const a=JSON.parse(readFileSync(base+'/smart-ci-'+variant+'.json','utf8'));
+            if(a.variant!==variant||a.static_audit!=='PASS'||
+              a.android_compilation_executed!==false||a.gradle_features.cache!==true||
+              a.gradle_features.parallel!==true||a.gradle_features.configuration_cache!==true){
+              throw Error('SMART_CI_AUDIT_FAILED_'+variant);
+            }
+          }
+          console.log('SMART_CI_VARIANT_AUDIT_PASS (read-only)');
+          NODE
+      - name: Classify a real historical Kotlin-test-only commit difference (read-only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api 'repos/laszko14/nira-browser/compare/299db5fe94ff959bcca6c3a0726d8327ecba6cad...3330a0b3a057008886fde392f788a1941e0dfb84' > "$RUNNER_TEMP/smart-ci-diff.json"
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          import {chooseTests} from './devtools/smart-ci.mjs';
+          const data=JSON.parse(readFileSync(process.env.RUNNER_TEMP+'/smart-ci-diff.json','utf8'));
+          const config=JSON.parse(readFileSync('devtools/build-control.json','utf8'));
+          if(data.status!=='ahead'||data.files?.length!==1)throw Error('UNEXPECTED_HISTORICAL_DIFF');
+          const result=chooseTests(data.files,'clean',config);
+          if(result.tasks.join(',')!=='kotlin-unit'||result.requires_explicit_android_approval!==true||
+             result.tasks.includes('android-build')||result.android_tasks_blocked!==true)
+            throw Error('SMART_CI_KOTLIN_TEST_SELECTION_ERROR');
+          console.log('SMART_CI_REAL_DIFF_PASS: Kotlin unit test only; no APK compile');
+          NODE
       - name: Inspect existing signed Clean v1174 Actions run (read-only)
         env:
           GH_TOKEN: ${{ github.token }}
