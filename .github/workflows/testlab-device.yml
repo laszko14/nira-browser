@@ -1,0 +1,51 @@
+name: Zavro Clean TestLab Android instrumentation
+on:
+  push:
+    branches: [feat/zavro-v1168-clean-testlab]
+    paths:
+      - 'app/src/main/java/com/prirai/android/nira/diagnostics/testlab/**'
+      - 'app/src/androidTest/java/com/prirai/android/nira/diagnostics/testlab/**'
+      - 'app/build.gradle'
+      - '.github/workflows/testlab-device.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  testlab-device:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[device-test]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Instrument seven real TestLab modes on API35 (60s per mode)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          cores: 2
+          ram-size: 2048M
+          disable-animations: true
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: ./gradlew connectedDebugAndroidTest -PtestLabAbi=x86_64 -Pandroid.testInstrumentationRunnerArguments.class=com.prirai.android.nira.diagnostics.testlab.TestLabDeviceTest --console=plain -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8' --max-workers=2
+      - name: Upload TestLab device reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zavro-v1168-testlab-android-results
+          path: |
+            app/build/reports/androidTests/**
+            app/build/outputs/androidTest-results/**
+          if-no-files-found: warn
