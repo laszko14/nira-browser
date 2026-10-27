@@ -1,0 +1,59 @@
+name: Zavro Partial Cross-Run Recovery Test
+on:
+  push:
+    branches:
+      - tools/zavro-development-system-stage1-20261027
+    paths:
+      - 'devtools/partial-resume-probes/*.json'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify-partial:
+    if: github.repository == 'laszko14/nira-browser' && github.actor == 'laszko14'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Test partial checkpoint and missing Kotlin test guard
+        run: node --test devtools/tests/partial-resume-check.test.mjs
+      - name: Verify exact newly added recovery request and failed historical run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE_SHA: ${{ github.event.before }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-status --no-renames "$BEFORE_SHA" "$GITHUB_SHA")"
+          [ "$changed" = "$(printf 'A\tdevtools/partial-resume-probes/stage7-negative-kotlin-20261027-01.json')" ] || { echo 'BAD_TRIGGER_DIFF'; exit 1; }
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          import {checkProbe} from './devtools/partial-resume-check.mjs';
+          checkProbe(JSON.parse(readFileSync('devtools/partial-resume-probes/stage7-negative-kotlin-20261027-01.json','utf8')));
+          NODE
+          test "$(gh api repos/laszko14/nira-browser/actions/runs/40472397516 --jq '.conclusion')" = failure
+          test "$(gh api repos/laszko14/nira-browser/actions/runs/40472397516/artifacts --jq '.artifacts[] | select(.id==12719177242 and .expired==false) | .name')" = zavro-stage7-diagnostic-40472397516
+      - name: Restore historical partial checkpoint from a DIFFERENT run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/partial"
+          gh run download 40472397516 --repo laszko14/nira-browser \
+            -n zavro-stage7-diagnostic-40472397516 -D "$RUNNER_TEMP/partial"
+          test -s "$RUNNER_TEMP/partial/zavro-stage7-state.json"
+      - name: Deny incomplete Kotlin task, retain exact checkpoint and repeat no work
+        shell: bash
+        run: |
+          set -euo pipefail
+          before="$(sha256sum "$RUNNER_TEMP/partial/zavro-stage7-state.json")"
+          node devtools/partial-resume-check.mjs \
+            "$RUNNER_TEMP/partial/zavro-stage7-state.json" \
+            devtools/orchestrator-probes/stage7-negative-kotlin-20261027-01.json \
+            devtools/partial-resume-probes/stage7-negative-kotlin-20261027-01.json
+          [ "$before" = "$(sha256sum "$RUNNER_TEMP/partial/zavro-stage7-state.json")" ]
+          echo 'PARTIAL_CROSS_RUN_FAIL_CLOSED_PASS (no build)' >> "$GITHUB_STEP_SUMMARY"
