@@ -1,6 +1,7 @@
 package com.prirai.android.nira.components.toolbar.modern
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
@@ -22,6 +23,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import mozilla.components.browser.state.state.TabSessionState
 
 /**
@@ -35,16 +37,29 @@ import mozilla.components.browser.state.state.TabSessionState
  */
 class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
     private val density = resources.displayMetrics.density
-    private fun dp(value: Int): Int = (value * density + 0.5f).toInt()
+    private fun dp(value: Int): Int = (value * density).roundToInt()
+    private val tabPrefs = com.prirai.android.nira.preferences.UserPreferences(context)
+    private val circleSize get() = tabPrefs.niraTabCircleSizeDp.coerceIn(10, 52)
+    private val circleGap get() = tabPrefs.niraTabCircleGapDp.coerceIn(-6, 40)
+    private val appearanceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == "nira_tab_circle_size_dp" || key == "nira_tab_circle_gap_dp") {
+            minimumHeight = maxOf(barHeight, pillHeight + dp(4))
+            (scroller.layoutParams as LinearLayout.LayoutParams).height = pillHeight
+            lastSignature = null
+            updateTabs(lastTabs, lastSelectedId)
+            requestLayout()
+        }
+    }
 
     private val barHeight = dp(
-        com.prirai.android.nira.preferences.UserPreferences(context)
-            .niraTabStripHeightDp.coerceIn(40, 80)
+        tabPrefs.niraTabStripHeightDp.coerceIn(40, 80)
     )
-    private val pillHeight = (barHeight - dp(4)).coerceIn(dp(32), dp(42))
+    private val pillHeight get() = maxOf((barHeight - dp(4)).coerceIn(dp(32), dp(42)), dp(circleSize))
     private val row = LinearLayout(context).apply {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
+        clipChildren = false
+        clipToPadding = false
         setPadding(dp(5), 0, dp(5), 0)
     }
     private val scroller = HorizontalScrollView(context).apply {
@@ -80,7 +95,7 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
     init {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        minimumHeight = barHeight
+        minimumHeight = maxOf(barHeight, pillHeight + dp(4))
         clipChildren = false
         clipToPadding = false
 
@@ -93,12 +108,17 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
     }
 
     override fun onDetachedFromWindow() {
+        tabPrefs.preferences.unregisterOnSharedPreferenceChangeListener(appearanceListener)
         iconScope.cancel()
         super.onDetachedFromWindow()
     }
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+        tabPrefs.preferences.registerOnSharedPreferenceChangeListener(appearanceListener)
+        minimumHeight = maxOf(barHeight, pillHeight + dp(4))
+        (scroller.layoutParams as LinearLayout.LayoutParams).height = pillHeight
+        lastSignature = null
         if (!iconScope.isActive) {
             iconScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
             lastSignature = null
@@ -111,7 +131,7 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
         val colors = if (selected) intArrayOf(tones.activeStart, tones.activeEnd)
             else intArrayOf(tones.tabStart, tones.tabEnd)
         return GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, colors).apply {
-            cornerRadius = dp(10).toFloat()
+            shape = GradientDrawable.OVAL
             if (selected) setStroke(dp(1), tones.accent)
         }
     }
@@ -220,10 +240,13 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
     ) {
         val title = tabTitle(tab)
         val selected = tab.id == selectedId
+        val size = circleSize
         val tabContainer = FrameLayout(context).apply {
             background = tabBackground(selected, dark, groupColor)
-            layoutParams = LinearLayout.LayoutParams(dp(39), dp(34)).apply {
-                marginEnd = dp(3)
+            clipChildren = false
+            clipToPadding = false
+            layoutParams = LinearLayout.LayoutParams(dp(size), dp(size)).apply {
+                marginEnd = dp(circleGap)
             }
             contentDescription = "Karta: $title"
             isClickable = true
@@ -238,8 +261,27 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
             scaleType = ImageView.ScaleType.FIT_CENTER
             contentDescription = "Ikona strony: $title"
         }
+        val faviconSize = (size * 0.58f).roundToInt().coerceAtLeast(6)
         tabContainer.addView(image, FrameLayout.LayoutParams(
-            dp(23), dp(23), Gravity.CENTER
+            dp(faviconSize), dp(faviconSize), Gravity.CENTER
+        ))
+        val badgeSize = (size * 0.38f).roundToInt().coerceIn(6, 16)
+        val close = TextView(context).apply {
+            text = "×"
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, (badgeSize * 0.7f).coerceAtLeast(6f))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.rgb(200, 60, 103))
+            }
+            contentDescription = "Zamknij kartę: $title"
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { onTabClosed?.invoke(tab.id) }
+        }
+        tabContainer.addView(close, FrameLayout.LayoutParams(
+            dp(badgeSize), dp(badgeSize), Gravity.TOP or Gravity.END
         ))
         bindFavicon(image, tab)
         renderedPills[tab.id] = RenderedPill(tabContainer, image, title, tab.content.url,
@@ -267,8 +309,9 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
             ?.filterIsInstance<UnifiedTabOrder.OrderItem.TabGroup>()
             ?.firstOrNull { it.groupId == group.id }?.let { !it.isExpanded } ?: group.isCollapsed
         val header = TextView(context).apply {
-            text = (if (collapsed) "› " else "⌃ ") +
-                "(${members.size}) " + group.name.ifBlank { "Grupa" }
+            text = (if (collapsed) "⌄ " else "⌃ ") +
+                "(${members.size})" +
+                (if (collapsed) "" else " " + group.name.ifBlank { "Grupa" })
             setTextColor(Color.WHITE)
             setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12f)
             gravity = Gravity.CENTER
@@ -286,13 +329,7 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
             LinearLayout.LayoutParams.WRAP_CONTENT, pillHeight
         ))
         if (!collapsed) {
-            members.forEach { tab ->
-                segment.addView(View(context).apply {
-                    setBackgroundColor(Color.argb(70, Color.red(group.color),
-                        Color.green(group.color), Color.blue(group.color)))
-                }, LinearLayout.LayoutParams(dp(1), dp(23)))
-                tabChip(tab, selectedId, dark, segment, group.color)
-            }
+            members.forEach { tab -> tabChip(tab, selectedId, dark, segment, group.color) }
             segment.addView(actionText("+", 29, 22f, dark).apply {
                 setTextColor(group.color)
                 contentDescription = "Nowa karta w grupie ${group.name}"
@@ -326,6 +363,8 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
         // Only a structural change (group/order/membership/theme) recreates the row.
         val signature = buildList {
             add(dark.toString())
+            add(circleSize.toString())
+            add(circleGap.toString())
             currentOrder?.primaryOrder?.forEach { item ->
                 when (item) {
                     is UnifiedTabOrder.OrderItem.SingleTab -> add("t:" + item.tabId)

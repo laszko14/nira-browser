@@ -8,6 +8,8 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
@@ -79,7 +81,8 @@ fun SwipeableTabPill(
     onTabClose: () -> Unit,
     onShowMenu: () -> Unit,
     modifier: Modifier = Modifier,
-    swipeThreshold: Float = 40f
+    swipeThreshold: Float = 40f,
+    iconSizeDp: Int = 34
 ) {
     // Reset offset when the tab id changes so the state does not leak between
     // adjacent slots when Compose reuses this call site for a different tab
@@ -88,16 +91,14 @@ fun SwipeableTabPill(
     val maxOffset = 80f
 
     Box(
-        modifier = modifier
-            .height(32.dp)
-            .width(40.dp)
+        modifier = modifier.size(iconSizeDp.coerceIn(10, 52).dp)
     ) {
         // Background indicator based on swipe direction
         if (abs(offsetY) > 5f) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(CircleShape)
                     .background(
                         when {
                             offsetY < -5f -> MaterialTheme.colorScheme.errorContainer // Swipe up - delete
@@ -176,7 +177,7 @@ fun SwipeableTabPill(
                         offsetY = 0f
                     }
                 },
-            shape = RoundedCornerShape(12.dp),
+            shape = CircleShape,
             color = when {
                 groupColor != null -> {
                     val tone = TabGroupTones.forGroup(groupColor)
@@ -194,22 +195,25 @@ fun SwipeableTabPill(
                 null
             }
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable(onClick = onTabClick)
-                    .semantics { contentDescription = getTabDisplayTitle(tab) }
-                    .padding(horizontal = 4.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                // Favicon
-                FaviconImage(
-                    tab = tab,
-                    size = 22.dp
-                )
-
-
+            Box(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier.fillMaxSize().clickable(onClick = onTabClick)
+                        .semantics { contentDescription = getTabDisplayTitle(tab) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    FaviconImage(tab = tab, size = (iconSizeDp * 0.58f).roundToInt().coerceAtLeast(6).dp)
+                }
+                val badgeSize = (iconSizeDp * 0.38f).roundToInt().coerceIn(6, 16)
+                Box(
+                    modifier = Modifier.align(Alignment.TopEnd).size(badgeSize.dp)
+                        .clip(CircleShape).background(Color(0xFFC83C67))
+                        .clickable(onClick = onTabClose)
+                        .semantics { contentDescription = "Zamknij kartę: ${getTabDisplayTitle(tab)}" },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = null, tint = Color.White,
+                        modifier = Modifier.size((badgeSize * 0.75f).dp))
+                }
             }
         }
     }

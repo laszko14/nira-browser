@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
@@ -41,6 +42,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -85,8 +89,17 @@ fun TabBarCompose(
 ) {
     val scope = rememberCoroutineScope()
     val tabContext = LocalContext.current
-    val stripHeight = remember(tabContext) {
-        com.prirai.android.nira.preferences.UserPreferences(tabContext).niraTabStripHeightDp
+    val stripPreferences = remember(tabContext) { com.prirai.android.nira.preferences.UserPreferences(tabContext) }
+    val stripHeight = stripPreferences.niraTabStripHeightDp
+    var iconSizeDp by remember { mutableIntStateOf(stripPreferences.niraTabCircleSizeDp.coerceIn(10, 52)) }
+    var iconGapDp by remember { mutableIntStateOf(stripPreferences.niraTabCircleGapDp.coerceIn(-6, 40)) }
+    DisposableEffect(stripPreferences) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == "nira_tab_circle_size_dp") iconSizeDp = stripPreferences.niraTabCircleSizeDp.coerceIn(10, 52)
+            if (key == "nira_tab_circle_gap_dp") iconGapDp = stripPreferences.niraTabCircleGapDp.coerceIn(-6, 40)
+        }
+        stripPreferences.preferences.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { stripPreferences.preferences.unregisterOnSharedPreferenceChangeListener(listener) }
     }
     val savedOrder by orderManager.currentOrder.collectAsState()
     val profileId by viewModel.currentProfileId.collectAsState()
@@ -209,14 +222,14 @@ fun TabBarCompose(
     Box(modifier = modifier.fillMaxWidth()) {
         // Static layer - main tab bar
         Surface(
-            modifier = Modifier.fillMaxWidth().height(stripHeight.coerceIn(40, 80).dp),
+            modifier = Modifier.fillMaxWidth().height(maxOf(stripHeight.coerceIn(40, 80), iconSizeDp + 8).dp),
             color = MaterialTheme.colorScheme.surfaceContainer,
             tonalElevation = 2.dp
         ) {
             LazyRow(
                 state = listState,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(0.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxSize()
             ) {
@@ -236,6 +249,8 @@ fun TabBarCompose(
 
                             Box(
                                 modifier = Modifier
+                                    // Compact measured step can be smaller than a circle.
+                                    .width((iconSizeDp + if (uniqueItems.getOrNull(index + 1) is BarItem.SingleTab) iconGapDp else 4).coerceAtLeast(1).dp)
                                     .draggableItem(
                                         itemType = DraggableItemType.Tab(item.tab.id),
                                         coordinator = coordinator
@@ -277,6 +292,7 @@ fun TabBarCompose(
                                     coordinator = coordinator,
                                     onTabClick = onTabClick,
                                     onTabClose = onTabClose,
+                                    iconSizeDp = iconSizeDp,
                                     isDragging = false,
                                     modifier = Modifier
                                         .offset { IntOffset(0, offsetY.roundToInt()) }
@@ -371,6 +387,8 @@ fun TabBarCompose(
                                         viewModel.toggleGroupExpanded(groupId)
                                     },
                                     viewModel = viewModel,
+                                    iconSizeDp = iconSizeDp,
+                                    iconGapDp = iconGapDp,
                                     isDragging = false,
                                     modifier = Modifier
                                         .offset { IntOffset(0, offsetY.roundToInt()) }
@@ -415,7 +433,8 @@ fun TabBarCompose(
                     }
 
                     // Add invisible divider after each item for drag-and-drop (except the last one)
-                    if (index < uniqueItems.size - 1) {
+                    if (index < uniqueItems.size - 1 &&
+                        !(item is BarItem.SingleTab && uniqueItems[index + 1] is BarItem.SingleTab)) {
                         TabDivider(
                             id = "divider_${index + 1}",
                             coordinator = coordinator,
@@ -434,10 +453,8 @@ fun TabBarCompose(
                     if (tab != null) {
                         // Glass-morphic dragged tab with pill shape
                         Surface(
-                            modifier = Modifier
-                                .height(32.dp)
-                                .width(40.dp),
-                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.size(iconSizeDp.dp),
+                            shape = CircleShape,
                             color = MaterialTheme.colorScheme.primaryContainer,
                             tonalElevation = 8.dp,
                             shadowElevation = 8.dp
@@ -448,6 +465,7 @@ fun TabBarCompose(
                                 coordinator = coordinator,
                                 onTabClick = {},
                                 onTabClose = {},
+                                iconSizeDp = iconSizeDp,
                                 isDragging = true
                             )
                         }
@@ -468,6 +486,8 @@ fun TabBarCompose(
                             onTabClose = {},
                             onGroupClick = null,
                             viewModel = viewModel,
+                            iconSizeDp = iconSizeDp,
+                            iconGapDp = iconGapDp,
                             isDragging = true
                         )
                     }
@@ -577,35 +597,39 @@ private fun TabPill(
     coordinator: DragCoordinator,
     onTabClick: (String) -> Unit,
     onTabClose: (String) -> Unit,
+    iconSizeDp: Int = 34,
     isDragging: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val tones = TabGroupTones.forGroup(null)
     Surface(
-        modifier = modifier
-            .height(32.dp)
-            .width(40.dp),
-        shape = RoundedCornerShape(12.dp),
+        // requiredSize preserves the requested visual diameter even when the measured
+        // row step is smaller (negative gap intentionally overlaps circles).
+        modifier = modifier.requiredSize(iconSizeDp.dp),
+        shape = CircleShape,
         color = Color(if (isSelected) tones.activeStart else tones.tabStart),
         border = if (isSelected) BorderStroke(1.dp, Color(tones.accent)) else null
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .clickable { onTabClick(tab.id) }
-                .semantics { contentDescription = getTabDisplayTitle(tab) }
-                .padding(horizontal = 4.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            // Favicon
-            FaviconImage(
-                tab = tab,
-                size = 22.dp,
-                modifier = Modifier
-            )
-
-
+        Box(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier.fillMaxSize()
+                    .clickable { onTabClick(tab.id) }
+                    .semantics { contentDescription = getTabDisplayTitle(tab) },
+                contentAlignment = Alignment.Center
+            ) {
+                FaviconImage(tab = tab, size = (iconSizeDp * 0.58f).roundToInt().coerceAtLeast(6).dp)
+            }
+            val badgeSize = (iconSizeDp * 0.38f).roundToInt().coerceIn(6, 16)
+            Box(
+                modifier = Modifier.align(Alignment.TopEnd).size(badgeSize.dp)
+                    .clip(CircleShape).background(Color(0xFFC83C67))
+                    .clickable { onTabClose(tab.id) }
+                    .semantics { contentDescription = "Zamknij kartę: ${getTabDisplayTitle(tab)}" },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Close, contentDescription = null, tint = Color.White,
+                    modifier = Modifier.size((badgeSize * 0.75f).dp))
+            }
         }
     }
 }
@@ -695,6 +719,8 @@ private fun GroupPill(
     onTabClose: (String) -> Unit,
     onGroupClick: ((String) -> Unit)? = null,
     viewModel: TabViewModel,
+    iconSizeDp: Int = 34,
+    iconGapDp: Int = 4,
     isDragging: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -706,7 +732,7 @@ private fun GroupPill(
     var showTabMenu by remember { mutableStateOf(false) }
 
     Surface(
-        modifier = modifier
+        modifier = modifier.padding(horizontal = 2.dp)
             .then(
                 if (expanded) Modifier.wrapContentHeight().defaultMinSize(minHeight = 40.dp)
                 else Modifier.height(40.dp)
@@ -743,7 +769,7 @@ private fun GroupPill(
 
             // Group name - use onSurface color when dragging, no ellipsis
             Text(
-                text = "(${group.tabs.size}) ${group.groupName}",
+                text = if (expanded) "(${group.tabs.size}) ${group.groupName}" else "(${group.tabs.size})",
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
                 color = Color.White
@@ -752,7 +778,8 @@ private fun GroupPill(
             if (expanded) {
                 // Show tab pills in group with dividers
                 Row(
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(iconGapDp.dp)
                 ) {
                     group.tabs.forEachIndexed { index, tab ->
                         // Key each pill by tab id so its remembered state (drag offset,
@@ -761,16 +788,6 @@ private fun GroupPill(
                         // in the same slot. Without this, closing a tab caused the next
                         // pill to inherit the closed pill's transient state and disappear.
                         key(tab.id) {
-                            if (index > 0) {
-                                // Divider between tabs
-                                Box(
-                                    modifier = Modifier
-                                        .width(1.dp)
-                                        .height(24.dp)
-                                        .background(Color(group.color).copy(alpha = 0.3f))
-                                )
-                            }
-
                             // Wrap SwipeableTabPill with draggable and drop target for individual tab reordering
                             val isTabSelected = selectedTabId == tab.id
                             val bringIntoViewRequester = remember { BringIntoViewRequester() }
@@ -808,19 +825,15 @@ private fun GroupPill(
                                         showTabMenu = true
                                     },
                                     modifier = Modifier,
-                                    swipeThreshold = 40f
+                                    swipeThreshold = 40f,
+                                    iconSizeDp = iconSizeDp
                                 )
                             }
                         }
                     }
 
-                    // Divider before add button
-                    Box(
-                        modifier = Modifier
-                            .width(1.dp)
-                            .height(24.dp)
-                            .background(Color(group.color).copy(alpha = 0.3f))
-                    )
+                    // Keep add action separate from the user-configurable circle spacing.
+                    Box(modifier = Modifier.width(4.dp))
 
                     // Add tab button
                     IconButton(

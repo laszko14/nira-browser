@@ -21,7 +21,7 @@ test("v1121: compact row contains count, favicon and add; not full-width title/c
   assert.match(native, /row\.addView\(actionText\("\+"/);
   assert.match(native, /FrameLayout\(context\)/);
   assert.match(native, /ImageView\(context\)/);
-  assert.match(native, /LinearLayout\.LayoutParams\(dp\(39\), dp\(34\)\)/);
+  assert.match(native, /LinearLayout\.LayoutParams\(dp\(size\), dp\(size\)\)/);
   assert.doesNotMatch(native, /val titleView = TextView\(context\)/);
   assert.doesNotMatch(native, /val closeView = TextView\(context\)/);
 });
@@ -52,10 +52,10 @@ test("v1121: keeps horizontal scroll while selected favicon is visible", () => {
 test("v1121: signed APK version is 1121 and debug package + same certificate", () => {
   const gradle = source("app/build.gradle");
   const workflow = source(".github/workflows/apk-release.yml");
-  assert.match(gradle, /versionCode = 178/);
-  assert.match(gradle, /versionName = "0\.5\.22-alpha83-clean"/);
+  assert.match(gradle, /versionCode = 179/);
+  assert.match(gradle, /versionName = "0\.5\.22-alpha84-clean"/);
   assert.match(gradle, /applicationIdSuffix = '\.debug'/);
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1178"/);
+  assert.match(workflow, /EXPECTED_VERSION_CODE: "1179"/);
   assert.match(workflow, /EXPECTED_CERT_SHA256/);
-  assert.match(workflow, /zavro-arm64-update-apk-v1178/);
+  assert.match(workflow, /zavro-arm64-update-apk-v1179/);
 });

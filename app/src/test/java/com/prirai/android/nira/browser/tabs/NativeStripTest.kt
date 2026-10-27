@@ -46,7 +46,8 @@ class NativeStripTest {
         assertTrue(descendants(strip).none { it.contentDescription?.toString()?.startsWith("Karta: ") == true })
         var commits = 0
         strip.onGroupToggle = { assertEquals("g", it); commits++ }
-        descendants(strip).filterIsInstance<TextView>().single { it.text.toString().contains("Filmy") }.performClick()
+        assertTrue(descendants(strip).filterIsInstance<TextView>().none { it.text.toString().contains("Filmy") })
+        descendants(strip).filterIsInstance<TextView>().single { it.text.toString().contains("(2)") }.performClick()
         assertEquals(1, commits)
         strip.updateOrder(UnifiedTabOrder("default", listOf(entry.copy(isExpanded=true))))
         assertEquals(2, descendants(strip).count { it.contentDescription?.toString()?.startsWith("Karta: ") == true })
