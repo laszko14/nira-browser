@@ -224,9 +224,24 @@
     if (!groups.has(element)) groups.set(element, "g" + (++nextGroup));
     return groups.get(element);
   }
+  // Decode presentation text only; never decode, modify or cache signed media URLs.
   function safeTitle(value) {
     if (typeof value !== "string") return null;
-    const clean = value.replace(/[\u0000-\u001f\u007f]/g, " ")
+    let text = value;
+    if (/%[0-9a-f]{2}/i.test(text)) {
+      try { text = decodeURIComponent(text); } catch (_) { /* malformed source title */ }
+    }
+    const named = { amp: "&", quot: '"', apos: "'", lt: "<", gt: ">",
+      nbsp: " ", ndash: "\u2013", mdash: "\u2014", hellip: "\u2026" };
+    text = text.replace(/&(#(?:x[0-9a-f]{1,6}|[0-9]{1,7})|amp|quot|apos|lt|gt|nbsp|ndash|mdash|hellip);/gi,
+      (raw, entity) => {
+        if (entity[0] !== "#") return named[entity.toLowerCase()] || raw;
+        const hex = entity[1]?.toLowerCase() === "x";
+        const code = Number.parseInt(entity.slice(hex ? 2 : 1), hex ? 16 : 10);
+        return Number.isInteger(code) && code > 0 && code <= 0x10ffff &&
+          !(code >= 0xd800 && code <= 0xdfff) ? String.fromCodePoint(code) : raw;
+      });
+    const clean = text.replace(/[\u0000-\u001f\u007f]/g, " ")
       .replace(/\s+/g, " ").trim();
     return clean && clean.length <= 300 &&
       (typeof TextEncoder === "undefined" || new TextEncoder().encode(clean).length <= 900) ? clean : null;
