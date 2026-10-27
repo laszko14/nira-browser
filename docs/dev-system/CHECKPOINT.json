@@ -21,7 +21,7 @@
     "No atomic multi-client dispatch idempotency",
     "Workflow registration GET and real POST must be independently verified in Stage 3"
   ],
-  "resume": "All eight milestones have been completed as scoped. Diagnostic/read-only system accepted. For any further task, re-read this final checkpoint, live branch refs and FINAL_ACCEPTANCE_STAGE8.md; do not claim autonomous signed APK build readiness; never compile or enable dispatch without explicit new user authorization.",
+  "resume": "Stage 8 remains completed. A post-stage-8 continuation has begun; see docs/dev-system/POST_STAGE8_BUILD_EDITOR.md. Do not repeat successful Build Reviews or Kotlin smoke; recheck refs and remaining gates. Do not claim signed APK build or production source editor are completed.",
   "verification": {
     "branch_write_verified": true,
     "actual_branch_and_workflow_preflight": "clean+mpv PASSED with authenticated GitHub connector",
@@ -235,5 +235,35 @@
       "No full Android CI measured speedup",
       "No GitHub server-side branch protection verified"
     ]
+  },
+  "post_stage8_continuation": {
+    "name": "Build Control and Code Editor implementation",
+    "status": "IN_PROGRESS_FIRST_MILESTONE_VERIFIED",
+    "tools_branch": "tools/zavro-development-system-stage1-20261027",
+    "sandbox_branch": "tools/zavro-edit-clean-20261027",
+    "sandbox_sha": "c1021a6e8d877feac911986348936f39fdd3863b",
+    "build_review": {
+      "clean": {
+        "run": 40475008770,
+        "result": "26/26 PASS",
+        "decision": "REUSE_SUCCESS"
+      },
+      "mpv": {
+        "run": 40475634929,
+        "result": "26/26 PASS",
+        "decision": "REVIEW_PREVIOUS_FAILURE"
+      }
+    },
+    "editor": {
+      "source": "devtools/code-editor.mjs",
+      "test_workflow": ".github/workflows/zavro-editor-smoke.yml",
+      "run": 40475558294,
+      "result": "18/18 guard PASS; Kotlin Gradle BUILD SUCCESSFUL",
+      "apk_generated": false,
+      "production_source_edited": false
+    },
+    "status_notes": "This is not full production code editing nor signed APK bridge completion",
+    "next_work": "Review MPV failure, harden signed-build authorization and idempotency, extend guarded Code Editor to reviewed Kotlin application patches, verify cross-run recovery",
+    "signed_build_dispatched": false
   }
 }

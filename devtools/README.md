@@ -36,3 +36,6 @@ See `docs/dev-system/ORCHESTRATOR_STAGE7.md`. Connected GitHub read-only coordin
 
 ## Stage 8 — Final acceptance status
 See `docs/dev-system/FINAL_ACCEPTANCE_STAGE8.md`. Live read-only acceptance run #40473570292: 184/184 Node and 16/16 Python PASS, all 7 historical runs checked against GitHub, protected refs unchanged. Explicit synthetic build request denied in #40473675057. Stage 3 Build Bridge powerful dispatch job now additionally requires a specific repository-owner Actions variable; current variable value could not be verified. **Diagnostic toolchain accepted; autonomous production APK build/edit/release system NOT yet accepted.**
+
+## Post-Stage 8 continuation — Build Control + Code Editor
+See `docs/dev-system/POST_STAGE8_BUILD_EDITOR.md`. Authenticated build-readiness reviews: Clean SUCCESS run 40475008770, MPV SUCCESS run 40475634929 (prior failure requires review). A separate Clean sandbox gained one Kotlin JUnit test commit c1021a6; runner 40475558294 passed 18/18 editor guards and Gradle testDebugUnitTest. No signed APK was assembled. General production-code editing and signed build dispatch are still unverified.
