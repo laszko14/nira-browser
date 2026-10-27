@@ -798,7 +798,7 @@ class UnifiedToolbar @JvmOverloads constructor(
             actions.setOnDragListener { _, event ->
                 when (event.action) {
                     android.view.DragEvent.ACTION_DRAG_STARTED ->
-                        event.localState is View && ids[event.localState] in options.editableIds
+                        (event.localState as? View)?.let { ids[it] in options.editableIds } == true
                     android.view.DragEvent.ACTION_DROP -> {
                         val dragged = event.localState as? View ?: return@setOnDragListener false
                         if (actions.indexOfChild(dragged) < 0) return@setOnDragListener false
