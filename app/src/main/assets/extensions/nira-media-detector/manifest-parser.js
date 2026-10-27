@@ -141,7 +141,9 @@ globalThis.NiraManifestParser = (() => {
           codecs: xmlAttr(tag, "codecs") || codecs || null, language: language || null };
         const target = content === "video" ? variants : content === "audio" ? audioTracks :
           content === "text" || /subtitle/i.test(mime) ? subtitleTracks : null;
-        if (target && resolved && target.length < limit) target.push(item);
+        // SegmentTemplate representations often have no direct BaseURL. Keep
+        // their bitrate as metadata, never claim them as playable MP4 URLs.
+        if (target && target.length < limit) target.push(item);
       }
     }
     const dynamic = /\btype\s*=\s*['"]dynamic['"]/i.test(mpd);
