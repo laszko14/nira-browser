@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "kind": "resume-previous-action",
+  "repo": "laszko14/nira-browser",
+  "source_run_id": 40472241780,
+  "source_artifact_id": 12719096410,
+  "request_path": "devtools/orchestrator-probes/stage7-mpv-20261027-01.json",
+  "build_requested": false
+}
