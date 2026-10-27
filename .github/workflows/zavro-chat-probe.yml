@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: zavro-chat-connector-probe
@@ -56,4 +57,23 @@ jobs:
           }
           NODE
       - name: Run Build Control and bridge security tests (no Android)
-        run: node --test devtools/tests/build-control.test.mjs devtools/tests/build-request-validator.test.mjs
+        run: node --test devtools/tests/build-control.test.mjs devtools/tests/build-request-validator.test.mjs devtools/tests/report-build.test.mjs
+      - name: Run Stage 4 ZIP verifier security tests (no APK download)
+        run: python3 -m unittest discover -s devtools/tests -p test_verify_apk_artifact.py -v
+      - name: Inspect existing signed Clean v1174 Actions run (read-only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node devtools/report-build.mjs --run 40462413839 --variant clean --with-ci-logs > "$RUNNER_TEMP/zavro-stage4-report.json"
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const report=JSON.parse(readFileSync(process.env.RUNNER_TEMP+'/zavro-stage4-report.json','utf8'));
+          if (report.run_id!==40462413839 || report.commit_sha!=='3330a0b3a057008886fde392f788a1941e0dfb84' ||
+              report.state!=='CI_VERIFIED_APK_ARTIFACT' || report.artifact?.artifact_id!==12714733371 ||
+              report.build_started_by_reporter!==false || report.independently_inspected_apk_bytes!==false) {
+            throw Error('STAGE4_REPORT_NOT_VERIFIED');
+          }
+          console.log('STAGE4_EXISTING_APK_REPORT_PASS (no Android build)');
+          NODE
