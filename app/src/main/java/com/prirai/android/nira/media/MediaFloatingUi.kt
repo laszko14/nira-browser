@@ -186,6 +186,8 @@ internal class MediaFloatingUi(
         val measurement = capture?.operation(LabOperation.FAB_OPEN)
         sheet?.dismiss()
         sheetSnapshot = initial
+        // Diagnostic-only shadow comparison; never changes tile grouping or display.
+        TestLab.mediaPanelSnapshot(initial.tab.binding, initial.entries)
         initial.entries.forEach { TestLab.mediaDisplayed(initial.tab.binding, it) }
         val dialog = BottomSheetDialog(context)
         val bounds = Rect()
