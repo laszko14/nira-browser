@@ -76,13 +76,13 @@ class VideoTilesDeviceTest {
             val density = onMain { activity.resources.displayMetrics.density }
             assertTrue("Play width remains >=48dp", firstPlay.width() >= 48 * density - 2)
             assertTrue("Play height remains >=48dp", firstPlay.height() >= 48 * density - 2)
-            repeatUntil("tenth row in first column", 30, { play(10) != null }) { swipe(vertical = true) }
+            repeatUntil("tenth row in first column", 30, { fullPlay(10) != null }) { swipe(vertical = true) }
             val lastRow = bounds(play(10)!!)
             assertTrue("Last row Play retains its touch target", lastRow.height() >= 48 * density - 2)
             assertNotNull("Header remains available after vertical scroll", node {
                 it.contentDescription?.toString() == "Ustawienia widoku"
             })
-            repeatUntil("last row in last horizontal column", 30, { play(60) != null }) { swipe(vertical = false) }
+            repeatUntil("last row in last horizontal column", 30, { fullPlay(60) != null }) { swipe(vertical = false) }
             assertTrue("Only deliberate Play clicks invoke playback", onMain { intProperty("getPlayCount") } == 0)
             val selected = play(60)!!
             assertTrue("Play is focusable", selected.isFocusable)
@@ -124,8 +124,7 @@ class VideoTilesDeviceTest {
                 clickDescription("Wróć do filmów")
             }
             assertEquals(0, onMain { intProperty("getPlayCount") })
-            val close = node { it.contentDescription?.toString() == "Zamknij wykryte filmy" }!!
-            assertTrue(close.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+            clickDescription("Zamknij wykryte filmy")
             await("real sheet dismissed") { node { it.contentDescription?.toString() == "Wykryte filmy" } != null }
         }
     }
@@ -160,8 +159,10 @@ class VideoTilesDeviceTest {
             await("preference orientation") { onMain { activity.resources.configuration.orientation == expected } }
         }
         rotate(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
-        val settings = node { it.contentDescription?.toString() == "Ustawienia widoku" }!!
-        assertTrue(settings.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+        clickDescription("Ustawienia widoku")
+        await("dedicated settings screen composed") {
+            node { it.contentDescription?.toString() == "Wróć do filmów" } != null
+        }
         fun setSlider(min: Float, max: Float, target: Float) {
             val slider = scrollTo { it.rangeInfo?.let { range -> range.min == min && range.max == max } == true }
             val args = android.os.Bundle().apply {
@@ -295,19 +296,32 @@ class VideoTilesDeviceTest {
         instrumentation.waitForIdleSync()
     }
     private fun scrollTo(predicate: (AccessibilityNodeInfo) -> Boolean): AccessibilityNodeInfo {
-        repeat(15) {
+        val deadline = SystemClock.elapsedRealtime() + 15_000
+        while (SystemClock.elapsedRealtime() < deadline) {
             node(predicate)?.let { return it }
-            val scroll = node { it.isScrollable }
-            assertNotNull("Settings content is reachable by scrolling", scroll)
-            assertTrue(scroll!!.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD))
+            // Accessibility actions enqueue Compose state changes; the next frame may not
+            // have installed the settings subtree yet. Refresh the tree after each frame.
+            node { it.isScrollable }?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
             instrumentation.waitForIdleSync()
+            SystemClock.sleep(120)
         }
         return node(predicate) ?: error("Expected settings control unavailable after scrolling")
     }
 
     private fun intProperty(name: String) = activity.javaClass.getMethod(name).invoke(activity) as Int
-    private fun play(number: Int) = node {
+    private fun play(number: Int): AccessibilityNodeInfo? = node {
         it.contentDescription?.toString() == "Odtwórz w MPV Alpha: Kafelek $number"
+    }?.let(::clickableAncestor)
+    private fun clickableAncestor(node: AccessibilityNodeInfo): AccessibilityNodeInfo {
+        var target = node
+        while (!target.isClickable) target = target.parent ?: error("No clickable parent for control")
+        return target
+    }
+    private fun fullPlay(number: Int): AccessibilityNodeInfo? {
+        val target = play(number) ?: return null
+        val density = onMain { activity.resources.displayMetrics.density }
+        val rect = bounds(target)
+        return target.takeIf { rect.width() >= 48 * density - 2 && rect.height() >= 48 * density - 2 }
     }
     private fun node(predicate: (AccessibilityNodeInfo) -> Boolean): AccessibilityNodeInfo? {
         val root = instrumentation.uiAutomation.rootInActiveWindow ?: return null
