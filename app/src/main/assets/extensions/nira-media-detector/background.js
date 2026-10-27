@@ -18,18 +18,33 @@ const manifestInflight = new Map();
 const manifestGroups = new Map();
 const manifestLineage = new Map();
 const manifestVariantRates = new Map();
-// Identity is ONLY for grouping; never mutate or rebuild the exact playback URL.
-const volatileParams = new Set(["s", "e", "t", "token", "sig", "signature",
-  "expires", "expiry", "exp", "hdnts", "hdntl", "policy", "key-pair-id",
-  "x-amz-algorithm", "x-amz-credential", "x-amz-date", "x-amz-expires",
-  "x-amz-signedheaders", "x-amz-signature", "x-amz-security-token"]);
+// Never erase arbitrary manifest query parameters to infer media identity.
+// For fully formed AWS SigV4, only signature timestamp, expiry and signature
+// are treated as rotating authentication data. Credential, signed headers,
+// security token and all custom query parameters remain significant.
+// Original playback and fetch URLs are never reconstructed or mutated here.
 function manifestIdentity(url) {
   try {
     const parsed = new URL(url);
-    const stable = [...parsed.searchParams.entries()]
-      .filter(([key]) => !volatileParams.has(key.toLowerCase()))
-      .sort(([a, av], [b, bv]) => a.localeCompare(b) || av.localeCompare(bv));
-    return parsed.origin + parsed.pathname + "?" + JSON.stringify(stable);
+    const rawQuery = parsed.search.slice(1);
+    if (!rawQuery) return parsed.href;
+    const parts = rawQuery.split("&");
+    const fields = new Map();
+    for (const part of parts) {
+      const split = part.indexOf("=");
+      if (split <= 0) return parsed.href;
+      const name = part.slice(0, split).toLowerCase();
+      if (name.includes("%")) return parsed.href; // ambiguous encoded names
+      if (name.startsWith("x-amz-") && fields.has(name)) return parsed.href;
+      if (name.startsWith("x-amz-")) fields.set(name, part.slice(split + 1));
+    }
+    if (fields.get("x-amz-algorithm") !== "AWS4-HMAC-SHA256" ||
+        !fields.get("x-amz-credential") || !fields.get("x-amz-signedheaders") ||
+        !fields.get("x-amz-signature")) return parsed.href;
+    const rotating = new Set(["x-amz-date", "x-amz-expires", "x-amz-signature"]);
+    const stable = parts.filter(part =>
+      !rotating.has(part.slice(0, part.indexOf("=")).toLowerCase())).sort();
+    return "sigv4:" + parsed.origin + parsed.pathname + "?" + JSON.stringify(stable);
   } catch (_) { return url; }
 }
 function streamGroupKey(tabId, documentKey, isPrivate, frameKey, url) {
