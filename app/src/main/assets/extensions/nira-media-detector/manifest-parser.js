@@ -36,6 +36,7 @@ globalThis.NiraManifestParser = (() => {
     if (lines[0] !== "#EXTM3U") throw new Error("invalid_hls");
     const variants = [], audioTracks = [], subtitleTracks = [];
     let seconds = 0, firstSegmentUrl = null, drm = false, endList = false, segments = 0;
+    let rangedSegments = 0, rangeBytes = 0, hasInitialization = false;
     for (let index = 0; index < lines.length; index++) {
       const line = lines[index];
       if (/^#EXT-X-(?:SESSION-)?KEY:/.test(line)) {
@@ -44,6 +45,14 @@ globalThis.NiraManifestParser = (() => {
             (key.METHOD !== "AES-128" || key.KEYFORMAT && key.KEYFORMAT !== "identity")) drm = true;
       }
       if (line === "#EXT-X-ENDLIST") endList = true;
+      if (line.startsWith("#EXT-X-MAP:")) hasInitialization = true;
+      if (line.startsWith("#EXT-X-BYTERANGE:")) {
+        const match = /^#EXT-X-BYTERANGE:(\\d+)(?:@\\d+)?$/.exec(line);
+        if (match && Number.isSafeInteger(Number(match[1]))) {
+          rangedSegments++;
+          rangeBytes += Number(match[1]);
+        }
+      }
       if (line.startsWith("#EXTINF:")) {
         const value = Number(line.slice(8).split(",")[0]);
         if (Number.isFinite(value) && value > 0) { seconds += value; segments++; }
@@ -82,6 +91,11 @@ globalThis.NiraManifestParser = (() => {
     return { protocol: "HLS", drm, kind: media ? "media" : "master", variants,
       audioTracks, subtitleTracks, live: media && !endList,
       durationSeconds: media && endList && segments > 0 ? Math.ceil(seconds) : null,
+      // Exact only for a complete single-rendition VOD in which EVERY segment
+      // has an explicit byte range and no unknown initialization segment.
+      exactSizeBytes: media && endList && segments > 0 && rangedSegments === segments &&
+        !hasInitialization && Number.isSafeInteger(rangeBytes) && rangeBytes > 0 &&
+        rangeBytes <= 1000000000000 ? rangeBytes : null,
       firstSegmentUrl };
   }
   function xmlAttr(tag, name) {
