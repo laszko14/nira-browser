@@ -69,6 +69,8 @@ class BrowserApp : Application() {
             return
         }
 
+        com.prirai.android.nira.display.BrowserRefreshRate.install(this)
+
         // LogFactProcessor forwards every mozilla-components Fact to logcat
         // for the life of the process. That's useful while developing but it
         // is pure CPU + logcat spam in release builds (every URL load, every

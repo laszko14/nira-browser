@@ -98,6 +98,10 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         ActivityResultContracts.StartActivityForResult()
     ) { restoreWebPlaybackAfterMpv() }
 
+    private val externalAlphaLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { restoreWebPlaybackAfterMpv() }
+
     private fun restoreWebPlaybackAfterMpv() {
         val held = suspendedWebPlayback ?: return
         suspendedWebPlayback = null
@@ -418,28 +422,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             safeToolbarSpace = { viewport ->
                 unifiedToolbar?.mediaButtonReservations(binding.browserLayout, viewport) ?: (0 to 0)
             },
-            openVideo = { streamId ->
-                // Resolve on click, not when the bottom sheet rendered: the signed URL
-                // may have rotated while the user was choosing a quality.
-                val fresh = currentMediaSnapshot()
-                val entry = fresh?.entries?.firstOrNull { it.id == streamId }
-                val uri = entry?.url?.toUri()
-                if (uri != null && uri.scheme in listOf("http", "https") && !uri.host.isNullOrBlank()) {
-                    if (entry.playbackStatus in setOf(
-                            com.prirai.android.nira.media.MediaPlaybackStatus.EXPIRED,
-                            com.prirai.android.nira.media.MediaPlaybackStatus.AUTH_ERROR,
-                            com.prirai.android.nira.media.MediaPlaybackStatus.UNPLAYABLE)) {
-                        Toast.makeText(requireContext(), "Link nie jest aktualnie odtwarzalny — odśwież stronę lub uruchom odtwarzacz strony.", Toast.LENGTH_LONG).show()
-                    } else {
-                        // An embedded player commonly signs the URL for its own origin.
-                        // Use the trusted frame URL captured by webRequest correlation;
-                        // fall back to the top document only for top-frame media.
-                        launchVideoInMpv(uri, entry.frameUrl ?: fresh?.tab?.pageUrl)
-                    }
-                } else {
-                    Toast.makeText(requireContext(), R.string.video_link_invalid, Toast.LENGTH_SHORT).show()
-                }
-            }
+            openVideo = { streamId -> launchDetectedVideoInExternalAlpha(streamId) }
         )
         mediaFloatingUi = overlay
         viewLifecycleOwner.lifecycleScope.launch {
@@ -1809,6 +1792,75 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 restoreWebPlaybackAfterMpv()
                 com.prirai.android.nira.media.PlaybackSourceRegistry.clear()
                 Toast.makeText(requireContext(), "Nie można uruchomić MPV", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    /** Explicit panel Play always goes to external MPV Alpha, independent of AUTO/mini mode. */
+    private fun launchDetectedVideoInExternalAlpha(streamId: Long) {
+        val snapshot = currentMediaSnapshot() ?: return
+        val entry = snapshot.entries.firstOrNull { it.id == streamId } ?: return
+        fun unavailable(message: String) = Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
+        if (entry.playbackStatus in setOf(
+                com.prirai.android.nira.media.MediaPlaybackStatus.EXPIRED,
+                com.prirai.android.nira.media.MediaPlaybackStatus.AUTH_ERROR,
+                com.prirai.android.nira.media.MediaPlaybackStatus.UNPLAYABLE) ||
+            !com.prirai.android.nira.media.ExternalMpvSourcePolicy.allowed(entry.url)) {
+            unavailable("To źródło nie może być bezpiecznie otwarte poza kartą. Uruchom odtwarzacz strony lub odśwież film.")
+            return
+        }
+        if (inlineMpv != null || suspendedWebPlayback != null || MediaElementPlaybackBridge.busy()) {
+            unavailable("Zakończ bieżące odtwarzanie MPV przed otwarciem kolejnego filmu.")
+            return
+        }
+        // Reuse the exact-frame pause/restore handshake. Only the selected URL leaves
+        // Gecko; no cookies, session headers, page URL or private metadata enter Intent.
+        MediaElementPlaybackBridge.prepare(snapshot.tab, entry.url, entry.frameUrl) { lease ->
+            if (!isAdded || view == null) {
+                lease?.let { MediaElementPlaybackBridge.restore(it, snapshot.tab) }
+                return@prepare
+            }
+            val fresh = currentMediaSnapshot()
+            val live = fresh?.entries?.firstOrNull { it.id == streamId }
+            val requested = snapshot.tab
+            val now = fresh?.tab
+            if (now == null || now.binding.session !== requested.binding.session ||
+                now.binding.tabId != requested.binding.tabId || now.binding.contextId != requested.binding.contextId ||
+                now.binding.isPrivate != requested.binding.isPrivate || now.pageUrl != requested.pageUrl ||
+                now.loading != requested.loading || live == null || live.url != entry.url ||
+                live.playbackStatus in setOf(com.prirai.android.nira.media.MediaPlaybackStatus.EXPIRED,
+                    com.prirai.android.nira.media.MediaPlaybackStatus.AUTH_ERROR,
+                    com.prirai.android.nira.media.MediaPlaybackStatus.UNPLAYABLE)) {
+                lease?.let { MediaElementPlaybackBridge.restore(it, requested) }
+                unavailable("Źródło nie jest już aktualne. Wybierz film ponownie.")
+                return@prepare
+            }
+            var ownsTransfer = false
+            val result = com.prirai.android.nira.media.ExternalMpvAlpha.open(live.url,
+                canLaunch = { viewLifecycleOwner.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED) }
+            ) { intent ->
+                // This block is never reached if Home was pressed while the Gecko ACK was pending.
+                if (!ownsTransfer) {
+                    val state = requireContext().components.store.state
+                    val tab = state.tabs.firstOrNull { it.id == now.binding.tabId }
+                    val fallbackPaused = lease == null && tab?.mediaSessionState?.playbackState == MediaSession.PlaybackState.PLAYING &&
+                        runCatching { tab.mediaSessionState?.controller?.pause(); true }.getOrDefault(false)
+                    suspendedWebPlayback = if (lease != null || fallbackPaused) SuspendedWebPlayback(
+                        now.binding.tabId, now.binding.contextId, now.binding.isPrivate, now.binding.session,
+                        now.pageUrl, lease, fallbackPaused) else null
+                    ownsTransfer = true
+                }
+                externalAlphaLauncher.launch(intent)
+            }
+            if (result != com.prirai.android.nira.media.ExternalMpvAlpha.Result.OPENED) {
+                if (ownsTransfer) restoreWebPlaybackAfterMpv()
+                else lease?.let { MediaElementPlaybackBridge.restore(it, requested) }
+                when (result) {
+                    com.prirai.android.nira.media.ExternalMpvAlpha.Result.CANCELLED -> Unit
+                    com.prirai.android.nira.media.ExternalMpvAlpha.Result.UNAVAILABLE ->
+                        unavailable("Nie można uruchomić MPV Alpha. Zainstaluj lub włącz aplikację odtwarzacza.")
+                    else -> unavailable("To źródło wymaga odtwarzacza strony.")
+                }
             }
         }
     }

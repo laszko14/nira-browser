@@ -71,13 +71,20 @@ test("v1128: side-drawer drag commits one awaited transaction, not an async redr
   assert.match(model, /saveCurrentOrder\(profileId\)/);
 });
 
-test("v1128: floating media button and expanded list match the selected reference", () => {
+test("v1167: existing floating media button and finite expanded tile sheet preserve access", () => {
   const ui = read(base + "media/MediaFloatingUi.kt");
   assert.match(ui, /FrameLayout\.LayoutParams\(dp\(29\), dp\(29\), Gravity\.CENTER\)/);
   assert.match(ui, /downloadGlyph\.visibility = if \(amount > 0\) View\.GONE/);
   assert.match(ui, /behavior\.skipCollapsed = true/);
   assert.match(ui, /behavior\.state = BottomSheetBehavior\.STATE_EXPANDED/);
-  assert.match(ui, /height = body\.measuredHeight\.coerceIn\(dp\(130\), maxHeight\)/);
+  // The approved tile redesign replaces content-sized legacy rows with a finite viewport.
+  // Keep the FAB/expanded-sheet assertions above and require bounded orthogonal overflow.
+  assert.match(ui, /val height = \(bounds\.height\(\) - dp\(24\)\)\.coerceAtLeast\(dp\(120\)\)/);
+  assert.match(ui, /behavior\.isDraggable = false/);
+  const tiles = read(base + "media/VideoTilesPanel.kt");
+  assert.match(tiles, /\.height\(geometry\.contentHeightDp\.dp\)/);
+  assert.match(tiles, /verticalScroll\(vertical\)/);
+  assert.match(tiles, /rows = GridCells\.Fixed\(geometry\.rows\)/);
 });
 
 test("v1128: address-bar previous/next follows persisted group and tab order", () => {

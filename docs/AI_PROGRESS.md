@@ -397,3 +397,16 @@ Opcjonalne, odwracalne rewizje istniejących przycisków DRC/DE: kopie oryginał
 - JankStats stable1.0.0 potwierdzone officialdocs; jeszcze bez dependency/kolektora. Rdzeń pureKotlin i7trybów,60s monotonic/deadline,scope token,partial/cancel/cleanupgate/foregroundgaps,boundedmetrics.
 -31nowych tests,pełnyKotlin/JUnit307/307PASS25s. Realne edgeRED/GREEN: singlememorydelta,invalidAPIrange,mutableenv,sourceavailability,versionheaderlimit. UI/kolektory/narzut/eksportv1165jeszczebrak — to WIP, nie gotoweAPK.
 - Następne B3raportTXT/JSON; potem hookiC/D, runtimeE, UIF, testyG i signedCIH. Dokładne wznowienie CODEX_RESUME_V1165.md. JS/Lua/DSP nietknięte/niepowtarzane; wszystkie stare funkcje zachowane.
+
+## 2026-10-26 — v1166 w toku
+
+- Zweryfikowana baza v1165 6ede3b4, osobny worktree /workspace/nira-v1166 i gałąź feat/zavro-x-mpv-v1166-120hz-video-tiles; starsze wersje/PR bez zmian.
+- Wdrożone moduły Window120Hz i Compose video tiles1–10rzędów, osobne ustawienia pion/poziom, explicitexternalAlphaPlay. Rzeczywista równoległość rozłącznych zakresów; jeden właściciel integracji i jeden ciężki Gradle.
+- JS202/202, Lua77/DSP28PASS; pełna weryfikacja Android/CI/APK w toku. Brak deklaracji gotowości telefonu.
+- Plan: ZAVRO_X_MPV_V1166_IMPLEMENTATION_PLAN.md; projekt: ZAVRO_X_MPV_V1166_VIDEO_TILES_DESIGN.md; raport: ZAVRO_X_MPV_V1166_120HZ_VIDEO_TILES_HANDOFF.md; checkpoint: CODEX_RESUME_V1166.md. Te pliki należy uaktualnić po rzeczywistych wynikach.
+
+## 2026-10-27 — v1167, wierne odtworzenie screenshotu
+
+Odzyskano lokalne zmiany i zakończony poprzedni Gradle. Porównano PR79/1a83f34, PR80/82b2d0b oraz kompletnąv1165/6ede3b4. Użytkownik ustalił obraz jako nadrzędny wzorzec: wdrażane badge/menu/nagłówek/preview/checkboxy i trzy suwaki. Nowa gałąź1167 i wyższy numerAPK; brak merge i zapisówstarychPR. Testy docelowegoUI/CI/podpisaneAPK nadal oczekują.
+
+- v1167 checkpoint integracji:391/391JUnit,JS202/202,lint0nowych/3usunięte,AndroidTest+x86fixtureclass PASS. Naprawiono slider stalecommit i fixture ComponentDialog; niezależnyreview bez dalszych blokerów. CI/30instrumentacji/signedAPK/screenshoty nadal do rzeczywistego potwierdzenia. CODEX_RESUME_V1167.md.

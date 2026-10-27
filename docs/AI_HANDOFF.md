@@ -424,3 +424,14 @@ Baza b00b22a87b6add2daec6aa2f3614f207e2cf8525, gałąź fix/zavro-x-mpv-v1157-am
 
 ## Checkpoint v1158 — świadoma naprawa DRC / DE (2026-10-25)
 Baza v1157 299699a428495734dd2681d861500e7a5e9e954d; gałąź fix/zavro-x-mpv-v1158-drc-de-filter-reliability, Draft PR względem v1157 bez merge. Potwierdzona wada usuwania bezetykietowego DRC i identycznych pięciu grafów DE; nie przypisano zmyślonej przyczyny dawnemu Toastowi Androida. Nowe rewizje tylko po wyborze istniejącego slotu, oryginały click/long-press w atomowym prywatnym snapshot i restore. DRC trzy parametry użytkownika, DE pięć oryginalnych par RexDialogueAudio c6107ce + jawny guard stereo. Własne etykiety, native status/AF/foreign readback i celowany rollback; oddzielne skorelowane ACK i DSP receipts. Źródło bridge/NODE/epoch bez zmian; dodano wyłącznie pasywny callback Kotlin istniejącego ACK. Bez inicjalizacji/ładowania/nowego observera. JUnit194, JS159, systemowy Lua33+17+15+12, DSP15+13 oraz prywatne12Lua/31DSP PASS; Android DSP/odsłuch/OSD NIEURUCHOMIONE (brak urządzenia). Handoff docs/ZAVRO_X_MPV_V1158_HANDOFF.md zawiera wyniki końcowego lokalnego Gradle, ograniczenia, procedurę świeżego Play, zastosowanie/restore i linki gałęzi. Dokładne SHA/PR/CI/APK w finalnym raporcie i opisie PR, bez dokumentacyjnego rerun CI. Brak zmian innych filtrów/skryptów/Surface/Gecko i brak Auto Audio.
+
+## Aktywne v1166 — 2026-10-26
+
+Nowa autoryzowana wersja: worktree /workspace/nira-v1166, base v1165 6ede3b4. Implementacja120Hz i video tiles istnieje, testyCI/podpisanyAPK jeszcze w toku. Źródłem wznowienia jest docs/CODEX_RESUME_V1166.md i docs/ZAVRO_X_MPV_V1166_120HZ_VIDEO_TILES_HANDOFF.md. Nie oznaczać gotowości na podstawie samego kodu; nie powtarzać zakończonych modułów. Starszych gałęzi i PR77/78 nie zmieniać.
+
+## Najnowsze steering: v1167, screenshot jako główna specyfikacja
+
+Pracuj na feat/zavro-x-mpv-v1167-reference-video-panel w /workspace/nira-v1166. Zastępuje niedostarczony lokalny prototyp1166. PR79/80 zweryfikowane bezzmian; aktualny checkpoint docs/CODEX_RESUME_V1167.md, raport docs/ZAVRO_X_MPV_V1167_REFERENCE_PANEL_HANDOFF.md. Nie wydawać starego panelu.
+
+## 2026-10-27 — aktualny checkpoint v1167
+Obie funkcje i wygląd według obrazu zintegrowane na pełnej bazie6ede3b4. Lokalne391JUnit/202JS/lintdelta0nowych/AndroidTest+x86fixture PASS. Następny krok commit/push tylko nowejgałęzi1167 i jedenDraftPRdo v1165,30instrumentacji i podpisanyverifierCI; szczegóły CODEX_RESUME_V1167.md. Nie zmieniaćPR78/79/80 ani nie deklarować gotowegoAPK przedCI.

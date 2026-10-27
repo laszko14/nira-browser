@@ -7,6 +7,9 @@ on:
     paths:
       - 'app/src/main/assets/extensions/nira-media-detector/**'
       - 'app/src/main/java/com/prirai/android/nira/media/**'
+      - 'app/src/main/java/com/prirai/android/nira/display/**'
+      - 'app/src/main/java/com/prirai/android/nira/BrowserApp.kt'
+      - 'app/src/main/java/com/prirai/android/nira/BrowserFragment.kt'
       - 'app/src/main/java/com/prirai/android/nira/diagnostics/testlab/**'
       - 'app/src/androidTest/**'
       - 'app/src/geckoDiscoveryTest/**'
@@ -28,9 +31,11 @@ jobs:
       contents: read
     env:
       # A focused WIP diagnosis never replaces the full PR / final suite.
-      GECKO_TEST_FILTER: ${{ github.event_name == 'workflow_dispatch' && inputs.suite == 'testlab' && 'com.prirai.android.nira.diagnostics.testlab.TestLabDeviceTest' || github.event_name == 'push' && contains(github.event.head_commit.message, '[gecko-spa]') && 'com.prirai.android.nira.media.GeckoDiscoveryDeviceTest#spaPushStateWithoutMutation,com.prirai.android.nira.media.GeckoDiscoveryDeviceTest#spaReplaceStateWithoutMutation' || 'com.prirai.android.nira.media.GeckoDiscoveryDeviceTest,com.prirai.android.nira.diagnostics.testlab.TestLabDeviceTest,com.prirai.android.nira.browser.tabs.TabGroupRoomDeviceTest' }}
+      GECKO_TEST_FILTER: ${{ github.event_name == 'workflow_dispatch' && inputs.suite == 'testlab' && 'com.prirai.android.nira.diagnostics.testlab.TestLabDeviceTest' || github.event_name == 'push' && contains(github.event.head_commit.message, '[gecko-spa]') && 'com.prirai.android.nira.media.GeckoDiscoveryDeviceTest#spaPushStateWithoutMutation,com.prirai.android.nira.media.GeckoDiscoveryDeviceTest#spaReplaceStateWithoutMutation' || 'com.prirai.android.nira.media.GeckoDiscoveryDeviceTest,com.prirai.android.nira.diagnostics.testlab.TestLabDeviceTest,com.prirai.android.nira.browser.tabs.TabGroupRoomDeviceTest,com.prirai.android.nira.media.VideoTilesDeviceTest' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-java@v4
         with:
           distribution: zulu
@@ -53,7 +58,12 @@ jobs:
           disable-animations: true
           emulator-boot-timeout: 600
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none
-          script: ./gradlew connectedDebugAndroidTest -PgeckoDiscoveryAbi=x86_64 -Pandroid.testInstrumentationRunnerArguments.class="$GECKO_TEST_FILTER" --console=plain -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8' --max-workers=2
+          script: |
+            ./gradlew connectedDebugAndroidTest -PgeckoDiscoveryAbi=x86_64 -Pandroid.testInstrumentationRunnerArguments.class="$GECKO_TEST_FILTER" --console=plain -Pkotlin.compiler.execution.strategy=in-process '-Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8' --max-workers=2
+            mkdir -p app/build/reports/androidTests/reference-ui
+            adb exec-out run-as com.prirai.android.nira.mpv cat files/reference-panel-portrait.png > app/build/reports/androidTests/reference-ui/reference-panel-portrait.png
+            adb exec-out run-as com.prirai.android.nira.mpv cat files/reference-panel-landscape.png > app/build/reports/androidTests/reference-ui/reference-panel-landscape.png
+            adb exec-out run-as com.prirai.android.nira.mpv cat files/reference-settings-portrait.png > app/build/reports/androidTests/reference-ui/reference-settings-portrait.png
       - name: Upload real Android instrumentation reports (no APK)
         if: always()
         uses: actions/upload-artifact@v4

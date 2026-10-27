@@ -26,8 +26,8 @@ android {
         minSdkVersion 27
         targetSdkVersion 37
         // Increment by 4 with each update, by 1 with each fix
-        versionCode = 165
-        versionName = "0.5.22-alpha71-mpv39"
+        versionCode = 167
+        versionName = "0.5.22-alpha73-mpv40"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -107,6 +107,7 @@ android {
 
     if (providers.gradleProperty('geckoDiscoveryAbi').isPresent()) {
         sourceSets.debug.java.srcDir('src/geckoDiscoveryTest/java')
+        sourceSets.debug.kotlin.srcDir('src/geckoDiscoveryTest/java')
         sourceSets.debug.manifest.srcFile('src/geckoDiscoveryTest/AndroidManifest.xml')
     }
 
