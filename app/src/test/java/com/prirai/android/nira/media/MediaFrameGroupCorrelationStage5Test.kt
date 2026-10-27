@@ -120,6 +120,14 @@ class MediaFrameGroupCorrelationStage5Test {
         assertEquals(setOf(MediaSource.PAGE, MediaSource.NETWORK), record.sources)
     }
 
+    @Test fun pageOnlyTitleCannotBlockAnonymousManifestReconciliation() {
+        val repository = repository()
+        val url = "https://cdn.example/page-only.m3u8"
+        add(repository, url, MediaSource.PAGE, "g1", "Global site heading", "page")
+        add(repository, url, MediaSource.NETWORK, "manifest-1-1")
+        assertEquals("manifest-1-1", repository.currentEntries(tab).single().groupId)
+    }
+
     @Test fun anonymousPageHintMayStillJoinItsNetworkManifestVariants() {
         val repository = repository()
         val url = "https://cdn.example/master.m3u8"
