@@ -6,8 +6,8 @@ import re
 import sys
 from pathlib import Path
 
-SHA = re.compile(r"[0-9a-f]{40}\\Z")
-CERT = re.compile(r"[0-9a-f]{64}\\Z")
+SHA = re.compile(r"[0-9a-f]{40}\Z")
+CERT = re.compile(r"[0-9a-f]{64}\Z")
 SYSTEM_PREFIX = "tools/zavro-development-system-"
 
 
