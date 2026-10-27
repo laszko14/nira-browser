@@ -6,7 +6,7 @@ const c=JSON.parse(fs.readFileSync(new URL('../build-control.json',import.meta.u
 const req=v=>({variant:v,branch:c.targets[v].branch,sha:c.targets[v].pinned_sha});
 const y=v=>{let t=c.targets[v];return "name: Android CI\non:\n  workflow_dispatch:\n    inputs:\n      tag: {}\njobs:\n  build:\n    env:\n      EXPECTED_PACKAGE: "+t.package+"\n      EXPECTED_VERSION_CODE: \""+t.version_code+"\"\n      EXPECTED_VERSION_NAME: "+t.version_name+"\n      EXPECTED_CERT_SHA256: "+t.certificate_sha256+"\n    steps:\n      - run: ./gradlew assembleDebug\n      - run: bash scripts/verify-update-apk.sh\n  lint:\n    runs-on: ubuntu-latest\n  release:\n    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '')\n";};
 const fake=(v,o={})=>({head:async()=>c.targets[v].pinned_sha,workflowMetadata:async()=>({id:392221495,path:'.github/workflows/apk-release.yml',state:'active'}),workflowText:async()=>y(v),runs:async()=>[],...o});
-const rejects=(fn,code)=>assert.rejects(fn,e=>e instanceof BuildControlError&&e.code===code);
+const rejects=(fn,code)=>assert.rejects(async()=>fn(),e=>e instanceof BuildControlError&&e.code===code);
 test('config and package separation',()=>{assert.equal(checkConfig(c),c);assert.equal(c.targets.mpv.package,'com.prirai.android.nira.mpv');});
 test('both positive dry runs',async()=>{for(const v of ['clean','mpv']){let p=await planBuild(c,req(v),fake(v));assert.equal(p.decision,'READY_FOR_REVIEW');assert.equal(p.build_started,false);}});
 test('protect main',async()=>rejects(()=>Promise.resolve(checkRequest(c,{...req('clean'),branch:'main'})),'BRANCH'));
