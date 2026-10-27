@@ -16,7 +16,7 @@ internal class VideoDiscoveryLedger(private val capacity: Int = 256) {
     private data class Track(
         val number: Int, val scope: Int, val epoch: Int,
         val id: Long, val frame: Long?, var group: String?,
-        var title: String?, var kind: String?,
+        var title: String?, var kind: String?, var titleAmbiguous: Boolean,
         var format: String, val sources: MutableSet<String>, var displayed: Boolean = false,
     )
     private val scopes = IdentityHashMap<Any, Scope>()
@@ -42,14 +42,8 @@ internal class VideoDiscoveryLedger(private val capacity: Int = 256) {
         navigations++
     }
 
-    private fun priority(kind: String?): Int = when (kind) {
-        "player" -> 5
-        "structured" -> 4
-        "video" -> 3
-        "link" -> 2
-        "page" -> 1
-        else -> 0
-    }
+    private fun priority(kind: String?): Int =
+        com.prirai.android.nira.media.MediaTitleResolver.rank(kind)
 
     @Synchronized fun observe(binding: MediaSessionBinding, entry: MediaEntry) {
         val owner = scope(binding) ?: return
@@ -58,7 +52,7 @@ internal class VideoDiscoveryLedger(private val capacity: Int = 256) {
         if (previous == null) {
             if (tracks.size >= capacity) { dropped++; return }
             val record = Track(++nextNumber, owner.serial, owner.epoch, entry.id,
-                entry.frameKey, entry.groupId, entry.title, entry.titleKind,
+                entry.frameKey, entry.groupId, entry.title, entry.titleKind, entry.titleAmbiguous,
                 entry.format.name, entry.sources.mapTo(mutableSetOf()) { it.name })
             tracks[key] = record
             if (entry.title != null) firstTitles++
@@ -67,6 +61,7 @@ internal class VideoDiscoveryLedger(private val capacity: Int = 256) {
         previous.sources += entry.sources.map { it.name }
         previous.format = entry.format.name
         if (entry.groupId != null) previous.group = entry.groupId
+        previous.titleAmbiguous = entry.titleAmbiguous
         if (entry.title != previous.title && entry.title != null) {
             if (previous.title == null) firstTitles++
             else if (priority(entry.titleKind) > priority(previous.kind)) improved++
@@ -104,7 +99,7 @@ internal class VideoDiscoveryLedger(private val capacity: Int = 256) {
         var groupNumber = 0
         val uiSources = tracks.values.count { it.displayed }
         val uiWithTitle = tracks.values.count {
-            it.displayed && !it.title.isNullOrBlank() && it.kind != "page"
+            it.displayed && !it.title.isNullOrBlank() && it.kind != "page" && !it.titleAmbiguous
         }
         for (members in groups.values) {
             groupNumber++
@@ -113,9 +108,9 @@ internal class VideoDiscoveryLedger(private val capacity: Int = 256) {
             val titled = members.filter { !it.title.isNullOrBlank() }
             val strongest = titled.maxOfOrNull { priority(it.kind) } ?: 0
             val winners = titled.filter { priority(it.kind) == strongest }
-            val conflict = winners.map { it.title }.distinct().size > 1
+            val conflict = members.any { it.titleAmbiguous } || winners.map { it.title }.distinct().size > 1
             if (conflict) groupConflicts++
-            if (strongest <= 1) unknown++
+            if (strongest <= 1 || conflict) unknown++
             val kind = if (conflict) "CONFLICT" else
                 winners.firstOrNull()?.kind?.uppercase() ?: "UNKNOWN"
             kinds[kind] = (kinds[kind] ?: 0) + 1
