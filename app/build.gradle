@@ -26,8 +26,8 @@ android {
         minSdkVersion 27
         targetSdkVersion 37
         // Increment by 4 with each update, by 1 with each fix
-        versionCode = 167
-        versionName = "0.5.22-alpha72-clean"
+        versionCode = 168
+        versionName = "0.5.22-alpha73-clean"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -242,6 +242,7 @@ dependencies {
     implementation libs.androidx.credentials.play.services.auth
     implementation libs.play.services.auth
 
+    implementation "androidx.metrics:metrics-performance:1.0.0"
     testImplementation libs.junit
     testImplementation "org.mockito:mockito-core:5.20.0"
     testImplementation "org.robolectric:robolectric:4.16"

@@ -73,6 +73,9 @@
         />
 
     <!-- Custom Tabs Activity for external apps -->
+    <activity android:name=".diagnostics.testlab.TestLabActivity"
+        android:exported="false" android:theme="@style/AppThemeNotActionBar" />
+
     <activity
             android:name=".customtabs.ExternalAppBrowserActivity"
             android:autoRemoveFromRecents="true"
