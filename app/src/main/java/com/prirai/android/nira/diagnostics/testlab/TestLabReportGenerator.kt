@@ -42,6 +42,7 @@ object TestLabReportGenerator {
         appendLine("Opóźnienie finalizacji poza logicznym pomiarem: ${number(r.finalizationDelayMs)} ms")
         appendLine("Okno na pierwszym planie: ${number(r.foregroundMs)} ms; brak pokrycia: ${number(r.noCoverageMs)} ms")
         appendLine("COMPLETED oznacza zakończenie pomiaru, nie potwierdzenie sprawności całej aplikacji.")
+        if(r.testType==TestType.FULL_AUDIT) appendLine("JEDEN TEST / DWA MINUTY: równoległe kolektory UI, kart, GeckoView, wideo, zasobów i stabilności; sprawdzono tylko wykonane czynności. Metadane DOM/JSON-LD/manifests odczytywane lokalnie przez detektor, raport bez treści stron i adresów.")
         if (r.exportTruncated) appendLine("EKSPORT OGRANICZONY: pominięto starsze szczegóły; agregaty zachowane.")
         appendLine("\nNajważniejsze obserwacje (korelacja czasowa nie dowodzi przyczyny):")
         if (r.anomalies.isEmpty()) appendLine("BRAK ZAREJESTROWANYCH OBSERWACJI; brak próby nie oznacza poprawności.")
@@ -79,7 +80,7 @@ object TestLabReportGenerator {
             appendLine("Dowód zakończenia: ${o.completionProofs}; skorelowane klatki=${o.taggedFrames}, jank=${o.taggedJank}, max=${number(o.maxTaggedFrameMs)} ms")
         }
         appendLine("Zewnętrzny odtwarzacz: zarejestrowane żądanie otwarcia nie dowodzi rozpoczęcia odtwarzania.")
-        if(r.testType==TestType.VIDEO_DISCOVERY) {
+        if(r.testType in setOf(TestType.VIDEO_DISCOVERY,TestType.FULL_AUDIT)) {
             appendLine("\nVIDEO DISCOVERY — anonimowa korelacja:")
             r.videoDiscovery?.let { v ->
                 appendLine("Zaobserwowane źródła: ${v.sources}; grupy: ${v.groups}; grupy wielowariantowe: ${v.groupsWithVariants}")
@@ -108,7 +109,7 @@ object TestLabReportGenerator {
                 LabCode.DETECTOR_QUEUE_ANDROID_RATE,LabCode.DETECTOR_QUEUE_TITLE_CANDIDATE_DROPPED).forEach { appendLine("$it=${r.eventCounts[it] ?: 0}") }
             appendLine("QUEUE_LIMIT jest sumą wielu przyczyn. Odmowa wysłania ≠ potwierdzona utrata tytułu; ograniczenia webRequest nie pozwalają przypisać wszystkich zdarzeń do filmu.")
         }
-        if(r.testType==TestType.VIDEO_METADATA) {
+        if(r.testType in setOf(TestType.VIDEO_METADATA,TestType.FULL_AUDIT)) {
             appendLine("\nVIDEO METADATA — anonimowe obserwacje zaakceptowanych filmów:")
             r.videoMetadata?.let { v ->
                 appendLine("Źródła=${v.observedSources}; czas znany=${v.durationKnown}; czas nieznany=${v.durationUnknown}; LIVE=${v.live}")
@@ -133,7 +134,7 @@ object TestLabReportGenerator {
         appendLine("Próbki=${m.totalSamples}; odrzucone ze starszego bufora=${m.evictedSamples}")
         appendLine("Java delta=${m.javaHeapDeltaBytes}, max=${m.javaHeapMaxBytes}; native max=${m.nativeHeapMaxBytes}; PSS max=${m.pssMaxBytes}; USS max=${m.ussMaxBytes} B")
         appendLine("Zmiany niezależne: native=${m.nativeHeapDeltaBytes}, PSS=${m.pssDeltaBytes}, USS=${m.ussDeltaBytes} B")
-        appendLine("Pamięci nie sumujemy; wzrost pamięci w 60 s nie dowodzi wycieku.")
+        appendLine("Pamięci nie sumujemy; wzrost pamięci w trakcie pomiaru nie dowodzi wycieku.")
         appendLine("CPU ważone czasem: ${number(m.cpuMeanOneCorePercent)}% jednego rdzenia (może przekroczyć 100%); max=${number(m.cpuMaxOneCorePercent)}%; czas CPU=${m.cpuDeltaMs} ms / ścienny=${number(m.cpuObservedWallMs)} ms")
         appendLine("Heartbeat głównego Looper: n=${r.heartbeatSamples}, max=${number(r.maxHeartbeatDelayMs)} ms. Opóźnienie nie jest potwierdzeniem ANR.")
         appendLine("Oczekująca wiadomość Main: n=${r.pendingHeartbeatSamples}, max wiek=${number(r.maxPendingHeartbeatMs)} ms; nie jest ACK ani potwierdzeniem ANR.")
