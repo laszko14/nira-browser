@@ -102,7 +102,7 @@ data class OperationToken internal constructor(internal val session:Long,interna
     val groupsWithoutTitle:Int, val groupTitleConflicts:Int,
     val initialTitles:Int, val improvements:Int, val rejectedOrConflictingTitles:Int,
     val weakerRejected:Int, val navigations:Int, val droppedSources:Int,
-    val titleKinds:Map<String,Int>, val formats:Map<String,Int>,
+    val titleKinds:Map<String,Int>, val formats:Map<String,Int>, val detectionOrigins:Map<String,Int>,
     val examples:List<VideoDiscoveryFilm>,
 )
 
