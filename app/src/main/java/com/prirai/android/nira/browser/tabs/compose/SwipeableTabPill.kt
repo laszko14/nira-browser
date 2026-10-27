@@ -19,6 +19,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import com.prirai.android.nira.theme.TabGroupTones
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
@@ -177,7 +178,10 @@ fun SwipeableTabPill(
                 },
             shape = RoundedCornerShape(12.dp),
             color = when {
-                isSelected && groupColor != null -> Color(groupColor).copy(alpha = 0.3f)
+                groupColor != null -> {
+                    val tone = TabGroupTones.forGroup(groupColor)
+                    Color(if (isSelected) tone.activeStart else tone.tabStart)
+                }
                 isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
                 else -> Color.Transparent
             },
