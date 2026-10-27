@@ -21,7 +21,7 @@ test("v1121: compact row contains count, favicon and add; not full-width title/c
   assert.match(native, /row\.addView\(actionText\("\+"/);
   assert.match(native, /FrameLayout\(context\)/);
   assert.match(native, /ImageView\(context\)/);
-  assert.match(native, /LinearLayout\.LayoutParams\(dp\(39\), dp\(34\)\)/);
+  assert.match(native, /LinearLayout\.LayoutParams\(dp\(size\), dp\(size\)\)/);
   assert.doesNotMatch(native, /val titleView = TextView\(context\)/);
   assert.doesNotMatch(native, /val closeView = TextView\(context\)/);
 });
