@@ -141,6 +141,8 @@ internal class TestLabRuntime(
                         capture=LabCapture(engine,s,::syncTags)
                         browserObserver=TestLabBrowserObserver(capture!!)
                         if(engine.currentType().includes(LabDomain.VIDEO)||engine.currentType().includes(LabDomain.GECKO))mediaObserver=TestLabMediaObserver(capture!!)
+                        if(engine.currentType()==TestType.VIDEO_DISCOVERY)
+                            com.prirai.android.nira.media.MediaDetectorDiagnostics.captureTestLabBaseline()
                         if(Build.VERSION.SDK_INT<31)engine.metricUnavailable(s,LabMetric.FRAME_OVERRUN,Availability.NOT_SUPPORTED_BY_API)
                         
                         if(probesEnabled)startWorker(s)
