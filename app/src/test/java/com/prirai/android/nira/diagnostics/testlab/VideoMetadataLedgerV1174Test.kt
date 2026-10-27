@@ -36,6 +36,32 @@ class VideoMetadataLedgerV1174Test {
         assertFalse(r.toString().contains("Do not export"))
     }
 
+    @Test fun metadataReportCountsRealEvidenceWithoutExportingPrivateText() {
+        val ledger = VideoMetadataLedger()
+        val observed = MediaEntry(3, "https://cdn.example/secret-token.mp4",
+            MediaFormat.MP4, setOf(MediaSource.DOM),
+            title = "Private video title", titleKind = "player",
+            posterUrl = "https://cdn.example/private-poster.jpg",
+            width = 1920, height = 1080, frameRate = 29.97,
+            codecs = "avc1", bitrate = 2_000_000, variantCount = 2)
+        ledger.observe(binding, observed)
+        ledger.observe(binding, entry(4))
+        val report = ledger.snapshot()
+        assertEquals(1, report.titlesAssociated)
+        assertEquals(1, report.titlesFallback)
+        assertEquals(1, report.postersAssociated)
+        assertEquals(1, report.resolutionKnown)
+        assertEquals(1, report.qualityKnown)
+        assertEquals(1, report.qualityDerived)
+        assertEquals(1, report.fpsKnown)
+        assertEquals(1, report.codecsKnown)
+        assertEquals(1, report.bitrateKnown)
+        assertEquals(1, report.variantsKnown)
+        assertFalse(report.toString().contains("secret-token"))
+        assertFalse(report.toString().contains("Private video title"))
+        assertFalse(report.toString().contains("private-poster"))
+    }
+
     @Test fun liveAndUnknownAreNotFabricated() {
         val ledger = VideoMetadataLedger()
         ledger.observe(binding, entry(1, live=true))
