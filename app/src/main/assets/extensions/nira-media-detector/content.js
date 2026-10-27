@@ -255,7 +255,7 @@
         const owners = Array.from(declarations).filter(node =>
           node.matches && (node.matches(
             "[data-video-url],[data-video-src],[data-hls],[data-mpd],[data-player-config]") ||
-            /\\.(?:mp4|m4v|webm|m3u8|mpd)(?:[?#]|$)/i.test(attribute(node, "href") || "")));
+            /\.(?:mp4|m4v|webm|m3u8|mpd)(?:[?#]|$)/i.test(attribute(node, "href") || "")));
         if (owners.length !== 1 || !owners.some(node =>
           node === element || typeof node.contains === "function" && node.contains(element))) continue;
       }
