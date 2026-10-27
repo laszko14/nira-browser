@@ -21,7 +21,7 @@
     "No atomic multi-client dispatch idempotency",
     "Workflow registration GET and real POST must be independently verified in Stage 3"
   ],
-  "resume": "Read docs/dev-system/POST_STAGE8_EDITOR_RECOVERY_V2.md, confirm sandbox and tooling heads. Do not repeat successful run 40477361547 or 40478070913. Treat production change as sandbox-only, with full Android build/device validation still outstanding; no signed APK created.",
+  "resume": "Continuation checkpoint latest: see docs/dev-system/POST_STAGE8_AUTOMATED_EDITOR_SIGNED_GATE.md. Do not redo 40479677437 or 40480738745. Signed sandbox preflight 40479200630 succeeded but build SKIPPED; owner/admin repository variable is outside connector control. Protected branches unchanged.",
   "verification": {
     "branch_write_verified": true,
     "actual_branch_and_workflow_preflight": "clean+mpv PASSED with authenticated GitHub connector",
@@ -238,10 +238,10 @@
   },
   "post_stage8_continuation": {
     "name": "Build Control and Code Editor implementation",
-    "status": "IN_PROGRESS_SECOND_MILESTONE_VERIFIED",
+    "status": "AUTO_EDITOR_AND_PARTIAL_RESUME_VERIFIED_SIGNED_BUILD_ADMIN_GATED",
     "tools_branch": "tools/zavro-development-system-stage1-20261027",
     "sandbox_branch": "tools/zavro-edit-clean-20261027",
-    "sandbox_sha": "c8f2132a203f0ea9dc5315f7b63c3c3f3f833a0a",
+    "sandbox_sha": "d9c233bbf886d3fb2d320fe118f1d2768ca46092",
     "build_review": {
       "clean": {
         "run": 40475008770,
@@ -269,7 +269,7 @@
       "full_android_assemble_tested": false
     },
     "status_notes": "This is not full production code editing nor signed APK bridge completion",
-    "next_work": "Continue safe Code Editor automation, partial cross-run resume and MPV test-failure isolation. Signed Build Bridge still unverified and requires separate owner-controlled dispatch.",
+    "next_work": "Owner-admin gated signed sandbox v1175 APK build requires explicit repository variable action; do not bypass. Verify actual binary and device, then broaden reviewed automated code editor and partial checkpoint orchestration.",
     "signed_build_dispatched": false,
     "recovery": {
       "cross_run_restore_run": 40478070913,
@@ -278,7 +278,12 @@
       "tests": "8/8 PASS",
       "resumed_previous_operations": 0,
       "complete_checkpoint_cross_run_verified": true,
-      "partial_checkpoint_cross_run_not_verified": true
+      "partial_checkpoint_cross_run_not_verified": true,
+      "partial_cross_run": 40480182477,
+      "partial_tests": "7/7 PASS",
+      "incomplete_state": "ISOLATION_PLANNED",
+      "missing_kotlin_tests_not_skipped": true,
+      "automatic_unattended_resume": false
     },
     "mpv_failure_diagnostics": {
       "android_ci_run": 40444705833,
@@ -288,6 +293,32 @@
       "emulator_run": 40444705782,
       "video_tiles_assertions": "failed",
       "unfixed": true
+    },
+    "auto_editor": {
+      "workflow_run": 40479677437,
+      "tests": "37/37 Node PASS; isolated MPV JUnit Gradle PASS",
+      "mpv_sandbox_head": "e6e8f71eb67ee61f8bfe67b45a25ba9f2b4149a0",
+      "source_changes_in_protected_branches": false,
+      "automatic_real_production_patch_verified": false
+    },
+    "signed_sandbox": {
+      "workflow_run": 40479200630,
+      "preflight": "SUCCESS",
+      "build": "SKIPPED",
+      "artifact_created": false,
+      "version_code": 1175,
+      "version_name": "0.5.22-alpha80-clean-sandbox",
+      "source_sha": "d9c233bbf886d3fb2d320fe118f1d2768ca46092",
+      "admin_gate": "ZAVRO_ALLOW_SIGNED_BUILD_DISPATCH",
+      "admin_gate_enabled_status": "NOT_READABLE; BUILD SKIPPED",
+      "signed_apk_verified": false
+    },
+    "final_acceptance": {
+      "run": 40480738745,
+      "node": "247/247 PASS",
+      "python": "16/16 PASS",
+      "artifact_id": 12721949409,
+      "all_protected_refs_unchanged": true
     }
   }
 }

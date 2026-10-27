@@ -42,3 +42,6 @@ See `docs/dev-system/POST_STAGE8_BUILD_EDITOR.md`. Authenticated build-readiness
 
 ## Continued implementation — guarded production Kotlin sandbox & cross-run recovery
 See `docs/dev-system/POST_STAGE8_EDITOR_RECOVERY_V2.md`. An isolated Clean sandbox production Kotlin TTL fix + 4 tests passed JUnit and Android Lint in run 40477361547 (25/25 guard tests). A different Actions run restored and verified MPV diagnostic checkpoint without replay in run 40478070913 (8/8). Both production Clean/MPV branches remain unchanged; no APK built.
+
+## Continuing milestones: automatic code edit and gated signed APK
+Read `docs/dev-system/POST_STAGE8_AUTOMATED_EDITOR_SIGNED_GATE.md`. Controlled GitHub Actions editor applied Kotlin JUnit in isolated MPV branch and compiled it successfully (run 40479677437); partial checkpoint restored from another run and refused missing Kotlin proof (run 40480182477). Owner-gated signed Clean sandbox 1175 request 40479200630 passed preflight but **build was SKIPPED**. Consolidated 247 Node/16 Python PASS (40480738745). No signed APK available yet.
