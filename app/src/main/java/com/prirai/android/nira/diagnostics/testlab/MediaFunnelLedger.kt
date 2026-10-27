@@ -6,10 +6,10 @@ import com.prirai.android.nira.media.MediaSessionBinding
 import java.util.IdentityHashMap
 import kotlinx.serialization.Serializable
 
-@Serializable internal enum class MediaFunnelStage {
+@Serializable enum class MediaFunnelStage {
     DISCOVERED, CANDIDATE, ASSOCIATED, VERIFIED, STORED, DISPLAYED
 }
-@Serializable internal enum class MediaUnknownReason {
+@Serializable enum class MediaUnknownReason {
     TITLE_UNKNOWN, TITLE_AMBIGUOUS, POSTER_UNKNOWN, DURATION_UNKNOWN,
     SIZE_UNKNOWN, QUALITY_UNKNOWN, OWNER_AMBIGUOUS
 }
@@ -22,7 +22,7 @@ import kotlinx.serialization.Serializable
  * Counters describe native accepted observations, NOT end-to-end correctness.
  * Network byte/time budgets are NULL until a separately approved probe instrument exists.
  */
-@Serializable internal data class MediaFunnelSummary(
+@Serializable data class MediaFunnelSummary(
     val stages: Map<MediaFunnelStage, Long>,
     val unknownReasons: Map<MediaUnknownReason, Long>,
     val titleConflicts: Long,
