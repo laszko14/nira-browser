@@ -327,13 +327,14 @@ internal class TestLabRuntime(
         val s=session?:return
         if(cleaned||engine.phase!=LabPhase.FINALIZING)return
         cleaned=true;worker?.cancel();main.removeCallbacksAndMessages(null)
+        val video = if(engine.currentType()==TestType.VIDEO_DISCOVERY) mediaObserver?.snapshot() else null
         browserObserver?.close();browserObserver=null
         mediaObserver?.close();mediaObserver=null;capture=null
         app.unregisterActivityLifecycleCallbacks(this);app.unregisterComponentCallbacks(this)
         windows.keys.toList().forEach(::detachWindow);activities.clear();activitiesVisible=false
         heartbeatPending=null;countdownAt=null;panelOpeners.fill(null)
         publish()
-        if(worker==null&&recovery==null){engine.complete(s);publish();scope.cancel()}
+        if(worker==null&&recovery==null){engine.complete(s,video);publish();scope.cancel()}
         else scope.launch(Dispatchers.Main.immediate) {
             worker?.join()
             withContext(Dispatchers.IO){recovery?.end(recoveryGeneration)}
