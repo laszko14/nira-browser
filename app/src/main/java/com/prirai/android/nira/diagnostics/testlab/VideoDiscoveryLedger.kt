@@ -30,11 +30,15 @@ internal class VideoDiscoveryLedger(private val capacity: Int = 256) {
     private var weakerRejected = 0
     private var navigations = 0
 
-    private fun scope(binding: MediaSessionBinding) =
-        scopes[binding.session] ?: Scope(++nextScope).also { scopes[binding.session] = it }
+    private fun scope(binding: MediaSessionBinding): Scope? {
+        scopes[binding.session]?.let { return it }
+        if (scopes.size >= capacity) { dropped++; return null }
+        return Scope(++nextScope).also { scopes[binding.session] = it }
+    }
 
     @Synchronized fun navigation(binding: MediaSessionBinding) {
-        scope(binding).epoch++
+        val owner = scope(binding) ?: return
+        owner.epoch++
         navigations++
     }
 
@@ -48,7 +52,7 @@ internal class VideoDiscoveryLedger(private val capacity: Int = 256) {
     }
 
     @Synchronized fun observe(binding: MediaSessionBinding, entry: MediaEntry) {
-        val owner = scope(binding)
+        val owner = scope(binding) ?: return
         val key = "${owner.serial}:${owner.epoch}:${entry.id}"
         val previous = tracks[key]
         if (previous == null) {
@@ -74,7 +78,7 @@ internal class VideoDiscoveryLedger(private val capacity: Int = 256) {
 
     /** Count rejected alternative metadata without retaining its text. */
     @Synchronized fun rejectedTitle(binding: MediaSessionBinding, different: Boolean) {
-        scope(binding) // Explicitly keep the rejection associated with a native session.
+        if (scope(binding) == null) return // Keep the ledger strictly bounded.
         if (different) conflicts++ else weakerRejected++
     }
 
@@ -86,6 +90,7 @@ internal class VideoDiscoveryLedger(private val capacity: Int = 256) {
         val samples = ArrayList<VideoDiscoveryFilm>()
         val kinds = linkedMapOf<String, Int>()
         val formats = linkedMapOf<String, Int>()
+        val detectionOrigins = linkedMapOf<String, Int>()
         var multivariant = 0
         var unknown = 0
         var ambiguous = 0
@@ -100,11 +105,16 @@ internal class VideoDiscoveryLedger(private val capacity: Int = 256) {
             val winners = titled.filter { priority(it.kind) == strongest }
             val conflict = winners.map { it.title }.distinct().size > 1
             if (conflict) groupConflicts++
-            if (strongest == 0) unknown++
+            if (strongest <= 1) unknown++
             val kind = if (conflict) "CONFLICT" else
                 winners.firstOrNull()?.kind?.uppercase() ?: "UNKNOWN"
             kinds[kind] = (kinds[kind] ?: 0) + 1
-            members.forEach { formats[it.format] = (formats[it.format] ?: 0) + 1 }
+            members.forEach { member ->
+                formats[member.format] = (formats[member.format] ?: 0) + 1
+                member.sources.forEach { origin ->
+                    detectionOrigins[origin] = (detectionOrigins[origin] ?: 0) + 1
+                }
+            }
             if (samples.size < 32) {
                 samples += VideoDiscoveryFilm(groupNumber, members.size, kind,
                     if (conflict) "CONFLICT" else if (strongest == 0) "UNKNOWN" else "OBSERVED",
@@ -118,7 +128,7 @@ internal class VideoDiscoveryLedger(private val capacity: Int = 256) {
             initialTitles = firstTitles, improvements = improved,
             rejectedOrConflictingTitles = conflicts, weakerRejected = weakerRejected,
             navigations = navigations, droppedSources = dropped,
-            titleKinds = kinds, formats = formats, examples = samples,
+            titleKinds = kinds, formats = formats, detectionOrigins = detectionOrigins, examples = samples,
         )
     }
 
