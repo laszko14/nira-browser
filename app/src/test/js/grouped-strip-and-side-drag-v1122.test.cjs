@@ -53,12 +53,12 @@ test("v1128: side drawer delegates all drop types to a persisted transaction", (
 test("v1122: metadata and stable signing", () => {
   const gradle = read("app/build.gradle");
   const workflow = read(".github/workflows/apk-release.yml");
-  assert.match(gradle, /versionCode = 169/);
-  assert.match(gradle, /versionName = "0\.5\.22-alpha74-clean"/);
+  assert.match(gradle, /versionCode = 170/);
+  assert.match(gradle, /versionName = "0\.5\.22-alpha75-clean"/);
   assert.match(gradle, /applicationIdSuffix = '\.debug'/);
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1169"/);
+  assert.match(workflow, /EXPECTED_VERSION_CODE: "1170"/);
   assert.match(workflow, /EXPECTED_CERT_SHA256:/);
-  assert.match(workflow, /zavro-arm64-update-apk-v1169/);
+  assert.match(workflow, /zavro-arm64-update-apk-v1170/);
 });
 
 test("v1128: side-drawer drag commits one awaited transaction, not an async redraw", () => {
@@ -77,7 +77,11 @@ test("v1128: floating media button and expanded list match the selected referenc
   assert.match(ui, /downloadGlyph\.visibility = if \(amount > 0\) View\.GONE/);
   assert.match(ui, /behavior\.skipCollapsed = true/);
   assert.match(ui, /behavior\.state = BottomSheetBehavior\.STATE_EXPANDED/);
-  assert.match(ui, /height = body\.measuredHeight\.coerceIn\(dp\(130\), maxHeight\)/);
+  // The Codex-style Compose panel owns a finite sheet viewport and internal scroll,
+  // instead of measuring a legacy LinearLayout and recreating its children.
+  assert.match(ui, /val maxHeight = \(bounds\.height\(\) - dp\(24\)\)/);
+  assert.match(ui, /content\.layoutParams\.height != height/);
+  assert.match(ui, /sheetSnapshot = current\(\)/);
 });
 
 test("v1128: address-bar previous/next follows persisted group and tab order", () => {
