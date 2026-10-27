@@ -167,6 +167,15 @@
           !/^[a-z0-9_-]{1,80}$/i.test(message.groupId))) ||
         ("quality" in message && (typeof message.quality !== "string" ||
           !/^\d{2,4}p$/.test(message.quality))) ||
+        ("width" in message && (!Number.isSafeInteger(message.width) ||
+          message.width < 1 || message.width > 16384)) ||
+        ("height" in message && (!Number.isSafeInteger(message.height) ||
+          message.height < 1 || message.height > 8640)) ||
+        ("frameRate" in message && (typeof message.frameRate !== "number" ||
+          !Number.isFinite(message.frameRate) || message.frameRate <= 0 || message.frameRate > 240)) ||
+        ("variantCount" in message && (!Number.isSafeInteger(message.variantCount) ||
+          message.variantCount < 1 || message.variantCount > 32)) ||
+        ("bitrateKind" in message && !["average","peak","declared"].includes(message.bitrateKind)) ||
         ("bitrate" in message && (!Number.isSafeInteger(message.bitrate) ||
           message.bitrate <= 0 || message.bitrate > 1000000000)) ||
         ("codecs" in message && (typeof message.codecs !== "string" ||
@@ -185,7 +194,8 @@
         Object.keys(message).some(key => !["schemaVersion", "event", "source", "url",
           "isPrivate", "documentKey", "pageUrl", "contentType", "sizeBytes",
           "durationSeconds", "isLive",
-          "groupId", "quality", "bitrate", "codecs", "provenance",
+          "groupId", "quality", "bitrate", "codecs", "width", "height",
+          "frameRate", "variantCount", "bitrateKind", "provenance",
           "verification", "httpStatus", "requestSequence",
           "frameUrl", "frameKey"].includes(key)) ||
         message.pageUrl !== location.href) return Promise.resolve(false);
@@ -308,11 +318,16 @@
       const own = absolute(rawPoster);
       if (own) return own;
     }
-    const container = video.closest && video.closest("article,figure,[class*='video'],[class*='player']");
-    const image = container && container.querySelector && container.querySelector("img");
-    const imageSource = image &&
-      (image.currentSrc || image.src || attribute(image, "data-src"));
-    return imageSource ? absolute(imageSource) : null;
+    // Generic first-img lookup can select avatars, adverts or another video.
+    // Only use a single explicitly labelled thumbnail on this video's own card.
+    const scoped = scopedMediaCard(video);
+    if (!scoped?.card) return null;
+    const candidates = scoped.card.querySelectorAll(
+      'img[itemprop="thumbnailUrl"],img[data-poster],img[data-thumbnail],img.video-poster,img.video-thumbnail');
+    if (candidates.length !== 1) return null;
+    const img = candidates[0];
+    return absolute(img.currentSrc || attribute(img, "data-src") ||
+      attribute(img, "data-poster") || attribute(img, "data-thumbnail") || img.src);
   }
   function durationOf(video) {
     const value = video && video.duration;
@@ -381,7 +396,7 @@
   }
 
   function submit(value, source = "page", type = null, group = null, title = null,
-    titleKind = null, duration = null, poster = null) {
+    titleKind = null, duration = null, poster = null, dimensions = null) {
     const url = absolute(value);
     if (!url) return;
     const mediaPath = new URL(url).pathname.toLowerCase();
@@ -398,7 +413,8 @@
     const posterUrl = absolute(poster);
     // A later loadedmetadata event may reveal duration/title for the SAME URL.
     const key = JSON.stringify([activeUrl, url, source, type || "", group || "",
-      named || "", kind || "", seconds, posterUrl || ""]);
+      named || "", kind || "", seconds, posterUrl || "",
+      dimensions?.width || null, dimensions?.height || null]);
     if (seen.has(key)) { note("duplicate"); return; }
     offers++;
     if (!named) note("title_unknown");
@@ -418,6 +434,10 @@
     }
     if (seconds !== null) message.durationSeconds = seconds;
     if (posterUrl) message.posterUrl = posterUrl;
+    if (Number.isSafeInteger(dimensions?.width) && dimensions.width > 0 && dimensions.width <= 16384)
+      message.width = dimensions.width;
+    if (Number.isSafeInteger(dimensions?.height) && dimensions.height > 0 && dimensions.height <= 8640)
+      message.height = dimensions.height;
     ensureDocument().then(root => {
       if (!alive || epoch !== navigationEpoch || !root || navigation !== location.href) { seen.delete(key); return; }
       return Promise.resolve(browser.runtime.sendMessage(message)).then(validated => {
@@ -428,6 +448,8 @@
             validated.titleKind !== message.titleKind ||
             validated.durationSeconds !== message.durationSeconds ||
             validated.posterUrl !== message.posterUrl ||
+            validated.width !== message.width ||
+            validated.height !== message.height ||
             !alive || epoch !== navigationEpoch || navigation !== location.href) {
           context = null; seen.delete(key); return;
         }
@@ -467,7 +489,8 @@
     const seconds = durationOf(video);
     const poster = posterFor(video);
     if (preferred) submit(preferred, playing ? "dom" : "page", mime, group,
-      title, title ? kind : null, seconds, poster);
+      title, title ? kind : null, seconds, poster,
+      { width: video.videoWidth, height: video.videoHeight });
     if (video.src && video.src !== preferred)
       submit(video.src, "page", null, group, title, title ? kind : null, seconds, poster);
     // Each declared source matters, even before currentSrc becomes available.
@@ -897,7 +920,7 @@
     if (event.type === "emptied") seen.clear();
     inspect(event.target);
   }
-  for (const event of ["play", "playing", "loadedmetadata", "durationchange", "emptied"]) {
+  for (const event of ["play", "playing", "loadedmetadata", "durationchange", "resize", "emptied"]) {
     document.addEventListener(event, onMediaEvent, { capture: true, passive: true });
   }
   const observer = new MutationObserver(scheduleScan);

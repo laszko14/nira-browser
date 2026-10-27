@@ -18,13 +18,13 @@ class VideoMetadataV1174Test {
         val (repo,tab)=repo()
         val url="https://cdn.example/720p.m3u8"
         val prior=MediaDetectorMessage.Candidate(url,source=MediaSource.NETWORK,
-            provenance="derived",bitrate=2_000_000L)
+            provenance="derived",bitrate=2_000_000L,bitrateKind="average")
         val detected=MediaClassifier.fromNetwork(prior,binding)!!
         assertEquals(MediaRepository.InsertResult.ADDED,
             repo.add(tab,page,1,detected,MediaSource.NETWORK,metadata=prior))
         val finished=MediaDetectorMessage.Candidate(url,source=MediaSource.NETWORK,
             provenance="observed",verification="manifest_verified",isLive=false,
-            durationSeconds=120,bitrate=2_000_000L)
+            durationSeconds=120,bitrate=2_000_000L,bitrateKind="average")
         assertEquals(MediaRepository.InsertResult.DUPLICATE,
             repo.add(tab,page,1,detected,MediaSource.NETWORK,metadata=finished))
         val result=repo.currentEntries(tab).single()
@@ -33,6 +33,18 @@ class VideoMetadataV1174Test {
         assertEquals(30_000_000L,result.sizeBytes)
         assertTrue(result.sizeEstimated)
         assertEquals("~30,0 MB",sizeText(result))
+    }
+
+    @Test fun peakBandwidthNeverPretendsToBeAverageSize() {
+        val (repo,tab)=repo()
+        val url="https://cdn.example/master.m3u8"
+        val candidate=MediaDetectorMessage.Candidate(url,source=MediaSource.NETWORK,
+            isLive=false,durationSeconds=90,bitrate=3_000_000L,
+            bitrateKind="peak",verification="manifest_verified")
+        val media=MediaClassifier.fromNetwork(candidate,binding)!!
+        repo.add(tab,page,1,media,MediaSource.NETWORK,metadata=candidate)
+        assertNull(repo.currentEntries(tab).single().sizeBytes)
+        assertNull(sizeText(repo.currentEntries(tab).single()))
     }
 
     @Test fun exactCompleteHlsRangesOverrideBitrateApproximation() {

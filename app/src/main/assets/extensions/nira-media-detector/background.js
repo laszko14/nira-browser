@@ -372,6 +372,8 @@ function validDom(message, sender) {
   if ("titleKind" in message) permitted.push("titleKind");
   if ("durationSeconds" in message) permitted.push("durationSeconds");
   if ("posterUrl" in message) permitted.push("posterUrl");
+  if ("width" in message) permitted.push("width");
+  if ("height" in message) permitted.push("height");
   if (keys !== permitted.sort().join(",") ||
       ("contentType" in message && !safeMime(message.contentType)) ||
       ("groupId" in message && !validGroup(message.groupId)) ||
@@ -379,7 +381,11 @@ function validDom(message, sender) {
       ("title" in message && !validTitle(message.title)) ||
       ("titleKind" in message && !["player", "structured", "video", "link", "page"].includes(message.titleKind)) ||
       ("durationSeconds" in message && !validSeconds(message.durationSeconds)) ||
-      ("posterUrl" in message && !safeUrl(message.posterUrl))) return false;
+      ("posterUrl" in message && !safeUrl(message.posterUrl)) ||
+      ("width" in message && (!Number.isSafeInteger(message.width) ||
+        message.width < 1 || message.width > 16384)) ||
+      ("height" in message && (!Number.isSafeInteger(message.height) ||
+        message.height < 1 || message.height > 8640))) return false;
   if (sender.frameId === 0) {
     const root = documents.get(sender.tab.id);
     return !!root && !root.invalidated && (typeof sender.url !== "string" || ownerSender(root, sender));
@@ -690,8 +696,8 @@ function onHeaders(details) {
           pageUrl: doc.pageUrl, isPrivate: details.incognito, groupId: message.groupId,
           frameKey: requestFrame?.frameKey, frameUrl: requestFrame?.frameUrl,
           requestSequence: requestDocumentKey.requestSequence,
-          bitrate: manifestVariantRates.get(streamGroupKey(tabId, doc.documentKey,
-            details.incognito, requestFrame?.frameKey, details.url)),
+          ...(manifestVariantRates.get(streamGroupKey(tabId, doc.documentKey,
+            details.incognito, requestFrame?.frameKey, details.url)) || {}),
         });
       })
       .catch(() => anonymous("network_unassigned", details.incognito));
@@ -786,6 +792,22 @@ async function inspectManifest(task) {
       // Parser-observed metadata is attached to exactly this document and manifest.
       isLive: !!parsed.live,
       contentType: task.format === "HLS" ? "application/vnd.apple.mpegurl" : "application/dash+xml" };
+    if (Array.isArray(parsed.variants) && parsed.variants.length > 0)
+      verified.variantCount = parsed.variants.length;
+    // DASH master metadata is not the current quality unless uniquely determined.
+    if (task.format === "DASH" && parsed.variants.length === 1) {
+      const only = parsed.variants[0];
+      if (Number.isSafeInteger(only.width) && only.width > 0 && only.width <= 16384)
+        verified.width = only.width;
+      if (Number.isSafeInteger(only.height) && only.height > 0 && only.height <= 8640) {
+        verified.height = only.height;
+        verified.quality = only.height + "p";
+      }
+      if (Number.isFinite(only.frameRate) && only.frameRate > 0 && only.frameRate <= 240)
+        verified.frameRate = only.frameRate;
+      if (typeof only.codecs === "string" && only.codecs.length <= 160)
+        verified.codecs = only.codecs;
+    }
     if (task.format === "HLS" && parsed.kind === "media" &&
         Number.isSafeInteger(parsed.exactSizeBytes) && parsed.exactSizeBytes > 0)
       verified.sizeBytes = parsed.exactSizeBytes;
@@ -795,8 +817,11 @@ async function inspectManifest(task) {
     // DASH single-representation total A/V bitrate, or bitrate inherited
     // from the exact HLS child variant being verified; never sum all qualities.
     const parsedBitrate = task.format === "DASH" ? parsed.bitrate : task.bitrate;
-    if (Number.isSafeInteger(parsedBitrate) && parsedBitrate > 0 && parsedBitrate <= 1000000000)
+    if (Number.isSafeInteger(parsedBitrate) && parsedBitrate > 0 && parsedBitrate <= 1000000000) {
       verified.bitrate = parsedBitrate;
+      // HLS inherited bitrate cannot be assumed to be an average.
+      verified.bitrateKind = task.format === "DASH" ? "declared" : (task.bitrateKind || "peak");
+    }
     if (Number.isSafeInteger(task.requestSequence)) verified.requestSequence = task.requestSequence;
     if (task.frameKey && task.frameUrl) {
       verified.frameKey = task.frameKey;
@@ -852,10 +877,17 @@ async function inspectManifest(task) {
         message.frameKey = task.frameKey;
         message.frameUrl = task.frameUrl;
       }
-      if (Number.isSafeInteger(variant.height) && variant.height > 0 && variant.height <= 8640)
+      if (Number.isSafeInteger(variant.width) && variant.width > 0 && variant.width <= 16384)
+        message.width = variant.width;
+      if (Number.isSafeInteger(variant.height) && variant.height > 0 && variant.height <= 8640) {
+        message.height = variant.height;
         message.quality = variant.height + "p";
+      }
+      if (Number.isFinite(variant.frameRate) && variant.frameRate > 0 && variant.frameRate <= 240)
+        message.frameRate = variant.frameRate;
       if (Number.isSafeInteger(variant.bitrate) && variant.bitrate > 0 && variant.bitrate <= 1000000000)
-        message.bitrate = variant.bitrate;
+        { message.bitrate = variant.bitrate;
+          message.bitrateKind = variant.bitrateKind; }
       if (typeof variant.codecs === "string" && variant.codecs.length <= 160)
         message.codecs = variant.codecs;
       await browser.tabs.sendMessage(task.tabId, message, { frameId: 0 });
@@ -863,7 +895,9 @@ async function inspectManifest(task) {
       // inspected only if Gecko already requests it; no extra network probes.
       if (Number.isSafeInteger(variant.bitrate) && variant.bitrate > 0 &&
           variant.bitrate <= 1000000000) {
-        manifestVariantRates.set(lineageKey, variant.bitrate);
+        manifestVariantRates.set(lineageKey, {
+          bitrate: variant.bitrate, bitrateKind: variant.bitrateKind || "peak"
+        });
         while (manifestVariantRates.size > 128)
           manifestVariantRates.delete(manifestVariantRates.keys().next().value);
       }
