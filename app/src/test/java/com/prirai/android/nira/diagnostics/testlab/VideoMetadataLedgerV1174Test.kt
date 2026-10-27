@@ -45,7 +45,8 @@ class VideoMetadataLedgerV1174Test {
             width = 1920, height = 1080, frameRate = 29.97,
             codecs = "avc1", bitrate = 2_000_000, variantCount = 2)
         ledger.observe(binding, observed)
-        ledger.observe(binding, entry(4))
+        ledger.observe(binding, MediaEntry(4, "https://cdn.example/unknown.mp4",
+            MediaFormat.MP4, setOf(MediaSource.DOM)))
         val report = ledger.snapshot()
         assertEquals(1, report.titlesAssociated)
         assertEquals(1, report.titlesFallback)
