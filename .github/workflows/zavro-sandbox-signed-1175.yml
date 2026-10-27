@@ -67,6 +67,10 @@ jobs:
             throw Error('SANDBOX_CHANGED_FILES');
           console.log('SANDBOX_EXACT_DIFF_PASS');
           NODE
+          # A prior signed sandbox artifact means the fixed version is already built.
+          # Serial concurrency prevents two owner-approved executions in parallel.
+          duplicates="$(gh api 'repos/laszko14/nira-browser/actions/artifacts?per_page=100' --jq '[.artifacts[] | select(.name=="zavro-clean-sandbox-arm64-v1175-update-test" and .expired==false)] | length')"
+          [ "$duplicates" -eq 0 ] || { echo 'SIGNED_APK_ARTIFACT_ALREADY_EXISTS'; exit 1; }
   build:
     needs: preflight
     # Both explicit user build permission and independent repository owner setting required.
