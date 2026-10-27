@@ -4,7 +4,7 @@ package com.prirai.android.nira.diagnostics.testlab
 internal class LabCapture(private val engine:TestLabEngine,internal val session:SessionToken,
     private val changed:()->Unit={}) {
     private val type=engine.currentType()
-    fun allows(domain:LabDomain)=type.includes(domain)||(type==TestType.VIDEO_MPV&&domain==LabDomain.GECKO)
+    fun allows(domain:LabDomain)=type.includes(domain)||(type==TestType.VIDEO_DISCOVERY&&domain==LabDomain.GECKO)
     fun operation(op:LabOperation,startOffsetNanos:Long?=null,measureLatency:Boolean=true):OperationToken? =
         engine.operation(session,op,startOffsetNanos,measureLatency).also{if(it!=null)changed()}
     fun end(op:OperationToken?,outcome:OperationOutcome=OperationOutcome.SUCCESS,proof:CompletionProof=CompletionProof.SOURCE_CALLBACK) {
