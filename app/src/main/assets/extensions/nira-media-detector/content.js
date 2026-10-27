@@ -588,7 +588,15 @@
     while (index < source.length && ++tokens <= 4096) {
       const c = source[index];
       if (/\s/.test(c)) { output += c; index++; continue; }
-      if ("{}[]:,".includes(c)) { output += c; index++; continue; }
+      if (c === ",") {
+        // Skip trailing commas only outside quoted strings. Never alter a
+        // signed URL or a title containing literal ",}" / ",]".
+        const next = source.slice(index + 1).trimStart()[0];
+        if (next !== "}" && next !== "]") output += c;
+        index++;
+        continue;
+      }
+      if ("{}[]:".includes(c)) { output += c; index++; continue; }
       if (c === '"' || c === "'") {
         const quote = c;
         let decoded = "";
@@ -632,7 +640,7 @@
       return null; // callbacks, variables, spread, template strings, etc.
     }
     if (tokens > 4096) return null;
-    try { return JSON.parse(output.replace(/,\s*([}\]])/g, "$1")); }
+    try { return JSON.parse(output); }
     catch (_) { return null; }
   }
   function setupLiteralAt(source, position) {
