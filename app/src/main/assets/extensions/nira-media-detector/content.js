@@ -675,7 +675,7 @@
       // 720p/4K/Auto are rendition labels, even when stored as "title".
       const candidateTitle = mediaTitleHint(node.title) || mediaTitleHint(node.name);
       const ownTitle = candidateTitle &&
-        !/^(?:auto|original|source|hd|sd|uhd|fhd|4k|8k|\\d{3,4}p|\\d+(?:[.,]\\d+)?\\s*(?:mbps|kbps))$/i.test(candidateTitle)
+        !/^(?:auto|original|source|hd|sd|uhd|fhd|4k|8k|\d{3,4}p|\d+(?:[.,]\d+)?\s*(?:mbps|kbps))$/i.test(candidateTitle)
         ? candidateTitle : null;
       // Without a verified item title, a sources[] array is not proof that
       // differently named child sources are variants of a single film.
