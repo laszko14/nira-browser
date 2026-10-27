@@ -668,13 +668,18 @@ class ComposeHomeFragment : Fragment() {
         )
         
         // Create gesture detector for toolbar
+        var activeListener: com.prirai.android.nira.browser.SwipeGestureListener? = null
         val gestureDetector = androidx.core.view.GestureDetectorCompat(
             requireContext(),
             object : android.view.GestureDetector.SimpleOnGestureListener() {
-                private var activeListener: com.prirai.android.nira.browser.SwipeGestureListener? = null
                 private var handledInitialScroll = false
                 
-                override fun onDown(e: android.view.MotionEvent): Boolean = true
+                override fun onDown(e: android.view.MotionEvent): Boolean {
+                    activeListener?.onSwipeCancelled()
+                    activeListener = null
+                    handledInitialScroll = false
+                    return true
+                }
                 
                 override fun onScroll(
                     e1: android.view.MotionEvent?,
@@ -713,13 +718,19 @@ class ComposeHomeFragment : Fragment() {
         
         // Set touch listener on toolbar
         toolbar.setOnTouchListener { _, event ->
+            val owned = activeListener != null
+            val handled = gestureDetector.onTouchEvent(event)
             when (event.actionMasked) {
-                android.view.MotionEvent.ACTION_CANCEL,
-                android.view.MotionEvent.ACTION_UP -> {
-                    gestureDetector.onTouchEvent(event)
+                android.view.MotionEvent.ACTION_CANCEL -> {
+                    activeListener?.onSwipeCancelled()
+                    activeListener = null
                 }
-                else -> gestureDetector.onTouchEvent(event)
+                android.view.MotionEvent.ACTION_UP -> {
+                    activeListener?.onSwipeFinished(0f, 0f)
+                    activeListener = null
+                }
             }
+            owned || handled
         }
     }
 

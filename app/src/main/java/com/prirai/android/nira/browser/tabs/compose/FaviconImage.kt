@@ -128,7 +128,7 @@ private suspend fun loadFavicon(tab: TabSessionState, context: android.content.C
     } catch (e: Exception) {
         // Only log actual errors, not cancellations
         if (e !is kotlinx.coroutines.CancellationException) {
-            android.util.Log.e("FaviconImage", "Error loading favicon for ${tab.content.url}", e)
+            android.util.Log.e("FaviconImage", "favicon_failed type=${e.javaClass.simpleName}")
         }
         null
     }
@@ -202,7 +202,7 @@ private suspend fun loadFaviconFromUrl(url: String, context: android.content.Con
     } catch (e: Exception) {
         // Only log actual errors, not cancellations
         if (e !is kotlinx.coroutines.CancellationException) {
-            android.util.Log.e("FaviconImage", "Error loading favicon from URL: $url", e)
+            android.util.Log.e("FaviconImage", "favicon_failed type=${e.javaClass.simpleName}")
         }
         null
     }

@@ -15,7 +15,10 @@ test("v1117: private group new tab remains private", () => {
   const code = source(base + "browser/tabs/compose/TabViewModel.kt");
   const start = code.indexOf("fun createNewTabInGroup(");
   assert.ok(start > -1);
-  assert.match(code.slice(start, start + 850), /private = contextId == "private"/);
+  assert.match(code.slice(start, start + 260), /orderManager\.addNewTabToGroup\(groupId\)/);
+  const manager = source(base + "browser/tabs/compose/TabOrderManager.kt");
+  const creation = manager.slice(manager.indexOf("suspend fun addNewTabToGroup("));
+  assert.match(creation, /private = contextId == "private"/);
 });
 test("v1117: group close really removes tabs", () => {
   const code = source(base + "browser/tabs/compose/TabViewModel.kt");
@@ -53,10 +56,10 @@ test("v1117: imported ZIP entries have strict limits", () => {
   assert.match(code, /maxTotalBytes = 4 \* 1024 \* 1024/);
   assert.match(code, /entry\.name in allowed/);
 });
-test("v1117: debug label and update code agree", () => {
+test("v1128: stable debug package and update version agree", () => {
   const gradle = source("app/build.gradle");
-  assert.match(gradle, /versionCode = 126/);
-  assert.match(gradle, /resValue "string", "app_name", "Zavro"/);
+  assert.match(gradle, /versionCode = 167/);
+  assert.match(gradle, /applicationIdSuffix = '\.debug'/);
   const workflow = source(".github/workflows/apk-release.yml");
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1126"/);
+  assert.match(workflow, /EXPECTED_VERSION_CODE: "1167"/);
 });

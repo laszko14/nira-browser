@@ -8,7 +8,7 @@ const assets = path.join(__dirname, "../../main/assets/extensions/nira-media-det
 function background(route = async () => false, initialize = true, fetchImpl = undefined) {
   let receive, rawProbe, before, filter, extras;
   let requestId = 0;
-  const native = [], timers = [], routed = [];
+  const native = [], timers = [], routed = [], controls = [];
   const browser = {
     runtime: {
       id: "detector",
@@ -16,7 +16,7 @@ function background(route = async () => false, initialize = true, fetchImpl = un
       sendNativeMessage: async (...args) => { native.push(args); return true; },
     },
     tabs: { sendMessage: async (...args) => {
-      routed.push(args); return route(...args);
+      (args[1].event === "media_candidate" ? routed : controls).push(args); return route(...args);
     } },
     webRequest: {
       onBeforeRequest: { addListener: callback => { before = callback; } },
@@ -37,7 +37,12 @@ function background(route = async () => false, initialize = true, fetchImpl = un
     rawProbe(request);
   };
   const flushTimers = () => { while (timers.length) timers.shift()(); };
-  return { receive, probe, before, rawProbe, native, filter, extras, routed, flushTimers };
+  return { receive: async (message, sender) => {
+    const reply = await receive(message, sender);
+    if (message?.event === "frame_started" && reply?.frameKey)
+      await receive({ schemaVersion: 1, event: "frame_ready", frameKey: reply.frameKey }, sender);
+    return reply;
+  }, probe, before, rawProbe, native, filter, extras, routed, controls, flushTimers };
 }
 function response(url, contentType = "video/mp4", extra = {}) {
   return { url, statusCode: 200, tabId: 7, incognito: false,
@@ -53,8 +58,9 @@ function page() {
   let networkReceiver;
   const handlers = new Map();
   const winHandlers = new Map();
-  const native = [], videos = [], timers = [], extra = new Map();
+  const native = [], diagnostics = [], videos = [], timers = [], extra = new Map();
   let observerCallback;
+  let nativeReply = async () => true;
   const location = { href: "https://site.example/watch/1" };
   class HTMLVideoElement {
     constructor(url, mime = null, paused = false) {
@@ -76,16 +82,18 @@ function page() {
     sendMessage: message => receive(message, sender),
     sendNativeMessage: async (...args) => {
       if (args[1].event === "media_candidate") native.push(args);
-      return true;
+      if (args[1].event === "discovery_stats") diagnostics.push(args[1]);
+      return args[1].event === "media_candidate" ? nativeReply(args[1]) : true;
     },
   } };
   class MutationObserver {
     constructor(callback) { observerCallback = callback; }
     observe() {}
+    disconnect() {}
   }
   vm.runInNewContext(fs.readFileSync(path.join(assets, "content.js"), "utf8"), {
     browser, HTMLVideoElement, document, window, location, MutationObserver, URL, Date,
-    setTimeout: callback => timers.push(callback),
+    setTimeout: callback => timers.push(callback), clearTimeout: () => {},
   });
   const flush = () => new Promise(resolve => setImmediate(resolve));
   const fire = async (type, video, trusted = true) => {
@@ -103,7 +111,9 @@ function page() {
     while (timers.length) timers.shift()();
     await flush();
   };
-  return { HTMLVideoElement, videos, extra, native, fire, navigate, mutate, location, document,
+  return { HTMLVideoElement, videos, extra, native, diagnostics, fire, navigate, mutate, location, document,
+    setNativeReply: fn => { nativeReply = fn; },
+    hide: () => { for (const fn of winHandlers.get("pagehide") || []) fn({}); },
     onNetwork: (msg, from = { id: "detector" }) => networkReceiver(msg, from) };
 }
 
@@ -737,4 +747,177 @@ test("v1108: thumbnail click without actual preview preserves navigation", () =>
     stopImmediatePropagation: () => { throw Error("must not intercept link"); }
   });
   assert.equal(prevented, false);
+});
+
+// v1163: these exercise the actual background listeners, not source-text matches.
+test('v1163: redirect response keeps the original request/document binding', async()=>{
+  const b=background(async()=>true);
+  const details=response('https://cdn.example/final.m3u8','application/vnd.apple.mpegurl',{requestId:'redirect'});
+  b.before({...details,url:'https://origin.example/play'});
+  b.rawProbe({...details,url:'https://origin.example/play',statusCode:302});
+  b.rawProbe(details);
+  await tick();
+  assert.equal(b.routed.length,1);
+  assert.equal(b.routed[0][1].url,details.url);
+});
+
+test('v1163: same URL success then authorization failure is not deduplicated',async()=>{
+  const b=background(async()=>true);
+  b.probe(response('https://cdn.example/a.m3u8','application/vnd.apple.mpegurl'));
+  b.probe(response('https://cdn.example/a.m3u8','text/html',{statusCode:403}));
+  await tick();
+  assert.equal(b.routed.length,2);
+  assert.equal(b.routed[1][1].verification,'auth_error');
+});
+
+test('v1163: identical URL in two live frames retains both frame bindings',async()=>{
+  const b=background(async()=>true);
+  for(const id of [1,2]){
+    const frameUrl='https://player.example/embed/'+id;
+    await b.receive({schemaVersion:1,event:'frame_started',frameUrl},
+      {...sender,frameId:id,url:frameUrl});
+    b.probe(response('https://cdn.example/shared.m3u8','application/vnd.apple.mpegurl',
+      {frameId:id,documentUrl:frameUrl}));
+  }
+  await tick();
+  assert.equal(b.routed.length,2);
+  assert.notEqual(b.routed[0][1].frameKey,b.routed[1][1].frameKey);
+});
+
+test('v1163: malformed HLS is not advertised as verified and body is closed',async()=>{
+  let closed=0;
+  const data=new TextEncoder().encode('#EXTM3U\n# just a comment');
+  const b=background(async()=>true,true,async()=>({ok:true,url:'https://cdn.example/bad.m3u8',
+    headers:{get:()=>null},body:{cancel:async()=>closed++,getReader:()=>{let done=false;return{
+      read:async()=>done?{done:true}:(done=true,{done:false,value:data}),
+      cancel:async()=>closed++,releaseLock:()=>{}
+    };}}}));
+  b.probe(response('https://cdn.example/bad.m3u8','application/vnd.apple.mpegurl'));
+  await tick();await tick();await tick();
+  assert.equal(b.routed.filter(x=>x[1].verification==='manifest_verified').length,0);
+  assert.equal(b.routed.at(-1)[1].verification,'unplayable');
+});
+
+test('v1163: iframe replaced while manifest fetch pending cannot emit old metadata',async()=>{
+  let release, signal;
+  const body=new TextEncoder().encode('#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000\nv.m3u8');
+  const b=background(async()=>true,true,(_,options)=>new Promise(resolve=>{signal=options.signal;release=()=>resolve({ok:true,
+    url:'https://cdn.example/master.m3u8',headers:{get:()=>null},body:{cancel:async()=>{},getReader:()=>{let done=false;return{
+      read:async()=>done?{done:true}:(done=true,{done:false,value:body}),cancel:async()=>{},releaseLock:()=>{}
+    };}}}); }));
+  const f={...sender,frameId:1,url:'https://player.example/old'};
+  await b.receive({schemaVersion:1,event:'frame_started',frameUrl:f.url},f);
+  b.probe(response('https://cdn.example/master.m3u8','application/vnd.apple.mpegurl',{frameId:1,documentUrl:f.url}));
+  await tick();
+  await b.receive({schemaVersion:1,event:'frame_started',frameUrl:'https://player.example/new'}, {...f,url:'https://player.example/new'});
+  assert.equal(signal.aborted,true);
+  release();await tick();await tick();await tick();
+  assert.equal(b.routed.length,1);
+});
+
+test('v1163: rejected manifest response body is cancelled before returning',async()=>{
+  let closed=0,reads=0;
+  const b=background(async()=>true,true,async()=>({ok:false,status:403,url:'https://cdn.example/a.m3u8',
+    body:{cancel:async()=>closed++,getReader:()=>{reads++;}},headers:{get:()=>null}}));
+  b.probe(response('https://cdn.example/a.m3u8','application/vnd.apple.mpegurl'));
+  await tick();await tick();
+  assert.equal(reads,0);
+  assert.equal(closed,1);
+});
+
+test('v1163: ended iframe rejects its delayed request and cannot retire a newer frame',async()=>{
+  const b=background(async()=>true);
+  const f={...sender,frameId:1,url:'https://player.example/old'};
+  const old=await b.receive({schemaVersion:1,event:'frame_started',frameUrl:f.url},f);
+  const details=response('https://cdn.example/frame.mp4','video/mp4',{requestId:'old',frameId:1,documentUrl:f.url});
+  b.before(details);
+  assert.equal(await b.receive({schemaVersion:1,event:'frame_ended',frameKey:old.frameKey},f),true);
+  b.rawProbe(details);
+  await tick();assert.equal(b.routed.length,0);
+  const fresh=await b.receive({schemaVersion:1,event:'frame_started',frameUrl:f.url},f);
+  assert.notEqual(fresh.frameKey,old.frameKey);
+  assert.equal(await b.receive({schemaVersion:1,event:'frame_ended',frameKey:old.frameKey},f),false);
+  b.probe({...details,requestId:'new'});await tick();assert.equal(b.routed.length,1);
+});
+
+test('v1163: a player sources array keeps variants together without merging playlist items',async()=>{
+  const p=page();
+  p.extra.set('script',[{textContent:JSON.stringify({playlist:[
+    {title:'One',sources:[{file:'https://cdn.example/one-low.mp4'},{file:'https://cdn.example/one-high.mp4'}]},
+    {title:'Two',sources:[{file:'https://cdn.example/two.mp4'}]}
+  ]}),getAttribute:n=>n==='type'?'application/json':null}]);
+  await p.mutate();assert.equal(p.native.length,3);
+  assert.equal(typeof p.native[0][1].groupId,'string');
+  assert.equal(p.native[0][1].groupId,p.native[1][1].groupId);
+  assert.notEqual(p.native[0][1].groupId,p.native[2][1].groupId);
+});
+
+test('v1163: repeated responses cannot exhaust the unique-candidate routing budget',async()=>{
+  const b=background(async()=>true);
+  for(let i=0;i<110;i++)b.probe(response('https://cdn.example/repeat.mp4'));
+  b.probe(response('https://cdn.example/second.mp4'));
+  await tick();assert.equal(b.routed.length,2);
+});
+
+test('v1163: relative declarations respect the document base URL',async()=>{
+  const p=page();p.document.baseURI='https://cdn.example/assets/';
+  p.extra.set('a[href],link[href]',[{getAttribute:n=>n==='href'?'movie.mp4':null,textContent:'Movie'}]);
+  await p.mutate();assert.equal(p.native[0][1].url,'https://cdn.example/assets/movie.mp4');
+});
+
+test('v1163: manifest concurrency remains bounded and navigation aborts active GETs',async()=>{
+  let active=0,maximum=0,fetches=0;
+  const b=background(async()=>true,true,(_,options)=>{
+    active++;fetches++;maximum=Math.max(maximum,active);
+    return new Promise((resolve,reject)=>options.signal.addEventListener('abort',()=>{
+      active--;reject(new Error('aborted fixture'));
+    },{once:true}));
+  });
+  for(let i=0;i<20;i++)b.probe(response('https://cdn.example/manifest-'+i+'.m3u8','application/vnd.apple.mpegurl'));
+  await tick();assert.equal(maximum,2);assert.equal(fetches,2);
+  await b.receive({schemaVersion:1,event:'document_started',pageUrl:'https://site.example/watch/1'},sender);
+  await tick();assert.equal(active,0);assert.equal(fetches,2);
+});
+
+test('v1163: a newly declared source after trusted Play is counted after interaction',async()=>{
+  const p=page(),v=new p.HTMLVideoElement('',null,true);p.videos.push(v);
+  await p.fire('play',v);
+  v.currentSrc=v.src='https://cdn.example/after-interaction.mp4';
+  await p.mutate();await p.mutate();
+  assert.equal(p.native.length,1);
+  assert.equal(p.diagnostics.some(x=>x.code==='after_play'&&x.count===1),true);
+  assert.equal(p.diagnostics.some(x=>x.code==='before_play'),false);
+});
+
+test('v1163: an HTML error at a .ts path never confirms the HLS stream',async()=>{
+  let calls=0;
+  const body=new TextEncoder().encode('#EXTM3U\n#EXTINF:6,\na.ts');
+  const b=background(async()=>true,true,async url=>{
+    calls++;
+    if(calls===2)return{ok:true,status:200,url,headers:{get:()=> 'text/html'},body:{cancel:async()=>{}}};
+    return{ok:true,status:200,url,headers:{get:()=>null},body:{cancel:async()=>{},getReader:()=>{let done=false;return{
+      read:async()=>done?{done:true}:(done=true,{done:false,value:body}),cancel:async()=>{},releaseLock:()=>{}
+    };}}};
+  });
+  b.probe(response('https://cdn.example/media.m3u8','application/vnd.apple.mpegurl'));
+  await tick();await tick();await tick();
+  assert.equal(calls,2);
+  assert.equal(b.routed.some(x=>x[1].verification==='stream_verified'),false);
+});
+
+test('v1164: native candidate backpressure is four in flight and pagehide drops queued work',async()=>{
+  const p=page();let active=0,maximum=0;const releases=[];
+  p.setNativeReply(()=>{active++;maximum=Math.max(maximum,active);return new Promise(resolve=>releases.push(()=>{active--;resolve(true);}));});
+  for(let i=0;i<12;i++)p.videos.push(new p.HTMLVideoElement('https://cdn.example/queued-'+i+'.mp4',null,true));
+  await p.mutate();assert.equal(maximum,4);assert.equal(p.native.length,4);
+  p.hide();for(const release of releases)release();await tick();await tick();
+  assert.equal(p.native.length,4);assert.equal(active,0);
+});
+test('v1164: accepted native batches continue without losing remaining candidates',async()=>{
+  const p=page();let active=0,maximum=0;const releases=[];
+  p.setNativeReply(()=>{active++;maximum=Math.max(maximum,active);return new Promise(resolve=>releases.push(()=>{active--;resolve(true);}));});
+  for(let i=0;i<12;i++)p.videos.push(new p.HTMLVideoElement('https://cdn.example/continued-'+i+'.mp4',null,true));
+  await p.mutate();assert.equal(maximum,4);
+  for(let round=0;round<4;round++){for(const release of releases.splice(0))release();await tick();await tick();}
+  assert.equal(p.native.length,12);assert.equal(active,0);assert.equal(maximum,4);
 });

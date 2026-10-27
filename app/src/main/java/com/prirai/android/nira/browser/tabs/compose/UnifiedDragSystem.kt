@@ -125,7 +125,8 @@ class DragCoordinator(
     private val scope: CoroutineScope,
     private val viewModel: TabViewModel,
     private val orderManager: TabOrderManager,
-    private val context: Context? = null
+    private val context: Context? = null,
+    private val now: () -> Long = System::currentTimeMillis
 ) {
 
     // Current drag state
@@ -158,6 +159,8 @@ class DragCoordinator(
 
     // Drop operation job
     private var dropOperationJob: Job? = null
+    private var dragProfileId: String? = null
+    private var latestPointerPosition: Offset = Offset.Zero
 
     // Last drop target update time (for debouncing)
     private var lastDropTargetUpdate = 0L
@@ -234,6 +237,8 @@ class DragCoordinator(
      * Start dragging an item with bounds information
      */
     fun startDrag(item: DraggableItemType, startPosition: Offset, itemBounds: Rect, itemSize: IntSize) {
+        dragProfileId = viewModel.currentProfileId.value
+        latestPointerPosition = startPosition
         _dragState.value = UnifiedDragState(
             draggedItem = item,
             isDragging = true,
@@ -254,6 +259,7 @@ class DragCoordinator(
     fun updateDrag(dragAmount: Offset, pointerPosition: Offset) {
         val current = _dragState.value
         if (!current.isDragging) return
+        latestPointerPosition = pointerPosition
 
         val newOffset = current.dragOffset + dragAmount
 
@@ -272,9 +278,9 @@ class DragCoordinator(
         checkAutoScroll(pointerPosition)
 
         // Debounce expensive drop target detection (~60 FPS)
-        val now = System.currentTimeMillis()
-        val target = if (now - lastDropTargetUpdate > 16) {
-            lastDropTargetUpdate = now
+        val tick = now()
+        val target = if (tick - lastDropTargetUpdate > 16) {
+            lastDropTargetUpdate = tick
             val draggedItemId = getDraggedItemId(current.draggedItem)
             findDropTargetAt(pointerPosition, draggedItemId)
         } else {
@@ -409,18 +415,21 @@ class DragCoordinator(
     fun endDrag() {
         val current = _dragState.value
         val draggedItem = current.draggedItem
-        val target = current.currentDropTarget
+        val target = if (scrollContainerBounds?.contains(latestPointerPosition) != false) {
+            findDropTargetAt(latestPointerPosition, getDraggedItemId(draggedItem))
+        } else null
         if (draggedItem != null && target != null) {
             // Haptic feedback on successful drop
             performHapticFeedback()
 
-            // Cancel any ongoing drop operation
-            dropOperationJob?.cancel()
-
+            val profileId = dragProfileId
+            // Each admitted drop completes its serialized commit; a new gesture cannot cancel it.
             // Perform drop operation
             dropOperationJob = scope.launch {
                 try {
-                    performDrop(draggedItem, target)
+                    performDrop(draggedItem, target, profileId)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     android.util.Log.e("DragCoordinator", "Drop operation failed", e)
                 }
@@ -549,388 +558,8 @@ class DragCoordinator(
     /**
      * Perform drop operation based on dragged item and target
      */
-    private suspend fun performDrop(item: DraggableItemType, target: DropTarget) {
-        when (item) {
-            is DraggableItemType.Tab -> handleTabDrop(item, target)
-            is DraggableItemType.Group -> handleGroupDrop(item, target)
-        }
-    }
-
-    /**
-     * Handle dropping a tab (TabNode interactions)
-     */
-    private fun contextsMatch(a: String?, b: String?): Boolean {
-        val first = a.orEmpty()
-        val second = b.orEmpty()
-        return first == second || (first in setOf("", "profile_default") &&
-            second in setOf("", "profile_default"))
-    }
-
-    private suspend fun handleTabDrop(tab: DraggableItemType.Tab, target: DropTarget) {
-        when (target.type) {
-            DropTargetType.TAB -> {
-                // Tab → Tab: Add to group if target is grouped, otherwise create new group (CENTER) or reorder (BEFORE/AFTER)
-                val targetTabId = target.metadata["tabId"] as? String ?: return
-                val targetGroupId = target.metadata["groupId"] as? String
-
-                if (targetTabId != tab.tabId) {
-                    val tabs = viewModel.tabs.value
-                    val draggedTab = tabs.find { it.id == tab.tabId }
-                    val targetTab = tabs.find { it.id == targetTabId }
-
-                    if (draggedTab != null && targetTab != null) {
-                        // Check context compatibility
-                        if (contextsMatch(draggedTab.contextId, targetTab.contextId)) {
-                            // An existing group is a reorder target, not just an "add" target.
-                            // The old branch re-added an already grouped tab (a no-op), so the
-                            // dragged card always snapped back after release.
-                            if (targetGroupId != null) {
-                                if (tab.groupId == targetGroupId) {
-                                    viewModel.reorderTabInGroup(
-                                        tab.tabId, targetTabId, targetGroupId,
-                                        insertAfter = target.dropZone != DropZone.BEFORE
-                                    )
-                                } else {
-                                    // Single operation: the manager removes the prior membership
-                                    // and inserts at the intended position without racing coroutines.
-                                    viewModel.moveTabToGroup(
-                                        tab.tabId, targetGroupId, targetTabId,
-                                        insertAfter = target.dropZone != DropZone.BEFORE
-                                    )
-                                }
-                                return
-                            }
-
-                            when (target.dropZone) {
-                                DropZone.CENTER -> {
-                                    // Middle 50% - Create new group (both tabs are ungrouped)
-                                    // If tab is in a group, remove it first
-                                    if (tab.groupId != null) {
-                                        viewModel.removeTabFromGroup(tab.tabId)
-                                        delay(50)
-                                    }
-
-                                    // Get target tab's position BEFORE creating the group
-                                    val currentOrder = viewModel.currentOrder.value
-                                    val targetPosition = currentOrder?.primaryOrder?.indexOfFirst { item ->
-                                        when (item) {
-                                            is UnifiedTabOrder.OrderItem.SingleTab -> item.tabId == targetTabId
-                                            is UnifiedTabOrder.OrderItem.TabGroup -> item.tabIds.contains(targetTabId)
-                                        }
-                                    } ?: -1
-
-                                    // Create new group with both tabs
-                                    viewModel.createGroup(
-                                        listOf(tab.tabId, targetTabId),
-                                        contextId = draggedTab.contextId ?: targetTab.contextId
-                                    )
-
-                                    // Wait for group creation to complete
-                                    delay(100)
-
-                                    // Reorder the newly created group to the target position
-                                    if (targetPosition >= 0) {
-                                        val newOrder = viewModel.currentOrder.value
-                                        val newGroupId = viewModel.groups.value.find { group ->
-                                            group.tabIds.containsAll(listOf(tab.tabId, targetTabId))
-                                        }?.id
-
-                                        if (newGroupId != null) {
-                                            val currentGroupPosition = newOrder?.getItemPosition(newGroupId)
-                                            if (currentGroupPosition != null && currentGroupPosition != targetPosition) {
-                                                orderManager.reorderItem(currentGroupPosition, targetPosition)
-                                            }
-                                        }
-                                    }
-                                }
-
-                                DropZone.BEFORE -> {
-                                    // First 15% - Insert before target
-                                    // If tab is in a group, remove it first
-                                    if (tab.groupId != null) {
-                                        viewModel.removeTabFromGroup(tab.tabId)
-                                        delay(50)
-                                    }
-
-                                    // Get target position and insert before
-                                    val currentOrder = viewModel.currentOrder.value
-                                    val targetPosition = currentOrder?.primaryOrder?.indexOfFirst { item ->
-                                        when (item) {
-                                            is UnifiedTabOrder.OrderItem.SingleTab -> item.tabId == targetTabId
-                                            is UnifiedTabOrder.OrderItem.TabGroup -> item.tabIds.contains(targetTabId)
-                                        }
-                                    } ?: -1
-
-                                    if (targetPosition >= 0) {
-                                        viewModel.moveTabToPosition(tab.tabId, targetPosition)
-                                    }
-                                }
-
-                                DropZone.AFTER -> {
-                                    // Last 15% - Insert after target
-                                    // If tab is in a group, remove it first
-                                    if (tab.groupId != null) {
-                                        viewModel.removeTabFromGroup(tab.tabId)
-                                        delay(50)
-                                    }
-
-                                    // Get target position and insert after
-                                    val currentOrder = viewModel.currentOrder.value
-                                    val targetPosition = currentOrder?.primaryOrder?.indexOfFirst { item ->
-                                        when (item) {
-                                            is UnifiedTabOrder.OrderItem.SingleTab -> item.tabId == targetTabId
-                                            is UnifiedTabOrder.OrderItem.TabGroup -> item.tabIds.contains(targetTabId)
-                                        }
-                                    } ?: -1
-
-                                    if (targetPosition >= 0) {
-                                        viewModel.moveTabToPosition(tab.tabId, targetPosition + 1)
-                                    }
-                                }
-                            }
-                        } else {
-                            android.util.Log.w(
-                                "DragCoordinator",
-                                "Context mismatch: cannot group tabs from different profiles"
-                            )
-                        }
-                    }
-                }
-            }
-
-            DropTargetType.GROUP_HEADER -> {
-                // Tab → Group: Handle based on drop zone
-                val groupId = target.metadata["groupId"] as? String ?: return
-                val groupContextId = target.metadata["contextId"] as? String
-
-                val tabs = viewModel.tabs.value
-                val draggedTab = tabs.find { it.id == tab.tabId }
-
-                if (draggedTab != null) {
-                    // Check context compatibility
-                    if (contextsMatch(draggedTab.contextId, groupContextId)) {
-                        when (target.dropZone) {
-                            DropZone.CENTER -> {
-                                // CENTER zone - Add tab to group
-                                // This includes a no-op when already in that group.
-                                viewModel.moveTabToGroup(tab.tabId, groupId)
-                            }
-
-                            DropZone.BEFORE -> {
-                                // BEFORE zone - Reorder tab before the group
-                                // Remove from old group if in one
-                                if (tab.groupId != null) {
-                                    viewModel.removeTabFromGroup(tab.tabId)
-                                    delay(50)
-                                }
-
-                                // Get group position and insert before
-                                val currentOrder = viewModel.currentOrder.value
-                                val groupPosition = currentOrder?.getItemPosition(groupId)
-
-                                if (groupPosition != null && groupPosition >= 0) {
-                                    viewModel.moveTabToPosition(tab.tabId, groupPosition)
-                                }
-                            }
-
-                            DropZone.AFTER -> {
-                                // AFTER zone - Reorder tab after the group
-                                // Remove from old group if in one
-                                if (tab.groupId != null) {
-                                    viewModel.removeTabFromGroup(tab.tabId)
-                                    delay(50)
-                                }
-
-                                // Get group position and insert after
-                                val currentOrder = viewModel.currentOrder.value
-                                val groupPosition = currentOrder?.getItemPosition(groupId)
-
-                                if (groupPosition != null && groupPosition >= 0) {
-                                    viewModel.moveTabToPosition(tab.tabId, groupPosition + 1)
-                                }
-                            }
-
-                            null -> {
-                                // Fallback - add to group
-                                // Remove from old group if needed
-                                if (tab.groupId != null && tab.groupId != groupId) {
-                                    viewModel.removeTabFromGroup(tab.tabId)
-                                    delay(50)
-                                }
-
-                                // Add to target group
-                                viewModel.addTabToGroup(tab.tabId, groupId)
-                            }
-                        }
-                    } else {
-                        android.util.Log.w(
-                            "DragCoordinator",
-                            "Context mismatch: cannot add tab to group from different profile"
-                        )
-                    }
-                }
-            }
-
-            DropTargetType.GROUP_BODY -> {
-                // Tab → Group Body: Reorder within group (using zones)
-                val groupId = target.metadata["groupId"] as? String ?: return
-                val targetTabId = target.metadata["targetTabId"] as? String ?: return
-
-                if (tab.groupId == groupId && tab.tabId != targetTabId) {
-                    when (target.dropZone) {
-                        DropZone.BEFORE -> {
-                            viewModel.reorderTabInGroup(tab.tabId, targetTabId, groupId, insertAfter = false)
-                        }
-
-                        DropZone.AFTER -> {
-                            viewModel.reorderTabInGroup(tab.tabId, targetTabId, groupId, insertAfter = true)
-                        }
-
-                        DropZone.CENTER -> {
-                            // Center zone in group body - default to after
-                            viewModel.reorderTabInGroup(tab.tabId, targetTabId, groupId, insertAfter = true)
-                        }
-                    }
-                }
-            }
-
-            DropTargetType.ROOT_POSITION -> {
-                // Tab → Root Position: Reorder at root level
-                val position = target.metadata["position"] as? Int ?: return
-                // If tab is in a group, ungroup it first
-                if (tab.groupId != null) {
-                    viewModel.removeTabFromGroup(tab.tabId)
-                    delay(100)
-                }
-
-                // Move to target position
-                viewModel.moveTabToPosition(tab.tabId, position)
-            }
-
-            DropTargetType.EMPTY_SPACE -> {
-                // Tab → Empty Space: Ungroup if needed
-                if (tab.groupId != null) {
-                    viewModel.removeTabFromGroup(tab.tabId)
-                }
-            }
-        }
-    }
-
-    /**
-     * Handle dropping a group (TabNode interactions)
-     */
-    private suspend fun handleGroupDrop(group: DraggableItemType.Group, target: DropTarget) {
-        when (target.type) {
-            DropTargetType.TAB -> {
-                // Group → Tab: Handle based on drop zone
-                val targetTabId = target.metadata["tabId"] as? String ?: return
-                val tabs = viewModel.tabs.value
-                val targetTab = tabs.find { it.id == targetTabId }
-
-                if (targetTab != null) {
-                    val groups = viewModel.groups.value
-                    val draggedGroup = groups.find { it.id == group.groupId }
-
-                    if (draggedGroup != null && contextsMatch(draggedGroup.contextId, targetTab.contextId)) {
-                        when (target.dropZone) {
-                            DropZone.CENTER -> {
-                                // CENTER - Add tab to group
-                                viewModel.addTabToGroup(targetTabId, group.groupId)
-                            }
-
-                            DropZone.BEFORE, DropZone.AFTER -> {
-                                // BEFORE/AFTER - Reorder group near the tab
-                                val zone = if (target.dropZone == DropZone.BEFORE) "BEFORE" else "AFTER"
-                                val currentOrder = viewModel.currentOrder.value
-                                val targetPosition = currentOrder?.primaryOrder?.indexOfFirst { item ->
-                                    when (item) {
-                                        is UnifiedTabOrder.OrderItem.SingleTab -> item.tabId == targetTabId
-                                        is UnifiedTabOrder.OrderItem.TabGroup -> item.tabIds.contains(targetTabId)
-                                    }
-                                } ?: -1
-
-                                val currentPosition = currentOrder?.getItemPosition(group.groupId)
-
-                                if (targetPosition >= 0 && currentPosition != null) {
-                                    val finalPosition =
-                                        if (target.dropZone == DropZone.AFTER) targetPosition + 1 else targetPosition
-                                    orderManager.reorderItem(currentPosition, finalPosition)
-                                }
-                            }
-
-                            null -> {
-                                // Fallback - add to group
-                                viewModel.addTabToGroup(targetTabId, group.groupId)
-                            }
-                        }
-                    } else {
-                        android.util.Log.w(
-                            "DragCoordinator",
-                            "Context mismatch: cannot add tab to group from different profile"
-                        )
-                    }
-                }
-            }
-
-            DropTargetType.GROUP_HEADER -> {
-                // Group → Group: Handle based on drop zone
-                val targetGroupId = target.metadata["groupId"] as? String ?: return
-                val targetContextId = target.metadata["contextId"] as? String
-
-                val groups = viewModel.groups.value
-                val draggedGroup = groups.find { it.id == group.groupId }
-
-                if (draggedGroup != null && targetGroupId != group.groupId) {
-                    // Check context compatibility
-                    if (contextsMatch(draggedGroup.contextId, targetContextId)) {
-                        when (target.dropZone) {
-                            DropZone.CENTER -> {
-                                // CENTER - Merge groups
-                                viewModel.mergeGroups(group.groupId, targetGroupId)
-                            }
-
-                            DropZone.BEFORE, DropZone.AFTER -> {
-                                // BEFORE/AFTER - Reorder groups
-                                val zone = if (target.dropZone == DropZone.BEFORE) "BEFORE" else "AFTER"
-                                val currentOrder = viewModel.currentOrder.value
-                                val targetPosition = currentOrder?.getItemPosition(targetGroupId)
-                                val currentPosition = currentOrder?.getItemPosition(group.groupId)
-
-                                if (targetPosition != null && currentPosition != null) {
-                                    val finalPosition =
-                                        if (target.dropZone == DropZone.AFTER) targetPosition + 1 else targetPosition
-                                    orderManager.reorderItem(currentPosition, finalPosition)
-                                }
-                            }
-
-                            null -> {
-                                // Fallback - merge groups
-                                viewModel.mergeGroups(group.groupId, targetGroupId)
-                            }
-                        }
-                    } else {
-                        android.util.Log.w(
-                            "DragCoordinator",
-                            "Context mismatch: cannot merge groups from different profiles"
-                        )
-                    }
-                }
-            }
-
-            DropTargetType.ROOT_POSITION -> {
-                // Group → Root Position: Reorder group
-                val position = target.metadata["position"] as? Int ?: return
-                val currentPosition = viewModel.currentOrder.value?.getItemPosition(group.groupId)
-
-                if (currentPosition != null) {
-                    orderManager.reorderItem(currentPosition, position)
-                }
-            }
-
-            else -> {
-                // Groups can only be reordered or merged, not nested
-            }
-        }
+    private suspend fun performDrop(item: DraggableItemType, target: DropTarget, profileId: String?) {
+        viewModel.commitUnifiedDrop(item, target, profileId)
     }
 
     /**

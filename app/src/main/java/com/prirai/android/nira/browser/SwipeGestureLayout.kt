@@ -12,6 +12,7 @@ interface SwipeGestureListener {
     fun onSwipeStarted(start: PointF, next: PointF): Boolean
     fun onSwipeUpdate(distanceX: Float, distanceY: Float)
     fun onSwipeFinished(velocityX: Float, velocityY: Float)
+    fun onSwipeCancelled() {}
 }
 
 class SwipeGestureLayout @JvmOverloads constructor(
@@ -143,18 +144,20 @@ class SwipeGestureLayout @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        return when (event.actionMasked) {
-            MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_UP -> {
-                gestureDetector.onTouchEvent(event)
-                activeListener?.onSwipeFinished(
-                    velocityX = 0f,
-                    velocityY = 0f
-                )
+        val owned = activeListener != null
+        gestureDetector.onTouchEvent(event)
+        when (event.actionMasked) {
+            MotionEvent.ACTION_CANCEL -> {
+                activeListener?.onSwipeCancelled()
                 activeListener = null
-                false
             }
-            else -> gestureDetector.onTouchEvent(event)
+            MotionEvent.ACTION_UP -> {
+                // onFling already clears activeListener when it finishes.
+                activeListener?.onSwipeFinished(0f, 0f)
+                activeListener = null
+            }
         }
+        return owned || activeListener != null
     }
 
     override fun performClick(): Boolean {

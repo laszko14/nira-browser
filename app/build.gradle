@@ -26,9 +26,17 @@ android {
         minSdkVersion 27
         targetSdkVersion 37
         // Increment by 4 with each update, by 1 with each fix
-        versionCode = 126
-        versionName = "0.5.22-alpha32"
+        versionCode = 167
+        versionName = "0.5.22-alpha72-clean"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    testOptions {
+        unitTests.includeAndroidResources = true
+        unitTests.all {
+            maxHeapSize = "2g"
+            systemProperty "robolectric.dependency.repo.url", "https://repo.maven.apache.org/maven2"
+        }
     }
 
     compileOptions {
@@ -235,6 +243,9 @@ dependencies {
     implementation libs.play.services.auth
 
     testImplementation libs.junit
+    testImplementation "org.mockito:mockito-core:5.20.0"
+    testImplementation "org.robolectric:robolectric:4.16"
+    testImplementation "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2"
     androidTestImplementation libs.androidx.junit
     androidTestImplementation libs.androidx.espresso.core
 

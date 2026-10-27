@@ -20,7 +20,8 @@ import com.prirai.android.nira.ext.getRectWithScreenLocation
 import com.prirai.android.nira.ext.getWindowInsets
 import com.prirai.android.nira.ext.isKeyboardVisible
 import com.prirai.android.nira.preferences.UserPreferences
-import mozilla.components.browser.state.selector.getNormalOrPrivateTabs
+import com.prirai.android.nira.browser.tabs.sameSwipeScope
+import com.prirai.android.nira.browser.tabs.canFinishSwipe
 import mozilla.components.browser.state.selector.selectedTab
 import mozilla.components.browser.state.state.TabSessionState
 import mozilla.components.browser.state.store.BrowserStore
@@ -60,6 +61,8 @@ class HomeToolbarGestureHandler(
     private val touchSlop = ViewConfiguration.get(activity).scaledTouchSlop
     private val minimumFlingVelocity = ViewConfiguration.get(activity).scaledMinimumFlingVelocity
 
+    private var gestureSource: TabSessionState? = null
+
     private var gestureDirection = GestureDirection.LEFT_TO_RIGHT
 
     override fun onSwipeStarted(start: PointF, next: PointF): Boolean {
@@ -77,6 +80,7 @@ class HomeToolbarGestureHandler(
             abs(dx) > touchSlop &&
             abs(dy) < abs(dx)
         ) {
+            gestureSource = store.state.selectedTab
             preparePreview(getDestination())
             true
         } else {
@@ -133,16 +137,17 @@ class HomeToolbarGestureHandler(
         }
     }
 
+    override fun onSwipeCancelled() {
+        gestureSource = null
+        animateCanceledGesture(0f)
+    }
+
     private fun getDestination(): Destination {
         activity.resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_LTR
-        val currentTab = store.state.selectedTab
-        val isPrivateMode = currentTab?.content?.private ?: false
-        
-        val nextTabId = lruManager.getMostRecentTab()
-        
-        if (nextTabId == null) return Destination.None
-        
-        val tabs = store.state.getNormalOrPrivateTabs(isPrivateMode)
+        val currentTab = store.state.selectedTab ?: return Destination.None
+        if (gestureSource?.let { it.id != currentTab.id || !currentTab.sameSwipeScope(it) } == true) return Destination.None
+        val tabs = store.state.tabs.filter { it.id != currentTab.id && it.sameSwipeScope(currentTab) }
+        val nextTabId = lruManager.getMostRecentTab(tabs.map { it.id }.toSet()) ?: return Destination.None
         val nextTab = tabs.find { it.id == nextTabId }
         
         return if (nextTab != null) {
@@ -200,6 +205,7 @@ class HomeToolbarGestureHandler(
     }
 
     private fun animateToNextTab(tab: TabSessionState) {
+        val source = gestureSource ?: store.state.selectedTab
         val browserFinalXCoordinate: Float = when (gestureDirection) {
             GestureDirection.RIGHT_TO_LEFT -> -windowWidth.toFloat() - previewOffset
             GestureDirection.LEFT_TO_RIGHT -> windowWidth.toFloat() + previewOffset
@@ -209,6 +215,10 @@ class HomeToolbarGestureHandler(
             doOnEnd {
                 contentLayout.translationX = 0f
 
+                if (activity.isFinishing || activity.isDestroyed || !store.state.canFinishSwipe(source, tab.id)) {
+                    tabPreview.isVisible = false
+                    return@doOnEnd
+                }
                 if(tab.content.url != "about:homepage") {
                     activity.findNavController(R.id.container).navigate(R.id.browserFragment)
                 }

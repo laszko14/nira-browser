@@ -267,6 +267,26 @@ open class BrowserActivity : LocaleAwareAppCompatActivity(), ComponentCallbacks2
 
     override fun onResume() {
         super.onResume()
+        // Request the panel's actual high-refresh mode; Android may still decline
+        // depending on battery, foreground state, user settings or other surfaces.
+        window.decorView.display?.let { display ->
+            val mode = display.mode
+            val rates = display.supportedModes.filter {
+                it.physicalWidth == mode.physicalWidth && it.physicalHeight == mode.physicalHeight
+            }.map { it.refreshRate }
+            com.prirai.android.nira.browser.HighRefreshRatePolicy.choose(rates)?.let { rate ->
+                val attributes = window.attributes
+                if (attributes.preferredDisplayModeId != 0 ||
+                    kotlin.math.abs(attributes.preferredRefreshRate - rate) > 0.1f) {
+                    attributes.preferredDisplayModeId = 0
+                    attributes.preferredRefreshRate = rate
+                    window.attributes = attributes
+                }
+                if (android.os.Build.VERSION.SDK_INT >= 35) {
+                    window.decorView.setRequestedFrameRate(rate)
+                }
+            }
+        }
 
         val currentPosition = UserPreferences(this).toolbarPosition
         if (currentPosition != lastToolbarPosition) {

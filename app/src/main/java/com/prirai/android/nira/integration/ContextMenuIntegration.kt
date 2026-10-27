@@ -2,11 +2,11 @@ package com.prirai.android.nira.integration
 
 import android.content.Context
 import android.view.View
+import com.prirai.android.nira.ext.components
 import androidx.fragment.app.FragmentManager
 import com.prirai.android.nira.databinding.FragmentBrowserBinding
 import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.concept.engine.EngineView
-import mozilla.components.concept.engine.HitResult
 import mozilla.components.feature.app.links.AppLinksUseCases
 import mozilla.components.feature.contextmenu.ContextMenuCandidate
 import mozilla.components.feature.contextmenu.ContextMenuCandidate.Companion.createAddContactCandidate
@@ -79,23 +79,20 @@ class ContextMenuIntegration(
             val newTabId = ContextMenuCandidate.createOpenInNewTabCandidate(
                 context, tabsUseCases, parentView, snackbarDelegate
             ).id
-            // Explicitly clear parentId for regular ungrouped tabs.
             val position = defaultCandidates.indexOfFirst { it.id == newTabId }
             if (position >= 0) {
-                defaultCandidates[position] = defaultCandidates[position].copy(
-                    action = { parent, hitResult ->
-                        val url = if (hitResult is HitResult.IMAGE_SRC) hitResult.uri else hitResult.src
-                        tabsUseCases.addTab(
-                            url, selectTab = false, startLoading = true,
-                            private = parent.content.private,
-                            parentId = null, contextId = parent.contextId
-                        )
-                    }
+                defaultCandidates[position] = createOpenLinkInNewTabCandidate(
+                    context, tabsUseCases, parentView, snackbarDelegate
                 )
             }
             defaultCandidates.add(
                 if (position >= 0) position + 1 else defaultCandidates.size,
-                createOpenLinkInGroupCandidate(context, tabsUseCases, parentView, snackbarDelegate)
+                createOpenLinkInGroupCandidate(context, tabsUseCases, parentView, snackbarDelegate) { id, parent, url ->
+                    context.components.tabGroupMiddleware.groupExplicitlyOpenedTab(
+                        id, url, parent.id, parent.content.url,
+                        if (parent.content.private) "private" else parent.contextId
+                    )
+                }
             )
             defaultCandidates + appLinksCandidate +
                 createCopyLinkTextCandidate(context, parentView, snackbarDelegate)

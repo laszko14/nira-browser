@@ -39,10 +39,13 @@ internal data class MediaUiSnapshot(val tab: MediaTabState, val entries: List<Me
 internal class MediaFloatingUi(
     private val parent: ViewGroup,
     private val current: () -> MediaUiSnapshot?,
-    private val safeToolbarSpace: () -> Pair<Int, Int>,
+    private val safeToolbarSpace: (Rect) -> Pair<Int, Int>,
     private val openVideo: (Long) -> Unit,
+    private val queueDownload: (Long) -> Unit,
 ) {
     private val context = parent.context
+    private val gridPrefs = context.getSharedPreferences("zavro_media_grid", Context.MODE_PRIVATE)
+    private var gridSettingsExpanded = false
     private fun dp(value: Int) = (value * context.resources.displayMetrics.density + 0.5f).toInt()
     private val size = dp(56)
     private val padding = dp(16)
@@ -68,8 +71,10 @@ internal class MediaFloatingUi(
     private var displayed: MediaUiSnapshot? = null
     private var sheet: BottomSheetDialog? = null
     private var sheetBody: LinearLayout? = null
-    private var lastWidth = 0
-    private var lastHeight = 0
+    private val placementListener = android.view.ViewTreeObserver.OnPreDrawListener {
+        place()
+        true
+    }
 
     init {
         // Same two-state appearance as the supplied 1DM reference:
@@ -104,16 +109,8 @@ internal class MediaFloatingUi(
         button.addView(count, FrameLayout.LayoutParams(dp(29), dp(29), Gravity.CENTER))
         parent.addView(button, ViewGroup.LayoutParams(size, size))
         button.setOnClickListener { showSheet() }
-        parent.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
-            if (right - left != lastWidth || bottom - top != lastHeight) {
-                lastWidth = right - left
-                lastHeight = bottom - top
-                button.post { place() }
-            } else {
-                button.post { place() }
-            }
-        }
-        button.post { place() }
+        // Chrome visibility/translation and IME insets can change without resizing parent.
+        parent.viewTreeObserver.addOnPreDrawListener(placementListener)
     }
 
     private fun circle(color: Int) = GradientDrawable().apply {
@@ -142,31 +139,36 @@ internal class MediaFloatingUi(
     fun detach() {
         sheet?.dismiss()
         sheet = null
+        if (parent.viewTreeObserver.isAlive) {
+            parent.viewTreeObserver.removeOnPreDrawListener(placementListener)
+        }
         parent.removeView(button)
     }
 
-    private fun bounds(): FloatArray {
+    private fun bounds(): FloatArray? {
         // browserLayout is already bounded by Nira's host activity. Keep within
         // window visible frame (including IME resize/pan) and toolbar reservations.
         val visible = Rect()
         parent.getWindowVisibleDisplayFrame(visible)
         val location = IntArray(2)
         parent.getLocationOnScreen(location)
-        val (topToolbar, bottomToolbar) = safeToolbarSpace()
-        val minY = maxOf(padding, visible.top - location[1] + padding, topToolbar + padding).toFloat()
-        val windowBottom = (visible.bottom - location[1]).coerceAtMost(parent.height)
+        visible.offset(-location[0], -location[1])
+        if (!visible.intersect(0, 0, parent.width, parent.height)) return null
+        val (topToolbar, bottomToolbar) = safeToolbarSpace(visible)
+        val minY = maxOf(padding, visible.top + padding, topToolbar + padding).toFloat()
+        val windowBottom = visible.bottom.coerceAtMost(parent.height)
         val maxY = maxOf(minY, (windowBottom - size - bottomToolbar - padding).toFloat())
-        val minX = padding.toFloat()
-        val maxX = maxOf(minX, (parent.width - size - padding).toFloat())
+        val minX = (visible.left + padding).toFloat()
+        val maxX = maxOf(minX, (visible.right - size - padding).toFloat())
         return floatArrayOf(minX, maxX, minY, maxY)
     }
 
     // Always dock at bottom-right. Never persist or restore finger-dragged offsets.
     private fun place() {
         if (parent.width <= 0 || parent.height <= 0) return
-        val b = bounds()
-        button.translationX = b[1]
-        button.translationY = b[3]
+        val b = bounds() ?: return
+        if (button.x != b[1]) button.x = b[1]
+        if (button.y != b[3]) button.y = b[3]
     }
 
     private fun showSheet() {
@@ -272,9 +274,73 @@ internal class MediaFloatingUi(
             return
         }
         val groups = snapshot.entries.groupBy { it.groupId ?: "url:" + it.url }
-        body.addView(label("Wykryte pliki  •  ${groups.size}", 19f, true))
+        // Portrait and landscape keep independent, locally stored grid geometry.
+        val suffix = if (context.resources.configuration.orientation ==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE) "landscape" else "portrait"
+        val rowsKey = "rows_" + suffix
+        val widthKey = "tile_width_" + suffix
+        val rowLimit = gridPrefs.getInt(rowsKey, 3).coerceIn(1, 10)
+        val tileWidth = gridPrefs.getInt(widthKey, 290).coerceIn(220, 420)
+        val toolbar = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        toolbar.addView(label("Wykryte filmy • ${groups.size}", 15f, true),
+            LinearLayout.LayoutParams(0, -2, 1f))
+        toolbar.addView(TextView(context).apply {
+            text = "⚙"
+            textSize = 21f
+            gravity = Gravity.CENTER
+            contentDescription = "Ustawienia siatki wykrytych filmów"
+            setTextColor(Color.WHITE)
+            setOnClickListener { gridSettingsExpanded = !gridSettingsExpanded; fillSheet() }
+        }, LinearLayout.LayoutParams(dp(45), dp(40)))
+        body.addView(toolbar)
+        if (gridSettingsExpanded) {
+            body.addView(label("Rzędy: $rowLimit (1–10)", 12f))
+            body.addView(android.widget.SeekBar(context).apply {
+                max = 9
+                progress = rowLimit - 1
+                setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+                    override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
+                    override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {}
+                    override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {
+                        gridPrefs.edit().putInt(rowsKey, (seekBar?.progress ?: 0) + 1).apply()
+                        fillSheet()
+                    }
+                })
+            })
+            body.addView(label("Szerokość kafelka: $tileWidth dp", 12f))
+            body.addView(android.widget.SeekBar(context).apply {
+                max = 20
+                progress = (tileWidth - 220) / 10
+                setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+                    override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
+                    override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {}
+                    override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {
+                        gridPrefs.edit().putInt(widthKey, 220 + (seekBar?.progress ?: 7) * 10).apply()
+                        fillSheet()
+                    }
+                })
+            })
+        }
+        // The horizontal viewport keeps 1–10 complete rows accessible even on small screens.
+        val horizontal = android.widget.HorizontalScrollView(context).apply {
+            isHorizontalScrollBarEnabled = true
+            isFillViewport = false
+        }
+        val grid = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        val gridRows = (0 until minOf(rowLimit, groups.size)).map {
+            LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.TOP
+                grid.addView(this, LinearLayout.LayoutParams(-2, -2))
+            }
+        }
+        horizontal.addView(grid, android.widget.FrameLayout.LayoutParams(-2, -2))
+        body.addView(horizontal, LinearLayout.LayoutParams(-1, -2))
         groups.values.forEachIndexed { index, found ->
-            // Prefer network-confirmed playable URLs; keep the current stream ID for MPV.
+            // Prefer network-confirmed playable URLs; keep the current stream ID until the user chooses an external player.
             val variants = found.sortedWith(
                 compareByDescending<MediaEntry> { MediaSource.NETWORK in it.sources }
                     .thenByDescending { MediaSource.DOM in it.sources }
@@ -358,10 +424,15 @@ internal class MediaFloatingUi(
             )
             item.addView(TextView(context).apply {
                 text = "▶"
-                textSize = 28f
+                textSize = 23f
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(6).toFloat()
+                    setColor(Color.TRANSPARENT)
+                    setStroke(dp(1), Color.rgb(190, 190, 190))
+                }
                 gravity = Gravity.CENTER
                 setTextColor(if (playable) Color.WHITE else Color.GRAY)
-                contentDescription = "Odtwórz w MPV Alpha"
+                contentDescription = "Otwórz w odtwarzaczu"
                 isEnabled = playable
                 setOnClickListener {
                     val now = current()
@@ -374,9 +445,54 @@ internal class MediaFloatingUi(
                     }
                 }
             }, LinearLayout.LayoutParams(dp(48), dp(58)))
-            body.addView(item, LinearLayout.LayoutParams(-1, -2))
-            body.addView(View(context).apply { setBackgroundColor(Color.rgb(93, 93, 93)) },
-                LinearLayout.LayoutParams(-1, dp(1)))
+            val options = TextView(context).apply {
+                text = "⋮"
+                textSize = 23f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                contentDescription = "Opcje filmu: pobieranie i kolejka"
+                setOnClickListener { anchor ->
+                    val now = current()
+                    if (now == null || !sameSelection(snapshot.tab, now.tab) ||
+                        now.entries.none { it.id == entry.id }) {
+                        stale()
+                        fillSheet()
+                    } else {
+                        android.widget.PopupMenu(context, anchor).apply {
+                            menu.add(0, 1, 0, "Pobierz / dodaj do kolejki")
+                                .isEnabled = entry.format !in setOf(MediaFormat.HLS, MediaFormat.DASH)
+                            menu.add(0, 2, 1, "Kopiuj adres filmu")
+                            setOnMenuItemClickListener { menuItem ->
+                                val latest = current()
+                                val available = latest != null && sameSelection(snapshot.tab, latest.tab) &&
+                                    latest.entries.any { it.id == entry.id }
+                                if (!available) {
+                                    stale()
+                                    fillSheet()
+                                    true
+                                } else when (menuItem.itemId) {
+                                    1 -> { queueDownload(entry.id); true }
+                                    2 -> {
+                                        val clip = android.content.ClipData.newPlainText(
+                                            "Adres filmu", latest!!.entries.first { it.id == entry.id }.url)
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE)
+                                            as android.content.ClipboardManager
+                                        clipboard.setPrimaryClip(clip)
+                                        true
+                                    }
+                                    else -> false
+                                }
+                            }
+                            show()
+                        }
+                    }
+                }
+            }
+            item.addView(options, LinearLayout.LayoutParams(dp(33), dp(54)))
+            gridRows[index % gridRows.size].addView(item,
+                LinearLayout.LayoutParams(dp(tileWidth), -2).apply {
+                    setMargins(dp(3), dp(3), dp(3), dp(3))
+                })
         }
     }
 

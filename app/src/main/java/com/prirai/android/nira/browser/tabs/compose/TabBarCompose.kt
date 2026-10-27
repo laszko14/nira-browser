@@ -86,7 +86,13 @@ fun TabBarCompose(
     val stripHeight = remember(tabContext) {
         com.prirai.android.nira.preferences.UserPreferences(tabContext).niraTabStripHeightDp
     }
-    val order by orderManager.currentOrder.collectAsState()
+    val savedOrder by orderManager.currentOrder.collectAsState()
+    val profileId by viewModel.currentProfileId.collectAsState()
+    val roomGroups by viewModel.groupSnapshot.collectAsState()
+    val visibleIds = tabs.map { it.id }.toSet()
+    val groups = roomGroups.filter { group -> group.tabIds.any { it in visibleIds } }
+    val order = savedOrder?.takeIf { it.profileId == profileId }
+        ?.reconciled(tabs.map { it.id }, groups)
     val listState = rememberLazyListState()
 
     // Create drag coordinator
@@ -693,8 +699,7 @@ private fun GroupPill(
     modifier: Modifier = Modifier
 ) {
     // Get expanded state from centralized group manager
-    val groupData = viewModel.getGroup(group.groupId)
-    val expanded = groupData?.let { !it.isCollapsed } ?: true
+    val expanded = group.isExpanded
     
     var menuTab by remember { mutableStateOf<TabSessionState?>(null) }
     var showTabMenu by remember { mutableStateOf(false) }
@@ -719,8 +724,8 @@ private fun GroupPill(
                 .clickable(
                     enabled = true,
                     onClick = {
-                        viewModel.toggleGroupExpanded(group.groupId)
-                        onGroupClick?.invoke(group.groupId)
+                        if (onGroupClick != null) onGroupClick(group.groupId)
+                        else viewModel.toggleGroupExpanded(group.groupId)
                     }
                 )
                 .padding(horizontal = 8.dp, vertical = 4.dp),
