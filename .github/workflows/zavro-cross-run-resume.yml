@@ -1,0 +1,71 @@
+name: Zavro Cross-Run Recovery Verification
+on:
+  push:
+    branches:
+      - tools/zavro-development-system-stage1-20261027
+    paths:
+      - 'devtools/resume-probes/*.json'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: zavro-cross-run-recovery
+  cancel-in-progress: false
+jobs:
+  restore:
+    if: github.repository == 'laszko14/nira-browser' && github.actor == 'laszko14'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Test recovery verification and no-repeat gate
+        run: node --test devtools/tests/resume-check.test.mjs
+      - name: Strictly validate single new recovery request and historic provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE_SHA: ${{ github.event.before }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          import {execFileSync} from 'node:child_process';
+          import {validateResumeRequest} from './devtools/resume-check.mjs';
+          const before=process.env.BEFORE_SHA,after=process.env.GITHUB_SHA;
+          if(!/^[a-f0-9]{40}$/.test(before)||!/^[a-f0-9]{40}$/.test(after)||
+            process.env.GITHUB_REPOSITORY!=='laszko14/nira-browser'||
+            process.env.GITHUB_REF!=='refs/heads/tools/zavro-development-system-stage1-20261027'||
+            process.env.GITHUB_ACTOR!=='laszko14')throw Error('RECOVERY_EVENT_DENIED');
+          const changed=execFileSync('git',['diff','--name-status','--no-renames',before,after],{encoding:'utf8'}).trim().split('\n');
+          if(changed.length!==1|| !/^A\tdevtools\/resume-probes\/[a-z0-9-]+\.json$/.test(changed[0]))
+            throw Error('RECOVERY_CHANGE_DENIED');
+          const request=JSON.parse(readFileSync(changed[0].split('\t')[1],'utf8'));
+          validateResumeRequest(request);
+          console.log('RECOVERY_REQUEST_GUARD_PASS');
+          NODE
+          test "$(gh api repos/laszko14/nira-browser/actions/runs/40472241780 --jq '.head_sha')" = '312c74fcd5e57311cdf4a7d4e78f750af517217c'
+          test "$(gh api repos/laszko14/nira-browser/actions/runs/40472241780 --jq '.conclusion')" = 'success'
+          test "$(gh api repos/laszko14/nira-browser/actions/runs/40472241780/artifacts --jq '.artifacts[] | select(.id==12719096410 and .expired==false) | .name')" = 'zavro-stage7-diagnostic-40472241780'
+      - name: Download previously saved checkpoint from a different historical workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/resume-stage7"
+          gh run download 40472241780 --repo laszko14/nira-browser -n zavro-stage7-diagnostic-40472241780 -D "$RUNNER_TEMP/resume-stage7"
+          test -s "$RUNNER_TEMP/resume-stage7/zavro-stage7-state.json"
+          test -s "$RUNNER_TEMP/resume-stage7/zavro-stage7-state.report.json"
+      - name: Verify checkpoint and report and replay zero previous work
+        shell: bash
+        run: |
+          set -euo pipefail
+          node devtools/resume-check.mjs \
+            devtools/resume-probes/stage7-mpv-restore-20261027-01.json \
+            "$RUNNER_TEMP/resume-stage7/zavro-stage7-state.json" \
+            "$RUNNER_TEMP/resume-stage7/zavro-stage7-state.report.json" \
+            devtools/orchestrator-probes/stage7-mpv-20261027-01.json
+          echo 'CROSS_RUN_RESUME_SUCCESS_NO_REEXECUTION' >> "$GITHUB_STEP_SUMMARY"
