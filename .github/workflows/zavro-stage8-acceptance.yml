@@ -77,6 +77,62 @@ jobs:
              p.summary.stage3_dispatch_admin_gated!==true)throw Error('STAGE8_UNVERIFIED_FINAL_STATE');
           console.log('STAGE8_LIVE_EVIDENCE_PASS; all seven historical scenarios verified');
           NODE
+      - name: Validate continuing Code Editor, cross-run recovery and gated signed APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {execFileSync} from 'node:child_process';
+          import {readFileSync,writeFileSync} from 'node:fs';
+          const repo='repos/laszko14/nira-browser/';
+          const api=route=>JSON.parse(execFileSync('gh',['api',repo+route],{encoding:'utf8'}));
+          const refs={
+            main:'0823f24eb48e2eefbe38c7616bc1d55e73917b37',
+            'feat/zavro-v1174-clean-video-metadata':'3330a0b3a057008886fde392f788a1941e0dfb84',
+            'feat/zavro-x-mpv-v1167-reference-video-panel':'d63f414acecae84c3507c3f4bb998e690281b91e',
+            'tools/zavro-edit-clean-20261027':'d9c233bbf886d3fb2d320fe118f1d2768ca46092',
+            'tools/zavro-edit-mpv-20261027':'e6e8f71eb67ee61f8bfe67b45a25ba9f2b4149a0'
+          };
+          for(const [branch,sha] of Object.entries(refs)){
+            if(api('git/ref/heads/'+branch).object.sha!==sha)throw Error('PROTECTED_OR_SANDBOX_REF_MOVED_'+branch);
+          }
+          const verified={
+            editor_apply:40479677437,
+            partial_restore:40480182477,
+            signed_sandbox_preflight:40479200630,
+            real_kotlin_lint:40477361547
+          };
+          for(const [key,id] of Object.entries(verified)){
+            const run=api('actions/runs/'+id);
+            if(run.status!=='completed'||run.conclusion!=='success')throw Error('RUN_NOT_SUCCESS_'+key);
+          }
+          const editor=api('actions/runs/'+verified.editor_apply+'/jobs?per_page=100').jobs;
+          if(editor.length!==2|| !['apply','verify'].every(name=>editor.some(x=>x.name===name&&x.conclusion==='success')))
+            throw Error('EDITOR_COMMIT_OR_JUNIT_NOT_VERIFIED');
+          const build=api('actions/runs/'+verified.signed_sandbox_preflight+'/jobs?per_page=100').jobs;
+          if(!build.some(x=>x.name==='preflight'&&x.conclusion==='success')||
+             !build.some(x=>x.name==='build'&&x.conclusion==='skipped'))
+            throw Error('SIGNED_BUILD_GATE_NOT_VERIFIED');
+          const signed=readFileSync('.github/workflows/zavro-sandbox-signed-1175.yml','utf8');
+          if(!signed.includes("vars.ZAVRO_ALLOW_SIGNED_BUILD_DISPATCH == 'ENABLED_BY_REPOSITORY_OWNER'")||
+             !signed.includes('SIGNED_APK_ARTIFACT_ALREADY_EXISTS'))
+            throw Error('SIGNED_WORKFLOW_SECURITY_GATE_CHANGED');
+          const report={
+            outcome:'DIAGNOSTIC_AND_SANDBOX_EDITOR_VERIFIED',
+            refs,validated_runs:verified,automatic_edit_committed:true,
+            isolated_mpv_junit_compiled:true,
+            cross_run_partial_fail_closed:true,
+            stable_signed_apk_built:false,
+            signed_build_skipped_due_to_admin_condition:true,
+            release_created:false,
+            next_requirement:'repository-owner-enabled signing gate for sandbox APK'
+          };
+          const old=JSON.parse(readFileSync(process.env.RUNNER_TEMP+'/zavro-stage8-final.json','utf8'));
+          writeFileSync(process.env.RUNNER_TEMP+'/zavro-stage8-final.json',JSON.stringify({...old,continuation:report},null,2)+'\n');
+          console.log('POST_STAGE8_INTEGRATED_ACCEPTANCE_PASS');
+          NODE
       - name: Preserve small sanitized audit result
         if: success()
         uses: actions/upload-artifact@v4
