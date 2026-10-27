@@ -48,9 +48,14 @@ jobs:
             x.build_requested!==false||!/^[a-f0-9]{40}$/.test(x.sha))throw Error('UNSAFE_SANDBOX_REQUEST');
           appendFileSync(process.env.GITHUB_OUTPUT,'sha='+x.sha+'\n');
           NODE
-          target_sha="${{ steps.request.outputs.sha }}"
-          # A branch-head check ensures Code Editor does not test a stale write.
-          [ "$(gh api 'repos/laszko14/nira-browser/git/ref/heads/tools/zavro-edit-clean-20261027' --jq '.object.sha')" = "$target_sha" ] || { echo 'SANDBOX_BRANCH_MOVED'; exit 1; }
+      - name: Compare current sandbox HEAD with approved commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ steps.request.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ "$(gh api 'repos/laszko14/nira-browser/git/ref/heads/tools/zavro-edit-clean-20261027' --jq '.object.sha')" = "$TARGET_SHA" ] || { echo 'SANDBOX_BRANCH_MOVED'; exit 1; }
       - uses: actions/checkout@v4
         with:
           ref: ${{ steps.request.outputs.sha }}
