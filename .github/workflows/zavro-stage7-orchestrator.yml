@@ -63,15 +63,15 @@ jobs:
           after="$(sha256sum "$RUNNER_TEMP/zavro-stage7-state.json" "$RUNNER_TEMP/zavro-stage7-state.report.json")"
           [ "$before" = "$after" ] || { echo 'CHECKPOINT_REPLAY_MUTATED'; exit 1; }
           echo 'ZAVRO_STAGE7_IDEMPOTENT_REPLAY_PASS'
-      - name: Preserve small reproducible checkpoint and sanitized report
-        if: success()
+      - name: Preserve completed or partial checkpoint and sanitized report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: zavro-stage7-diagnostic-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/zavro-stage7-state.json
             ${{ runner.temp }}/zavro-stage7-state.report.json
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 14
           compression-level: 6
       - name: Restore the uploaded checkpoint to a clean location
