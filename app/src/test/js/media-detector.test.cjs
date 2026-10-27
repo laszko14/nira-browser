@@ -1003,3 +1003,32 @@ test("v1171: SPA additions and duplicate human titles keep distinct source URLs"
   assert.equal(p.native[0][1].title, p.native[1][1].title);
   assert.notEqual(p.native[0][1].groupId, p.native[1][1].groupId);
 });
+
+test("v1172: bounded discovery stats distinguish individual from unknown titles", async () => {
+  const p = page();
+  const a = new p.HTMLVideoElement("https://cdn.example/title-known.mp4");
+  a.getAttribute = key => key === "data-video-title" ? "Sensitive show" : null;
+  p.videos.push(a, new p.HTMLVideoElement("https://cdn.example/title-unknown.mp4"));
+  await p.mutate(); await tick(); await p.mutate(); await tick();
+  assert.equal(p.native.length, 2);
+  const codes = new Set(p.diagnostics.map(x => x.code));
+  assert.equal(codes.has("title_individual"), true);
+  assert.equal(codes.has("title_unknown"), true);
+  assert.equal(JSON.stringify(p.diagnostics).includes("Sensitive show"), false);
+});
+
+test("v1172: native queue saturation is separately attributed and title-bearing losses counted", async () => {
+  const p = page();
+  p.setNativeReply(() => new Promise(() => {})); // Four blocked in-flight calls
+  for (let i = 0; i < 150; i++) {
+    const v = new p.HTMLVideoElement("https://cdn.example/flood-" + i + ".mp4");
+    v.getAttribute = key => key === "data-video-title" ? "Synthetic " + i : null;
+    p.videos.push(v);
+  }
+  await p.mutate(); await tick(); await tick(); await p.mutate(); await tick();
+  assert.equal(p.native.length, 4);
+  const stats = p.diagnostics.reduce((m, v) => (m[v.code] = (m[v.code] || 0) + v.count, m), {});
+  assert.ok((stats.queue_native_capacity || 0) > 0);
+  assert.ok((stats.queue_title_candidate_dropped || 0) > 0);
+  assert.equal(JSON.stringify(p.diagnostics).includes("Synthetic "), false);
+});
