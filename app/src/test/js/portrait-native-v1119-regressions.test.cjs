@@ -24,7 +24,7 @@ test("v1119: native portrait tabs remain populated from filtered store state", (
   assert.match(native, /parent\.addView\(tabContainer\)/);
   assert.match(native, /row\.addView\(actionText\("\+"/);
   assert.match(native, /niraTabStripHeightDp\.coerceIn\(40, 80\)/);
-  assert.match(native, /contentDescription = "Karta: \$title"/);
+  assert.match(native, /contentDescription = "Karta: \$title\. Przytrzymaj/);
 });
 
 test("v1119: native row supports selecting, closing, and correct-context new tabs", () => {
