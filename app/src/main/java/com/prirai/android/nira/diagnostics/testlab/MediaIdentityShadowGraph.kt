@@ -45,7 +45,7 @@ internal class MediaIdentityShadowGraph(private val capacity: Int = 256) {
     )
     private data class Source(
         val scope: Int, val epoch: Int, val id: Long,
-        val frame: Long?, var group: String?,
+        var frame: Long?, var group: String?,
         var title: String?, var titleKind: String?, var ambiguousTitle: Boolean,
         var ambiguousOwner: Boolean, var format: String, var declaredVariants: Int,
         var hasPoster: Boolean, var displayed: Boolean = false,
@@ -111,7 +111,10 @@ internal class MediaIdentityShadowGraph(private val capacity: Int = 256) {
         // A conflicting second group must not silently rewrite its shadow owner.
         if (old.group == null) old.group = entry.groupId
         else if (entry.groupId != null && old.group != entry.groupId) groupReassignments++
-        if (entry.frameKey != old.frame) frameReassignments++
+        // A first trusted frame key can strengthen an anonymous node.
+        // Missing frame evidence on a later update does not invalidate it.
+        if (old.frame == null && entry.frameKey != null) old.frame = entry.frameKey
+        else if (entry.frameKey != null && old.frame != entry.frameKey) frameReassignments++
         old.title = entry.title
         old.titleKind = entry.titleKind
         old.ambiguousTitle = entry.titleAmbiguous
@@ -139,10 +142,13 @@ internal class MediaIdentityShadowGraph(private val capacity: Int = 256) {
         }
         if (legacyCount != groups.size) panelDisagreements++
         panelUnsafe += groups.values.count { group ->
-            group.size > 1 && (group.any { it.frameAmbiguous } ||
-                group.mapNotNull { entry ->
-                    entry.title?.takeIf { entry.titleKind != "page" && !entry.titleAmbiguous }
-                }.distinct().size > 1)
+            val highest = group.maxOfOrNull { MediaTitleResolver.rank(it.titleKind) } ?: 0
+            val conflict = highest > 1 && (
+                group.any { it.titleAmbiguous && MediaTitleResolver.rank(it.titleKind) >= highest } ||
+                group.filter { MediaTitleResolver.rank(it.titleKind) == highest }
+                    .mapNotNull { it.title }.distinct().size > 1
+            )
+            group.size > 1 && (group.any { it.frameAmbiguous } || conflict)
         }
     }
 
