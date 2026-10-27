@@ -73,6 +73,60 @@ test("single-media declaration, iframe embedding and filename links get only car
   assert.equal(videoTitle(link),"Film with link");
 });
 
+test("30 and 50 card-local CSS captions resolve to distinct movies before Play", () => {
+  for (const count of [30,50]) {
+    const listing = new Element("main");
+    listing.add(new Element("h1",{},"","One global listing title"));
+    const videos=[];
+    for(let i=1;i<=count;i++){
+      const card=listing.add(new Element("div",{},"video-card"));
+      card.add(new Element("span",{"data-title":"Episode "+i},"video-title","Episode "+i));
+      videos.push(card.add(new Element("video")));
+    }
+    assert.deepEqual(videos.map(video=>videoTitle(video)),
+      Array.from({length:count},(_,i)=>"Episode "+(i+1)));
+    assert.equal(new Set(videos.map(video=>scopedMediaCard(video)?.card)).size,count);
+  }
+});
+
+test("unique data-video-title on local card can title a direct source link", () => {
+  const card=new Element("div",{"data-video-title":"Unikalny odcinek"},"media-card");
+  const link=card.add(new Element("a",{href:"https://cdn.example/stream.m3u8"}));
+  assert.equal(videoTitle(link),"Unikalny odcinek");
+});
+
+test("two distinct captions on one media card are ambiguous, not guessed", () => {
+  const card=new Element("li");
+  card.add(new Element("div",{},"video-title","Film A"));
+  card.add(new Element("div",{},"card-title","Film B"));
+  const video=card.add(new Element("video"));
+  assert.equal(videoTitle(video),null);
+});
+
+test("two separate videos in shared outer article never inherit CSS heading", () => {
+  const card=new Element("article");
+  card.add(new Element("span",{},"video-title","Shared series"));
+  const one=card.add(new Element("video"));
+  card.add(new Element("video"));
+  assert.equal(videoTitle(one),null);
+});
+
+test("local CSS caption mutation requests only its owner's card", () => {
+  const root=new Element("main");
+  const first=root.add(new Element("div",{},"video-card"));
+  const caption=first.add(new Element("span",{},"video-title","Old title"));
+  const video=first.add(new Element("video"));
+  const other=root.add(new Element("div",{},"video-card"));
+  other.add(new Element("span",{},"video-title","Other"));
+  other.add(new Element("video"));
+  caption.textContent="New individual title";
+  const roots=titleMutationRoots([{type:"characterData",target:{
+    nodeType:3,parentElement:caption},addedNodes:[]}]);
+  assert.ok(roots.includes(first));
+  assert.ok(!roots.includes(other));
+  assert.equal(videoTitle(video),"New individual title");
+});
+
 test("shared article containing multiple players or media links stays unknown", () => {
   const article=new Element("article");
   article.add(new Element("h2",{},"","Global heading"));
@@ -291,6 +345,25 @@ test("unrelated structured recommendations cannot title another source", () => {
   assert.equal(h.submitted.length, 1);
   assert.equal(h.submitted[0].url, "https://cdn.example/recommend.mp4");
   assert.equal(h.submitted[0].title, "Recommended");
+});
+
+test("50 independent direct media links receive their own CSS caption, never page title", () => {
+  const h=stage3Harness();
+  for(let i=1;i<=50;i++){
+    const card=new Element("div",{},"video-tile");
+    card.add(new Element("span",{"data-video-title":"Film "+i},"video-title","Film "+i));
+    const link=card.add(new Element("a",{href:"https://cdn.example/movie-"+i+".mp4"},"","Play"));
+    h.links.push(link);
+  }
+  h.scanLinks();
+  assert.equal(h.submitted.length,50);
+  for(let i=1;i<=50;i++){
+    const item=h.submitted.find(x=>x.url==="https://cdn.example/movie-"+i+".mp4");
+    assert.equal(item.title,"Film "+i);
+    assert.equal(item.titleKind,"video");
+    assert.ok(item.group);
+  }
+  assert.equal(new Set(h.submitted.map(x=>x.group)).size,50);
 });
 
 test("local direct media link uses its own card title and grouping", () => {
