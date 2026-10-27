@@ -106,6 +106,22 @@ object TestLabReportGenerator {
                 LabCode.DETECTOR_QUEUE_ANDROID_RATE,LabCode.DETECTOR_QUEUE_TITLE_CANDIDATE_DROPPED).forEach { appendLine("$it=${r.eventCounts[it] ?: 0}") }
             appendLine("QUEUE_LIMIT jest sumą wielu przyczyn. Odmowa wysłania ≠ potwierdzona utrata tytułu; ograniczenia webRequest nie pozwalają przypisać wszystkich zdarzeń do filmu.")
         }
+        if(r.testType==TestType.VIDEO_METADATA) {
+            appendLine("\nVIDEO METADATA — anonimowe obserwacje zaakceptowanych filmów:")
+            r.videoMetadata?.let { v ->
+                appendLine("Źródła=${v.observedSources}; czas znany=${v.durationKnown}; czas nieznany=${v.durationUnknown}; LIVE=${v.live}")
+                appendLine("Rozmiar dokładny=${v.sizeExact}; szacowany=${v.sizeEstimated}; nieznany=${v.sizeUnknown}")
+                appendLine("Kafelki w otwartym panelu=${v.uiDisplayed}; aktualizacje=${v.updates}; nawigacje=${v.navigations}; limit ewidencji=${v.droppedSources}")
+                v.examples.forEach {
+                    appendLine("Film #${it.film} | format=${it.format} | czas=${it.durationSeconds ?: "BRAK"} s (${it.durationStatus}/${it.durationSource}) | rozmiar=${it.sizeBytes ?: "BRAK"} B (${it.sizeStatus}/${it.sizeSource}) | panel=${it.uiDisplayed} | aktualizacje=${it.updates}")
+                }
+                if(v.observedSources>v.examples.size)
+                    appendLine("Pominięto szczegóły ${v.observedSources-v.examples.size} źródeł; zachowano agregaty.")
+                if(v.observedSources==0)
+                    appendLine("Nie zaobserwowano zaakceptowanych rekordów — liczniki rozszerzenia nie zastępują repozytorium.")
+                appendLine("Widoczność w panelu nie dowodzi wyrenderowania piksela ani odtworzenia filmu.")
+            } ?: appendLine("NOT_MEASURED — kolektor metadanych nie zwrócił snapshotu.")
+        }
         appendLine("\nZasoby: własny proces aplikacji; podprocesy Gecko nie są objęte pomiarem.")
         val m = r.resourceMetrics
         appendLine("Próbki=${m.totalSamples}; odrzucone ze starszego bufora=${m.evictedSamples}")

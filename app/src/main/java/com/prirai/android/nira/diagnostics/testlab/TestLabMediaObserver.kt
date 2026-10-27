@@ -7,6 +7,7 @@ import com.prirai.android.nira.media.MediaSessionBinding
 internal class TestLabMediaObserver(private val capture: LabCapture) {
     @Volatile private var closed = false
     private val ledger = VideoDiscoveryLedger()
+    private val metadata = VideoMetadataLedger()
 
     fun discovery(code: String, count: Int) {
         if (closed || count !in 1..100000 || !capture.allows(LabDomain.VIDEO)) return
@@ -14,16 +15,20 @@ internal class TestLabMediaObserver(private val capture: LabCapture) {
         capture.note(safe, count = count)
     }
     fun entry(binding: MediaSessionBinding, media: MediaEntry) {
-        if (!closed && capture.allows(LabDomain.VIDEO)) ledger.observe(binding, media)
+        if (!closed && capture.allows(LabDomain.VIDEO)) { ledger.observe(binding, media); metadata.observe(binding, media) }
     }
     fun navigation(binding: MediaSessionBinding) {
-        if (!closed && capture.allows(LabDomain.VIDEO)) ledger.navigation(binding)
+        if (!closed && capture.allows(LabDomain.VIDEO)) { ledger.navigation(binding); metadata.navigation(binding) }
     }
     fun rejectedTitle(binding: MediaSessionBinding, different: Boolean) {
         if (!closed && capture.allows(LabDomain.VIDEO)) ledger.rejectedTitle(binding, different)
     }
     fun snapshot(): VideoDiscoverySummary = ledger.snapshot()
-    fun close() { closed = true; ledger.clear() }
+    fun metadataSnapshot(): VideoMetadataSummary = metadata.snapshot()
+    fun displayed(binding: MediaSessionBinding, entry: MediaEntry) {
+        if (!closed && capture.allows(LabDomain.VIDEO)) metadata.displayed(binding, entry)
+    }
+    fun close() { closed = true; ledger.clear(); metadata.clear() }
 
     private companion object {
         val discoveryCodes = mapOf(

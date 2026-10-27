@@ -296,13 +296,22 @@ private fun VideoTile(item: VideoTileItem, settings: VideoTilesSettings,
                     HorizontalDivider()
                     DropdownMenuItem(text = { Text("Format: ${entry.format.name}") }, onClick = { menu = false })
                     DropdownMenuItem(text = { Text("Jakość: ${entry.quality?.takeIf { it.isNotBlank() } ?: "nieznana"}") }, onClick = { menu = false })
-                    DropdownMenuItem(text = { Text(sizeText(entry) ?: "Rozmiar nieznany") }, onClick = { menu = false })
-                    DropdownMenuItem(text = { Text(durationText(entry.durationSeconds) ?: "Czas nieznany") }, onClick = { menu = false })
+                    DropdownMenuItem(text = { Text(if (entry.isLive) "Rozmiar: Nie dotyczy (LIVE)" else sizeText(entry) ?: "Rozmiar nieznany") }, onClick = { menu = false })
+                    DropdownMenuItem(text = { Text(if (entry.isLive) "Na żywo" else durationText(entry.durationSeconds) ?: "Czas nieznany") }, onClick = { menu = false })
                 }
             }
-            if (settings.showThumbnail) durationText(entry.durationSeconds)?.let { duration ->
-                Text(duration, Modifier.align(Alignment.BottomEnd).padding(3.dp).background(Color(0xe3000000), RoundedCornerShape(3.dp)).padding(horizontal = 3.dp, vertical = 1.dp),
-                    color = Color.White, fontSize = 10.sp, lineHeight = 12.sp, maxLines = 1)
+            // Both fields remain present even for streams without retrievable data.
+            // Do not hide them behind showThumbnail/showSize preferences.
+            Column(Modifier.align(Alignment.BottomEnd).padding(2.dp)
+                .background(Color(0xe3000000), RoundedCornerShape(3.dp))
+                .padding(horizontal = 3.dp, vertical = 1.dp),
+                horizontalAlignment = Alignment.End) {
+                Text(if (entry.isLive) "Czas: LIVE" else
+                    "Czas: " + (durationText(entry.durationSeconds) ?: "?"),
+                    color = Color.White, fontSize = 9.sp, lineHeight = 10.sp, maxLines = 1)
+                Text(if (entry.isLive) "Rozm.: —" else
+                    "Rozm.: " + (sizeText(entry) ?: "?"),
+                    color = Color.White, fontSize = 9.sp, lineHeight = 10.sp, maxLines = 1)
             }
         }
         if (settings.showTitle) Box(Modifier.fillMaxWidth().height(geometry.titleHeightDp.dp).padding(top = 3.dp), contentAlignment = Alignment.TopStart) {
@@ -330,11 +339,14 @@ internal fun durationText(seconds: Int?): String? {
 }
 
 internal fun sizeText(entry: MediaEntry): String? {
-    if (entry.format == MediaFormat.HLS || entry.format == MediaFormat.DASH) return null
+    if (entry.format in setOf(MediaFormat.HLS, MediaFormat.DASH) &&
+        entry.sizeOrigin != "HLS_BYTERANGE" &&
+        !(entry.sizeEstimated && entry.sizeOrigin == "MANIFEST_BITRATE")) return null
     val bytes = entry.sizeBytes?.takeIf { it > 0 } ?: return null
-    return when {
+    val number = when {
         bytes >= 1_000_000_000L -> String.format(Locale("pl", "PL"), "%.2f GB", bytes / 1e9)
         bytes >= 1_000_000L -> String.format(Locale("pl", "PL"), "%.1f MB", bytes / 1e6)
         else -> String.format(Locale("pl", "PL"), "%.0f KB", bytes / 1000.0)
     }
+    return if (entry.sizeEstimated) "~$number" else number
 }

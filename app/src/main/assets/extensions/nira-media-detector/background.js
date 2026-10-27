@@ -17,6 +17,7 @@ const manifestCache = new Map();
 const manifestInflight = new Map();
 const manifestGroups = new Map();
 const manifestLineage = new Map();
+const manifestVariantRates = new Map();
 // Identity is ONLY for grouping; never mutate or rebuild the exact playback URL.
 const volatileParams = new Set(["s", "e", "t", "token", "sig", "signature",
   "expires", "expiry", "exp", "hdnts", "hdntl", "policy", "key-pair-id",
@@ -475,6 +476,8 @@ function cancelManifestTasks(tabId) {
     if (key.startsWith(tabId + ":")) manifestGroups.delete(key);
   for (const key of manifestLineage.keys())
     if (key.startsWith(tabId + ":")) manifestLineage.delete(key);
+  for (const key of manifestVariantRates.keys())
+    if (key.startsWith(tabId + ":")) manifestVariantRates.delete(key);
 }
 
 // onBeforeRequest is passive metadata capture only. No bodies or credentials.
@@ -672,6 +675,8 @@ function onHeaders(details) {
           pageUrl: doc.pageUrl, isPrivate: details.incognito, groupId: message.groupId,
           frameKey: requestFrame?.frameKey, frameUrl: requestFrame?.frameUrl,
           requestSequence: requestDocumentKey.requestSequence,
+          bitrate: manifestVariantRates.get(streamGroupKey(tabId, doc.documentKey,
+            details.incognito, requestFrame?.frameKey, details.url)),
         });
       })
       .catch(() => anonymous("network_unassigned", details.incognito));
@@ -763,7 +768,20 @@ async function inspectManifest(task) {
       httpStatus: Number.isInteger(response.status) ? response.status : 200,
       url: task.url, isPrivate: task.isPrivate, documentKey: task.documentKey,
       pageUrl: task.pageUrl, groupId: task.groupId,
+      // Parser-observed metadata is attached to exactly this document and manifest.
+      isLive: !!parsed.live,
       contentType: task.format === "HLS" ? "application/vnd.apple.mpegurl" : "application/dash+xml" };
+    if (task.format === "HLS" && parsed.kind === "media" &&
+        Number.isSafeInteger(parsed.exactSizeBytes) && parsed.exactSizeBytes > 0)
+      verified.sizeBytes = parsed.exactSizeBytes;
+    if (!parsed.live && Number.isSafeInteger(parsed.durationSeconds) &&
+        parsed.durationSeconds > 0 && parsed.durationSeconds <= 604800)
+      verified.durationSeconds = parsed.durationSeconds;
+    // DASH single-representation total A/V bitrate, or bitrate inherited
+    // from the exact HLS child variant being verified; never sum all qualities.
+    const parsedBitrate = task.format === "DASH" ? parsed.bitrate : task.bitrate;
+    if (Number.isSafeInteger(parsedBitrate) && parsedBitrate > 0 && parsedBitrate <= 1000000000)
+      verified.bitrate = parsedBitrate;
     if (Number.isSafeInteger(task.requestSequence)) verified.requestSequence = task.requestSequence;
     if (task.frameKey && task.frameUrl) {
       verified.frameKey = task.frameKey;
@@ -826,6 +844,14 @@ async function inspectManifest(task) {
       if (typeof variant.codecs === "string" && variant.codecs.length <= 160)
         message.codecs = variant.codecs;
       await browser.tabs.sendMessage(task.tabId, message, { frameId: 0 });
+      // Keep a bounded per-document bandwidth hint. The child playlist is
+      // inspected only if Gecko already requests it; no extra network probes.
+      if (Number.isSafeInteger(variant.bitrate) && variant.bitrate > 0 &&
+          variant.bitrate <= 1000000000) {
+        manifestVariantRates.set(lineageKey, variant.bitrate);
+        while (manifestVariantRates.size > 128)
+          manifestVariantRates.delete(manifestVariantRates.keys().next().value);
+      }
     }
     manifestCache.set(key, Date.now());
     while (manifestCache.size > 32) manifestCache.delete(manifestCache.keys().next().value);

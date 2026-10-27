@@ -153,6 +153,10 @@
         typeof message.isPrivate !== "boolean" ||
         !Number.isSafeInteger(message.documentKey) ||
         typeof message.pageUrl !== "string" ||
+        ("isLive" in message && typeof message.isLive !== "boolean") ||
+        ("durationSeconds" in message && (!Number.isSafeInteger(message.durationSeconds) ||
+          message.durationSeconds < 1 || message.durationSeconds > 604800)) ||
+        ("isLive" in message && message.isLive && "durationSeconds" in message) ||
         ("sizeBytes" in message && (!Number.isSafeInteger(message.sizeBytes) ||
           message.sizeBytes <= 0 || message.sizeBytes > 1000000000000)) ||
         ("groupId" in message && (typeof message.groupId !== "string" ||
@@ -176,6 +180,7 @@
           !absoluteFrameUrl(message.frameUrl))) ||
         Object.keys(message).some(key => !["schemaVersion", "event", "source", "url",
           "isPrivate", "documentKey", "pageUrl", "contentType", "sizeBytes",
+          "durationSeconds", "isLive",
           "groupId", "quality", "bitrate", "codecs", "provenance",
           "verification", "httpStatus", "requestSequence",
           "frameUrl", "frameKey"].includes(key)) ||
@@ -669,7 +674,7 @@
     if (event.type === "emptied") seen.clear();
     inspect(event.target);
   }
-  for (const event of ["play", "playing", "loadedmetadata", "emptied"]) {
+  for (const event of ["play", "playing", "loadedmetadata", "durationchange", "emptied"]) {
     document.addEventListener(event, onMediaEvent, { capture: true, passive: true });
   }
   const observer = new MutationObserver(scheduleScan);

@@ -29,7 +29,8 @@ internal sealed interface MediaDetectorMessage {
                     val provenance: String? = null,
                     val verification: String? = null,
                     val httpStatus: Int? = null,
-                    val requestSequence: Long? = null) : MediaDetectorMessage {
+                    val requestSequence: Long? = null,
+                    val isLive: Boolean? = null) : MediaDetectorMessage {
         override fun toString() = "MediaCandidate(redacted)"
     }
     class Document(val pageUrl: String, val documentKey: Long, val frameTracking: Boolean = false) : MediaDetectorMessage {
@@ -153,6 +154,7 @@ internal object MediaMessageProtocol {
                 val hasGroup = "groupId" in fields
                 val hasTitle = "title" in fields || "titleKind" in fields
                 val hasDuration = "durationSeconds" in fields
+                val hasLive = "isLive" in fields
                 val hasSize = "sizeBytes" in fields
                 val hasPoster = "posterUrl" in fields
                 val hasQuality = "quality" in fields
@@ -162,13 +164,13 @@ internal object MediaMessageProtocol {
                 val hasVerification = "verification" in fields
                 val hasHttpStatus = "httpStatus" in fields
                 val hasRequestSequence = "requestSequence" in fields
-                if (hasProvenance && !fromNetwork) return null
+                if ((hasProvenance || hasLive) && !fromNetwork) return null
                 if ((hasVerification || hasHttpStatus || hasRequestSequence) && !fromNetwork) return null
                 if (hasDoc && !("documentKey" in fields && "pageUrl" in fields)) return null
                 if (hasFrame && (!hasDoc ||
                         !("frameUrl" in fields && "frameKey" in fields))) return null
                 if (hasTitle && !("title" in fields && "titleKind" in fields)) return null
-                if (hasDuration && fromNetwork || hasSize && !fromNetwork ||
+                if (hasDuration && fromNetwork && !hasLive || hasSize && !fromNetwork ||
                     hasPoster && fromNetwork) return null
                 val acceptedKeys = expected + (if (hasMime) setOf("contentType") else emptySet()) +
                     (if (fromNetwork) setOf("isPrivate") else emptySet()) +
@@ -177,6 +179,7 @@ internal object MediaMessageProtocol {
                     (if (hasGroup) setOf("groupId") else emptySet()) +
                     (if (hasTitle) setOf("title", "titleKind") else emptySet()) +
                     (if (hasDuration) setOf("durationSeconds") else emptySet()) +
+                    (if (hasLive) setOf("isLive") else emptySet()) +
                     (if (hasSize) setOf("sizeBytes") else emptySet()) +
                     (if (hasPoster) setOf("posterUrl") else emptySet()) +
                     (if (hasQuality) setOf("quality") else emptySet()) +
@@ -218,6 +221,8 @@ internal object MediaMessageProtocol {
                         it in setOf("player", "structured", "video", "link", "page") &&
                             (source != MediaSource.NETWORK || it == "page")
                     } ?: return null else null
+                val live = if (hasLive) (fields["isLive"] as? JsonPrimitive)?.booleanOrNull ?: return null else null
+                if (live == true && hasDuration) return null
                 val duration = if (hasDuration)
                     (fields["durationSeconds"] as? JsonPrimitive)?.takeIf { !it.isString }
                         ?.intOrNull?.takeIf { it in 1..604800 } ?: return null
@@ -255,7 +260,7 @@ internal object MediaMessageProtocol {
                     else null
                 MediaDetectorMessage.Candidate(url, contentType, source, privateHint, pageUrl, key,
                     frameUrl, frameKey, groupId, title, titleKind, duration, size, poster,
-                    quality, bitrate, codecs, provenance, verification, httpStatus, requestSequence)
+                    quality, bitrate, codecs, provenance, verification, httpStatus, requestSequence, live)
             }
             else -> null
         }

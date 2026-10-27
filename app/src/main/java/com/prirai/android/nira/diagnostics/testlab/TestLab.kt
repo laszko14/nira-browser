@@ -69,6 +69,7 @@ internal object TestLab {
     fun discovery(code:String,count:Int){runtime?.mediaObserver?.discovery(code,count)}
     fun mediaObservationActive():Boolean=runtime?.mediaObserver!=null
     fun observedMedia(binding:MediaSessionBinding,entry:MediaEntry){runtime?.mediaObserver?.entry(binding,entry)}
+    fun mediaDisplayed(binding:MediaSessionBinding,entry:MediaEntry){runtime?.mediaObserver?.displayed(binding,entry)}
     fun mediaNavigation(binding:MediaSessionBinding){runtime?.mediaObserver?.navigation(binding)}
     fun mediaRejectedTitle(binding:MediaSessionBinding,different:Boolean){runtime?.mediaObserver?.rejectedTitle(binding,different)}
 

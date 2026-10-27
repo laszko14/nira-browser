@@ -35,7 +35,8 @@ globalThis.NiraManifestParser = (() => {
     const lines = text.replace(/\r/g, "").split("\n").map(line => line.trim());
     if (lines[0] !== "#EXTM3U") throw new Error("invalid_hls");
     const variants = [], audioTracks = [], subtitleTracks = [];
-    let seconds = 0, firstSegmentUrl = null, drm = false;
+    let seconds = 0, firstSegmentUrl = null, drm = false, endList = false, segments = 0;
+    let rangedSegments = 0, rangeBytes = 0, hasInitialization = false;
     for (let index = 0; index < lines.length; index++) {
       const line = lines[index];
       if (/^#EXT-X-(?:SESSION-)?KEY:/.test(line)) {
@@ -43,9 +44,18 @@ globalThis.NiraManifestParser = (() => {
         if (key.METHOD && key.METHOD !== "NONE" &&
             (key.METHOD !== "AES-128" || key.KEYFORMAT && key.KEYFORMAT !== "identity")) drm = true;
       }
+      if (line === "#EXT-X-ENDLIST") endList = true;
+      if (line.startsWith("#EXT-X-MAP:")) hasInitialization = true;
+      if (line.startsWith("#EXT-X-BYTERANGE:")) {
+        const match = /^#EXT-X-BYTERANGE:(\d+)(?:@\d+)?$/.exec(line);
+        if (match && Number.isSafeInteger(Number(match[1]))) {
+          rangedSegments++;
+          rangeBytes += Number(match[1]);
+        }
+      }
       if (line.startsWith("#EXTINF:")) {
         const value = Number(line.slice(8).split(",")[0]);
-        if (Number.isFinite(value) && value > 0) seconds += value;
+        if (Number.isFinite(value) && value > 0) { seconds += value; segments++; }
         let next = index + 1;
         while (next < lines.length && (!lines[next] || lines[next].startsWith("#"))) next++;
         if (!firstSegmentUrl && next < lines.length) firstSegmentUrl = url(lines[next], base);
@@ -76,8 +86,16 @@ globalThis.NiraManifestParser = (() => {
     }
     if (!variants.length && !firstSegmentUrl && !lines.some(line => line.startsWith("#EXT-X-STREAM-INF:")))
       throw new Error("invalid_hls");
-    return { protocol: "HLS", drm, kind: variants.length ? "master" : "media", variants,
-      audioTracks, subtitleTracks, durationSeconds: seconds > 0 ? Math.ceil(seconds) : null,
+    const media = variants.length === 0;
+    // A non-final playlist has only a moving window; never call that a movie duration.
+    return { protocol: "HLS", drm, kind: media ? "media" : "master", variants,
+      audioTracks, subtitleTracks, live: media && !endList,
+      durationSeconds: media && endList && segments > 0 ? Math.ceil(seconds) : null,
+      // Exact only for a complete single-rendition VOD in which EVERY segment
+      // has an explicit byte range and no unknown initialization segment.
+      exactSizeBytes: media && endList && segments > 0 && rangedSegments === segments &&
+        !hasInitialization && Number.isSafeInteger(rangeBytes) && rangeBytes > 0 &&
+        rangeBytes <= 1000000000000 ? rangeBytes : null,
       firstSegmentUrl };
   }
   function xmlAttr(tag, name) {
@@ -123,12 +141,25 @@ globalThis.NiraManifestParser = (() => {
           codecs: xmlAttr(tag, "codecs") || codecs || null, language: language || null };
         const target = content === "video" ? variants : content === "audio" ? audioTracks :
           content === "text" || /subtitle/i.test(mime) ? subtitleTracks : null;
-        if (target && resolved && target.length < limit) target.push(item);
+        // SegmentTemplate representations often have no direct BaseURL. Keep
+        // their bitrate as metadata, never claim them as playable MP4 URLs.
+        if (target && target.length < limit) target.push(item);
       }
     }
-    return { protocol: "DASH", drm: /<ContentProtection\b/i.test(text), dynamic: /\btype\s*=\s*['"]dynamic['"]/i.test(mpd),
-      durationSeconds: duration(xmlAttr(mpd, "mediaPresentationDuration")), variants,
-      audioTracks, subtitleTracks };
+    const dynamic = /\btype\s*=\s*['"]dynamic['"]/i.test(mpd);
+    const periodDurations = [...text.matchAll(/<Period\b[^>]*>/gi)]
+      .map(match => duration(xmlAttr(match[0], "duration")));
+    const totalPeriods = periodDurations.length > 0 && periodDurations.every(value => value !== null)
+      ? periodDurations.reduce((a, b) => a + b, 0) : null;
+    const mediaDuration = duration(xmlAttr(mpd, "mediaPresentationDuration")) || totalPeriods;
+    // Only a single video representation plus at most one audio track can be
+    // combined without guessing which resolution the player selected.
+    const chosenBitrate = variants.length === 1 && audioTracks.length <= 1 &&
+      [variants[0], ...audioTracks].every(item => Number.isSafeInteger(item.bitrate) && item.bitrate > 0)
+      ? variants[0].bitrate + (audioTracks[0]?.bitrate || 0) : null;
+    return { protocol: "DASH", drm: /<ContentProtection\b/i.test(text), dynamic,
+      live: dynamic, durationSeconds: dynamic ? null : mediaDuration,
+      bitrate: chosenBitrate, variants, audioTracks, subtitleTracks };
   }
   return { parseHls, parseDash };
 })();
