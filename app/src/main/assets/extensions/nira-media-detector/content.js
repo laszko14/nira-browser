@@ -325,6 +325,16 @@
   function videoTitle(element) {
     return explicitVideoTitle(element) || scopedMediaCard(element)?.title || null;
   }
+  // A single image inside a verified single-media card may be its poster.
+  // Never take the first image of an unbounded gallery or neighboring card.
+  function singleCardPoster(card) {
+    if (!card || typeof card.querySelectorAll !== "function") return null;
+    const images = card.querySelectorAll("img");
+    if (images.length !== 1) return null;
+    const img = images[0];
+    return absolute(attribute(img, "data-poster") || attribute(img, "data-thumbnail") ||
+      attribute(img, "data-src") || img.currentSrc || img.src);
+  }
   function posterFor(video) {
     if (!video) return null;
     const rawPoster = video.poster || attribute(video, "poster") ||
@@ -339,10 +349,13 @@
     if (!scoped?.card) return null;
     const candidates = scoped.card.querySelectorAll(
       'img[itemprop="thumbnailUrl"],img[data-poster],img[data-thumbnail],img.video-poster,img.video-thumbnail');
-    if (candidates.length !== 1) return null;
-    const img = candidates[0];
-    return absolute(img.currentSrc || attribute(img, "data-src") ||
-      attribute(img, "data-poster") || attribute(img, "data-thumbnail") || img.src);
+    if (candidates.length === 1) {
+      const img = candidates[0];
+      return absolute(img.currentSrc || attribute(img, "data-src") ||
+        attribute(img, "data-poster") || attribute(img, "data-thumbnail") || img.src);
+    }
+    if (candidates.length > 1) return null;
+    return singleCardPoster(scoped.card);
   }
   function durationOf(video) {
     const value = video && video.duration;
@@ -541,7 +554,8 @@
       const directTitle = mediaTitleHint(element.textContent);
       const title = directTitle || scoped?.title || null;
       submit(href, "page", null, groupFor(scoped?.card || element),
-        title, title ? (directTitle ? "link" : "video") : null);
+        title, title ? (directTitle ? "link" : "video") : null,
+        null, singleCardPoster(scoped?.card || element));
     });
     scanCollection("[data-video-url],[data-video-src],[data-hls],[data-mpd],[data-src],[data-plyr-source],[data-file],[data-stream-url],[data-playback-url],[data-manifest-url],[data-source-url],[data-mp4],[data-m3u8],[data-stream]", element => {
       const scoped = scopedMediaCard(element);
@@ -554,7 +568,9 @@
         if (value) submit(value, "page", attribute(element, "type") ||
           (name === "data-hls" || name === "data-m3u8" ? "application/vnd.apple.mpegurl" :
             name === "data-mpd" ? "application/dash+xml" : null), groupFor(scoped?.card || element),
-          named, named ? (explicitVideoTitle(element) ? "player" : "video") : null);
+          named, named ? (explicitVideoTitle(element) ? "player" : "video") : null,
+          null, absolute(attribute(element, "data-poster") || attribute(element, "data-thumbnail")) ||
+            singleCardPoster(scoped?.card));
       }
     });
     scanCollection('meta[property^="og:video"],meta[name="twitter:player:stream"]', element => {
@@ -941,7 +957,8 @@
   const observer = new MutationObserver(scheduleScan);
   const observerOptions = { childList: true, subtree: true, attributes: true, characterData: true,
     attributeFilter: ["src", "srcdoc", "type", "content", "href", "title", "aria-label",
-      "data-title", "data-video-title", "data-src", "data-video-url", "data-video-src",
+      "data-title", "data-video-title", "data-poster", "data-thumbnail", "poster",
+      "data-src", "data-video-url", "data-video-src",
       "data-hls", "data-mpd", "data-plyr-source", "data-playback-url", "data-manifest-url",
       "data-source-url", "data-mp4", "data-m3u8", "data-stream", "data-config",
       "data-file", "data-stream-url", "data-setup", "data-player-config"] };
