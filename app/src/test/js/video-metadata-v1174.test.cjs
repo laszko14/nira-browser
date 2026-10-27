@@ -40,3 +40,16 @@ test("DASH multiple video quality variants yield no fabricated selected bitrate"
   const mpd='<MPD type="static" mediaPresentationDuration="PT2M"><Period><AdaptationSet contentType="video"><Representation bandwidth="700000"><BaseURL>v1.mp4</BaseURL></Representation><Representation bandwidth="1700000"><BaseURL>v2.mp4</BaseURL></Representation></AdaptationSet></Period></MPD>';
   assert.equal(parser.parseDash(mpd,"https://cdn.example/watch.mpd",8).bitrate,null);
 });
+
+test("complete HLS byte ranges expose an exact size only when every segment is covered", () => {
+  const playlist="#EXTM3U\n#EXTINF:5,\n#EXT-X-BYTERANGE:12345@0\na.ts\n#EXTINF:5,\n#EXT-X-BYTERANGE:23456@12345\na.ts\n#EXT-X-ENDLIST";
+  const vod=parser.parseHls(playlist,base,8);
+  assert.equal(vod.exactSizeBytes,35801);
+  assert.equal(vod.durationSeconds,10);
+  const withoutSecond=playlist.replace("#EXT-X-BYTERANGE:23456@12345\n","");
+  assert.equal(parser.parseHls(withoutSecond,base,8).exactSizeBytes,null);
+  const unfinalized=playlist.replace("#EXT-X-ENDLIST","");
+  assert.equal(parser.parseHls(unfinalized,base,8).exactSizeBytes,null);
+  const withInit=playlist.replace("#EXTINF:5,", '#EXT-X-MAP:URI="init.mp4"\n#EXTINF:5,');
+  assert.equal(parser.parseHls(withInit,base,8).exactSizeBytes,null);
+});
