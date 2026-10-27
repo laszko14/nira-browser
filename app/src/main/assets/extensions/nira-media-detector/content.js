@@ -670,6 +670,15 @@
     enqueueRoot(document);
     if (scanTimer === null) pump();
   }
+  // A caption mutation must recheck its single-media card, not just the text node.
+  // The existing URL-bound candidate pipeline then handles late title enrichment.
+  function enqueueTitleOwner(node) {
+    const element = node && (node.nodeType === 3 ? node.parentElement : node);
+    if (!element || typeof element.closest !== "function") return;
+    const heading = element.closest("figcaption,[itemprop='name'],h1,h2,h3,h4");
+    const card = heading && scopedMediaCard(heading)?.card;
+    if (card) enqueueRoot(card);
+  }
   function scheduleScan(records) {
     // Observe the changed subtree, including source/script parent changes.
     if (Array.isArray(records) && records.length) {
@@ -682,8 +691,11 @@
           const element = target.nodeType === 3 ? target.parentElement : target;
           enqueueRoot(element && element.closest && element.closest("video,script") || element);
         }
-        for (const node of record.addedNodes || [])
+        enqueueTitleOwner(target);
+        for (const node of record.addedNodes || []) {
           enqueueRoot(node.nodeType === 3 ? node.parentElement : node);
+          enqueueTitleOwner(node);
+        }
       }
       if (jobs.length > MAX_JOBS) { jobs.length = 0; overflowRoot = true; }
     } else enqueueRoot(document);
