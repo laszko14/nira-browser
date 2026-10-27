@@ -338,8 +338,8 @@ internal class MediaFloatingUi(
 
     private fun fillSheet() {
         // Update the existing composition. Stable item keys and grid state survive metadata changes.
-        val latest = current()
-        sheetSnapshot = latest
+        sheetSnapshot = current()
+        val latest = sheetSnapshot
         latest?.entries?.forEach { TestLab.mediaDisplayed(latest.tab.binding, it) }
     }
 
