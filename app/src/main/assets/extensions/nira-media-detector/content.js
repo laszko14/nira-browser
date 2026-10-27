@@ -20,6 +20,7 @@
   // Bounded slices, not a permanent cutoff at the first N nodes.
   const SLICE_MS = 8, MAX_JOBS = 64, MAX_ROOTS = 32;
   const seen = new Map(), groups = new WeakMap();
+  let structuredGroups = new WeakMap();
   let nextGroup = 0;
   const opaqueFrameVersions = new WeakMap();
   function inspectFrame(element) {
@@ -40,7 +41,7 @@
     cancelNativeQueue();
     context = null;
     registering = null;
-    seen.clear(); offers = 0; playObserved = false; stats.clear();
+    seen.clear(); structuredGroups = new WeakMap(); offers = 0; playObserved = false; stats.clear();
     if (statsTimer !== null) clearTimeout(statsTimer);
     statsTimer = null;
     jobs.length = 0; pendingRoots.clear(); pendingRoots.add(document); scriptVersions = new WeakSet();
@@ -237,6 +238,24 @@
       const value = mediaTitleHint(attribute(element, name));
       if (value) return value;
     }
+    // aria-labelledby can point outside the player. Accept only a short label
+    // inside its own single-player card, never a heading from another tile.
+    const ids = attribute(element, "aria-labelledby");
+    if (!ids || ids.length > 160 || !document.getElementById ||
+        !element.closest) return null;
+    const card = element.closest(
+      "figure,article,li,[data-video-id],.video-card,.video-item,.media-card,.media-item,.video-container");
+    if (!card || !card.querySelectorAll || !card.contains) return null;
+    const players = card.querySelectorAll("video,iframe");
+    if (players.length !== 1 || (players[0] !== element &&
+        !(players[0].contains && players[0].contains(element)))) return null;
+    for (const id of ids.trim().split(/\s+/).slice(0, 3)) {
+      if (!/^[A-Za-z][\w:.-]{0,79}$/.test(id)) continue;
+      const labelled = document.getElementById(id);
+      if (!labelled || labelled === element || !card.contains(labelled)) continue;
+      const title = mediaTitleHint(labelled.textContent);
+      if (title) return title;
+    }
     return null;
   }
   // Titles are attached only to a single-media card, NEVER a page-wide heading.
@@ -248,6 +267,14 @@
       if (!card.matches || !card.matches(cards) || !card.querySelectorAll) continue;
       const players = card.querySelectorAll("video,iframe");
       if (players.length > 1) continue; // Multiple videos: no reliable title owner.
+      if (players.length === 1) {
+        const player = players[0];
+        // A sibling media link is not automatically another quality of the
+        // embedded player; it must not borrow that player's card heading.
+        if (element !== card && element !== player &&
+            !(player.contains && player.contains(element)) &&
+            !(element.contains && element.contains(player))) continue;
+      }
       if (!players.length) {
         const declarations = card.querySelectorAll(
           "[data-video-url],[data-video-src],[data-hls],[data-mpd],[data-player-config],a[href]");
@@ -466,8 +493,12 @@
   function scanDeclarations() {
     scanCollection("a[href],link[href]", element => {
       const href = attribute(element, "href") || element.href;
-      if (href) submit(href, "page", null, null,
-        mediaTitleHint(element.textContent), "link");
+      if (!href) return;
+      const scoped = scopedMediaCard(element);
+      const directTitle = mediaTitleHint(element.textContent);
+      const title = directTitle || scoped?.title || null;
+      submit(href, "page", null, groupFor(scoped?.card || element),
+        title, title ? (directTitle ? "link" : "video") : null);
     });
     scanCollection("[data-video-url],[data-video-src],[data-hls],[data-mpd],[data-src],[data-plyr-source],[data-file],[data-stream-url],[data-playback-url],[data-manifest-url],[data-source-url],[data-mp4],[data-m3u8],[data-stream]", element => {
       const scoped = scopedMediaCard(element);
@@ -493,6 +524,19 @@
         })());
     });
   }
+  // Weakly tied to the script element and exact listed media URLs, not a
+  // title, index or host. Repeated scans cannot create a new variant group.
+  function structuredGroup(script, urls) {
+    if (urls.length < 2) return null;
+    let cache = structuredGroups.get(script);
+    if (!cache) { cache = new Map(); structuredGroups.set(script, cache); }
+    const identity = JSON.stringify([...urls].sort());
+    if (cache.has(identity)) return cache.get(identity);
+    const id = groupFor({});
+    cache.set(identity, id);
+    while (cache.size > 32) cache.delete(cache.keys().next().value);
+    return id;
+  }
   function scanStructuredData() {
     scanCollection('script[type="application/ld+json"]', element => {
       const raw = element.textContent;
@@ -508,15 +552,19 @@
         }
         const kind = node["@type"];
         if (kind === "VideoObject" || Array.isArray(kind) && kind.includes("VideoObject")) {
-          const name = safeTitle(node.name);
-          if (typeof node.contentUrl === "string")
-            submit(node.contentUrl, "page", null, null, name, "structured", null,
-              typeof node.thumbnailUrl === "string" ? node.thumbnailUrl : null);
+          const name = mediaTitleHint(node.name);
+          const sources = [];
+          if (typeof node.contentUrl === "string") sources.push(node.contentUrl);
           const encodings = Array.isArray(node.encoding) ? node.encoding.slice(0, 8) : [node.encoding];
           for (const entry of encodings)
-            if (entry && typeof entry.contentUrl === "string")
-              submit(entry.contentUrl, "page", null, null, name, "structured", null,
-                typeof node.thumbnailUrl === "string" ? node.thumbnailUrl : null);
+            if (entry && typeof entry.contentUrl === "string") sources.push(entry.contentUrl);
+          // Only direct, valid media URLs own this VideoObject title. embedUrl
+          // is a document/player location, never assumed to be a stream URL.
+          const urls = [...new Set(sources.map(absolute).filter(Boolean))].slice(0, 9);
+          const group = structuredGroup(element, urls);
+          const poster = typeof node.thumbnailUrl === "string" ? node.thumbnailUrl : null;
+          for (const url of urls) submit(url, "page", null, group,
+            name, name ? "structured" : null, null, poster);
         }
         for (const field of ["@graph", "video", "mainEntity", "itemListElement"])
           if (node[field]) walk(node[field], depth + 1);
