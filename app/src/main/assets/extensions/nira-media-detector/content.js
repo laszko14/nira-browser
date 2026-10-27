@@ -672,8 +672,14 @@
         return;
       }
       // "label" is normally resolution/audio language, not a film title.
-      const ownTitle = mediaTitleHint(node.title) || mediaTitleHint(node.name);
-      const independent = ownTitle && parentTitle && ownTitle !== parentTitle;
+      // 720p/4K/Auto are rendition labels, even when stored as "title".
+      const candidateTitle = mediaTitleHint(node.title) || mediaTitleHint(node.name);
+      const ownTitle = candidateTitle &&
+        !/^(?:auto|original|source|hd|sd|uhd|fhd|4k|8k|\\d{3,4}p|\\d+(?:[.,]\\d+)?\\s*(?:mbps|kbps))$/i.test(candidateTitle)
+        ? candidateTitle : null;
+      // Without a verified item title, a sources[] array is not proof that
+      // differently named child sources are variants of a single film.
+      const independent = !!(ownTitle && parentGroup && ownTitle !== parentTitle);
       const title = ownTitle || parentTitle;
       const group = (!independent && parentGroup) ||
         (["sources", "renditions", "variants", "encodings"].some(key =>
