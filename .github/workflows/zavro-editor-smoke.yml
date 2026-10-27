@@ -94,8 +94,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ./gradlew :app:testDebugUnitTest :app:lintDebug \
+          ./gradlew :app:testDebugUnitTest \
             --tests com.prirai.android.nira.devtools.ZavroEditorSmokeTest \
             --tests com.prirai.android.nira.media.MediaRecentDeduplicatorTest \
-            --console=plain --no-daemon --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8'
+            :app:lintDebug --console=plain --no-daemon --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8'
           echo 'CODE_EDITOR_ISOLATED_KOTLIN_REGRESSION_AND_LINT_PASS (no signed APK)' >> "$GITHUB_STEP_SUMMARY"
