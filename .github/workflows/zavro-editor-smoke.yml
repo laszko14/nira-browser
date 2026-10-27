@@ -1,0 +1,72 @@
+name: Zavro Isolated Code Editor Kotlin Smoke
+on:
+  push:
+    branches:
+      - tools/zavro-development-system-stage1-20261027
+    paths:
+      - 'devtools/editor-probes/*.json'
+permissions:
+  contents: read
+concurrency:
+  group: zavro-editor-sandbox-unit-test
+  cancel-in-progress: false
+jobs:
+  sandbox-unit-test:
+    if: github.repository == 'laszko14/nira-browser' && github.actor == 'laszko14'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Verify Code Editor isolation in Node
+        run: node --test devtools/tests/code-editor.test.mjs
+      - name: Verify precisely one approved Kotlin sandbox test request
+        id: request
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {readFileSync,appendFileSync} from 'node:fs';
+          import {execFileSync} from 'node:child_process';
+          const before=process.env.BEFORE_SHA,after=process.env.GITHUB_SHA;
+          if(!/^[a-f0-9]{40}$/.test(before)|| !/^[a-f0-9]{40}$/.test(after)||
+            process.env.GITHUB_REF!=='refs/heads/tools/zavro-development-system-stage1-20261027'||
+            process.env.GITHUB_ACTOR!=='laszko14')throw Error('UNAUTHORIZED_TRIGGER');
+          const lines=execFileSync('git',['diff','--name-status','--no-renames',before,after],{encoding:'utf8'}).trim().split('\n');
+          if(lines.length!==1||!/^A\tdevtools\/editor-probes\/[a-z0-9-]+\.json$/.test(lines[0]))throw Error('UNSAFE_REQUEST_DIFF');
+          const x=JSON.parse(readFileSync(lines[0].split('\t')[1],'utf8'));
+          const fields=['branch','build_requested','kind','repo','schema_version','sha','test_class','variant'];
+          if(Object.keys(x).sort().join(',')!==fields.join(',')||
+            x.schema_version!==1||x.kind!=='sandbox-kotlin-test'||x.repo!=='laszko14/nira-browser'||
+            x.variant!=='clean'||x.branch!=='tools/zavro-edit-clean-20261027'||
+            x.test_class!=='com.prirai.android.nira.devtools.ZavroEditorSmokeTest'||
+            x.build_requested!==false||!/^[a-f0-9]{40}$/.test(x.sha))throw Error('UNSAFE_SANDBOX_REQUEST');
+          appendFileSync(process.env.GITHUB_OUTPUT,'sha='+x.sha+'\n');
+          NODE
+          target_sha="${{ steps.request.outputs.sha }}"
+          # A branch-head check ensures Code Editor does not test a stale write.
+          [ "$(gh api 'repos/laszko14/nira-browser/git/ref/heads/tools/zavro-edit-clean-20261027' --jq '.object.sha')" = "$target_sha" ] || { echo 'SANDBOX_BRANCH_MOVED'; exit 1; }
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.request.outputs.sha }}
+          path: sandbox
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Install Java 17 and prepare Gradle
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Compile and run only the isolated Kotlin JVM unit test (no APK)
+        working-directory: sandbox
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew :app:testDebugUnitTest --tests com.prirai.android.nira.devtools.ZavroEditorSmokeTest --console=plain --no-daemon --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8'
+          echo 'CODE_EDITOR_ISOLATED_KOTLIN_TEST_PASS (signed APK not built)' >> "$GITHUB_STEP_SUMMARY"
