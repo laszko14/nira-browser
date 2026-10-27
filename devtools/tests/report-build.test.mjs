@@ -29,3 +29,14 @@ test('invalid run id rejected before any API call',async()=>{await assert.reject
 test('API only calls GET with strict path',async()=>{let m=[];let api=new ReadOnlyGitHub(null,async(_u,o)=>{m.push(o.method);return {status:200,json:async()=>({id:1})}});await api.get('/actions/runs/40462413839');assert.deepEqual(m,['GET']);await assert.rejects(api.get('/user'),e=>e.code==='URL_DENIED');});
 test('truncated result pagination fails closed',async()=>{let x=[run,{total_count:5,jobs},{total_count:1,artifacts:[artifact]}],i=0;await assert.rejects(readRunReport({get:async()=>x[i++]},config,'clean',run.id),e=>e.code==='PAGINATION_REQUIRED');});
 test('optional trusted CI log provider',async()=>{let x=[run,{total_count:jobs.length,jobs},{total_count:1,artifacts:[artifact]}],i=0;const rep=await readRunReport({get:async()=>x[i++]},config,'clean',run.id,{},async()=>({[jobs[0].id]:verify}));assert.equal(rep.state,'CI_VERIFIED_APK_ARTIFACT');});
+
+test('pinned tag build may be reported only for matching variant and SHA',()=>{
+ const a=args();a.run.event='workflow_dispatch';a.run.head_branch='zavro-build-clean-'+sha;
+ a.artifacts[0].workflow_run.head_branch=a.run.head_branch;
+ const r=buildReport(a);
+ assert.equal(r.state,'CI_VERIFIED_APK_ARTIFACT');assert.equal(r.run_source,'PINNED_DISPATCH_TAG');
+});
+test('tag for different variant fails closed',()=>{
+ const a=args();a.run.event='workflow_dispatch';a.run.head_branch='zavro-build-mpv-'+sha;
+ err(()=>buildReport(a),'RUN_PROVENANCE_MISMATCH');
+});
