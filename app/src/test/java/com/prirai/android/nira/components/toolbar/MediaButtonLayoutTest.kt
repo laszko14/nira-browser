@@ -37,7 +37,7 @@ class MediaButtonLayoutTest {
             strip.addView(lastTab, FrameLayout.LayoutParams(100, -1, Gravity.RIGHT))
             val overlay = MediaFloatingUi(parent, { null }, { viewport ->
                 BrowserChromeBounds.reservations(parent, viewport, emptyList(), listOf(strip))
-            }, {})
+            }, {}, {})
             val button = parent.getChildAt(1)
             fun draw() {
                 parent.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
@@ -88,7 +88,7 @@ class MediaButtonLayoutTest {
         activity.setContentView(parent)
         parent.layout(0, 0, 900, 450)
         var reserved = 0
-        val overlay = MediaFloatingUi(parent, { null }, { 0 to reserved }, {})
+        val overlay = MediaFloatingUi(parent, { null }, { 0 to reserved }, {}, {})
         parent.measure(View.MeasureSpec.makeMeasureSpec(900, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(450, View.MeasureSpec.EXACTLY))
         parent.layout(0, 0, 900, 450)
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
