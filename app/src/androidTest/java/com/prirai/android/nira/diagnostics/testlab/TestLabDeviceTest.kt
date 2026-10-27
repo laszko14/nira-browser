@@ -115,7 +115,7 @@ class TestLabDeviceTest {
         // Keep the root BrowserActivity alive: its intentional task-removal shutdown kills the process.
         // The instrumentation runner closes its isolated app at the end of the suite.
     }
-    @Test fun allSevenUiModesUseRealCollectorsOneCompletesSixtySecondsAndOthersStopPartially() {
+    @Test fun allSevenUiModesReachRealSixtySecondsAndSeparateEarlyStopIsPartial() {
         try { runSevenModes() } catch(t:Throwable) {
             // Preserve the original scenario failure if a test-rule teardown also fails.
             println("TESTLAB_FIXTURE_FAILURE stage=$stage type=${t.javaClass.simpleName}")
@@ -168,19 +168,23 @@ class TestLabDeviceTest {
                 await(75_000){TestLab.ui.value.phase==LabPhase.COMPLETED}
             } else {
                 if(type==TestType.RESOURCES)trial("ON_RESOURCES",5000) else SystemClock.sleep(1200)
-                onMain{TestLab.stop()}
-                await(15_000){!TestLab.busy}
-                assertEquals(LabPhase.PARTIAL,TestLab.ui.value.phase)
+                // Every selectable mode must reach its complete, real 60s deadline.
+                // Early stop is verified independently below.
+                await(75_000){TestLab.ui.value.phase==LabPhase.COMPLETED}
             }
             stage="${type.name}:report"
             val report=TestLab.reports.value[type]?:error("No report for completed mode")
             results[type]=report
+            assertEquals(LabPhase.COMPLETED,report.status)
+            assertEquals(60_000.0,report.durationMs,0.0)
+            assertEquals(1168,report.appVersion.versionCode)
+            assertEquals("0.5.22-alpha73-clean",report.appVersion.versionName)
             assertTrue(report.resourceMetrics.totalSamples>0)
             assertNotNull(report.resourceMetrics.javaHeapMaxBytes)
             assertNotNull(report.frameMetrics)
             assertTrue(report.frameMetrics!!.count>0)
             assertEquals(Availability.NOT_EXPOSED_BY_PLATFORM,report.metricAvailability[LabMetric.GECKO_COMPOSITOR_FRAMES])
-            assertEquals(Availability.NOT_EXPOSED_BY_PLATFORM,report.metricAvailability[LabMetric.GECKO_COMPOSITOR_FRAMES])
+            assertEquals(Availability.NOT_EXPOSED_BY_PLATFORM,report.metricAvailability[LabMetric.POPUP_WINDOW_FRAMES])
             assertNull(onMain{browser.window.decorView.findViewWithTag<View>(TestLabRuntime.COUNTER_TAG)})
             val json=TestLabReportGenerator.generate(report).json
             assertFalse(json.contains("TESTLAB_PRIVATE_FIXTURE"));tabs.forEach{assertFalse(json.contains(it))}
@@ -201,6 +205,14 @@ class TestLabDeviceTest {
         assertNotNull(full.resourceMetrics.cpuMeanOneCorePercent)
         assertEquals(Availability.MEASURED,results.getValue(TestType.STABILITY).metricAvailability[LabMetric.HISTORICAL_EXITS])
         assertTrue(baseline.draws>0)
+        // Separate real early cancellation: PREPARING -> RUNNING -> PARTIAL, not fake COMPLETED.
+        stage="explicit-partial-after-seven-full-modes"
+        onMain { assertTrue(TestLab.start(app,TestType.STABILITY)) }
+        await(12_000){TestLab.ui.value.phase==LabPhase.RUNNING}
+        onMain { TestLab.stop() }
+        await(15_000){!TestLab.busy}
+        assertEquals(LabPhase.PARTIAL,TestLab.ui.value.phase)
+        assertNull(onMain {browser.window.decorView.findViewWithTag<View>(TestLabRuntime.COUNTER_TAG)})
         // Export controls and a configuration recreation operate on the completed RAM report.
         screen=instrumentation.startActivitySync(Intent(app,TestLabActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as TestLabActivity
         clickUi("Otwórz raport")
