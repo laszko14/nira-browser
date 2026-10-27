@@ -106,6 +106,10 @@ data class OperationToken internal constructor(internal val session:Long,interna
     val titleKinds:Map<String,Int>, val formats:Map<String,Int>, val detectionOrigins:Map<String,Int>,
     val examples:List<VideoDiscoveryFilm>,
     val uiObservedSources:Int = 0, val uiObservedTitledSources:Int = 0,
+    // Extra aggregate diagnostics for comparison with rendered tile grouping.
+    // Defaults preserve compatibility with older serialized TestLab reports.
+    val uiObservedGroups:Int = 0, val uiObservedTitledGroups:Int = 0,
+    val uiObservedConflictedGroups:Int = 0,
 )
 
 
