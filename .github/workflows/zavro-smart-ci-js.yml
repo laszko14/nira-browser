@@ -1,0 +1,52 @@
+name: Zavro Smart CI Fast JavaScript
+on:
+  push:
+    branches:
+      - tools/zavro-development-system-stage1-20261027
+    paths:
+      - 'devtools/smart-ci-probes/*.json'
+permissions:
+  contents: read
+concurrency:
+  group: zavro-smartci-js-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  fast-js:
+    if: github.repository == 'laszko14/nira-browser' && github.actor == 'laszko14'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Validate one pinned and read-only JavaScript request
+        id: gate
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: node devtools/smart-ci-fast-request.mjs
+      - name: Read current target HEAD without editing it
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_BRANCH: ${{ steps.gate.outputs.branch }}
+          TARGET_SHA: ${{ steps.gate.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ "$(gh api "repos/laszko14/nira-browser/git/ref/heads/$TARGET_BRANCH" --jq '.object.sha')" = "$TARGET_SHA" ] || { echo 'Target HEAD moved'; exit 1; }
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.gate.outputs.sha }}
+          path: target
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Execute pinned JavaScript tests only (no Gradle)
+        working-directory: target
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          tests=(app/src/test/js/*.test.cjs)
+          [ "$(find app/src/test/js -maxdepth 1 -name '*.test.cjs' | wc -l)" -gt 0 ] || { echo 'Expected JS tests missing'; exit 1; }
+          node --test "${tests[@]}"
+          echo 'SMART_CI_FAST_JS_PASS (no Android build)' >> "$GITHUB_STEP_SUMMARY"
