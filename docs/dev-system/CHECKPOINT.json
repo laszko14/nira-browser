@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "project": "Zavro Development System",
-  "last_completed_stage": 1,
+  "last_completed_stage": 2,
   "current_stage": 2,
-  "stage_state": "IMPLEMENTATION_TESTED",
+  "stage_state": "COMPLETED",
   "next_stage": 3,
   "next_stage_requires": "Dalej",
   "infrastructure_branch": "tools/zavro-development-system-stage1-20261027",
@@ -21,5 +21,18 @@
     "No atomic multi-client dispatch idempotency",
     "Workflow registration GET and real POST must be independently verified in Stage 3"
   ],
-  "resume": "Re-read current tooling branch and report before Stage 3. Never run Actions implicitly. Only continue after user says Dalej."
+  "resume": "Only after user says Dalej: re-read this checkpoint and live Github SHA. Stage 3 must implement authenticated and lock-safe dispatch; Stage 2 has no POST. Preserve both Android variants.",
+  "verification": {
+    "branch_write_verified": true,
+    "actual_branch_and_workflow_preflight": "clean+mpv PASSED with authenticated GitHub connector",
+    "tests_in_memory": "17/17 PASS",
+    "node_prototype_tests": "16/16 PASS",
+    "repo_isolation": "Only devtools/ and docs/dev-system/ changed",
+    "run_count_on_tooling_branch": 0,
+    "main_unchanged": true,
+    "node_network_execution_verified": false,
+    "android_build_executed": false,
+    "workflow_dispatch_executed": false,
+    "code_commit_sha": "37fd6f6ce28b474b0c465f31b90324b4dff5756e"
+  }
 }
