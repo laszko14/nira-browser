@@ -116,6 +116,13 @@ class UserPreferences(appContext: Context) : mozilla.components.support.ktx.andr
     var niraToolbarActionSlotDp by intPreference("nira_toolbar_action_slot_dp", 40)
     var niraAddressMinWidthDp by intPreference("nira_address_min_width_dp", 92)
     var niraToolbarActionOrder by stringPreference("nira_toolbar_action_order", "")
+    // Separate portrait/landscape settings; legacy action order stays unchanged.
+    var niraToolbarPortraitActionOrder by stringPreference("nira_toolbar_portrait_action_order", "")
+    var niraToolbarLandscapeActionOrder by stringPreference("nira_toolbar_landscape_action_order", "")
+    var niraToolbarPortraitHiddenActions by stringPreference("nira_toolbar_portrait_hidden_actions", "")
+    var niraToolbarLandscapeHiddenActions by stringPreference("nira_toolbar_landscape_hidden_actions", "")
+    var niraToolbarPortraitActionSizeDp by intPreference("nira_toolbar_portrait_action_size_dp", 40)
+    var niraToolbarLandscapeActionSizeDp by intPreference("nira_toolbar_landscape_action_size_dp", 40)
     var niraAddressBarHeightDp by intPreference("nira_address_height_dp", 56)
     var niraTabStripHeightDp by intPreference("nira_tab_strip_height_dp", 48)
     var niraTabCircleSizeDp by intPreference("nira_tab_circle_size_dp", 34)
