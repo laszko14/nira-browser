@@ -53,7 +53,7 @@ class TestLabEngine(
     @Synchronized fun start(testType:TestType):SessionToken? {
         if(phase in setOf(LabPhase.PREPARING,LabPhase.RUNNING,LabPhase.FINALIZING))return null
         token=SessionToken(++serial);type=testType;environment=LabEnvironment();started=null;endedOffset=0L
-        covered=0;coveredStart=0;isForeground=false;foregroundGeneration=0;frames=FrameAccumulator();resources=ResourceAccumulator()
+        covered=0;coveredStart=0;isForeground=false;foregroundGeneration=0;frames=FrameAccumulator();resources=ResourceAccumulator(maxOffsetNanos=durationNanos)
         counts.fill(0);errors.fill(0);stats.fill(null);operations.clear();timeline.clear();markerTimes.clear()
         observations.clear();unavailable.clear();evicted=0;eventSerial=0;rateWindow=0;rateCount=0
         operationSerial=0;droppedOperations=0;heartbeatCount=0;heartbeatMax=null;activeOperationMask=0
