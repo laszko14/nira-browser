@@ -340,7 +340,7 @@ internal class TestLabRuntime(
         else scope.launch(Dispatchers.Main.immediate) {
             worker?.join()
             withContext(Dispatchers.IO){recovery?.end(recoveryGeneration)}
-            engine.complete(s);publish();scope.cancel()
+            engine.complete(s,video);publish();scope.cancel()
         }
     }
     override fun onActivityResumed(activity:Activity) {

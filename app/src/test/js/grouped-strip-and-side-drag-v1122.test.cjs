@@ -53,12 +53,12 @@ test("v1128: side drawer delegates all drop types to a persisted transaction", (
 test("v1122: metadata and stable signing", () => {
   const gradle = read("app/build.gradle");
   const workflow = read(".github/workflows/apk-release.yml");
-  assert.match(gradle, /versionCode = 172/);
-  assert.match(gradle, /versionName = "0\.5\.22-alpha77-clean"/);
+  assert.match(gradle, /versionCode = 173/);
+  assert.match(gradle, /versionName = "0\.5\.22-alpha78-clean"/);
   assert.match(gradle, /applicationIdSuffix = '\.debug'/);
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1172"/);
+  assert.match(workflow, /EXPECTED_VERSION_CODE: "1173"/);
   assert.match(workflow, /EXPECTED_CERT_SHA256:/);
-  assert.match(workflow, /zavro-arm64-update-apk-v1172/);
+  assert.match(workflow, /zavro-arm64-update-apk-v1173/);
 });
 
 test("v1128: side-drawer drag commits one awaited transaction, not an async redraw", () => {

@@ -106,8 +106,8 @@ function page() {
     while (timers.length) timers.shift()();
     await flush();
   };
-  const mutate = async () => {
-    observerCallback([]);
+  const mutate = async (records = []) => {
+    observerCallback(records);
     while (timers.length) timers.shift()();
     await flush();
   };
@@ -1031,4 +1031,32 @@ test("v1172: native queue saturation is separately attributed and title-bearing 
   assert.ok((stats.queue_native_capacity || 0) > 0);
   assert.ok((stats.queue_title_candidate_dropped || 0) > 0);
   assert.equal(JSON.stringify(p.diagnostics).includes("Synthetic "), false);
+});
+
+test("v1173: thousands of repeated DOM mutations coalesce without phantom queue overflows", async () => {
+  const p = page();
+  const parent = { nodeType: 1, tagName: "DIV", querySelectorAll: () => [], isConnected: true };
+  const records = Array.from({ length: 500 }, () => ({
+    type: "childList", target: parent, addedNodes: [parent]
+  }));
+  await p.mutate(records);
+  const sum = code => p.diagnostics.filter(x => x.code === code).reduce((n, x) => n + x.count, 0);
+  assert.equal(sum("queue_dom_roots"), 0);
+  assert.equal(sum("queue_limit"), 0);
+});
+
+test("v1173: distinct DOM root overload remains bounded and still rechecks newly added video", async () => {
+  const p = page();
+  const records = Array.from({ length: 200 }, (_, i) => {
+    const root = { nodeType: 1, tagName: "DIV", isConnected: true, querySelectorAll: () => [] };
+    return { type: "childList", target: root, addedNodes: [root] };
+  });
+  const video = new p.HTMLVideoElement("https://cdn.example/later-video.mp4");
+  video.getAttribute = key => key === "data-video-title" ? "Late discovery" : null;
+  p.videos.push(video);
+  await p.mutate(records);
+  const sum = code => p.diagnostics.filter(x => x.code === code).reduce((n, x) => n + x.count, 0);
+  assert.ok(sum("queue_dom_roots") >= 1, "real capacity exhaustion is still measured");
+  assert.ok(sum("queue_dom_roots") <= 2, "one burst creates one fallback, not one overflow per node");
+  assert.equal(p.native.some(([, item]) => item.url === "https://cdn.example/later-video.mp4"), true);
 });

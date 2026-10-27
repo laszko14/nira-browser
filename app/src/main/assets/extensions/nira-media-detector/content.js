@@ -568,8 +568,28 @@
     });
   }
   function enqueueRoot(root) {
-    if (!root || !alive) return;
-    if (pendingRoots.size >= MAX_ROOTS) { overflowRoot = true; note("queue_limit"); note("queue_dom_roots"); return; }
+    if (!root || !alive || root.isConnected === false) return;
+    // A burst can contain thousands of callbacks for a single parent. Before
+    // enforcing capacity, coalesce already-covered roots rather than reporting
+    // false overflows or repeating identical DOM scans.
+    if (pendingRoots.has(root)) return;
+    // One scheduled full rescan already guarantees eventual coverage after a
+    // real overflow. Further enqueue attempts cannot add useful work.
+    if (overflowRoot) return;
+    for (const queued of pendingRoots) {
+      if (queued && typeof queued.contains === "function" && queued.contains(root)) return;
+    }
+    // A newly queued ancestor supersedes descendants, but not unrelated
+    // shadow roots (Node.contains handles shadow boundaries correctly).
+    if (typeof root.contains === "function") {
+      for (const queued of pendingRoots)
+        if (root.contains(queued)) pendingRoots.delete(queued);
+    }
+    if (pendingRoots.size >= MAX_ROOTS) {
+      overflowRoot = true;
+      note("queue_limit"); note("queue_dom_roots");
+      return;
+    }
     pendingRoots.add(root);
   }
   function collect(root) {

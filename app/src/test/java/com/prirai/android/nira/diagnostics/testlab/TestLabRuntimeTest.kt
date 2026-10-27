@@ -60,5 +60,41 @@ class TestLabRuntimeTest {
         assertEquals(LabPhase.CANCELLED,e.phase)
         browser.pause().stop().destroy()
     }
+    @Test fun videoDiscoveryRetainsLedgerThroughAsyncWorkerFinalization() {
+        val e = engine()
+        // probesEnabled=true starts the background worker; this was the v1172 loss path.
+        val runtime = TestLabRuntime(RuntimeEnvironment.getApplication(), e, { it is ProbeActivity }, true)
+        assertTrue(runtime.prepare(TestType.VIDEO_DISCOVERY))
+        val browser = Robolectric.buildActivity(ProbeActivity::class.java).setup().visible()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(3500))
+        assertEquals(LabPhase.RUNNING, e.phase)
+        val observer = runtime.mediaObserver
+        assertNotNull(observer)
+        observer!!.entry(
+            com.prirai.android.nira.media.MediaSessionBinding(Any(), "test-tab", null, false),
+            com.prirai.android.nira.media.MediaEntry(
+                19L, "https://example.invalid/secret.mp4",
+                com.prirai.android.nira.media.MediaFormat.MP4,
+                setOf(com.prirai.android.nira.media.MediaSource.DOM),
+                "test-group", "Private title", "player"
+            )
+        )
+        runtime.stop()
+        val deadline = System.nanoTime() + 5_000_000_000L
+        while (e.phase == LabPhase.FINALIZING && System.nanoTime() < deadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+        }
+        assertEquals(LabPhase.PARTIAL, e.phase)
+        val report = e.latest()!!
+        assertEquals(1, report.videoDiscovery?.sources)
+        assertEquals(1, report.videoDiscovery?.groups)
+        val exported = TestLabReportGenerator.generate(report)
+        assertTrue(exported.text.contains("Film #1"))
+        assertFalse(exported.text.contains("Private title"))
+        assertFalse(exported.json.contains("secret.mp4"))
+        browser.pause().stop().destroy()
+    }
+
     class ProbeActivity:Activity()
 }
