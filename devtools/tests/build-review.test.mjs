@@ -23,7 +23,7 @@ test('trigger allows only a new request file on tools branch',()=>{
 const mock=()=>({
  head:async()=>conf.targets.clean.pinned_sha,
  workflowMetadata:async()=>({state:'active',path:'.github/workflows/apk-release.yml',id:392221495}),
- workflowText:async()=>['name: Android CI','  workflow_dispatch:','  build:','    env:','      EXPECTED_PACKAGE: '+conf.targets.clean.package,'      EXPECTED_VERSION_CODE: "'+conf.targets.clean.version_code+'"','      EXPECTED_VERSION_NAME: '+conf.targets.clean.version_name,'      EXPECTED_CERT_SHA256: '+conf.targets.clean.certificate_sha256,'    steps:','      - run: ./gradlew assembleDebug','      - run: bash scripts/verify-update-apk.sh','  release:','    if: startsWith(github.ref, \\'refs/tags/v\\')'].join('\n'),
+ workflowText:async()=>['name: Android CI','  workflow_dispatch:','  build:','    env:','      EXPECTED_PACKAGE: '+conf.targets.clean.package,'      EXPECTED_VERSION_CODE: "'+conf.targets.clean.version_code+'"','      EXPECTED_VERSION_NAME: '+conf.targets.clean.version_name,'      EXPECTED_CERT_SHA256: '+conf.targets.clean.certificate_sha256,'    steps:','      - run: ./gradlew assembleDebug','      - run: bash scripts/verify-update-apk.sh','  release:',"    if: startsWith(github.ref, 'refs/tags/v')"].join('\n'),
  runs:async()=>[]
 });
 test('positive plan cannot dispatch or forge APK status',async()=>{const x=await review(r('clean'),conf,mock());assert.equal(x.stage,'READ_ONLY_BUILD_REVIEW');assert.equal(x.build_started,false);assert.equal(x.dispatch_enabled,false);assert.equal(x.ready_for_build,'NEEDS_EXPLICIT_APPROVAL');assert.equal(x.apk_created,false);});
