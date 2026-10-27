@@ -74,6 +74,23 @@ class MediaStreamIdentityStage6Test {
         assertEquals(2, record.revisionCount)
     }
 
+    @Test fun sameSequenceDifferentSignatureCannotDisplaceConfirmedUrl() {
+        val repository = repo()
+        val old = aws("FIRST")
+        val latest = aws("LATEST", date = "20261027T120000Z")
+        add(repository, old, 10, "manifest-1-1")
+        add(repository, latest, 11, "manifest-1-1",
+            verification = "stream_verified")
+        val ambiguous = aws("SAME-SEQUENCE", date = "20261027T130000Z")
+        assertEquals(MediaRepository.InsertResult.DUPLICATE,
+            add(repository, ambiguous, 11, "manifest-1-1",
+                verification = "auth_error"))
+        val record = repository.currentEntries(tab).single()
+        assertEquals(latest, record.url)
+        assertEquals(MediaPlaybackStatus.CONFIRMED, record.playbackStatus)
+        assertEquals(2, record.revisionCount)
+    }
+
     @Test fun queryIdentityCredentialAndGroupDifferencesNeverAlias() {
         val repository = repo()
         add(repository, aws("AAA", asset = "film-a"), 1, "manifest-1-1")
