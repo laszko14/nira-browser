@@ -378,11 +378,11 @@ internal class MediaRepository(
             refreshSequence != null) {
             current.entries.values.firstOrNull { record ->
                 record.groupId == groupId && record.format == media.format &&
-                    record.frameKey == metadata.frameKey &&
+                    record.frameKey == metadata?.frameKey &&
                     record.activeProvenance == MediaProvenance.NETWORK_OBSERVED &&
                     record.highestNetworkRequestSequence > 0 &&
                     MediaStreamIdentity.sameSignedRefresh(
-                        record.url, media.url, media.format, metadata.frameKey)
+                        record.url, media.url, media.format, metadata?.frameKey)
             }
         } else null
         val found = current.entries[identity] ?: refreshed
