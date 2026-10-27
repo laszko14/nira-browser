@@ -164,19 +164,22 @@ internal object SideDrawerHeight {
         // Two lines have a little breathing room; 24 dp is always one line.
         val secondLineFits = height >=
             (titleLine + subtitleLine) * fontScale + 4f
+        // Keep both the group title and card title usable when the drawer is
+        // resized to its existing 220 dp minimum and the slider is at 112 dp.
+        // These caps do not affect default 48 dp portrait / 36 dp landscape.
         return SideDrawerRowGeometry(
             height = height.dp,
             radius = scaled(10f, 4f, 18f),
             accent = scaled(5f, 2f, 7f),
-            imageFrame = scaled(if (landscape) 26f else 33f, 13f, 62f),
-            favicon = scaled(if (landscape) 22f else 28f, 11f, 52f),
-            folderFrame = scaled(if (landscape) 25f else 31f, 13f, 56f),
-            folder = scaled(if (landscape) 19f else 23f, 10f, 42f),
-            chevron = scaled(if (landscape) 16f else 19f, 10f, 28f),
-            action = scaled(if (landscape) 30f else 36f, 16f, 52f),
+            imageFrame = scaled(if (landscape) 26f else 33f, 13f, 48f),
+            favicon = scaled(if (landscape) 22f else 28f, 11f, 42f),
+            folderFrame = scaled(if (landscape) 25f else 31f, 13f, 36f),
+            folder = scaled(if (landscape) 19f else 23f, 10f, 30f),
+            chevron = scaled(if (landscape) 16f else 19f, 10f, 20f),
+            action = scaled(if (landscape) 30f else 36f, 16f, 42f),
             actionIcon = scaled(if (landscape) 17f else 19f, 11f, 27f),
-            leadingGap = scaled(5f, 2f, 9f),
-            textGap = scaled(if (landscape) 7f else 8f, 3f, 13f),
+            leadingGap = scaled(5f, 2f, 6f),
+            textGap = scaled(if (landscape) 7f else 8f, 3f, 9f),
             showSubtitle = secondLineFits
         )
     }
