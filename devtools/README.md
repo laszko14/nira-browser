@@ -33,3 +33,6 @@ See `docs/dev-system/CODE_INSPECTOR_STAGE6.md`. Read-only `devtools/code-inspect
 
 ## Stage 7 — Orchestration and checkpoints
 See `docs/dev-system/ORCHESTRATOR_STAGE7.md`. Connected GitHub read-only coordinator uses Smart CI task selection, real Codex PR inspection, pinned target and historical fast-JS Actions proof, an isolated implementation *plan* (not a code modification), strict no-build gate, and sanitized report. Runs: Clean [40471995681] success 27/27; MPV [40472241780] success 27/27 incl. restored artifact replay; Kotlin denial [40472397516] expected failure with partial checkpoint. No Android build and no production changes. Stage 8 requires explicit **Dalej**.
+
+## Stage 8 — Final acceptance status
+See `docs/dev-system/FINAL_ACCEPTANCE_STAGE8.md`. Live read-only acceptance run #40473570292: 184/184 Node and 16/16 Python PASS, all 7 historical runs checked against GitHub, protected refs unchanged. Explicit synthetic build request denied in #40473675057. Stage 3 Build Bridge powerful dispatch job now additionally requires a specific repository-owner Actions variable; current variable value could not be verified. **Diagnostic toolchain accepted; autonomous production APK build/edit/release system NOT yet accepted.**
