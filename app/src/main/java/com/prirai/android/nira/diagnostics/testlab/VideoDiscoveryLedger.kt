@@ -17,7 +17,7 @@ internal class VideoDiscoveryLedger(private val capacity: Int = 256) {
         val number: Int, val scope: Int, val epoch: Int,
         val id: Long, val frame: Long?, var group: String?,
         var title: String?, var kind: String?,
-        var format: String, val sources: MutableSet<String>,
+        var format: String, val sources: MutableSet<String>, var displayed: Boolean = false,
     )
     private val scopes = IdentityHashMap<Any, Scope>()
     private val tracks = LinkedHashMap<String, Track>()
@@ -76,6 +76,12 @@ internal class VideoDiscoveryLedger(private val capacity: Int = 256) {
         }
     }
 
+    /** Source observed in the panel snapshot; this is not proof of a drawn pixel. */
+    @Synchronized fun displayed(binding: MediaSessionBinding, entry: MediaEntry) {
+        val owner = scopes[binding.session] ?: return
+        tracks[owner.serial.toString() + ":" + owner.epoch + ":" + entry.id]?.displayed = true
+    }
+
     /** Count rejected alternative metadata without retaining its text. */
     @Synchronized fun rejectedTitle(binding: MediaSessionBinding, different: Boolean) {
         if (scope(binding) == null) return // Keep the ledger strictly bounded.
@@ -96,6 +102,10 @@ internal class VideoDiscoveryLedger(private val capacity: Int = 256) {
         var ambiguous = 0
         var groupConflicts = 0
         var groupNumber = 0
+        val uiSources = tracks.values.count { it.displayed }
+        val uiWithTitle = tracks.values.count {
+            it.displayed && !it.title.isNullOrBlank() && it.kind != "page"
+        }
         for (members in groups.values) {
             groupNumber++
             if (members.size > 1) multivariant++
@@ -117,7 +127,10 @@ internal class VideoDiscoveryLedger(private val capacity: Int = 256) {
             }
             if (samples.size < 32) {
                 samples += VideoDiscoveryFilm(groupNumber, members.size, kind,
-                    if (conflict) "CONFLICT" else if (strongest == 0) "UNKNOWN" else "OBSERVED",
+                    if (conflict) "CONFLICT" else when (strongest) {
+                        5, 4 -> "DIRECT_HINT"; 3 -> "SCOPED_HINT"; 2 -> "WEAK_HINT"
+                        else -> "FALLBACK"
+                    },
                     members.any { it.group == null })
             }
         }
@@ -129,6 +142,7 @@ internal class VideoDiscoveryLedger(private val capacity: Int = 256) {
             rejectedOrConflictingTitles = conflicts, weakerRejected = weakerRejected,
             navigations = navigations, droppedSources = dropped,
             titleKinds = kinds, formats = formats, detectionOrigins = detectionOrigins, examples = samples,
+            uiObservedSources = uiSources, uiObservedTitledSources = uiWithTitle,
         )
     }
 
