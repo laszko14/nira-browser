@@ -143,7 +143,17 @@ test("malformed scripts and huge setup data never create a titled candidate", ()
   h.scripts.push(scriptElement("jwplayer('v').setup("+"{".repeat(130)+"file:'x.mp4'"+ "}".repeat(130)+");"));
   h.scripts.push(scriptElement("x".repeat(48001)+"jwplayer('v').setup({file:'x.mp4'});"));
   h.scan();
-  assert.equal(h.emitted.length,0);
+  // The fallback detector can still discover an anonymous URL; only a
+  // title from an unparsed expression would be a bad attribution.
+  assert.equal(h.emitted.filter(x=>x.title).length,0);
+});
+
+test("static parser preserves commas within titles and signed query strings", () => {
+  const h=harness();
+  const parsed=h.parse("{file:'https://cdn.example/clip.mp4?token=a,]b',title:'Part,} one',}");
+  assert.ok(parsed);
+  assert.equal(parsed.file,"https://cdn.example/clip.mp4?token=a,]b");
+  assert.equal(parsed.title,"Part,} one");
 });
 
 test("unchanged setup scripts are cached, and mutated scripts can be scanned again", () => {
