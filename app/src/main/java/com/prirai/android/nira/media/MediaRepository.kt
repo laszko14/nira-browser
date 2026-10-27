@@ -449,7 +449,7 @@ internal class MediaRepository(
             found.metadata(metadata, found.format)
             if (com.prirai.android.nira.diagnostics.testlab.TestLab.mediaObservationActive()) {
                 if (earlierTitle != null && metadata?.title != null &&
-                    earlierTitle != metadata.title && found.title == earlierTitle)
+                    earlierTitle != MediaTitleResolver.normalizeText(metadata.title) && found.title == earlierTitle)
                     com.prirai.android.nira.diagnostics.testlab.TestLab.mediaRejectedTitle(
                         tab.binding, earlierKind == metadata.titleKind)
                 com.prirai.android.nira.diagnostics.testlab.TestLab.observedMedia(tab.binding, found.copy())
