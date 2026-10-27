@@ -47,8 +47,29 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
         loadBookmarks()
     }
 
+    private val testLabScroll=com.prirai.android.nira.diagnostics.testlab.TestLabScrollCapture()
+    private val testLabScrollListener=object:androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
+        override fun onScrolled(view:androidx.recyclerview.widget.RecyclerView,dx:Int,dy:Int) {
+            if((dx!=0||dy!=0)&&view.scrollState!=androidx.recyclerview.widget.RecyclerView.SCROLL_STATE_IDLE)testLabScroll.consumed()
+        }
+        override fun onScrollStateChanged(view:androidx.recyclerview.widget.RecyclerView,state:Int) {
+            if(state==androidx.recyclerview.widget.RecyclerView.SCROLL_STATE_IDLE)testLabScroll.finish()
+        }
+    }
+    private val testLabPanel = com.prirai.android.nira.diagnostics.testlab.TestLabPanelProbe(
+        com.prirai.android.nira.diagnostics.testlab.PanelSide.RIGHT)
+    override fun dismiss() {testLabPanel.closing();super.dismiss()}
+    override fun onCancel(dialog:android.content.DialogInterface) {testLabPanel.cancelled();super.onCancel(dialog)}
+    override fun onDismiss(dialog:android.content.DialogInterface) {testLabPanel.dismissed();super.onDismiss(dialog)}
+    override fun onStop() {testLabPanel.stop();super.onStop()}
+
     override fun onStart() {
         super.onStart()
+        if (arguments?.getBoolean("nira_side_panel") == true) {
+            dialog?.window?.let(testLabPanel::start)
+            binding.bookmarksRecyclerView.removeOnScrollListener(testLabScrollListener)
+            binding.bookmarksRecyclerView.addOnScrollListener(testLabScrollListener)
+        }
         if (arguments?.getBoolean("nira_side_panel") != true) return
         dialog?.window?.let { window ->
             window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
@@ -715,6 +736,8 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
     }
 
     override fun onDestroyView() {
+        _binding?.bookmarksRecyclerView?.removeOnScrollListener(testLabScrollListener)
+        testLabScroll.finish(com.prirai.android.nira.diagnostics.testlab.OperationOutcome.INTERRUPTED)
         super.onDestroyView()
         _binding = null
     }

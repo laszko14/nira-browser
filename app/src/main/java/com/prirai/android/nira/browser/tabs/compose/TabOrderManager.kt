@@ -1,5 +1,6 @@
 package com.prirai.android.nira.browser.tabs.compose
 
+import com.prirai.android.nira.diagnostics.testlab.*
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -34,6 +35,7 @@ class TabOrderManager internal constructor(
     private val context: Context,
     private val groupManager: UnifiedTabGroupManager,
     private val orderStore: DataStore<Preferences> = context.orderDataStore,
+    private val lab: () -> LabCapture? = {TestLab.capture()},
     private val activeProfile: () -> String = {
         val manager = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(context)
         if (manager.isPrivateMode()) "private" else manager.getActiveProfile().id
@@ -145,11 +147,22 @@ class TabOrderManager internal constructor(
      * Save current order
      */
     suspend fun saveOrder(order: UnifiedTabOrder) = operation op@ {
-        val key = stringPreferencesKey("order_${order.profileId}")
-        orderStore.edit { prefs ->
-            prefs[key] = json.encodeToString(order)
+        val capture=lab();val measurement=capture?.operation(LabOperation.ORDER_SAVE)
+        try {
+            val key = stringPreferencesKey("order_${order.profileId}")
+            var encoded:String?=null
+            val saved=orderStore.edit { prefs ->
+                // Keep serialization on DataStore's dispatcher, as before instrumentation.
+                val serialized=json.encodeToString(order)
+                encoded=serialized;prefs[key]=serialized
+            }
+            publish(order)
+            capture?.check(measurement,encoded!=null&&saved[key]==encoded,LabInvariant.ORDER_NOT_PERSISTED)
+            capture?.end(measurement,proof=CompletionProof.DATASTORE_COMMITTED)
+        } catch(error:Throwable) {
+            capture?.end(measurement,if(error is kotlinx.coroutines.CancellationException)OperationOutcome.INTERRUPTED else OperationOutcome.FAILED)
+            throw error
         }
-        publish(order)
     }
     
     // === REORDERING OPERATIONS ===
@@ -369,7 +382,10 @@ class TabOrderManager internal constructor(
                 item
             }
         }
-        saveOrder(current.copy(primaryOrder = newOrder))
+        val toggled=current.primaryOrder.filterIsInstance<UnifiedTabOrder.OrderItem.TabGroup>().firstOrNull{it.groupId==groupId}
+        val capture=lab();val measurement=toggled?.let{capture?.operation(if(it.isExpanded)LabOperation.GROUP_COLLAPSE else LabOperation.GROUP_EXPAND)}
+        try {saveOrder(current.copy(primaryOrder = newOrder));capture?.end(measurement,proof=CompletionProof.DATASTORE_COMMITTED)}
+        catch(error:Throwable){capture?.end(measurement,OperationOutcome.INTERRUPTED);throw error}
     }
     
     /**

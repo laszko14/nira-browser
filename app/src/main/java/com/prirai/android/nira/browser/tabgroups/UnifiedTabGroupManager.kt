@@ -1,5 +1,6 @@
 package com.prirai.android.nira.browser.tabgroups
 
+import com.prirai.android.nira.diagnostics.testlab.*
 import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +41,7 @@ class UnifiedTabGroupManager internal constructor(
     private val context: Context,
     private val database: TabGroupDatabase = TabGroupDatabase.getInstance(context),
     private val dispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
+    private val lab: () -> LabCapture? = {TestLab.capture()},
     private val liveTabs: () -> List<mozilla.components.browser.state.state.TabSessionState> = {
         context.components.store.state.tabs
     }
@@ -58,7 +60,10 @@ class UnifiedTabGroupManager internal constructor(
     }
 
     /** One Room commit and one publication for a complete logical operation. */
-    private suspend fun <T> mutate(block: suspend () -> T): T = withContext(dispatcher) {
+    private suspend fun <T> mutate(labOperation:LabOperation?=null,block: suspend () -> T): T {
+        val capture=if(coroutineContext[Mutation]?.owner===this)null else lab()
+        val measurement=labOperation?.let{capture?.operation(it)}
+        return try {withContext(dispatcher) {
         if (coroutineContext[Mutation]?.owner === this@UnifiedTabGroupManager) {
             return@withContext block()
         }
@@ -72,6 +77,24 @@ class UnifiedTabGroupManager internal constructor(
                     val result = database.withTransaction { block() }
                     _groupsState.value = groupsCache.values.sortedBy { it.createdAt }
                     coroutineContext[Mutation]!!.events.forEach { _groupEvents.tryEmit(it) }
+                    if(capture!=null&&measurement!=null) {
+                        try {
+                            val changed=(beforeGroups.keys+groupsCache.keys).filter{beforeGroups[it]!=groupsCache[it]}
+                            val live=liveTabs().associateBy{it.id}
+                            for(id in changed) {
+                                val current=groupsCache[id]
+                                val storedMembers:List<String> = dao.getTabIdsInGroup(id)
+                                val expectedMembers:List<String> = current?.tabIds?:emptyList()
+                                capture.check(measurement,storedMembers==expectedMembers,LabInvariant.TAB_MEMBERSHIP_MISMATCH)
+                                if(current!=null)for(tabId in current.tabIds) {
+                                    val tab=live[tabId]?:continue // Session restore may still be loading; never remove records.
+                                    fun canonical(value:String?)=value?.takeUnless{it=="profile_default"}
+                                    capture.check(measurement,tab.content.private==(current.contextId=="private")&&canonical(tab.contextId)==canonical(current.contextId),LabInvariant.PROFILE_MISMATCH)
+                                }
+                            }
+                        } catch (_:Exception) {capture.error()} // Diagnostics must not roll back a committed user mutation.
+                        capture.end(measurement,if(result==false)OperationOutcome.CANCELLED else OperationOutcome.SUCCESS,CompletionProof.ROOM_COMMITTED)
+                    }
                     result
                 } catch (error: Throwable) {
                     groupsCache.clear(); groupsCache.putAll(beforeGroups)
@@ -79,6 +102,10 @@ class UnifiedTabGroupManager internal constructor(
                     throw error
                 }
             }
+        }
+        }} catch (error:Throwable) {
+            capture?.end(measurement,if(error is kotlinx.coroutines.CancellationException)OperationOutcome.INTERRUPTED else OperationOutcome.FAILED)
+            throw error
         }
     }
 
@@ -210,7 +237,7 @@ class UnifiedTabGroupManager internal constructor(
         profileId: String? = null,
         contextId: String? = null,
         groupId: String = UUID.randomUUID().toString()
-    ): TabGroupData = mutate {
+    ): TabGroupData = mutate(LabOperation.GROUP_CREATE) {
         require(tabIds.isNotEmpty() && tabIds.distinct().size == tabIds.size) {
             "Cannot create an empty or duplicate group"
         }
@@ -277,7 +304,7 @@ class UnifiedTabGroupManager internal constructor(
         groupId: String,
         position: Int? = null,
         notifyChange: Boolean = true
-    ): Boolean = mutate {
+    ): Boolean = mutate(LabOperation.TAB_MOVE) {
         val group = groupsCache[groupId] ?: return@mutate false
         if (!tabMatchesContext(tabId, group.contextId)) return@mutate false
 
@@ -309,7 +336,7 @@ class UnifiedTabGroupManager internal constructor(
     }
 
     /** Resolve the anchor inside the serialized mutation, never against a stale UI list. */
-    suspend fun moveTabRelative(tabId: String, groupId: String, targetTabId: String?, after: Boolean): Boolean = mutate {
+    suspend fun moveTabRelative(tabId: String, groupId: String, targetTabId: String?, after: Boolean): Boolean = mutate(LabOperation.TAB_MOVE) {
         val group = groupsCache[groupId] ?: return@mutate false
         if (!tabMatchesContext(tabId, group.contextId)) return@mutate false
         if (targetTabId != null && targetTabId !in group.tabIds) return@mutate false
@@ -333,7 +360,7 @@ class UnifiedTabGroupManager internal constructor(
     suspend fun removeTabFromGroup(
         tabId: String,
         notifyChange: Boolean = true
-    ): Boolean = mutate {
+    ): Boolean = mutate(LabOperation.TAB_MOVE) {
         val groupId = tabToGroupMap[tabId] ?: return@mutate false
         val group = groupsCache[groupId] ?: return@mutate false
 
@@ -412,12 +439,12 @@ class UnifiedTabGroupManager internal constructor(
     /**
      * Toggles group collapsed/expanded state
      */
-    suspend fun toggleGroupCollapsed(groupId: String): Boolean = mutate {
+    suspend fun toggleGroupCollapsed(groupId: String): Boolean = mutate(if(groupsCache[groupId]?.isCollapsed==true)LabOperation.GROUP_EXPAND else LabOperation.GROUP_COLLAPSE) {
         val group = groupsCache[groupId] ?: return@mutate false
         setGroupCollapsed(groupId, !group.isCollapsed)
     }
 
-    suspend fun setGroupCollapsed(groupId: String, collapsed: Boolean): Boolean = mutate {
+    suspend fun setGroupCollapsed(groupId: String, collapsed: Boolean): Boolean = mutate(if(collapsed)LabOperation.GROUP_COLLAPSE else LabOperation.GROUP_EXPAND) {
         val group = groupsCache[groupId] ?: return@mutate false
         val dbGroup = dao.getGroupById(groupId) ?: return@mutate false
         dao.updateGroup(dbGroup.copy(isCollapsed = collapsed))
@@ -511,7 +538,7 @@ class UnifiedTabGroupManager internal constructor(
     /**
      * Deletes a group (ungroups all tabs)
      */
-    suspend fun deleteGroup(groupId: String, notifyChange: Boolean = true): Boolean = mutate {
+    suspend fun deleteGroup(groupId: String, notifyChange: Boolean = true): Boolean = mutate(LabOperation.GROUP_DELETE) {
         val group = groupsCache[groupId] ?: return@mutate false
 
         // Remove all tab associations
@@ -564,7 +591,7 @@ class UnifiedTabGroupManager internal constructor(
     /**
      * Merges two groups together
      */
-    suspend fun mergeGroups(sourceGroupId: String, targetGroupId: String): Boolean = mutate {
+    suspend fun mergeGroups(sourceGroupId: String, targetGroupId: String): Boolean = mutate(LabOperation.GROUP_MOVE) {
         if (sourceGroupId == targetGroupId) return@mutate false
 
         val sourceGroup = groupsCache[sourceGroupId] ?: return@mutate false
