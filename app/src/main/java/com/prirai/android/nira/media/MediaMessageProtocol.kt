@@ -54,7 +54,8 @@ internal object MediaMessageProtocol {
         "early_request_expired", "early_request_ambiguous", "frame_registered",
         "iframe_about_blank", "iframe_srcdoc", "spa_navigation", "player_config_detected",
         "early_uuid_mismatch", "early_url_context_match", "early_url_mismatch",
-        "early_parent_mismatch", "early_partition_mismatch", "early_after_registration")
+        "early_parent_mismatch", "early_partition_mismatch", "early_after_registration",
+        "title_individual", "title_structured", "title_unknown")
     private const val MAX_MESSAGE_BYTES = 16 * 1024
     private const val MAX_URL_BYTES = 8 * 1024
     private val validMime = Regex("[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+(?:\\s*;[ -~]*)?")
@@ -211,7 +212,7 @@ internal object MediaMessageProtocol {
                     else null
                 val titleKind = if (hasTitle)
                     string("titleKind")?.takeIf {
-                        it in setOf("video", "link", "page") &&
+                        it in setOf("player", "structured", "video", "link", "page") &&
                             (source != MediaSource.NETWORK || it == "page")
                     } ?: return null else null
                 val duration = if (hasDuration)
