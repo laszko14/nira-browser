@@ -107,7 +107,7 @@ object TestLabReportGenerator {
             appendLine("QUEUE_LIMIT jest sumą wielu przyczyn. Odmowa wysłania ≠ potwierdzona utrata tytułu; ograniczenia webRequest nie pozwalają przypisać wszystkich zdarzeń do filmu.")
         }
         if(r.testType==TestType.VIDEO_METADATA) {
-            appendLine("\\nVIDEO METADATA — anonimowe obserwacje zaakceptowanych filmów:")
+            appendLine("\nVIDEO METADATA — anonimowe obserwacje zaakceptowanych filmów:")
             r.videoMetadata?.let { v ->
                 appendLine("Źródła=${v.observedSources}; czas znany=${v.durationKnown}; czas nieznany=${v.durationUnknown}; LIVE=${v.live}")
                 appendLine("Rozmiar dokładny=${v.sizeExact}; szacowany=${v.sizeEstimated}; nieznany=${v.sizeUnknown}")
