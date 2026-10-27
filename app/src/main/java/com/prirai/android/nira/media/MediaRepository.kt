@@ -141,7 +141,8 @@ internal class MediaRepository(
                 isLive = true
                 durationSeconds = null
                 durationOrigin = "LIVE"
-                if (sizeEstimated) { sizeBytes = null; sizeEstimated = false; sizeOrigin = null }
+                // A live playlist cannot inherit total VOD bytes from an older update.
+                sizeBytes = null; sizeEstimated = false; sizeOrigin = null
             } else if (candidate.isLive == false) {
                 isLive = false
             }
