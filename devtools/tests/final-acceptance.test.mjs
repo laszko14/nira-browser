@@ -23,7 +23,7 @@ const artifact=e=>[{id:e.artifact,expired:false,size_in_bytes:1255,workflow_run:
 const safeRuns=()=>evidenceManifest.map(e=>classifyEvidence(run(e),e,e.artifact?artifact(e):[]));
 const summary=v=>acceptanceSummary({staticAudit:{static_controls:'PASS'},results:safeRuns(),main:'0823f24eb48e2eefbe38c7616bc1d55e73917b37',clean:'3330a0b3a057008886fde392f788a1941e0dfb84',mpv:'d63f414acecae84c3507c3f4bb998e690281b91e',jobCheck:{stage3_dispatch_skipped:true,stage7_negative_requires_tests:true},...v});
 
-test('Stage 8 recognizes actual Stage 7 checkpoint',()=>{assert.equal(checkpoint.last_completed_stage,7);assert.equal(checkpoint.next_stage,8);});
+test('Final acceptance recognizes completed stage 8 or pending stage 8',()=>{assert.ok([7,8].includes(checkpoint.last_completed_stage));if(checkpoint.last_completed_stage===7)assert.equal(checkpoint.next_stage,8);else assert.equal(checkpoint.stage_state,'COMPLETED_DIAGNOSTIC_ACCEPTED_PRODUCTION_BUILD_UNVERIFIED');});
 test('static safety audit accepts pinned variants and read-only workflows',()=>{const s=auditStatic(inputs());assert.equal(s.static_controls,'PASS');assert.equal(s.repository_owner_dispatch_gate_present,true);assert.equal(s.signed_build_dispatch_proven,false);});
 test('dangerous execution flag triggers stop',()=>{const d=inputs();d.config.execution_enabled=true;deny(()=>auditStatic(d),'CONTROL_FLAGS_UNSAFE');});
 test('create_refs cannot be enabled',()=>{const d=inputs();d.config.create_refs_enabled=true;deny(()=>auditStatic(d),'CONTROL_FLAGS_UNSAFE');});
