@@ -15,7 +15,7 @@ class TestLabRecoveryTest {
     @Test fun optInAtomicBoundedThrottledAndOldGenerationCannotWriteAfterDisable() {
         val app=RuntimeEnvironment.getApplication();var now=0L;var wall=1_000_000_000L
         val store=TestLabRecoveryStore(app,{now},{wall})
-        val input=TestLabRecovery(TestType.COMPLEX,LabIdentity(1165,"0.5.22-alpha71-mpv39"),LabPhase.RUNNING,3000.0,
+        val input=TestLabRecovery(TestType.COMPLEX,LabIdentity(1168,"0.5.22-alpha73-clean"),LabPhase.RUNNING,3000.0,
             emptyMap(),(1L..1024).map{LabEvent(it,it,LabCode.MAIN_STALL,operationTags=LabOperation.entries.toList())})
         val gen=store.begin()
         assertFalse(store.save(gen,input));assertNull(store.read())
@@ -31,7 +31,7 @@ class TestLabRecoveryTest {
     @Test fun expiredCorruptOrOversizedRecoveryIsRemovedWithoutReadingExternalLogs() {
         val app=RuntimeEnvironment.getApplication();var wall=1_000_000_000L
         val store=TestLabRecoveryStore(app,{0L},{wall});store.setEnabled(true)
-        val gen=store.begin();val snapshot=TestLabRecovery(TestType.STABILITY,LabIdentity(1165,"0.5.22-alpha71-mpv39"),LabPhase.RUNNING,0.0,emptyMap(),emptyList())
+        val gen=store.begin();val snapshot=TestLabRecovery(TestType.STABILITY,LabIdentity(1168,"0.5.22-alpha73-clean"),LabPhase.RUNNING,0.0,emptyMap(),emptyList())
         store.save(gen,snapshot);wall+=86_400_001;assertNull(store.read())
         val file=File(app.noBackupFilesDir,"testlab-recovery.json")
         file.writeText("invalid");file.setLastModified(wall);assertNull(store.read());assertFalse(file.exists())
@@ -42,7 +42,7 @@ class TestLabRecoveryTest {
         val app=RuntimeEnvironment.getApplication();val store=TestLabRecoveryStore(app,{0L},{1_000_000_000L})
         store.setEnabled(true)
         try {
-            val owner=store.begin();val data=TestLabRecovery(TestType.STABILITY,LabIdentity(1165,"0.5.22-alpha71-mpv39"),LabPhase.RUNNING,1000.0,emptyMap(),emptyList())
+            val owner=store.begin();val data=TestLabRecovery(TestType.STABILITY,LabIdentity(1168,"0.5.22-alpha73-clean"),LabPhase.RUNNING,1000.0,emptyMap(),emptyList())
             assertTrue(store.save(owner,data))
             val base=File(app.noBackupFilesDir,"testlab-recovery.json")
             assertTrue(base.renameTo(File(base.path+".bak")))

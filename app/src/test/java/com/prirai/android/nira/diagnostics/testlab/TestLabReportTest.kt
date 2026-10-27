@@ -7,7 +7,7 @@ import org.junit.Test
 class TestLabReportTest {
     private var now=0L
     private fun sample():TestLabReport {
-        val e=TestLabEngine({now},LabIdentity(1165,"0.5.22-alpha71-mpv39"))
+        val e=TestLabEngine({now},LabIdentity(1168,"0.5.22-alpha73-clean"))
         val t=e.start(TestType.COMPLEX)!!;e.begin(t);e.foreground(t,true)
         now+=12_345_000_000;e.stop(t);e.complete(t);return e.latest()!!
     }
@@ -22,7 +22,7 @@ class TestLabReportTest {
     @Test fun noPanelOrPlaybackIsExplicitlyUntested() {
         val output=TestLabReportGenerator.generate(sample())
         assertTrue(output.text.contains("NIEPRZETESTOWANY"))
-        assertTrue(output.text.contains("MPV — BRAK PRÓBY ODTWARZANIA"))
+        assertTrue(output.text.contains("Zewnętrzny odtwarzacz:"))
         assertFalse(output.text.contains("FPS:"))
         assertFalse(output.text.contains("Brak błędów całej aplikacji"))
     }
@@ -35,7 +35,7 @@ class TestLabReportTest {
     }
     @Test fun onlyVersionAndClosedEnumValuesAreExportedAsStrings() {
         val root=Json.parseToJsonElement(TestLabReportGenerator.generate(sample()).json)
-        val safe=setOf("0.5.22-alpha71-mpv39")+
+        val safe=setOf("0.5.22-alpha73-clean")+
             listOf(TestType.entries,LabPhase.entries,LabMetric.entries,LabOperation.entries,LabCode.entries,
                 Availability.entries,MetricSource.entries,Coverage.entries,Limitation.entries,LabError.entries,
                 LabInvariant.entries,ObservationKind.entries,CompletionProof.entries,PercentileMethod.entries,LabUnit.entries)

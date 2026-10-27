@@ -17,7 +17,7 @@ import java.time.Duration
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk=[35],application=Application::class,manifest=Config.NONE)
 class TestLabRuntimeTest {
-    private fun engine()=TestLabEngine({SystemClock.elapsedRealtimeNanos()},LabIdentity(1165,"0.5.22-alpha71-mpv39"))
+    private fun engine()=TestLabEngine({SystemClock.elapsedRealtimeNanos()},LabIdentity(1168,"0.5.22-alpha73-clean"))
     @Test fun settingsDoesNotStartMeasurementCountdownBeginsInEligibleActivityOnly() {
         val e=engine();val runtime=TestLabRuntime(RuntimeEnvironment.getApplication(),e,{it is ProbeActivity},false)
         assertTrue(runtime.prepare(TestType.COMPLEX))

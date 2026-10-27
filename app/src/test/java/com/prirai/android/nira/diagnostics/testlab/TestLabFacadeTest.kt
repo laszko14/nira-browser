@@ -20,7 +20,7 @@ class TestLabFacadeTest {
         assertFalse(TestLab.start(app,TestType.COMPLEX))
         assertFalse(TestLab.busy);assertNull(DiagnosticSessionGate.shared.owner)
         assertEquals(LabStartFailure.INITIALIZATION,TestLab.lastStartFailure)
-        info.versionCode=1165;shadowOf(manager).installPackage(info)
+        info.versionCode=1168;shadowOf(manager).installPackage(info)
         try {assertTrue(TestLab.start(app,TestType.COMPLEX));assertTrue(TestLab.busy)}
         finally {
             TestLab.stop()

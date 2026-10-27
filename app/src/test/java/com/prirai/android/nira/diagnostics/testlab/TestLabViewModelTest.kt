@@ -9,7 +9,7 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class TestLabViewModelTest {
     private fun report(type:TestType):TestLabReport {
-        var now=0L;val e=TestLabEngine({now},LabIdentity(1165,"0.5.22-alpha71-mpv39"));val t=e.start(type)!!
+        var now=0L;val e=TestLabEngine({now},LabIdentity(1168,"0.5.22-alpha73-clean"));val t=e.start(type)!!
         e.begin(t);now=1_000_000_000;e.stop(t);e.complete(t);return e.latest()!!
     }
     @Test fun pendingSafPayloadIsTheRequestedImmutableReportEvenAfterSelectionChanges()=runTest {
