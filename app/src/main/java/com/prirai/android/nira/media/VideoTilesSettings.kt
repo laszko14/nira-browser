@@ -23,6 +23,9 @@ internal data class VideoTilesSettings(
 internal class VideoTilesGeometry(settings: VideoTilesSettings, fontScale: Float, landscape: Boolean = false) {
     private val bounded = settings.normalized()
     val rows = bounded.rows
+    val playStartDp = if (bounded.showActions)
+        minOf((bounded.widthDp - 48f) / 2f, bounded.widthDp - 98f).coerceAtLeast(0f)
+        else (bounded.widthDp - 48f) / 2f
     private val textScale = fontScale.takeIf { it.isFinite() && it > 0f } ?: 1f
     val thumbnailHeightDp = if (bounded.showThumbnail) bounded.widthDp * (if (landscape) 10f / 16f else 3f / 4f) else 48f
     val titleHeightDp = if (bounded.showTitle) 36f * textScale else 0f

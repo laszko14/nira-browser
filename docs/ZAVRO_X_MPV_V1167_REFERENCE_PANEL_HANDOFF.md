@@ -12,7 +12,7 @@ Obraz1000096637.jpg jest nadrzędnym wzorcem: ciemny gradient i obrys, zaokrągl
 
 LazyHorizontalGrid ma rzeczywistą liczbę rzędów1–10 oraz jawnie skończoną wysokość. Zewnętrzny pionowy viewport pokazuje nadmiar, a siatka przewija kolumny poziomo. Górny pasek pozostaje dostępny. Stałe klucze i aktualizacja istniejącej kompozycji zachowują scroll przy zmianach metadanych. Fab zachowuje dolny prawy narożnik, kolor i licznik, nad systemową nawigacją.
 
-Dedykowane ustawienia zawierają trzy suwaki (1–10rzędów,100–280dp szerokości,2–16dp odstępu), opisy, wartości i zakresy, podgląd rzeczywistego pierwszego kafelka i sześć checkboxów. Zapis przez istniejący scw_preferences, oddzielny dla orientacji, po zakończeniu suwaka lub dyskretnej zmianie. Domyślnie4rzędy/120dp/8dp w pionie i4/160/8 w poziomie. Ukrycie miniatury pozostawia Play. Poprawka review zapewnia zapis bieżącego preview przy dostępnościowym setProgress, którego callbacki zmiany i zakończenia są synchroniczne przed rekompozycją.
+Dedykowane ustawienia zawierają trzy suwaki (1–10rzędów,100–280dp szerokości,2–16dp odstępu), opisy, wartości i zakresy, podgląd rzeczywistego pierwszego kafelka i sześć checkboxów. Zapis przez istniejący scw_preferences, oddzielny dla orientacji, po zakończeniu suwaka lub dyskretnej zmianie. Domyślnie4rzędy/120dp/8dp w pionie i4/160/8 w poziomie. Ukrycie miniatury pozostawia Play. Edytor scala transformacje pól na bieżącym preview, także gdy dostępnościowy setProgress lub wiele checkboxów wywołuje callbacki przed rekompozycją. Kontrolki menu i Play mają osobne48dp obszary z odstępem; w wąskim kafelku Play jest lekko przesunięty w lewo, aby zachować osobny prawy-górny przycisk⋮ bez kolizji.
 
 ## Zewnętrzny MPV Alpha
 
@@ -22,7 +22,7 @@ Minimalny, zweryfikowany wybrany URL opuszcza aplikację tylko po Play. Brak coo
 
 ## Walidacja lokalna i review
 
-- `testDebugUnitTest lintDebug compileDebugAndroidTestKotlin -PgeckoDiscoveryAbi=x86_64`: BUILD SUCCESSFUL4m50s;391/391JUnit,0fail/error/skip. Jeden JVM3GiB,in-process,1worker.
+- `testDebugUnitTest lintDebug compileDebugAndroidTestKotlin -PgeckoDiscoveryAbi=x86_64`: BUILD SUCCESSFUL5m39s;395/395JUnit,0fail/error/skip. Jeden JVM3GiB,in-process,1worker.
 - Jawnie potwierdzono `VideoTilesDeviceActivity.class` w built_in_kotlinc. Dodano Kotlin source dir wyłącznie dla opt-in instrumentacji; zwykły ARM64 build nie zawiera fixture.
 - JavaScript202/202PASS,0pominięć. Warstwa v1167 odwraca dokładnie BrowserApp/BrowserFragment/MediaFloatingUi do6ede3b4; wszystkie wcześniejsze hashe i warstwy pozostają autorytatywne.
 - Lint porównany z tym samym XML v1165:0nowych,3usunięte; dług1462Fatal/258Error/433Warning/19Hint. Nie ukrywano ani nie wyłączano problemów.
@@ -38,6 +38,10 @@ Zachowano istniejące równoległe test/build/lint oraz osobną instrumentację 
 Tożsamość oczekiwana: package com.prirai.android.nira.mpv, Gradle167/ARM641167,0.5.22-alpha73-mpv40, ABIarm64-v8a, certSHA256df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00. Podpis wyłącznie istniejącymi sekretami CI; verifier sprawdza strukturę/pakiet/wersję/ABI/certyfikat. Brak zmian schematów Room, magazynów profili i destrukcyjnych migracji. Zgodny package/klucz i rosnący code umożliwiają aktualizację; realne zachowanie danych na telefonie nadal wymaga próby.
 
 Screenshoty powstają z prawdziwego dialogu UiAutomation w kontrolowanym fixture, a nie z makiet. „Film testowy”,1080p,213MB i42:15 to jawne dane syntetyczne wyłącznie w testowym wariancie. Trzy PNG zostaną pobrane z raportu instrumentacji i ocenione wizualnie. Wyniki CI, SHA i bezpośredni link APK należy dopisać po potwierdzeniu.
+
+## Naprawy wykryte przez instrumentację
+
+Pierwszy podpisany kandydat3fc75fa nie został uznany za gotowy: instrumentacja początkowo25/30 ujawniła selektory ikony zamiast klikalnego Button i braki synchronizacji fixture. Rerun75d0dff zaliczył27/30 i wykrył rzeczywiste nakładanie targetów przy100dp oraz nadpisywanie wcześniejszych pól przez szybkie callbacki suwaków. Dodano VideoTilesEditor, transformacje bieżącego stanu i rozdzielone48dp targety; istniejące progi i testy zachowano. Poprawiono też testowy gest poziomy, aby trafiał w zmierzony dziesiąty rząd. Nowy test URI potwierdził RED dla alternatywnych zapisówlocalhost/IPv6loopback; parser numeryczny bez DNS zamyka ten błąd przed finalnym podpisem. Te potwierdzone błędy uzasadniają kolejnego kandydata ARM64; nie przebudowywano identycznego APK jedynie z powodu dokumentacji.
 
 ## Nothing Phone (1) — NIEZWERYFIKOWANE NA TELEFONIE
 
@@ -69,12 +73,14 @@ Testy emulatora, JankStats Window, hostLua i FFmpeg nie zastępują fizycznych g
 | `app/src/main/java/com/prirai/android/nira/media/MediaFloatingUi.kt` | istniejący FAB i rzeczywisty host Compose w dialogu |
 | `app/src/main/java/com/prirai/android/nira/media/VideoTilesPanel.kt` | wygląd wzorca, siatka, metadata badge, menu, ustawienia/podgląd |
 | `app/src/main/java/com/prirai/android/nira/media/VideoTilesPreferences.kt` | zapis wyglądu oddzielnie dla orientacji w obecnym magazynie |
+| `app/src/main/java/com/prirai/android/nira/media/VideoTilesEditor.kt` | scalanie szybkich callbacków względem aktualnego preview bez utraty innych pól |
 | `app/src/main/java/com/prirai/android/nira/media/VideoTilesSettings.kt` | normalizacja i skończona geometria1–10rzędów |
 | `app/src/test/java/com/prirai/android/nira/display/BrowserRefreshRateTest.kt` | regresje funkcjonalne wyboru Hz, URI/handoff lub geometrii/trwałości |
 | `app/src/test/java/com/prirai/android/nira/display/RefreshRateSelectionTest.kt` | regresje funkcjonalne wyboru Hz, URI/handoff lub geometrii/trwałości |
 | `app/src/test/java/com/prirai/android/nira/media/ExternalMpvAlphaForegroundTest.kt` | regresje funkcjonalne wyboru Hz, URI/handoff lub geometrii/trwałości |
 | `app/src/test/java/com/prirai/android/nira/media/ExternalMpvAlphaTest.kt` | regresje funkcjonalne wyboru Hz, URI/handoff lub geometrii/trwałości |
 | `app/src/test/java/com/prirai/android/nira/media/ExternalMpvSourcePolicyTest.kt` | regresje funkcjonalne wyboru Hz, URI/handoff lub geometrii/trwałości |
+| `app/src/test/java/com/prirai/android/nira/media/VideoTilesEditorTest.kt` | regresje suwaków i checkboxów przed rekompozycją |
 | `app/src/test/java/com/prirai/android/nira/media/VideoTilesLayoutTest.kt` | regresje funkcjonalne wyboru Hz, URI/handoff lub geometrii/trwałości |
 | `app/src/test/java/com/prirai/android/nira/media/VideoTilesMetadataTest.kt` | regresje funkcjonalne wyboru Hz, URI/handoff lub geometrii/trwałości |
 | `app/src/test/java/com/prirai/android/nira/media/VideoTilesPreferencesTest.kt` | regresje funkcjonalne wyboru Hz, URI/handoff lub geometrii/trwałości |

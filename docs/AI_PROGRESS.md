@@ -410,3 +410,5 @@ Opcjonalne, odwracalne rewizje istniejących przycisków DRC/DE: kopie oryginał
 Odzyskano lokalne zmiany i zakończony poprzedni Gradle. Porównano PR79/1a83f34, PR80/82b2d0b oraz kompletnąv1165/6ede3b4. Użytkownik ustalił obraz jako nadrzędny wzorzec: wdrażane badge/menu/nagłówek/preview/checkboxy i trzy suwaki. Nowa gałąź1167 i wyższy numerAPK; brak merge i zapisówstarychPR. Testy docelowegoUI/CI/podpisaneAPK nadal oczekują.
 
 - v1167 checkpoint integracji:391/391JUnit,JS202/202,lint0nowych/3usunięte,AndroidTest+x86fixtureclass PASS. Naprawiono slider stalecommit i fixture ComponentDialog; niezależnyreview bez dalszych blokerów. CI/30instrumentacji/signedAPK/screenshoty nadal do rzeczywistego potwierdzenia. CODEX_RESUME_V1167.md.
+
+- v1167 naprawy po prawdziwej instrumentacji:25/30 fixture→27/30 ujawniło realne kolizje targetów i utratę pól przez szybkie callbacki. Bieżący edytor transformacji +48dp targety, poprawny gest10rzędu i walidacja alternatywnych lokalnychURI. Finalny lokalny395JUnit/202JS/lint0nowych/AndroidTest PASS5m39s. Ponowny wspólnyCI/podpis wymagany; pierwszy artefakt3fc75fa odrzucony jako finalny.

@@ -14,4 +14,12 @@ class ExternalMpvSourcePolicyTest {
             assertFalse(ExternalMpvSourcePolicy.allowed(url))
         }
     }
+    @Test fun alternativeNumericAndRootedInternalHostSpellingsAreRefusedWithoutLookup() {
+        for (url in listOf("http://localhost./a", "http://media.local./a", "http://0177.0.0.1/a",
+            "http://[0:0:0:0:0:0:0:1]/a", "http://[fec0::1]/a",
+            "http://[0:0:0:0:0:ffff:7f00:1]/a", "http://[::192.168.1.2]/a")) {
+            assertFalse("Noncanonical internal address was accepted", ExternalMpvSourcePolicy.allowed(url))
+        }
+        assertTrue(ExternalMpvSourcePolicy.allowed("https://[2606:4700:4700::1111]/movie.mp4"))
+    }
 }

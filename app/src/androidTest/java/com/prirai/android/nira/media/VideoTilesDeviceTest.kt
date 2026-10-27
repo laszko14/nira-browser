@@ -82,7 +82,7 @@ class VideoTilesDeviceTest {
             assertNotNull("Header remains available after vertical scroll", node {
                 it.contentDescription?.toString() == "Ustawienia widoku"
             })
-            repeatUntil("last row in last horizontal column", 30, { fullPlay(60) != null }) { swipe(vertical = false) }
+            repeatUntil("last row in last horizontal column", 30, { fullPlay(60) != null }) { swipe(vertical = false, horizontalY = lastRow.exactCenterY()) }
             assertTrue("Only deliberate Play clicks invoke playback", onMain { intProperty("getPlayCount") } == 0)
             val selected = play(60)!!
             assertTrue("Play is focusable", selected.isFocusable)
@@ -174,7 +174,7 @@ class VideoTilesDeviceTest {
         setSlider(100f, 280f, 220f)
         setSlider(2f, 16f, 12f)
         val preferences = VideoTilesPreferences(instrumentation.targetContext)
-        await("finished slider changes saved") { preferences.load(false) == VideoTilesSettings(3, 220, gapDp = 12) }
+        await("finished slider changes saved (actual=${preferences.load(false)})") { preferences.load(false) == VideoTilesSettings(3, 220, gapDp = 12) }
         for (label in listOf("Miniatura z przyciskiem Play", "Tytuł (maks. 2 wiersze)", "Format pliku",
             "Rozdzielczość", "Rozmiar pliku", "Menu akcji (⋮)")) {
             clickNode(scrollTo { it.text?.toString() == label })
@@ -212,7 +212,7 @@ class VideoTilesDeviceTest {
             val density = onMain { activity.resources.displayMetrics.density }
             assertTrue(playBounds.width() >= 48 * density - 2 && playBounds.height() >= 48 * density - 2)
             assertTrue("Visible menu target remains distinct at minimum tile width",
-                actionBounds.width() >= 23 * density - 2 && actionBounds.height() >= 23 * density - 2)
+                actionBounds.width() >= 48 * density - 2 && actionBounds.height() >= 48 * density - 2)
             assertFalse("Compact Play and menu targets never overlap", Rect.intersects(playBounds, actionBounds))
         }
         verifySeparateControls()
@@ -333,14 +333,14 @@ class VideoTilesDeviceTest {
         return find(root)
     }
     private fun bounds(node: AccessibilityNodeInfo) = Rect().also { node.getBoundsInScreen(it) }
-    private fun swipe(vertical: Boolean) {
+    private fun swipe(vertical: Boolean, horizontalY: Float? = null) {
         val rect = onMain { Rect().also { activity.window.decorView.getWindowVisibleDisplayFrame(it) } }
         val density = onMain { activity.resources.displayMetrics.density }
         // Stay below the fixed header and above system navigation; horizontal swipe is at
         // the last visible row so it targets the finite-height LazyHorizontalGrid itself.
         val x1 = if (vertical) rect.left + rect.width() * .4f else rect.right - 30 * density
         val x2 = if (vertical) x1 else rect.left + 30 * density
-        val y1 = rect.bottom - 70 * density
+        val y1 = if (!vertical && horizontalY != null) horizontalY else rect.bottom - 70 * density
         val y2 = if (vertical) maxOf(rect.top + 135 * density, y1 - rect.height() * .6f) else y1
         val start = SystemClock.uptimeMillis()
         fun send(action: Int, x: Float, y: Float) {

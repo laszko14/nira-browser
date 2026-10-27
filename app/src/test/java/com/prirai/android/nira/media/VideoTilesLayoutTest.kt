@@ -54,4 +54,14 @@ class VideoTilesLayoutTest {
         assertEquals(120f, VideoTilesGeometry(VideoTilesSettings(widthDp = 160), 1f).thumbnailHeightDp, 0f)
         assertEquals(100f, VideoTilesGeometry(VideoTilesSettings(widthDp = 160), 1f, true).thumbnailHeightDp, 0f)
     }
+    @Test fun minimumWidthKeepsTwoSeparateFortyEightDpControls() {
+        for (width in listOf(100, 120, 144, 160, 280)) {
+            for (thumbnail in listOf(true, false)) {
+                val geometry = VideoTilesGeometry(VideoTilesSettings(widthDp = width, showThumbnail = thumbnail), 1f)
+                assertTrue(geometry.playStartDp >= 0f)
+                assertTrue("Play and menu have a real gap at width $width", geometry.playStartDp + 48f <= width - 50f)
+                assertTrue(geometry.thumbnailHeightDp >= 48f)
+            }
+        }
+    }
 }

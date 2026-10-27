@@ -62,13 +62,14 @@ internal fun VideoTilesPanel(
 ) {
     val landscape = LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     var page by rememberSaveable { mutableIntStateOf(0) }
-    var preview by remember(landscape, settings) { mutableStateOf(settings.normalized()) }
+    val editor = remember(landscape, settings) { VideoTilesEditor(settings) }
+    val preview = editor.value
     val horizontal = rememberLazyGridState()
     val vertical = rememberScrollState()
     val geometry = VideoTilesGeometry(preview, LocalDensity.current.fontScale, landscape)
-    fun commit(value: VideoTilesSettings) {
-        preview = value.normalized()
-        onSettingsChange(preview)
+    fun commit(change: (VideoTilesSettings) -> VideoTilesSettings) {
+        editor.update(change)
+        onSettingsChange(editor.value)
     }
     BackHandler(enabled = page != 0) { page = 0 }
     Surface(color = Color.Transparent, contentColor = Color.White, shape = panelShape) {
@@ -81,7 +82,7 @@ internal fun VideoTilesPanel(
                     Modifier.weight(1f).padding(start = 5.dp), fontWeight = FontWeight.Bold,
                     maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 17.sp, lineHeight = 20.sp)
                 if (page == 0) {
-                    HeaderAction("Zmień gęstość siatki", { commit(preview.copy(widthDp = if (preview.widthDp <= 120) 160 else 120)) }) {
+                    HeaderAction("Zmień gęstość siatki", { commit { it.copy(widthDp = if (it.widthDp <= 120) 160 else 120) } }) {
                         Icon(Icons.Default.GridView, null, Modifier.size(22.dp))
                     }
                     HeaderAction("Dostosuj układ", { page = 1 }) { Icon(Icons.Default.OpenWith, null, Modifier.size(23.dp)) }
@@ -93,9 +94,9 @@ internal fun VideoTilesPanel(
             }
             if (page != 0) {
                 VideoTilesSettingsView(entries.firstOrNull(), preview, page == 2,
-                    onPreview = { preview = it.normalized() }, onCommit = ::commit,
+                    onPreview = editor::update, onCommit = ::commit,
                     // Accessibility setProgress invokes change and finish before recomposition.
-                    onCommitPreview = { commit(preview) }, onShowAll = { page = 2 }, onPlay = onPlay)
+                    onCommitPreview = { onSettingsChange(editor.value) }, onShowAll = { page = 2 }, onPlay = onPlay)
             } else if (entries.isEmpty()) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { Text("Brak wykrytych filmów", color = secondaryInk) }
             } else {
@@ -125,7 +126,8 @@ private fun HeaderAction(description: String, onClick: () -> Unit, content: @Com
 @Composable
 private fun ColumnScope.VideoTilesSettingsView(
     item: VideoTileItem?, settings: VideoTilesSettings, showAll: Boolean,
-    onPreview: (VideoTilesSettings) -> Unit, onCommit: (VideoTilesSettings) -> Unit,
+    onPreview: ((VideoTilesSettings) -> VideoTilesSettings) -> Unit,
+    onCommit: ((VideoTilesSettings) -> VideoTilesSettings) -> Unit,
     onCommitPreview: () -> Unit, onShowAll: () -> Unit, onPlay: (Long) -> Unit,
 ) {
     BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
@@ -147,17 +149,18 @@ private fun ColumnScope.VideoTilesSettingsView(
 }
 
 @Composable
-private fun LayoutSettings(settings: VideoTilesSettings, onPreview: (VideoTilesSettings) -> Unit,
+private fun LayoutSettings(settings: VideoTilesSettings,
+                           onPreview: ((VideoTilesSettings) -> VideoTilesSettings) -> Unit,
                            onCommitPreview: () -> Unit, modifier: Modifier) {
     Column(modifier.background(Color(0x441f252d), RoundedCornerShape(16.dp)).border(1.dp, Color(0xff30363d), RoundedCornerShape(16.dp)).padding(14.dp)) {
         SettingSlider("Liczba rzędów", "Ile poziomych rzędów kafelków ma być widocznych.", "${settings.rows} / 10",
-            settings.rows.toFloat(), 1f..10f, 8, "video-tiles-rows", { onPreview(settings.copy(rows = it.roundToInt())) }, onCommitPreview)
+            settings.rows.toFloat(), 1f..10f, 8, "video-tiles-rows", { value -> onPreview { it.copy(rows = value.roundToInt()) } }, onCommitPreview)
         HorizontalDivider(Modifier.padding(vertical = 15.dp), color = Color(0xff2b3037))
         SettingSlider("Szerokość kafelka", "Szerokość jednego filmu (wpływa na liczbę kolumn).", "${settings.widthDp} dp",
-            settings.widthDp.toFloat(), 100f..280f, 0, "video-tiles-width", { onPreview(settings.copy(widthDp = it.roundToInt())) }, onCommitPreview)
+            settings.widthDp.toFloat(), 100f..280f, 0, "video-tiles-width", { value -> onPreview { it.copy(widthDp = value.roundToInt()) } }, onCommitPreview)
         HorizontalDivider(Modifier.padding(vertical = 15.dp), color = Color(0xff2b3037))
         SettingSlider("Odstęp między kafelkami", "Odstęp poziomy i pionowy między filmami.", "${settings.gapDp} dp",
-            settings.gapDp.toFloat(), 2f..16f, 13, "video-tiles-gap", { onPreview(settings.copy(gapDp = it.roundToInt())) }, onCommitPreview)
+            settings.gapDp.toFloat(), 2f..16f, 13, "video-tiles-gap", { value -> onPreview { it.copy(gapDp = value.roundToInt()) } }, onCommitPreview)
     }
 }
 
@@ -188,7 +191,8 @@ private fun SettingSlider(title: String, help: String, label: String, value: Flo
 
 @Composable
 private fun PreviewSettings(item: VideoTileItem?, settings: VideoTilesSettings,
-                            onCommit: (VideoTilesSettings) -> Unit, onPlay: (Long) -> Unit, modifier: Modifier) {
+                            onCommit: ((VideoTilesSettings) -> VideoTilesSettings) -> Unit,
+                            onPlay: (Long) -> Unit, modifier: Modifier) {
     Column(modifier.background(Color(0x441b2027), RoundedCornerShape(16.dp)).border(1.dp, Color(0xff30363d), RoundedCornerShape(16.dp)).padding(14.dp)) {
         Text("Podgląd kafelka", fontSize = 14.sp, fontWeight = FontWeight.Medium)
         Spacer(Modifier.height(12.dp))
@@ -202,12 +206,12 @@ private fun PreviewSettings(item: VideoTileItem?, settings: VideoTilesSettings,
         }
         Spacer(Modifier.height(16.dp))
         Text("Elementy kafelka", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        VisibilitySetting("Miniatura z przyciskiem Play", settings.showThumbnail) { onCommit(settings.copy(showThumbnail = it)) }
-        VisibilitySetting("Tytuł (maks. 2 wiersze)", settings.showTitle) { onCommit(settings.copy(showTitle = it)) }
-        VisibilitySetting("Format pliku", settings.showFormat) { onCommit(settings.copy(showFormat = it)) }
-        VisibilitySetting("Rozdzielczość", settings.showQuality) { onCommit(settings.copy(showQuality = it)) }
-        VisibilitySetting("Rozmiar pliku", settings.showSize) { onCommit(settings.copy(showSize = it)) }
-        VisibilitySetting("Menu akcji (⋮)", settings.showActions) { onCommit(settings.copy(showActions = it)) }
+        VisibilitySetting("Miniatura z przyciskiem Play", settings.showThumbnail) { checked -> onCommit { it.copy(showThumbnail = checked) } }
+        VisibilitySetting("Tytuł (maks. 2 wiersze)", settings.showTitle) { checked -> onCommit { it.copy(showTitle = checked) } }
+        VisibilitySetting("Format pliku", settings.showFormat) { checked -> onCommit { it.copy(showFormat = checked) } }
+        VisibilitySetting("Rozdzielczość", settings.showQuality) { checked -> onCommit { it.copy(showQuality = checked) } }
+        VisibilitySetting("Rozmiar pliku", settings.showSize) { checked -> onCommit { it.copy(showSize = checked) } }
+        VisibilitySetting("Menu akcji (⋮)", settings.showActions) { checked -> onCommit { it.copy(showActions = checked) } }
     }
 }
 
@@ -236,16 +240,19 @@ private fun VideoTile(item: VideoTileItem, settings: VideoTilesSettings, onPlay:
             .border(1.dp, Color(0xff46515c), thumbnailShape), contentAlignment = Alignment.Center) {
             if (settings.showThumbnail) Icon(Icons.Default.Movie, null, Modifier.align(Alignment.CenterStart).padding(start = 12.dp).size(38.dp), tint = Color.White.copy(alpha = 0.10f))
             OutlinedButton(onClick = { onPlay(entry.id) }, enabled = playable,
-                modifier = Modifier.size(48.dp), shape = CircleShape, border = BorderStroke(1.5.dp, if (playable) Color(0xffdae8ea) else Color.Gray),
+                modifier = Modifier.align(Alignment.CenterStart).offset(x = geometry.playStartDp.dp).size(48.dp), shape = CircleShape, border = BorderStroke(1.5.dp, if (playable) Color(0xffdae8ea) else Color.Gray),
                 colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xd9091015), contentColor = Color.White), contentPadding = PaddingValues(0.dp)) {
                 Icon(Icons.Default.PlayArrow, "Odtwórz w MPV Alpha: ${item.title}", Modifier.size(30.dp))
             }
-            if (settings.showActions) Box(Modifier.align(Alignment.TopEnd).padding(3.dp)) {
-                // Compact visible menu does not overlap the central 48dp Play bounds, even at 100dp.
-                Box(Modifier.size(23.dp).background(Color(0xdd05080b), RoundedCornerShape(5.dp))
-                    .clickable(role = Role.Button, onClick = { menu = true })
-                    .semantics { contentDescription = "Akcje filmu: ${item.title}" }, contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.MoreVert, null, Modifier.size(19.dp))
+            if (settings.showActions) Box(Modifier.align(Alignment.TopEnd)) {
+                // The 48dp menu and Play targets are disjoint even at minimum width.
+                // Keep the visible 23dp ellipsis at the reference's upper-right position.
+                Box(Modifier.size(48.dp).clickable(role = Role.Button, onClick = { menu = true })
+                    .semantics { contentDescription = "Akcje filmu: ${item.title}" }) {
+                    Box(Modifier.align(Alignment.TopEnd).padding(3.dp).size(23.dp)
+                        .background(Color(0xdd05080b), RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.MoreVert, null, Modifier.size(19.dp))
+                    }
                 }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(text = { Text("Odtwórz w MPV Alpha") }, enabled = playable,
