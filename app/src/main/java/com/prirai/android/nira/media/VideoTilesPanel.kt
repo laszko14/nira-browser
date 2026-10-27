@@ -29,6 +29,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
@@ -58,6 +60,8 @@ internal fun VideoTilesPanel(
     settings: VideoTilesSettings,
     onSettingsChange: (VideoTilesSettings) -> Unit,
     onPlay: (Long) -> Unit,
+    onDownload: (Long) -> Unit,
+    onCopy: (Long) -> Unit,
     onClose: () -> Unit,
 ) {
     val landscape = LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
@@ -96,7 +100,7 @@ internal fun VideoTilesPanel(
                 VideoTilesSettingsView(entries.firstOrNull(), preview, page == 2,
                     onPreview = editor::update, onCommit = ::commit,
                     // Accessibility setProgress invokes change and finish before recomposition.
-                    onCommitPreview = { onSettingsChange(editor.value) }, onShowAll = { page = 2 }, onPlay = onPlay)
+                    onCommitPreview = { onSettingsChange(editor.value) }, onShowAll = { page = 2 }, onPlay = onPlay, onDownload = onDownload, onCopy = onCopy)
             } else if (entries.isEmpty()) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { Text("Brak wykrytych filmów", color = secondaryInk) }
             } else {
@@ -108,7 +112,7 @@ internal fun VideoTilesPanel(
                         horizontalArrangement = Arrangement.spacedBy(preview.gapDp.dp),
                         verticalArrangement = Arrangement.spacedBy(preview.gapDp.dp)) {
                         items(entries, key = { it.key }, contentType = { "video" }) { item ->
-                            VideoTile(item, preview, onPlay, Modifier.width(preview.widthDp.dp).fillMaxHeight())
+                            VideoTile(item, preview, onPlay, onDownload, onCopy, Modifier.width(preview.widthDp.dp).fillMaxHeight())
                         }
                     }
                 }
@@ -129,6 +133,7 @@ private fun ColumnScope.VideoTilesSettingsView(
     onPreview: ((VideoTilesSettings) -> VideoTilesSettings) -> Unit,
     onCommit: ((VideoTilesSettings) -> VideoTilesSettings) -> Unit,
     onCommitPreview: () -> Unit, onShowAll: () -> Unit, onPlay: (Long) -> Unit,
+    onDownload: (Long) -> Unit, onCopy: (Long) -> Unit,
 ) {
     BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
         val wide = maxWidth >= 600.dp
@@ -136,12 +141,12 @@ private fun ColumnScope.VideoTilesSettingsView(
         if (wide && showAll) {
             Row(Modifier.fillMaxSize().verticalScroll(scroll), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 LayoutSettings(settings, onPreview, onCommitPreview, Modifier.weight(1.4f))
-                PreviewSettings(item, settings, onCommit, onPlay, Modifier.weight(1f))
+                PreviewSettings(item, settings, onCommit, onPlay, onDownload, onCopy, Modifier.weight(1f))
             }
         } else {
             Column(Modifier.fillMaxSize().verticalScroll(scroll), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 LayoutSettings(settings, onPreview, onCommitPreview, Modifier.fillMaxWidth())
-                if (showAll) PreviewSettings(item, settings, onCommit, onPlay, Modifier.fillMaxWidth())
+                if (showAll) PreviewSettings(item, settings, onCommit, onPlay, onDownload, onCopy, Modifier.fillMaxWidth())
                 else TextButton(onClick = onShowAll, modifier = Modifier.fillMaxWidth()) { Text("Podgląd i elementy kafelka", color = Color.White) }
             }
         }
@@ -192,14 +197,15 @@ private fun SettingSlider(title: String, help: String, label: String, value: Flo
 @Composable
 private fun PreviewSettings(item: VideoTileItem?, settings: VideoTilesSettings,
                             onCommit: ((VideoTilesSettings) -> VideoTilesSettings) -> Unit,
-                            onPlay: (Long) -> Unit, modifier: Modifier) {
+                            onPlay: (Long) -> Unit, onDownload: (Long) -> Unit,
+                            onCopy: (Long) -> Unit, modifier: Modifier) {
     Column(modifier.background(Color(0x441b2027), RoundedCornerShape(16.dp)).border(1.dp, Color(0xff30363d), RoundedCornerShape(16.dp)).padding(14.dp)) {
         Text("Podgląd kafelka", fontSize = 14.sp, fontWeight = FontWeight.Medium)
         Spacer(Modifier.height(12.dp))
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val width = minOf(settings.widthDp.toFloat(), maxWidth.value).coerceAtLeast(100f)
             val preview = settings.copy(widthDp = width.roundToInt())
-            if (item != null) VideoTile(item, preview, onPlay,
+            if (item != null) VideoTile(item, preview, onPlay, onDownload, onCopy,
                 Modifier.width(width.dp).height(VideoTilesGeometry(preview, LocalDensity.current.fontScale,
                     LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE).rowHeightDp.dp))
             else Box(Modifier.fillMaxWidth().height(64.dp), contentAlignment = Alignment.Center) { Text("Brak filmu do podglądu", color = secondaryInk) }
@@ -225,7 +231,9 @@ private fun VisibilitySetting(label: String, checked: Boolean, change: (Boolean)
 }
 
 @Composable
-private fun VideoTile(item: VideoTileItem, settings: VideoTilesSettings, onPlay: (Long) -> Unit, modifier: Modifier) {
+private fun VideoTile(item: VideoTileItem, settings: VideoTilesSettings,
+                      onPlay: (Long) -> Unit, onDownload: (Long) -> Unit,
+                      onCopy: (Long) -> Unit, modifier: Modifier) {
     val entry = item.entry
     val geometry = VideoTilesGeometry(settings, LocalDensity.current.fontScale,
         LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE)
@@ -238,7 +246,23 @@ private fun VideoTile(item: VideoTileItem, settings: VideoTilesSettings, onPlay:
             .background(if (settings.showThumbnail) Brush.linearGradient(listOf(tint, Color(0xff090f15), tint.copy(alpha = 0.5f)))
                 else Brush.verticalGradient(listOf(Color(0xff181e24), Color(0xff11161b))))
             .border(1.dp, Color(0xff46515c), thumbnailShape), contentAlignment = Alignment.Center) {
-            if (settings.showThumbnail) Icon(Icons.Default.Movie, null, Modifier.align(Alignment.CenterStart).padding(start = 12.dp).size(38.dp), tint = Color.White.copy(alpha = 0.10f))
+            // Real poster metadata from Gecko DOM; never use fabricated movie artwork.
+            val poster = entry.posterUrl?.takeIf {
+                (it.startsWith("https://", ignoreCase = true) ||
+                    it.startsWith("http://", ignoreCase = true)) &&
+                    runCatching { java.net.URI(it).host?.isNotBlank() == true }.getOrDefault(false)
+            }
+            if (settings.showThumbnail && poster != null) {
+                AsyncImage(
+                    model = poster,
+                    contentDescription = "Miniatura filmu: ${item.title}",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().clip(thumbnailShape)
+                )
+            } else if (settings.showThumbnail) {
+                Icon(Icons.Default.Movie, null, Modifier.align(Alignment.CenterStart)
+                    .padding(start = 12.dp).size(38.dp), tint = Color.White.copy(alpha = 0.13f))
+            }
             OutlinedButton(onClick = { onPlay(entry.id) }, enabled = playable,
                 modifier = Modifier.align(Alignment.CenterStart).offset(x = geometry.playStartDp.dp).size(48.dp), shape = CircleShape, border = BorderStroke(1.5.dp, if (playable) Color(0xffdae8ea) else Color.Gray),
                 colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xd9091015), contentColor = Color.White), contentPadding = PaddingValues(0.dp)) {
@@ -257,6 +281,11 @@ private fun VideoTile(item: VideoTileItem, settings: VideoTilesSettings, onPlay:
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(text = { Text("Odtwórz w MPV Alpha") }, enabled = playable,
                         leadingIcon = { Icon(Icons.Default.PlayArrow, null) }, onClick = { menu = false; onPlay(entry.id) })
+                    DropdownMenuItem(text = { Text("Pobierz / dodaj do kolejki") },
+                        enabled = entry.format !in setOf(MediaFormat.HLS, MediaFormat.DASH),
+                        onClick = { menu = false; onDownload(entry.id) })
+                    DropdownMenuItem(text = { Text("Kopiuj adres filmu") },
+                        onClick = { menu = false; onCopy(entry.id) })
                     HorizontalDivider()
                     DropdownMenuItem(text = { Text("Format: ${entry.format.name}") }, onClick = { menu = false })
                     DropdownMenuItem(text = { Text("Jakość: ${entry.quality?.takeIf { it.isNotBlank() } ?: "nieznana"}") }, onClick = { menu = false })
