@@ -130,8 +130,8 @@ globalThis.NiraManifestParser = (() => {
         if (target && resolved && target.length < limit) target.push(item);
       }
     }
-    const dynamic = /\\btype\\s*=\\s*['"]dynamic['"]/i.test(mpd);
-    const periodDurations = [...text.matchAll(/<Period\\b[^>]*>/gi)]
+    const dynamic = /\btype\s*=\s*['"]dynamic['"]/i.test(mpd);
+    const periodDurations = [...text.matchAll(/<Period\b[^>]*>/gi)]
       .map(match => duration(xmlAttr(match[0], "duration")));
     const totalPeriods = periodDurations.length > 0 && periodDurations.every(value => value !== null)
       ? periodDurations.reduce((a, b) => a + b, 0) : null;
@@ -141,7 +141,7 @@ globalThis.NiraManifestParser = (() => {
     const chosenBitrate = variants.length === 1 && audioTracks.length <= 1 &&
       [variants[0], ...audioTracks].every(item => Number.isSafeInteger(item.bitrate) && item.bitrate > 0)
       ? variants[0].bitrate + (audioTracks[0]?.bitrate || 0) : null;
-    return { protocol: "DASH", drm: /<ContentProtection\\b/i.test(text), dynamic,
+    return { protocol: "DASH", drm: /<ContentProtection\b/i.test(text), dynamic,
       live: dynamic, durationSeconds: dynamic ? null : mediaDuration,
       bitrate: chosenBitrate, variants, audioTracks, subtitleTracks };
   }
