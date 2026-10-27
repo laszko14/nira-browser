@@ -763,7 +763,17 @@ async function inspectManifest(task) {
       httpStatus: Number.isInteger(response.status) ? response.status : 200,
       url: task.url, isPrivate: task.isPrivate, documentKey: task.documentKey,
       pageUrl: task.pageUrl, groupId: task.groupId,
+      // Parser-observed metadata is attached to exactly this document and manifest.
+      isLive: !!parsed.live,
       contentType: task.format === "HLS" ? "application/vnd.apple.mpegurl" : "application/dash+xml" };
+    if (!parsed.live && Number.isSafeInteger(parsed.durationSeconds) &&
+        parsed.durationSeconds > 0 && parsed.durationSeconds <= 604800)
+      verified.durationSeconds = parsed.durationSeconds;
+    // DASH single-representation total A/V bitrate, or bitrate inherited
+    // from the exact HLS child variant being verified; never sum all qualities.
+    const parsedBitrate = task.format === "DASH" ? parsed.bitrate : task.bitrate;
+    if (Number.isSafeInteger(parsedBitrate) && parsedBitrate > 0 && parsedBitrate <= 1000000000)
+      verified.bitrate = parsedBitrate;
     if (Number.isSafeInteger(task.requestSequence)) verified.requestSequence = task.requestSequence;
     if (task.frameKey && task.frameUrl) {
       verified.frameKey = task.frameKey;
@@ -826,6 +836,13 @@ async function inspectManifest(task) {
       if (typeof variant.codecs === "string" && variant.codecs.length <= 160)
         message.codecs = variant.codecs;
       await browser.tabs.sendMessage(task.tabId, message, { frameId: 0 });
+      // The master playlist carries bitrate but not duration; parse the actual
+      // VOD child for a duration from EXTINF. Existing queue limits and aborts
+      // still apply. Restrict to four child playlists per master.
+      if (parsed.kind === "master" && parsed.variants.indexOf(variant) < 4) {
+        queueManifest({ ...task, url: variant.url, bitrate: variant.bitrate,
+          requestSequence: undefined });
+      }
     }
     manifestCache.set(key, Date.now());
     while (manifestCache.size > 32) manifestCache.delete(manifestCache.keys().next().value);
