@@ -22,3 +22,36 @@ test('replace needs matching blob SHA',()=>{const r={...mk(),operation:'replace'
 test('same content is not a change',()=>{const r={...mk(),operation:'replace',expected_blob_sha:'a'.repeat(40),content:'same'};bad(()=>makeEdit(r,{sha:'a'.repeat(40),type:'file',content:'same'},sha),'NO_CHANGE');});
 test('edit result never claims a verified build',()=>{const r=makeEdit(mk(),null,sha);const x=applyEditResult(r,sha,'f'.repeat(40));assert.equal(x.compiled_verified,false);assert.equal(x.android_build_started,false);});
 test('race on branch update fails closed',()=>{const p=makeEdit(mk(),null,sha);bad(()=>applyEditResult(p,'e'.repeat(40),'f'.repeat(40)),'RACE_PRECONDITION');});
+
+const productionFile='app/src/main/java/com/prirai/android/nira/media/MediaRecentDeduplicator.kt';
+const originalMedia='package com.prirai.android.nira.media\n\ninternal class Example {\n val old = true\n}\n';
+const productionReq=()=>({...mk(),operation:'replace',path:productionFile,expected_blob_sha:'a'.repeat(40),content:originalMedia.replace('val old = true','val old = false')});
+const previous=()=>({sha:'a'.repeat(40),type:'file',content:originalMedia});
+test('controlled production Kotlin replacement requires exact CAS, reports full checks',()=>{
+ const r=makeEdit(productionReq(),previous(),sha);
+ assert.equal(r.production_affected,true);assert.deepEqual(r.required_checks,['kotlin-unit','android-lint','android-build']);
+});
+test('production Kotlin cannot be created from scratch',()=>{
+ const r={...productionReq(),operation:'create',expected_blob_sha:null};
+ bad(()=>makeEdit(r,null,sha),'PRODUCTION_REPLACEMENT_RESTRICTED');
+});
+test('production Kotlin change refuses MPV cross-variant',()=>{
+ const r={...productionReq(),variant:'mpv',source_branch:mk('mpv').source_branch,source_sha:mk('mpv').source_sha,
+  workspace_branch:mk('mpv').workspace_branch,workspace_head:mk('mpv').workspace_head};
+ bad(()=>makeEdit(r,previous(),r.workspace_head),'PRODUCTION_REPLACEMENT_RESTRICTED');
+});
+test('large production rewrite refused',()=>{
+ const r=productionReq();r.content='package com.prirai.android.nira.media\n'+Array.from({length:30},(_,i)=>'val x'+i+' = true').join('\n');
+ bad(()=>makeEdit(r,previous(),sha),'PRODUCTION_CHANGE_TOO_LARGE');
+});
+test('package rename refused',()=>{
+ const r=productionReq();r.content=r.content.replace('package com.prirai.android.nira.media','package com.prirai.android.nira.secret');
+ bad(()=>makeEdit(r,previous(),sha),'PRODUCTION_PACKAGE_CHANGED');
+});
+test('dependency import injection refused',()=>{
+ const r=productionReq();r.content=r.content.replace('val old = false','import java.io.File');
+ bad(()=>makeEdit(r,previous(),sha),'PRODUCTION_IMPORT_OR_PACKAGE_CHANGED');
+});
+test('production change must not target any unapproved file',()=>{
+ bad(()=>allowedFile('app/src/main/java/com/prirai/android/nira/browser/tabs/compose/TabBarCompose.kt'),'NOT_ALLOWLISTED');
+});
