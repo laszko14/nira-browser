@@ -17,6 +17,7 @@ const manifestCache = new Map();
 const manifestInflight = new Map();
 const manifestGroups = new Map();
 const manifestLineage = new Map();
+const manifestVariantRates = new Map();
 // Identity is ONLY for grouping; never mutate or rebuild the exact playback URL.
 const volatileParams = new Set(["s", "e", "t", "token", "sig", "signature",
   "expires", "expiry", "exp", "hdnts", "hdntl", "policy", "key-pair-id",
@@ -475,6 +476,8 @@ function cancelManifestTasks(tabId) {
     if (key.startsWith(tabId + ":")) manifestGroups.delete(key);
   for (const key of manifestLineage.keys())
     if (key.startsWith(tabId + ":")) manifestLineage.delete(key);
+  for (const key of manifestVariantRates.keys())
+    if (key.startsWith(tabId + ":")) manifestVariantRates.delete(key);
 }
 
 // onBeforeRequest is passive metadata capture only. No bodies or credentials.
@@ -672,6 +675,8 @@ function onHeaders(details) {
           pageUrl: doc.pageUrl, isPrivate: details.incognito, groupId: message.groupId,
           frameKey: requestFrame?.frameKey, frameUrl: requestFrame?.frameUrl,
           requestSequence: requestDocumentKey.requestSequence,
+          bitrate: manifestVariantRates.get(streamGroupKey(tabId, doc.documentKey,
+            details.incognito, requestFrame?.frameKey, details.url)),
         });
       })
       .catch(() => anonymous("network_unassigned", details.incognito));
@@ -839,12 +844,13 @@ async function inspectManifest(task) {
       if (typeof variant.codecs === "string" && variant.codecs.length <= 160)
         message.codecs = variant.codecs;
       await browser.tabs.sendMessage(task.tabId, message, { frameId: 0 });
-      // The master playlist carries bitrate but not duration; parse the actual
-      // VOD child for a duration from EXTINF. Existing queue limits and aborts
-      // still apply. Restrict to four child playlists per master.
-      if (parsed.kind === "master" && parsed.variants.indexOf(variant) < 4) {
-        queueManifest({ ...task, url: variant.url, bitrate: variant.bitrate,
-          requestSequence: undefined });
+      // Keep a bounded per-document bandwidth hint. The child playlist is
+      // inspected only if Gecko already requests it; no extra network probes.
+      if (Number.isSafeInteger(variant.bitrate) && variant.bitrate > 0 &&
+          variant.bitrate <= 1000000000) {
+        manifestVariantRates.set(lineageKey, variant.bitrate);
+        while (manifestVariantRates.size > 128)
+          manifestVariantRates.delete(manifestVariantRates.keys().next().value);
       }
     }
     manifestCache.set(key, Date.now());
