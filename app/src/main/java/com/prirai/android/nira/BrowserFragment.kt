@@ -277,6 +277,47 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 } else {
                     Toast.makeText(requireContext(), R.string.video_link_invalid, Toast.LENGTH_SHORT).show()
                 }
+            },
+            queueDownload = { streamId ->
+                val latest = currentMediaSnapshot()
+                val entry = latest?.entries?.firstOrNull { it.id == streamId }
+                val uri = entry?.url?.toUri()
+                if (entry == null || latest == null || uri == null ||
+                    uri.scheme !in listOf("http", "https") || uri.host.isNullOrBlank()) {
+                    Toast.makeText(requireContext(), R.string.video_link_invalid, Toast.LENGTH_SHORT).show()
+                } else if (entry.format in setOf(
+                        com.prirai.android.nira.media.MediaFormat.HLS,
+                        com.prirai.android.nira.media.MediaFormat.DASH
+                    )) {
+                    Toast.makeText(requireContext(),
+                        "HLS/DASH wymaga zapisu całego strumienia, nie samego manifestu",
+                        Toast.LENGTH_LONG).show()
+                } else {
+                    val referrer = entry.frameUrl ?: latest.tab.pageUrl
+                    val safeReferrer = runCatching { android.net.Uri.parse(referrer) }.getOrNull()
+                        ?.takeIf { it.scheme in listOf("http", "https") &&
+                            !it.host.isNullOrBlank() && it.userInfo == null }
+                        ?.buildUpon()?.clearQuery()?.fragment(null)?.build()?.toString()
+                    val mime = when (entry.format) {
+                        com.prirai.android.nira.media.MediaFormat.MP4 -> "video/mp4"
+                        com.prirai.android.nira.media.MediaFormat.WEBM -> "video/webm"
+                        com.prirai.android.nira.media.MediaFormat.OGG -> "video/ogg"
+                        com.prirai.android.nira.media.MediaFormat.MOV -> "video/quicktime"
+                        else -> "application/octet-stream"
+                    }
+                    requireContext().components.store.dispatch(
+                        mozilla.components.browser.state.action.DownloadAction.AddDownloadAction(
+                            DownloadState(
+                                url = entry.url,
+                                contentType = mime,
+                                userAgent = GeckoSession.getDefaultUserAgent(),
+                                referrerUrl = safeReferrer,
+                                sessionId = latest.tab.binding.tabId,
+                                private = latest.tab.binding.isPrivate,
+                            )
+                        )
+                    )
+                }
             }
         )
         mediaFloatingUi = overlay

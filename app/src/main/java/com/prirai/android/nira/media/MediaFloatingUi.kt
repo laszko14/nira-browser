@@ -41,6 +41,7 @@ internal class MediaFloatingUi(
     private val current: () -> MediaUiSnapshot?,
     private val safeToolbarSpace: (Rect) -> Pair<Int, Int>,
     private val openVideo: (Long) -> Unit,
+    private val queueDownload: (Long) -> Unit,
 ) {
     private val context = parent.context
     private val gridPrefs = context.getSharedPreferences("zavro_media_grid", Context.MODE_PRIVATE)
@@ -444,6 +445,50 @@ internal class MediaFloatingUi(
                     }
                 }
             }, LinearLayout.LayoutParams(dp(48), dp(58)))
+            val options = TextView(context).apply {
+                text = "⋮"
+                textSize = 23f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                contentDescription = "Opcje filmu: pobieranie i kolejka"
+                setOnClickListener { anchor ->
+                    val now = current()
+                    if (now == null || !sameSelection(snapshot.tab, now.tab) ||
+                        now.entries.none { it.id == entry.id }) {
+                        stale()
+                        fillSheet()
+                    } else {
+                        android.widget.PopupMenu(context, anchor).apply {
+                            menu.add(0, 1, 0, "Pobierz / dodaj do kolejki")
+                                .isEnabled = entry.format !in setOf(MediaFormat.HLS, MediaFormat.DASH)
+                            menu.add(0, 2, 1, "Kopiuj adres filmu")
+                            setOnMenuItemClickListener { menuItem ->
+                                val latest = current()
+                                val available = latest != null && sameSelection(snapshot.tab, latest.tab) &&
+                                    latest.entries.any { it.id == entry.id }
+                                if (!available) {
+                                    stale()
+                                    fillSheet()
+                                    true
+                                } else when (menuItem.itemId) {
+                                    1 -> { queueDownload(entry.id); true }
+                                    2 -> {
+                                        val clip = android.content.ClipData.newPlainText(
+                                            "Adres filmu", latest!!.entries.first { it.id == entry.id }.url)
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE)
+                                            as android.content.ClipboardManager
+                                        clipboard.setPrimaryClip(clip)
+                                        true
+                                    }
+                                    else -> false
+                                }
+                            }
+                            show()
+                        }
+                    }
+                }
+            }
+            item.addView(options, LinearLayout.LayoutParams(dp(33), dp(54)))
             gridRows[index % gridRows.size].addView(item,
                 LinearLayout.LayoutParams(dp(tileWidth), -2).apply {
                     setMargins(dp(3), dp(3), dp(3), dp(3))
