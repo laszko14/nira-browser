@@ -180,6 +180,13 @@ class TestLabEngine(
         if(sample.offsetNanos>at)return false
         resources.add(sample);return true
     }
+    /** Display refresh is not Gecko compositor FPS; zero-valued user preference is unknown. */
+    @Synchronized fun refreshRate(session:SessionToken,actual:Double,requested:Double?):Boolean {
+        if(writable(session)==null || !actual.isFinite() || actual !in 1.0..1000.0 ||
+            requested!=null && (!requested.isFinite() || requested !in 1.0..1000.0))return false
+        environment=environment.copy(currentRefreshHz=actual,requestedRefreshHz=requested)
+        return true
+    }
     @Synchronized fun pendingHeartbeat(session:SessionToken,ageNanos:Long,generation:Long):Boolean {
         val at=writable(session)?:return false
         if(!isForeground||generation!=foregroundGeneration||ageNanos !in 0..DURATION_NS)return false

@@ -158,7 +158,11 @@ internal class TestLabRuntime(
                 if(!android.text.TextUtils.equals(probe.counter.text,label))probe.counter.text=label
                 val rate=window.decorView.display?.refreshRate?.toDouble()
                 if(rate!=null&&rate.isFinite()&&rate in 1.0..1000.0&&rate!=lastRefresh){
-                    lastRefresh=rate;engine.note(s,LabCode.REFRESH_RATE_CHANGED,rate)
+                    lastRefresh=rate
+                    val preferred=window.attributes.preferredRefreshRate.toDouble()
+                        .takeIf { it.isFinite() && it in 1.0..1000.0 }
+                    engine.refreshRate(s,rate,preferred)
+                    engine.note(s,LabCode.REFRESH_RATE_CHANGED,rate)
                 }
             }
             if(engine.phase!=LabPhase.PREPARING||activities.isNotEmpty())main.postDelayed(this,if(activitiesVisible)250L else 1000L)

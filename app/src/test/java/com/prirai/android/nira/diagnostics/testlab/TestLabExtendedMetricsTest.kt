@@ -37,4 +37,20 @@ class TestLabExtendedMetricsTest {
         assertEquals(Availability.NOT_OBSERVED,r.metricAvailability[LabMetric.MAIN_HEARTBEAT])
         assertTrue(r.anomalies.any{it.code==LabCode.MAIN_STALL_PENDING&&it.kind==ObservationKind.OBSERVED_PERFORMANCE_ANOMALY})
     }
+    @Test fun displayRatesAreSeparateFromFrameAndGeckoMetrics() {
+        var nanos=0L
+        val core=TestLabEngine({nanos},LabIdentity(1168,"0.5.22-alpha73-clean"))
+        val session=core.start(TestType.RESOURCES)!!
+        core.begin(session,LabEnvironment(35,8,listOf(60.0,90.0,119.88),60.0,119.88))
+        assertTrue(core.refreshRate(session,119.88,119.88))
+        assertFalse(core.refreshRate(session,Double.NaN,119.88))
+        nanos=1_000_000_000L
+        core.stop(session);core.complete(session)
+        val report=core.latest()!!
+        assertEquals(119.88,report.environment.currentRefreshHz!!,0.001)
+        assertEquals(119.88,report.environment.requestedRefreshHz!!,0.001)
+        assertEquals(listOf(60.0,90.0,119.88),report.environment.refreshRatesHz)
+        assertEquals(Availability.NOT_EXPOSED_BY_PLATFORM,report.metricAvailability[LabMetric.GECKO_COMPOSITOR_FRAMES])
+    }
+
 }
