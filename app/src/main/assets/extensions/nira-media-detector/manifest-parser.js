@@ -47,7 +47,7 @@ globalThis.NiraManifestParser = (() => {
       if (line === "#EXT-X-ENDLIST") endList = true;
       if (line.startsWith("#EXT-X-MAP:")) hasInitialization = true;
       if (line.startsWith("#EXT-X-BYTERANGE:")) {
-        const match = /^#EXT-X-BYTERANGE:(\\d+)(?:@\\d+)?$/.exec(line);
+        const match = /^#EXT-X-BYTERANGE:(\d+)(?:@\d+)?$/.exec(line);
         if (match && Number.isSafeInteger(Number(match[1]))) {
           rangedSegments++;
           rangeBytes += Number(match[1]);
