@@ -251,7 +251,7 @@ class TestLabEngine(
         isForeground=false;targetStatus=status;activeOperationMask=0;phase=LabPhase.FINALIZING
     }
     /** Call only after collectors have been detached, outside their callbacks/on background. */
-    @Synchronized fun complete(session:SessionToken):Boolean {
+    @Synchronized fun complete(session:SessionToken, video:VideoDiscoverySummary?=null):Boolean {
         if(token!=session||phase!=LabPhase.FINALIZING)return false
         val incomplete=operations.size
         for(op in operations.values)opStats(op.operation).interrupted++
@@ -316,7 +316,7 @@ class TestLabEngine(
             evictedEvents=evicted,droppedOperations=droppedOperations,incompleteOperations=incomplete,
             maxPendingHeartbeatMs=pendingHeartbeatMax?.div(1_000_000.0),pendingHeartbeatSamples=pendingHeartbeatCount,
             finalizationDelayMs=((offset()?:endedOffset)-endedOffset).coerceAtLeast(0)/1_000_000.0,
-            maxHeartbeatDelayMs=heartbeatMax?.div(1_000_000.0),heartbeatSamples=heartbeatCount,limitations=limitations,
+            maxHeartbeatDelayMs=heartbeatMax?.div(1_000_000.0),heartbeatSamples=heartbeatCount,limitations=limitations,videoDiscovery=video,
         )
         lastReport=TestLabAnalyzer.analyze(lastReport!!)
         phase=targetStatus;return true
