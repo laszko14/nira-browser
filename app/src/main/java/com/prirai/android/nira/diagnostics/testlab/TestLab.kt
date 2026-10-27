@@ -5,6 +5,8 @@ import android.os.Looper
 import android.os.SystemClock
 import android.view.Window
 import com.prirai.android.nira.BuildConfig
+import com.prirai.android.nira.media.MediaEntry
+import com.prirai.android.nira.media.MediaSessionBinding
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -65,6 +67,11 @@ internal object TestLab {
     }
     fun geckoError(owner:Any){runtime?.browserObserver?.error(owner)}
     fun discovery(code:String,count:Int){runtime?.mediaObserver?.discovery(code,count)}
+    fun mediaObservationActive():Boolean=runtime?.mediaObserver!=null
+    fun observedMedia(binding:MediaSessionBinding,entry:MediaEntry){runtime?.mediaObserver?.entry(binding,entry)}
+    fun mediaNavigation(binding:MediaSessionBinding){runtime?.mediaObserver?.navigation(binding)}
+    fun mediaRejectedTitle(binding:MediaSessionBinding,different:Boolean){runtime?.mediaObserver?.rejectedTitle(binding,different)}
+
     fun browserObserver():TestLabBrowserObserver?=runtime?.browserObserver
     fun stop(){runtime?.stop()}
     fun mark():Boolean=runtime?.mark()?:false
