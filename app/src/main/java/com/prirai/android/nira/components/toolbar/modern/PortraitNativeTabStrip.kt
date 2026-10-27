@@ -14,6 +14,7 @@ import android.widget.TextView
 import com.prirai.android.nira.browser.tabgroups.TabGroupData
 import com.prirai.android.nira.browser.tabs.compose.UnifiedTabOrder
 import com.prirai.android.nira.theme.ThemeManager
+import com.prirai.android.nira.theme.TabGroupTones
 import com.prirai.android.nira.utils.FaviconLoader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -105,18 +106,15 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
         }
     }
 
-    private fun tabBackground(selected: Boolean, dark: Boolean): GradientDrawable =
-        GradientDrawable().apply {
+    private fun tabBackground(selected: Boolean, dark: Boolean, groupColor: Int?): GradientDrawable {
+        val tones = TabGroupTones.forGroup(groupColor)
+        val colors = if (selected) intArrayOf(tones.activeStart, tones.activeEnd)
+            else intArrayOf(tones.tabStart, tones.tabEnd)
+        return GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, colors).apply {
             cornerRadius = dp(10).toFloat()
-            setColor(
-                if (selected) {
-                    if (dark) Color.rgb(98, 47, 76) else Color.rgb(251, 231, 242)
-                } else {
-                    Color.TRANSPARENT
-                }
-            )
-            if (selected) setStroke(dp(1), Color.rgb(227, 96, 157))
+            if (selected) setStroke(dp(1), tones.accent)
         }
+    }
 
     private fun actionText(text: String, width: Int, sizeSp: Float, dark: Boolean): TextView =
         TextView(context).apply {
@@ -205,23 +203,25 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
         updateTabs(lastTabs, lastSelectedId)
     }
 
-    private fun groupBackground(color: Int): GradientDrawable =
-        GradientDrawable().apply {
-            cornerRadius = dp(13).toFloat()
-            // Keep groups unmistakably separate even when the user disables chips.
-            setColor(Color.argb(67, Color.red(color), Color.green(color), Color.blue(color)))
-        }
+    private fun groupBackground(color: Int?): GradientDrawable {
+        val tones = TabGroupTones.forGroup(color)
+        return GradientDrawable(
+            GradientDrawable.Orientation.LEFT_RIGHT,
+            intArrayOf(tones.headerStart, tones.headerEnd)
+        ).apply { cornerRadius = dp(13).toFloat() }
+    }
 
     private fun tabChip(
         tab: TabSessionState,
         selectedId: String?,
         dark: Boolean,
-        parent: LinearLayout
+        parent: LinearLayout,
+        groupColor: Int?
     ) {
         val title = tabTitle(tab)
         val selected = tab.id == selectedId
         val tabContainer = FrameLayout(context).apply {
-            background = tabBackground(selected, dark)
+            background = tabBackground(selected, dark, groupColor)
             layoutParams = LinearLayout.LayoutParams(dp(39), dp(34)).apply {
                 marginEnd = dp(3)
             }
@@ -269,7 +269,7 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
         val header = TextView(context).apply {
             text = (if (collapsed) "› " else "⌃ ") +
                 "(${members.size}) " + group.name.ifBlank { "Grupa" }
-            setTextColor(if (dark) group.color else Color.rgb(45, 38, 42))
+            setTextColor(Color.WHITE)
             setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12f)
             gravity = Gravity.CENTER
             setPadding(dp(8), 0, dp(8), 0)
@@ -291,7 +291,7 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
                     setBackgroundColor(Color.argb(70, Color.red(group.color),
                         Color.green(group.color), Color.blue(group.color)))
                 }, LinearLayout.LayoutParams(dp(1), dp(23)))
-                tabChip(tab, selectedId, dark, segment)
+                tabChip(tab, selectedId, dark, segment, group.color)
             }
             segment.addView(actionText("+", 29, 22f, dark).apply {
                 setTextColor(group.color)
@@ -367,10 +367,7 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
                 orientation = HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(3), 0, dp(3), 0)
-                background = GradientDrawable().apply {
-                    cornerRadius = dp(13).toFloat()
-                    setColor(if (dark) Color.rgb(76, 42, 61) else Color.rgb(244, 217, 233))
-                }
+                background = groupBackground(null)
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT, pillHeight
                 ).apply { marginEnd = dp(6) }
@@ -383,7 +380,7 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
                 contentDescription = "Karty bez grupy: ${segmentTabs.size}"
                 setOnClickListener { openTabChooser(this) }
             })
-            segmentTabs.forEach { tab -> tabChip(tab, selectedId, dark, neutral) }
+            segmentTabs.forEach { tab -> tabChip(tab, selectedId, dark, neutral, null) }
             row.addView(neutral)
         }
 
@@ -449,7 +446,10 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
             val selected = tab.id == selectedId
             if (pill.selected != selected) {
                 pill.selected = selected
-                pill.container.background = tabBackground(selected, dark)
+                val tabGroupColor = visibleGroups.firstOrNull { group ->
+                    tab.id in group.tabIds
+                }?.color
+                pill.container.background = tabBackground(selected, dark, tabGroupColor)
             }
         }
         selectedPill = selectedId?.let { renderedPills[it]?.container }

@@ -66,6 +66,7 @@ import android.widget.LinearLayout
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.prirai.android.nira.BrowserActivity
 import com.prirai.android.nira.R
+import com.prirai.android.nira.theme.TabGroupTones
 import com.prirai.android.nira.browser.BrowsingMode
 import com.prirai.android.nira.browser.BrowsingModeManager
 import com.prirai.android.nira.browser.tabgroups.UnifiedTabGroupManager
@@ -1308,6 +1309,9 @@ class TabsBottomSheetFragment : DialogFragment() {
         var hoveredKey by remember { mutableStateOf<String?>(null) }
         val draggedTab = tabs.firstOrNull { it.id == dragTabId }
         val draggedGroup = groups.firstOrNull { it.id == dragGroupId }
+        val draggedTabTone = TabGroupTones.forGroup(
+            groups.firstOrNull { group -> dragTabId != null && dragTabId in group.tabIds }?.color
+        )
         // Hovering a collapsed header while holding a tab opens the target group
         // without requiring the user to release the pointer first.
         LaunchedEffect(dragTabId, hoveredKey) {
@@ -1472,6 +1476,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                             count = members.size,
                             expanded = group.id in expanded,
                             ungrouped = false,
+                            groupColor = group.color,
                             hovered = hoveredKey == "group_" + group.id,
                             geometry = rowGeometry,
                             onClick = { viewModel.toggleGroupExpanded(group.id) },
@@ -1509,6 +1514,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                                 selected = tab.id == selectedTabId,
                                 hovered = hoveredKey == "group_tab_" + tab.id,
                                 indent = true,
+                                groupColor = group.color,
                                 geometry = rowGeometry,
                                 onClick = { if (dragTabId == null) handleTabClickCompose(tab.id) },
                                 onClose = { handleTabCloseCompose(tab.id) },
@@ -1534,6 +1540,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                             count = ungroupedTabs.size,
                             expanded = ungroupedExpanded,
                             ungrouped = true,
+                            groupColor = null,
                             hovered = hoveredKey == "ungrouped_header",
                             geometry = rowGeometry,
                             onClick = { ungroupedExpanded = !ungroupedExpanded },
@@ -1551,6 +1558,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                     selected = tab.id == selectedTabId,
                     hovered = hoveredKey == "single_tab_" + tab.id,
                     indent = false,
+                    groupColor = null,
                     geometry = rowGeometry,
                     onClick = { if (dragTabId == null) handleTabClickCompose(tab.id) },
                     onClose = { handleTabCloseCompose(tab.id) },
@@ -1580,7 +1588,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                     IntOffset(0, (dragY - rowHeightDp * density / 2f).roundToInt())
                 },
                 shadowElevation = 8.dp,
-                color = MaterialTheme.colorScheme.primaryContainer
+                color = ComposeColor(TabGroupTones.forGroup(draggedGroup.color).headerStart)
             ) {
                 Text("(${draggedGroup.tabIds.count { it in visibleTabIds }}) ${draggedGroup.name}",
                     modifier = Modifier.padding(12.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1594,7 +1602,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                         IntOffset(0, (dragY - rowHeightDp * density / 2f).roundToInt())
                     }
                     .padding(horizontal = 8.dp),
-                color = SideDrawerPalette.cardTop,
+                color = ComposeColor(draggedTabTone.tabStart),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
                 shadowElevation = 10.dp
             ) {
@@ -1676,6 +1684,7 @@ class TabsBottomSheetFragment : DialogFragment() {
         count: Int,
         expanded: Boolean,
         ungrouped: Boolean,
+        groupColor: Int?,
         hovered: Boolean,
         geometry: SideDrawerRowGeometry,
         onClick: () -> Unit,
@@ -1684,16 +1693,11 @@ class TabsBottomSheetFragment : DialogFragment() {
     ) {
         val landscape = LocalConfiguration.current.orientation ==
             android.content.res.Configuration.ORIENTATION_LANDSCAPE
-        val accent = if (ungrouped) SideDrawerPalette.blue else SideDrawerPalette.activeAccent
-        val background = if (ungrouped) {
-            Brush.horizontalGradient(listOf(
-                SideDrawerPalette.ungroupedTop, SideDrawerPalette.ungroupedBottom
-            ))
-        } else {
-            Brush.horizontalGradient(listOf(
-                SideDrawerPalette.groupTop, SideDrawerPalette.groupBottom
-            ))
-        }
+        val tones = TabGroupTones.forGroup(if (ungrouped) null else groupColor)
+        val accent = ComposeColor(tones.accent)
+        val background = Brush.horizontalGradient(listOf(
+            ComposeColor(tones.headerStart), ComposeColor(tones.headerEnd)
+        ))
         Row(
             modifier = Modifier.fillMaxWidth().height(geometry.height)
                 .then(dragModifier)
@@ -1759,6 +1763,7 @@ class TabsBottomSheetFragment : DialogFragment() {
         selected: Boolean,
         hovered: Boolean,
         indent: Boolean,
+        groupColor: Int?,
         geometry: SideDrawerRowGeometry,
         onClick: () -> Unit,
         onClose: () -> Unit,
@@ -1780,9 +1785,11 @@ class TabsBottomSheetFragment : DialogFragment() {
         val currentFinish by rememberUpdatedState(onDragFinish)
         val currentCancel by rememberUpdatedState(onDragCancel)
         val rowShape = androidx.compose.foundation.shape.RoundedCornerShape(geometry.radius)
+        val tones = TabGroupTones.forGroup(groupColor)
+        val accent = ComposeColor(tones.accent)
         val rowBrush = Brush.horizontalGradient(
-            if (selected) listOf(SideDrawerPalette.activeTop, SideDrawerPalette.activeBottom)
-            else listOf(SideDrawerPalette.cardTop, SideDrawerPalette.cardBottom)
+            if (selected) listOf(ComposeColor(tones.activeStart), ComposeColor(tones.activeEnd))
+            else listOf(ComposeColor(tones.tabStart), ComposeColor(tones.tabEnd))
         )
         val host = remember(tab.content.url) {
             runCatching { android.net.Uri.parse(tab.content.url).host }.getOrNull()
@@ -1797,8 +1804,8 @@ class TabsBottomSheetFragment : DialogFragment() {
                 .background(rowBrush)
                 .then(if (selected || hovered) Modifier.border(
                     1.dp,
-                    if (selected) SideDrawerPalette.activeAccent.copy(alpha = 0.55f)
-                    else SideDrawerPalette.activeAccent.copy(alpha = 0.32f),
+                    if (selected) accent.copy(alpha = 0.80f)
+                    else accent.copy(alpha = 0.42f),
                     rowShape
                 ) else Modifier)
                 .onGloballyPositioned { rowOrigin = it.positionInRoot() }
@@ -1825,10 +1832,7 @@ class TabsBottomSheetFragment : DialogFragment() {
         ) {
             if (selected) {
                 Box(Modifier.width(geometry.accent).fillMaxHeight()
-                    .background(Brush.verticalGradient(listOf(
-                        SideDrawerPalette.activeAccent,
-                        ComposeColor(0xFFDE174A)
-                    ))))
+                    .background(accent))
             } else {
                 Spacer(Modifier.width(geometry.accent))
             }

@@ -36,7 +36,7 @@ test("v1121: favicon from tab content, cached or async BrowserIcons loader; no m
 });
 
 test("v1121: selection is visibly outlined, normal click switches tabs, long press closes from menu", () => {
-  assert.match(native, /if \(selected\) setStroke\(dp\(1\), Color\.rgb\(227, 96, 157\)\)/);
+  assert.match(native, /if \(selected\) setStroke\(dp\(1\), tones\.accent\)/);
   assert.match(native, /setOnClickListener \{ onTabSelected\?\.invoke\(tab\.id\) \}/);
   assert.match(native, /setOnLongClickListener/);
   assert.match(native, /menu\.add\("Zamknij kartę"\)/);
@@ -52,10 +52,10 @@ test("v1121: keeps horizontal scroll while selected favicon is visible", () => {
 test("v1121: signed APK version is 1121 and debug package + same certificate", () => {
   const gradle = source("app/build.gradle");
   const workflow = source(".github/workflows/apk-release.yml");
-  assert.match(gradle, /versionCode = 177/);
-  assert.match(gradle, /versionName = "0\.5\.22-alpha82-clean"/);
+  assert.match(gradle, /versionCode = 178/);
+  assert.match(gradle, /versionName = "0\.5\.22-alpha83-clean"/);
   assert.match(gradle, /applicationIdSuffix = '\.debug'/);
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1177"/);
+  assert.match(workflow, /EXPECTED_VERSION_CODE: "1178"/);
   assert.match(workflow, /EXPECTED_CERT_SHA256/);
-  assert.match(workflow, /zavro-arm64-update-apk-v1177/);
+  assert.match(workflow, /zavro-arm64-update-apk-v1178/);
 });

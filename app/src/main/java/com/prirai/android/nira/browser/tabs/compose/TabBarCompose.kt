@@ -55,6 +55,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
+import com.prirai.android.nira.theme.TabGroupTones
+import com.prirai.android.nira.browser.tabgroups.TabGroupData
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.font.FontWeight
@@ -103,8 +105,8 @@ fun TabBarCompose(
     )
 
     // Build items from order
-    val items = remember(order, tabs) {
-        buildBarItems(order, tabs)
+    val items = remember(order, tabs, groups) {
+        buildBarItems(order, tabs, groups)
     }
     
     val uniqueItems = remember(items) {
@@ -478,7 +480,11 @@ fun TabBarCompose(
 /**
  * Build bar items from order
  */
-private fun buildBarItems(order: UnifiedTabOrder?, tabs: List<TabSessionState>): List<BarItem> {
+private fun buildBarItems(
+    order: UnifiedTabOrder?,
+    tabs: List<TabSessionState>,
+    liveGroups: List<TabGroupData>
+): List<BarItem> {
     if (order == null) return tabs.map { BarItem.SingleTab(it) }
 
     // The persisted order can lag behind live BrowserStore tabs (new tab,
@@ -498,7 +504,8 @@ private fun buildBarItems(order: UnifiedTabOrder?, tabs: List<TabSessionState>):
                     BarItem.Group(
                         groupId = orderItem.groupId,
                         groupName = orderItem.groupName,
-                        color = orderItem.color,
+                        color = liveGroups.firstOrNull { it.id == orderItem.groupId }?.color
+                            ?: orderItem.color,
                         contextId = groupTabs.first().contextId,
                         tabs = groupTabs,
                         tabIds = orderItem.tabIds,
@@ -573,21 +580,14 @@ private fun TabPill(
     isDragging: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val tones = TabGroupTones.forGroup(null)
     Surface(
         modifier = modifier
             .height(32.dp)
             .width(40.dp),
         shape = RoundedCornerShape(12.dp),
-        color = if (isSelected) {
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
-        } else {
-            Color.Transparent
-        },
-        border = if (isSelected) {
-            BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
-        } else {
-            null
-        }
+        color = Color(if (isSelected) tones.activeStart else tones.tabStart),
+        border = if (isSelected) BorderStroke(1.dp, Color(tones.accent)) else null
     ) {
         Row(
             modifier = Modifier
@@ -700,6 +700,7 @@ private fun GroupPill(
 ) {
     // Get expanded state from centralized group manager
     val expanded = group.isExpanded
+    val tones = TabGroupTones.forGroup(group.color)
     
     var menuTab by remember { mutableStateOf<TabSessionState?>(null) }
     var showTabMenu by remember { mutableStateOf(false) }
@@ -715,7 +716,7 @@ private fun GroupPill(
                 if (isDragging) Modifier else Modifier
             ),
         shape = RoundedCornerShape(12.dp),
-        color = Color(group.color).copy(alpha = 0.2f)
+        color = Color(tones.headerStart)
     ) {
         Row(
             modifier = Modifier
@@ -745,7 +746,7 @@ private fun GroupPill(
                 text = "(${group.tabs.size}) ${group.groupName}",
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
-                color = if (isDragging) MaterialTheme.colorScheme.onSurface else Color(group.color)
+                color = Color.White
             )
 
             if (expanded) {

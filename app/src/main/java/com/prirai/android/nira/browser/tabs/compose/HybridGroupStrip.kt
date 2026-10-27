@@ -36,11 +36,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.prirai.android.nira.browser.tabgroups.TabGroupData
+import com.prirai.android.nira.theme.TabGroupTones
 import mozilla.components.browser.state.state.TabSessionState
 
 /**
@@ -119,13 +121,15 @@ private fun GroupChip(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    val accent = groupColor ?: MaterialTheme.colorScheme.primary
+    val palette = groupColor?.let { TabGroupTones.forGroup(it.toArgb()) }
+    val accent = palette?.let { Color(it.accent) } ?: MaterialTheme.colorScheme.primary
     Surface(
         modifier = Modifier
             .height(36.dp)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         shape = RoundedCornerShape(13.dp),
-        color = if (selected) accent.copy(alpha = 0.19f) else MaterialTheme.colorScheme.surface,
+        color = palette?.let { Color(if (selected) it.activeStart else it.headerStart) }
+            ?: MaterialTheme.colorScheme.surface,
         border = if (selected) BorderStroke(1.dp, accent) else null
     ) {
         Row(
@@ -145,7 +149,8 @@ private fun GroupChip(
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                color = if (palette != null) Color.White else MaterialTheme.colorScheme.onSurface
             )
         }
     }
@@ -165,6 +170,7 @@ fun HybridGroupTabs(
     onTabClosed: (String) -> Unit,
     onNewTabInGroup: () -> Unit
 ) {
+    val tones = TabGroupTones.forGroup(groupColor)
     Surface(
         modifier = Modifier.fillMaxWidth().height(height),
         color = MaterialTheme.colorScheme.surfaceContainer,
@@ -181,11 +187,8 @@ fun HybridGroupTabs(
                 Surface(
                     modifier = Modifier.height(36.dp).width(150.dp),
                     shape = RoundedCornerShape(12.dp),
-                    color = if (selected)
-                        Color(groupColor).copy(alpha = 0.19f)
-                    else
-                        MaterialTheme.colorScheme.surface,
-                    border = if (selected) BorderStroke(1.dp, Color(groupColor)) else null
+                    color = Color(if (selected) tones.activeStart else tones.tabStart),
+                    border = if (selected) BorderStroke(1.dp, Color(tones.accent)) else null
                 ) {
                     Row(
                         modifier = Modifier.fillMaxHeight(),
@@ -204,6 +207,7 @@ fun HybridGroupTabs(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 style = MaterialTheme.typography.labelSmall,
+                                color = Color.White,
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -214,6 +218,7 @@ fun HybridGroupTabs(
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "Zamknij kartę",
+                                tint = Color.White,
                                 modifier = Modifier.size(16.dp)
                             )
                         }

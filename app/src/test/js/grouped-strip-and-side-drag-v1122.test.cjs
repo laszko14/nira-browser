@@ -30,7 +30,7 @@ test("v1122: native compact tabs still show favicons and handle tap and long pre
   assert.match(native, /scroller\.scrollTo\(newScroll\.coerceIn\(0, maxScroll\), 0\)/);
 });
 
-test("v1177: side panel retains long-press dragging and a height-aware preview", () => {
+test("v1178: side panel retains long-press dragging and a height-aware preview", () => {
   // C/D remove the dedicated icon, not the long-press recognizer.
   assert.match(side, /private fun CompactSideTabRow\(/);
   assert.match(side, /detectDragGesturesAfterLongPress\(/);
@@ -54,12 +54,12 @@ test("v1128: side drawer delegates all drop types to a persisted transaction", (
 test("v1122: metadata and stable signing", () => {
   const gradle = read("app/build.gradle");
   const workflow = read(".github/workflows/apk-release.yml");
-  assert.match(gradle, /versionCode = 177/);
-  assert.match(gradle, /versionName = "0\.5\.22-alpha82-clean"/);
+  assert.match(gradle, /versionCode = 178/);
+  assert.match(gradle, /versionName = "0\.5\.22-alpha83-clean"/);
   assert.match(gradle, /applicationIdSuffix = '\.debug'/);
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1177"/);
+  assert.match(workflow, /EXPECTED_VERSION_CODE: "1178"/);
   assert.match(workflow, /EXPECTED_CERT_SHA256:/);
-  assert.match(workflow, /zavro-arm64-update-apk-v1177/);
+  assert.match(workflow, /zavro-arm64-update-apk-v1178/);
 });
 
 test("v1128: side-drawer drag commits one awaited transaction, not an async redraw", () => {
