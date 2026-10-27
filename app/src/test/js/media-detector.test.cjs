@@ -579,7 +579,7 @@ test("stage 4.0.2: concrete video title and duration take precedence", async () 
   await p.mutate();
   assert.equal(p.native.length, 1);
   assert.equal(p.native[0][1].title, "Dokładny tytuł nagrania");
-  assert.equal(p.native[0][1].titleKind, "video");
+  assert.equal(p.native[0][1].titleKind, "player");
   assert.equal(p.native[0][1].durationSeconds, 625);
 });
 
@@ -591,7 +591,7 @@ test("stage 4.0.2: JSON-LD name stays attached to its contentUrl", async () => {
   }]);
   await p.mutate();
   assert.equal(p.native[0][1].title, "Film z metadanych");
-  assert.equal(p.native[0][1].titleKind, "video");
+  assert.equal(p.native[0][1].titleKind, "structured");
 });
 
 test("stage 4.0.2: full Content-Length and partial Content-Range give size without fetch", async () => {
@@ -617,8 +617,9 @@ test("stage 4.0.2: full Content-Length and partial Content-Range give size witho
   await tick(); await tick();
   assert.equal(p.native.length, 3);
   assert.equal(p.native[0][1].sizeBytes, 252000000);
-  assert.equal(p.native[0][1].title, "Odcinek pierwszy");
-  assert.equal(p.native[0][1].titleKind, "page");
+  // Network-only resource has no proven relationship to document.title.
+  assert.equal(p.native[0][1].title, undefined);
+  assert.equal(p.native[0][1].titleKind, undefined);
   assert.equal(p.native[1][1].sizeBytes, 95100000);
   assert.equal(p.native[2][1].sizeBytes, undefined);
 });
@@ -920,4 +921,85 @@ test('v1164: accepted native batches continue without losing remaining candidate
   await p.mutate();assert.equal(maximum,4);
   for(let round=0;round<4;round++){for(const release of releases.splice(0))release();await tick();await tick();}
   assert.equal(p.native.length,12);assert.equal(active,0);assert.equal(maximum,4);
+});
+
+test("v1171: twelve distinct video elements keep twelve URL-bound player titles", async () => {
+  const p = page();
+  p.document.title = "One page-wide heading";
+  for (let i = 1; i <= 12; i++) {
+    const v = new p.HTMLVideoElement("https://cdn.example/v" + i + ".mp4", "video/mp4", true);
+    v.getAttribute = key => key === "data-video-title" ? "Movie " + i : null;
+    p.videos.push(v);
+  }
+  await p.mutate();
+  assert.equal(p.native.length, 12);
+  const byUrl = new Map(p.native.map(([, payload]) => [payload.url, payload]));
+  for (let i = 1; i <= 12; i++) {
+    const item = byUrl.get("https://cdn.example/v" + i + ".mp4");
+    assert.equal(item.title, "Movie " + i);
+    assert.equal(item.titleKind, "player");
+    assert.ok(item.groupId);
+  }
+});
+
+test("v1171: twelve untitled videos do not acquire one document title", async () => {
+  const p = page();
+  p.document.title = "Shared site heading";
+  for (let i = 1; i <= 12; i++)
+    p.videos.push(new p.HTMLVideoElement("https://cdn.example/anon" + i + ".mp4"));
+  await p.mutate();
+  assert.equal(p.native.length, 12);
+  for (const [, candidate] of p.native) {
+    assert.equal(candidate.title, undefined);
+    assert.equal(candidate.titleKind, undefined);
+  }
+});
+
+test("v1171: JSON-LD VideoObject name belongs only to its content URL", async () => {
+  const p = page();
+  p.document.title = "A completely different heading";
+  p.extra.set('script[type="application/ld+json"]', [{
+    textContent: JSON.stringify({"@graph":[
+      {"@type":"VideoObject",name:"Episode A",contentUrl:"https://cdn.example/a.mp4"},
+      {"@type":"VideoObject",name:"Episode B",contentUrl:"https://cdn.example/b.mp4"}
+    ]}),
+  }]);
+  await p.mutate();
+  const byUrl = new Map(p.native.map(([, v]) => [v.url, v]));
+  assert.equal(byUrl.get("https://cdn.example/a.mp4").title, "Episode A");
+  assert.equal(byUrl.get("https://cdn.example/b.mp4").title, "Episode B");
+  assert.equal(byUrl.get("https://cdn.example/a.mp4").titleKind, "structured");
+});
+
+test("v1171: late loadedmetadata can upgrade unknown title for same URL", async () => {
+  const p = page();
+  const v = new p.HTMLVideoElement("https://cdn.example/late.mp4");
+  p.videos.push(v);
+  await p.mutate();
+  assert.equal(p.native[0][1].title, undefined);
+  v.getAttribute = key => key === "data-video-title" ? "Specific episode" : null;
+  v.duration = 42;
+  await p.fire("loadedmetadata", v);
+  assert.equal(p.native.length, 2);
+  assert.equal(p.native[1][1].url, p.native[0][1].url);
+  assert.equal(p.native[1][1].title, "Specific episode");
+  assert.equal(p.native[1][1].titleKind, "player");
+  assert.equal(p.native[1][1].durationSeconds, 42);
+});
+
+test("v1171: SPA additions and duplicate human titles keep distinct source URLs", async () => {
+  const p = page();
+  p.document.title = "Site-wide title";
+  const v1 = new p.HTMLVideoElement("https://cdn.example/p1.mp4");
+  const v2 = new p.HTMLVideoElement("https://cdn.example/p2.mp4");
+  v1.getAttribute = k => k === "data-title" ? "Same episode name" : null;
+  v2.getAttribute = k => k === "data-title" ? "Same episode name" : null;
+  p.videos.push(v1);
+  await p.mutate();
+  p.videos.push(v2);
+  await p.mutate();
+  assert.equal(p.native.length, 2);
+  assert.notEqual(p.native[0][1].url, p.native[1][1].url);
+  assert.equal(p.native[0][1].title, p.native[1][1].title);
+  assert.notEqual(p.native[0][1].groupId, p.native[1][1].groupId);
 });

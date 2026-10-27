@@ -183,10 +183,9 @@
     return ensureDocument().then(root => {
       if (!root || root.documentKey !== message.documentKey ||
           root.pageUrl !== message.pageUrl) return false;
-      // Page title is a hint, never proof of ownership of a network URL.
-      const title = pageTitle();
-      const payload = title ? { ...message, title, titleKind: "page" } : message;
-      return Promise.resolve(browser.runtime.sendNativeMessage("nira.media.detector", payload))
+      // Network-only URLs have no verified owner/title in the DOM.
+      // Preserve the exact candidate without copying document.title to it.
+      return Promise.resolve(browser.runtime.sendNativeMessage("nira.media.detector", message))
         .then(value => value === true).catch(() => false);
     });
   });
@@ -221,17 +220,27 @@
     }
     return safeTitle(title) || safeTitle(document.title);
   }
-  function videoTitle(video) {
+  function explicitVideoTitle(element) {
     for (const name of ["data-video-title", "data-title", "aria-label", "title"]) {
-      const value = safeTitle(attribute(video, name));
+      const value = safeTitle(attribute(element, name));
       if (value) return value;
     }
+    return null;
+  }
+  function videoTitle(video) {
+    const explicit = explicitVideoTitle(video);
+    if (explicit) return explicit;
+    // A generic page section can contain many videos and an unrelated heading.
+    // Use only a bounded, scoped single-video card/figure.
     if (typeof video.closest === "function") {
-      const parent = video.closest("article,section,figure,[data-video-id],.video-container");
-      const heading = parent && parent.querySelector &&
-        parent.querySelector("h1,h2,h3,[itemprop='name']");
-      const value = safeTitle(heading && heading.textContent);
-      if (value) return value;
+      const parent = video.closest("figure,article,[data-video-id],.video-container");
+      if (parent && parent.querySelectorAll && parent.querySelector) {
+        const videos = parent.querySelectorAll("video");
+        if (videos.length === 1 && videos[0] === video) {
+          const heading = parent.querySelector("figcaption,[itemprop='name'],h1,h2,h3");
+          return safeTitle(heading && heading.textContent);
+        }
+      }
     }
     return null;
   }
@@ -309,8 +318,9 @@
     const knownMime = typeof type === "string" &&
       /^(?:video\/(?:mp4|webm|ogg|quicktime)|application\/(?:vnd\.apple\.mpegurl|x-mpegurl|dash\+xml)|audio\/(?:x-)?mpegurl)(?:\s*;|$)/i.test(type);
     if (!knownMime && !/\.(?:mp4|m4v|webm|ogv|ogg|mov|m3u8|mpd)$/.test(mediaPath)) return;
-    const named = safeTitle(title) || pageTitle();
-    const kind = named ? (safeTitle(title) ? (titleKind || "video") : "page") : null;
+    // Page-wide titles cannot identify one stream among several videos.
+    const named = safeTitle(title);
+    const kind = named ? (titleKind || "video") : null;
     const seconds = Number.isSafeInteger(duration) && duration > 0 && duration <= 604800 ?
       duration : null;
     const posterUrl = absolute(poster);
@@ -319,6 +329,9 @@
       named || "", kind || "", seconds, posterUrl || ""]);
     if (seen.has(key)) { note("duplicate"); return; }
     offers++;
+    if (!named) note("title_unknown");
+    else if (kind === "structured") note("title_structured");
+    else note("title_individual");
     seen.set(key, true);
     // Bounded LRU: long-lived SPAs must not silently stop detecting media.
     while (seen.size > MAX_SEEN) seen.delete(seen.keys().next().value);
@@ -378,12 +391,13 @@
       }
     }
     const title = videoTitle(video);
+    const kind = explicitVideoTitle(video) ? "player" : "video";
     const seconds = durationOf(video);
     const poster = posterFor(video);
     if (preferred) submit(preferred, playing ? "dom" : "page", mime, group,
-      title, title ? "video" : null, seconds, poster);
+      title, title ? kind : null, seconds, poster);
     if (video.src && video.src !== preferred)
-      submit(video.src, "page", null, group, title, title ? "video" : null, seconds, poster);
+      submit(video.src, "page", null, group, title, title ? kind : null, seconds, poster);
     // Each declared source matters, even before currentSrc becomes available.
     if (typeof video.querySelectorAll === "function") {
       let n = 0;
@@ -392,7 +406,7 @@
         const declared = item.src || attribute(item, "data-src");
         if (declared && declared !== preferred)
           submit(declared, "page", item.type || null, group,
-            title, title ? "video" : null, seconds, poster);
+            title, title ? kind : null, seconds, poster);
       }
     }
   }
@@ -421,7 +435,8 @@
         const value = attribute(element, name);
         if (value) submit(value, "page", attribute(element, "type") ||
           (name === "data-hls" || name === "data-m3u8" ? "application/vnd.apple.mpegurl" :
-            name === "data-mpd" ? "application/dash+xml" : null), groupFor(element));
+            name === "data-mpd" ? "application/dash+xml" : null), groupFor(element),
+          videoTitle(element), explicitVideoTitle(element) ? "player" : "video");
       }
     });
     scanCollection('meta[property^="og:video"],meta[name="twitter:player:stream"]', element => {
@@ -451,12 +466,12 @@
         if (kind === "VideoObject" || Array.isArray(kind) && kind.includes("VideoObject")) {
           const name = safeTitle(node.name);
           if (typeof node.contentUrl === "string")
-            submit(node.contentUrl, "page", null, null, name, "video", null,
+            submit(node.contentUrl, "page", null, null, name, "structured", null,
               typeof node.thumbnailUrl === "string" ? node.thumbnailUrl : null);
           const encodings = Array.isArray(node.encoding) ? node.encoding.slice(0, 8) : [node.encoding];
           for (const entry of encodings)
             if (entry && typeof entry.contentUrl === "string")
-              submit(entry.contentUrl, "page", null, null, name, "video", null,
+              submit(entry.contentUrl, "page", null, null, name, "structured", null,
                 typeof node.thumbnailUrl === "string" ? node.thumbnailUrl : null);
         }
         for (const field of ["@graph", "video", "mainEntity", "itemListElement"])
@@ -496,7 +511,8 @@
       // JSON-only own values: framework wrappers vary, source field names do not.
       // Budget is per script/config so an unrelated earlier script cannot starve it.
       for (const key of Object.keys(node).slice(0, 64)) {
-        if (node[key] && typeof node[key] === "object") walk(node[key], depth + 1, title,
+        if (node[key] && typeof node[key] === "object") walk(node[key], depth + 1,
+          ["sources", "source", "renditions", "variants", "encodings"].includes(key) ? title : null,
           ["sources", "source", "renditions", "variants"].includes(key) ? group : null,
           ["sources", "source", "renditions", "variants"].includes(key) ? poster : null);
       }

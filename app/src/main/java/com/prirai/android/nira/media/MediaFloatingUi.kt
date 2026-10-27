@@ -340,25 +340,7 @@ internal class MediaFloatingUi(
         sheetSnapshot = current()
     }
 
-    private fun tileItems(entries: List<MediaEntry>): List<VideoTileItem> =
-        entries.groupBy { it.groupId ?: "url:${it.url}" }.values.mapIndexed { index, found ->
-            val variants = found.sortedWith(compareByDescending<MediaEntry> { MediaSource.NETWORK in it.sources }
-                .thenByDescending { MediaSource.DOM in it.sources })
-            val bestTitle = variants.filter { !it.title.isNullOrBlank() }.maxByOrNull {
-                when (it.titleKind) { "video" -> 3; "link" -> 2; "page" -> 1; else -> 0 }
-            }
-            val title = bestTitle?.title ?: variants.firstNotNullOfOrNull { friendlyFileName(it.url) }
-                ?: "Film ${index + 1}"
-            VideoTileItem(found.minOf { it.id }, variants.first(), title, variants.size)
-        }
-
-    private fun friendlyFileName(url: String): String? {
-        val raw = try { URI(url).path?.substringAfterLast('/') } catch (_: Exception) { null }
-        val part = raw?.substringBeforeLast('.', raw)?.replace(Regex("[_-]+"), " ")?.trim() ?: return null
-        if (part.length !in 3..65 || !part.any { it.isLetter() } ||
-            part.lowercase(Locale.ROOT) in setOf("video", "master", "playlist", "index", "stream", "watch", "download", "manifest")) return null
-        return part
-    }
+    private fun tileItems(entries: List<MediaEntry>): List<VideoTileItem> = mediaTileItems(entries)
 
     private fun stale() = Toast.makeText(context, "Źródło nie jest już aktualne", Toast.LENGTH_SHORT).show()
 
@@ -367,3 +349,33 @@ internal class MediaFloatingUi(
             a.binding.contextId == b.binding.contextId && a.binding.isPrivate == b.binding.isPrivate &&
             a.pageUrl == b.pageUrl && a.loading == b.loading
 }
+
+// Pure mapping for unit tests: grouping, identity, and titles must stay coupled.
+internal fun mediaTileItems(entries: List<MediaEntry>): List<VideoTileItem> =
+    entries.groupBy { it.groupId ?: "url:${it.url}" }.values.mapIndexed { index, found ->
+        val variants = found.sortedWith(compareByDescending<MediaEntry> { MediaSource.NETWORK in it.sources }
+            .thenByDescending { MediaSource.DOM in it.sources })
+        val confident = variants.filter { !it.title.isNullOrBlank() &&
+            (it.titleKind != "page" || entries.size == 1) }
+        fun rank(kind: String?): Int = when (kind) {
+            "player" -> 5; "structured" -> 4; "video" -> 3
+            "link" -> 2; "page" -> 1; else -> 0
+        }
+        val maxRank = confident.maxOfOrNull { rank(it.titleKind) } ?: 0
+        val strongest = confident.filter { rank(it.titleKind) == maxRank }
+        // Conflicting highest-confidence variants must not silently take
+        // a title from whichever record happened to arrive first.
+        val bestTitle = strongest.mapNotNull { it.title }.distinct().singleOrNull()
+        val title = bestTitle ?: variants.firstNotNullOfOrNull { friendlyFileName(it.url) }
+            ?: "Film ${index + 1}"
+        VideoTileItem(found.minOf { it.id }, variants.first(), title, variants.size)
+    }
+
+private fun friendlyFileName(url: String): String? {
+    val raw = try { URI(url).path?.substringAfterLast('/') } catch (_: Exception) { null }
+    val part = raw?.substringBeforeLast('.', raw)?.replace(Regex("[_-]+"), " ")?.trim() ?: return null
+    if (part.length !in 3..65 || !part.any { it.isLetter() } ||
+        part.lowercase(Locale.ROOT) in setOf("video", "master", "playlist", "index", "stream", "watch", "download", "manifest")) return null
+    return part
+}
+
