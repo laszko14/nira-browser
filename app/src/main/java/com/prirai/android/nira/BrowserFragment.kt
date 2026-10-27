@@ -192,6 +192,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         binding.gestureLayout.addGestureListener(object : com.prirai.android.nira.browser.SwipeGestureListener {
             private var direction = 0
             private var travelled = 0f
+            private var labGesture: com.prirai.android.nira.diagnostics.testlab.OperationToken? = null
             override fun onSwipeStarted(start: android.graphics.PointF, next: android.graphics.PointF): Boolean {
                 val dx = next.x - start.x
                 val dy = next.y - start.y
@@ -212,6 +213,9 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                     else -> 0
                 }
                 travelled = 0f
+                labGesture=if(direction!=0)com.prirai.android.nira.diagnostics.testlab.TestLab.panelGesture(
+                    if(direction==1)com.prirai.android.nira.diagnostics.testlab.PanelSide.LEFT else com.prirai.android.nira.diagnostics.testlab.PanelSide.RIGHT,
+                    binding.gestureLayout.testLabGestureOrigin) else null
                 return direction != 0
             }
             override fun onSwipeUpdate(distanceX: Float, distanceY: Float) {
@@ -220,18 +224,32 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             override fun onSwipeFinished(velocityX: Float, velocityY: Float) {
                 val finishedDirection = direction
                 direction = 0
+                val lab=labGesture;labGesture=null
+                fun cancelLab()=com.prirai.android.nira.diagnostics.testlab.TestLab.end(lab,com.prirai.android.nira.diagnostics.testlab.OperationOutcome.CANCELLED)
+                var opened=false
                 if (kotlin.math.abs(travelled) < threshold || !isAdded ||
-                    parentFragmentManager.isStateSaved) return
+                    parentFragmentManager.isStateSaved) {cancelLab();return}
                 if (finishedDirection == 1 && travelled > 0 &&
                     parentFragmentManager.findFragmentByTag("NiraSideTabs") == null) {
+                    com.prirai.android.nira.diagnostics.testlab.TestLab.accept(lab)
+                    com.prirai.android.nira.diagnostics.testlab.TestLab.queuePanel(com.prirai.android.nira.diagnostics.testlab.PanelSide.LEFT,lab)
+                    opened=true
                     com.prirai.android.nira.browser.tabs.TabsBottomSheetFragment
                         .newSidePanel().show(parentFragmentManager, "NiraSideTabs")
                 }
                 if (finishedDirection == -1 && travelled < 0 &&
                     parentFragmentManager.findFragmentByTag("NiraSideBookmarks") == null) {
+                    com.prirai.android.nira.diagnostics.testlab.TestLab.accept(lab)
+                    com.prirai.android.nira.diagnostics.testlab.TestLab.queuePanel(com.prirai.android.nira.diagnostics.testlab.PanelSide.RIGHT,lab)
+                    opened=true
                     com.prirai.android.nira.browser.bookmark.ui.BookmarksBottomSheetFragment
                         .newSidePanel().show(parentFragmentManager, "NiraSideBookmarks")
                 }
+                if(!opened)cancelLab()
+            }
+            override fun onSwipeCancelled() {
+                com.prirai.android.nira.diagnostics.testlab.TestLab.end(labGesture,com.prirai.android.nira.diagnostics.testlab.OperationOutcome.CANCELLED)
+                labGesture=null;direction=0
             }
         })
     }
@@ -996,6 +1014,27 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         val selectedTab = store.state.tabs.find { it.id == store.state.selectedTabId }
         
         val menuItems = mutableListOf<com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem>()
+
+        menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+            id = "zavro_testlab", title = "Zavro TestLab • 60 s",
+            iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_settings_24,
+            onClick = { startActivity(android.content.Intent(requireContext(),
+                com.prirai.android.nira.diagnostics.testlab.TestLabActivity::class.java)) }
+        ))
+        if (com.prirai.android.nira.diagnostics.testlab.TestLab.busy) {
+            menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+                id = "testlab_marker", title = "TestLab: Zacięło się teraz",
+                iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_settings_24,
+                onClick = { if (com.prirai.android.nira.diagnostics.testlab.TestLab.mark())
+                    Toast.makeText(requireContext(), "Znacznik zapisany", Toast.LENGTH_SHORT).show() }
+            ))
+            menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+                id = "testlab_stop", title = "Zakończ TestLab • raport częściowy",
+                iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_cross_24,
+                onClick = { com.prirai.android.nira.diagnostics.testlab.TestLab.stop() }
+            ))
+        }
+
 
         menuItems.add(
             com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
