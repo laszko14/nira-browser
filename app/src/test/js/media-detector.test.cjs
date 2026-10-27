@@ -579,7 +579,7 @@ test("stage 4.0.2: concrete video title and duration take precedence", async () 
   await p.mutate();
   assert.equal(p.native.length, 1);
   assert.equal(p.native[0][1].title, "Dokładny tytuł nagrania");
-  assert.equal(p.native[0][1].titleKind, "video");
+  assert.equal(p.native[0][1].titleKind, "player");
   assert.equal(p.native[0][1].durationSeconds, 625);
 });
 
@@ -591,7 +591,7 @@ test("stage 4.0.2: JSON-LD name stays attached to its contentUrl", async () => {
   }]);
   await p.mutate();
   assert.equal(p.native[0][1].title, "Film z metadanych");
-  assert.equal(p.native[0][1].titleKind, "video");
+  assert.equal(p.native[0][1].titleKind, "structured");
 });
 
 test("stage 4.0.2: full Content-Length and partial Content-Range give size without fetch", async () => {
