@@ -766,6 +766,9 @@ async function inspectManifest(task) {
       // Parser-observed metadata is attached to exactly this document and manifest.
       isLive: !!parsed.live,
       contentType: task.format === "HLS" ? "application/vnd.apple.mpegurl" : "application/dash+xml" };
+    if (task.format === "HLS" && parsed.kind === "media" &&
+        Number.isSafeInteger(parsed.exactSizeBytes) && parsed.exactSizeBytes > 0)
+      verified.sizeBytes = parsed.exactSizeBytes;
     if (!parsed.live && Number.isSafeInteger(parsed.durationSeconds) &&
         parsed.durationSeconds > 0 && parsed.durationSeconds <= 604800)
       verified.durationSeconds = parsed.durationSeconds;
