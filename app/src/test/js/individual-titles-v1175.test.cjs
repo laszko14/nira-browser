@@ -29,6 +29,7 @@ class Element {
     });
   }
   contains(el) { return this === el || this.children.some(c => c.contains(el)); }
+  closest(selector) { for (let e=this; e; e=e.parentElement) if (e.matches(selector)) return e; return null; }
   querySelectorAll(selector) {
     const all = [];
     const walk = x => { for (const child of x.children) { all.push(child); walk(child); } };
@@ -103,4 +104,60 @@ test("SPA titles are re-evaluated without cross-card bleed", () => {
   assert.equal(videoTitle(video),"Old film");
   heading.textContent="Next film";
   assert.equal(videoTitle(video),"Next film");
+});
+
+function titleMutationRoots(records) {
+  // Exercise the actual content-script mutation handler with its queue stubbed.
+  const start = script.indexOf("  function titleMutationRoot(");
+  const end = script.indexOf("  function onMediaEvent(", start);
+  assert.ok(start > 0 && end > start);
+  const roots = [];
+  const mutationContext = {
+    enqueueRoot: root => { if (root) roots.push(root); },
+    attribute: (node, key) => node.getAttribute(key),
+    document: {},
+    scriptVersions: new WeakSet(), jobs: [], MAX_JOBS: 64,
+    note: () => {}, setTimeout: () => 1, pump: () => {},
+    alive: true, scanTimer: null, scheduled: false, overflowRoot: false,
+  };
+  vm.runInNewContext(script.slice(start, end) +
+    "\n globalThis.mutationScan = scheduleScan;", mutationContext);
+  mutationContext.mutationScan(records);
+  return roots;
+}
+
+test("late heading text change queues its one-video card, not neighbouring cards", () => {
+  const list = new Element("main");
+  const first = list.add(new Element("li"));
+  const heading = first.add(new Element("h3", {}, "", ""));
+  const video = first.add(new Element("video"));
+  const second = list.add(new Element("li"));
+  second.add(new Element("h3", {}, "", "Other film"));
+  second.add(new Element("video"));
+  assert.equal(videoTitle(video), null);
+  heading.textContent = "Odcinek ą 12: Finał";
+  const roots = titleMutationRoots([{type: "childList", target: heading, addedNodes: []}]);
+  assert.ok(roots.includes(first));
+  assert.ok(!roots.includes(second));
+  assert.equal(videoTitle(video), "Odcinek ą 12: Finał");
+});
+
+test("characterData and inserted caption trigger scoped rescans for same media link", () => {
+  const card = new Element("figure");
+  const heading = card.add(new Element("figcaption", {}, "", "Film"));
+  card.add(new Element("a", {href: "https://cdn.example/watch.mp4"}));
+  const textNode = {nodeType: 3, parentElement: heading};
+  assert.ok(titleMutationRoots([{type: "characterData", target: textNode, addedNodes: []}]).includes(card));
+  const fresh = card.add(new Element("h4", {}, "", "Late"));
+  assert.ok(titleMutationRoots([{type: "childList", target: card, addedNodes: [fresh]}]).includes(card));
+});
+
+test("global headings and multi-player cards cannot claim unrelated videos", () => {
+  const pageHeading = new Element("h1", {}, "", "Listing");
+  assert.ok(!titleMutationRoots([{type:"characterData", target: pageHeading, addedNodes: []}])
+    .some(e => e.tag === "li" || e.tag === "article"));
+  const card = new Element("article");
+  const heading = card.add(new Element("h2", {}, "", "Shared title"));
+  card.add(new Element("video")); card.add(new Element("video"));
+  assert.ok(!titleMutationRoots([{type:"childList", target: heading, addedNodes: []}]).includes(card));
 });
