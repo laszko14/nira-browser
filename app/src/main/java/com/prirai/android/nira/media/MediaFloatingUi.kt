@@ -449,11 +449,16 @@ internal class MediaFloatingUi(
                         stale()
                         fillSheet()
                     } else {
-                        val lab = TestLab.operation(LabOperation.VIDEO_EXTERNAL_OPEN)
+                        val lab = TestLab.operation(LabOperation.VIDEO_EXTERNAL_REQUEST)
                         TestLab.note(LabCode.VIDEO_EXTERNAL_REQUEST)
-                        openVideo(entry.id)
-                        // Native callback dispatched; third-party playback itself remains unverified.
-                        TestLab.end(lab, OperationOutcome.UNKNOWN)
+                        // Only the in-app callback is timed. No claim of third-party playback.
+                        try {
+                            openVideo(entry.id)
+                            TestLab.end(lab)
+                        } catch (failure: Throwable) {
+                            TestLab.end(lab, OperationOutcome.FAILED)
+                            throw failure
+                        }
                     }
                 }
             }, LinearLayout.LayoutParams(dp(48), dp(58)))

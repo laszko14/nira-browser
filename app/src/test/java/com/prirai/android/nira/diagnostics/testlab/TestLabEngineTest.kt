@@ -112,7 +112,7 @@ class TestLabEngineTest {
     }
     @Test fun noVideoIsNotTestedAndNotHealthyPlayback() {
         val e=engine();val t=running(e);advance(100);val report=finish(e,t)
-        assertEquals(Coverage.NOT_TESTED,report.testCoverage[LabOperation.VIDEO_EXTERNAL_OPEN])
+        assertEquals(Coverage.NOT_TESTED,report.testCoverage[LabOperation.VIDEO_EXTERNAL_REQUEST])
         assertEquals(Availability.NOT_EXPOSED_BY_PLATFORM,report.metricAvailability[LabMetric.GECKO_COMPOSITOR_FRAMES])
         assertEquals(Availability.NOT_EXPOSED_BY_PLATFORM,report.metricAvailability[LabMetric.GECKO_COMPOSITOR_FRAMES])
     }

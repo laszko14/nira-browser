@@ -36,7 +36,7 @@ import kotlinx.serialization.Serializable
     TAB_SWITCH(LabDomain.TABS), TAB_CLOSE(LabDomain.TABS), TAB_UNDO(LabDomain.TABS), TAB_MOVE(LabDomain.TABS),
     ORDER_SAVE(LabDomain.TABS), PROFILE_SWITCH(LabDomain.TABS), PRIVATE_SWITCH(LabDomain.TABS), SESSION_RESTORE(LabDomain.TABS),
     PAGE_LOAD(LabDomain.GECKO), HISTORY_NAVIGATION(LabDomain.GECKO), PAGE_SCROLL(LabDomain.GECKO),
-    VIDEO_PANEL(LabDomain.VIDEO), VIDEO_EXTERNAL_OPEN(LabDomain.VIDEO), VIDEO_MENU(LabDomain.VIDEO),
+    VIDEO_PANEL(LabDomain.VIDEO), VIDEO_EXTERNAL_REQUEST(LabDomain.VIDEO), VIDEO_MENU(LabDomain.VIDEO),
     TOOLBAR_HIDE(LabDomain.UI), TOOLBAR_SHOW(LabDomain.UI), TOOLBAR_MINIMIZE(LabDomain.UI), TOOLBAR_RESTORE(LabDomain.UI), MENU_OPEN(LabDomain.UI), FAB_OPEN(LabDomain.UI),
     ORIENTATION_CHANGE(LabDomain.UI), KEYBOARD_CHANGE(LabDomain.UI);
     val tag:String = name.lowercase(java.util.Locale.ROOT)
