@@ -4,12 +4,12 @@ import kotlinx.serialization.Serializable
 
 @Serializable enum class LabDomain { UI, PANELS, TABS, GECKO, VIDEO, RESOURCES, STABILITY }
 @Serializable enum class TestType {
-    COMPLEX, PANELS_GESTURES, TABS_GROUPS, GECKO_PAGES, VIDEO_DISCOVERY, RESOURCES, STABILITY;
+    COMPLEX, PANELS_GESTURES, TABS_GROUPS, GECKO_PAGES, VIDEO_DISCOVERY, RESOURCES, STABILITY, VIDEO_METADATA;
     fun includes(domain: LabDomain): Boolean = domain==LabDomain.UI || this==COMPLEX || when(this) {
         PANELS_GESTURES->domain==LabDomain.PANELS
         TABS_GROUPS->domain==LabDomain.TABS
         GECKO_PAGES->domain==LabDomain.GECKO
-        VIDEO_DISCOVERY->domain==LabDomain.VIDEO
+        VIDEO_DISCOVERY, VIDEO_METADATA->domain==LabDomain.VIDEO
         RESOURCES->domain==LabDomain.RESOURCES
         STABILITY->domain==LabDomain.STABILITY
         COMPLEX->true
@@ -90,6 +90,7 @@ data class OperationToken internal constructor(internal val session:Long,interna
     val limitations:List<Limitation>,val exportTruncated:Boolean=false,
     val maxPendingHeartbeatMs:Double?=null,val pendingHeartbeatSamples:Long=0,val finalizationDelayMs:Double=0.0,
     val videoDiscovery:VideoDiscoverySummary?=null,
+    val videoMetadata:VideoMetadataSummary?=null,
 )
 
 @Serializable data class VideoDiscoveryFilm(
@@ -106,3 +107,19 @@ data class OperationToken internal constructor(internal val session:Long,interna
     val examples:List<VideoDiscoveryFilm>,
 )
 
+
+/** Sanitized temporary IDs, never exported with URL, title, tokens or profile. */
+@Serializable data class VideoMetadataFilm(
+    val film: Int, val format: String, val durationStatus: String,
+    val durationSource: String, val sizeStatus: String, val sizeSource: String,
+    val durationSeconds: Int?, val sizeBytes: Long?, val uiDisplayed: Boolean,
+    val updates: Int,
+)
+
+@Serializable data class VideoMetadataSummary(
+    val observedSources: Int, val durationKnown: Int, val sizeExact: Int,
+    val sizeEstimated: Int, val live: Int, val durationUnknown: Int,
+    val sizeUnknown: Int, val uiDisplayed: Int, val updates: Int,
+    val navigations: Int, val droppedSources: Int,
+    val examples: List<VideoMetadataFilm>,
+)
