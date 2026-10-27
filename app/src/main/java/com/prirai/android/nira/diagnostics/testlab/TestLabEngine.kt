@@ -42,8 +42,6 @@ class TestLabEngine(
     private val markerTimes=ArrayList<Long>(32)
     private val observations=ArrayList<Observation>(32)
     private val unavailable=mutableMapOf<LabMetric,Availability>()
-    private var positionSamples=0L;private var incrementalSeconds=0.0;private var positionJumps=0L;private var playerSessions=0L
-    private var speedSamples=0L;private var speedChanges=0L;private var minSpeed:Double?=null;private var maxSpeed:Double?=null
     private var pendingHeartbeatCount=0L;private var pendingHeartbeatMax:Long?=null
     private var heartbeatCount=0L
     private var heartbeatMax:Long?=null
@@ -59,8 +57,6 @@ class TestLabEngine(
         operationSerial=0;droppedOperations=0;heartbeatCount=0;heartbeatMax=null;activeOperationMask=0
         lastSlowFrameOffset=-1_000_000_000L
         pendingHeartbeatCount=0;pendingHeartbeatMax=null
-        positionSamples=0;incrementalSeconds=0.0;positionJumps=0;playerSessions=0
-        speedSamples=0;speedChanges=0;minSpeed=null;maxSpeed=null
         phase=LabPhase.PREPARING
         return token
     }
@@ -184,17 +180,6 @@ class TestLabEngine(
         if(sample.offsetNanos>at)return false
         resources.add(sample);return true
     }
-    @Synchronized internal fun position(session:SessionToken,increment:Double,jump:Boolean,newOwner:Boolean) {
-        if(writable(session)==null||!type.includes(LabDomain.VIDEO))return
-        if(!increment.isFinite()||increment !in 0.0..5.0){errors[LabError.INVALID_SAMPLE.ordinal]++;return}
-        positionSamples++;incrementalSeconds+=increment;if(jump)positionJumps++;if(newOwner)playerSessions++
-    }
-    @Synchronized internal fun speed(session:SessionToken,value:Double,changed:Boolean) {
-        if(writable(session)==null||!type.includes(LabDomain.VIDEO))return
-        if(!value.isFinite()||value !in 0.01..100.0){errors[LabError.INVALID_SAMPLE.ordinal]++;return}
-        speedSamples++;if(changed)speedChanges++
-        minSpeed=minOf(minSpeed?:value,value);maxSpeed=maxOf(maxSpeed?:value,value)
-    }
     @Synchronized fun pendingHeartbeat(session:SessionToken,ageNanos:Long,generation:Long):Boolean {
         val at=writable(session)?:return false
         if(!isForeground||generation!=foregroundGeneration||ageNanos !in 0..DURATION_NS)return false
@@ -289,10 +274,8 @@ class TestLabEngine(
             LabMetric.PROCESS_PSS to measured(LabMetric.PROCESS_PSS,resource.pssMaxBytes!=null),
             LabMetric.PROCESS_USS to measured(LabMetric.PROCESS_USS,resource.ussMaxBytes!=null),
             LabMetric.PROCESS_CPU to measured(LabMetric.PROCESS_CPU,resource.cpuMeanOneCorePercent!=null),
-            LabMetric.MPV_POSITION_UPDATES to measured(LabMetric.MPV_POSITION_UPDATES,positionSamples>0),
-            LabMetric.MPV_SPEED_VALUES to measured(LabMetric.MPV_SPEED_VALUES,speedSamples>0),
             LabMetric.MAIN_HEARTBEAT to measured(LabMetric.MAIN_HEARTBEAT,heartbeatCount>0),
-        )+listOf(LabMetric.SYSTEM_WINDOW_ANIMATION_END,LabMetric.POPUP_WINDOW_FRAMES,LabMetric.GECKO_COMPOSITOR_FRAMES,LabMetric.MPV_PRESENTED_FRAMES,LabMetric.APP_ENERGY,LabMetric.DUAL_AUDIO)
+        )+listOf(LabMetric.SYSTEM_WINDOW_ANIMATION_END,LabMetric.POPUP_WINDOW_FRAMES,LabMetric.GECKO_COMPOSITOR_FRAMES,LabMetric.APP_ENERGY)
             .associateWith{Availability.NOT_EXPOSED_BY_PLATFORM}
         val measuredSources=mapOf(
             LabMetric.ANDROID_UI_FRAMES to MetricSource.JANKSTATS_WINDOW,
@@ -302,15 +285,14 @@ class TestLabEngine(
             LabMetric.FRAME_OVERRUN to MetricSource.JANKSTATS_API31,
             LabMetric.JAVA_HEAP to MetricSource.RUNTIME_HEAP,LabMetric.NATIVE_HEAP to MetricSource.DEBUG_NATIVE_HEAP,
             LabMetric.PROCESS_PSS to MetricSource.DEBUG_MEMORY_INFO,LabMetric.PROCESS_USS to MetricSource.DEBUG_MEMORY_INFO,
-            LabMetric.MPV_POSITION_UPDATES to MetricSource.MPV_PROPERTY_CALLBACK,LabMetric.MPV_SPEED_VALUES to MetricSource.MPV_PROPERTY_CALLBACK,
             LabMetric.PROCESS_CPU to MetricSource.PROCESS_CPU_TIME,LabMetric.MAIN_HEARTBEAT to MetricSource.MAIN_LOOPER_ACK,
         )
         val sources=LabMetric.entries.associateWith{measuredSources[it]?:MetricSource.UNAVAILABLE}
         val events=timeline.toList()
         val markers=markerTimes.map{time->AnomalyMarker(time,events.filter{abs(it.offsetNanos-time)<=3_000_000_000L}
             .sortedBy{abs(it.offsetNanos-time)}.take(32).sortedBy{it.offsetNanos}.map{it.serial})}
-        val limitations=mutableListOf(Limitation.ANDROID_WINDOW_ONLY,Limitation.MULTIPLE_WINDOW_FRAMES,Limitation.HANDOFF_OWNER_CORRELATION,Limitation.PREDRAW_NOT_WINDOW_ANIMATION_END,Limitation.NO_POPUP_WINDOW_FRAMES,Limitation.NO_GECKO_COMPOSITOR,
-            Limitation.NO_MPV_PRESENTED_FRAMES,Limitation.MAIN_PROCESS_RESOURCES_ONLY,Limitation.NO_AUDIO_PATH_MEASUREMENT,
+        val limitations=mutableListOf(Limitation.ANDROID_WINDOW_ONLY,Limitation.MULTIPLE_WINDOW_FRAMES,Limitation.PREDRAW_NOT_WINDOW_ANIMATION_END,Limitation.NO_POPUP_WINDOW_FRAMES,Limitation.NO_GECKO_COMPOSITOR,
+            Limitation.MAIN_PROCESS_RESOURCES_ONLY,
             Limitation.NO_PRECISE_ENERGY,Limitation.HISTOGRAM_PERCENTILES,Limitation.NO_CRASH_DOES_NOT_PROVE_STABILITY)
         if(covered<endedOffset)limitations.add(Limitation.COVERAGE_GAPS)
         if(evicted>0)limitations.add(Limitation.BOUNDED_TIMELINE)
@@ -325,7 +307,6 @@ class TestLabEngine(
             anomalyMarkers=markers,anomalies=observations.toList(),testCoverage=coverage,
             foregroundMs=covered/1_000_000.0,noCoverageMs=(endedOffset-covered).coerceAtLeast(0)/1_000_000.0,
             evictedEvents=evicted,droppedOperations=droppedOperations,incompleteOperations=incomplete,
-            playbackMetrics=if(positionSamples>0||speedSamples>0)PlaybackMetrics(positionSamples,incrementalSeconds,positionJumps,playerSessions,speedSamples,speedChanges,minSpeed,maxSpeed)else null,
             maxPendingHeartbeatMs=pendingHeartbeatMax?.div(1_000_000.0),pendingHeartbeatSamples=pendingHeartbeatCount,
             finalizationDelayMs=((offset()?:endedOffset)-endedOffset).coerceAtLeast(0)/1_000_000.0,
             maxHeartbeatDelayMs=heartbeatMax?.div(1_000_000.0),heartbeatSamples=heartbeatCount,limitations=limitations,

@@ -144,7 +144,7 @@ class TestLabEngineTest {
     @Test fun everyMetricHasAnExplicitSourceEvenWhenUnsupported() {
         val e=engine();val t=running(e);advance(1);val report=finish(e,t)
         assertEquals(LabMetric.entries.toSet(),report.metricSources.keys)
-        assertEquals(MetricSource.UNAVAILABLE,report.metricSources[LabMetric.DUAL_AUDIO])
+        assertEquals(MetricSource.UNAVAILABLE,report.metricSources[LabMetric.GECKO_COMPOSITOR_FRAMES])
     }
     @Test fun appIdentityCannotCreateAnUnboundedReportHeader() {
         assertThrows(IllegalArgumentException::class.java){LabIdentity(1168,"0."+"1".repeat(1000)+"-alpha73-clean")}

@@ -13,6 +13,4 @@ internal class LabCapture(private val engine:TestLabEngine,internal val session:
     fun check(op:OperationToken?,correct:Boolean,invariant:LabInvariant){if(op!=null&&op.session==session.serial&&!correct)engine.invariant(session,invariant)}
     fun note(code:LabCode,value:Double?=null,count:Int=1){if(allows(code.domain()))engine.note(session,code,value,count)}
     fun error(reason:LabError=LabError.COLLECTOR_FAILURE){engine.error(session,reason)}
-    fun position(increment:Double,jump:Boolean,newOwner:Boolean){engine.position(session,increment,jump,newOwner)}
-    fun speed(value:Double,changed:Boolean){engine.speed(session,value,changed)}
 }
