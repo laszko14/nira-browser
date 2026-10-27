@@ -344,10 +344,18 @@ internal class MediaFloatingUi(
         entries.groupBy { it.groupId ?: "url:${it.url}" }.values.mapIndexed { index, found ->
             val variants = found.sortedWith(compareByDescending<MediaEntry> { MediaSource.NETWORK in it.sources }
                 .thenByDescending { MediaSource.DOM in it.sources })
-            val bestTitle = variants.filter { !it.title.isNullOrBlank() }.maxByOrNull {
-                when (it.titleKind) { "video" -> 3; "link" -> 2; "page" -> 1; else -> 0 }
+            val confident = variants.filter { !it.title.isNullOrBlank() &&
+                (it.titleKind != "page" || entries.size == 1) }
+            fun rank(kind: String?): Int = when (kind) {
+                "player" -> 5; "structured" -> 4; "video" -> 3
+                "link" -> 2; "page" -> 1; else -> 0
             }
-            val title = bestTitle?.title ?: variants.firstNotNullOfOrNull { friendlyFileName(it.url) }
+            val maxRank = confident.maxOfOrNull { rank(it.titleKind) } ?: 0
+            val strongest = confident.filter { rank(it.titleKind) == maxRank }
+            // Conflicting highest-confidence variants must not silently take
+            // a title from whichever record happened to arrive first.
+            val bestTitle = strongest.mapNotNull { it.title }.distinct().singleOrNull()
+            val title = bestTitle ?: variants.firstNotNullOfOrNull { friendlyFileName(it.url) }
                 ?: "Film ${index + 1}"
             VideoTileItem(found.minOf { it.id }, variants.first(), title, variants.size)
         }
