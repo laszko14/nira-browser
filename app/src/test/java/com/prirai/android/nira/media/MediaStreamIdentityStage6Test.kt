@@ -74,6 +74,22 @@ class MediaStreamIdentityStage6Test {
         assertEquals(2, record.revisionCount)
     }
 
+    @Test fun repeatedCurrentSignedUrlAfterRefreshNeverCreatesAnotherRecord() {
+        val repository = repo()
+        val first = aws("FIRST")
+        val fresh = aws("CURRENT", date = "20261027T120000Z")
+        add(repository, first, 10, "manifest-1-1")
+        val initial = repository.currentEntries(tab).single().id
+        add(repository, fresh, 11, "manifest-1-1", verification = "stream_verified")
+        assertEquals(MediaRepository.InsertResult.DUPLICATE,
+            add(repository, fresh, 12, "manifest-1-1",
+                verification = "stream_verified"))
+        val record = repository.currentEntries(tab).single()
+        assertEquals(initial, record.id)
+        assertEquals(fresh, record.url)
+        assertEquals(2, record.revisionCount)
+    }
+
     @Test fun sameSequenceDifferentSignatureCannotDisplaceConfirmedUrl() {
         val repository = repo()
         val old = aws("FIRST")
