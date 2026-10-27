@@ -55,7 +55,7 @@ class AppRequestInterceptor(val context: Context) : RequestInterceptor {
         isSubframeRequest: Boolean
     ): InterceptionResponse? {
         if (uri.startsWith("https://accounts.firefox.com")) {
-            Log.d("FxaAuth", "onLoadRequest: url=$uri fxaInterceptorNull=${fxaInterceptor == null}")
+            Log.d("FxaAuth", "oauth_request interceptor_present=${fxaInterceptor != null}")
         }
         // Let the FxA interceptor handle the OAuth redirect first.
         fxaInterceptor?.onLoadRequest(
@@ -230,6 +230,9 @@ class AppRequestInterceptor(val context: Context) : RequestInterceptor {
             return RequestInterceptor.ErrorResponse(uri)
         }
 
+        com.prirai.android.nira.diagnostics.testlab.TestLab.geckoError(session)
+        if(riskLevel==ErrorCategory.SSL)com.prirai.android.nira.diagnostics.testlab.TestLab.note(com.prirai.android.nira.diagnostics.testlab.LabCode.GECKO_TLS_ERROR)
+        if(riskLevel==ErrorCategory.Malware)com.prirai.android.nira.diagnostics.testlab.TestLab.note(com.prirai.android.nira.diagnostics.testlab.LabCode.GECKO_BLOCKED)
         val errorPageUri = ErrorPages.createUrlEncodedErrorPage(
             context = context,
             errorType = errorType,
@@ -334,96 +337,6 @@ class AppRequestInterceptor(val context: Context) : RequestInterceptor {
     // This function is no longer used - about:homepage now loads from assets/homepage.html
 
     
-
-    /**
-     * Handles cross-domain link clicks by creating new tabs instead of navigating current tab.
-     * Same-domain links navigate in current tab, cross-domain links create new grouped tabs.
-     */
-    private fun handleCrossDomainLinkInterception(
-        engineSession: EngineSession,
-        newUri: String,
-        lastUri: String?
-    ): Boolean {
-        // Skip internal URLs
-        if (newUri.startsWith("about:") || 
-            newUri.startsWith("chrome:") || 
-            newUri.startsWith("file:") ||
-            newUri.isBlank() ||
-            lastUri.isNullOrBlank()) {
-            return false
-        }
-        
-        try {
-            val store = context.components.store
-            val currentTab = store.state.tabs.find { tab ->
-                tab.engineState.engineSession == engineSession
-            }
-            
-            if (currentTab != null) {
-                val currentDomain = extractDomain(lastUri)
-                val targetDomain = extractDomain(newUri)
-                
-                
-                // If domains are different, open in new tab and group
-                if (currentDomain != targetDomain && 
-                    currentDomain != "unknown" && 
-                    targetDomain != "unknown") {
-                    
-                    
-                    // Create new tab for cross-domain link
-                    CoroutineScope(Dispatchers.Main).launch {
-                        try {
-                            val tabsUseCases = context.components.tabsUseCases
-                            val tabGroupManager = context.components.tabGroupManager
-                            
-                            val newTabId = tabsUseCases.addTab.invoke(
-                                url = newUri,
-                                selectTab = true,
-                                source = mozilla.components.browser.state.state.SessionState.Source.Internal.UserEntered
-                            )
-                            
-                            // Group with source tab
-                            tabGroupManager.handleNewTabFromLink(
-                                newTabId = newTabId,
-                                newTabUrl = newUri,
-                                sourceTabId = currentTab.id,
-                                sourceTabUrl = lastUri
-                            )
-
-                        } catch (e: Exception) {
-                            // Non-fatal: auto-grouping the newly opened cross-
-                            // domain tab failed. The tab itself is still open
-                            // and usable.
-                            android.util.Log.w("AppRequestInterceptor", "Cross-domain auto-group failed", e)
-                        }
-                    }
-
-                    // Return true to deny the original navigation (prevent same-tab navigation)
-                    return true
-                } else {
-                    // Same domain - allow normal navigation in current tab
-                    return false
-                }
-            }
-        } catch (e: Exception) {
-            // If the cross-domain heuristic itself throws, fall back to letting
-            // the engine handle the navigation normally.
-            android.util.Log.w("AppRequestInterceptor", "Cross-domain heuristic failed", e)
-        }
-
-        return false
-    }
-
-    /**
-     * Extract domain from URL for comparison.
-     */
-    private fun extractDomain(url: String): String {
-        return try {
-            url.toUri().host?.replace("www.", "") ?: "unknown"
-        } catch (e: Exception) {
-            "unknown"
-        }
-    }
 
     companion object {
         internal const val NETWORK_ERROR_PAGE = "network_error_page.html"

@@ -131,6 +131,10 @@ open class Components(private val applicationContext: Context) {
         com.prirai.android.nira.browser.tabgroups.UnifiedTabGroupManager.getInstance(applicationContext)
     }
 
+    val tabGroupMiddleware by lazy {
+        com.prirai.android.nira.browser.tabgroups.TabGroupMiddleware(lazy { tabGroupManager })
+    }
+
     val fileSizeFormatter by lazy { DefaultFileSizeFormatter(applicationContext) }
 
     val dateTimeProvider by lazy { DefaultDateTimeProvider() }
@@ -380,7 +384,7 @@ open class Components(private val applicationContext: Context) {
                         ReaderViewMiddleware(),
                         ThumbnailsMiddleware(thumbnailStorage),
                         FaviconMiddleware(faviconCache),
-                        UndoMiddleware(),
+                        com.prirai.android.nira.browser.profile.ProfileMigrationGuard.undoMiddleware(UndoMiddleware()),
                         RegionMiddleware(
                                 applicationContext,
                                 LocationService.default()
@@ -416,10 +420,9 @@ open class Components(private val applicationContext: Context) {
                         // Pass the Lazy directly so adding the middleware to the
                         // store does not force tabGroupManager construction (which
                         // opens a Room database on first touch).
-                        com.prirai.android.nira.browser.tabgroups.TabGroupMiddleware(
-                            lazy { tabGroupManager }
-                        ),
+                        tabGroupMiddleware,
                         profileMiddleware,  // Use the exposed instance
+                        com.prirai.android.nira.diagnostics.testlab.TestLabMiddleware(),
                         SessionPrioritizationMiddleware(),
                         TranslationsMiddleware(
                             engine = engine,

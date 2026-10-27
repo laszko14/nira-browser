@@ -9,6 +9,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -167,7 +168,7 @@ fun GroupContainerListItem(
 
                     // Group name
                     Text(
-                        text = title,
+                        text = "(${children.size}) $title",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -176,26 +177,6 @@ fun GroupContainerListItem(
                         modifier = Modifier.weight(1f)
                     )
 
-                    // Tab count badge
-                    Surface(
-                        shape = CircleShape,
-                        color = Color(color).copy(alpha = 0.2f),
-                        border = BorderStroke(2.dp, Color(color))
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .padding(horizontal = 12.dp, vertical = 4.dp)
-                                .defaultMinSize(minWidth = 24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = children.size.toString(),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = Color(color),
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
                 }
 
                 // Options button
@@ -377,6 +358,7 @@ private fun GroupedTabListItem(
             isSelected = isSelected,
             groupColor = groupColor,
             onTabClick = onTabClick,
+            onTabLongPress = onShowTabMenu,
             onTabClose = onTabClose,
             modifier = Modifier
                 .draggableItem(
@@ -402,12 +384,14 @@ private fun GroupedTabListItem(
  * Has no own background Surface — relies on the parent surfaceContainerHigh container.
  * Selected state is shown via a subtle background tint on the row.
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun GroupedTabRow(
     tab: TabSessionState,
     isSelected: Boolean,
     groupColor: Int,
     onTabClick: () -> Unit,
+    onTabLongPress: () -> Unit,
     onTabClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -418,7 +402,7 @@ private fun GroupedTabRow(
                 if (isSelected) MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.5f)
                 else Color.Transparent
             )
-            .clickable { onTabClick() }
+            .combinedClickable(onClick = onTabClick, onLongClick = onTabLongPress)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -574,7 +558,7 @@ fun GroupContainerGridItem(
 
                     // Group name
                     Text(
-                        text = title,
+                        text = "(${children.size}) $title",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -583,26 +567,6 @@ fun GroupContainerGridItem(
                         modifier = Modifier.weight(1f)
                     )
 
-                    // Tab count badge
-                    Surface(
-                        shape = CircleShape,
-                        color = Color(color).copy(alpha = 0.2f),
-                        border = BorderStroke(2.dp, Color(color))
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .padding(horizontal = 12.dp, vertical = 4.dp)
-                                .defaultMinSize(minWidth = 24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = children.size.toString(),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = Color(color),
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
                 }
 
                 // Options button

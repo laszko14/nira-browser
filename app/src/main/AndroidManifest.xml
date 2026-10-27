@@ -34,7 +34,7 @@
         android:name=".BrowserApp"
         android:allowBackup="true"
         android:fullBackupContent="@xml/backup_rules"
-        android:dataExtractionRules="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -73,6 +73,9 @@
         />
 
     <!-- Custom Tabs Activity for external apps -->
+    <activity android:name=".diagnostics.testlab.TestLabActivity"
+        android:exported="false" android:theme="@style/AppThemeNotActionBar" />
+
     <activity
             android:name=".customtabs.ExternalAppBrowserActivity"
             android:autoRemoveFromRecents="true"

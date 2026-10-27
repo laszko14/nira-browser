@@ -15,6 +15,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -87,7 +89,7 @@ fun SwipeableTabPill(
     Box(
         modifier = modifier
             .height(32.dp)
-            .width(100.dp)
+            .width(40.dp)
     ) {
         // Background indicator based on swipe direction
         if (abs(offsetY) > 5f) {
@@ -192,26 +194,18 @@ fun SwipeableTabPill(
                 modifier = Modifier
                     .fillMaxSize()
                     .clickable(onClick = onTabClick)
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                    .semantics { contentDescription = getTabDisplayTitle(tab) }
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.Center
             ) {
                 // Favicon
                 FaviconImage(
                     tab = tab,
-                    size = 14.dp
+                    size = 22.dp
                 )
 
-                // Title
-                Text(
-                    text = getTabDisplayTitle(tab),
-                    style = MaterialTheme.typography.labelSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f)
-                )
+
             }
         }
     }

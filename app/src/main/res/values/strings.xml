@@ -5,7 +5,7 @@
   <string name="video_link_invalid">Enter a valid HTTPS video link</string>
   <string name="choose_video_player">Choose a video player</string>
   <string name="no_video_player">No video player available</string>
-  <string name="app_name" translatable="false">Nira Browser</string>
+  <string name="app_name" translatable="false">Zavro</string>
   <string
         name="url_project"
         translatable="false"

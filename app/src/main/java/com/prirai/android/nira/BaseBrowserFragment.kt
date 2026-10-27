@@ -547,14 +547,13 @@ abstract class BaseBrowserFragment : Fragment(), UserInteractionHandler, Activit
             val primaryTextColor = ContextCompat.getColor(requireContext(), R.color.primary_icon)
             binding.swipeRefresh.setColorSchemeColors(primaryTextColor)
             
-            // Set the refresh icon to start from below the status bar
-            val statusBarHeight = resources.getDimensionPixelSize(
-                resources.getIdentifier("status_bar_height", "dimen", "android")
-            )
+            // SwipeRefreshLayout is positioned below pinned chrome by a
+            // top margin, so its progress offset must be relative to its
+            // own touch area instead of counting the status bar twice.
             binding.swipeRefresh.setProgressViewOffset(
                 false,
-                statusBarHeight,
-                statusBarHeight + resources.getDimensionPixelSize(R.dimen.browser_toolbar_height)
+                0,
+                resources.getDimensionPixelSize(R.dimen.browser_toolbar_height)
             )
             
             swipeRefreshFeature.set(
@@ -714,8 +713,9 @@ abstract class BaseBrowserFragment : Fragment(), UserInteractionHandler, Activit
         val context = requireContext()
         val prefs = UserPreferences(context)
 
-        // Enable dynamic toolbar with toolbar height for content coordination
-        binding.engineView.setDynamicToolbarMaxHeight(toolbarHeight)
+        // The pinned unified toolbar is reserved by SwipeRefreshLayout margins,
+        // not Gecko's dynamic-toolbar viewport insets (which double-reserve).
+        binding.engineView.setDynamicToolbarMaxHeight(0)
         
         // Get actual toolbar height (may differ from parameter if components are hidden)
         // Use post to ensure toolbar is measured
@@ -725,11 +725,9 @@ abstract class BaseBrowserFragment : Fragment(), UserInteractionHandler, Activit
 
             val actualToolbarHeight = unifiedToolbar?.height ?: toolbarHeight
 
-            // Reserve layout space for the pinned toolbar. BOTTOM-mode uses
-            // bottomMargin on swipeRefresh (which shortens the engine view's
-            // layout bounds so page content never draws under the toolbar);
-            // TOP-mode uses top padding (so SwipeRefreshLayout's own
-            // overscroll indicator still draws from the real top edge).
+            // Reserve layout space for pinned chrome. A top margin rather
+            // than SwipeRefreshLayout padding keeps its gesture surface
+            // aligned with GeckoView and prevents intermittent dead pulls.
             //
             // UnifiedToolbar.reconcileEngineViewHeight() updates these
             // values whenever the toolbar's visible height changes
@@ -744,8 +742,8 @@ abstract class BaseBrowserFragment : Fragment(), UserInteractionHandler, Activit
                     swipeRefreshParams.topMargin = 0
                 }
                 else -> {
-                    binding.swipeRefresh.setPadding(0, actualToolbarHeight, 0, 0)
-                    swipeRefreshParams.topMargin = 0
+                    binding.swipeRefresh.setPadding(0, 0, 0, 0)
+                    swipeRefreshParams.topMargin = actualToolbarHeight
                     swipeRefreshParams.bottomMargin = 0
                 }
             }
@@ -1090,8 +1088,10 @@ abstract class BaseBrowserFragment : Fragment(), UserInteractionHandler, Activit
             onFullScreenModeChanged(false)
         }
 
-        // Keep swipe refresh disabled - we use custom gesture for fullscreen
-        binding.swipeRefresh.isEnabled = false
+        // Fullscreen must disable pull-to-refresh, but returning to a web
+        // page MUST restore the user's setting. Previously this always
+        // remained false after fullscreen exit until another tab event.
+        binding.swipeRefresh.isEnabled = !inFullScreen && shouldPullToRefreshBeEnabled()
     }
     
     /**

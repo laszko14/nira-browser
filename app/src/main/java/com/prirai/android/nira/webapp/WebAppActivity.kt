@@ -8,6 +8,7 @@ import android.view.View
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -141,18 +142,24 @@ class WebAppActivity : AppCompatActivity() {
         if (intent == null) return null
 
 
-        intent.getStringExtra(EXTRA_WEB_APP_URL)?.let { return it }
+        intent.getStringExtra(EXTRA_WEB_APP_URL)?.let { return it.takeIf(::isWebLaunchUrl) }
 
-        intent.getWebAppManifest()?.startUrl?.let { return it }
+        intent.getWebAppManifest()?.startUrl?.let { return it.takeIf(::isWebLaunchUrl) }
 
-        intent.data?.toString()?.let { return it }
+        intent.data?.toString()?.let { return it.takeIf(::isWebLaunchUrl) }
 
         if (intent.action == Intent.ACTION_VIEW) {
-            intent.dataString?.let { return it }
+            intent.dataString?.let { return it.takeIf(::isWebLaunchUrl) }
         }
 
         return null
     }
+
+    private fun isWebLaunchUrl(value: String): Boolean = runCatching {
+        val uri = java.net.URI(value)
+        uri.scheme?.lowercase() in setOf("http", "https") &&
+            !(uri.host ?: value.toUri().host).isNullOrBlank()
+    }.getOrDefault(false)
 
     private fun setupSystemBars() {
         // Enable edge-to-edge with standardized approach

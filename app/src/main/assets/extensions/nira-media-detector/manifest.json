@@ -1,0 +1,42 @@
+{
+  "manifest_version": 2,
+  "name": "Nira Media Detector",
+  "version": "1.7.0",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "nira-media-detector@prirai.android.nira"
+    }
+  },
+  "permissions": [
+    "nativeMessaging",
+    "nativeMessagingFromContent",
+    "geckoViewAddons",
+    "webRequest",
+    "webNavigation",
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "scripts": [
+      "manifest-parser.js",
+      "background.js"
+    ],
+    "persistent": true
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js",
+        "full-titles.js",
+        "preview-assist.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true,
+      "match_about_blank": true
+    }
+  ]
+}

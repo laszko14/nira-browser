@@ -40,22 +40,40 @@
 
     </PreferenceCategory>
 
-    <PreferenceCategory android:title="Toolbar &amp; Navigation">
+    <PreferenceCategory android:title="Toolbar &amp; Navigation" app:key="nira_toolbar_nav_section">
         
+        <!-- Compact top-only browsing: redundant toolbar switches removed. -->
+        <SeekBarPreference app:key="nira_address_height_dp"
+            app:title="Wysokość paska adresu" android:max="80"
+            app:min="40" app:defaultValue="56"
+            app:showSeekBarValue="true" app:updatesContinuously="true" />
+        <SeekBarPreference app:key="nira_tab_strip_height_dp"
+            app:title="Wysokość paska kart" android:max="80"
+            app:min="40" app:defaultValue="48"
+            app:showSeekBarValue="true" app:updatesContinuously="true" />
         <com.prirai.android.nira.settings.MaterialSwitchPreference
-            app:key="@string/key_move_navbar"
-            app:title="@string/move_navbar"
-            app:singleLineTitle="false"
-            app:defaultValue="false" />
-
-
-
-        <com.prirai.android.nira.settings.MaterialSwitchPreference
-            app:key="@string/key_show_contextual_toolbar"
-            app:title="@string/show_contextual_toolbar"
-            app:summary="@string/show_contextual_toolbar_desc"
-            app:singleLineTitle="false"
+            app:key="nira_group_chips_visible"
+            app:title="Pokazuj pasek grup kart"
+            app:summary="Wszystkie / nazwy grup nad ikonami kart. Grupy pozostają dostępne w panelu kart."
             app:defaultValue="true" />
+        <com.prirai.android.nira.settings.MaterialSwitchPreference
+            app:key="nira_group_bar_bottom"
+            app:title="Pasek grup i kart na dole"
+            app:summary="Przenieś dodatkowy pasek nad systemową nawigację Androida; adres zostanie na górze. Wymaga restartu."
+            app:defaultValue="false" />
+        <SeekBarPreference app:key="nira_toolbar_action_slot_dp"
+            app:title="Szerokość przycisków (dp)"
+            android:max="52" app:min="40" app:defaultValue="40"
+            app:showSeekBarValue="true" />
+        <SeekBarPreference app:key="nira_address_min_width_dp"
+            app:title="Minimalna szerokość adresu (dp)"
+            android:max="220" app:min="64" app:defaultValue="92"
+            app:showSeekBarValue="true" />
+        <Preference app:key="nira_toolbar_drag_hint"
+            app:title="Zmień kolejność przycisków"
+            app:summary="Przytrzymaj przycisk na pasku adresu i przeciągnij. Kolejność zostanie zapisana." />
+        <Preference app:key="nira_restore_bar_heights"
+            app:title="Przywróć domyślne wysokości pasków" />
 
         <com.prirai.android.nira.settings.MaterialSwitchPreference
             app:key="@string/key_show_tab_group_bar"
@@ -149,6 +167,15 @@
     </PreferenceCategory>
 
     <PreferenceCategory android:title="Gestures">
+        <com.prirai.android.nira.settings.MaterialSwitchPreference
+            app:key="nira_edge_panels_enabled"
+            app:title="Gesty boczne kart i zakładek"
+            app:summary="Z lewej: karty, z prawej: zakładki"
+            app:defaultValue="true" />
+        <SeekBarPreference app:key="nira_edge_width_dp"
+            app:title="Szerokość stref gestów (dp)"
+            android:max="64" app:min="20"
+            app:defaultValue="36" app:showSeekBarValue="true" />
         
         <com.prirai.android.nira.settings.MaterialSwitchPreference
             app:key="@string/key_swipe_refresh"

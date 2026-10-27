@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="testlab_title" translatable="false">Zavro TestLab</string>
+    <string name="testlab_summary">Siedem lokalnych testerów po 60 sekund, raporty i eksport</string>
+</resources>

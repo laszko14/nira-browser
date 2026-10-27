@@ -1,10 +1,13 @@
 # Nira Browser — plan implementacji wykrywania wideo
 
 **Data:** 2026-10-22  
-**Stan:** PLAN — jeszcze nie zaimplementowano automatycznego wykrywania  
+**Stan:** 3.0 kod i CI w PR #2; 3.1 kod i CI success w PR #3; test telefonu nadal oczekuje. Dalej plan etapów 3.2–6.1  
 **Repo:** https://github.com/laszko14/nira-browser  
 **Badanie:** [VIDEO_DETECTION_RESEARCH.md](VIDEO_DETECTION_RESEARCH.md)  
 **Stan bieżący:** [PROJECT_STATUS.md](PROJECT_STATUS.md)
+
+
+> **Checkpoint 3.2, 2026-10-22:** implementacja URL/MIME przez pasywne `onHeadersReceived` rozwijana na `feat/media-detector-stage-3-2-network` z PR #4 HEAD `52973f9`. Manifest-only HLS/DASH, segmenty odrzucane, kanał tabs.sendMessage → natywna EngineSession z fail-closed dla niepowiązanego webRequest, ograniczona deduplikacja; status **CI SUCCESS: run 39721818021, test telefonu niepotwierdzony, podpis tymczasowego APK inny niż w PR #4**. Nie rozpoczęto 3.3 ani 4.0.
 
 ## Cel produktu i definicja sukcesu
 
@@ -31,7 +34,7 @@ Przed rozpoczęciem **przeczytaj**: ../AGENTS.md, AI_HANDOFF.md, AI_PROGRESS.md,
 
 **Nie łącz etapów 3.0–4.1 w jednym prompcie.** Codex powinien kończyć mały zakres i aktualizować checkpointy.
 
-## 3.0 — pierwszy, najmniejszy etap (WYKONAJ TERAZ)
+## 3.0 — historyczna specyfikacja pierwszego etapu (kod w PR #2; telefon niepotwierdzony)
 
 1. Potwierdź używane wersje Mozilla Components i GeckoView w gradle/libs.versions.toml i rzeczywiste API `webRequest`, `nativeMessaging`, engine.installBuiltInWebExtension oraz message delegate w tej wersji.
 2. Zbadaj istniejący wzór:
@@ -163,3 +166,8 @@ Publiczne źródła do legalnych testów: [MDN flower.mp4](https://interactive-e
 
 > Repo: https://github.com/laszko14/nira-browser. Wykonaj WYŁĄCZNIE etap 3.0 z docs/VIDEO_DETECTION_PLAN.md. Najpierw czytaj AGENTS.md, docs/AI_HANDOFF.md, docs/AI_PROGRESS.md, docs/VIDEO_DETECTION_RESEARCH.md, docs/PROJECT_STATUS.md i bieżący kod. Zweryfikuj API w aktualnej wersji GeckoView. Zaimplementuj minimalny bezpieczny proof-of-concept bridge DOM `video` → built-in WebExtension → Kotlin, z właściwą kartą i profilem. Nie buduj na razie zaawansowanego UI, downloadera, parserów manifestów ani innych etapów. Dodaj przynajmniej jeden test protokołu, uruchom build/lint/test, sprawdź GitHub Actions, zacommituj zmiany i zaktualizuj checkpointy. Podaj faktyczne wyniki i link do artefaktu, jeśli istnieje. Nie deklaruj testu na telefonie, jeśli go nie zrobiłeś.
 
+
+
+## Etap 4.0.1 — przed Play
+
+Etap pomiędzy panelem 4.0 i parserem jakości 4.1. Pasywne źródła HTML5 video/src/source, jawne linki, Open Graph, VideoObject.contentUrl, wybrane dane i statyczne konfiguracje znanych odtwarzaczy. Rozpoznawanie manifestów HLS/DASH na podstawie znanych MIME lub jawnej końcówki URL bez ich pobierania. Iframe embed nie jest bezpośrednim plikiem; każda podramka wiąże się z główną kartą poprzez background-issued frameKey i root documentKey. Stan PAGE oznacza deklarację znalezioną w dokumencie, a NETWORK odpowiedź HTTP. Wieloźródłowy tag video może pokazywać kilka alternatyw w jednej grupie; query podpisów nie wolno normalizować. URL pojawiający się dopiero po Play nie będzie wykryty wcześniej. Brak auto Play, żadnych dodatkowych zapytań sieciowych, nie ma DRM bypass ani jakości 4.1.

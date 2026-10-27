@@ -9,7 +9,7 @@ on:
 
   pull_request:
     branches:
-      - main
+      - "**"
 
   workflow_dispatch:
     inputs:
@@ -21,6 +21,13 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      EXPECTED_PACKAGE: com.prirai.android.nira.debug
+      EXPECTED_VERSION_CODE: "1176"
+      EXPECTED_VERSION_NAME: 0.5.22-alpha81-clean
+      EXPECTED_CERT_SHA256: df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
 
     steps:
       - uses: actions/checkout@v4
@@ -35,17 +42,57 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v5
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug
+      # Do not publish an ephemeral Android debug signature as an update.
+      # Reuse the stable signing key already used by the release workflow.
+      - name: Build single arm64 debug APK (update-safe certificate)
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in ANDROID_KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Stable signing secret $key is not configured. Refusing to publish an incompatible debug APK."
+              exit 1
+            fi
+          done
+          keystore_path="$RUNNER_TEMP/nira-update.p12"
+          cleanup() {
+            rm -f "$keystore_path"
+          }
+          trap cleanup EXIT
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
+          chmod 600 "$keystore_path"
+          export NIRA_SIGNING_STORE_FILE="$keystore_path"
+          export NIRA_SIGNING_STORE_PASSWORD="$KEYSTORE_PASSWORD"
+          export NIRA_SIGNING_KEY_ALIAS="$KEY_ALIAS"
+          export NIRA_SIGNING_KEY_PASSWORD="$KEY_PASSWORD"
+          ./gradlew assembleDebug --console=plain
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/debug/*.apk)
+          if [ "${#apks[@]}" -ne 1 ] || [[ "${apks[0]}" != *arm64-v8a* ]]; then
+            echo "::error::Expected exactly one arm64-v8a APK, got ${#apks[@]}."
+            exit 1
+          fi
+          bash scripts/verify-update-apk.sh \
+            "${apks[0]}" \
+            "$EXPECTED_PACKAGE" \
+            "$EXPECTED_VERSION_CODE" \
+            "$EXPECTED_VERSION_NAME" \
+            "$EXPECTED_CERT_SHA256"
+          echo "Built and verified exactly one update-safe arm64-v8a APK."
 
-      - name: Upload Debug APKs (per ABI)
+      - name: Upload only arm64 debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: debug-apks
-          path: |
-            app/build/outputs/apk/debug/*arm64-v8a*.apk
-            app/build/outputs/apk/debug/*armeabi-v7a*.apk
-            app/build/outputs/apk/debug/*x86_64*.apk
+          name: zavro-arm64-update-apk-v1176
+          path: app/build/outputs/apk/debug/*arm64-v8a*.apk
+          if-no-files-found: error
+          retention-days: 30
+
 
   lint:
     runs-on: ubuntu-latest
@@ -92,6 +139,9 @@ jobs:
       - name: Run unit tests
         run: ./gradlew testDebugUnitTest
 
+      - name: Test media detector WebExtension protocol
+        run: node --test app/src/test/js/*.test.cjs
+
       - name: Upload test reports
         uses: actions/upload-artifact@v4
         with:
@@ -103,6 +153,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      EXPECTED_PACKAGE: com.prirai.android.nira
+      EXPECTED_VERSION_CODE: "1176"
+      EXPECTED_VERSION_NAME: 0.5.22-alpha81-clean
+      EXPECTED_CERT_SHA256: df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
 
     # Release only on a version tag or manual dispatch with an explicit tag.
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
@@ -135,17 +190,46 @@ jobs:
         with:
           cache-encryption-key: ${{ secrets.GRADLE_CACHE_ENCRYPTION_KEY }}
 
-      - name: Decode keystore
+      - name: Build and verify one signed arm64 release APK
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        shell: bash
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > "$GITHUB_WORKSPACE/key.jks"
-
-      - name: Build Release APKs (signed)
-        run: |
+          set -euo pipefail
+          for key in ANDROID_KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Stable signing secret $key is not configured."
+              exit 1
+            fi
+          done
+          keystore_path="$RUNNER_TEMP/nira-release.p12"
+          cleanup() {
+            rm -f "$keystore_path"
+          }
+          trap cleanup EXIT
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
+          chmod 600 "$keystore_path"
           ./gradlew clean assembleRelease \
-            -Pandroid.injected.signing.store.file="$GITHUB_WORKSPACE/key.jks" \
-            -Pandroid.injected.signing.store.password="${{ secrets.KEYSTORE_PASSWORD }}" \
-            -Pandroid.injected.signing.key.alias="${{ secrets.KEY_ALIAS }}" \
-            -Pandroid.injected.signing.key.password="${{ secrets.KEY_PASSWORD }}"
+            -Pandroid.injected.signing.store.file="$keystore_path" \
+            -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KEY_PASSWORD" \
+            --console=plain
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/release/*.apk)
+          if [ "${#apks[@]}" -ne 1 ] || [[ "${apks[0]}" != *arm64-v8a* ]]; then
+            echo "::error::Expected exactly one arm64-v8a release APK, got ${#apks[@]}."
+            exit 1
+          fi
+          bash scripts/verify-update-apk.sh \
+            "${apks[0]}" \
+            "$EXPECTED_PACKAGE" \
+            "$EXPECTED_VERSION_CODE" \
+            "$EXPECTED_VERSION_NAME" \
+            "$EXPECTED_CERT_SHA256"
 
       - name: Create or reuse GitHub Release
         env:

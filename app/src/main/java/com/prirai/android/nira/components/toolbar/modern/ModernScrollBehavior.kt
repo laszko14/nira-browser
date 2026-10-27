@@ -41,6 +41,9 @@ class ModernScrollBehavior(
     private var isScrollingEnabled = true
 
     private var scrollYAccumulator = 0
+    private var topBarsHidden = false
+    private val revealThresholdPx: Int =
+        (24 * context.resources.displayMetrics.density).toInt()
 
     // 56 dp - same threshold previously used, matches Chrome/Firefox.
     private val scrollThresholdPx: Int =
@@ -69,7 +72,11 @@ class ModernScrollBehavior(
         axes: Int,
         type: Int,
     ): Boolean {
-        return isScrollingEnabled && axes and ViewCompat.SCROLL_AXIS_VERTICAL != 0
+        // GeckoView does not consistently dispatch nested scroll in portrait,
+        // so TOP chrome is driven by GeckoSession.ScrollDelegate instead.
+        val isTop = com.prirai.android.nira.preferences.UserPreferences(child.context).toolbarPosition ==
+            com.prirai.android.nira.components.toolbar.ToolbarPosition.TOP.ordinal
+        return !isTop && isScrollingEnabled && axes and ViewCompat.SCROLL_AXIS_VERTICAL != 0
     }
 
     override fun onNestedPreScroll(
@@ -81,7 +88,7 @@ class ModernScrollBehavior(
         consumed: IntArray,
         type: Int,
     ) {
-        if (!isScrollingEnabled) return
+        if (!isScrollingEnabled || type != ViewCompat.TYPE_TOUCH) return
         accumulateAndMaybeEnterMinimal(child, dy)
     }
 
@@ -96,8 +103,11 @@ class ModernScrollBehavior(
         type: Int,
         consumed: IntArray,
     ) {
-        if (!isScrollingEnabled) return
-        // Covers overscroll / fling residue the target view did not consume.
+        // Top chrome reacts only to actual finger scroll, not overscroll bounce.
+        // Unconsumed deltas would cause a reveal/hide loop on short pages.
+        if (!isScrollingEnabled || type != ViewCompat.TYPE_TOUCH ||
+            child.context.let { com.prirai.android.nira.preferences.UserPreferences(it).toolbarPosition } ==
+            com.prirai.android.nira.components.toolbar.ToolbarPosition.TOP.ordinal) return
         accumulateAndMaybeEnterMinimal(child, dyUnconsumed)
     }
 
@@ -107,7 +117,7 @@ class ModernScrollBehavior(
         target: View,
         type: Int,
     ) {
-        // No-op: minimal state does not settle on gesture end.
+        scrollYAccumulator = 0
     }
 
     /**
@@ -118,6 +128,33 @@ class ModernScrollBehavior(
      */
     private fun accumulateAndMaybeEnterMinimal(child: View, dy: Int) {
         val toolbar = child as? UnifiedToolbar ?: return
+        if (com.prirai.android.nira.preferences.UserPreferences(child.context).toolbarPosition ==
+            com.prirai.android.nira.components.toolbar.ToolbarPosition.TOP.ordinal) {
+            // Hide/show the *whole* top chrome, including the address and tab
+            // bars. UnifiedToolbar.collapse/expand animates both bars together
+            // and reports offset to BrowserFragment for viewport adjustment.
+            when {
+                dy > 0 -> {
+                    if (scrollYAccumulator < 0) scrollYAccumulator = 0
+                    scrollYAccumulator = (scrollYAccumulator + dy).coerceAtMost(scrollThresholdPx)
+                    if (!topBarsHidden && scrollYAccumulator >= scrollThresholdPx) {
+                        toolbar.collapse()
+                        topBarsHidden = true
+                        scrollYAccumulator = 0
+                    }
+                }
+                dy < 0 -> {
+                    if (scrollYAccumulator > 0) scrollYAccumulator = 0
+                    scrollYAccumulator = (scrollYAccumulator + dy).coerceAtLeast(-revealThresholdPx)
+                    if (topBarsHidden && scrollYAccumulator <= -revealThresholdPx) {
+                        toolbar.expand()
+                        topBarsHidden = false
+                        scrollYAccumulator = 0
+                    }
+                }
+            }
+            return
+        }
         when {
             dy > 0 -> {
                 // Finger moving upward -> reading further down the page.

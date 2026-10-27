@@ -1,5 +1,6 @@
 package com.prirai.android.nira.browser.tabs.compose
 
+import com.prirai.android.nira.diagnostics.testlab.*
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -12,8 +13,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import mozilla.components.lib.state.ext.flow
 import kotlinx.serialization.json.Json
 import com.prirai.android.nira.ext.components
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.coroutineContext
 
 private val Context.orderDataStore: DataStore<Preferences> by preferencesDataStore(name = "tab_order")
 
@@ -22,9 +31,15 @@ private val Context.orderDataStore: DataStore<Preferences> by preferencesDataSto
  * Single source of truth for tab positions.
  * Singleton to ensure all components share the same order state.
  */
-class TabOrderManager private constructor(
+class TabOrderManager internal constructor(
     private val context: Context,
-    private val groupManager: UnifiedTabGroupManager
+    private val groupManager: UnifiedTabGroupManager,
+    private val orderStore: DataStore<Preferences> = context.orderDataStore,
+    private val lab: () -> LabCapture? = {TestLab.capture()},
+    private val activeProfile: () -> String = {
+        val manager = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(context)
+        if (manager.isPrivateMode()) "private" else manager.getActiveProfile().id
+    }
 ) {
     
     companion object {
@@ -43,12 +58,63 @@ class TabOrderManager private constructor(
     private val _currentOrder = MutableStateFlow<UnifiedTabOrder?>(null)
     val currentOrder: StateFlow<UnifiedTabOrder?> = _currentOrder.asStateFlow()
     
+    private val operationMutex = Mutex()
+    private class Operation(val owner: TabOrderManager, val profileId: String) :
+        AbstractCoroutineContextElement(Key) {
+        companion object Key : CoroutineContext.Key<Operation>
+    }
+
+    private suspend fun <T> operation(block: suspend () -> T): T {
+        if (coroutineContext[Operation]?.owner === this) return block()
+        return operationMutex.withLock {
+            withContext(NonCancellable + Operation(this, activeProfile())) { block() }
+        }
+    }
+
+    /** Bind an entire UI mutation to the profile that originated it. */
+    suspend fun mutateProfile(profileId: String, block: suspend () -> Boolean): Boolean = operation {
+        if (activeProfile() != profileId) false else block()
+    }
+
+    private suspend fun currentForOperation(): UnifiedTabOrder? = _currentOrder.value?.takeIf {
+        it.profileId == coroutineContext[Operation]?.profileId
+    }
+
+    private fun publish(order: UnifiedTabOrder) {
+        // A suspended load/save for A must never replace the visible order of B.
+        if (order.profileId == activeProfile()) _currentOrder.value = order
+    }
+
+    @kotlinx.serialization.Serializable
+    private data class RootMoveIntent(val sourceId: String, val targetId: String?, val after: Boolean)
+
+    /** Durable root placement intent, written before changing Room membership. */
+    suspend fun rememberRootMove(profileId: String, sourceId: String, targetId: String?, after: Boolean) = operation {
+        orderStore.edit { prefs ->
+            prefs[stringPreferencesKey("pending_root_$profileId")] =
+                json.encodeToString(RootMoveIntent(sourceId, targetId, after))
+        }
+    }
+
+    /** Forget only IDs explicitly transferred to another profile, never a partial restore. */
+    suspend fun forgetTabs(profileId: String, tabIds: Set<String>) = operation {
+        val order = loadOrder(profileId)
+        val items = order.primaryOrder.mapNotNull { item ->
+            when (item) {
+                is UnifiedTabOrder.OrderItem.SingleTab -> item.takeUnless { it.tabId in tabIds }
+                is UnifiedTabOrder.OrderItem.TabGroup -> item.copy(tabIds = item.tabIds.filterNot { it in tabIds })
+                    .takeUnless { it.tabIds.isEmpty() }
+            }
+        }
+        saveOrder(order.copy(primaryOrder = items))
+    }
+
     /**
      * Load order for a specific profile
      */
-    suspend fun loadOrder(profileId: String): UnifiedTabOrder {
+    suspend fun loadOrder(profileId: String): UnifiedTabOrder = operation op@ {
         val key = stringPreferencesKey("order_$profileId")
-        val order = context.orderDataStore.data
+        val order = orderStore.data
             .map { prefs ->
                 prefs[key]?.let { json.decodeFromString<UnifiedTabOrder>(it) }
             }
@@ -57,46 +123,46 @@ class TabOrderManager private constructor(
         
         // Clean up orphaned group references
         val cleanedOrder = cleanupOrphanedGroups(order)
-        _currentOrder.value = cleanedOrder
-        return cleanedOrder
+        publish(cleanedOrder)
+        return@op cleanedOrder
     }
     
     /**
      * Clean up orphaned group IDs from unified order
      */
     private suspend fun cleanupOrphanedGroups(order: UnifiedTabOrder): UnifiedTabOrder {
-        val allGroups = groupManager.getAllGroups()
-        val validGroupIds = allGroups.map { it.id }.toSet()
-        
-        val cleanedPrimaryOrder = order.primaryOrder.filter { item ->
-            when (item) {
-                is UnifiedTabOrder.OrderItem.TabGroup -> {
-                    // Only keep group items if the group still exists
-                    validGroupIds.contains(item.groupId)
-                }
-                is UnifiedTabOrder.OrderItem.SingleTab -> true
-            }
+        // Never drop persisted groups before the asynchronous Room load has finished.
+        if (!groupManager.awaitInitialized()) return order
+        val expected = com.prirai.android.nira.browser.profile.BrowserProfile
+            .contextIdFor(order.profileId, isPrivate = order.profileId == "private")
+        val groups = groupManager.getAllGroups().filter { group ->
+            group.contextId == expected || (order.profileId == "default" && group.contextId == "profile_default")
         }
-        
-        return if (cleanedPrimaryOrder.size != order.primaryOrder.size) {
-            // Some items were removed, save the cleaned version
-            order.copy(primaryOrder = cleanedPrimaryOrder).also { cleaned ->
-                saveOrder(cleaned)
-            }
-        } else {
-            order
-        }
+        // Deleting a group must not discard the former members' root positions.
+        // This is an in-memory projection; only rebuild commits reconciliation.
+        return order.reconciled(emptyList(), groups)
     }
-    
+
     /**
      * Save current order
      */
-    suspend fun saveOrder(order: UnifiedTabOrder) {
-        val key = stringPreferencesKey("order_${order.profileId}")
-        context.orderDataStore.edit { prefs ->
-            prefs[key] = json.encodeToString(order)
+    suspend fun saveOrder(order: UnifiedTabOrder) = operation op@ {
+        val capture=lab();val measurement=capture?.operation(LabOperation.ORDER_SAVE)
+        try {
+            val key = stringPreferencesKey("order_${order.profileId}")
+            var encoded:String?=null
+            val saved=orderStore.edit { prefs ->
+                // Keep serialization on DataStore's dispatcher, as before instrumentation.
+                val serialized=json.encodeToString(order)
+                encoded=serialized;prefs[key]=serialized
+            }
+            publish(order)
+            capture?.check(measurement,encoded!=null&&saved[key]==encoded,LabInvariant.ORDER_NOT_PERSISTED)
+            capture?.end(measurement,proof=CompletionProof.DATASTORE_COMMITTED)
+        } catch(error:Throwable) {
+            capture?.end(measurement,if(error is kotlinx.coroutines.CancellationException)OperationOutcome.INTERRUPTED else OperationOutcome.FAILED)
+            throw error
         }
-        _currentOrder.value = order.copy(lastModified = System.currentTimeMillis())
     }
     
     // === REORDERING OPERATIONS ===
@@ -104,9 +170,9 @@ class TabOrderManager private constructor(
     /**
      * Reorder an item in the primary order
      */
-    suspend fun reorderItem(fromIndex: Int, toIndex: Int) {
-        val current = _currentOrder.value ?: return
-        if (fromIndex == toIndex) return
+    suspend fun reorderItem(fromIndex: Int, toIndex: Int) = operation op@ {
+        val current = currentForOperation() ?: return@op
+        if (fromIndex == toIndex) return@op
         
         val newOrder = current.primaryOrder.toMutableList()
         val size = newOrder.size
@@ -114,27 +180,44 @@ class TabOrderManager private constructor(
         // Bounds checking - critical to prevent IndexOutOfBoundsException
         if (fromIndex < 0 || fromIndex >= size) {
             android.util.Log.e("TabOrderManager", "Invalid fromIndex: $fromIndex, size: $size")
-            return
+            return@op
         }
         if (toIndex < 0 || toIndex >= size) {
             android.util.Log.e("TabOrderManager", "Invalid toIndex: $toIndex, size: $size")
-            return
+            return@op
         }
         
         val item = newOrder.removeAt(fromIndex)
         newOrder.add(toIndex, item)
         saveOrder(current.copy(primaryOrder = newOrder))
-        syncToGroupManager()
+    }
+
+    suspend fun moveRootRelative(sourceId: String, targetId: String?, after: Boolean): Boolean = operation {
+        val current = currentForOperation() ?: return@operation false
+        val from = current.getItemPosition(sourceId) ?: return@operation false
+        val target = targetId?.let { current.getItemPosition(it) }
+        if (targetId != null && target == null) return@operation false
+        val boundary = target?.let { it + if (after) 1 else 0 } ?: current.primaryOrder.size
+        reorderItem(from, DragPlacement.destination(from, boundary, current.primaryOrder.size))
+        true
     }
 
     /**
      * Create a new group from multiple tabs
      */
-    suspend fun createGroup(tabIds: List<String>, groupName: String, color: Int) {
-        val current = _currentOrder.value ?: return
-        if (tabIds.isEmpty()) return
+    suspend fun createGroup(tabIds: List<String>, groupName: String, color: Int) = operation op@ {
+        val current = currentForOperation() ?: return@op
+        if (tabIds.isEmpty()) return@op
         
-        val groupId = "group_${System.currentTimeMillis()}"
+        // Persist the group first so Room and DataStore share the same UUID.
+        val created = groupManager.createGroup(
+            tabIds = tabIds,
+            name = groupName,
+            color = color,
+            contextId = com.prirai.android.nira.browser.profile.BrowserProfile
+                .contextIdFor(current.profileId, isPrivate = current.profileId == "private")
+        )
+        val groupId = created.id
         
         // Find first tab position
         val firstTabIndex = current.primaryOrder.indexOfFirst { item ->
@@ -181,123 +264,65 @@ class TabOrderManager private constructor(
         remainingOrder.add(insertPos, newGroup)
         
         saveOrder(current.copy(primaryOrder = remainingOrder))
-        syncToGroupManager()
     }
     
     /**
      * Add a tab to an existing group
      */
-    suspend fun addTabToGroup(tabId: String, groupId: String, positionInGroup: Int? = null) {
-        val current = _currentOrder.value ?: return
-        
-        // Remove tab from current position
-        val newOrder = current.primaryOrder.mapNotNull { item ->
-            when (item) {
-                is UnifiedTabOrder.OrderItem.SingleTab -> 
-                    if (item.tabId == tabId) null else item
-                    
-                is UnifiedTabOrder.OrderItem.TabGroup -> {
-                    if (item.groupId == groupId) {
-                        // Add to target group
-                        val newTabIds = item.tabIds.toMutableList()
-                        val insertIndex = positionInGroup?.coerceIn(0, newTabIds.size) ?: newTabIds.size
-                        newTabIds.add(insertIndex, tabId)
-                        item.copy(tabIds = newTabIds)
-                    } else {
-                        // Remove from other groups
-                        val filtered = item.tabIds.filter { it != tabId }
-                        when {
-                            filtered.isEmpty() -> null // Remove empty group
-                            filtered.size == 1 -> UnifiedTabOrder.OrderItem.SingleTab(filtered.first()) // Ungroup
-                            else -> item.copy(tabIds = filtered)
-                        }
-                    }
-                }
-            }
+    suspend fun addTabToGroup(tabId: String, groupId: String, positionInGroup: Int? = null) = operation {
+        val current = currentForOperation() ?: return@operation
+        if (groupManager.addTabToGroup(tabId, groupId, positionInGroup)) {
+            rebuildOrderForProfile(current.profileId, context.components.store.state.tabs)
         }
-        
-        saveOrder(current.copy(primaryOrder = newOrder))
-        syncToGroupManager()
     }
-    
+
     /**
      * Remove a tab from its group
      */
-    suspend fun removeTabFromGroup(tabId: String, newPosition: Int? = null) {
-        val current = _currentOrder.value ?: return
-        
-        val newOrder = current.primaryOrder.flatMap { item ->
-            when (item) {
-                is UnifiedTabOrder.OrderItem.TabGroup -> {
-                    if (tabId in item.tabIds) {
-                        val remainingTabs = item.tabIds.filter { it != tabId }
-                        when (remainingTabs.size) {
-                            0 -> emptyList() // Remove empty group
-                            1 -> listOf(UnifiedTabOrder.OrderItem.SingleTab(remainingTabs.first())) // Ungroup
-                            else -> listOf(item.copy(tabIds = remainingTabs))
-                        }
-                    } else {
-                        listOf(item)
-                    }
-                }
-                else -> listOf(item)
-            }
-        }.toMutableList()
-        
-        // Add ungrouped tab at specified position
-        val ungroupedTab = UnifiedTabOrder.OrderItem.SingleTab(tabId)
-        val insertPos = newPosition?.coerceIn(0, newOrder.size) ?: newOrder.size
-        newOrder.add(insertPos, ungroupedTab)
-        
-        saveOrder(current.copy(primaryOrder = newOrder))
-        syncToGroupManager()
+    suspend fun removeTabFromGroup(tabId: String, newPosition: Int? = null) = operation {
+        val current = currentForOperation() ?: return@operation
+        if (!groupManager.removeTabFromGroup(tabId)) return@operation
+        rebuildOrderForProfile(current.profileId, context.components.store.state.tabs)
+        val updated = currentForOperation() ?: return@operation
+        val from = updated.getItemPosition(tabId) ?: return@operation
+        if (newPosition != null) reorderItem(from, newPosition.coerceIn(0, updated.primaryOrder.lastIndex))
     }
-    
+
     /**
      * Add a new tab to a specific group
      */
-    suspend fun addNewTabToGroup(groupId: String) {
+    suspend fun addNewTabToGroup(groupId: String) = operation op@ {
         // Get the group to determine its contextId
         val group = groupManager.getGroup(groupId)
         if (group == null) {
             android.util.Log.e("TabOrderManager", "Group $groupId not found")
-            return
+            return@op
         }
         
+        val originProfile = coroutineContext[Operation]?.profileId ?: return@op
+        val expectedContext = com.prirai.android.nira.browser.profile.BrowserProfile
+            .contextIdFor(originProfile, isPrivate = originProfile == "private")
+        if (activeProfile() != originProfile || (group.contextId != expectedContext &&
+                !(originProfile == "default" && group.contextId == "profile_default"))) return@op
         val contextId = group.contextId
         // Use context to get components
         val store = context.components.store
         val tabsUseCases = context.components.tabsUseCases
         
-        // Add a new tab
-        tabsUseCases.addTab(
+        // Direct return@op value is the newly created tab ID; selectedTabId
+        // can change between async operations and must not be used here.
+        val newTabId = tabsUseCases.addTab(
             url = "about:homepage",
             private = contextId == "private",
             contextId = contextId,
             selectTab = true
         )
-        
-        // Wait longer and retry to ensure tab is created
-        kotlinx.coroutines.delay(300)
-        var newTabId = store.state.selectedTabId
-        
-        // Retry up to 3 times if tab ID not available
-        var retries = 0
-        while (newTabId == null && retries < 3) {
-            kotlinx.coroutines.delay(200)
-            newTabId = store.state.selectedTabId
-            retries++
-        }
-        
-        if (newTabId == null) {
-            android.util.Log.e("TabOrderManager", "Failed to get new tab ID after creating tab")
-            return
-        }
-        // Verify the tab exists in store
-        val newTab = store.state.tabs.find { it.id == newTabId }
+                // Verify the tab exists in store
+        val newTab = store.flow().first { state -> state.tabs.any { it.id == newTabId } }
+            .tabs.firstOrNull { it.id == newTabId }
         if (newTab == null) {
             android.util.Log.e("TabOrderManager", "Tab $newTabId not found in store")
-            return
+            return@op
         }
         // Add the new tab to the group in the order
         addTabToGroup(newTabId, groupId)
@@ -306,15 +331,15 @@ class TabOrderManager private constructor(
         groupManager.addTabToGroup(newTabId, groupId)
         
         // Force refresh by updating the order timestamp
-        val current = _currentOrder.value ?: return
-        _currentOrder.value = current.copy(lastModified = System.currentTimeMillis())
+        val current = currentForOperation() ?: return@op
+        publish(current.copy(lastModified = System.currentTimeMillis()))
     }
     
     /**
      * Remove a tab completely from the order
      */
-    suspend fun removeTab(tabId: String) {
-        val current = _currentOrder.value ?: return
+    suspend fun removeTab(tabId: String) = operation op@ {
+        val current = currentForOperation() ?: return@op
 
         val newOrder = current.primaryOrder.mapNotNull { item ->
             when (item) {
@@ -347,9 +372,9 @@ class TabOrderManager private constructor(
     /**
      * Toggle group expansion state
      */
-    suspend fun toggleGroupExpansion(groupId: String) {
+    suspend fun toggleGroupExpansion(groupId: String) = operation op@ {
         // Just update local order for UI state
-        val current = _currentOrder.value ?: return
+        val current = currentForOperation() ?: return@op
         val newOrder = current.primaryOrder.map { item ->
             if (item is UnifiedTabOrder.OrderItem.TabGroup && item.groupId == groupId) {
                 item.copy(isExpanded = !item.isExpanded)
@@ -357,14 +382,17 @@ class TabOrderManager private constructor(
                 item
             }
         }
-        saveOrder(current.copy(primaryOrder = newOrder))
+        val toggled=current.primaryOrder.filterIsInstance<UnifiedTabOrder.OrderItem.TabGroup>().firstOrNull{it.groupId==groupId}
+        val capture=lab();val measurement=toggled?.let{capture?.operation(if(it.isExpanded)LabOperation.GROUP_COLLAPSE else LabOperation.GROUP_EXPAND)}
+        try {saveOrder(current.copy(primaryOrder = newOrder));capture?.end(measurement,proof=CompletionProof.DATASTORE_COMMITTED)}
+        catch(error:Throwable){capture?.end(measurement,OperationOutcome.INTERRUPTED);throw error}
     }
     
     /**
      * Auto-expand group containing the selected tab
      */
-    suspend fun expandGroupContainingTab(tabId: String) {
-        val current = _currentOrder.value ?: return
+    suspend fun expandGroupContainingTab(tabId: String) = operation op@ {
+        val current = currentForOperation() ?: return@op
         var hasChanges = false
         val newOrder = current.primaryOrder.map { item ->
             if (item is UnifiedTabOrder.OrderItem.TabGroup && tabId in item.tabIds) {
@@ -386,7 +414,7 @@ class TabOrderManager private constructor(
     /**
      * Initialize from current state with groups, preserving tab positions
      */
-    suspend fun initializeFromCurrentState(profileId: String, tabIds: List<String>, groups: List<com.prirai.android.nira.browser.tabgroups.TabGroupData>) {
+    suspend fun initializeFromCurrentState(profileId: String, tabIds: List<String>, groups: List<com.prirai.android.nira.browser.tabgroups.TabGroupData>) = operation op@ {
         val items = mutableListOf<UnifiedTabOrder.OrderItem>()
         val processedTabIds = mutableSetOf<String>()
         
@@ -438,144 +466,50 @@ class TabOrderManager private constructor(
      * Sync changes back to UnifiedTabGroupManager
      * Updates group membership and properties
      */
-    suspend fun syncToGroupManager() {
-        val current = _currentOrder.value ?: return
-        
-        // Determine contextId from profileId. Default profile shares Gecko's
-        // default partition (contextId == null) with custom tabs.
-        val contextId = com.prirai.android.nira.browser.profile.BrowserProfile
-            .contextIdFor(current.profileId, isPrivate = current.profileId == "private")
-
-        current.primaryOrder.forEach { item ->
-            when (item) {
-                is UnifiedTabOrder.OrderItem.SingleTab -> {
-                    // Single tabs don't need syncing
-                }
-                is UnifiedTabOrder.OrderItem.TabGroup -> {
-                    // Sync group state
-                    val existingGroup = groupManager.getAllGroups().find { it.id == item.groupId }
-                    if (existingGroup != null) {
-                        // Update existing group's tab membership if changed
-                        val currentTabIds = existingGroup.tabIds.toSet()
-                        val newTabIds = item.tabIds.toSet()
-                        
-                        // Add new tabs to group
-                        newTabIds.filter { it !in currentTabIds }.forEach { tabId ->
-                            groupManager.addTabToGroup(tabId, item.groupId)
-                        }
-                        
-                        // Remove tabs no longer in group
-                        currentTabIds.filter { it !in newTabIds }.forEach { tabId ->
-                            groupManager.removeTabFromGroup(tabId)
-                        }
-                    } else {
-                        // Create new group with proper contextId
-                        groupManager.createGroup(
-                            tabIds = item.tabIds,
-                            name = item.groupName,
-                            color = item.color,
-                            contextId = contextId
-                        )
-                    }
-                }
-            }
-        }
+    suspend fun syncToGroupManager() = operation {
+        val current = currentForOperation() ?: return@operation
+        rebuildOrderForProfile(current.profileId, context.components.store.state.tabs)
     }
-    
+
     /**
      * Rebuild order for a profile from current tabs and groups.
      * Used when groups are created/deleted to ensure order stays in sync.
      */
-    suspend fun rebuildOrderForProfile(profileId: String, tabs: List<mozilla.components.browser.state.state.SessionState>) {
-        // Get all groups for this profile
-        val allGroups = groupManager.getAllGroups()
-        
-        // Determine contextId for filtering. Default profile shares Gecko's
-        // default partition (contextId == null) with custom tabs.
+    suspend fun rebuildOrderForProfile(profileId: String, tabs: List<mozilla.components.browser.state.state.SessionState>) = operation {
+        if (!groupManager.awaitInitialized()) return@operation
+        val profileGroups = groupManager.getAllGroups().filter { group ->
+            if (profileId == "default") group.contextId in setOf(null, "profile_default")
+            else group.contextId == com.prirai.android.nira.browser.profile.BrowserProfile
+                .contextIdFor(profileId, isPrivate = profileId == "private")
+        }
         val contextId = com.prirai.android.nira.browser.profile.BrowserProfile
             .contextIdFor(profileId, isPrivate = profileId == "private")
-
-        // Filter groups by contextId. The default profile is now `null`;
-        // legacy "profile_default" rows (installs mid-migration) still match.
-        val profileGroups = allGroups.filter { group ->
-            when {
-                profileId == "default" ->
-                    group.contextId == null || group.contextId == "profile_default"
-                else -> group.contextId == contextId
+        val ids = tabs.filter { tab ->
+            tab.content.private == (profileId == "private") &&
+                (tab.contextId == contextId || (profileId == "default" && tab.contextId == "profile_default"))
+        }.map { it.id }
+        // Room owns membership and positions; never sync this snapshot backwards.
+        val existing = loadOrder(profileId)
+        var updated = existing.reconciled(ids, profileGroups)
+        val pendingKey = stringPreferencesKey("pending_root_$profileId")
+        val pending = orderStore.data.first()[pendingKey]?.let { json.decodeFromString<RootMoveIntent>(it) }
+        if (pending != null) {
+            // Room decides whether detach/create committed. If the source is still
+            // grouped (or was never created), the interrupted operation aborted.
+            val from = updated.getItemPosition(pending.sourceId)
+            val target = pending.targetId?.let { updated.getItemPosition(it) }
+            if (from != null && (pending.targetId == null || target != null)) {
+                val boundary = target?.let { it + if (pending.after) 1 else 0 } ?: updated.primaryOrder.size
+                val destination = DragPlacement.destination(from, boundary, updated.primaryOrder.size)
+                val items = updated.primaryOrder.toMutableList()
+                items.add(destination, items.removeAt(from))
+                updated = updated.copy(primaryOrder = items)
             }
         }
-        
-        // Get tab IDs from tabs
-        val tabIds = tabs.map { it.id }
-        
-        // Load existing order or create new one
-        val existingOrder = try {
-            loadOrder(profileId)
-        } catch (e: Exception) {
-            UnifiedTabOrder(profileId, emptyList())
+        orderStore.edit { prefs ->
+            prefs[stringPreferencesKey("order_$profileId")] = json.encodeToString(updated)
+            prefs.remove(pendingKey)
         }
-        
-        // Build a map of existing positions and preserve state (isExpanded)
-        val existingPositions = mutableMapOf<String, Int>()
-        val existingGroupStates = mutableMapOf<String, Boolean>() // Map groupId to isExpanded
-        existingOrder.primaryOrder.forEachIndexed { index, item ->
-            when (item) {
-                is UnifiedTabOrder.OrderItem.SingleTab -> existingPositions[item.tabId] = index
-                is UnifiedTabOrder.OrderItem.TabGroup -> {
-                    existingPositions["group_${item.groupId}"] = index
-                    existingGroupStates[item.groupId] = item.isExpanded
-                }
-            }
-        }
-        
-        // Create new order items
-        val newOrder = mutableListOf<UnifiedTabOrder.OrderItem>()
-        val processedTabIds = mutableSetOf<String>()
-        
-        // First, add items that exist in the old order in their old positions
-        val itemsWithPositions = mutableListOf<Pair<Int, UnifiedTabOrder.OrderItem>>()
-        
-        // Process groups
-        profileGroups.forEach { group ->
-            val validTabIds = group.tabIds.filter { it in tabIds }
-            if (validTabIds.isNotEmpty()) {
-                val position = existingPositions["group_${group.id}"] ?: Int.MAX_VALUE
-                // Preserve isExpanded state from existing order, default to true for new groups
-                val isExpanded = existingGroupStates[group.id] ?: true
-                itemsWithPositions.add(
-                    position to UnifiedTabOrder.OrderItem.TabGroup(
-                        groupId = group.id,
-                        groupName = group.name,
-                        color = group.color,
-                        isExpanded = isExpanded,
-                        tabIds = validTabIds
-                    )
-                )
-                processedTabIds.addAll(validTabIds)
-            }
-        }
-        
-        // Process ungrouped tabs
-        tabIds.forEach { tabId ->
-            if (tabId !in processedTabIds) {
-                val position = existingPositions[tabId] ?: Int.MAX_VALUE
-                itemsWithPositions.add(
-                    position to UnifiedTabOrder.OrderItem.SingleTab(tabId)
-                )
-                processedTabIds.add(tabId)
-            }
-        }
-        
-        // Sort by position and extract items
-        newOrder.addAll(itemsWithPositions.sortedBy { it.first }.map { it.second })
-        
-        // Save the new order
-        val updatedOrder = UnifiedTabOrder(
-            profileId = profileId,
-            primaryOrder = newOrder,
-            lastModified = System.currentTimeMillis()
-        )
-        saveOrder(updatedOrder)
-        _currentOrder.value = updatedOrder
+        publish(updated)
     }
 }

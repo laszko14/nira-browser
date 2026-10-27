@@ -51,6 +51,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.zIndex
@@ -79,7 +82,17 @@ fun TabBarCompose(
     autoScrollTrigger: Long = 0L
 ) {
     val scope = rememberCoroutineScope()
-    val order by orderManager.currentOrder.collectAsState()
+    val tabContext = LocalContext.current
+    val stripHeight = remember(tabContext) {
+        com.prirai.android.nira.preferences.UserPreferences(tabContext).niraTabStripHeightDp
+    }
+    val savedOrder by orderManager.currentOrder.collectAsState()
+    val profileId by viewModel.currentProfileId.collectAsState()
+    val roomGroups by viewModel.groupSnapshot.collectAsState()
+    val visibleIds = tabs.map { it.id }.toSet()
+    val groups = roomGroups.filter { group -> group.tabIds.any { it in visibleIds } }
+    val order = savedOrder?.takeIf { it.profileId == profileId }
+        ?.reconciled(tabs.map { it.id }, groups)
     val listState = rememberLazyListState()
 
     // Create drag coordinator
@@ -194,7 +207,7 @@ fun TabBarCompose(
     Box(modifier = modifier.fillMaxWidth()) {
         // Static layer - main tab bar
         Surface(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().height(stripHeight.coerceIn(40, 80).dp),
             color = MaterialTheme.colorScheme.surfaceContainer,
             tonalElevation = 2.dp
         ) {
@@ -203,7 +216,7 @@ fun TabBarCompose(
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxSize()
             ) {
                 itemsIndexed(
                     uniqueItems,
@@ -421,7 +434,7 @@ fun TabBarCompose(
                         Surface(
                             modifier = Modifier
                                 .height(32.dp)
-                                .width(100.dp),
+                                .width(40.dp),
                             shape = RoundedCornerShape(12.dp),
                             color = MaterialTheme.colorScheme.primaryContainer,
                             tonalElevation = 8.dp,
@@ -468,7 +481,10 @@ fun TabBarCompose(
 private fun buildBarItems(order: UnifiedTabOrder?, tabs: List<TabSessionState>): List<BarItem> {
     if (order == null) return tabs.map { BarItem.SingleTab(it) }
 
-    return order.primaryOrder.mapNotNull { orderItem ->
+    // The persisted order can lag behind live BrowserStore tabs (new tab,
+    // restored session or rotation). Never render an empty strip just because
+    // a tab has not been added to the order snapshot yet.
+    val orderedItems = order.primaryOrder.mapNotNull { orderItem ->
         when (orderItem) {
             is UnifiedTabOrder.OrderItem.SingleTab -> {
                 tabs.find { it.id == orderItem.tabId }?.let { BarItem.SingleTab(it) }
@@ -492,6 +508,14 @@ private fun buildBarItems(order: UnifiedTabOrder?, tabs: List<TabSessionState>):
             }
         }
     }
+    val representedTabIds = orderedItems.flatMap { item ->
+        when (item) {
+            is BarItem.SingleTab -> listOf(item.tab.id)
+            is BarItem.Group -> item.tabs.map { it.id }
+        }
+    }.toSet()
+    return orderedItems + tabs.filterNot { it.id in representedTabIds }
+        .map { BarItem.SingleTab(it) }
 }
 
 /**
@@ -552,7 +576,7 @@ private fun TabPill(
     Surface(
         modifier = modifier
             .height(32.dp)
-            .width(100.dp),
+            .width(40.dp),
         shape = RoundedCornerShape(12.dp),
         color = if (isSelected) {
             MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
@@ -569,27 +593,19 @@ private fun TabPill(
             modifier = Modifier
                 .fillMaxSize()
                 .clickable { onTabClick(tab.id) }
-                .padding(horizontal = 8.dp, vertical = 4.dp),
+                .semantics { contentDescription = getTabDisplayTitle(tab) }
+                .padding(horizontal = 4.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.Center
         ) {
             // Favicon
             FaviconImage(
                 tab = tab,
-                size = 14.dp,
+                size = 22.dp,
                 modifier = Modifier
             )
 
-            // Title
-            Text(
-                text = getTabDisplayTitle(tab),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                color = if (isDragging) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
+
         }
     }
 }
@@ -683,8 +699,7 @@ private fun GroupPill(
     modifier: Modifier = Modifier
 ) {
     // Get expanded state from centralized group manager
-    val groupData = viewModel.getGroup(group.groupId)
-    val expanded = groupData?.let { !it.isCollapsed } ?: true
+    val expanded = group.isExpanded
     
     var menuTab by remember { mutableStateOf<TabSessionState?>(null) }
     var showTabMenu by remember { mutableStateOf(false) }
@@ -709,8 +724,8 @@ private fun GroupPill(
                 .clickable(
                     enabled = true,
                     onClick = {
-                        viewModel.toggleGroupExpanded(group.groupId)
-                        onGroupClick?.invoke(group.groupId)
+                        if (onGroupClick != null) onGroupClick(group.groupId)
+                        else viewModel.toggleGroupExpanded(group.groupId)
                     }
                 )
                 .padding(horizontal = 8.dp, vertical = 4.dp),
@@ -727,31 +742,11 @@ private fun GroupPill(
 
             // Group name - use onSurface color when dragging, no ellipsis
             Text(
-                text = group.groupName,
+                text = "(${group.tabs.size}) ${group.groupName}",
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
                 color = if (isDragging) MaterialTheme.colorScheme.onSurface else Color(group.color)
             )
-
-            // Tab count badge
-            Surface(
-                shape = CircleShape,
-                color = Color(group.color).copy(alpha = 0.3f)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .padding(horizontal = 8.dp, vertical = 2.dp)
-                        .defaultMinSize(minWidth = 20.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "${group.tabs.size}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color(group.color),
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
 
             if (expanded) {
                 // Show tab pills in group with dividers

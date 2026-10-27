@@ -1,5 +1,7 @@
 package com.prirai.android.nira.components.toolbar.unified
 
+import com.prirai.android.nira.diagnostics.testlab.*
+
 import android.animation.ValueAnimator
 import android.content.Context
 import android.util.AttributeSet
@@ -17,6 +19,11 @@ import com.prirai.android.nira.components.toolbar.ToolbarIntegration
 import com.prirai.android.nira.components.toolbar.ToolbarPosition
 import com.prirai.android.nira.components.toolbar.modern.ModernToolbarSystem
 import com.prirai.android.nira.components.toolbar.modern.ComposeTabBarWithProfileSwitcher
+import com.prirai.android.nira.browser.tabgroups.UnifiedTabGroupManager
+import com.prirai.android.nira.browser.tabs.compose.TabOrderManager
+import com.prirai.android.nira.browser.tabs.compose.UnifiedTabOrder
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import com.prirai.android.nira.ext.components
 import com.prirai.android.nira.preferences.UserPreferences
 import com.prirai.android.nira.toolbar.ContextualBottomToolbar
@@ -30,6 +37,7 @@ import mozilla.components.browser.toolbar.BrowserToolbar
 import mozilla.components.concept.engine.EngineView
 import mozilla.components.concept.toolbar.ScrollableToolbar
 import mozilla.components.lib.state.ext.flowScoped
+import mozilla.components.lib.state.ext.flow
 import mozilla.components.support.ktx.android.content.res.resolveAttribute
 import com.prirai.android.nira.components.toolbar.modern.ModernScrollBehavior
 import androidx.core.view.isNotEmpty
@@ -72,6 +80,9 @@ class UnifiedToolbar @JvmOverloads constructor(
     
     // Store reference for tab updates
     private var browserStore: BrowserStore? = null
+    private var hostLifecycleOwner: LifecycleOwner? = null
+    // Rapid toolbar clicks must not rebuild/select out of order.
+    private val tabCycleMutex = Mutex()
     
     // Tab selection callback
     private var onTabSelectedCallback: ((String) -> Unit)? = null
@@ -189,7 +200,7 @@ class UnifiedToolbar @JvmOverloads constructor(
     override fun expand() {
         toolbarSystem.expand()
         // Also show bottom components if in TOP mode
-        if (shouldHideBottomComponents) {
+        if (shouldHideBottomComponents && !prefs.niraGroupBarBottom) {
             bottomComponentsContainer?.let { container ->
                 container.visibility = VISIBLE
                 container.animate()
@@ -208,7 +219,7 @@ class UnifiedToolbar @JvmOverloads constructor(
     override fun collapse() {
         toolbarSystem.collapse()
         // Also hide bottom components if in TOP mode
-        if (shouldHideBottomComponents) {
+        if (shouldHideBottomComponents && !prefs.niraGroupBarBottom) {
             bottomComponentsContainer?.let { container ->
                 // Set GONE immediately to prevent space reservation
                 container.visibility = GONE
@@ -261,6 +272,7 @@ class UnifiedToolbar @JvmOverloads constructor(
 
         // Store reference
         this.browserStore = store
+        this.hostLifecycleOwner = lifecycleOwner
 
         // Add components in order based on toolbar position
         val toolbarPos = if (prefs.toolbarPosition == ToolbarPosition.BOTTOM.ordinal) {
@@ -271,15 +283,11 @@ class UnifiedToolbar @JvmOverloads constructor(
 
         when (toolbarPos) {
             ModernToolbarSystem.ToolbarPosition.TOP -> {
-                // TOP: Address Bar only in the top toolbar system
-                // Tab bar and contextual toolbar will be in a separate bottom container
+                // One address row, tab strip immediately below; no footer.
                 addAddressBar(parent, lifecycleOwner, interactor, customTabSession, store)
-                // Create bottom components (they will be retrieved separately)
-                addBottomComponentsForTopToolbar(store, lifecycleOwner)
-                // Add browser actions to address bar if contextual toolbar is disabled
-                if (!showContextualToolbar) {
-                    addBrowserActionsToAddressBar()
-                }
+                if (prefs.niraGroupBarBottom) createTabGroupBar(store, lifecycleOwner)
+                else addTabGroupBar(store, lifecycleOwner)
+                addBrowserActionsToAddressBar()
             }
             ModernToolbarSystem.ToolbarPosition.BOTTOM -> {
                 // BOTTOM: Contextual Toolbar -> Address Bar -> Tab Bar (all together)
@@ -339,7 +347,7 @@ class UnifiedToolbar @JvmOverloads constructor(
                     val filteredTabs = state.tabs.filter { tab ->
                         if (tab.contextId == null) {
                             // Guest tabs from custom tabs - always show in current profile
-                            tab.content.private == false
+                            profile.id == "default" && !tab.content.private
                         } else {
                             tab.content.private == false && tab.contextId == expectedContextId
                         }
@@ -367,7 +375,7 @@ class UnifiedToolbar @JvmOverloads constructor(
                     val filteredTabs = state.tabs.filter { tab ->
                         if (tab.contextId == null && !isPrivateMode) {
                             // Guest tabs from custom tabs - show in normal mode
-                            tab.content.private == false
+                            currentProfile.id == "default" && !tab.content.private
                         } else {
                             tab.content.private == isPrivateMode && tab.contextId == expectedContextId
                         }
@@ -376,7 +384,8 @@ class UnifiedToolbar @JvmOverloads constructor(
                     tabGroupBar?.updateTabs(filteredTabs, state.selectedTabId)
 
                     context.components.sessionUseCases.reload()
-                }
+                },
+                lifecycleOwner = lifecycleOwner
             )
         }
 
@@ -387,8 +396,7 @@ class UnifiedToolbar @JvmOverloads constructor(
         // 3. Guest tabs from custom tabs (contextId == null) are shown in normal mode
         // 4. Tab bar updates automatically when profile switches or tabs change
         lifecycleOwner.lifecycleScope.launch {
-            store.flowScoped(dispatcher = Dispatchers.Main) { flow ->
-                flow.collect { state ->
+            store.flow(lifecycleOwner).collect { state ->
                     val profileManager = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(context)
                     val isPrivateMode = profileManager.isPrivateMode()
                     val currentProfile = profileManager.getActiveProfile()
@@ -405,8 +413,8 @@ class UnifiedToolbar @JvmOverloads constructor(
                     // Also include guest tabs (contextId == null) which come from custom tabs
                     val filteredTabs = state.tabs.filter { tab ->
                         if (tab.contextId == null) {
-                            // Guest tabs from custom tabs - always show in current profile if not private
-                            !isPrivateMode && !tab.content.private
+                            // Default Gecko partition belongs only to the default profile.
+                            !isPrivateMode && currentProfile.id == "default" && !tab.content.private
                         } else {
                             // Regular profile tabs
                             tab.content.private == isPrivateMode && tab.contextId == expectedContextId
@@ -414,7 +422,6 @@ class UnifiedToolbar @JvmOverloads constructor(
                     }
                     
                     tabGroupBar?.updateTabs(filteredTabs, state.selectedTabId)
-                }
             }
         }
 
@@ -576,132 +583,280 @@ class UnifiedToolbar @JvmOverloads constructor(
         toolbarSystem.addComponent(contextualToolbar!!, ModernToolbarSystem.ComponentType.CONTEXTUAL)
     }
     
-    // Store tab count view reference to update the count
-    private var tabCountBadgeView: android.widget.TextView? = null
-    
-    /**
-     * Get the toolbar view for anchoring popups
-     */
+    /** Toolbar anchor used by popups and browser chrome positioning. */
     fun getToolbarView(): View? = browserToolbar?.asView()
-    
-    /**
-     * Add browser actions (tab count, menu) to address bar when contextual toolbar is disabled
-     */
+
+    /** Uses the actual chrome geometry, including the detached bottom tab strip. */
+    internal fun mediaButtonReservations(parent: View, viewport: android.graphics.Rect): Pair<Int, Int> {
+        val bottomMode = prefs.toolbarPosition == ToolbarPosition.BOTTOM.ordinal
+        return com.prirai.android.nira.components.toolbar.BrowserChromeBounds.reservations(
+            parent, viewport,
+            if (bottomMode) emptyList() else listOf(toolbarSystem),
+            if (bottomMode) listOfNotNull(toolbarSystem, bottomComponentsContainer)
+            else listOfNotNull(bottomComponentsContainer)
+        )
+    }
+
+    // Count remains on the leading side of the address field.
+    private var tabCountDisplayCount = 0
+    private var tabCountBadgeDrawable: android.graphics.drawable.Drawable? = null
+
     private fun addBrowserActionsToAddressBar() {
         val toolbar = browserToolbar ?: return
-        
-        // Add menu button first
-        val menuAction = BrowserToolbar.Button(
-            imageDrawable = ContextCompat.getDrawable(context, mozilla.components.ui.icons.R.drawable.mozac_ic_ellipsis_vertical_24)!!,
-            contentDescription = "Menu",
-            listener = {
-                contextualToolbarListener?.onMenuClicked()
-            }
+        val density = resources.displayMetrics.density
+        val foreground = com.google.android.material.color.MaterialColors.getColor(
+            context, com.google.android.material.R.attr.colorOnSurface, android.graphics.Color.WHITE
         )
-        toolbar.addBrowserAction(menuAction)
-        
-        // Create custom tab count button - exact replica of ContextualBottomToolbar's tab count
-        val tabCountContainer = android.widget.FrameLayout(context).apply {
-            layoutParams = ViewGroup.LayoutParams(
-                (48 * context.resources.displayMetrics.density).toInt(),
-                (48 * context.resources.displayMetrics.density).toInt()
-            )
-            val padding = (4 * context.resources.displayMetrics.density).toInt()
-            setPadding(padding, padding, padding, padding)
-            
-            // Add ripple effect (unbounded for circular feedback)
-            val outValue = android.util.TypedValue()
-            context.theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, outValue, true)
-            setBackgroundResource(outValue.resourceId)
-            isClickable = true
-            isFocusable = true
-            
-            // Add square background (same as ContextualBottomToolbar)
-            val backgroundView = android.widget.ImageView(context).apply {
-                setImageDrawable(ContextCompat.getDrawable(context, com.prirai.android.nira.R.drawable.tab_number_background))
-                val size = (28 * context.resources.displayMetrics.density).toInt()
-                layoutParams = LayoutParams(size, size).apply {
-                    gravity = android.view.Gravity.CENTER
-                }
-                scaleType = android.widget.ImageView.ScaleType.FIT_XY
-                imageTintList = android.content.res.ColorStateList.valueOf(
-                    com.google.android.material.color.MaterialColors.getColor(
-                        this,
-                        com.google.android.material.R.attr.colorOnSurface,
-                        android.graphics.Color.BLACK
-                    )
-                )
+        val counter = object : android.graphics.drawable.Drawable() {
+            private val pen = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+            override fun draw(canvas: android.graphics.Canvas) {
+                val b = bounds
+                val x = b.exactCenterX()
+                val y = b.exactCenterY()
+                val half = 12f * density
+                pen.style = android.graphics.Paint.Style.STROKE
+                pen.color = foreground
+                pen.strokeWidth = 1.8f * density
+                canvas.drawRoundRect(x-half, y-half, x+half, y+half, 2*density, 2*density, pen)
+                pen.style = android.graphics.Paint.Style.FILL
+                pen.textSize = 11f * resources.displayMetrics.scaledDensity
+                pen.typeface = android.graphics.Typeface.DEFAULT_BOLD
+                pen.textAlign = android.graphics.Paint.Align.CENTER
+                val number = if (tabCountDisplayCount > 99) "99+" else tabCountDisplayCount.toString()
+                canvas.drawText(number, x, y-(pen.ascent()+pen.descent())/2, pen)
             }
-            addView(backgroundView)
-            
-            // Add count text (same as ContextualBottomToolbar)
-            val countText = android.widget.TextView(context).apply {
-                val size = (28 * context.resources.displayMetrics.density).toInt()
-                layoutParams = LayoutParams(size, size).apply {
-                    gravity = android.view.Gravity.CENTER
-                }
-                gravity = android.view.Gravity.CENTER
-                textSize = 13f
-                setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setTextColor(
-                    com.google.android.material.color.MaterialColors.getColor(
-                        this,
-                        com.google.android.material.R.attr.colorOnSurface,
-                        android.graphics.Color.BLACK
-                    )
-                )
-                maxLines = 1
-            }
-            addView(countText)
-            tabCountBadgeView = countText
-            
-            setOnClickListener {
-                contextualToolbarListener?.onTabCountClicked()
-            }
+            override fun setAlpha(alpha: Int) {}
+            override fun setColorFilter(filter: android.graphics.ColorFilter?) {}
+            override fun getOpacity(): Int = android.graphics.PixelFormat.TRANSLUCENT
         }
-        
-        // Add tab count view directly to browser actions container at the beginning
+        tabCountBadgeDrawable = counter
+        toolbar.addNavigationAction(BrowserToolbar.Button(
+            imageDrawable = counter,
+            contentDescription = "Otwarte karty",
+            listener = { contextualToolbarListener?.onTabCountClicked() }
+        ))
+        fun action(icon: Int, label: String, click: () -> Unit) {
+            val img = ContextCompat.getDrawable(context, icon)?.mutate() ?: return
+            img.setTint(foreground)
+            toolbar.addBrowserAction(BrowserToolbar.Button(
+                imageDrawable = img, contentDescription = label, listener = click
+            ))
+        }
+        // The pre-existing reload/stop integration already adds refresh first.
+        action(com.prirai.android.nira.R.drawable.ic_round_add, "Nowa karta") {
+            contextualToolbarListener?.onNewTabClicked()
+        }
+        action(android.R.drawable.ic_media_next, "Następna karta") { cycleTab(1) }
+        action(android.R.drawable.ic_media_previous, "Poprzednia karta") { cycleTab(-1) }
+        action(com.prirai.android.nira.R.drawable.ic_round_close, "Zamknij kartę") {
+            browserStore?.state?.selectedTabId?.takeIf { id -> tabsForActiveProfile().any { it.id == id } }
+                ?.let { context.components.tabsUseCases.removeTab(it) }
+        }
+        action(com.prirai.android.nira.R.drawable.ic_ios_back, "Wstecz") {
+            contextualToolbarListener?.onBackClicked()
+        }
+        action(com.prirai.android.nira.R.drawable.ic_ios_forward, "Do przodu") {
+            contextualToolbarListener?.onForwardClicked()
+        }
+        action(mozilla.components.ui.icons.R.drawable.mozac_ic_ellipsis_vertical_24, "Ustawienia") {
+            contextualToolbarListener?.onMenuClicked()
+        }
+        // Action views are real Android controls. Keep Settings reachable after
+        // rotation, use a >=40dp touch target and allow deliberate long-press
+        // drag reordering without rebuilding BrowserToolbar's click listeners.
         toolbar.asView().post {
-            val browserActions = toolbar.asView().findViewById<ViewGroup>(
+            val actions = toolbar.asView().findViewById<ViewGroup>(
                 mozilla.components.browser.toolbar.R.id.mozac_browser_toolbar_browser_actions
-            )
-            if (browserActions != null) {
-                // Add at index 0 so it appears before the menu button
-                browserActions.addView(tabCountContainer, 0)
+            ) ?: return@post
+            val ids = mutableMapOf<View, String>()
+            val customActions = listOf("new", "next", "previous", "close", "back", "forward", "settings")
+            val prefixCount = (actions.childCount - customActions.size).coerceAtLeast(0)
+            for (i in 0 until actions.childCount) {
+                ids[actions.getChildAt(i)] =
+                    if (i < prefixCount) "refresh_$i" else customActions.getOrNull(i - prefixCount) ?: "action_$i"
             }
+            val preferredOrder = prefs.niraToolbarActionOrder.split(",").filter { it.isNotBlank() }
+            if (preferredOrder.isNotEmpty()) {
+                val desired = (preferredOrder.mapNotNull { name ->
+                    ids.entries.firstOrNull { it.value == name }?.key
+                } + (0 until actions.childCount).map { actions.getChildAt(it) })
+                    .distinct()
+                desired.forEachIndexed { index, button ->
+                    if (actions.indexOfChild(button) != index) {
+                        actions.removeView(button)
+                        actions.addView(button, index)
+                    }
+                }
+            }
+
+            fun updateActionLayout() {
+                val densityNow = resources.displayMetrics.density
+                val slot = (prefs.niraToolbarActionSlotDp.coerceIn(40, 52) * densityNow).toInt()
+                val padding = (2f * densityNow).toInt()
+                for (i in 0 until actions.childCount) {
+                    val child = actions.getChildAt(i)
+                    if (child.layoutParams.width != slot) {
+                        child.layoutParams = child.layoutParams.apply { width = slot }
+                    }
+                    child.minimumWidth = slot
+                    child.minimumHeight = (40f * densityNow).toInt()
+                    if (child.paddingLeft != padding || child.paddingRight != padding) {
+                        child.setPadding(padding, child.paddingTop, padding, child.paddingBottom)
+                    }
+                    if (child.visibility != View.VISIBLE) child.visibility = View.VISIBLE
+                }
+                val width = toolbar.asView().width
+                if (width == 0) return
+                val reservedAddress = (prefs.niraAddressMinWidthDp.coerceIn(64, 220) * densityNow).toInt()
+                val reservedCounter = (38f * densityNow).toInt()
+                val availableSlots = ((width - reservedAddress - reservedCounter) / slot)
+                    .coerceAtLeast(1)
+                var visibleCount = actions.childCount
+                // Hide secondary actions first, never Settings. Width is
+                // recalculated whenever the toolbar bounds change.
+                for (name in listOf("previous", "next", "forward", "close", "back", "new")) {
+                    if (visibleCount <= availableSlots) break
+                    val child = ids.entries.firstOrNull { it.value == name }?.key ?: continue
+                    if (child.visibility == View.VISIBLE) {
+                        child.visibility = View.GONE
+                        visibleCount--
+                    }
+                }
+                // If an unusual landscape cutout or action reorder leaves
+                // even less width, keep Settings and hide other actions.
+                if (visibleCount > availableSlots) {
+                    for (i in 0 until actions.childCount) {
+                        if (visibleCount <= availableSlots) break
+                        val child = actions.getChildAt(i)
+                        if (ids[child] != "settings" && child.visibility == View.VISIBLE) {
+                            child.visibility = View.GONE
+                            visibleCount--
+                        }
+                    }
+                }
+            }
+            actions.setOnDragListener { _, event ->
+                when (event.action) {
+                    android.view.DragEvent.ACTION_DRAG_STARTED -> event.localState is View
+                    android.view.DragEvent.ACTION_DROP -> {
+                        val dragged = event.localState as? View ?: return@setOnDragListener false
+                        if (actions.indexOfChild(dragged) < 0) return@setOnDragListener false
+                        val target = (0 until actions.childCount).firstOrNull { index ->
+                            val button = actions.getChildAt(index)
+                            button.visibility == View.VISIBLE &&
+                                event.x < button.x + button.width / 2f
+                        } ?: actions.childCount
+                        val from = actions.indexOfChild(dragged)
+                        val destination = com.prirai.android.nira.browser.tabs.compose.DragPlacement
+                            .destination(from, target, actions.childCount)
+                        if (from != destination) {
+                            actions.removeView(dragged)
+                            actions.addView(dragged, destination)
+                            prefs.niraToolbarActionOrder = (0 until actions.childCount)
+                                .mapNotNull { ids[actions.getChildAt(it)] }.joinToString(",")
+                        }
+                        updateActionLayout()
+                        true
+                    }
+                    android.view.DragEvent.ACTION_DRAG_ENDED -> true
+                    else -> true
+                }
+            }
+            for (i in 0 until actions.childCount) {
+                actions.getChildAt(i).setOnLongClickListener { button ->
+                    button.startDragAndDrop(
+                        android.content.ClipData.newPlainText("nira-toolbar-action", ids[button] ?: ""),
+                        View.DragShadowBuilder(button), button, 0
+                    )
+                }
+            }
+            var lastWidth = -1
+            toolbar.asView().addOnLayoutChangeListener { _, left, _, right, _, oldLeft, _, oldRight, _ ->
+                if (right - left != oldRight - oldLeft || lastWidth < 0) {
+                    val newWidth = right - left
+                    if (newWidth != lastWidth) {
+                        lastWidth = newWidth
+                        updateActionLayout()
+                    }
+                }
+            }
+            updateActionLayout()
         }
-        
-        // Start observing tab count to update the text
         observeTabCountForBadge()
     }
-    
+
+    private fun tabsForActiveProfile(): List<TabSessionState> {
+        val profileManager = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(context)
+        val private = profileManager.isPrivateMode()
+        val active = profileManager.getActiveProfile()
+        val expected = if (private) "private" else "profile_${active.id}"
+        return (browserStore?.state?.tabs ?: emptyList()).filter {
+            it.content.private == private &&
+                (it.contextId == expected || (!private && active.id == "default" && it.contextId == null))
+        }
+    }
+
     /**
-     * Observe store to update tab count badge
+     * Flatten the same canonical hierarchy the sidebar and both tab strips use.
+     * BrowserStore.tabs is an inventory, NOT the user's persisted visual order.
      */
-    private fun observeTabCountForBadge() {
-        val store = context.components.store
-        val lifecycleOwner = context as? LifecycleOwner ?: return
-        
-        lifecycleOwner.lifecycleScope.launch {
-            store.flowScoped(dispatcher = Dispatchers.Main) { flow ->
-                flow.collect { state ->
-                    val profileManager = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(context)
-                    val isPrivateMode = profileManager.isPrivateMode()
-                    val currentProfile = profileManager.getActiveProfile()
-                    val expectedContextId = if (isPrivateMode) {
-                        "private"
-                    } else {
-                        "profile_${currentProfile.id}"
-                    }
-                    
-                    val filteredTabCount = state.tabs.count { tab ->
-                        tab.content.private == isPrivateMode && tab.contextId == expectedContextId
-                    }
-                    
-                    tabCountBadgeView?.text = if (filteredTabCount > 99) "99+" else filteredTabCount.toString()
-                }
+    private fun orderedVisibleTabIds(
+        tabs: List<TabSessionState>,
+        order: UnifiedTabOrder
+    ): List<String> {
+        val visible = tabs.map { it.id }.toSet()
+        val ordered = order.getAllTabIds().filter { it in visible }.distinct()
+        // Newly opened tabs may not yet be in the persisted order. Make them
+        // reachable after existing cards, without introducing stale other-profile IDs.
+        return ordered + tabs.map { it.id }.filter { it !in ordered }
+    }
+
+    private fun cycleTab(direction: Int) {
+        val owner = hostLifecycleOwner ?: return
+        owner.lifecycleScope.launch {
+            tabCycleMutex.withLock {
+                val profileManager = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(context)
+                val profileId = if (profileManager.isPrivateMode()) "private"
+                    else profileManager.getActiveProfile().id
+
+                // The group DB owns membership/order within groups; UnifiedTabOrder
+                // owns the order of group containers and ungrouped cards.
+                val manager = UnifiedTabGroupManager.getInstance(context)
+                // Never rebuild from an empty group cache during startup.
+                if (!manager.awaitInitialized()) return@withLock
+                val orderManager = TabOrderManager.getInstance(context, manager)
+                val tabs = tabsForActiveProfile()
+                if (tabs.size < 2) return@withLock
+
+                // Reconcile async group edits before resolving a navigation click,
+                // especially after side-panel drag, group rename and relaunch.
+                orderManager.rebuildOrderForProfile(profileId, tabs)
+                val order = orderManager.currentOrder.value
+                    ?.takeIf { it.profileId == profileId } ?: return@withLock
+                val ids = orderedVisibleTabIds(tabs, order)
+                if (ids.size < 2) return@withLock
+                val selected = browserStore?.state?.selectedTabId
+                val current = ids.indexOf(selected)
+                if (current < 0) return@withLock
+                val next = (current + direction + ids.size) % ids.size
+                val activeNow = if (profileManager.isPrivateMode()) "private" else profileManager.getActiveProfile().id
+                if (activeNow != profileId || tabsForActiveProfile().none { it.id == ids[next] }) return@withLock
+                context.components.tabsUseCases.selectTab(ids[next])
             }
         }
+    }
+
+    private fun observeTabCountForBadge() {
+        val store = browserStore ?: return
+        val owner = hostLifecycleOwner ?: return
+        owner.lifecycleScope.launch {
+            store.flow().collect {
+                tabCountDisplayCount = tabsForActiveProfile().size
+                tabCountBadgeDrawable?.invalidateSelf()
+            }
+        }
+        tabCountDisplayCount = tabsForActiveProfile().size
+        tabCountBadgeDrawable?.invalidateSelf()
     }
 
     /**
@@ -809,37 +964,35 @@ class UnifiedToolbar @JvmOverloads constructor(
      * Returns null if toolbar is not in TOP mode.
      */
     fun getBottomComponentsContainer(): ViewGroup? {
-        val toolbarPos = if (prefs.toolbarPosition == ToolbarPosition.BOTTOM.ordinal) {
-            ToolbarPosition.BOTTOM
-        } else {
-            ToolbarPosition.TOP
-        }
-        
-        if (toolbarPos != ToolbarPosition.TOP) {
-            return null
-        }
-        
-        // Create container lazily
+        if (prefs.toolbarPosition != ToolbarPosition.TOP.ordinal ||
+            !prefs.niraGroupBarBottom || !showTabGroupBar) return null
         if (bottomComponentsContainer == null) {
             val container = android.widget.LinearLayout(context).apply {
                 orientation = android.widget.LinearLayout.VERTICAL
-                layoutParams = LayoutParams(
-                    LayoutParams.MATCH_PARENT,
-                    LayoutParams.WRAP_CONTENT
-                ).apply {
-                    gravity = android.view.Gravity.BOTTOM
-                }
+                clipChildren = false
+                clipToPadding = false
+                setBackgroundColor(if (com.prirai.android.nira.theme.ThemeManager.isDarkMode(context))
+                    android.graphics.Color.rgb(28, 27, 31) else
+                    android.graphics.Color.rgb(255, 251, 254))
             }
-            
-            // Add tab bar if it exists
-            tabGroupBar?.let { container.addView(it) }
-
-            // Add contextual toolbar if it exists
-            contextualToolbar?.let { container.addView(it) }
-            
+            tabGroupBar?.let { tabStrip ->
+                // Ensure a real one-row touch target even before the first
+                // asynchronous Compose measurement following rotation.
+                tabStrip.minimumHeight = (prefs.niraTabStripHeightDp.coerceIn(40, 80) *
+                    resources.displayMetrics.density).toInt()
+                // A detached Compose host may retain the old hidden/translated
+                // state after a page-scroll animation. Reset before attaching
+                // it to the separate, persistent bottom strip.
+                tabStrip.visibility = VISIBLE
+                tabStrip.translationY = 0f
+                tabStrip.alpha = 1f
+                container.addView(tabStrip, android.widget.LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ))
+            }
             bottomComponentsContainer = container
         }
-        
         return bottomComponentsContainer
     }
 
@@ -854,11 +1007,16 @@ class UnifiedToolbar @JvmOverloads constructor(
         showContextualToolbar = showContextual
 
         tabGroupBar?.visibility = if (showTabBar) VISIBLE else GONE
+        bottomComponentsContainer?.visibility = if (showTabBar) VISIBLE else GONE
         contextualToolbar?.visibility = if (showContextual) VISIBLE else GONE
     }
 
     /** True while the toolbar is in the minimal (address-bar-only) state. */
     fun isMinimal(): Boolean = minimalState
+
+    fun isScrollAnimationRunning(): Boolean = toolbarSystem.isOffsetAnimating()
+
+    fun isCollapsed(): Boolean = toolbarSystem.isCollapsed()
 
     /**
      * Enter the minimal state: hide the tab bar and contextual toolbar so only
@@ -921,9 +1079,13 @@ class UnifiedToolbar @JvmOverloads constructor(
      * feel identical.
      */
     private fun animateAuxiliaryComponents(show: Boolean) {
+        // Only animate auxiliary views owned by the top toolbar. When the user
+        // moves the tab strip to a separate bottom container, it must remain
+        // visible and interactive during top-toolbar minimal-state transitions.
+        // Counting its height here also breaks the top address-bar height math.
         val auxiliaries = listOfNotNull(
-            tabGroupBar?.takeIf { showTabGroupBar },
-            contextualToolbar?.takeIf { showContextualToolbar },
+            tabGroupBar?.takeIf { showTabGroupBar && it.parent === toolbarSystem },
+            contextualToolbar?.takeIf { showContextualToolbar && it.parent === toolbarSystem },
         )
         if (auxiliaries.isEmpty()) return
 
@@ -961,6 +1123,8 @@ class UnifiedToolbar @JvmOverloads constructor(
         val targetTranslation = if (show) 0f else auxTotalHeight.toFloat()
 
         suppressReconcileDuringAnimation = true
+        val capture=TestLab.capture()
+        val measurement=capture?.operation(if(show)LabOperation.TOOLBAR_RESTORE else LabOperation.TOOLBAR_MINIMIZE)
 
         minimalAnimator = ValueAnimator.ofFloat(startTranslation, targetTranslation).apply {
             duration = ANIMATION_DURATION_MS
@@ -994,7 +1158,9 @@ class UnifiedToolbar @JvmOverloads constructor(
             }
 
             addListener(object : android.animation.AnimatorListenerAdapter() {
+                private var cancelled = false
                 override fun onAnimationEnd(animation: android.animation.Animator) {
+                    if (cancelled) return
                     // Snap to final state in a single layout pass. All
                     // of these are idempotent with what the final
                     // animator frame already applied, so no visible jump.
@@ -1014,13 +1180,12 @@ class UnifiedToolbar @JvmOverloads constructor(
                     // not-laid-out value the animator was using).
                     reconcileEngineViewHeight()
                     minimalAnimator = null
+                    capture?.end(measurement,proof=CompletionProof.ANIMATOR_END)
                 }
 
                 override fun onAnimationCancel(animation: android.animation.Animator) {
-                    // If we were cancelled mid-flight the new animator's
-                    // `onAnimationEnd` will clear the suppress flag; do
-                    // not clear it here, otherwise rapid toggles could
-                    // leak reconciles between the two animations.
+                    cancelled = true
+                    capture?.end(measurement,OperationOutcome.CANCELLED)
                 }
             })
 
@@ -1090,7 +1255,10 @@ class UnifiedToolbar @JvmOverloads constructor(
         // offset listener so the fragment can update its own
         // margin/padding bookkeeping.
         engine.setDynamicToolbarMaxHeight(0)
-        onToolbarOffsetChanged?.invoke(0, visible)
+        // A late layout pass during rotation/selection may occur after the
+        // toolbar has been translated fully off-screen. Reporting offset 0
+        // here would reserve the entire invisible bar as a black blank band.
+        onToolbarOffsetChanged?.invoke(toolbarSystem.getEffectiveOffset(), visible)
     }
     
     /**
@@ -1213,14 +1381,36 @@ class UnifiedToolbar @JvmOverloads constructor(
                 ))
             }
 
-            // Setup toolbar
-            return toolbar.setup(
-                parent,
-                lifecycleOwner,
-                interactor,
-                customTabSession,
-                store
+            val configured = toolbar.setup(
+                parent, lifecycleOwner, interactor, customTabSession, store
             )
+            configured.getBottomComponentsContainer()?.let { bottom ->
+                if (parent is CoordinatorLayout) {
+                    parent.addView(bottom, CoordinatorLayout.LayoutParams(
+                        CoordinatorLayout.LayoutParams.MATCH_PARENT,
+                        CoordinatorLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { gravity = android.view.Gravity.BOTTOM })
+                } else {
+                    parent.addView(bottom, ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    ))
+                }
+                // The GeckoView/homepage and footer share one CoordinatorLayout.
+                // Keep the detached Compose tabs above the page on rotation.
+                bottom.bringToFront()
+                bottom.requestLayout()
+                // The bottom Compose strip measures independently of the
+                // address bar. Reserve its actual height in the Gecko viewport
+                // after attachment, on rotation and on group-chip changes.
+                bottom.addOnLayoutChangeListener { _, _, top, _, bottomEdge, _, oldTop, _, oldBottom ->
+                    if (bottomEdge - top != oldBottom - oldTop) {
+                        configured.reconcileEngineViewHeight()
+                    }
+                }
+                bottom.post { configured.reconcileEngineViewHeight() }
+            }
+            return configured
         }
     }
 }

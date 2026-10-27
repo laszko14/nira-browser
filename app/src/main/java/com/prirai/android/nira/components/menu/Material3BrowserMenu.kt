@@ -1,6 +1,9 @@
 package com.prirai.android.nira.components.menu
 
+import com.prirai.android.nira.diagnostics.testlab.*
+
 import android.content.Context
+import android.graphics.Rect
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -81,12 +84,13 @@ class Material3BrowserMenu(
     private var popupWindow: PopupWindow? = null
     
     fun show(anchor: View, preferBottom: Boolean = true) {
+        val capture=TestLab.capture();val measurement=capture?.operation(LabOperation.MENU_OPEN)
         val inflater = LayoutInflater.from(context)
         val menuView = inflater.inflate(R.layout.material3_browser_menu, null)
         
         val recyclerView = menuView.findViewById<RecyclerView>(R.id.menu_recycler)
         recyclerView.layoutManager = LinearLayoutManager(context)
-        recyclerView.isNestedScrollingEnabled = false
+        recyclerView.isNestedScrollingEnabled = true
         recyclerView.overScrollMode = View.OVER_SCROLL_NEVER
         recyclerView.adapter = MenuAdapter(items.filter {
             when (it) {
@@ -102,89 +106,55 @@ class Material3BrowserMenu(
             popupWindow?.dismiss()
         }
 
-        val displayMetrics = context.resources.displayMetrics
-        val screenHeight = displayMetrics.heightPixels
-        val menuWidthPx = (280 * displayMetrics.density).toInt()
-
-        // Measure without height constraint so the menu is never scrollable
-        recyclerView.measure(
-            View.MeasureSpec.makeMeasureSpec(menuWidthPx, View.MeasureSpec.EXACTLY),
-            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        // Landscape has less room than the full list; constrain the popup to
+        // the visible viewport and allow RecyclerView to scroll.
+        val density = context.resources.displayMetrics.density
+        val visible = Rect()
+        anchor.rootView.getWindowVisibleDisplayFrame(visible)
+        if (visible.width() <= 0 || visible.height() <= 0) {
+            val metrics = context.resources.displayMetrics
+            visible.set(0, 0, metrics.widthPixels, metrics.heightPixels)
+        }
+        val gap = (8 * density).toInt().coerceAtLeast(1)
+        val menuWidthPx = (280 * density).toInt()
+            .coerceAtMost((visible.width() - 2 * gap).coerceAtLeast(1))
+        val maxHeight = (visible.height() - 2 * gap).coerceAtLeast(1)
+        menuView.layoutParams = ViewGroup.LayoutParams(
+            menuWidthPx, ViewGroup.LayoutParams.WRAP_CONTENT
         )
+        menuView.measure(
+            View.MeasureSpec.makeMeasureSpec(menuWidthPx, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(maxHeight, View.MeasureSpec.AT_MOST)
+        )
+        val menuHeight = menuView.measuredHeight.coerceIn(1, maxHeight)
 
-        val menuHeight = recyclerView.measuredHeight
-        
-        popupWindow = PopupWindow(
-            menuView,
-            menuWidthPx,
-            menuHeight,
-            true
-        ).apply {
-            elevation = 0f
-            // Apply menu background color programmatically (supports AMOLED)
-            val menuBgColor = com.prirai.android.nira.theme.ThemeManager.getMenuBackgroundColor(context)
-            setBackgroundDrawable(android.graphics.drawable.ColorDrawable(menuBgColor).apply {
-                // Add rounded corners
-                val cornerRadius = (12 * displayMetrics.density)
-                val shape = android.graphics.drawable.GradientDrawable()
-                shape.cornerRadius = cornerRadius
-                shape.setColor(menuBgColor)
-                this@apply.setBounds(0, 0, intrinsicWidth, intrinsicHeight)
-            })
-            // Alternative: use a shape drawable with rounded corners
-            val shape = android.graphics.drawable.GradientDrawable()
-            shape.cornerRadius = (12 * displayMetrics.density)
-            shape.setColor(menuBgColor)
-            setBackgroundDrawable(shape)
-            
-            // Get anchor screen position
+        popupWindow = PopupWindow(menuView, menuWidthPx, menuHeight, true).apply {
+            elevation = 6 * density
+            isOutsideTouchable = true
+            setBackgroundDrawable(
+                android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = 12 * density
+                    setColor(com.prirai.android.nira.theme.ThemeManager.getMenuBackgroundColor(context))
+                }
+            )
             val location = IntArray(2)
             anchor.getLocationOnScreen(location)
-            location[0]
             val anchorY = location[1]
-            
-            val menuWidth = menuWidthPx
-            val gap = (8 * displayMetrics.density).toInt()
-            
-            // Check available space below and above
-            screenHeight - (anchorY + anchor.height)
-
-            // Determine if anchor is in the bottom half of the screen (contextual toolbar case)
-            val anchorInBottomHalf = anchorY > screenHeight / 2
-            
-            // Decide whether to show above or below
-            val showAbove = if (preferBottom) {
-                // Prefer bottom positioning: if anchor is in bottom half, show above it to keep menu at bottom
-                // if anchor is in top half, show below it to position menu at bottom
-                anchorInBottomHalf
-            } else {
-                // Prefer top positioning: if anchor is in top half, show below it to keep menu at top
-                // if anchor is in bottom half, show above it to position menu at top
-                !anchorInBottomHalf
-            }
-            
-            // Calculate Y position
-            val yPos = if (showAbove) {
-                // Show above - align bottom of menu with top of anchor
-                anchorY - menuHeight - gap
-            } else {
-                // Show below - position below anchor
-                anchorY + anchor.height + gap
-            }
-            
-            // Calculate X position - align right edge of menu with right edge of screen minus padding
-            val screenRightPadding = (16 * displayMetrics.density).toInt()
-            val xPos = displayMetrics.widthPixels - menuWidth - screenRightPadding
-            
-            // Ensure menu stays on screen
-            val finalX = xPos.coerceIn(screenRightPadding, displayMetrics.widthPixels - menuWidth - screenRightPadding)
-            val finalY = yPos.coerceIn(screenRightPadding, screenHeight - menuHeight - screenRightPadding)
-            
-            showAtLocation(anchor, android.view.Gravity.NO_GRAVITY, finalX, finalY)
+            val showAbove = if (preferBottom) anchorY > visible.centerY()
+                else anchorY <= visible.centerY()
+            val desiredY = if (showAbove) anchorY - menuHeight - gap
+                else anchorY + anchor.height + gap
+            val maxX = (visible.right - gap - menuWidthPx).coerceAtLeast(visible.left)
+            val maxY = (visible.bottom - gap - menuHeight).coerceAtLeast(visible.top)
+            val x = (location[0] + anchor.width - menuWidthPx)
+                .coerceIn(visible.left, maxX)
+            val y = desiredY.coerceIn(visible.top, maxY)
+            showAtLocation(anchor, android.view.Gravity.NO_GRAVITY, x, y)
         }
+        if(measurement!=null)androidx.core.view.OneShotPreDrawListener.add(menuView){capture?.end(measurement,proof=CompletionProof.FIRST_PREDRAW)}
     }
-    
-    fun dismiss() {
+
+        fun dismiss() {
         popupWindow?.dismiss()
         popupWindow = null
     }

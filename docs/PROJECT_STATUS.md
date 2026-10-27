@@ -1,3 +1,7 @@
+> **Etap 4.0 — 2026-10-22:** implementacja w [PR #8](https://github.com/laszko14/nira-browser/pull/8), baza `feat/media-detector-stage-3-3-state` SHA `30cdde1e`. Dodano natywny 56dp przeciągany przycisk filmów, licznik wyników z RAM-only MediaRepository 3.3, BottomSheet z listą/MPV Alpha/kopiowaniem, StateFlow, kontrolę starej sesji/dokumentu, 9 nowych testów Kotlin i job CI ARM64. Wersja 0.5.22-alpha1, code 1095. [CI — weryfikacja aktualnego HEAD](https://github.com/laszko14/nira-browser/actions?query=branch%3Afeat%2Fmedia-detector-stage-4-0-floating-ui). Brak testu na fizycznym telefonie, brak dowodu certyfikatu zgodnego z zainstalowaną wersją; bez merge i bez 4.1.
+
+> **Checkpoint Etapu 3.3 (2026-10-22):** prace na [PR #7](https://github.com/laszko14/nira-browser/pull/7), baza PR #5 / gałąź `feat/media-detector-stage-3-2-network` (HEAD przy utworzeniu `ab29e263`), bez PR #6. Dodano RAM-only repozytorium kandydatów z izolacją karty/profilu/incognito/nawigacji, dokumentowo powiązany transport sieciowy i regresje Kotlin/JS. [Run 39730681284](https://github.com/laszko14/nira-browser/actions/runs/39730681284) 36 Kotlin + 17 JS + lint/kompilacja arm64 SUCCESS; po runie dodano jeszcze ochronę profile-rebind i test, więc aktualny HEAD wymaga końcowego CI. Nie wydano aktualizacyjnego APK bez potwierdzenia certyfikatu telefonu. Nie rozpoczęto Etapu 4.0.
+
 # Alpha / Nira Browser — bieżący stan projektu i przekazanie pracy
 
 **Aktualizacja:** 2026-10-22 (Europe/Warsaw)  
@@ -6,6 +10,9 @@
 **Dokumenty powiązane:** [VIDEO_DETECTION_RESEARCH.md](VIDEO_DETECTION_RESEARCH.md) · [VIDEO_DETECTION_PLAN.md](VIDEO_DETECTION_PLAN.md) · [AI_HANDOFF.md](AI_HANDOFF.md) · [AI_PROGRESS.md](AI_PROGRESS.md) · [../AGENTS.md](../AGENTS.md)
 
 > Ten plik to **krótka mapa projektu i priorytetów**. Szczegółowy, udokumentowany stan techniczny i linki do buildów są w AI_HANDOFF.md oraz AI_PROGRESS.md. Gdy dokumenty się różnią, sprawdź rzeczywisty kod, commity i CI — nie zakładaj, że ten tekst dowodzi wykonania czegoś.
+
+
+> **Checkpoint 2026-10-22, Etap 3.2 (osobny PR w przygotowaniu):** bazą jest niescalony PR #4 HEAD `52973f9`. Powstał kod pasywnego webRequest URL/MIME, HLS/DASH manifest-only, deduplikacja transient DOM+NETWORK, rozszerzona diagnostyka i niezależny job arm64 debug bez Secrets. Kod i testy Etapu 3.2: CI 39721818021 SUCCESS (assembleDebug, lintDebug, testDebugUnitTest, 13 JS), APK arm64 z podpisem v2 istnieje jako artefakt #12401945824. Cert testowy NIE jest zgodny z PR #4; test sieci na urządzeniu nadal niepotwierdzony. PR #2 → #3 → #4 → #3.2 pozostają zależne. Nie scalać przed zatwierdzeniem i kontrolą. Stałe podpisywanie odroczone, tymczasowe certyfikaty nie zapewniają aktualizacji.
 
 ## 1. Cel i zasady pracy
 
@@ -23,16 +30,19 @@ Priorytetami są: zachowanie obecnych funkcji Nira, małe sprawdzalne etapy, osz
 | Stan bazowy i workflow Android | **Wykonane** | .github/workflows/apk-release.yml; wcześniejsze poprawki release guard |
 | Pierwszy APK arm64 debug | **Wykonane w CI** | dokumentuje AI_PROGRESS.md (Etap 1) |
 | Ręczne otwieranie URL HTTPS w MPV Alpha | **Kod wdrożony** | `0.5.16-alpha1`, wersja arm64 `1080` wg AI_HANDOFF.md |
-| Ostatni opisany zakończony build | **CI success** | https://github.com/laszko14/nira-browser/actions/runs/39691305749 |
-| Artefakt APK arm64 tego builda | **Zweryfikowany w AI_HANDOFF** | https://github.com/laszko14/nira-browser/actions/runs/39691305749/artifacts/12388986024 |
+| Ostatni opisany zakończony build | **CI success: Etap 3.1** | https://github.com/laszko14/nira-browser/actions/runs/39706925625 |
+| Artefakt APK tego builda | **Istnieje; arm64 APK bez potwierdzenia podpisu i instalacji** | https://github.com/laszko14/nira-browser/actions/runs/39706925625/artifacts/12395875886 |
 | Test otwarcia MPV Alpha na Nothing Phone (1) | **Niepotwierdzony** | wymagany fizyczny test |
-| Automatyczny detektor wideo GeckoView | **Niewykonany** | następny etap implementacyjny: 3.0 |
-| Panel wykrytych filmów / przycisk | **Niewykonany** | etap 4.0 |
+| Automatyczny detektor wideo GeckoView | **Etap 3.0: kod + CI, oczekuje na telefon** | [PR #2](https://github.com/laszko14/nira-browser/pull/2), główna ramka i zwykłe karty; incognito zgodnie z uprawnieniem Gecko |
+| Detekcja DOM HTML5 MP4/WebM (Etap 3.1) | **Kod + CI success w [PR #3](https://github.com/laszko14/nira-browser/pull/3)** | gałąź oparta na PR #2; bez testu urządzenia |
+| Diagnostyka na telefonie, bez ADB | **Kod w [PR #4](https://github.com/laszko14/nira-browser/pull/4)** | CI test/lint PASS; APK zablokowany przez brak klucza podpisu |
+| Aktualizacyjny APK tylko arm64 | **Konfiguracja w PR #4** | do wydania niezbędne GitHub Secrets; brak zgodności z wcześniejszym losowym certyfikatem nie może być wykluczony |
+| Panel wykrytych filmów / przycisk | **Kod w PR #8, CI i test telefonu do weryfikacji** | etap 4.0; ARM64-only i brak merge |
 | Parser HLS / DASH i warianty jakości | **Niewykonany** | etap 4.1 |
 | Własny zaawansowany download manager | **Niewykonany, niskie pierwszeństwo** | najpierw działające wykrycie i streaming |
-| Testy jednostkowe detektora | **Niewykonane** | poprzedni testDebugUnitTest = NO-SOURCE |
+| Testy jednostkowe detektora | **14 JVM + 8 JS PASS (Etap 3.1)** | raport HTML testów JVM i log Node w CI 39706343598; po poprawce job test success |
 
-Uwaga: „CI success” nie oznacza, że funkcja została sprawdzona na telefonie. W raporcie AI_HANDOFF.md wymieniono także liczne istniejące problemy lint (abortOnError=false), dlatego nie należy twierdzić, że lint jest czysty. Zweryfikowany jest kod/artefakt **Etapu 2**, a nie nowy wykrywacz.
+Uwaga: „CI success” nie oznacza, że funkcja została sprawdzona na telefonie. W raporcie AI_HANDOFF.md wymieniono także liczne istniejące problemy lint (abortOnError=false), dlatego nie należy twierdzić, że lint jest czysty. Etap 3.0 ma zweryfikowane CI i pełny lokalny build/lint/test (8 testów Kotlin, 4 JS), brak zgłoszeń lint w nowych plikach i zweryfikowany lokalny APK; rzeczywisty transport Gecko i callback sieciowy oczekują na test telefonu. Nie ma jeszcze panelu ani repozytorium kandydatów.
 
 ## 3. Gdzie znajduje się kod
 
@@ -43,13 +53,13 @@ Uwaga: „CI success” nie oznacza, że funkcja została sprawdzona na telefoni
 - `app/build.gradle` — minSdk, wersje i ABI; `gradle/libs.versions.toml` — zależności Mozilli.
 - `.github/workflows/apk-release.yml` — build/lint/test/release.
 
-**Projektowane, jeszcze nie istniejące:** katalog `app/src/main/assets/extensions/nira-media-detector/`, pakiet Kotlin `com.prirai.android.nira.media`, UI listy źródeł. Szczegółowe zadania: VIDEO_DETECTION_PLAN.md.
+**Istniejące na gałęzi PR #3:** katalog `app/src/main/assets/extensions/nira-media-detector/`, pakiet Kotlin `com.prirai.android.nira.media` i `MediaClassifier.kt`. **Projektowane:** repozytorium stanu oraz UI listy źródeł. Szczegółowe zadania: VIDEO_DETECTION_PLAN.md.
 
 **Odtwarzacz:** https://github.com/laszko14/REX-Player — według zweryfikowanego wcześniej commitu `8c4f9ed2159c397317ceb1d58e8223f8cdf2b222` pakiet `xyz.mpv.rex`, aktywność `xyz.mpv.rex.ui.player.PlayerActivity` dla ACTION_VIEW. Nie implementuj duplikatu tej integracji; rozbuduj istniejącą akcję po testach.
 
 ## 4. Co robić dalej — właściwa kolejność
 
-- **Teraz / P0:** Etap 3.0 „Gecko WebExtension spike” — sprawdź zgodność `webRequest` i native messaging oraz przekaż pojedyncze zdarzenie z video DOM do Kotlin, z poprawnym profilem/kartą. Bez parserów HLS, download managera i pełnego UI.
+- **Teraz / P0:** dokończyć ręczne potwierdzenie Etapu 3.0 na telefonie: DOM → Kotlin, poprawna karta/profil i probe webRequest. Kod i CI w PR #2; nie implementować ponownie bridge. Następny zakres kodu to wyłącznie Etap 3.1.
 - **Po potwierdzeniu:** Etapy 3.1–3.3 — HTML5, MP4/WebM, URL/MIME HLS/DASH, deduplikacja, izolacja nawigacji/kart/profili.
 - **Następnie:** Etap 4.0 — badge, lista, kopiowanie linku, otwieranie w MPV Alpha z fallbackiem.
 - **Później:** Etap 4.1 / 5.0 — manifesty, warianty jakości, iframe, signed URLs, cache/Service Worker, warunki niedostępności.
@@ -81,3 +91,45 @@ Dokumentacja jest **propozycją**, nie wdrożonym kodem. Wpisy o dokumentach na 
 
 > Kontynuujemy Nira / Alpha Browser, repo: https://github.com/laszko14/nira-browser. Odczytaj AGENTS.md, docs/AI_HANDOFF.md, docs/AI_PROGRESS.md, docs/PROJECT_STATUS.md, docs/VIDEO_DETECTION_RESEARCH.md i docs/VIDEO_DETECTION_PLAN.md (jeśli zostały scalone do main, inaczej na gałęzi dokumentacji). Sprawdź aktualny stan repo i Actions; NIE powtarzaj ukończonych Etapów 1 i 2. Następny do implementacji jest etap 3.0: minimalna detekcja video przez GeckoView WebExtension z natywnym bridge i poprawną identyfikacją karty. Testy i wynik builda są obowiązkowe; aktualizuj checkpointy i podawaj prawdziwy stan, nawet gdy coś nie działa. Przy długim czacie przygotuj gotowy prompt do nowego.
 
+
+
+## Etap 4.0.1 (2026-10-22)
+
+Nowa gałąź feat/media-detector-stage-4-0-1-early-discovery na HEAD 2f973dd z Etapu 4.0. Wykrywanie przed Play obejmuje HTML video/source, metadane Open Graph/JSON-LD i ograniczone jawne konfiguracje odtwarzaczy. Iframe korelowany z głównym dokumentem, natywne powiązanie z EngineSession/tab/profile/privacy. Panel prezentuje stan znaleziony na stronie w odróżnieniu od sieci. Wersja 0.5.22-alpha2, arm64 versionCode 1096. Wyniki CI/telefonu do weryfikacji; żadnego merge i brak parsera wariantów jakości.
+
+
+## Potwierdzone CI Etapu 4.0.1 (2026-10-22)
+
+- Kod commit 74d9ddf76a6f99ba18764916f0f09c009b57dbec; PR #9 (Draft, base 4.0, bez merge): https://github.com/laszko14/nira-browser/pull/9
+- GitHub Actions run 39754764327: https://github.com/laszko14/nira-browser/actions/runs/39754764327 — conclusion SUCCESS; stage401_arm64_apk SUCCESS, test SUCCESS, lint SUCCESS, pozostałe wcześniejsze etapowe joby oraz release SKIPPED.
+- Node.js media-detector.test.cjs: 24/24 PASS, 0 fail. Kotlin: task testDebugUnitTest SUCCESS (faktycznie wykonany). Gradle assembleDebug BUILD SUCCESSFUL.
+- Dokładnie jeden APK arm64-v8a: com.prirai.android.nira.debug, versionName 0.5.22-alpha2, arm64 versionCode 1096, poprawny APK Signature v2 (apksigner verify).
+- Artefakt APK: https://github.com/laszko14/nira-browser/actions/runs/39754764327/artifacts/12415316320 (ZIP, 145504033 B); lint report: https://github.com/laszko14/nira-browser/actions/runs/39754764327/artifacts/12415241782
+- WAŻNE: BRAK CI signing secrets; podpis tymczasowego debug certyfikatu SHA-256 = 12655dac69723cfb6d21466615c2971c5d8c265ec198117ba9661e1ca1942423. Ostatnie APK Etapu 4.0 z run 39738739919 ma certyfikat SHA-256 = 857e1fbbb34adabed890f863e07b4a96e288c7203df730f866367275f9c0c02d. Podpisy NIE SĄ zgodne. Nie instalować jako aktualizacja tamtego APK, nie usuwać danych użytkownika. Bez niezależnego porównania z certyfikatem faktycznie zainstalowanej aplikacji nie obiecywać kompatybilności.
+- Lint task SUCCESS, ale w projekcie ustawiono abortOnError=false, więc to nie dowodzi braku ostrzeżeń/naruszeń; pozostały bazowe ostrzeżenia Kotlin i workflow.
+- Nie wykonano testu na Nothing Phone (1), GeckoView iframe na rzeczywistych stronach wymaga walidacji urządzeniowej. Nie rozpoczęto parsowania wariantów Etapu 4.1.
+
+
+## 2026-10-22 — Etap 4.0.2: czytelne nazwy i rozmiary w panelu wideo
+
+- Bazowy HEAD Etapu 4.0.1: 6f9c2e237ddc9ddbe313b4dea6b3bda4c40ccc11; nowa gałąź feat/media-detector-stage-4-0-2-metadata-ui, PR wyłącznie do 4.0.1, bez merge.
+- Przyczyna UX: panel podawał „Film N”, format i serwer, bez nazwy/rozmiaru; przycisk „Kopiuj adres” miał biały tekst o słabym kontraście.
+- Nowe tytuły z video data-video-title/data-title/aria-label/title i nagłówków najbliższego kontenera, JSON-LD VideoObject.name, opisów linków. Awaryjnie og:title/twitter:title/document.title (wyraźnie oznaczone jako tytuł strony), nazwa pliku z URI bez query lub „tytuł nieznany”.
+- Rozmiar TYLKO z już pasywnie dostępnych nagłówków istniejących odpowiedzi HTTP: Content-Length dla HTTP 200, Content-Range total dla 206 (limit 1 TB). Dla HLS/DASH nie podawać rozmiaru manifestu jako rozmiaru filmu. Bez pobierania pliku, bez HEAD i bez parsera manifestu. Czas trwania tylko z video.duration, jeśli znany.
+- Nowy schemat z ograniczonym title/titleKind/durationSeconds dla page/dom oraz sizeBytes z webRequest/network. Rozszerzenie przekazuje stronie zweryfikowany rozmiar; Kotlin waliduje typy, przedziały i źródła danych. MediaRepository zachowuje bardziej wiarygodną nazwę i rozmiar przy deduplikacji tego samego dokładnego URL; nie przechowuje wyników na dysku.
+- Panel: tytuł jako nagłówek grupy; krótki wiersz format/MB/czas; status potwierdzenia i host, jeden poziomy rząd przycisków „▶ MPV Alpha” i „Kopiuj” z ciemnym tekstem. Bez fałszywych rozmiarów.
+- Jeden arm64-v8a debug APK, applicationId com.prirai.android.nira.debug, 0.5.22-alpha3, arm64 versionCode 1097. Nie gwarantować aktualizacji podpisem ephemeral CI. Nie usuwać instalacji ani danych.
+- Testy: rozszerzone JS o nazwę, JSON-LD, Content-Length/Range, brak rozmiaru manifestu, walidację i wzbogacenie po loadedmetadata; Kotlin o protokół, priorytet nazw i izolację nawigacji. CI wynik dopisać po uruchomieniu; test urządzenia bez APK niepotwierdzony.
+
+## Etap 4.0.2 — zweryfikowane wyniki CI (2026-10-22)
+
+- PR #10 (Draft; base Etap 4.0.1; bez merge): https://github.com/laszko14/nira-browser/pull/10
+- Ostatni commit kodu po poprawkach: a841fb75f0d0b825cb225980fa1e6499640c7b24.
+- GitHub Actions https://github.com/laszko14/nira-browser/actions/runs/39759954056 — conclusion SUCCESS; stage402_arm64_apk SUCCESS, test SUCCESS, lint SUCCESS; starsze warianty jobów i release SKIPPED.
+- 30/30 Node.js testów media-detector PASS, 0 fail; testDebugUnitTest Kotlin BUILD SUCCESSFUL; assembleDebug BUILD SUCCESSFUL; lintDebug SUCCESS. Lint ma abortOnError=false, więc nie jest to deklaracja braku wszystkich ostrzeżeń.
+- Jedno APK ARM64: com.prirai.android.nira.debug, versionName 0.5.22-alpha3, arm64 versionCode 1097, podpis APK v2 zweryfikowany przez apksigner.
+- Finalny APK ZIP: https://github.com/laszko14/nira-browser/actions/runs/39759954056/artifacts/12417572991.
+- Certyfikat CI SHA-256 d076 dla starszego builda 39759508327; UWAGA najnowszy certyfikat z run 39759954056 to 3973e0d0a19a6cc3f2b982de6c7842cd90f862e750cf52f7915134a660126e61. Brak GitHub Secrets; efemeryczny Android Debug. Podpis nie jest gwarantowany zgodny z poprzednim ani z aplikacją użytkownika. Nie odinstalowywać ani nie kasować danych. Wymagane sprawdzenie fingerprintu urządzenia.
+- Systematic Debugging: pierwszy build run 39759187428 wykrył uszkodzoną linię validMime (przy edycji regex), naprawa commit 8c1d5cc; kolejny run 39759508327 ujawnił błąd kolejności deklaracji sizeBytes w JS (20/30 PASS), poprawka a841fb7; ostatni run 39759954056 30/30 PASS.
+- Funkcje i ograniczenia: tytuł konkretny preferowany ponad tytuł strony, gdy brak metadanych awaryjna nazwa pliku lub „tytuł nieznany”; rozmiar tylko nagłówek sieciowy i tylko bezpośredni materiał; HLS/DASH rozmiar nieznany; czas z video.duration; brak nowych requestów/autoPlay/DRM bypass. Panel kompaktowy, przycisk Kopiuj czytelny.
+- Test na Nothing Phone (1) nie wykonany. Brak parsera manifestów Etapu 4.1; nie merge.

@@ -24,8 +24,17 @@ import com.prirai.android.nira.downloads.DownloadsBottomSheetFragment
 import com.prirai.android.nira.ext.components
 import com.prirai.android.nira.ext.nav
 import com.prirai.android.nira.preferences.UserPreferences
+import com.prirai.android.nira.media.MediaDetectorController
+import com.prirai.android.nira.media.MediaFloatingUi
+import com.prirai.android.nira.media.MediaUiSnapshot
+import com.prirai.android.nira.media.MediaTabState
+import com.prirai.android.nira.media.MediaSessionBinding
+import com.prirai.android.nira.media.MpvPlaybackHeaders
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.map
@@ -41,6 +50,7 @@ import mozilla.components.lib.state.ext.observeAsComposableState
 import mozilla.components.support.base.feature.UserInteractionHandler
 import mozilla.components.support.base.feature.ViewBoundFeatureWrapper
 import mozilla.components.support.ktx.kotlinx.coroutines.flow.ifAnyChanged
+import org.mozilla.geckoview.GeckoSession
 
 /**
  * Fragment used for browsing the web within the main app.
@@ -49,6 +59,7 @@ import mozilla.components.support.ktx.kotlinx.coroutines.flow.ifAnyChanged
 class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
 
     private val windowFeature = ViewBoundFeatureWrapper<WindowFeature>()
+    private var mediaFloatingUi: MediaFloatingUi? = null
 
     // Track last tab IDs for auto-grouping detection
     private var lastTabIds = setOf<String>()
@@ -69,7 +80,25 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
 
     // Toolbar icon for fullscreen toggle
 
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // This Activity handles orientation/screenSize without recreation.
+        // Re-measure the detached footer after its new constraints apply.
+        val bottomStrip = unifiedToolbar?.getBottomComponentsContainer()
+        bottomStrip?.post {
+            if (!isAdded || view == null) return@post
+            bottomStrip.requestLayout()
+            unifiedToolbar?.reconcileEngineViewHeight()
+            requestWebContentPositionUpdate()
+        }
+    }
+
     override fun initializeUI(view: View, tab: SessionState) {
+        UserPreferences(requireContext()).apply {
+            toolbarPosition = com.prirai.android.nira.components.toolbar.ToolbarPosition.TOP.ordinal
+            showContextualToolbar = false
+            showTabGroupBar = true
+        }
         super.initializeUI(view, tab)
 
         val context = requireContext()
@@ -115,6 +144,229 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         observeTabChangesForToolbar()
         observeDownloadsForSheet()
         observeNewTabSelection()
+        setupFloatingMediaUi()
+        setupEdgePanelGestures()
+    }
+
+    /** Only intercept swipes beginning in a narrow edge zone of the webpage. */
+    // Observe real finger scrolling at the gesture container without stealing
+    // touch events from GeckoView. Unlike CoordinatorLayout nested scrolling,
+    // this works with GeckoView in both portrait and landscape.
+    private var accumulatedDownScroll = 0f
+    private var accumulatedUpScroll = 0f
+
+    private fun onVerticalPageGesture(scrollDeltaY: Float) {
+        if (cachedToolbarPosition !=
+            com.prirai.android.nira.components.toolbar.ToolbarPosition.TOP.ordinal) return
+        val toolbar = unifiedToolbar ?: return
+        if (toolbar.isScrollAnimationRunning()) return
+
+        val density = resources.displayMetrics.density
+        when {
+            scrollDeltaY > 0f -> {
+                accumulatedUpScroll = 0f
+                accumulatedDownScroll += scrollDeltaY
+                if (!toolbar.isCollapsed() && accumulatedDownScroll >= 48f * density) {
+                    toolbar.collapse()
+                    accumulatedDownScroll = 0f
+                }
+            }
+            scrollDeltaY < 0f -> {
+                accumulatedDownScroll = 0f
+                accumulatedUpScroll -= scrollDeltaY
+                if (toolbar.isCollapsed() && accumulatedUpScroll >= 28f * density) {
+                    toolbar.expand()
+                    accumulatedUpScroll = 0f
+                }
+            }
+        }
+    }
+
+    private fun setupEdgePanelGestures() {
+        binding.gestureLayout.onVerticalSwipe = { delta -> onVerticalPageGesture(delta) }
+        val prefs = UserPreferences(requireContext())
+        if (!prefs.niraEdgePanelsEnabled) return
+        val density = resources.displayMetrics.density
+        val edgeWidth = prefs.niraEdgeWidthDp * density
+        val threshold = 64 * density
+        binding.gestureLayout.addGestureListener(object : com.prirai.android.nira.browser.SwipeGestureListener {
+            private var direction = 0
+            private var travelled = 0f
+            private var labGesture: com.prirai.android.nira.diagnostics.testlab.OperationToken? = null
+            override fun onSwipeStarted(start: android.graphics.PointF, next: android.graphics.PointF): Boolean {
+                val dx = next.x - start.x
+                val dy = next.y - start.y
+                if (kotlin.math.abs(dx) < 12 * density ||
+                    kotlin.math.abs(dx) < 1.5f * kotlin.math.abs(dy)) return false
+                // Gesture coordinates are screen-relative; the content origin can
+                // move inward in landscape when Android navigation is on the left.
+                val location = IntArray(2)
+                binding.gestureLayout.getLocationOnScreen(location)
+                val localX = start.x - location[0]
+                val width = binding.gestureLayout.width.toFloat()
+                val landscape = resources.configuration.orientation ==
+                    android.content.res.Configuration.ORIENTATION_LANDSCAPE
+                val activeEdge = if (landscape) maxOf(edgeWidth, 80f * density) else edgeWidth
+                direction = when {
+                    localX in 0f..activeEdge && dx > 0 -> 1
+                    localX >= width - activeEdge && localX <= width && dx < 0 -> -1
+                    else -> 0
+                }
+                travelled = 0f
+                labGesture=if(direction!=0)com.prirai.android.nira.diagnostics.testlab.TestLab.panelGesture(
+                    if(direction==1)com.prirai.android.nira.diagnostics.testlab.PanelSide.LEFT else com.prirai.android.nira.diagnostics.testlab.PanelSide.RIGHT,
+                    binding.gestureLayout.testLabGestureOrigin) else null
+                return direction != 0
+            }
+            override fun onSwipeUpdate(distanceX: Float, distanceY: Float) {
+                travelled -= distanceX
+            }
+            override fun onSwipeFinished(velocityX: Float, velocityY: Float) {
+                val finishedDirection = direction
+                direction = 0
+                val lab=labGesture;labGesture=null
+                fun cancelLab()=com.prirai.android.nira.diagnostics.testlab.TestLab.end(lab,com.prirai.android.nira.diagnostics.testlab.OperationOutcome.CANCELLED)
+                var opened=false
+                if (kotlin.math.abs(travelled) < threshold || !isAdded ||
+                    parentFragmentManager.isStateSaved) {cancelLab();return}
+                if (finishedDirection == 1 && travelled > 0 &&
+                    parentFragmentManager.findFragmentByTag("NiraSideTabs") == null) {
+                    com.prirai.android.nira.diagnostics.testlab.TestLab.accept(lab)
+                    com.prirai.android.nira.diagnostics.testlab.TestLab.queuePanel(com.prirai.android.nira.diagnostics.testlab.PanelSide.LEFT,lab)
+                    opened=true
+                    com.prirai.android.nira.browser.tabs.TabsBottomSheetFragment
+                        .newSidePanel().show(parentFragmentManager, "NiraSideTabs")
+                }
+                if (finishedDirection == -1 && travelled < 0 &&
+                    parentFragmentManager.findFragmentByTag("NiraSideBookmarks") == null) {
+                    com.prirai.android.nira.diagnostics.testlab.TestLab.accept(lab)
+                    com.prirai.android.nira.diagnostics.testlab.TestLab.queuePanel(com.prirai.android.nira.diagnostics.testlab.PanelSide.RIGHT,lab)
+                    opened=true
+                    com.prirai.android.nira.browser.bookmark.ui.BookmarksBottomSheetFragment
+                        .newSidePanel().show(parentFragmentManager, "NiraSideBookmarks")
+                }
+                if(!opened)cancelLab()
+            }
+            override fun onSwipeCancelled() {
+                com.prirai.android.nira.diagnostics.testlab.TestLab.end(labGesture,com.prirai.android.nira.diagnostics.testlab.OperationOutcome.CANCELLED)
+                labGesture=null;direction=0
+            }
+        })
+    }
+
+    private fun currentMediaSnapshot(): MediaUiSnapshot? {
+        val store = requireContext().components.store.state
+        val selected = store.tabs.firstOrNull { it.id == store.selectedTabId } ?: return null
+        val engineSession = selected.engineState.engineSession ?: return null
+        val repository = MediaDetectorController.uiRepository.value ?: return null
+        val tab = MediaTabState(
+            MediaSessionBinding(engineSession, selected.id, selected.contextId, selected.content.private),
+            selected.content.url, selected.content.loading
+        )
+        return MediaUiSnapshot(tab, repository.currentEntries(tab))
+    }
+
+    private fun setupFloatingMediaUi() {
+        val store = requireContext().components.store
+        val overlay = MediaFloatingUi(
+            parent = binding.browserLayout,
+            current = { if (isAdded) currentMediaSnapshot() else null },
+            safeToolbarSpace = { viewport ->
+                unifiedToolbar?.mediaButtonReservations(binding.browserLayout, viewport) ?: (0 to 0)
+            },
+            openVideo = { streamId ->
+                // Resolve on click, not when the bottom sheet rendered: the signed URL
+                // may have rotated while the user was choosing a quality.
+                val fresh = currentMediaSnapshot()
+                val entry = fresh?.entries?.firstOrNull { it.id == streamId }
+                val uri = entry?.url?.toUri()
+                if (uri != null && uri.scheme in listOf("http", "https") && !uri.host.isNullOrBlank()) {
+                    if (entry.playbackStatus in setOf(
+                            com.prirai.android.nira.media.MediaPlaybackStatus.EXPIRED,
+                            com.prirai.android.nira.media.MediaPlaybackStatus.AUTH_ERROR,
+                            com.prirai.android.nira.media.MediaPlaybackStatus.UNPLAYABLE)) {
+                        Toast.makeText(requireContext(), "Link nie jest aktualnie odtwarzalny — odśwież stronę lub uruchom odtwarzacz strony.", Toast.LENGTH_LONG).show()
+                    } else {
+                        // An embedded player commonly signs the URL for its own origin.
+                        // Use the trusted frame URL captured by webRequest correlation;
+                        // fall back to the top document only for top-frame media.
+                        launchVideoInMpv(uri, entry.frameUrl ?: fresh?.tab?.pageUrl)
+                    }
+                } else {
+                    Toast.makeText(requireContext(), R.string.video_link_invalid, Toast.LENGTH_SHORT).show()
+                }
+            },
+            queueDownload = { streamId ->
+                val latest = currentMediaSnapshot()
+                val entry = latest?.entries?.firstOrNull { it.id == streamId }
+                val uri = entry?.url?.toUri()
+                if (entry == null || latest == null || uri == null ||
+                    uri.scheme !in listOf("http", "https") || uri.host.isNullOrBlank()) {
+                    Toast.makeText(requireContext(), R.string.video_link_invalid, Toast.LENGTH_SHORT).show()
+                } else if (entry.format in setOf(
+                        com.prirai.android.nira.media.MediaFormat.HLS,
+                        com.prirai.android.nira.media.MediaFormat.DASH
+                    )) {
+                    Toast.makeText(requireContext(),
+                        "HLS/DASH wymaga zapisu całego strumienia, nie samego manifestu",
+                        Toast.LENGTH_LONG).show()
+                } else {
+                    val referrer = entry.frameUrl ?: latest.tab.pageUrl
+                    val safeReferrer = runCatching { android.net.Uri.parse(referrer) }.getOrNull()
+                        ?.takeIf { it.scheme in listOf("http", "https") &&
+                            !it.host.isNullOrBlank() && it.userInfo == null }
+                        ?.buildUpon()?.clearQuery()?.fragment(null)?.build()?.toString()
+                    val mime = when (entry.format) {
+                        com.prirai.android.nira.media.MediaFormat.MP4 -> "video/mp4"
+                        com.prirai.android.nira.media.MediaFormat.WEBM -> "video/webm"
+                        com.prirai.android.nira.media.MediaFormat.OGG -> "video/ogg"
+                        com.prirai.android.nira.media.MediaFormat.MOV -> "video/quicktime"
+                        else -> "application/octet-stream"
+                    }
+                    requireContext().components.store.dispatch(
+                        mozilla.components.browser.state.action.DownloadAction.AddDownloadAction(
+                            DownloadState(
+                                url = entry.url,
+                                contentType = mime,
+                                userAgent = GeckoSession.getDefaultUserAgent(),
+                                referrerUrl = safeReferrer,
+                                sessionId = latest.tab.binding.tabId,
+                                private = latest.tab.binding.isPrivate,
+                            )
+                        )
+                    )
+                }
+            }
+        )
+        mediaFloatingUi = overlay
+        viewLifecycleOwner.lifecycleScope.launch {
+            val repositoryChanges = MediaDetectorController.uiRepository.flatMapLatest { repo ->
+                if (repo == null) flowOf(null)
+                else repo.revision.map { repo }
+            }
+            // Only changes of the selected document or MediaRepository revision
+            // repaint the badge; progress/scroll Store actions are ignored.
+            val selectedDocument = store.flow().map { state ->
+                val selected = state.tabs.firstOrNull { it.id == state.selectedTabId }
+                val session = selected?.engineState?.engineSession
+                if (selected == null || session == null) null
+                else MediaTabState(
+                    MediaSessionBinding(session, selected.id, selected.contextId, selected.content.private),
+                    selected.content.url, selected.content.loading
+                )
+            }.distinctUntilChanged()
+            combine(selectedDocument, repositoryChanges) { tab, repo ->
+                if (tab == null || repo == null) null
+                else MediaUiSnapshot(tab, repo.currentEntries(tab))
+            }.collect { overlay.render(it) }
+        }
+    }
+
+    override fun onDestroyView() {
+        binding.gestureLayout.onVerticalSwipe = null
+        mediaFloatingUi?.detach()
+        mediaFloatingUi = null
+        super.onDestroyView()
     }
 
     override fun onResume() {
@@ -256,12 +508,13 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 flow.mapNotNull { state -> 
                     if (!isAdded) return@mapNotNull null
                     state.tabs.map { it.id }.toSet() 
-                }.distinctUntilChangedBy { it.hashCode() }
+                }.distinctUntilChanged()
                 .collect { currentTabIds: Set<String> ->
                     val removedTabIds = lastTabIds - currentTabIds
                     removedTabIds.forEach { tabId: String ->
                         lruManager.onTabClosed(tabId)
                     }
+                    lastTabIds = currentTabIds
                 }
             }
         }
@@ -366,62 +619,14 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 requestWebContentPositionUpdate()
             }
 
-            // For TOP toolbar mode, add bottom components directly to fragment layout
-            if (prefs.toolbarPosition == com.prirai.android.nira.components.toolbar.ToolbarPosition.TOP.ordinal) {
-                val bottomContainer = unifiedToolbar?.getBottomComponentsContainer()
-                
-                bottomContainer?.let { container ->
-                    // Add directly to browserLayout (CoordinatorLayout) instead of rootContainer
-                    val coordinatorLayout = binding.browserLayout as? androidx.coordinatorlayout.widget.CoordinatorLayout
-                    
-                    coordinatorLayout?.let {
-                        val layoutParams = androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams(
-                            androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams.MATCH_PARENT,
-                            androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams.WRAP_CONTENT
-                        ).apply {
-                            gravity = android.view.Gravity.BOTTOM
-                            // Intentionally no scroll behavior: the detached
-                            // bottom components (tab bar + contextual bar) are
-                            // pinned at the bottom and only hide / show via
-                            // UnifiedToolbar's minimal state. Minimal state is
-                            // toggled by the chevron button on the address bar
-                            // (post-v0.5.14 the scroll-driven toggle was
-                            // removed - see ModernScrollBehavior kdoc).
-                        }
-                        
-                        // Apply Material 3 background with elevation
-                        val elevationDp = 3f * resources.displayMetrics.density
-                        val elevatedColor = com.google.android.material.elevation.ElevationOverlayProvider(requireContext())
-                            .compositeOverlayWithThemeSurfaceColorIfNeeded(elevationDp)
-                        container.setBackgroundColor(elevatedColor)
-                        
-                        // Set high elevation to ensure it stays above engine view
-                        container.elevation = 16f * resources.displayMetrics.density
-                        
-                        // Apply window insets to avoid navigation bar
-                        // CRITICAL: Only apply bottom padding for navigation bar, NO extra margins
-                        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(container) { view, insets ->
-                            val navigationBars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())
-                            // Only bottom padding, no margins
-                            view.setPadding(0, 0, 0, navigationBars.bottom)
-                            insets
-                        }
-                        
-                        it.addView(container, layoutParams)
-                        container.visibility = View.VISIBLE
-                        
-                        // Disable animation/transition to prevent stutter
-                        container.layoutTransition = null
-                        
-                        // Use hardware layer for better scroll performance
-                        container.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-                        
-                        // Request insets to be applied
-                        androidx.core.view.ViewCompat.requestApplyInsets(container)
-                    }
-                }
+            unifiedToolbar?.getBottomComponentsContainer()?.addOnLayoutChangeListener {
+                    _, _, _, _, _, _, _, _, _ ->
+                // The detached bottom strip can grow/shrink without changing
+                // the address toolbar's height. Keep the Gecko viewport above it.
+                unifiedToolbar?.reconcileEngineViewHeight()
+                requestWebContentPositionUpdate()
             }
-            
+
             // Set tab selection listener
             unifiedToolbar?.setOnTabSelectedListener { tabId ->
                 requireContext().components.tabsUseCases.selectTab(tabId)
@@ -437,16 +642,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             //    internal scroll containers).
             // The address bar itself never scrolls off; only the aux
             // bars (tab bar + contextual bar) animate in and out.
-            val minimalToggle = unifiedToolbar?.getBrowserToolbar()?.let { browserToolbar ->
-                unifiedToolbar?.let { toolbar ->
-                    com.prirai.android.nira.integration
-                        .MinimalStateToggleIntegration(
-                            context = requireContext(),
-                            toolbar = browserToolbar,
-                            unifiedToolbar = toolbar,
-                        ).also { viewLifecycleOwner.lifecycle.addObserver(it) }
-                }
-            }
+            // Compact top-only mode keeps the tab bar visible. No chevron
+            // is added to the already crowded address/action row.
 
             // Set expansion state listener to update web content positioning
             unifiedToolbar?.setOnExpansionStateChangedListener { expanded ->
@@ -462,7 +659,6 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             //     by page scroll, not just by tapping the button).
             unifiedToolbar?.setOnMinimalStateChangedListener {
                 requestWebContentPositionUpdate()
-                minimalToggle?.onMinimalStateChanged()
             }
             
             // Set toolbar offset listener for smooth margin adjustment
@@ -582,7 +778,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                             false
                         } else {
                             // Include tabs with matching contextId OR guest tabs (null contextId)
-                            (tab.contextId == currentProfileContextId) || (tab.contextId == null)
+                            (tab.contextId == currentProfileContextId) ||
+                                (!isPrivateMode && currentProfile.id == "default" && tab.contextId == null)
                         }
                     }
 
@@ -647,7 +844,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 false
             } else {
                 // Include tabs with matching contextId OR guest tabs (null contextId)
-                (tab.contextId == currentProfileContextId) || (tab.contextId == null)
+                (tab.contextId == currentProfileContextId) ||
+                                (!isPrivateMode && currentProfile.id == "default" && tab.contextId == null)
             }
         }
 
@@ -694,12 +892,30 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             as? androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams
             ?: return
 
+        // A GeckoView relayout every 16 ms during hide/show makes the webpage
+        // jump, especially in landscape. Move its existing viewport together
+        // with the chrome; update the actual layout margin only after the
+        // 200 ms animation has completed.
+        if (cachedToolbarPosition ==
+                com.prirai.android.nira.components.toolbar.ToolbarPosition.TOP.ordinal &&
+            unifiedToolbar?.isScrollAnimationRunning() == true) {
+            binding.swipeRefresh.translationY = (visibleHeight - lp.topMargin).toFloat()
+            return
+        }
+        binding.swipeRefresh.translationY = 0f
+
         when (cachedToolbarPosition) {
             com.prirai.android.nira.components.toolbar.ToolbarPosition.BOTTOM.ordinal -> {
+                var changed = false
+                if (lp.topMargin != 0) {
+                    lp.topMargin = 0
+                    changed = true
+                }
                 if (lp.bottomMargin != visibleHeight) {
                     lp.bottomMargin = visibleHeight
-                    binding.swipeRefresh.layoutParams = lp
+                    changed = true
                 }
+                if (changed) binding.swipeRefresh.layoutParams = lp
                 // Clear any stale top padding from a previous TOP-mode layout
                 if (binding.swipeRefresh.paddingTop != 0 ||
                     binding.swipeRefresh.paddingBottom != 0) {
@@ -707,15 +923,25 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 }
             }
             else -> {
-                // TOP mode: reserve space with top padding (not margin, so
-                // SwipeRefreshLayout overscroll indicator still draws from the
-                // real top edge).
-                if (binding.swipeRefresh.paddingTop != visibleHeight) {
-                    binding.swipeRefresh.setPadding(0, visibleHeight, 0, 0)
+                // Keep SwipeRefreshLayout's gesture surface aligned with
+                // the visible page: padding places GeckoView inside the
+                // refresh container and can leave a dead pull zone at top.
+                // A top margin moves both the touch surface and indicator.
+                var changed = false
+                if (lp.topMargin != visibleHeight) {
+                    lp.topMargin = visibleHeight
+                    changed = true
                 }
-                if (lp.bottomMargin != 0) {
-                    lp.bottomMargin = 0
-                    binding.swipeRefresh.layoutParams = lp
+                val bottomStripHeight = unifiedToolbar?.getBottomComponentsContainer()
+                    ?.takeIf { it.parent != null && it.visibility == View.VISIBLE }?.height ?: 0
+                if (lp.bottomMargin != bottomStripHeight) {
+                    lp.bottomMargin = bottomStripHeight
+                    changed = true
+                }
+                if (changed) binding.swipeRefresh.layoutParams = lp
+                if (binding.swipeRefresh.paddingTop != 0 ||
+                    binding.swipeRefresh.paddingBottom != 0) {
+                    binding.swipeRefresh.setPadding(0, 0, 0, 0)
                 }
             }
         }
@@ -736,6 +962,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
      * API calls from the web content.
      */
     override fun onFullScreenModeChanged(inFullScreen: Boolean) {
+        mediaFloatingUi?.setFullscreen(inFullScreen)
         if (inFullScreen) {
             // Entering fullscreen - completely hide and collapse all toolbars
             expandBrowserViewForFullscreen()
@@ -750,13 +977,14 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
      * Follows Mozilla's pattern from Fenix.
      */
     private fun expandBrowserViewForFullscreen() {
-        // Hide unified toolbar
+        // The bottom tab strip is a sibling of UnifiedToolbar, not its child.
+        // Hiding only UnifiedToolbar left tabs visible over fullscreen video.
+        unifiedToolbar?.getBottomComponentsContainer()?.visibility = View.GONE
         unifiedToolbar?.apply {
             collapse()
             isVisible = false
         }
-
-        // No need to touch swipeRefresh layout params - BaseBrowserFragment handles it
+        requestWebContentPositionUpdate()
     }
 
     /**
@@ -766,23 +994,49 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     private fun collapseBrowserViewFromFullscreen() {
         if (!webAppToolbarShouldBeVisible) return
 
-        // Show and expand unified toolbar
         unifiedToolbar?.apply {
             isVisible = true
+            getBottomComponentsContainer()?.apply {
+                visibility = View.VISIBLE
+                alpha = 1f
+                translationY = 0f
+                requestLayout()
+            }
             post {
                 requestApplyInsets()
                 expand()
                 requestLayout()
+                reconcileEngineViewHeight()
+                requestWebContentPositionUpdate()
+            }
         }
-
     }
-        // BaseBrowserFragment will call initializeEngineView automatically
-}
     private fun showBrowserMenu() {
         val store = requireContext().components.store
         val selectedTab = store.state.tabs.find { it.id == store.state.selectedTabId }
         
         val menuItems = mutableListOf<com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem>()
+
+        menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+            id = "zavro_testlab", title = "Zavro TestLab • 60 s",
+            iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_settings_24,
+            onClick = { startActivity(android.content.Intent(requireContext(),
+                com.prirai.android.nira.diagnostics.testlab.TestLabActivity::class.java)) }
+        ))
+        if (com.prirai.android.nira.diagnostics.testlab.TestLab.busy) {
+            menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+                id = "testlab_marker", title = "TestLab: Zacięło się teraz",
+                iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_settings_24,
+                onClick = { if (com.prirai.android.nira.diagnostics.testlab.TestLab.mark())
+                    Toast.makeText(requireContext(), "Znacznik zapisany", Toast.LENGTH_SHORT).show() }
+            ))
+            menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+                id = "testlab_stop", title = "Zakończ TestLab • raport częściowy",
+                iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_cross_24,
+                onClick = { com.prirai.android.nira.diagnostics.testlab.TestLab.stop() }
+            ))
+        }
+
 
         menuItems.add(
             com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
@@ -790,6 +1044,35 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 title = getString(R.string.open_video_link),
                 iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_external_link_24,
                 onClick = { showOpenVideoLinkDialog() }
+            )
+        )
+        // Users can opt back into the Android chooser without changing system defaults.
+        val playerPrefs = requireContext().getSharedPreferences("nira_video_player", android.content.Context.MODE_PRIVATE)
+        val askForPlayer = playerPrefs.getBoolean("ask_each_time", false)
+        menuItems.add(
+            com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+                id = "toggle_video_player_choice",
+                title = if (askForPlayer) "Odtwarzacz: wybieraj za każdym razem"
+                    else "Odtwarzacz: MPV Alpha automatycznie",
+                iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_external_link_24,
+                onClick = {
+                    playerPrefs.edit().putBoolean("ask_each_time", !askForPlayer).apply()
+                    Toast.makeText(
+                        requireContext(),
+                        if (askForPlayer) "MPV Alpha będzie otwierany automatycznie"
+                        else "Przy otwieraniu filmu pojawi się wybór odtwarzacza",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            )
+        )
+        // On-device detector test: no ADB and no media URLs are exposed.
+        menuItems.add(
+            com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+                id = "media_detector_diagnostics",
+                title = "Diagnostyka filmów",
+                iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_external_link_24,
+                onClick = { showMediaDetectorDiagnostics() }
             )
         )
         menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Divider)
@@ -1090,6 +1373,36 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         }
     }
 
+    /** Read-only snapshot, taken from the native bridge after entering the menu. */
+    private fun showMediaDetectorDiagnostics() {
+        val store = requireContext().components.store
+        fun report(): String {
+            val tab = store.state.tabs.find { it.id == store.state.selectedTabId }
+            return com.prirai.android.nira.media.MediaDetectorDiagnostics
+                .snapshot(tab?.id, tab?.content?.private == true, tab?.contextId)
+                .asPolishReport()
+        }
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Diagnostyka wykrywania filmów")
+            .setMessage(report())
+            .setPositiveButton("Zamknij", null)
+            .setNeutralButton("Odśwież", null)
+            .setNegativeButton("Kopiuj raport", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                dialog.setMessage(report())
+            }
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE).setOnClickListener {
+                val clipboard = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                    as android.content.ClipboardManager
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Nira media diagnostics", report()))
+                android.widget.Toast.makeText(requireContext(), "Raport bez adresów skopiowany", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+        dialog.show()
+    }
+
     private fun showOpenVideoLinkDialog() {
         val input = EditText(requireContext()).apply {
             hint = getString(R.string.video_link_hint)
@@ -1111,28 +1424,63 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                     return@setOnClickListener
                 }
 
-                val viewIntent = Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(uri, "video/*")
-                }
-                try {
-                    startActivity(Intent(viewIntent).setClassName(
-                        "xyz.mpv.rex", "xyz.mpv.rex.ui.player.PlayerActivity"
-                    ))
-                } catch (_: ActivityNotFoundException) {
-                    openVideoChooser(viewIntent)
-                } catch (_: SecurityException) {
-                    openVideoChooser(viewIntent)
-                }
+                launchVideoInMpv(uri)
                 dialog.dismiss()
             }
         }
         dialog.show()
     }
 
+    private fun launchVideoInMpv(uri: android.net.Uri, referrer: String? = null) {
+        val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "video/*")
+            // MPV Alpha already accepts a validated legacy `headers` array.
+            // Protocol 1 metadata is optional for older installed builds.
+            val page = referrer?.let { runCatching { android.net.Uri.parse(it) }.getOrNull() }
+            if (page != null && page.scheme in listOf("http", "https") &&
+                !page.host.isNullOrBlank() && page.userInfo == null) {
+                val safeReferrer = page.buildUpon().clearQuery().fragment(null).build().toString()
+                putExtra("nira.playback_protocol", 1)
+                putExtra("nira.referrer", safeReferrer)
+                putExtra("nira.private", currentMediaSnapshot()?.tab?.binding?.isPrivate == true)
+                MpvPlaybackHeaders.build(GeckoSession.getDefaultUserAgent(), safeReferrer)
+                    ?.let { putExtra("headers", it) }
+            } else {
+                MpvPlaybackHeaders.build(GeckoSession.getDefaultUserAgent(), null)
+                    ?.let { putExtra("headers", it) }
+            }
+        }
+        val playerPrefs = requireContext().getSharedPreferences("nira_video_player", android.content.Context.MODE_PRIVATE)
+        if (playerPrefs.getBoolean("ask_each_time", false)) {
+            openVideoChooser(viewIntent)
+            return
+        }
+
+        // Signed MPV Alpha debug builds use the .debug applicationId suffix.
+        // Prefer Alpha to the older release (REX Player), without an Android chooser.
+        for (packageName in listOf("xyz.mpv.rex.debug", "xyz.mpv.rex")) {
+            try {
+                startActivity(Intent(viewIntent).setClassName(
+                    packageName, "xyz.mpv.rex.ui.player.PlayerActivity"
+                ))
+                return
+            } catch (_: ActivityNotFoundException) {
+                // Try the other signed variant before falling back to Android.
+            } catch (_: SecurityException) {
+                // Explicit player not accessible on this device.
+            } catch (_: IllegalArgumentException) {
+                // An OEM resolver might reject the explicit activity.
+            }
+        }
+        openVideoChooser(viewIntent)
+    }
+
     private fun openVideoChooser(viewIntent: Intent) {
         try {
             startActivity(Intent.createChooser(viewIntent, getString(R.string.choose_video_player)))
         } catch (_: ActivityNotFoundException) {
+            Toast.makeText(requireContext(), R.string.no_video_player, Toast.LENGTH_SHORT).show()
+        } catch (_: SecurityException) {
             Toast.makeText(requireContext(), R.string.no_video_player, Toast.LENGTH_SHORT).show()
         }
     }

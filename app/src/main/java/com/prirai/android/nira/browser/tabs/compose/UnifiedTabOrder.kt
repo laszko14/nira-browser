@@ -27,6 +27,43 @@ data class UnifiedTabOrder(
         ) : OrderItem()
     }
     
+    /** Reconcile Room membership without destroying slots during partial session restore. */
+    fun reconciled(tabIds: List<String>, groups: List<com.prirai.android.nira.browser.tabgroups.TabGroupData>): UnifiedTabOrder {
+        val groupsById = groups.associateBy { it.id }
+        val groupedIds = groups.flatMap { it.tabIds }.toSet()
+        val seenTabs = mutableSetOf<String>()
+        val seenGroups = mutableSetOf<String>()
+        val items = mutableListOf<OrderItem>()
+        fun addSingle(id: String) {
+            if (id !in groupedIds && seenTabs.add(id)) items.add(OrderItem.SingleTab(id))
+        }
+        fun addGroup(group: com.prirai.android.nira.browser.tabgroups.TabGroupData, expanded: Boolean) {
+            if (seenGroups.add(group.id)) {
+                items.add(OrderItem.TabGroup(group.id, group.name, group.color, expanded, group.tabIds.distinct()))
+                seenTabs.addAll(group.tabIds)
+            }
+        }
+        primaryOrder.forEach { item ->
+            when (item) {
+                is OrderItem.SingleTab -> {
+                    // A newly created group inherits the earliest member's container slot.
+                    val newGroup = groups.firstOrNull { item.tabId in it.tabIds &&
+                        primaryOrder.none { old -> old is OrderItem.TabGroup && old.groupId == it.id } }
+                    if (newGroup != null) addGroup(newGroup, !newGroup.isCollapsed)
+                    else addSingle(item.tabId)
+                }
+                is OrderItem.TabGroup -> {
+                    groupsById[item.groupId]?.let { addGroup(it, item.isExpanded) }
+                    // Detaching/deleting a group retains the former members' relative slots.
+                    item.tabIds.forEach(::addSingle)
+                }
+            }
+        }
+        groups.forEach { addGroup(it, !it.isCollapsed) }
+        tabIds.forEach(::addSingle)
+        return if (items == primaryOrder) this else copy(primaryOrder = items, lastModified = System.currentTimeMillis())
+    }
+
     /**
      * Get all tab IDs in flat order
      */

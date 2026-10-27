@@ -1,5 +1,7 @@
 package com.prirai.android.nira.components.toolbar.modern
 
+import com.prirai.android.nira.diagnostics.testlab.*
+
 import android.animation.ValueAnimator
 import android.content.Context
 import android.util.AttributeSet
@@ -22,8 +24,12 @@ class ModernToolbarSystem @JvmOverloads constructor(
 ) : LinearLayout(context, attrs, defStyleAttr), ScrollableToolbar {
 
     private var currentOffset = 0
+    // Preserve hide state across rotation and group-chip height changes.
+    private var requestedCollapsed = false
     private var scrollingEnabled = true
     private val hideAnimator = ValueAnimator()
+    private var offsetAnimating = false
+    private var animatedTargetOffset: Int? = null
     private var engineView: EngineView? = null
 
     // Position tracking for proper scroll direction
@@ -58,21 +64,21 @@ class ModernToolbarSystem @JvmOverloads constructor(
 
     fun addComponent(component: View, type: ComponentType) {
 
-        val layoutParams = LayoutParams(
-            LayoutParams.MATCH_PARENT,
-            LayoutParams.WRAP_CONTENT
-        )
+        val height = if (type == ComponentType.ADDRESS_BAR) {
+            (com.prirai.android.nira.preferences.UserPreferences(context).niraAddressBarHeightDp *
+                resources.displayMetrics.density).toInt()
+        } else LayoutParams.WRAP_CONTENT
+        val layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, height)
 
         when (type) {
             ComponentType.TAB_GROUP -> {
                 tabGroupComponent = component
-                addView(component, 0, layoutParams) // Top position
+                addView(component, if (addressBarComponent != null) 1 else 0, layoutParams)
             }
 
             ComponentType.ADDRESS_BAR -> {
                 addressBarComponent = component
-                val index = if (tabGroupComponent != null) 1 else 0
-                addView(component, index, layoutParams)
+                addView(component, 0, layoutParams) // Address above tabs
             }
 
             ComponentType.CONTEXTUAL -> {
@@ -128,29 +134,26 @@ class ModernToolbarSystem @JvmOverloads constructor(
         // Setup window insets handling for edge-to-edge
         // This allows toolbars to add padding for system bars without affecting fullscreen
         ViewCompat.setOnApplyWindowInsetsListener(this) { view, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            
-            // Only apply padding when visible (not in fullscreen)
-            if (view.isVisible && view.alpha > 0f) {
-                when (toolbarPosition) {
-                    ToolbarPosition.BOTTOM -> {
-                        view.setPadding(0, 0, 0, systemBars.bottom)
-                    }
-                    ToolbarPosition.TOP -> {
-                        view.setPadding(0, systemBars.top, 0, 0)
-                    }
-                }
-            } else {
-                // In fullscreen or hidden - no padding
-                view.setPadding(0, 0, 0, 0)
+            // Account for landscape cutouts and status/navigation bars on all
+            // sides. Keep padding even during the alpha hide animation: changing
+            // height mid-animation makes the toolbar overlap system UI.
+            val bars = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or
+                    WindowInsetsCompat.Type.displayCutout()
+            )
+            val top = if (toolbarPosition == ToolbarPosition.TOP) bars.top else 0
+            val bottom = if (toolbarPosition == ToolbarPosition.BOTTOM) bars.bottom else 0
+            if (view.paddingLeft != bars.left || view.paddingTop != top ||
+                view.paddingRight != bars.right || view.paddingBottom != bottom) {
+                view.setPadding(bars.left, top, bars.right, bottom)
             }
-            
+
             insets
         }
     }
 
     fun getTotalHeight(): Int {
-        var totalHeight = 0
+        var totalHeight = paddingTop + paddingBottom
 
         for (i in 0 until childCount) {
             val child = getChildAt(i)
@@ -172,10 +175,12 @@ class ModernToolbarSystem @JvmOverloads constructor(
     }
 
     override fun expand() {
+        requestedCollapsed = false
         animateToOffset(0)
     }
 
     override fun collapse() {
+        requestedCollapsed = true
         val totalHeight = getTotalHeight()
         if (totalHeight > 0) {
             animateToOffset(totalHeight)
@@ -183,19 +188,56 @@ class ModernToolbarSystem @JvmOverloads constructor(
     }
 
     private fun animateToOffset(targetOffset: Int) {
+        val target = targetOffset.coerceIn(0, getTotalHeight())
+        // Repeated scroll requests must not cancel and restart identical animations.
+        if (hideAnimator.isRunning && animatedTargetOffset == target) return
+        if (!hideAnimator.isRunning && currentOffset == target) return
         hideAnimator.cancel()
         hideAnimator.removeAllUpdateListeners()
+        hideAnimator.removeAllListeners()
+        offsetAnimating = true
+        animatedTargetOffset = target
+        val capture=TestLab.capture()
+        val measurement=capture?.operation(if(targetOffset==0)LabOperation.TOOLBAR_SHOW else LabOperation.TOOLBAR_HIDE)
 
         hideAnimator.apply {
-            setIntValues(currentOffset, targetOffset)
+            setIntValues(currentOffset, target)
             duration = 200
             addUpdateListener { animation ->
-                val offset = animation.animatedValue as Int
-                setToolbarOffset(offset)
+                val frameOffset = animation.animatedValue as Int
+                if (frameOffset != currentOffset) setToolbarOffset(frameOffset)
             }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                private var cancelled = false
+                override fun onAnimationCancel(animation: android.animation.Animator) {
+                    cancelled = true
+                    animatedTargetOffset = null
+                    capture?.end(measurement,OperationOutcome.CANCELLED)
+                }
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    if (!cancelled) {
+                        offsetAnimating = false
+                        animatedTargetOffset = null
+                        // The last animation frame may already reach 'target'.
+                        // We STILL must notify the fragment after offsetAnimating
+                        // becomes false: BrowserFragment swaps its temporary
+                        // swipeRefresh.translationY back to an actual top margin
+                        // only on this non-animating callback. Skipping it leaves
+                        // a permanent blank band below GeckoView after scroll.
+                        setToolbarOffset(target)
+                        capture?.end(measurement,proof=CompletionProof.ANIMATOR_END)
+                    }
+                }
+            })
             start()
         }
     }
+
+    /** Keep GeckoView's measured viewport stable during toolbar motion. */
+    fun isOffsetAnimating(): Boolean = offsetAnimating
+
+    /** The state requested by page scroll, independent of animation progress. */
+    fun isCollapsed(): Boolean = requestedCollapsed
 
     fun setToolbarOffset(offset: Int) {
         val totalHeight = getTotalHeight()
@@ -248,6 +290,19 @@ class ModernToolbarSystem @JvmOverloads constructor(
      */
     private fun updateEngineViewClipping() {
         // Intentional no-op; see KDoc.
+    }
+
+    /**
+     * The measured height can change while the top toolbar is hidden (rotation,
+     * group chips or a new tab). A stale offset must not reserve a blank band.
+     */
+    fun getEffectiveOffset(): Int {
+        val total = getTotalHeight()
+        if (requestedCollapsed && !hideAnimator.isRunning) {
+            if (currentOffset != total) setToolbarOffset(total)
+            return total
+        }
+        return currentOffset.coerceIn(0, total)
     }
 
     fun getCurrentOffset(): Int = currentOffset

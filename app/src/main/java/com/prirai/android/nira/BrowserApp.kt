@@ -175,6 +175,7 @@ class BrowserApp : Application() {
         // Initialize web extensions - MUST run on Main thread due to GeckoView Handler requirements
         applicationScope.launch(Dispatchers.Main) {
             initializeWebExtensions()
+            com.prirai.android.nira.media.MediaDetectorController(components.engine, components.store).start()
         }
         
         // Install the FxA WebChannel extension for OOB redirect handling

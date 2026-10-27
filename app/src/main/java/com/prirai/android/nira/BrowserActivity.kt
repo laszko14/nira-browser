@@ -12,6 +12,8 @@ import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.ActionBar
 import androidx.appcompat.widget.Toolbar
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -194,9 +196,28 @@ open class BrowserActivity : LocaleAwareAppCompatActivity(), ComponentCallbacks2
 
         // Enable edge-to-edge display with standardized approach
         enableEdgeToEdgeMode()
+        // Keep Android's normal gesture / three-button navigation visible.
+        WindowInsetsControllerCompat(window, window.decorView)
+            .show(WindowInsetsCompat.Type.navigationBars())
 
-        // Root view handles insets without padding - fragments manage their own insets
-        ViewCompat.setOnApplyWindowInsetsListener(view) { _, insets -> insets }
+        // Edge-to-edge means the activity root also extends UNDER the
+        // system navigation bar. In portrait, Gravity.BOTTOM placed the
+        // detached tab strip behind the three-button navigation area; in
+        // landscape the nav bar moves to the left, so the same strip worked.
+        // Reserve all visible navigation insets on the activity root, not on
+        // GeckoView or the tab strip itself. TOP belongs to UnifiedToolbar.
+        // Re-applied after rotation and when the system bars hide/show.
+        ViewCompat.setOnApplyWindowInsetsListener(view) { root, insets ->
+            val nav = insets.getInsets(
+                WindowInsetsCompat.Type.navigationBars() or
+                    WindowInsetsCompat.Type.displayCutout()
+            )
+            if (root.paddingLeft != nav.left || root.paddingRight != nav.right ||
+                root.paddingBottom != nav.bottom) {
+                root.setPadding(nav.left, 0, nav.right, nav.bottom)
+            }
+            insets
+        }
 
         // Must run BEFORE STARTED/RESUMED: NotificationsDelegate.bindToActivity
         // calls registerForActivityResult which androidx.activity rejects
@@ -246,6 +267,26 @@ open class BrowserActivity : LocaleAwareAppCompatActivity(), ComponentCallbacks2
 
     override fun onResume() {
         super.onResume()
+        // Request the panel's actual high-refresh mode; Android may still decline
+        // depending on battery, foreground state, user settings or other surfaces.
+        window.decorView.display?.let { display ->
+            val mode = display.mode
+            val rates = display.supportedModes.filter {
+                it.physicalWidth == mode.physicalWidth && it.physicalHeight == mode.physicalHeight
+            }.map { it.refreshRate }
+            com.prirai.android.nira.browser.HighRefreshRatePolicy.choose(rates)?.let { rate ->
+                val attributes = window.attributes
+                if (attributes.preferredDisplayModeId != 0 ||
+                    kotlin.math.abs(attributes.preferredRefreshRate - rate) > 0.1f) {
+                    attributes.preferredDisplayModeId = 0
+                    attributes.preferredRefreshRate = rate
+                    window.attributes = attributes
+                }
+                if (android.os.Build.VERSION.SDK_INT >= 35) {
+                    window.decorView.setRequestedFrameRate(rate)
+                }
+            }
+        }
 
         val currentPosition = UserPreferences(this).toolbarPosition
         if (currentPosition != lastToolbarPosition) {

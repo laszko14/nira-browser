@@ -39,12 +39,53 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
         super.onViewCreated(view, savedInstanceState)
         
         // Set bottom sheet to 60% of screen height
-        setupBottomSheetHeight()
+        if (arguments?.getBoolean("nira_side_panel") != true) setupBottomSheetHeight()
         
         setupBookmarkManager()
         setupRecyclerView()
         setupClickListeners()
         loadBookmarks()
+    }
+
+    private val testLabScroll=com.prirai.android.nira.diagnostics.testlab.TestLabScrollCapture()
+    private val testLabScrollListener=object:androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
+        override fun onScrolled(view:androidx.recyclerview.widget.RecyclerView,dx:Int,dy:Int) {
+            if((dx!=0||dy!=0)&&view.scrollState!=androidx.recyclerview.widget.RecyclerView.SCROLL_STATE_IDLE)testLabScroll.consumed()
+        }
+        override fun onScrollStateChanged(view:androidx.recyclerview.widget.RecyclerView,state:Int) {
+            if(state==androidx.recyclerview.widget.RecyclerView.SCROLL_STATE_IDLE)testLabScroll.finish()
+        }
+    }
+    private val testLabPanel = com.prirai.android.nira.diagnostics.testlab.TestLabPanelProbe(
+        com.prirai.android.nira.diagnostics.testlab.PanelSide.RIGHT)
+    override fun dismiss() {testLabPanel.closing();super.dismiss()}
+    override fun onCancel(dialog:android.content.DialogInterface) {testLabPanel.cancelled();super.onCancel(dialog)}
+    override fun onDismiss(dialog:android.content.DialogInterface) {testLabPanel.dismissed();super.onDismiss(dialog)}
+    override fun onStop() {testLabPanel.stop();super.onStop()}
+
+    override fun onStart() {
+        super.onStart()
+        if (arguments?.getBoolean("nira_side_panel") == true) {
+            dialog?.window?.let(testLabPanel::start)
+            binding.bookmarksRecyclerView.removeOnScrollListener(testLabScrollListener)
+            binding.bookmarksRecyclerView.addOnScrollListener(testLabScrollListener)
+        }
+        if (arguments?.getBoolean("nira_side_panel") != true) return
+        dialog?.window?.let { window ->
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            window.setDimAmount(0.55f)
+            window.setGravity(android.view.Gravity.END or android.view.Gravity.TOP)
+            window.setLayout((resources.displayMetrics.widthPixels * 0.78f).toInt(),
+                ViewGroup.LayoutParams.MATCH_PARENT)
+        }
+        (dialog as? com.google.android.material.bottomsheet.BottomSheetDialog)
+            ?.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)?.let { sheet ->
+                sheet.layoutParams = sheet.layoutParams.apply { height = ViewGroup.LayoutParams.MATCH_PARENT }
+                com.google.android.material.bottomsheet.BottomSheetBehavior.from(sheet).apply {
+                    isDraggable = false
+                    state = com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_EXPANDED
+                }
+            }
     }
 
     private fun setupBottomSheetHeight() {
@@ -695,6 +736,8 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
     }
 
     override fun onDestroyView() {
+        _binding?.bookmarksRecyclerView?.removeOnScrollListener(testLabScrollListener)
+        testLabScroll.finish(com.prirai.android.nira.diagnostics.testlab.OperationOutcome.INTERRUPTED)
         super.onDestroyView()
         _binding = null
     }
@@ -702,6 +745,9 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
     companion object {
         private const val ARG_FOLDER_ID = "folder_id"
         
+        fun newSidePanel() = newInstance().apply {
+            arguments?.putBoolean("nira_side_panel", true)
+        }
         fun newInstance(folderId: Long = -1L): BookmarksBottomSheetFragment {
             return BookmarksBottomSheetFragment().apply {
                 arguments = Bundle().apply {

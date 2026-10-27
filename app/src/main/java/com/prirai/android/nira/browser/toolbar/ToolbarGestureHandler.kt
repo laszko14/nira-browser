@@ -22,7 +22,8 @@ import com.prirai.android.nira.ext.getRectWithScreenLocation
 import com.prirai.android.nira.ext.getWindowInsets
 import com.prirai.android.nira.ext.isKeyboardVisible
 import com.prirai.android.nira.preferences.UserPreferences
-import mozilla.components.browser.state.selector.getNormalOrPrivateTabs
+import com.prirai.android.nira.browser.tabs.sameSwipeScope
+import com.prirai.android.nira.browser.tabs.canFinishSwipe
 import mozilla.components.browser.state.selector.selectedTab
 import mozilla.components.browser.state.state.TabSessionState
 import mozilla.components.browser.state.store.BrowserStore
@@ -63,6 +64,8 @@ class ToolbarGestureHandler(
     private val touchSlop = ViewConfiguration.get(activity).scaledTouchSlop
     private val minimumFlingVelocity = ViewConfiguration.get(activity).scaledMinimumFlingVelocity
 
+    private var gestureSource: TabSessionState? = null
+
     private var gestureDirection = GestureDirection.LEFT_TO_RIGHT
 
     override fun onSwipeStarted(start: PointF, next: PointF): Boolean {
@@ -80,6 +83,7 @@ class ToolbarGestureHandler(
             abs(dx) > touchSlop &&
             abs(dy) < abs(dx)
         ) {
+            gestureSource = store.state.selectedTab
             preparePreview(getDestination())
             true
         } else {
@@ -141,30 +145,37 @@ class ToolbarGestureHandler(
         }
     }
 
+    override fun onSwipeCancelled() {
+        gestureSource = null
+        animateCanceledGesture(0f)
+    }
+
     private fun getDestination(): Destination {
         val isLtr = activity.resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_LTR
         val currentTab = store.state.selectedTab ?: return Destination.None
+        if (gestureSource?.let { it.id != currentTab.id || !currentTab.sameSwipeScope(it) } == true) return Destination.None
+        val tabs = store.state.tabs.filter { it.sameSwipeScope(currentTab) }
+        val eligible = tabs.map { it.id }.toSet()
         
         // Left swipe = go to newer tabs (smaller LRU offset: -1)
         // Right swipe = go to older tabs (larger LRU offset: +1)
         val nextTabId = when (gestureDirection) {
             GestureDirection.RIGHT_TO_LEFT -> if (isLtr) {
                 // Swiping left in LTR = go to newer tab
-                lruManager.getTabAtLRUOffset(currentTab.id, -1)
+                lruManager.getTabAtLRUOffset(currentTab.id, -1, eligible)
             } else {
-                lruManager.getTabAtLRUOffset(currentTab.id, 1)
+                lruManager.getTabAtLRUOffset(currentTab.id, 1, eligible)
             }
             GestureDirection.LEFT_TO_RIGHT -> if (isLtr) {
                 // Swiping right in LTR = go to older tab
-                lruManager.getTabAtLRUOffset(currentTab.id, 1)
+                lruManager.getTabAtLRUOffset(currentTab.id, 1, eligible)
             } else {
-                lruManager.getTabAtLRUOffset(currentTab.id, -1)
+                lruManager.getTabAtLRUOffset(currentTab.id, -1, eligible)
             }
         }
         
         if (nextTabId == null) return Destination.None
         
-        val tabs = store.state.getNormalOrPrivateTabs(currentTab.content.private)
         val nextTab = tabs.find { it.id == nextTabId }
         
         return if (nextTab != null) {
@@ -218,6 +229,7 @@ class ToolbarGestureHandler(
     }
 
     private fun animateToNextTab(tab: TabSessionState) {
+        val source = gestureSource ?: store.state.selectedTab
         val browserFinalXCoordinate: Float = when (gestureDirection) {
             GestureDirection.RIGHT_TO_LEFT -> -windowWidth.toFloat() - previewOffset
             GestureDirection.LEFT_TO_RIGHT -> windowWidth.toFloat() + previewOffset
@@ -227,6 +239,10 @@ class ToolbarGestureHandler(
             doOnEnd {
                 contentLayout.translationX = 0f
 
+                if (activity.isFinishing || activity.isDestroyed || !store.state.canFinishSwipe(source, tab.id)) {
+                    tabPreview.isVisible = false
+                    return@doOnEnd
+                }
                 lruManager.markAsSwipeNavigation(tab.id)
                 selectTabUseCase(tab.id)
 

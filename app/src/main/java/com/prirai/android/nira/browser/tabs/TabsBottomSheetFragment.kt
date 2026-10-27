@@ -1,16 +1,41 @@
 package com.prirai.android.nira.browser.tabs
 
+import com.prirai.android.nira.diagnostics.testlab.*
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalConfiguration
+import com.prirai.android.nira.browser.tabs.compose.DragPlacement
+import com.prirai.android.nira.browser.tabs.compose.DropRow
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -19,6 +44,7 @@ import androidx.compose.material.icons.rounded.ViewList
 import androidx.compose.material3.*
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.DialogFragment
@@ -43,6 +69,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import mozilla.components.browser.state.state.TabSessionState
 import mozilla.components.lib.state.ext.flowScoped
+import mozilla.components.lib.state.ext.flow
 import androidx.core.content.edit
 
 /**
@@ -80,6 +107,7 @@ class TabsBottomSheetFragment : DialogFragment() {
     private val menuTabState = mutableStateOf<TabSessionState?>(null) // Currently selected tab for menu
     private val menuIsInGroupState = mutableStateOf(false) // Whether selected tab is in a group
 
+    private val isSidePanel: Boolean get() = arguments?.getBoolean("nira_side_panel") == true
     private var isInitializing = true
     private val isGridViewState = mutableStateOf(false)
     private var isGridView: Boolean
@@ -118,6 +146,9 @@ class TabsBottomSheetFragment : DialogFragment() {
     companion object {
         const val TAG = "TabsBottomSheet"
         fun newInstance() = TabsBottomSheetFragment()
+        fun newSidePanel() = TabsBottomSheetFragment().apply {
+            arguments = Bundle().apply { putBoolean("nira_side_panel", true) }
+        }
     }
 
     override fun onCreateView(
@@ -183,6 +214,7 @@ class TabsBottomSheetFragment : DialogFragment() {
             )
             setupComposeTabViews()
         setupMergedProfileButtons()
+        if (isSidePanel) setupSidePanelResizeGrip()
 
         isInitializing = false
     }
@@ -193,13 +225,41 @@ class TabsBottomSheetFragment : DialogFragment() {
         setStyle(STYLE_NORMAL, R.style.FullScreenDialogTheme)
     }
 
+    private var testLabSideDrag:Pair<LabCapture,OperationToken>?=null
+    private var testLabResize:Pair<LabCapture,OperationToken>?=null
+    private fun startTestLabDrag(group:Boolean) {
+        finishTestLabDrag(OperationOutcome.INTERRUPTED)
+        val capture=TestLab.capture()?:return
+        val op=capture.operation(if(group)LabOperation.GROUP_DRAG else LabOperation.TAB_DRAG)?:return
+        testLabSideDrag=capture to op
+    }
+    private fun finishTestLabDrag(outcome:OperationOutcome) {
+        testLabSideDrag?.let{it.first.end(it.second,outcome)};testLabSideDrag=null
+    }
+    private val testLabPanel = com.prirai.android.nira.diagnostics.testlab.TestLabPanelProbe(
+        com.prirai.android.nira.diagnostics.testlab.PanelSide.LEFT)
+    override fun dismiss() {testLabPanel.closing();super.dismiss()}
+    override fun onCancel(dialog:android.content.DialogInterface) {testLabPanel.cancelled();super.onCancel(dialog)}
+    override fun onDismiss(dialog:android.content.DialogInterface) {testLabPanel.dismissed();super.onDismiss(dialog)}
+    override fun onStop() {testLabPanel.stop();super.onStop()}
+
     override fun onStart() {
         super.onStart()
+        if (isSidePanel) dialog?.window?.let(testLabPanel::start)
 
         // Make dialog fullscreen
         dialog?.window?.let { window ->
+            val side = isSidePanel
+            if (side) {
+                dialog?.setCanceledOnTouchOutside(true)
+                isCancelable = true
+                window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+                window.setDimAmount(0.55f)
+                window.setGravity(android.view.Gravity.START or android.view.Gravity.TOP)
+            }
             window.setLayout(
-                ViewGroup.LayoutParams.MATCH_PARENT,
+                if (side) sidePanelWidth()
+                else ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
 
@@ -233,6 +293,12 @@ class TabsBottomSheetFragment : DialogFragment() {
 
         if (isAmoled) {
             dialog?.window?.decorView?.setBackgroundColor(Color.BLACK)
+        }
+
+        if (isSidePanel) {
+            binding.profileButtonContainer.visibility = View.GONE
+            // Keep these capabilities in the full tab manager and toolbar, not in the side drawer.
+            (binding.newTabFab.parent?.parent as? View)?.visibility = View.GONE
         }
 
         binding.newTabFab.setOnClickListener {
@@ -600,7 +666,14 @@ class TabsBottomSheetFragment : DialogFragment() {
         (binding.root as ViewGroup).addView(composeView)
     }
 
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (isSidePanel) dialog?.window?.setLayout(sidePanelWidth(), ViewGroup.LayoutParams.MATCH_PARENT)
+    }
+
     override fun onDestroyView() {
+        finishTestLabDrag(OperationOutcome.INTERRUPTED)
+        testLabResize?.let{it.first.end(it.second,OperationOutcome.INTERRUPTED)};testLabResize=null
         super.onDestroyView()
         
         // Notify that the tab sheet was dismissed to trigger auto-scroll in tab bar
@@ -627,6 +700,7 @@ class TabsBottomSheetFragment : DialogFragment() {
         // Add ComposeView
         val composeView = androidx.compose.ui.platform.ComposeView(requireContext()).apply {
             tag = "tabs_compose"
+            setViewCompositionStrategy(androidx.compose.ui.platform.ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 // Read AMOLED preference
                 val prefs = com.prirai.android.nira.preferences.UserPreferences(requireContext())
@@ -653,16 +727,23 @@ class TabsBottomSheetFragment : DialogFragment() {
 
         // Update profile button visibility based on menu state - use SideEffect for immediate execution
         androidx.compose.runtime.SideEffect {
-            binding.profileButtonContainer.visibility = if (showMenu) View.GONE else View.VISIBLE
+            binding.profileButtonContainer.visibility = if (isSidePanel || showMenu) View.GONE else View.VISIBLE
         }
 
         // Create ViewModel once and store it. TabViewModel.closeTab() now
         // performs removal + undo via TabsUseCases + UndoMiddleware directly,
         // so onTabRemove / onTabRestore glue is no longer needed here.
+        val modelStore = remember { androidx.lifecycle.ViewModelStore() }
         val viewModel = remember {
-            TabViewModel(requireContext(), unifiedGroupManager).also {
-                tabViewModel = it
-            }
+            androidx.lifecycle.ViewModelProvider(modelStore,
+                object : androidx.lifecycle.ViewModelProvider.Factory {
+                    @Suppress("UNCHECKED_CAST")
+                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                        TabViewModel(requireContext(), unifiedGroupManager) as T
+                })[TabViewModel::class.java].also { tabViewModel = it }
+        }
+        DisposableEffect(modelStore) {
+            onDispose { modelStore.clear() }
         }
 
         // Set up global snackbar manager scope
@@ -704,11 +785,9 @@ class TabsBottomSheetFragment : DialogFragment() {
 
             // Collect store updates
             launch {
-                store.flowScoped(viewLifecycleOwner, Dispatchers.Main) { flow ->
-                    flow.collect { state ->
-                        val filteredTabs = filterTabs(state.tabs)
-                        viewModel.loadTabsForProfile(profileId, filteredTabs, state.selectedTabId)
-                    }
+                store.flow(viewLifecycleOwner).collect { state ->
+                    val filteredTabs = filterTabs(state.tabs)
+                    viewModel.loadTabsForProfile(profileId, filteredTabs, state.selectedTabId)
                 }
             }
 
@@ -752,7 +831,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                         text = "${tabs.size} $tabWord",
                         style = MaterialTheme.typography.titleMedium
                     )
-                    SingleChoiceSegmentedButtonRow {
+                    if (!isSidePanel) SingleChoiceSegmentedButtonRow {
                         SegmentedButton(
                             selected = !isGridView,
                             onClick = {
@@ -781,7 +860,9 @@ class TabsBottomSheetFragment : DialogFragment() {
                     modifier = Modifier.weight(1f)
                 ) {
                     // Choose view based on grid mode
-                    if (isGridView) {
+                    if (isSidePanel) {
+                        CompactSideTabs(viewModel, tabs)
+                    } else if (isGridView) {
                         TabSheetGridView(
                             viewModel = viewModel,
                             orderManager = composeOrderManager!!,
@@ -850,6 +931,610 @@ class TabsBottomSheetFragment : DialogFragment() {
                                 .fillMaxWidth()
                         )
                     }
+                }
+            }
+        }
+    }
+
+
+    // Persist separate side-panel widths for portrait and landscape.
+    private fun sidePanelWidth(): Int {
+        val metrics = resources.displayMetrics
+        val key = if (resources.configuration.orientation ==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE) "width_landscape" else "width_portrait"
+        val preferences = requireContext().getSharedPreferences("nira_side_panel_width", android.content.Context.MODE_PRIVATE)
+        val minWidth = (220 * metrics.density).toInt().coerceAtMost(metrics.widthPixels)
+        val maxWidth = (metrics.widthPixels - 48 * metrics.density).toInt().coerceAtLeast(minWidth)
+        return preferences.getInt(key, (metrics.widthPixels * 0.78f).toInt()).coerceIn(minWidth, maxWidth)
+    }
+
+    private fun setupSidePanelResizeGrip() {
+        val root = binding.root as ViewGroup
+        val grip = View(requireContext()).apply {
+            contentDescription = "Przeciągnij krawędź, aby zmienić szerokość panelu kart"
+            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+        }
+        val params = androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams(
+            (20 * resources.displayMetrics.density).toInt(),
+            ViewGroup.LayoutParams.MATCH_PARENT
+        ).apply { gravity = android.view.Gravity.END }
+        root.addView(grip, params)
+
+        var downX = 0f
+        var initialWidth = 0
+        grip.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    testLabResize?.let{it.first.end(it.second,OperationOutcome.INTERRUPTED)}
+                    val capture=TestLab.capture();val op=capture?.operation(LabOperation.PANEL_RESIZE)
+                    testLabResize=if(capture!=null&&op!=null)capture to op else null
+                    downX = event.rawX
+                    initialWidth = dialog?.window?.attributes?.width?.takeIf { it > 0 } ?: sidePanelWidth()
+                    true
+                }
+                android.view.MotionEvent.ACTION_MOVE, android.view.MotionEvent.ACTION_UP -> {
+                    val screenWidth = resources.displayMetrics.widthPixels
+                    val density = resources.displayMetrics.density
+                    val min = (220 * density).toInt().coerceAtMost(screenWidth)
+                    val max = (screenWidth - 48 * density).toInt().coerceAtLeast(min)
+                    val desired = (initialWidth + event.rawX - downX).toInt().coerceIn(min, max)
+                    dialog?.window?.setLayout(desired, ViewGroup.LayoutParams.MATCH_PARENT)
+                    if (event.actionMasked == android.view.MotionEvent.ACTION_UP) {
+                        val measurement=testLabResize;testLabResize=null
+                        if(desired==initialWidth)measurement?.let{it.first.end(it.second,OperationOutcome.CANCELLED)}
+                        else if(measurement!=null)dialog?.window?.decorView?.let{decor->
+                            androidx.core.view.OneShotPreDrawListener.add(decor){measurement?.let{it.first.end(it.second,proof=CompletionProof.FIRST_PREDRAW)}}
+                        }
+                        val key = if (resources.configuration.orientation ==
+                            android.content.res.Configuration.ORIENTATION_LANDSCAPE) "width_landscape" else "width_portrait"
+                        requireContext().getSharedPreferences("nira_side_panel_width", android.content.Context.MODE_PRIVATE)
+                            .edit().putInt(key, desired).apply()
+                    }
+                    true
+                }
+                android.view.MotionEvent.ACTION_CANCEL -> {
+                    testLabResize?.let{it.first.end(it.second,OperationOutcome.CANCELLED)};testLabResize=null
+                    false
+                }
+                else -> false
+            }
+        }
+    }
+
+    /**
+     * Compact side panel uses its own rows, NOT TabSheetListView. Its old
+     * combinedClickable opened the menu on long press, which prevented drag.
+     * Now a long press + movement reorders/moves; the visible overflow button
+     * retains all context-menu actions without a competing gesture.
+     */
+    @Composable
+    private fun CompactSideTabs(viewModel: TabViewModel, tabs: List<TabSessionState>) {
+        val publishedGroups by unifiedGroupManager.groupsState.collectAsState()
+        val activeProfileId by viewModel.currentProfileId.collectAsState()
+        // The ViewModel can briefly lag while a BrowserStore refresh cancels an
+        // older loadJob. Use the group's published DB state for the side panel
+        // so a second real group never disappears into "ungrouped" rows.
+        val visibleTabIds = tabs.map { it.id }.toSet()
+        val liveGroups = publishedGroups.filter { group ->
+            val correctProfile = when (activeProfileId) {
+                "default" -> group.contextId == null || group.contextId == "profile_default"
+                "private" -> group.contextId == "private"
+                null -> false
+                else -> group.contextId == "profile_${activeProfileId}"
+            }
+            correctProfile && group.tabIds.any { it in visibleTabIds }
+        }
+        val groups = liveGroups
+        val expanded by viewModel.expandedGroups.collectAsState()
+        val selectedTabId by viewModel.selectedTabId.collectAsState()
+        val savedOrder by viewModel.currentOrder.collectAsState()
+        val scope = rememberCoroutineScope()
+        val listState = rememberLazyListState()
+        val labScroll=remember {TestLabNestedScrollProbe()}
+        DisposableEffect(labScroll){onDispose{labScroll.close()}}
+        var groupMenuId by remember { mutableStateOf<String?>(null) }
+        var showNameUngroupedDialog by remember { mutableStateOf(false) }
+        var ungroupedName by remember { mutableStateOf("Nowa grupa") }
+        var ungroupedExpanded by remember { mutableStateOf(true) }
+        val orientation = LocalConfiguration.current.orientation
+        var dragTabId by remember(activeProfileId, orientation) { mutableStateOf<String?>(null) }
+        var dragGroupId by remember(activeProfileId, orientation) { mutableStateOf<String?>(null) }
+        var dragProfileId by remember(activeProfileId, orientation) { mutableStateOf<String?>(null) }
+        var dragY by remember { mutableStateOf(0f) }
+        var listTopY by remember { mutableStateOf(0f) }
+        var listLeftX by remember { mutableStateOf(0f) }
+        var listWidth by remember { mutableStateOf(0f) }
+        var dragX by remember { mutableStateOf(0f) }
+        var hoveredKey by remember { mutableStateOf<String?>(null) }
+        val draggedTab = tabs.firstOrNull { it.id == dragTabId }
+        val draggedGroup = groups.firstOrNull { it.id == dragGroupId }
+        // Hovering a collapsed header while holding a tab opens the target group
+        // without requiring the user to release the pointer first.
+        LaunchedEffect(dragTabId, hoveredKey) {
+            val targetId = hoveredKey?.takeIf { it.startsWith("group_") && !it.startsWith("group_tab_") }
+                ?.removePrefix("group_")
+            if (dragTabId != null && targetId != null && targetId !in expanded) {
+                kotlinx.coroutines.delay(450)
+                if (dragTabId != null && hoveredKey == "group_" + targetId) {
+                    viewModel.toggleGroupExpanded(targetId)
+                }
+            }
+        }
+        val groupedIds = groups.flatMap { it.tabIds }.toSet()
+        val tabsById = tabs.associateBy { it.id }
+        val groupsById = groups.associateBy { it.id }
+        val ungroupedTabs = buildList {
+            val added = mutableSetOf<String>()
+            savedOrder?.primaryOrder?.forEach { item ->
+                if (item is com.prirai.android.nira.browser.tabs.compose.UnifiedTabOrder.OrderItem.SingleTab &&
+                    item.tabId !in groupedIds && added.add(item.tabId)) {
+                    tabsById[item.tabId]?.let { add(it) }
+                }
+            }
+            tabs.forEach { if (it.id !in groupedIds && added.add(it.id)) add(it) }
+        }
+        // Side drawer, landscape and native portrait bar share ONE persisted
+        // hierarchy. Group members follow Room's committed position order.
+        val entries = buildList<Pair<String, String>> {
+            val seenGroups = mutableSetOf<String>()
+            val seenTabs = mutableSetOf<String>()
+            var recoveryHeaderAdded = false
+            fun addUngroupedHeader() {
+                if (!recoveryHeaderAdded && (ungroupedTabs.isNotEmpty() || dragTabId != null)) {
+                    add("ungrouped_header" to "ungrouped")
+                    recoveryHeaderAdded = true
+                }
+            }
+            savedOrder?.primaryOrder?.forEach { item ->
+                when (item) {
+                    is com.prirai.android.nira.browser.tabs.compose.UnifiedTabOrder.OrderItem.TabGroup -> {
+                        if (item.groupId in groupsById && seenGroups.add(item.groupId)) {
+                            add("group" to item.groupId)
+                            seenTabs.addAll(groupsById[item.groupId]?.tabIds.orEmpty())
+                        }
+                    }
+                    is com.prirai.android.nira.browser.tabs.compose.UnifiedTabOrder.OrderItem.SingleTab -> {
+                        if (item.tabId in tabsById && item.tabId !in groupedIds && seenTabs.add(item.tabId)) {
+                            addUngroupedHeader()
+                            add("single" to item.tabId)
+                        }
+                    }
+                }
+            }
+            groups.forEach { group ->
+                if (seenGroups.add(group.id)) {
+                    add("group" to group.id)
+                    seenTabs.addAll(group.tabIds)
+                }
+            }
+            tabs.forEach { tab ->
+                if (tab.id !in groupedIds && seenTabs.add(tab.id)) {
+                    addUngroupedHeader()
+                    add("single" to tab.id)
+                }
+            }
+            addUngroupedHeader()
+        }
+        val density = resources.displayMetrics.density
+
+        // Use actual finger coordinates rather than accumulating scroll-sensitive deltas.
+        fun moveDrag(pointerRoot: Offset) {
+            dragY = pointerRoot.y - listTopY
+            dragX = pointerRoot.x - listLeftX
+            val visible = listState.layoutInfo.visibleItemsInfo
+            hoveredKey = visible.firstOrNull {
+                dragY >= it.offset && dragY < it.offset + it.size
+            }?.key?.toString()
+        }
+        // One bounded scroll job follows the frame clock while the pointer stays
+        // inside the edge zone. No competing scroll jobs per pointer event.
+        LaunchedEffect(dragTabId, dragGroupId, dragY, dragX) {
+            if (dragTabId == null && dragGroupId == null) return@LaunchedEffect
+            if (dragX < 0f || dragX >= listWidth) return@LaunchedEffect
+            while (true) {
+                val viewport = listState.layoutInfo.viewportEndOffset.toFloat()
+                if (dragY < 0f || dragY >= viewport) break
+                val edge = 48f * density
+                val velocity = when {
+                    dragY < edge -> -8f * density * (1f - dragY / edge)
+                    dragY > viewport - edge -> 8f * density * (1f - (viewport - dragY) / edge)
+                    else -> break
+                }
+                androidx.compose.runtime.withFrameNanos { }
+                if (listState.scrollBy(velocity) == 0f) break
+            }
+        }
+        fun finishDrag() {
+            val lab=testLabSideDrag;testLabSideDrag=null
+            fun cancelled(){lab?.let{it.first.end(it.second,OperationOutcome.CANCELLED)}}
+            val fromId = dragTabId
+            val fromGroupId = dragGroupId
+            val expectedProfile = dragProfileId
+            val info = listState.layoutInfo
+            val resolved = DragPlacement.sideTarget(
+                dragY, 0, info.viewportEndOffset,
+                info.visibleItemsInfo.map { DropRow(it.key.toString(), it.offset, it.size) },
+                x = dragX, viewportWidth = listWidth
+            )
+            dragTabId = null
+            dragGroupId = null
+            hoveredKey = null
+            val target = resolved?.key ?: run{cancelled();return}
+            val after = resolved.after
+            if (fromId == null && fromGroupId == null) {cancelled();return}
+            val originalKey = if (fromId != null) {
+                if (fromId in groupedIds) "group_tab_$fromId" else "single_tab_$fromId"
+            } else "group_$fromGroupId"
+            if (target == originalKey) {cancelled();return}
+            scope.launch {
+                try {
+                    val committed = if (fromId != null) {
+                        viewModel.commitSidePanelDrop(fromId, target, after, expectedProfile)
+                    } else {
+                        viewModel.commitSidePanelGroupDrop(fromGroupId!!, target, after, expectedProfile)
+                    }
+                    lab?.let{it.first.end(it.second,if(committed)OperationOutcome.SUCCESS else OperationOutcome.CANCELLED)}
+                    if (!committed && isAdded) android.widget.Toast.makeText(
+                        requireContext(), "Nie udało się przenieść elementu", android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                } catch (error: kotlinx.coroutines.CancellationException) {
+                    lab?.let{it.first.end(it.second,OperationOutcome.INTERRUPTED)}
+                    throw error
+                } catch (error: Exception) {
+                    lab?.let{it.first.end(it.second,OperationOutcome.FAILED)}
+                    android.util.Log.e("ZavroTabDrop", "Drop failed", error)
+                }
+            }
+        }
+
+        Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            userScrollEnabled = dragTabId == null && dragGroupId == null,
+            modifier = Modifier.fillMaxSize().nestedScroll(labScroll)
+                .onGloballyPositioned {
+                    listTopY = it.positionInRoot().y
+                    listLeftX = it.positionInRoot().x
+                    listWidth = it.size.width.toFloat()
+                },
+            contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)
+        ) {
+            entries.forEach { (kind, id) ->
+                if (kind == "group") {
+                    val group = groupsById[id] ?: return@forEach
+                    val members = group.tabIds.mapNotNull { tabsById[it] }
+                    if (members.isEmpty()) return@forEach
+                    item(key = "group_" + group.id) {
+                        var headerRoot by remember(group.id) { mutableStateOf(Offset.Zero) }
+                        Row(
+                            modifier = Modifier.fillMaxWidth().height(44.dp)
+                                .onGloballyPositioned { headerRoot = it.positionInRoot() }
+                                .pointerInput(group.id, activeProfileId, orientation) {
+                                    detectDragGesturesAfterLongPress(
+                                        onDragStart = { offset ->
+                                            startTestLabDrag(true)
+                                            dragGroupId = group.id
+                                            dragTabId = null
+                                            dragProfileId = activeProfileId
+                                            dragY = headerRoot.y + offset.y - listTopY
+                                            dragX = headerRoot.x + offset.x - listLeftX
+                                        },
+                                        onDrag = { change, _ ->
+                                            change.consume()
+                                            moveDrag(headerRoot + change.position)
+                                        },
+                                        onDragEnd = ::finishDrag,
+                                        onDragCancel = { finishTestLabDrag(OperationOutcome.CANCELLED);dragGroupId = null; hoveredKey = null }
+                                    )
+                                }
+                                .background(
+                                    if (hoveredKey == "group_" + group.id)
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    else MaterialTheme.colorScheme.surface
+                                )
+                                .clickable { viewModel.toggleGroupExpanded(group.id) }
+                                .padding(start = 8.dp, end = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                if (group.id in expanded) Icons.Default.KeyboardArrowDown
+                                else Icons.Default.KeyboardArrowRight,
+                                contentDescription = "Rozwiń lub zwiń grupę",
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "(" + members.size + ") " + group.name,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f).padding(start = 4.dp)
+                            )
+                            IconButton(onClick = { groupMenuId = group.id }, modifier = Modifier.size(40.dp)) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "Opcje grupy",
+                                    modifier = Modifier.size(20.dp))
+                            }
+                        }
+                    }
+                    if (group.id in expanded) {
+                        items(members, key = { "group_tab_" + it.id }) { tab ->
+                            CompactSideTabRow(
+                                tab = tab, ordinal = tabs.indexOf(tab) + 1,
+                                selected = tab.id == selectedTabId,
+                                hovered = hoveredKey == "group_tab_" + tab.id,
+                                indent = true,
+                                onClick = { if (dragTabId == null) handleTabClickCompose(tab.id) },
+                                onClose = { handleTabCloseCompose(tab.id) },
+                                onMenu = { handleTabLongPressCompose(tab, true) },
+                                onDragStart = { root ->
+                                    startTestLabDrag(false)
+                                    dragTabId = tab.id
+                                    dragGroupId = null
+                                    dragProfileId = activeProfileId
+                                    dragY = root.y - listTopY
+                                    dragX = root.x - listLeftX
+                                },
+                                onDragMove = ::moveDrag,
+                                onDragFinish = ::finishDrag,
+                                onDragCancel = { finishTestLabDrag(OperationOutcome.CANCELLED);dragTabId = null; hoveredKey = null }
+                            )
+                        }
+                    }
+                } else if (kind == "ungrouped_header") {
+                    item(key = "ungrouped_header") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().height(44.dp)
+                                .background(MaterialTheme.colorScheme.surface)
+                                .padding(start = 8.dp, end = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(
+                                onClick = { ungroupedExpanded = !ungroupedExpanded },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    if (ungroupedExpanded) Icons.Default.KeyboardArrowDown
+                                    else Icons.Default.KeyboardArrowRight,
+                                    contentDescription = "Rozwiń lub zwiń karty bez grupy"
+                                )
+                            }
+                            Text(
+                                text = "(${ungroupedTabs.size}) Bez grupy",
+                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(
+                                onClick = {
+                                    ungroupedName = "Nowa grupa"
+                                    showNameUngroupedDialog = true
+                                },
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "Nazwij i utwórz grupę")
+                            }
+                        }
+                    }
+                } else if (ungroupedExpanded) {
+                    val tab = tabsById[id] ?: return@forEach
+                item(key = "single_tab_" + tab.id) {
+                CompactSideTabRow(
+                    tab = tab, ordinal = tabs.indexOf(tab) + 1,
+                    selected = tab.id == selectedTabId,
+                    hovered = hoveredKey == "single_tab_" + tab.id,
+                    indent = false,
+                    onClick = { if (dragTabId == null) handleTabClickCompose(tab.id) },
+                    onClose = { handleTabCloseCompose(tab.id) },
+                    onMenu = { handleTabLongPressCompose(tab, false) },
+                    onDragStart = { root ->
+                        startTestLabDrag(false)
+                        dragTabId = tab.id
+                        dragGroupId = null
+                        dragProfileId = activeProfileId
+                        dragY = root.y - listTopY
+                                    dragX = root.x - listLeftX
+                    },
+                    onDragMove = ::moveDrag,
+                    onDragFinish = ::finishDrag,
+                    onDragCancel = { finishTestLabDrag(OperationOutcome.CANCELLED);dragTabId = null; hoveredKey = null }
+                )
+                }
+            }
+        }
+        }
+        // The original row stays in place while dragged. An overlay follows
+        // the finger so the user can see that long-press actually took hold.
+        // Pointer events remain owned by the originating row, not this preview.
+        if (draggedGroup != null) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().offset {
+                    IntOffset(0, (dragY - 22f * density).roundToInt())
+                },
+                shadowElevation = 8.dp,
+                color = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Text("(${draggedGroup.tabIds.count { it in visibleTabIds }}) ${draggedGroup.name}",
+                    modifier = Modifier.padding(12.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        if (draggedTab != null) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .offset {
+                        IntOffset(0, (dragY - 23f * density).roundToInt())
+                    }
+                    .padding(horizontal = 8.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                shadowElevation = 10.dp
+            ) {
+                Row(
+                    Modifier.height(46.dp).padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.DragHandle, contentDescription = null)
+                    Text(
+                        draggedTab.content.title.ifBlank { "Nowa karta" },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(start = 10.dp)
+                    )
+                }
+            }
+        }
+        }
+        if (showNameUngroupedDialog) {
+            AlertDialog(
+                onDismissRequest = { showNameUngroupedDialog = false },
+                title = { Text("Utwórz grupę z ${ungroupedTabs.size} kart") },
+                text = {
+                    Column {
+                        Text("Te karty nie mają aktywnej grupy. Nadaj jej nazwę, aby zapisać je jako jedną grupę.")
+                        OutlinedTextField(
+                            value = ungroupedName,
+                            onValueChange = { ungroupedName = it.take(70) },
+                            label = { Text("Nazwa grupy") },
+                            singleLine = true
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = ungroupedName.isNotBlank() && ungroupedTabs.isNotEmpty(),
+                        onClick = {
+                            val ids = ungroupedTabs.map { it.id }
+                            val chosenName = ungroupedName.trim()
+                            showNameUngroupedDialog = false
+                            scope.launch {
+                                val ok = viewModel.createNamedGroupFromUngrouped(ids, chosenName)
+                                if (!ok) {
+                                    android.widget.Toast.makeText(
+                                        requireContext(),
+                                        "Karty zmieniły grupę. Otwórz panel ponownie.",
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
+                        }
+                    ) { Text("Utwórz grupę") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showNameUngroupedDialog = false }) {
+                        Text("Anuluj")
+                    }
+                }
+            )
+        }
+        groupMenuId?.let { id ->
+            com.prirai.android.nira.browser.tabs.compose.GroupContextMenu(
+                groupId = id,
+                groupName = groups.find { it.id == id }?.name.orEmpty(),
+                onDismiss = { groupMenuId = null },
+                viewModel = viewModel,
+                scope = scope
+            )
+        }
+    }
+
+    @Composable
+    private fun CompactSideTabRow(
+        tab: TabSessionState,
+        ordinal: Int,
+        selected: Boolean,
+        hovered: Boolean,
+        indent: Boolean,
+        onClick: () -> Unit,
+        onClose: () -> Unit,
+        onMenu: () -> Unit,
+        onDragStart: (Offset) -> Unit,
+        onDragMove: (Offset) -> Unit,
+        onDragFinish: () -> Unit,
+        onDragCancel: () -> Unit
+    ) {
+        var rowOrigin by remember { mutableStateOf(Offset.Zero) }
+        var handleOrigin by remember { mutableStateOf(Offset.Zero) }
+        val rowOrientation = LocalConfiguration.current.orientation
+        val haptic = LocalHapticFeedback.current
+        val currentStart by rememberUpdatedState(onDragStart)
+        val currentMove by rememberUpdatedState(onDragMove)
+        val currentFinish by rememberUpdatedState(onDragFinish)
+        val currentCancel by rememberUpdatedState(onDragCancel)
+        Surface(
+            color = when {
+                hovered || selected -> MaterialTheme.colorScheme.primaryContainer
+                else -> MaterialTheme.colorScheme.surface
+            },
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(5.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().height(46.dp)
+                    .onGloballyPositioned { rowOrigin = it.positionInRoot() }
+                    .clickable(onClick = onClick)
+                    // Attach the long-press recognizer on the inside of click:
+                    // normal taps still select; holding the row starts a drag.
+                    .pointerInput(tab.id, rowOrientation) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { offset ->
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                currentStart(rowOrigin + offset)
+                            },
+                            onDrag = { change, amount ->
+                                change.consume()
+                                currentMove(rowOrigin + change.position)
+                            },
+                            onDragEnd = { currentFinish() },
+                            onDragCancel = { currentCancel() }
+                        )
+                    }
+                    .padding(start = if (indent) 12.dp else 3.dp, end = 1.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = ordinal.toString() + ".",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(23.dp)
+                )
+                // A dedicated handle also works when children (including
+                // menu/close buttons) consume their own touch sequences.
+                Icon(
+                    Icons.Default.DragHandle,
+                    contentDescription = "Przytrzymaj i przeciągnij kartę",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(30.dp)
+                        .onGloballyPositioned { handleOrigin = it.positionInRoot() }
+                        .pointerInput(tab.id, rowOrientation) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { offset ->
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                currentStart(handleOrigin + offset)
+                            },
+                            onDrag = { change, amount ->
+                                change.consume()
+                                currentMove(handleOrigin + change.position)
+                            },
+                            onDragEnd = { currentFinish() },
+                            onDragCancel = { currentCancel() }
+                        )
+                        }
+                )
+                com.prirai.android.nira.browser.tabs.compose.FaviconImage(tab = tab, size = 21.dp)
+                Text(
+                    text = tab.content.title.ifBlank { "Nowa karta" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).padding(start = 8.dp)
+                )
+                IconButton(onClick = onMenu, modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "Opcje karty",
+                        modifier = Modifier.size(19.dp))
+                }
+                IconButton(onClick = onClose, modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = "Zamknij kartę",
+                        modifier = Modifier.size(21.dp))
                 }
             }
         }
@@ -930,6 +1615,29 @@ class TabsBottomSheetFragment : DialogFragment() {
         onRemoveFromGroup: () -> Unit,
         modifier: Modifier = Modifier
     ) {
+        var creatingGroup by remember(tab.id) { mutableStateOf(false) }
+        var groupName by remember(tab.id) { mutableStateOf("") }
+        if (creatingGroup) {
+            AlertDialog(
+                onDismissRequest = { creatingGroup = false },
+                title = { Text("Nowa grupa kart") },
+                text = {
+                    OutlinedTextField(
+                        value = groupName,
+                        onValueChange = { groupName = it.take(70) },
+                        label = { Text("Nazwa grupy") }, singleLine = true
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        tabViewModel?.moveTabToNewGroup(tab.id, groupName.trim().ifBlank { "Nowa grupa" })
+                        creatingGroup = false
+                        onDismiss()
+                    }) { Text("Utwórz i przenieś") }
+                },
+                dismissButton = { TextButton(onClick = { creatingGroup = false }) { Text("Anuluj") } }
+            )
+        }
         androidx.compose.animation.AnimatedVisibility(
             visible = true,
             enter = androidx.compose.animation.slideInVertically { it } + androidx.compose.animation.fadeIn(),
@@ -976,7 +1684,12 @@ class TabsBottomSheetFragment : DialogFragment() {
                         modifier = Modifier.padding(vertical = 4.dp)
                     )
 
-                    // Menu options
+                    // This is the active side-panel menu (not TabMenuCompose).
+                    MenuOption(
+                        icon = androidx.compose.material.icons.Icons.Default.Add,
+                        text = "Utwórz nową grupę",
+                        onClick = { creatingGroup = true }
+                    )
                     if (isInGroup) {
                         MenuOption(
                             icon = androidx.compose.material.icons.Icons.Default.Clear,

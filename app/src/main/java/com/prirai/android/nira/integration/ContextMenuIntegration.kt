@@ -2,6 +2,7 @@ package com.prirai.android.nira.integration
 
 import android.content.Context
 import android.view.View
+import com.prirai.android.nira.ext.components
 import androidx.fragment.app.FragmentManager
 import com.prirai.android.nira.databinding.FragmentBrowserBinding
 import mozilla.components.browser.state.store.BrowserStore
@@ -64,7 +65,7 @@ class ContextMenuIntegration(
                 )
             )
             val snackbarDelegate = DefaultSnackbarDelegate()
-            ContextMenuCandidate.defaultCandidates(
+            val defaultCandidates = ContextMenuCandidate.defaultCandidates(
                 context,
                 tabsUseCases,
                 contextMenuUseCases,
@@ -74,7 +75,27 @@ class ContextMenuIntegration(
                         android.os.Environment.DIRECTORY_DOWNLOADS
                     ).path
                 }
-            ) + appLinksCandidate + createCopyLinkTextCandidate(context, parentView, snackbarDelegate)
+            ).toMutableList()
+            val newTabId = ContextMenuCandidate.createOpenInNewTabCandidate(
+                context, tabsUseCases, parentView, snackbarDelegate
+            ).id
+            val position = defaultCandidates.indexOfFirst { it.id == newTabId }
+            if (position >= 0) {
+                defaultCandidates[position] = createOpenLinkInNewTabCandidate(
+                    context, tabsUseCases, parentView, snackbarDelegate
+                )
+            }
+            defaultCandidates.add(
+                if (position >= 0) position + 1 else defaultCandidates.size,
+                createOpenLinkInGroupCandidate(context, tabsUseCases, parentView, snackbarDelegate) { id, parent, url ->
+                    context.components.tabGroupMiddleware.groupExplicitlyOpenedTab(
+                        id, url, parent.id, parent.content.url,
+                        if (parent.content.private) "private" else parent.contextId
+                    )
+                }
+            )
+            defaultCandidates + appLinksCandidate +
+                createCopyLinkTextCandidate(context, parentView, snackbarDelegate)
         }
     }
 
