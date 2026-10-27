@@ -348,7 +348,16 @@ internal class MediaRepository(
             if (groupId != null && (found.groupId == null ||
                     source == MediaSource.NETWORK && media.format in
                         setOf(MediaFormat.HLS, MediaFormat.DASH))) found.groupId = groupId
+            val earlierTitle = found.title
+            val earlierKind = found.titleKind
             found.metadata(metadata, found.format)
+            if (com.prirai.android.nira.diagnostics.testlab.TestLab.mediaObservationActive()) {
+                if (earlierTitle != null && metadata?.title != null &&
+                    earlierTitle != metadata.title && found.title == earlierTitle)
+                    com.prirai.android.nira.diagnostics.testlab.TestLab.mediaRejectedTitle(
+                        tab.binding, earlierKind == metadata.titleKind)
+                com.prirai.android.nira.diagnostics.testlab.TestLab.observedMedia(tab.binding, found.copy())
+            }
             if (source == MediaSource.NETWORK && metadata?.frameKey == null) found.frameUrl = current.pageUrl
             changed()
             return InsertResult.DUPLICATE
@@ -362,6 +371,8 @@ internal class MediaRepository(
         added.frameKey = metadata?.frameKey
         if (source == MediaSource.NETWORK && metadata?.frameKey == null) added.frameUrl = current.pageUrl
         current.entries[identity] = added
+        if (com.prirai.android.nira.diagnostics.testlab.TestLab.mediaObservationActive())
+            com.prirai.android.nira.diagnostics.testlab.TestLab.observedMedia(tab.binding, added.copy())
         while (current.entries.size > perTabLimit) current.entries.remove(current.entries.keys.first())
         // Deterministic global FIFO eviction, bounded even under unique URL floods.
         while (scopes.values.sumOf { it.entries.size } > globalLimit) {
