@@ -45,3 +45,7 @@ W `content.js` funkcja `posterFor(video)` uzyskiwała najbliższą kartę poprze
 Przejście testów JS i Kotlin oznacza poprawność na fixture'ach, **nie** gwarantuje większej liczby załadowanych miniaturek na prawdziwych stronach. Kontrola na fizycznym Nothing Phone (1) wymaga osobnej zgody na podpisaną wersję APK. Zmiany tylko w WebExtension, testach i dokumentacji; nie ma zmian w UI, 120 Hz, źródłach, odtwarzaniu ani podpisywaniu.
 
 **STOP po weryfikacji CI**. Następny etap — według planu MME — powinien uwzględnić osobną wiarygodność posterów i korelację źródeł sieciowych z lokalnym odtwarzaczem, zamiast automatycznych globalnych heurystyk.
+
+## Checkpoint PR #101
+
+Zmiany przeglądarki obejmują jedynie pasywną atrybucję miniatur ze sprawdzonym lokalnym właścicielem. Jeżeli joby CI nie uruchomią się automatycznie, stan należy oznaczyć jako **NOT_TESTED**, nie jako PASS. Nie wolno uruchamiać `workflow_dispatch` domyślnego Android CI, gdyż mógłby zbudować APK bez zgody.
