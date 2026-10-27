@@ -48,6 +48,20 @@ class TestLabReportTest {
         }}
         check(root)
     }
+    @Test fun shadowGraphJsonAndTxtArePrivacyFilteredAndExplicitlyNonAuthoritative() {
+        val graph=MediaIdentityShadowGraph()
+        val summary=graph.snapshot()
+        val report=sample().copy(testType=TestType.FULL_AUDIT,
+            mediaIdentityShadow=summary)
+        val output=TestLabReportGenerator.generate(report)
+        assertEquals(summary,Json.decodeFromString<TestLabReport>(output.json).mediaIdentityShadow)
+        assertTrue(output.text.contains("MEDIA IDENTITY"))
+        assertTrue(output.text.contains("SHADOW MODE"))
+        assertTrue(output.text.contains("UI/Play niezmienione"))
+        assertTrue(output.text.contains("NOT_AVAILABLE"))
+        assertFalse(output.json.contains("cookie"))
+        assertFalse(output.json.contains("https://"))
+    }
     @Test fun boundedExportPreservesAggregatesAndMarksOmittedTimeline() {
         val report=sample().copy(timeline=(1L..1024L).map{LabEvent(it,it*1000,LabCode.SLOW_FRAME,
             value=300.0,operationTags=LabOperation.entries.toList())},eventCounts=mapOf(LabCode.SLOW_FRAME to 1024L),
