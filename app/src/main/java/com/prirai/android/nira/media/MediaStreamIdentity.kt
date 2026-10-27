@@ -4,38 +4,70 @@ import java.net.URI
 import java.util.Locale
 
 /**
- * A session-local comparison key, NEVER a URL to open. The exact signed URL is retained
- * separately. Only recognised volatile authentication parameters are removed, and only
- * for manifests (ordinary video query parameters remain distinct).
+ * A comparison key, NEVER a playback URL. Ordinary manifest query parameters
+ * are part of stream identity: e, s, t, token, sig, etc. can identify a movie.
+ * Neither URL nor identifying query data is ever written to logs.
  *
- * Tab, navigation and profile isolation is enforced by MediaRepository.Scope.
- * frameKey prevents a navigated iframe from reusing another frame's stream.
+ * The sole optional renewal equivalence is a fully formed AWS SigV4 presigned
+ * URL with an unchanged credential and all unchanged non-rotating parameters.
+ * Even that equivalence requires native request lineage and group evidence
+ * from MediaRepository. This helper alone must NOT deduplicate two streams.
  */
 internal object MediaStreamIdentity {
-    private val volatileQueryNames = setOf(
-        "s", "e", "t", "token", "sig", "signature", "expires", "expiry", "exp",
-        "hdnts", "hdntl", "policy", "key-pair-id", "x-amz-algorithm",
-        "x-amz-credential", "x-amz-date", "x-amz-expires",
-        "x-amz-signedheaders", "x-amz-signature", "x-amz-security-token"
+    private val awsRotating = setOf(
+        "x-amz-date", "x-amz-expires", "x-amz-signature",
     )
 
-    fun key(url: String, format: MediaFormat, frameKey: Long? = null): String {
-        if (format != MediaFormat.HLS && format != MediaFormat.DASH) {
-            return "exact:" + (frameKey ?: 0L) + ":" + url
+    fun key(url: String, format: MediaFormat, frameKey: Long? = null): String =
+        // No heuristic parameter stripping. Exact URLs are kept for playback.
+        "exact:" + format.name + ":" + (frameKey ?: 0L) + ":" + url
+
+    /**
+     * Candidate key for known SigV4 credential renewal only; not a universal
+     * stream identifier. Keep X-Amz-Credential, security token, signed headers,
+     * all custom params and the exact raw media path significant.
+     */
+    internal fun signedRefreshKey(
+        url: String, format: MediaFormat, frameKey: Long? = null,
+    ): String? {
+        if (format != MediaFormat.HLS && format != MediaFormat.DASH) return null
+        val uri = try { URI(url) } catch (_: Exception) { return null }
+        val scheme = uri.scheme?.lowercase(Locale.ROOT) ?: return null
+        val host = uri.host?.lowercase(Locale.ROOT) ?: return null
+        if (scheme !in setOf("https", "http") || uri.rawUserInfo != null ||
+            uri.rawFragment != null) return null
+        val fields = uri.rawQuery?.split('&')?.takeIf { it.isNotEmpty() } ?: return null
+        // Fail closed on duplicate identity-bearing fields, including case
+        // variants, ambiguous % encodings and malformed empty assignments.
+        val names = HashSet<String>()
+        val pairs = ArrayList<Pair<String, String>>(fields.size)
+        for (part in fields) {
+            val name = part.substringBefore('=').lowercase(Locale.ROOT)
+            if (!part.contains('=') || name.isBlank()) return null
+            // Encoded names have ambiguous normalization across parsers.
+            if (name.contains('%')) return null
+            if (name.startsWith("x-amz-") && !names.add(name)) return null
+            pairs.add(name to part.substringAfter('='))
         }
-        val parsed = try { URI(url) } catch (_: Exception) { return "exact:$url" }
-        val host = parsed.host?.lowercase(Locale.ROOT) ?: return "exact:$url"
-        // rawPath/rawQuery avoid decoding or re-encoding signed components.
-        val stableQuery = parsed.rawQuery.orEmpty().split('&')
-            .filter { it.isNotEmpty() && it.substringBefore('=').lowercase(Locale.ROOT) !in volatileQueryNames }
-            .sorted().joinToString("&")
-        return buildString {
-            append(format.name).append('|')
-            append(parsed.scheme?.lowercase(Locale.ROOT)).append('|')
-            append(host).append('|').append(parsed.port).append('|')
-            append(parsed.rawPath.orEmpty()).append('|')
-            append(stableQuery).append('|').append(frameKey ?: 0L)
-        }
+        val signature = pairs.firstOrNull { it.first == "x-amz-signature" }?.second
+        val algorithm = pairs.firstOrNull { it.first == "x-amz-algorithm" }?.second
+        val credential = pairs.firstOrNull { it.first == "x-amz-credential" }?.second
+        val signedHeaders = pairs.firstOrNull { it.first == "x-amz-signedheaders" }?.second
+        if (algorithm != "AWS4-HMAC-SHA256" || signature.isNullOrBlank() ||
+            credential.isNullOrBlank() || signedHeaders.isNullOrBlank()) return null
+        val stable = fields.filter { raw ->
+            raw.substringBefore('=').lowercase(Locale.ROOT) !in awsRotating
+        }.sorted().joinToString("&")
+        return format.name + "|" + scheme + "|" + host + "|" + uri.port + "|" +
+            uri.rawPath.orEmpty() + "|" + stable + "|" + (frameKey ?: 0L)
+    }
+
+    internal fun sameSignedRefresh(
+        oldUrl: String, newUrl: String, format: MediaFormat, frameKey: Long? = null,
+    ): Boolean {
+        if (oldUrl == newUrl) return false
+        val oldKey = signedRefreshKey(oldUrl, format, frameKey) ?: return false
+        return oldKey == signedRefreshKey(newUrl, format, frameKey)
     }
 }
 
