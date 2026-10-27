@@ -85,7 +85,15 @@ android {
         abi {
             enable = true
             reset()
-            include 'arm64-v8a'
+            // Instrumentation-only x86_64 emulator build. Never ship an x86_64 release.
+            def testAbi = providers.gradleProperty('testLabAbi').orNull
+            if (testAbi != null && testAbi != 'x86_64') {
+                throw new GradleException('testLabAbi supports x86_64 instrumentation only')
+            }
+            if (testAbi != null && gradle.startParameter.taskNames.any {
+                it.toLowerCase().contains('release') || it.toLowerCase().contains('publish')
+            }) throw new GradleException('TestLab emulator ABI must never be published')
+            include(testAbi ?: 'arm64-v8a')
             universalApk = false
         }
     }
