@@ -68,7 +68,11 @@ internal object TestLab {
     fun geckoError(owner:Any){runtime?.browserObserver?.error(owner)}
     fun discovery(code:String,count:Int){runtime?.mediaObserver?.discovery(code,count)}
     fun mediaObservationActive():Boolean=runtime?.mediaObserver!=null
-    fun observedMedia(binding:MediaSessionBinding,entry:MediaEntry){runtime?.mediaObserver?.entry(binding,entry)}
+    fun observedMedia(binding:MediaSessionBinding,entry:MediaEntry,verifiedEvidence:Boolean=false){
+        runtime?.mediaObserver?.entry(binding,entry,verifiedEvidence)
+    }
+    fun mediaCandidate(){runtime?.mediaObserver?.candidate()}
+    fun mediaFunnelConflict(kind:MediaFunnelConflict){runtime?.mediaObserver?.conflict(kind)}
     fun mediaDisplayed(binding:MediaSessionBinding,entry:MediaEntry){runtime?.mediaObserver?.displayed(binding,entry)}
     fun mediaNavigation(binding:MediaSessionBinding){runtime?.mediaObserver?.navigation(binding)}
     fun mediaRejectedTitle(binding:MediaSessionBinding,different:Boolean){runtime?.mediaObserver?.rejectedTitle(binding,different)}
