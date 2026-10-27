@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "kind": "sandbox-text-edit",
+  "repo": "laszko14/nira-browser",
+  "variant": "mpv",
+  "source_branch": "feat/zavro-x-mpv-v1167-reference-video-panel",
+  "source_sha": "d63f414acecae84c3507c3f4bb998e690281b91e",
+  "workspace_branch": "tools/zavro-edit-mpv-20261027",
+  "workspace_head": "d63f414acecae84c3507c3f4bb998e690281b91e",
+  "path": "app/src/test/java/com/prirai/android/nira/devtools/ZavroAutomatedEditorTest.kt",
+  "operation": "create",
+  "expected_blob_sha": null,
+  "content": "package com.prirai.android.nira.devtools\n\nimport org.junit.Assert.assertEquals\nimport org.junit.Test\n\n/** Isolated proof that the ordinary-chat editor can create and compile one Kotlin test. */\nclass ZavroAutomatedEditorTest {\n    @Test\n    fun checksAndroidVariantWithoutModifyingProductionCode() {\n        assertEquals(\"mpv\", \"m\" + \"pv\")\n    }\n}\n"
+}
