@@ -272,7 +272,7 @@
     if (!ids || ids.length > 160 || !document.getElementById ||
         !element.closest) return null;
     const card = element.closest(
-      "figure,article,li,[data-video-id],.video-card,.video-item,.media-card,.media-item,.video-container");
+      "figure,article,li,[data-video-id],[data-media-id],.video-card,.video-item,.video-tile,.video-entry,.media-card,.media-item,.video-container,.playlist-item");
     if (!card || !card.querySelectorAll || !card.contains) return null;
     const players = card.querySelectorAll("video,iframe");
     if (players.length !== 1 || (players[0] !== element &&
@@ -286,11 +286,36 @@
     }
     return null;
   }
+  // Keep the search local to a verified single-media owner. CSS presentation
+  // captions (e.g. .video-title) are often siblings of the player, not h1-h4.
+  // A list of cards can share the same page heading: never search outside card.
+  function cardTitle(card) {
+    const direct = mediaTitleHint(attribute(card, "data-video-title") ||
+      attribute(card, "data-title"));
+    if (direct) return direct;
+    const targets = card.querySelectorAll(
+      'figcaption,[itemprop="name"],[data-video-title],[data-title],.video-title,' +
+      '.video-name,.media-title,.media-name,.card-title,.video-caption,' +
+      'h1,h2,h3,h4');
+    // Work boundedly, and fail closed on distinct same-owner captions.
+    // Never treat a heading that wraps the actual player as its media title.
+    const found = new Set();
+    for (let i = 0; i < Math.min(targets.length, 16); i++) {
+      const element = targets[i];
+      if (element.querySelector && element.querySelector("video,iframe")) continue;
+      const text = mediaTitleHint(attribute(element, "data-video-title") ||
+        attribute(element, "data-title") || attribute(element, "title") ||
+        element.textContent);
+      if (text) found.add(text);
+      if (found.size > 1) return null;
+    }
+    return found.size === 1 ? found.values().next().value : null;
+  }
   // Titles are attached only to a single-media card, NEVER a page-wide heading.
   // The same card is also the group owner for its alternative quality sources.
   function scopedMediaCard(element) {
     if (!element || !element.parentElement) return null;
-    const cards = "figure,article,li,[data-video-id],.video-card,.video-item,.media-card,.media-item,.video-container";
+    const cards = "figure,article,li,[data-video-id],[data-media-id],.video-card,.video-item,.video-tile,.video-entry,.media-card,.media-item,.video-container,.playlist-item";
     for (let card = element, depth = 0; card && depth < 6; card = card.parentElement, depth++) {
       if (!card.matches || !card.matches(cards) || !card.querySelectorAll) continue;
       const players = card.querySelectorAll("video,iframe");
@@ -314,10 +339,7 @@
         if (owners.length !== 1 || !owners.some(node =>
           node === element || typeof node.contains === "function" && node.contains(element))) continue;
       }
-      const headings = card.querySelectorAll("figcaption,[itemprop='name'],h1,h2,h3,h4");
-      if (headings.length !== 1) continue;
-      const heading = headings[0];
-      const title = mediaTitleHint(attribute(heading, "title") || heading.textContent);
+      const title = cardTitle(card);
       if (title) return { title, card };
     }
     return null;
@@ -898,7 +920,9 @@
   // single-media card so late DOM titles can update the existing source.
   function titleMutationRoot(element) {
     const heading = element && element.closest &&
-      element.closest("figcaption,[itemprop='name'],h1,h2,h3,h4");
+      element.closest('figcaption,[itemprop="name"],[data-video-title],[data-title],' +
+        '.video-title,.video-name,.media-title,.media-name,.card-title,' +
+        '.video-caption,h1,h2,h3,h4');
     if (!heading) return null;
     const card = heading.closest(
       "figure,article,li,[data-video-id],.video-card,.video-item,.media-card,.media-item,.video-container");
