@@ -64,4 +64,12 @@ class VideoTilesLayoutTest {
             }
         }
     }
+    @Test fun detectedFilmsFlowAcrossRowsLikeReferenceImage() {
+        val expected = (1..12).toList()
+        val items = rowMajorTilesInHorizontalGrid(expected, 4)
+        // LazyHorizontalGrid takes four successive entries per column.
+        assertEquals(listOf(1, 4, 7, 10, 2, 5, 8, 11, 3, 6, 9, 12), items)
+        val incomplete = rowMajorTilesInHorizontalGrid((1..10).toList(), 4)
+        assertEquals(listOf(1, 4, 7, 10, 2, 5, 8, null, 3, 6, 9, null), incomplete)
+    }
 }

@@ -37,3 +37,21 @@ internal class VideoTilesGeometry(settings: VideoTilesSettings, fontScale: Float
         return row * (rowHeightDp + bounded.gapDp)
     }
 }
+
+/**
+ * LazyHorizontalGrid consumes its items top-to-bottom within each column.
+ * The visual reference numbers the detected films left-to-right across rows.
+ * Preserve that order, including empty cells at the bottom-right of the grid.
+ */
+internal fun <T> rowMajorTilesInHorizontalGrid(entries: List<T>, rows: Int): List<T?> {
+    if (entries.isEmpty()) return emptyList()
+    val safeRows = rows.coerceIn(1, 10)
+    val columns = (entries.size + safeRows - 1) / safeRows
+    return buildList {
+        for (column in 0 until columns) {
+            for (row in 0 until safeRows) {
+                add(entries.getOrNull(row * columns + column))
+            }
+        }
+    }
+}

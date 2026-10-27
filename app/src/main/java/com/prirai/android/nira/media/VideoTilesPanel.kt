@@ -8,7 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.rememberScrollState
@@ -71,6 +71,9 @@ internal fun VideoTilesPanel(
     val horizontal = rememberLazyGridState()
     val vertical = rememberScrollState()
     val geometry = VideoTilesGeometry(preview, LocalDensity.current.fontScale, landscape)
+    val orderedTiles = remember(entries, geometry.rows) {
+        rowMajorTilesInHorizontalGrid(entries, geometry.rows)
+    }
     fun commit(change: (VideoTilesSettings) -> VideoTilesSettings) {
         editor.update(change)
         onSettingsChange(editor.value)
@@ -111,8 +114,12 @@ internal fun VideoTilesPanel(
                         modifier = Modifier.fillMaxWidth().height(geometry.contentHeightDp.dp).testTag("video-tiles-grid"),
                         horizontalArrangement = Arrangement.spacedBy(preview.gapDp.dp),
                         verticalArrangement = Arrangement.spacedBy(preview.gapDp.dp)) {
-                        items(entries, key = { it.key }, contentType = { "video" }) { item ->
-                            VideoTile(item, preview, onPlay, onDownload, onCopy, Modifier.width(preview.widthDp.dp).fillMaxHeight())
+                        itemsIndexed(orderedTiles,
+                            key = { index, item -> item?.let { "video:${it.key}" } ?: "empty:$" + index },
+                            contentType = { _, item -> if (item == null) "empty" else "video" }) { _, item ->
+                            if (item == null) Spacer(Modifier.width(preview.widthDp.dp).fillMaxHeight())
+                            else VideoTile(item, preview, onPlay, onDownload, onCopy,
+                                Modifier.width(preview.widthDp.dp).fillMaxHeight())
                         }
                     }
                 }
