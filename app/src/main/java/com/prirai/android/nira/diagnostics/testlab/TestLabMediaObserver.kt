@@ -41,6 +41,7 @@ internal class TestLabMediaObserver(private val capture: LabCapture) {
             "queue_network_rate" to LabCode.DETECTOR_QUEUE_NETWORK_RATE,
             "queue_manifest_capacity" to LabCode.DETECTOR_QUEUE_MANIFEST_CAPACITY,
             "queue_android_rate" to LabCode.DETECTOR_QUEUE_ANDROID_RATE,
+            "queue_title_candidate_dropped" to LabCode.DETECTOR_QUEUE_TITLE_CANDIDATE_DROPPED,
             "title_individual" to LabCode.DETECTOR_TITLE_INDIVIDUAL,
             "title_structured" to LabCode.DETECTOR_TITLE_STRUCTURED,
             "title_unknown" to LabCode.DETECTOR_TITLE_UNKNOWN,
