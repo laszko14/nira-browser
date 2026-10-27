@@ -58,7 +58,8 @@ class Element {
   }
 }
 function harness(){
-  const ctx={URL,TextEncoder,document:{baseURI:"https://site.example/list",title:"Page headline"},
+  const ctx={URL,TextEncoder,attribute:(el,name)=>el?.getAttribute?.(name)??null,
+    document:{baseURI:"https://site.example/list",title:"Page headline"},
     location:{href:"https://site.example/list"}};
   vm.runInNewContext(script.slice(absoluteStart,absoluteEnd)+
     script.slice(titleStart,titleEnd)+
