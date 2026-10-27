@@ -139,8 +139,8 @@ class TestLabActivity:AppCompatActivity() {
             LazyColumn(Modifier.fillMaxSize().padding(padding).testTag("testlab-list"),
                 contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 item {
-                    Text("Dobrowolny pomiar lokalny • 60 s",style=MaterialTheme.typography.titleMedium)
-                    Text("Raporty domyślnie pozostają w RAM. Brak adresów, nazw profili, cookies i treści stron. Test nie steruje kartami ani odtwarzaniem.",style=MaterialTheme.typography.bodyMedium)
+                    Text("Jeden test • 120 s • jeden raport",style=MaterialTheme.typography.titleMedium)
+                    Text("Detektor może lokalnie odczytywać DOM, tytuły, miniatury, JSON-LD i dostępne manifesty. W raporcie tylko anonimowe wyniki, bez adresów, tokenów, cookies i treści stron. Test nie steruje kartami ani odtwarzaniem.",style=MaterialTheme.typography.bodyMedium)
                     Text("Zakończony pomiar nie oznacza sprawności całej aplikacji. Klatki dotyczą Android UI Window; obraz Gecko i wideo nie są bezpośrednio mierzone.",style=MaterialTheme.typography.bodySmall)
                 }
                 if(active)item {
@@ -149,7 +149,7 @@ class TestLabActivity:AppCompatActivity() {
                         Text(when(status.phase){
                             LabPhase.PREPARING->"Przygotowanie. Odliczanie 3 s ruszy w przeglądarce."
                             LabPhase.FINALIZING->"Kończenie i zwalnianie kolektorów…"
-                            else->"Pozostało ${labClock(status.remainingSeconds?:60)}"
+                            else->"Pozostało ${labClock(status.remainingSeconds?:120)}"
                         },Modifier.testTag("testlab-status"))
                         Button(onClick=::returnToBrowser,enabled=status.phase!=LabPhase.FINALIZING,modifier=Modifier.fillMaxWidth()){Text("Wróć do przeglądarki")}
                         OutlinedButton(onClick={if(TestLab.mark())message("Znacznik zapisany")},enabled=status.phase==LabPhase.RUNNING,modifier=Modifier.fillMaxWidth()){Text("Zacięło się teraz")}
@@ -172,16 +172,31 @@ class TestLabActivity:AppCompatActivity() {
                     }
                     items(lines){line->SelectionContainer {Text(line,style=MaterialTheme.typography.bodySmall)}}
                 } else {
-                    items(TestType.entries,key={it.name}) {type->
-                        Card(Modifier.fillMaxWidth()) {Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
-                            Text(type.labTitle(),style=MaterialTheme.typography.titleMedium)
+                    item {
+                        val type=TestType.FULL_AUDIT
+                        Card(Modifier.fillMaxWidth()) {Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                            Text("TEST KOMPLETNY — 2 MINUTY",style=MaterialTheme.typography.titleMedium)
                             Text(type.labInstruction(),style=MaterialTheme.typography.bodySmall)
-                            Button(onClick={chosen=type},enabled=!active,modifier=Modifier.fillMaxWidth().testTag("testlab-start-${type.name}")){Text("${type.labTitle()} — 60 s")}
+                            Button(onClick={chosen=type},enabled=!active,modifier=Modifier.fillMaxWidth().testTag("testlab-start-FULL_AUDIT")) {
+                                Text("URUCHOM JEDEN TEST • 120 s")
+                            }
                             reports[type]?.let{previous->
-                                Text("Poprzedni wynik: ${previous.status} • ${String.format(Locale.ROOT,"%.1f",previous.durationMs/1000)} s",style=MaterialTheme.typography.bodySmall)
-                                OutlinedButton(onClick={model.showReport(previous)},enabled=!active,modifier=Modifier.fillMaxWidth().testTag("testlab-report-${type.name}")){Text("Otwórz raport")}
+                                Text("Ostatni wynik: ${previous.status} • ${String.format(Locale.ROOT,"%.1f",previous.durationMs/1000)} s",style=MaterialTheme.typography.bodySmall)
+                                OutlinedButton(onClick={model.showReport(previous)},enabled=!active,modifier=Modifier.fillMaxWidth().testTag("testlab-report-FULL_AUDIT")) {
+                                    Text("Otwórz jeden raport")
+                                }
                             }
                         }}
+                    }
+                    if(reports.keys.any{it!=TestType.FULL_AUDIT}) item {
+                        Text("Archiwalne raporty poprzednich testerów",style=MaterialTheme.typography.titleSmall)
+                        Column(verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                            reports.filterKeys{it!=TestType.FULL_AUDIT}.forEach{(type,previous)->
+                                OutlinedButton(onClick={model.showReport(previous)},enabled=!active,modifier=Modifier.fillMaxWidth()) {
+                                    Text(type.labTitle()+" • "+previous.status)
+                                }
+                            }
+                        }
                     }
                     item {
                         HorizontalDivider()
@@ -208,7 +223,7 @@ class TestLabActivity:AppCompatActivity() {
                 }
             }
         }
-        chosen?.let{type->AlertDialog(onDismissRequest={chosen=null},title={Text("${type.labTitle()} • 60 s")},text={
+        chosen?.let{type->AlertDialog(onDismissRequest={chosen=null},title={Text("${type.labTitle()} • ${if(type==TestType.FULL_AUDIT)120 else 60} s")},text={
             Text(type.labInstruction()+"\n\nPo powrocie do przeglądarki nastąpi odliczanie 3 s, nieuwzględnione w pomiarze. Przycisk „Zacięło się teraz” i wcześniejsze zakończenie znajdziesz też w menu ⋮. Bez próby danego działania wynik pozostanie NIEPRZETESTOWANY.")
         },confirmButton={TextButton(onClick={chosen=null;start(type)}){Text("Rozpocznij i wróć")}},dismissButton={TextButton(onClick={chosen=null}){Text("Anuluj")}})}
     }

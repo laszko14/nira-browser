@@ -27,6 +27,31 @@ class TestLabEngineTest {
         assertEquals(10.0,report.durationMs,0.001)
         assertNull(report.frameMetrics)
     }
+    @Test fun fullAuditRuns120SecondsAndCoversAllDomains() {
+        val e=engine();val t=running(e,TestType.FULL_AUDIT)
+        assertEquals(120_000_000_000L,e.targetDurationNanos())
+        assertNotNull(e.operation(t,LabOperation.TAB_SWITCH))
+        assertNotNull(e.operation(t,LabOperation.VIDEO_PANEL))
+        assertTrue(e.note(t,LabCode.DETECTOR_TITLE_UNKNOWN,count=9))
+        advance(60_000);assertFalse(e.poll(t))
+        advance(30_000);assertFalse(e.poll(t))
+        assertEquals(90_000_000_000L,e.elapsedNanos(t))
+        advance(30_000);assertTrue(e.poll(t))
+        assertTrue(e.complete(t))
+        val report=e.latest()!!
+        assertEquals(TestType.FULL_AUDIT,report.testType)
+        assertEquals(120_000.0,report.durationMs,0.001)
+        assertEquals(9L,report.eventCounts[LabCode.DETECTOR_TITLE_UNKNOWN])
+        assertEquals(Coverage.NOT_TESTED,report.testCoverage[LabOperation.PAGE_LOAD])
+        assertEquals(Coverage.ATTEMPTED,report.testCoverage[LabOperation.VIDEO_PANEL])
+    }
+    @Test fun fullAuditEarlyStopIsPartial() {
+        val e=engine();val t=running(e,TestType.FULL_AUDIT)
+        advance(89_999)
+        val report=finish(e,t)
+        assertEquals(LabPhase.PARTIAL,report.status)
+        assertEquals(89_999.0,report.durationMs,0.001)
+    }
     @Test fun sixtySecondDeadlineUsesOnlyMonotonicTimeAndRequiresCleanup() {
         val e=engine();val t=running(e);advance(59_999)
         assertFalse(e.poll(t));advance(1);assertTrue(e.poll(t))

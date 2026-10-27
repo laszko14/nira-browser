@@ -18,6 +18,8 @@ class TestLabEngine(
     private var serial=0L
     private var token:SessionToken?=null
     private var type=TestType.COMPLEX
+    private val durationNanos:Long get()=if(type==TestType.FULL_AUDIT) FULL_DURATION_NS else DURATION_NS
+    @Synchronized fun targetDurationNanos():Long=durationNanos
     private var environment=LabEnvironment()
     private var started:Long?=null
     private var endedOffset=0L
@@ -67,9 +69,9 @@ class TestLabEngine(
     private fun offset():Long? = started?.let { start -> (clock.nowNanos()-start).takeIf{it>=0} }
     private fun writable(session:SessionToken):Long? {
         if(token!=session||phase!=LabPhase.RUNNING)return null
-        return offset()?.takeIf{it<DURATION_NS}
+        return offset()?.takeIf{it<durationNanos}
     }
-    @Synchronized fun elapsedNanos(session:SessionToken):Long? = if(token==session&&phase==LabPhase.RUNNING)offset()?.coerceAtMost(DURATION_NS) else null
+    @Synchronized fun elapsedNanos(session:SessionToken):Long? = if(token==session&&phase==LabPhase.RUNNING)offset()?.coerceAtMost(durationNanos) else null
     @Synchronized fun currentType():TestType=type
     @Synchronized fun foreground(session:SessionToken,visible:Boolean):Boolean {
         val at=writable(session)?:return false
@@ -155,9 +157,9 @@ class TestLabEngine(
         if(token!=session||phase!=LabPhase.RUNNING||!isForeground)return false
         val start=started?:return false
         val at=clock.nowNanos()-start
-        if(at !in 0 until DURATION_NS)return false
+        if(at !in 0 until this.durationNanos)return false
         frames.addMeasured(durationNanos,isJank,overrunNanos,hasOverrun,cpuNanos,hasCpu)
-        if(durationNanos !in 1..DURATION_NS)return false
+        if(durationNanos !in 1..this.durationNanos)return false
         var bits=tags
         while(bits!=0L){
             val bit=java.lang.Long.numberOfTrailingZeros(bits)
@@ -189,7 +191,7 @@ class TestLabEngine(
     }
     @Synchronized fun pendingHeartbeat(session:SessionToken,ageNanos:Long,generation:Long):Boolean {
         val at=writable(session)?:return false
-        if(!isForeground||generation!=foregroundGeneration||ageNanos !in 0..DURATION_NS)return false
+        if(!isForeground||generation!=foregroundGeneration||ageNanos !in 0..durationNanos)return false
         pendingHeartbeatCount++;pendingHeartbeatMax=maxOf(pendingHeartbeatMax?:ageNanos,ageNanos)
         if(ageNanos>=250_000_000L) {
             append(at,LabCode.MAIN_STALL_PENDING,value=ageNanos/1_000_000.0)
@@ -199,7 +201,7 @@ class TestLabEngine(
     }
     @Synchronized fun heartbeat(session:SessionToken,delayNanos:Long):Boolean {
         val at=writable(session)?:return false
-        if(!isForeground||delayNanos !in 0..DURATION_NS)return false
+        if(!isForeground||delayNanos !in 0..durationNanos)return false
         heartbeatCount++;heartbeatMax=maxOf(heartbeatMax?:delayNanos,delayNanos)
         if(delayNanos>=250_000_000L){
             append(at,LabCode.MAIN_STALL,value=delayNanos/1_000_000.0)
@@ -230,12 +232,12 @@ class TestLabEngine(
         if(observation.kind.ordinal<observations[worst].kind.ordinal)observations[worst]=observation
     }
     @Synchronized fun poll(session:SessionToken):Boolean {
-        if(token!=session||phase!=LabPhase.RUNNING||(offset()?:0)<DURATION_NS)return false
+        if(token!=session||phase!=LabPhase.RUNNING||(offset()?:0)<durationNanos)return false
         closing(LabPhase.COMPLETED);return true
     }
     @Synchronized fun stop(session:SessionToken):Boolean {
         if(token!=session||phase!=LabPhase.RUNNING)return false
-        closing(if((offset()?:0)>=DURATION_NS)LabPhase.COMPLETED else LabPhase.PARTIAL);return true
+        closing(if((offset()?:0)>=durationNanos)LabPhase.COMPLETED else LabPhase.PARTIAL);return true
     }
     @Synchronized fun cancel(session:SessionToken):Boolean {
         if(token!=session||phase !in setOf(LabPhase.PREPARING,LabPhase.RUNNING))return false
@@ -246,7 +248,7 @@ class TestLabEngine(
         errors[LabError.COLLECTOR_FAILURE.ordinal]++;closing(LabPhase.FAILED);return true
     }
     private fun closing(status:LabPhase){
-        endedOffset=(offset()?:0).coerceIn(0,DURATION_NS)
+        endedOffset=(offset()?:0).coerceIn(0,durationNanos)
         if(isForeground)covered+=(endedOffset-coveredStart).coerceAtLeast(0)
         isForeground=false;targetStatus=status;activeOperationMask=0;phase=LabPhase.FINALIZING
     }
@@ -324,10 +326,10 @@ class TestLabEngine(
     }
     @Synchronized internal fun recovery(session:SessionToken):TestLabRecovery? {
         if(token!=session||phase!=LabPhase.RUNNING)return null
-        return TestLabRecovery(type,identity,phase,(offset()?:0).coerceIn(0,DURATION_NS)/1_000_000.0,
+        return TestLabRecovery(type,identity,phase,(offset()?:0).coerceIn(0,durationNanos)/1_000_000.0,
             LabError.entries.filter{errors[it.ordinal]>0}.associateWith{errors[it.ordinal]},timeline.takeLast(64))
     }
     fun latest():TestLabReport?=lastReport
     @Synchronized fun deleteReport(){lastReport=null}
-    companion object {const val DURATION_NS=60_000_000_000L}
+    companion object {const val DURATION_NS=60_000_000_000L; const val FULL_DURATION_NS=120_000_000_000L}
 }
