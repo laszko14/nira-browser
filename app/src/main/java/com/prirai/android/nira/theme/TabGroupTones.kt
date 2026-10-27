@@ -12,9 +12,9 @@ package com.prirai.android.nira.theme
  * can be used by native Views and Jetpack Compose.
  */
 object TabGroupTones {
-    const val UNGROUPED_BLUE: Int = 0xFF2196F3.toInt()
-    private const val HEADER_BASE: Int = 0xFF191921.toInt()
-    private const val TAB_BASE: Int = 0xFF201D27.toInt()
+    val UNGROUPED_BLUE: Int = 0xFF2196F3.toInt()
+    private val HEADER_BASE: Int = 0xFF191921.toInt()
+    private val TAB_BASE: Int = 0xFF201D27.toInt()
 
     data class Palette(
         val accent: Int,
