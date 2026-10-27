@@ -127,12 +127,18 @@ export function inspectTestLab(input){
   const rate=frame?Number(frame[3].replace(',','.')):null;
   const n=frame?Number(frame[1]):0, j=frame?Number(frame[2]):0;
   ensure(!frame||(n>=j&&rate>=0&&rate<=100),'INVALID_FRAMES');
+  const dm=input.match(/^Zaobserwowane źródła:\s*(\d+);\s*grupy:\s*(\d+);\s*grupy wielowariantowe:\s*\d+/m);
+  const dn=input.match(/^Brak tytułu:\s*\d+;\s*niepewne grupy:\s*(\d+);\s*konflikty grup:\s*(\d+)/m);
+  const vm=input.match(/^Źródła=(\d+);\s*czas znany=(\d+);\s*czas nieznany=(\d+);\s*LIVE=\d+/m);
+  const vn=input.match(/^Rozmiar dokładny=(\d+);\s*szacowany=(\d+);\s*nieznany=(\d+)/m);
+  const vd=dm&&dn?{sources:Number(dm[1]),groups:Number(dm[2]),uncertain_groups:Number(dn[1]),title_conflicts:Number(dn[2])}:null;
+  const meta=vm&&vn?{observed_sources:Number(vm[1]),duration_known:Number(vm[2]),size_exact:Number(vn[1]),size_estimated:Number(vn[2]),duration_unknown:Number(vm[3]),size_unknown:Number(vn[3])}:null;
   return {format:'TXT',test_type:header[1],version_name:header[2],version_code:Number(header[3]),status:state[1],
    duration_seconds:seconds,android_window_frames:n,window_jank_count:j,window_jank_percent:rate,
    max_frame_ms:frame?Number(frame[5].replace(',','.')):null,
    observations,coverage_complete:state[1]==='COMPLETED',
    export_truncated:/EKSPORT OGRANICZONY/.test(input),gecko_fps_measured:false,mpv_frames_measured:false,
-   video_discovery:null,video_metadata:null,causality_claimed:false,raw_text_included:false};
+   video_discovery:header[1]==='VIDEO_DISCOVERY'?vd:null,video_metadata:header[1]==='VIDEO_METADATA'?meta:null,causality_claimed:false,raw_text_included:false};
  }
  ensure(input&&typeof input==='object'&&!Array.isArray(input),'INVALID_REPORT');
  const o=input;
