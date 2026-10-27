@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "kind": "orchestrator-diagnostic",
+  "mode": "DIAGNOSTIC_ONLY",
+  "repo": "laszko14/nira-browser",
+  "variant": "clean",
+  "branch": "feat/zavro-v1174-clean-video-metadata",
+  "sha": "3330a0b3a057008886fde392f788a1941e0dfb84",
+  "build_requested": false,
+  "changed_files": [
+    {
+      "filename": "app/src/main/java/com/prirai/android/nira/BrowserFragment.kt",
+      "status": "modified"
+    }
+  ],
+  "test_run_id": 40469224355,
+  "fast_probe_path": "devtools/smart-ci-probes/clean-v1174-js-20261027-01.json"
+}
