@@ -295,7 +295,7 @@ private fun VideoTile(item: VideoTileItem, settings: VideoTilesSettings,
                         onClick = { menu = false; onCopy(entry.id) })
                     HorizontalDivider()
                     DropdownMenuItem(text = { Text("Format: ${entry.format.name}") }, onClick = { menu = false })
-                    DropdownMenuItem(text = { Text("Jakość: ${entry.quality?.takeIf { it.isNotBlank() } ?: "nieznana"}") }, onClick = { menu = false })
+                    DropdownMenuItem(text = { Text("Jakość: ${qualityText(entry) ?: "nieznana"}") }, onClick = { menu = false })
                     if (entry.width != null && entry.height != null)
                         DropdownMenuItem(text = { Text("Rozdzielczość: ${entry.width}×${entry.height}") }, onClick = { menu = false })
                     if (entry.frameRate != null)
@@ -328,7 +328,7 @@ private fun VideoTile(item: VideoTileItem, settings: VideoTilesSettings,
         if (geometry.badgeHeightDp > 0f) Row(Modifier.fillMaxWidth().height(geometry.badgeHeightDp.dp).padding(top = 3.dp),
             horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.Top) {
             if (settings.showFormat) TileBadge(entry.format.name, Color(0xff383e45), Modifier.weight(1f))
-            if (settings.showQuality) TileBadge(entry.quality?.takeIf { it.isNotBlank() } ?: "Jakość nieznana", accent, Modifier.weight(1f))
+            if (settings.showQuality) TileBadge(qualityText(entry) ?: "—", accent, Modifier.weight(1f))
             if (settings.showSize) TileBadge(sizeText(entry) ?: "Rozmiar nieznany", Color(0xff383e45), Modifier.weight(1f))
         }
     }
@@ -339,6 +339,13 @@ private fun TileBadge(text: String, color: Color, modifier: Modifier) {
     Text(text, modifier.background(color, RoundedCornerShape(4.dp)).padding(horizontal = 3.dp, vertical = 3.dp),
         color = Color.White, fontSize = 9.sp, lineHeight = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
 }
+
+/**
+ * Measured dimensions can provide a resolution hint, not an invented variant.
+ */
+internal fun qualityText(entry: MediaEntry): String? =
+    entry.quality?.takeIf { it.isNotBlank() }
+        ?: entry.height?.takeIf { it in 144..8640 }?.let { "${it}p" }
 
 internal fun durationText(seconds: Int?): String? {
     val value = seconds?.takeIf { it > 0 } ?: return null
