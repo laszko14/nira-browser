@@ -195,7 +195,12 @@ async function main(){
  // Only bounded, sanitized metadata from the state reaches the report, not code, logs, or URLs.
  const report={...result.report,plan_id:result.plan_id,stage:result.stage,revision:result.revision,checkpoint_checksum:result.checksum};
  const output=checkpointPath.replace(/\.json$/,'.report.json');
- await fs.writeFile(output,JSON.stringify(report,null,2)+'\n',{flag:'wx',mode:0o600});
+ const content=JSON.stringify(report,null,2)+'\n';
+ try{await fs.writeFile(output,content,{flag:'wx',mode:0o600});}
+ catch(e){
+  if(e.code!=='EEXIST')throw new OrchestrationError('REPORT_WRITE_FAILED');
+  guard(await fs.readFile(output,'utf8')===content,'REPORT_REPLAY_CONFLICT');
+ }
  console.log('ZAVRO_STAGE7_DIAGNOSTIC_ONLY_PASS '+result.variant+' '+result.sha+' JS run '+request.test_run_id+'; no APK and no code changes');
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
