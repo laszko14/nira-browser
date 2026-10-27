@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "kind": "orchestrator-diagnostic",
+  "mode": "DIAGNOSTIC_ONLY",
+  "repo": "laszko14/nira-browser",
+  "variant": "mpv",
+  "branch": "feat/zavro-x-mpv-v1167-reference-video-panel",
+  "sha": "d63f414acecae84c3507c3f4bb998e690281b91e",
+  "build_requested": false,
+  "changed_files": [
+    {
+      "filename": "app/src/test/js/zavro-x-mpv-v1167-integrity.test.cjs",
+      "status": "added"
+    }
+  ],
+  "test_run_id": 40469257622,
+  "fast_probe_path": "devtools/smart-ci-probes/mpv-v1167-js-20261027-01.json"
+}
