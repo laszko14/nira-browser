@@ -339,6 +339,9 @@ internal fun durationText(seconds: Int?): String? {
 }
 
 internal fun sizeText(entry: MediaEntry): String? {
+    if (entry.format in setOf(MediaFormat.HLS, MediaFormat.DASH) &&
+        entry.sizeOrigin != "HLS_BYTERANGE" &&
+        !(entry.sizeEstimated && entry.sizeOrigin == "MANIFEST_BITRATE")) return null
     val bytes = entry.sizeBytes?.takeIf { it > 0 } ?: return null
     val number = when {
         bytes >= 1_000_000_000L -> String.format(Locale("pl", "PL"), "%.2f GB", bytes / 1e9)
