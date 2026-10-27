@@ -16,6 +16,7 @@
   const jobs = [], pendingRoots = new Set();
   let observedRoots = new WeakSet();
   let scriptVersions = new WeakSet();
+  let structuredVersions = new WeakSet();
   let overflowRoot = false;
   // Bounded slices, not a permanent cutoff at the first N nodes.
   const SLICE_MS = 8, MAX_JOBS = 64, MAX_ROOTS = 32;
@@ -44,7 +45,8 @@
     seen.clear(); structuredGroups = new WeakMap(); offers = 0; playObserved = false; stats.clear();
     if (statsTimer !== null) clearTimeout(statsTimer);
     statsTimer = null;
-    jobs.length = 0; pendingRoots.clear(); pendingRoots.add(document); scriptVersions = new WeakSet();
+    jobs.length = 0; pendingRoots.clear(); pendingRoots.add(document);
+    scriptVersions = new WeakSet(); structuredVersions = new WeakSet();
   }
   function ensureDocument() {
     resetNavigation();
@@ -143,7 +145,8 @@
       if (message.kind === "history" || FRAME) {
         if (message.kind === "history") note("spa_navigation");
         navigationEpoch++; cancelNativeQueue(); context = null; registering = null;
-        seen.clear(); jobs.length = 0; pendingRoots.clear(); scriptVersions = new WeakSet();
+        seen.clear(); jobs.length = 0; pendingRoots.clear();
+        scriptVersions = new WeakSet(); structuredVersions = new WeakSet();
         scheduleScan();
       }
       return Promise.resolve(true);
@@ -493,7 +496,9 @@
   function scanDeclarations() {
     scanCollection("a[href],link[href]", element => {
       const href = attribute(element, "href") || element.href;
-      if (!href) return;
+      // Links without a direct media extension cannot pass submit() with no
+      // MIME hint. Avoid walking cards and allocating groups for navigation.
+      if (!href || !/\.(?:mp4|m4v|webm|ogv|ogg|mov|m3u8|mpd)(?:[?#]|$)/i.test(href)) return;
       const scoped = scopedMediaCard(element);
       const directTitle = mediaTitleHint(element.textContent);
       const title = directTitle || scoped?.title || null;
@@ -541,6 +546,8 @@
     scanCollection('script[type="application/ld+json"]', element => {
       const raw = element.textContent;
       if (typeof raw !== "string" || raw.length > MAX_SCRIPT_CHARS) return;
+      if (structuredVersions.has(element)) return;
+      structuredVersions.add(element);
       let data;
       try { data = JSON.parse(raw); } catch (_) { return; }
       let nodes = 0;
@@ -749,7 +756,7 @@
         const target = record.target;
         const changed = target && (target.nodeType === 3 ? target.parentElement : target);
         const changedScript = changed && changed.closest && changed.closest("script");
-        if (changedScript) scriptVersions.delete(changedScript);
+        if (changedScript) { scriptVersions.delete(changedScript); structuredVersions.delete(changedScript); }
         const titleCard = titleMutationRoot(changed);
         if (titleCard) enqueueRoot(titleCard);
         if (record.type === "attributes" || record.type === "characterData") {
