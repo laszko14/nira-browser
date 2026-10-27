@@ -383,7 +383,7 @@ internal class MediaRepository(
                     // owns an individual DOM/player/structured title.
                     source == MediaSource.NETWORK && media.format in
                         setOf(MediaFormat.HLS, MediaFormat.DASH) &&
-                        found.title == null)) found.groupId = groupId
+                        (found.title == null || found.titleKind == "page"))) found.groupId = groupId
             val earlierTitle = found.title
             val earlierKind = found.titleKind
             found.metadata(metadata, found.format)
