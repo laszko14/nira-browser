@@ -10,7 +10,7 @@ const verify='2026-10-27T06:42:51.3609909Z Verified package=com.prirai.android.n
 const args=()=>({run:structuredClone(run),jobs:structuredClone(jobs),artifacts:[structuredClone(artifact)],variant:'clean',config:structuredClone(config),logs:{[jobs[0].id]:verify}});
 const err=(fn,code)=>assert.throws(fn,e=>e instanceof ReportError&&e.code===code);
 test('verified historical run + matching APK artifact, no new build',()=>{const r=buildReport(args());assert.equal(r.state,'CI_VERIFIED_APK_ARTIFACT');assert.equal(r.artifact.artifact_id,12714733371);assert.equal(r.ci_verified_log_observed,true);assert.equal(r.independently_inspected_apk_bytes,false);assert.equal(r.build_started_by_reporter,false);});
-test('CI logs required before artifact is marked verified',()=>{let a=args();a.logs={};let r=buildReport(a);assert.equal(r.state,'VERIFICATION_REQUIRED');assert.equal(r.artifact,null);});
+test('CI logs required before artifact is marked verified',()=>{let a=args();a.logs={};let r=buildReport(a);assert.equal(r.state,'VERIFICATION_REQUIRED');assert.equal(r.artifact,null);assert.equal(r.artifact_observed?.artifact_id,12714733371);});
 test('CI failure overrides successful APK artifact upload',()=>{let a=args();a.run.conclusion='failure';a.jobs[2].conclusion='failure';a.jobs[2].steps=[{name:'Run Android lint',conclusion:'failure'}];let r=buildReport(a);assert.equal(r.state,'FAILED_OR_INCOMPLETE');assert.equal(r.artifact,null);assert.equal(r.failures[0].category,'ANDROID_LINT');});
 test('in progress is not ready',()=>{let a=args();a.run.status='in_progress';a.run.conclusion=null;assert.equal(buildReport(a).state,'RUNNING');});
 test('different SHA fails closed',()=>{let a=args();a.run.head_sha='f'.repeat(40);err(()=>buildReport(a),'RUN_PROVENANCE_MISMATCH');});
