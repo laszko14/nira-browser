@@ -50,6 +50,19 @@ jobs:
           }
           console.log('STAGE7_ORCHESTRATOR_PASS: read-only, tested JS only, no APK');
           NODE
+      - name: Replay completed checkpoint without executing prior steps
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE_SHA: ${{ github.event.before }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          request="$(git diff --name-only --no-renames "$BEFORE_SHA" "$GITHUB_SHA")"
+          before="$(sha256sum "$RUNNER_TEMP/zavro-stage7-state.json" "$RUNNER_TEMP/zavro-stage7-state.report.json")"
+          node devtools/orchestrate.mjs run "$request" --checkpoint "$RUNNER_TEMP/zavro-stage7-state.json"
+          after="$(sha256sum "$RUNNER_TEMP/zavro-stage7-state.json" "$RUNNER_TEMP/zavro-stage7-state.report.json")"
+          [ "$before" = "$after" ] || { echo 'CHECKPOINT_REPLAY_MUTATED'; exit 1; }
+          echo 'ZAVRO_STAGE7_IDEMPOTENT_REPLAY_PASS'
       - name: Preserve small reproducible checkpoint and sanitized report
         if: success()
         uses: actions/upload-artifact@v4
@@ -61,3 +74,23 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 6
+      - name: Restore the uploaded checkpoint to a clean location
+        uses: actions/download-artifact@v4
+        with:
+          name: zavro-stage7-diagnostic-${{ github.run_id }}
+          path: ${{ runner.temp }}/zavro-restored
+      - name: Validate restored checkpoint and replay without duplicate work
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE_SHA: ${{ github.event.before }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s "$RUNNER_TEMP/zavro-restored/zavro-stage7-state.json"
+          cmp "$RUNNER_TEMP/zavro-stage7-state.json" "$RUNNER_TEMP/zavro-restored/zavro-stage7-state.json"
+          request="$(git diff --name-only --no-renames "$BEFORE_SHA" "$GITHUB_SHA")"
+          before="$(sha256sum "$RUNNER_TEMP/zavro-restored/zavro-stage7-state.json")"
+          node devtools/orchestrate.mjs run "$request" --checkpoint "$RUNNER_TEMP/zavro-restored/zavro-stage7-state.json"
+          after="$(sha256sum "$RUNNER_TEMP/zavro-restored/zavro-stage7-state.json")"
+          [ "$before" = "$after" ] || { echo 'RESTORE_MUTATED'; exit 1; }
+          echo 'ZAVRO_STAGE7_ARTIFACT_RESUME_PASS'
