@@ -119,6 +119,49 @@ jobs:
             r.merge_conflicts_claimed!==false)throw Error('CODEX_AUDIT_NOT_VERIFIED');
           console.log('ZAVRO_CODE_INSPECTOR_LIVE_PR_PASS: potential overlap, no merge, no build');
           NODE
+      - name: Confirm Kotlin dependency graph on pinned Clean sources (GET only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha=3330a0b3a057008886fde392f788a1941e0dfb84
+          for pair in 'app/src/main/java/com/prirai/android/nira/BrowserFragment.kt|browser.kt' 'app/src/main/java/com/prirai/android/nira/media/MediaFloatingUi.kt|floating.kt'; do
+            path="${pair%%|*}"
+            name="${pair##*|}"
+            gh api "repos/laszko14/nira-browser/contents/$path?ref=$sha" --jq '.content' | base64 --decode > "$RUNNER_TEMP/$name"
+          done
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          import {dependencyGraph} from './devtools/code-inspector.mjs';
+          const fragment='app/src/main/java/com/prirai/android/nira/BrowserFragment.kt';
+          const floating='app/src/main/java/com/prirai/android/nira/media/MediaFloatingUi.kt';
+          const root=process.env.RUNNER_TEMP;
+          const sources={[fragment]:readFileSync(root+'/browser.kt','utf8'),[floating]:readFileSync(root+'/floating.kt','utf8')};
+          const graph=dependencyGraph(sources,[floating]);
+          if(!graph.edges.some(e=>e.from===fragment&&e.to===floating)||
+             !graph.potentially_affected.includes(fragment)||graph.edits_applied!==false)
+            throw Error('LIVE_KOTLIN_GRAPH_NOT_VERIFIED');
+          console.log('ZAVRO_CODE_INSPECTOR_REAL_IMPORT_GRAPH_PASS (no Kotlin compilation)');
+          NODE
+      - name: Validate TestLab TXT standalone CLI with synthetic private-safe sample
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {mkdtempSync,writeFileSync,readFileSync,rmSync} from 'node:fs';
+          import {tmpdir} from 'node:os';
+          import {join} from 'node:path';
+          import {execFileSync} from 'node:child_process';
+          const temp=mkdtempSync(join(tmpdir(),'zavro-testlab-'));
+          try {
+            const path=join(temp,'report.txt');
+            writeFileSync(path,'Zavro TestLab • COMPLEX • 0.5.22-alpha79-clean (1174)\\nStan: COMPLETED; rzeczywisty pomiar: 60.000 s\\nn=1000, jank=25 (2.5%), średnia=12 ms, max=48 ms\\n'.replaceAll('\\n','\n'));
+            const result=JSON.parse(execFileSync('node',['devtools/code-inspector.mjs','testlab',path],{encoding:'utf8'}));
+            if(result.test_type!=='COMPLEX'||result.window_jank_percent!==2.5||result.gecko_fps_measured!==false)throw Error('CLI_REPORT_NOT_VERIFIED');
+            console.log('ZAVRO_TESTLAB_CLI_PASS (no raw report in logs)');
+          }finally{rmSync(temp,{recursive:true,force:true});}
+          NODE
       - name: Inspect existing signed Clean v1174 Actions run (read-only)
         env:
           GH_TOKEN: ${{ github.token }}
