@@ -157,9 +157,9 @@ class TestLabEngine(
         if(token!=session||phase!=LabPhase.RUNNING||!isForeground)return false
         val start=started?:return false
         val at=clock.nowNanos()-start
-        if(at !in 0 until durationNanos)return false
+        if(at !in 0 until this.durationNanos)return false
         frames.addMeasured(durationNanos,isJank,overrunNanos,hasOverrun,cpuNanos,hasCpu)
-        if(durationNanos !in 1..durationNanos)return false
+        if(durationNanos !in 1..this.durationNanos)return false
         var bits=tags
         while(bits!=0L){
             val bit=java.lang.Long.numberOfTrailingZeros(bits)
