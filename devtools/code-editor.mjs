@@ -6,12 +6,20 @@ const PINS={clean:{source_branch:'feat/zavro-v1174-clean-video-metadata',sha:'33
   mpv:{source_branch:'feat/zavro-x-mpv-v1167-reference-video-panel',sha:'d63f414acecae84c3507c3f4bb998e690281b91e'}};
 const SHA=/^[a-f0-9]{40}$/;
 const KEYS=['content','expected_blob_sha','kind','operation','path','repo','schema_version','source_branch','source_sha','variant','workspace_branch','workspace_head'];
+const PRODUCTION_ALLOWLIST=new Set([
+ 'app/src/main/java/com/prirai/android/nira/media/MediaRecentDeduplicator.kt',
+ 'app/src/main/java/com/prirai/android/nira/media/VideoTilesPreferences.kt',
+ 'app/src/main/java/com/prirai/android/nira/media/MediaStreamIdentity.kt',
+]);
+const SOURCE_CHANGE_CAP=12;
 export class EditError extends Error{constructor(code){super(code);this.code=code;}}
 const check=(v,code)=>{if(!v)throw new EditError(code);};
 function sha256(s){return createHash('sha256').update(s,'utf8').digest('hex');}
 export function allowedFile(path){
  check(typeof path==='string'&&path.length<256&&!path.includes('..')&&!path.includes('//')&&!path.includes('\\')&&!path.startsWith('/'),'UNSAFE_PATH');
- check(/^app\/src\/test\/java\/com\/prirai\/android\/nira\/devtools\/[A-Za-z][A-Za-z0-9]*Test\.kt$/.test(path)||/^docs\/dev-system\/sandbox\/[a-z0-9-]+\.md$/.test(path),'NOT_ALLOWLISTED');
+ check(/^app\/src\/test\/java\/com\/prirai\/android\/nira\/devtools\/[A-Za-z][A-Za-z0-9]*Test\.kt$/.test(path)||
+  /^app\/src\/test\/java\/com\/prirai\/android\/nira\/media\/MediaRecentDeduplicatorTest\.kt$/.test(path)||
+  /^docs\/dev-system\/sandbox\/[a-z0-9-]+\.md$/.test(path)||PRODUCTION_ALLOWLIST.has(path),'NOT_ALLOWLISTED');
  return path;
 }
 export function validateEdit(request){
@@ -40,11 +48,21 @@ export function makeEdit(request,found,liveWorkspaceHead){
  }
  const oldContent=isCreate?'':found.content;
  check(request.content!==oldContent,'NO_CHANGE');
+ const productionAffected=PRODUCTION_ALLOWLIST.has(request.path);
+ if(productionAffected){
+  check(request.operation==='replace'&&request.variant==='clean','PRODUCTION_REPLACEMENT_RESTRICTED');
+  check(oldContent.startsWith('package com.prirai.android.nira.media\\n'.replace('\\n','\n'))&&request.content.startsWith('package com.prirai.android.nira.media\\n'.replace('\\n','\n')),'PRODUCTION_PACKAGE_CHANGED');
+  const a=oldContent.split('\n'),b=request.content.split('\n');
+  let start=0;while(start<a.length&&start<b.length&&a[start]===b[start])start++;
+  let end=0;while(end<a.length-start&&end<b.length-start&&a[a.length-1-end]===b[b.length-1-end])end++;
+  check((a.length-start-end)+(b.length-start-end)<=SOURCE_CHANGE_CAP,'PRODUCTION_CHANGE_TOO_LARGE');
+  check(!/\b(import|package)\s+/.test(a.slice(start,a.length-end).concat(b.slice(start,b.length-end)).join('\n')),'PRODUCTION_IMPORT_OR_PACKAGE_CHANGED');
+ }
  return {operation:request.operation,branch:request.workspace_branch,parent:request.workspace_head,
    path:request.path,mode:'100644',type:'blob',content:request.content,
    old_sha256:isCreate?null:sha256(oldContent),new_sha256:sha256(request.content),
-   bytes:Buffer.byteLength(request.content,'utf8'),production_affected:false,
-   source_branch_untouched:true,requires_git_ref_cas:true,requires_independent_tests:true};
+   bytes:Buffer.byteLength(request.content,'utf8'),production_affected:productionAffected,
+   source_branch_untouched:true,requires_git_ref_cas:true,requires_independent_tests:true,required_checks:productionAffected?['kotlin-unit','android-lint','android-build']:['kotlin-unit']};
 }
 export function applyEditResult(plan,liveParent,headAfter){
  check(plan&&plan.requires_git_ref_cas===true,'INVALID_PLAN');
