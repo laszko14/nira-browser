@@ -361,7 +361,7 @@ function validDom(message, sender) {
       ("groupId" in message && !validGroup(message.groupId)) ||
       (("title" in message) !== ("titleKind" in message)) ||
       ("title" in message && !validTitle(message.title)) ||
-      ("titleKind" in message && !["video", "link", "page"].includes(message.titleKind)) ||
+      ("titleKind" in message && !["player", "structured", "video", "link", "page"].includes(message.titleKind)) ||
       ("durationSeconds" in message && !validSeconds(message.durationSeconds)) ||
       ("posterUrl" in message && !safeUrl(message.posterUrl))) return false;
   if (sender.frameId === 0) {
