@@ -79,14 +79,13 @@ object TestLabReportGenerator {
             appendLine("Dowód zakończenia: ${o.completionProofs}; skorelowane klatki=${o.taggedFrames}, jank=${o.taggedJank}, max=${number(o.maxTaggedFrameMs)} ms")
         }
         appendLine("Zewnętrzny odtwarzacz: zarejestrowane żądanie otwarcia nie dowodzi rozpoczęcia odtwarzania.")
-        appendLine("\nZasoby: własny proces aplikacji; podprocesy Gecko nie są objęte pomiarem.")
         if(r.testType==TestType.VIDEO_DISCOVERY) {
             appendLine("\nVIDEO DISCOVERY — anonimowa korelacja:")
             r.videoDiscovery?.let { v ->
                 appendLine("Zaobserwowane źródła: ${v.sources}; grupy: ${v.groups}; grupy wielowariantowe: ${v.groupsWithVariants}")
                 appendLine("Brak tytułu: ${v.groupsWithoutTitle}; niepewne grupy: ${v.uncertainGroups}; konflikty grup: ${v.groupTitleConflicts}")
                 appendLine("Pierwsze tytuły: ${v.initialTitles}; ulepszenia: ${v.improvements}; konflikty/odrzucone alternatywy: ${v.rejectedOrConflictingTitles}; słabsze odrzucone: ${v.weakerRejected}")
-                appendLine("Nawigacje: ${v.navigations}; odrzucone przez limit ewidencji: ${v.droppedSources}; pochodzenie: ${v.titleKinds}; formaty: ${v.formats}")
+                appendLine("Nawigacje: ${v.navigations}; odrzucone przez limit ewidencji: ${v.droppedSources}; pochodzenie: ${v.titleKinds}; formaty: ${v.formats}; kanały wykrycia: ${v.detectionOrigins}")
                 v.examples.forEach { appendLine("Film #${it.film} | warianty=${it.variants} | tytuł=${it.titleSource} | ${it.status} | grupa niepewna=${it.groupingUncertain}") }
                 if(v.groups>v.examples.size) appendLine("Pominięto szczegóły ${v.groups-v.examples.size} grup, zachowano agregaty.")
                 appendLine("Zaobserwowana metadana ≠ zweryfikowana zgodność tytułu z treścią filmu.")
@@ -99,6 +98,7 @@ object TestLabReportGenerator {
                 LabCode.DETECTOR_QUEUE_ANDROID_RATE,LabCode.DETECTOR_QUEUE_TITLE_CANDIDATE_DROPPED).forEach { appendLine("$it=${r.eventCounts[it] ?: 0}") }
             appendLine("QUEUE_LIMIT jest sumą wielu przyczyn. Odmowa wysłania ≠ potwierdzona utrata tytułu; ograniczenia webRequest nie pozwalają przypisać wszystkich zdarzeń do filmu.")
         }
+        appendLine("\nZasoby: własny proces aplikacji; podprocesy Gecko nie są objęte pomiarem.")
         val m = r.resourceMetrics
         appendLine("Próbki=${m.totalSamples}; odrzucone ze starszego bufora=${m.evictedSamples}")
         appendLine("Java delta=${m.javaHeapDeltaBytes}, max=${m.javaHeapMaxBytes}; native max=${m.nativeHeapMaxBytes}; PSS max=${m.pssMaxBytes}; USS max=${m.ussMaxBytes} B")
