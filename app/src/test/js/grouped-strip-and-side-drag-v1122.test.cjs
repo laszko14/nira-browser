@@ -54,7 +54,7 @@ test("v1122: metadata and stable signing", () => {
   const gradle = read("app/build.gradle");
   const workflow = read(".github/workflows/apk-release.yml");
   assert.match(gradle, /versionCode = 174/);
-  assert.match(gradle, /versionName = "0\.5\.22-alpha78-clean"/);
+  assert.match(gradle, /versionName = "0\.5\.22-alpha79-clean"/);
   assert.match(gradle, /applicationIdSuffix = '\.debug'/);
   assert.match(workflow, /EXPECTED_VERSION_CODE: "1174"/);
   assert.match(workflow, /EXPECTED_CERT_SHA256:/);
