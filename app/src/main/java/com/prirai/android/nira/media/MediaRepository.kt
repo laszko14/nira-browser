@@ -113,15 +113,17 @@ internal class MediaRepository(
         fun metadata(candidate: MediaDetectorMessage.Candidate?, format: MediaFormat) {
             if (candidate == null) return
             fun priority(kind: String?): Int = when (kind) {
+                "player" -> 5
+                "structured" -> 4
                 "video" -> 3
                 "link" -> 2
                 "page" -> 1
                 else -> 0
             }
+            // Longer text is not evidence that it belongs to this movie.
+            // Never overwrite an equally reliable title with an unrelated one.
             if (candidate.title != null &&
-                (priority(candidate.titleKind) > priority(titleKind) ||
-                    (priority(candidate.titleKind) == priority(titleKind) &&
-                        candidate.title.length > (title?.length ?: 0)))) {
+                (title == null || priority(candidate.titleKind) > priority(titleKind))) {
                 title = candidate.title
                 titleKind = candidate.titleKind
             }
