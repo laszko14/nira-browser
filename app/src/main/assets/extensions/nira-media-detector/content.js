@@ -383,8 +383,11 @@
   function singleCardPoster(card) {
     if (!card || typeof card.querySelectorAll !== "function") return null;
     const images = card.querySelectorAll("img");
-    if (images.length !== 1) return null;
-    return posterImageUrl(images[0]);
+    // A nested recommendation card belongs to itself, not to the outer player.
+    const owned = Array.from(images).filter(img =>
+      !img.closest || img.closest(MEDIA_CARDS) === card);
+    if (owned.length !== 1) return null;
+    return posterImageUrl(owned[0]);
   }
   function posterForCard(card) {
     if (!card) return null;
@@ -400,6 +403,7 @@
     if (explicit.length > 16) return null;
     const urls = new Set();
     for (const img of explicit) {
+      if (img.closest && img.closest(MEDIA_CARDS) !== card) continue;
       const url = posterImageUrl(img);
       if (url) urls.add(url);
       if (urls.size > 1) return null; // Multiple unrelated thumbnails.
