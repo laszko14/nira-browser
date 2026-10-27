@@ -37,7 +37,7 @@ export function auditStatic({config,checkpoint,workflows,orchestrator}){
   const w=workflows?.[name];
   demand(typeof w==='string'&&w.startsWith('name: '+v.name+'\n')&&w.includes("      - '"+v.path+"'")&&w.includes('      - tools/zavro-development-system-stage1-20261027'),'TRIGGER_SCOPE_'+name);
   demand(/permissions:\s*\n(?:  (?:contents|actions|pull-requests): read\s*\n)+/m.test(w),'READ_ONLY_PERMISSIONS_'+name);
-  demand(!/^\s*(?:contents|actions|pull-requests): write\s*$/m.test(w)&&!/\bgh api -X POST\b/.test(w)&&!/\b\.\/gradlew\b/.test(w),'DIAGNOSTIC_WORKFLOW_UNSAFE_'+name);
+  demand(!/^\s*(?:contents|actions|pull-requests): write\s*$/m.test(w)&&!/\bgh api -X POST\b/.test(w)&&!/\.\/gradlew\b/.test(w),'DIAGNOSTIC_WORKFLOW_UNSAFE_'+name);
   demand(w.includes('persist-credentials: false')&&w.includes('timeout-minutes:'),'DIAGNOSTIC_HARDENING_'+name);
  }
  const bridge=workflows?.bridge;
