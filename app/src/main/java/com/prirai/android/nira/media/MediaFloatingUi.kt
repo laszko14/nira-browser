@@ -355,7 +355,10 @@ internal class MediaFloatingUi(
 
 // Pure mapping for unit tests: grouping, identity, and titles must stay coupled.
 internal fun mediaTileItems(entries: List<MediaEntry>): List<VideoTileItem> =
-    entries.groupBy { it.groupId ?: "url:${it.url}" }.values.mapIndexed { index, found ->
+    // Group IDs are minted independently per Gecko document/frame.
+    // "g1" inside iframe A must not absorb "g1" inside iframe B.
+    entries.groupBy { it.frameKey to (it.groupId ?: "url:${it.url}") }
+        .values.mapIndexed { index, found ->
         val variants = found.sortedWith(compareByDescending<MediaEntry> { MediaSource.NETWORK in it.sources }
             .thenByDescending { MediaSource.DOM in it.sources })
         // Same resolver decides both record-level conflicts and grouped variants.
