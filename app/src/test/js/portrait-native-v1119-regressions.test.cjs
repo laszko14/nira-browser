@@ -11,7 +11,7 @@ const workflow = source(".github/workflows/apk-release.yml");
 
 test("v1119: bottom portrait uses an independent Android View, and landscape keeps Compose", () => {
   assert.match(host, /private val portraitTabStrip = PortraitNativeTabStrip\(context\)/);
-  assert.match(host, /prefs\.niraGroupBarBottom/);
+  assert.match(host, /preferences\.niraGroupBarBottom/);
   assert.match(host, /orientation != android\.content\.res\.Configuration\.ORIENTATION_LANDSCAPE/);
   assert.match(host, /portraitTabStrip\.visibility = if \(native\) VISIBLE else GONE/);
   assert.match(host, /composeView\.visibility = if \(native\) GONE else VISIBLE/);
