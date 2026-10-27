@@ -1,19 +1,30 @@
 {
   "schema_version": 1,
   "project": "Zavro Development System",
-  "last_completed_stage": 0,
+  "last_completed_stage": 1,
   "current_stage": 1,
-  "stage_state": "stage_1_initial_commit_in_progress",
-  "intent": "audit_only",
+  "stage_state": "COMPLETED",
+  "next_stage": 2,
+  "next_stage_requires": "Dalej",
   "infrastructure_branch": "tools/zavro-development-system-stage1-20261027",
+  "base_branch": "main",
   "baseline_sha": "0823f24eb48e2eefbe38c7616bc1d55e73917b37",
-  "targets_snapshot": {
-    "clean_sha": "3e194d2a20b6f649e55600580f1e62ba7d78439b",
-    "mpv_sha": "d63f414acecae84c3507c3f4bb998e690281b91e"
+  "verification": {
+    "code_validated": "TESTED",
+    "policy_validation": "PASS",
+    "unit_tests": "7/7 PASS",
+    "python_syntax": "PASS",
+    "source_blob_match": "3/3 MATCH",
+    "isolation_diff": "8 new files, no Android source changes",
+    "actions_on_tooling_branch": 0,
+    "apk_built": false,
+    "workflow_dispatch_executed": false,
+    "tooling_source_verified_commit": "cb35e708623a5f6900aa7b0c788c84f358ec959a"
   },
-  "mutations_allowed": false,
-  "github_actions_dispatch_started": false,
-  "apk_built": false,
-  "resume_instruction": "Re-read branch HEAD and validate docs/dev-system plus devtools policy; no new stage unless user says Dalej.",
-  "caveat": "This file is the initialization checkpoint. Actual completion and commit verification are reported via GitHub."
+  "controls": {
+    "runtime_actions_enabled": false,
+    "dispatch_enabled": false,
+    "force_push_enabled": false
+  },
+  "resume_instruction": "Only after user says Dalej: read branch HEAD, policy and audit; refresh moving variant refs. Do not repeat completed stage 1. Stage 2 may design but not dispatch builds without justified explicit approval."
 }

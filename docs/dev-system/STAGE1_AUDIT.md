@@ -28,3 +28,9 @@
 - `devtools/check_policy.py` and offline unit tests verify reject-by-default invariants.
 - Confirm branch head and file paths after commit; store SHA in report.
 - No PR, no Actions dispatch, no APK and no changes to Android source.
+
+## Verified execution / acceptance
+- 2026-10-27: Created isolated branch from pinned main. Published eight standalone docs/tooling files using commit e65e50431e83ffdb9f373283144f6baeab500bb9; corrected strict regex anchors in cb35e708623a5f6900aa7b0c788c84f358ec959a.
+- Download was unavailable from the local sandbox network; locally reconstructed files were verified byte-for-byte against their GitHub blob SHA (checker cf77389e90fddb34c63a3e2bcad3ed048d2372b8, tests 90af2b3393c7aa550c78db5e50a6b963b3d6b473, policy 9cbc252c09dfd5ccabf37aeedcaeaabd537786f1).
+- Ran actual Python 3 checker successfully; seven offline unittest cases **7/7 PASS** and `py_compile` PASS. No Android code or build executed. GitHub compare vs pinned main shows exactly eight new files, all under `docs/dev-system/` or `devtools/`; branch-specific Actions count **0**.
+- This is an implemented, tested *read-only policy baseline*, not a production-enabled controller or native security boundary. Runtime permission enforcement and dispatch remain stages 2–3.
