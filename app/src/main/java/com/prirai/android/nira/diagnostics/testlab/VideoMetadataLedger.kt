@@ -14,6 +14,11 @@ internal class VideoMetadataLedger(private val capacity: Int = 256) {
         var format: String, var durationStatus: String, var durationSource: String,
         var sizeStatus: String, var sizeSource: String, var durationSeconds: Int?,
         var sizeBytes: Long?, var visible: Boolean = false, var updates: Int = 0,
+        var titleKnown: Boolean = false, var titleConflict: Boolean = false,
+        var posterKnown: Boolean = false, var resolutionKnown: Boolean = false,
+        var qualityKnown: Boolean = false, var qualityDerived: Boolean = false,
+        var fpsKnown: Boolean = false, var codecsKnown: Boolean = false,
+        var bitrateKnown: Boolean = false, var variantsKnown: Boolean = false,
     )
     private val scopes = IdentityHashMap<Any, Scope>()
     private val tracks = LinkedHashMap<String, Track>()
@@ -86,6 +91,21 @@ internal class VideoMetadataLedger(private val capacity: Int = 256) {
             prior.durationSeconds = entry.durationSeconds
             prior.sizeBytes = entry.sizeBytes
         }
+        // Count only anonymous evidence; never retain poster, title or stream URLs.
+        // Poster presence is not proof that the remote image was rendered.
+        tracks[identity]?.apply {
+            titleKnown = !entry.title.isNullOrBlank() && entry.titleKind != "page" &&
+                !entry.titleAmbiguous
+            titleConflict = entry.titleAmbiguous
+            posterKnown = !entry.posterUrl.isNullOrBlank()
+            resolutionKnown = entry.width != null && entry.height != null
+            qualityKnown = !entry.quality.isNullOrBlank() || entry.height != null
+            qualityDerived = entry.quality.isNullOrBlank() && entry.height != null
+            fpsKnown = entry.frameRate != null
+            codecsKnown = !entry.codecs.isNullOrBlank()
+            bitrateKnown = entry.bitrate != null
+            variantsKnown = (entry.variantCount ?: 0) > 1
+        }
     }
 
     /** Only a real open panel confirms presentation; it does not prove a pixel was drawn. */
@@ -107,6 +127,17 @@ internal class VideoMetadataLedger(private val capacity: Int = 256) {
             uiDisplayed = items.count { it.visible },
             updates = items.sumOf { it.updates },
             navigations = navigations, droppedSources = dropped,
+            titlesAssociated = items.count { it.titleKnown },
+            titlesFallback = items.count { !it.titleKnown },
+            titleConflicts = items.count { it.titleConflict },
+            postersAssociated = items.count { it.posterKnown },
+            resolutionKnown = items.count { it.resolutionKnown },
+            qualityKnown = items.count { it.qualityKnown },
+            qualityDerived = items.count { it.qualityDerived },
+            fpsKnown = items.count { it.fpsKnown },
+            codecsKnown = items.count { it.codecsKnown },
+            bitrateKnown = items.count { it.bitrateKnown },
+            variantsKnown = items.count { it.variantsKnown },
             examples = items.take(32).map {
                 VideoMetadataFilm(it.ordinal, it.format, it.durationStatus, it.durationSource,
                     it.sizeStatus, it.sizeSource, it.durationSeconds, it.sizeBytes, it.visible, it.updates)
