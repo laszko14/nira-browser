@@ -21,3 +21,6 @@ See `docs/dev-system/BUILD_CONTROL_STAGE2.md`. The new controller is read-only, 
 
 ## Stage 3 — Ordinary ChatGPT integration
 Connector-triggered GitHub Actions without a new plugin is implemented. See `docs/dev-system/CHATGPT_INTEGRATION_STAGE3.md`. Probe GitHub Actions **40466137395** passed 26/26 Node tests; intentionally invalid build request **40466190188** failed preflight and skipped dispatch. Creating a `devtools/build-requests/<variant>-<sha>.json` file can start a signed ARM64 build: do this ONLY when the human explicitly orders compilation. The build dispatch itself has not yet been exercised.
+
+## Stage 4 — APK artifacts and reporting
+Read `docs/dev-system/ARTIFACT_REPORTING_STAGE4.md`. A read-only `devtools/report-build.mjs` reports Actions jobs and observed APKs; only an exact signed CI log upgrades confidence. `devtools/verify-apk-artifact.py` optionally checks downloaded ZIP and APK with trusted Android SDK tools. Final stage 4 GitHub tests: 48/48 Node plus 9/9 Python, live metadata PASS, no new build. The full 146 MB artifact was not downloaded/reverified in this stage.
