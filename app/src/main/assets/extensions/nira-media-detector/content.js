@@ -225,29 +225,50 @@
     }
     return safeTitle(title) || safeTitle(document.title);
   }
+  // A button caption ("Play", "HD", ...) does not identify a movie.
+  // This does not discard real page titles; it applies only to per-media hints.
+  function mediaTitleHint(value) {
+    const title = safeTitle(value);
+    return title && !/^(?:play|watch|watch now|odtwórz|oglądaj|zobacz|video|film|player|hd|sd|download|pobierz)$/i.test(title)
+      ? title : null;
+  }
   function explicitVideoTitle(element) {
     for (const name of ["data-video-title", "data-title", "aria-label", "title"]) {
-      const value = safeTitle(attribute(element, name));
+      const value = mediaTitleHint(attribute(element, name));
       if (value) return value;
     }
     return null;
   }
-  function videoTitle(video) {
-    const explicit = explicitVideoTitle(video);
-    if (explicit) return explicit;
-    // A generic page section can contain many videos and an unrelated heading.
-    // Use only a bounded, scoped single-video card/figure.
-    if (typeof video.closest === "function") {
-      const parent = video.closest("figure,article,[data-video-id],.video-container");
-      if (parent && parent.querySelectorAll && parent.querySelector) {
-        const videos = parent.querySelectorAll("video");
-        if (videos.length === 1 && videos[0] === video) {
-          const heading = parent.querySelector("figcaption,[itemprop='name'],h1,h2,h3");
-          return safeTitle(heading && heading.textContent);
-        }
+  // Titles are attached only to a single-media card, NEVER a page-wide heading.
+  // The same card is also the group owner for its alternative quality sources.
+  function scopedMediaCard(element) {
+    if (!element || !element.parentElement) return null;
+    const cards = "figure,article,li,[data-video-id],.video-card,.video-item,.media-card,.media-item,.video-container";
+    for (let card = element, depth = 0; card && depth < 6; card = card.parentElement, depth++) {
+      if (!card.matches || !card.matches(cards) || !card.querySelectorAll) continue;
+      const players = card.querySelectorAll("video,iframe");
+      if (players.length > 1) continue; // Multiple videos: no reliable title owner.
+      if (!players.length) {
+        const declarations = card.querySelectorAll(
+          "[data-video-url],[data-video-src],[data-hls],[data-mpd],[data-player-config],a[href]");
+        // Ignore non-media navigation links, not direct media declarations.
+        const owners = Array.from(declarations).filter(node =>
+          node.matches && (node.matches(
+            "[data-video-url],[data-video-src],[data-hls],[data-mpd],[data-player-config]") ||
+            /\\.(?:mp4|m4v|webm|m3u8|mpd)(?:[?#]|$)/i.test(attribute(node, "href") || "")));
+        if (owners.length !== 1 || !owners.some(node =>
+          node === element || typeof node.contains === "function" && node.contains(element))) continue;
       }
+      const headings = card.querySelectorAll("figcaption,[itemprop='name'],h1,h2,h3,h4");
+      if (headings.length !== 1) continue;
+      const heading = headings[0];
+      const title = mediaTitleHint(attribute(heading, "title") || heading.textContent);
+      if (title) return { title, card };
     }
     return null;
+  }
+  function videoTitle(element) {
+    return explicitVideoTitle(element) || scopedMediaCard(element)?.title || null;
   }
   function posterFor(video) {
     if (!video) return null;
@@ -401,7 +422,7 @@
 
   function inspect(video) {
     if (!(video instanceof HTMLVideoElement) || !video.isConnected || video.ended) return;
-    const group = groupFor(video);
+    const group = groupFor(scopedMediaCard(video)?.card || video);
     const playing = video.paused === false;
     const preferred = video.currentSrc || video.src;
     if (!preferred) note("no_source");
@@ -446,9 +467,11 @@
     scanCollection("a[href],link[href]", element => {
       const href = attribute(element, "href") || element.href;
       if (href) submit(href, "page", null, null,
-        safeTitle(element.textContent), "link");
+        mediaTitleHint(element.textContent), "link");
     });
     scanCollection("[data-video-url],[data-video-src],[data-hls],[data-mpd],[data-src],[data-plyr-source],[data-file],[data-stream-url],[data-playback-url],[data-manifest-url],[data-source-url],[data-mp4],[data-m3u8],[data-stream]", element => {
+      const scoped = scopedMediaCard(element);
+      const named = explicitVideoTitle(element) || scoped?.title || null;
       for (const name of ["data-video-url", "data-video-src", "data-hls",
         "data-mpd", "data-src", "data-plyr-source", "data-file", "data-stream-url",
         "data-playback-url", "data-manifest-url", "data-source-url", "data-mp4",
@@ -456,8 +479,8 @@
         const value = attribute(element, name);
         if (value) submit(value, "page", attribute(element, "type") ||
           (name === "data-hls" || name === "data-m3u8" ? "application/vnd.apple.mpegurl" :
-            name === "data-mpd" ? "application/dash+xml" : null), groupFor(element),
-          videoTitle(element), explicitVideoTitle(element) ? "player" : "video");
+            name === "data-mpd" ? "application/dash+xml" : null), groupFor(scoped?.card || element),
+          named, named ? (explicitVideoTitle(element) ? "player" : "video") : null);
       }
     });
     scanCollection('meta[property^="og:video"],meta[name="twitter:player:stream"]', element => {
