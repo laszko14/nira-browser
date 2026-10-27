@@ -23,12 +23,12 @@ class TestLabAnalyzerTest {
         val r=base();val cancelled=r.operationMetrics.first().copy(started=1,cancelled=1,latency=null)
         assertTrue(TestLabAnalyzer.analyze(r.copy(operationMetrics=listOf(cancelled))).anomalies.isEmpty())
     }
-    @Test fun memoryGrowthAndAckFailureAreSuspicionsWhileConfirmedInvariantKeepsPriority() {
+    @Test fun memoryGrowthAndQueueLimitAreSuspicionsWhileConfirmedInvariantKeepsPriority() {
         val r=base();val confirmed=Observation(ObservationKind.CONFIRMED_INVARIANT_FAILURE,LabCode.INVARIANT_FAILURE,0,invariant=LabInvariant.ORDER_NOT_PERSISTED)
         val result=TestLabAnalyzer.analyze(r.copy(resourceMetrics=r.resourceMetrics.copy(javaHeapDeltaBytes=32L*1024*1024,totalSamples=2),
-            eventCounts=mapOf(LabCode.ACK_TIMEOUT to 2L),anomalies=listOf(confirmed)))
+            eventCounts=mapOf(LabCode.DETECTOR_QUEUE_LIMIT to 2L),anomalies=listOf(confirmed)))
         assertEquals(confirmed,result.anomalies.first())
         assertTrue(result.anomalies.drop(1).all{it.kind==ObservationKind.SUSPECTED_CORRELATION&&it.invariant==null})
-        assertTrue(result.anomalies.any{it.code==LabCode.ACK_TIMEOUT&&it.evidenceCount==2L})
+        assertTrue(result.anomalies.any{it.code==LabCode.DETECTOR_QUEUE_LIMIT&&it.evidenceCount==2L})
     }
 }
