@@ -378,8 +378,12 @@ internal class MediaRepository(
             found.observeUrl(media.url, provenance, tick())
             found.mark(if (provenance == MediaProvenance.MANIFEST_DERIVED) MediaSource.PAGE else source)
             if (groupId != null && (found.groupId == null ||
+                    // The network manifest group may reconcile an anonymous
+                    // earlier page hint, but must not move a source that already
+                    // owns an individual DOM/player/structured title.
                     source == MediaSource.NETWORK && media.format in
-                        setOf(MediaFormat.HLS, MediaFormat.DASH))) found.groupId = groupId
+                        setOf(MediaFormat.HLS, MediaFormat.DASH) &&
+                        found.title == null)) found.groupId = groupId
             val earlierTitle = found.title
             val earlierKind = found.titleKind
             found.metadata(metadata, found.format)
