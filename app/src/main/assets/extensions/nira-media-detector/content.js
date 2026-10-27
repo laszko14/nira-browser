@@ -374,7 +374,12 @@
     const set = attribute(img, "data-srcset") || attribute(img, "srcset");
     if (typeof set === "string" && set.length <= 2048) {
       for (const candidate of set.split(",").slice(0, 8)) {
-        const value = absolute(candidate.trim().split(/\s+/)[0]);
+        const token = candidate.trim().split(/\s+/)[0];
+        // A data URI contains commas; its trailing bytes must never become
+        // a fabricated relative image URL. Only accept plausible image paths.
+        if (!token || /^(?:data|blob|javascript):/i.test(token) ||
+            !(/[\/]/.test(token) || /\.(?:png|jpe?g|webp|avif|gif)(?:[?#]|$)/i.test(token))) continue;
+        const value = absolute(token);
         if (value) return value;
       }
     }
