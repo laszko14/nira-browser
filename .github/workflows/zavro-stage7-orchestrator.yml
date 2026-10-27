@@ -1,0 +1,63 @@
+name: Zavro Development System Orchestrator Diagnostics
+on:
+  push:
+    branches:
+      - tools/zavro-development-system-stage1-20261027
+    paths:
+      - 'devtools/orchestrator-probes/*.json'
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+concurrency:
+  group: zavro-stage7-diagnostic
+  cancel-in-progress: false
+
+jobs:
+  no-build-scenario:
+    if: github.repository == 'laszko14/nira-browser' && github.actor == 'laszko14'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Test deterministic stage transitions, failure gates and resume
+        run: node --test devtools/tests/orchestrate.test.mjs
+      - name: Run authenticated read-only orchestration on one immutable variant
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE_SHA: ${{ github.event.before }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only --no-renames "$BEFORE_SHA" "$GITHUB_SHA")"
+          [[ "$changed" =~ ^devtools/orchestrator-probes/[a-z0-9-]+\.json$ ]] || { echo 'UNAUTHORIZED_CHANGE'; exit 1; }
+          node devtools/orchestrate.mjs run "$changed" --checkpoint "$RUNNER_TEMP/zavro-stage7-state.json"
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const dir=process.env.RUNNER_TEMP;
+          const state=JSON.parse(readFileSync(dir+'/zavro-stage7-state.json','utf8'));
+          const report=JSON.parse(readFileSync(dir+'/zavro-stage7-state.report.json','utf8'));
+          if(state.stage!=='REPORTED'||state.revision!==6||state.events.length!==6||
+            report.status!=='DIAGNOSTIC_ONLY_TEST_VERIFIED'||report.build_started!==false||
+            report.apk_created!==false||report.full_android_ci_verified!==false||
+            report.implementation_applied!==false||report.checkpoint_checksum!==state.checksum){
+            throw Error('UNSAFE_ORCHESTRATOR_OUTCOME');
+          }
+          console.log('STAGE7_ORCHESTRATOR_PASS: read-only, tested JS only, no APK');
+          NODE
+      - name: Preserve small reproducible checkpoint and sanitized report
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zavro-stage7-diagnostic-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/zavro-stage7-state.json
+            ${{ runner.temp }}/zavro-stage7-state.report.json
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6
