@@ -1,0 +1,57 @@
+name: Zavro ChatGPT connector probe
+on:
+  push:
+    branches:
+      - tools/zavro-development-system-stage1-20261027
+    paths:
+      - 'devtools/control-probes/*.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zavro-chat-connector-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    if: github.repository == 'laszko14/nira-browser'
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Validate direct ChatGPT connector request (no build, no secrets)
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {execFileSync} from 'node:child_process';
+          import {readFileSync, appendFileSync} from 'node:fs';
+          const expectedBranch = 'refs/heads/tools/zavro-development-system-stage1-20261027';
+          if (process.env.GITHUB_REF !== expectedBranch) throw Error('WRONG_BRANCH');
+          const before = process.env.BEFORE_SHA || '';
+          const after = process.env.AFTER_SHA || '';
+          if (!/^[0-9a-f]{40}$/.test(before) || !/^[0-9a-f]{40}$/.test(after)) throw Error('INVALID_COMMIT');
+          const diff = execFileSync('git',['diff','--name-status','--no-renames',before,after],{encoding:'utf8'});
+          const lines = diff.trim().split('\n').filter(Boolean);
+          if (lines.length !== 1) throw Error('EXPECTED_ONE_FILE_ONLY');
+          const [status, file] = lines[0].split('\t');
+          if (status !== 'A' || !/^devtools\/control-probes\/[a-z0-9-]+\.json$/.test(file)) throw Error('UNAPPROVED_PATH');
+          const request = JSON.parse(readFileSync(file,'utf8'));
+          if (request.schema_version !== 1 || request.kind !== 'probe' ||
+              request.repo !== 'laszko14/nira-browser' ||
+              request.purpose !== 'stage3-chatgpt-connector-verification' ||
+              request.build_requested !== false) throw Error('INVALID_PROBE');
+          console.log('ZAVRO_CONNECTOR_PROBE_PASS');
+          console.log('BUILD_DISPATCHED=false');
+          if (process.env.GITHUB_STEP_SUMMARY) {
+            appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+              '## Zavro connector probe: PASS\n\nNo Android build or secrets accessed.\n');
+          }
+          NODE
