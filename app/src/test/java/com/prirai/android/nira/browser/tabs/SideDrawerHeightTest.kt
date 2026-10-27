@@ -83,6 +83,27 @@ class SideDrawerHeightTest {
         }
     }
 
+    @Test fun narrowestDrawerKeepsTitleBudgetAtMaximumHeight() {
+        // Existing dialog minimum 220dp, 20dp edge grip and LazyColumn
+        // content padding 11dp start + 8dp end.
+        val usableWidth = 220f - 20f - 11f - 8f
+        for (landscape in listOf(false, true)) {
+            for (height in 24..112 step 2) {
+                val row = SideDrawerHeight.geometry(height, landscape, 1f)
+                val tabBudget = usableWidth - row.accent.value -
+                    (row.leadingGap.value + 2f) - row.imageFrame.value -
+                    row.textGap.value - row.action.value - 2f
+                val groupBudget = usableWidth - row.leadingGap.value * 2f -
+                    row.chevron.value - row.folderFrame.value -
+                    row.textGap.value - row.action.value - 1f
+                assertTrue("tab title space at H=$height landscape=$landscape: $tabBudget",
+                    tabBudget >= 60f)
+                assertTrue("group title space at H=$height landscape=$landscape: $groupBudget",
+                    groupBudget >= 60f)
+            }
+        }
+    }
+
     @Test fun subtitlesFitOnlyWhenSpaceAndFontScaleAllow() {
         assertTrue(SideDrawerHeight.geometry(48, false, 1f).showSubtitle)
         assertTrue(SideDrawerHeight.geometry(36, true, 1f).showSubtitle)
