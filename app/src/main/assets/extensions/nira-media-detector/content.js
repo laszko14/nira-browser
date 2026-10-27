@@ -579,21 +579,108 @@
       walk(data, 0);
     });
   }
+  // Parse only declarative JS data; never evaluate functions, expressions, or
+  // arbitrary page code. This restricted subset accepts literal object keys,
+  // quoted strings and JSON scalar values used by common JW Player setups.
+  function parseStaticPlayerLiteral(source) {
+    if (typeof source !== "string" || source.length > 24000) return null;
+    let output = "", index = 0, tokens = 0;
+    while (index < source.length && ++tokens <= 4096) {
+      const c = source[index];
+      if (/\s/.test(c)) { output += c; index++; continue; }
+      if ("{}[]:,".includes(c)) { output += c; index++; continue; }
+      if (c === '"' || c === "'") {
+        const quote = c;
+        let decoded = "";
+        let complete = false;
+        index++;
+        while (index < source.length) {
+          const ch = source[index++];
+          if (ch === quote) { complete = true; break; }
+          if (ch === "\n" || ch === "\r") return null;
+          if (ch !== "\\") { decoded += ch; continue; }
+          if (index >= source.length) return null;
+          const escaped = source[index++];
+          if (escaped === "u" || escaped === "x") {
+            const length = escaped === "u" ? 4 : 2;
+            const digits = source.slice(index, index + length);
+            if (!new RegExp("^[0-9a-fA-F]{" + length + "}$").test(digits)) return null;
+            decoded += String.fromCharCode(parseInt(digits, 16));
+            index += length;
+          } else if ("nrtbfv".includes(escaped)) {
+            decoded += ({ n:"\n", r:"\r", t:"\t", b:"\b", f:"\f", v:"\v" })[escaped];
+          } else if ("\\/'\"".includes(escaped)) decoded += escaped;
+          else return null;
+        }
+        if (!complete) return null;
+        output += JSON.stringify(decoded);
+        continue;
+      }
+      const remaining = source.slice(index);
+      const identifier = /^[A-Za-z_$][\w$]*/.exec(remaining);
+      if (identifier) {
+        const name = identifier[0];
+        const after = source.slice(index + name.length).trimStart();
+        if (after.startsWith(":")) output += JSON.stringify(name);
+        else if (name === "true" || name === "false" || name === "null") output += name;
+        else return null;
+        index += name.length;
+        continue;
+      }
+      const number = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/.exec(remaining);
+      if (number) { output += number[0]; index += number[0].length; continue; }
+      return null; // callbacks, variables, spread, template strings, etc.
+    }
+    if (tokens > 4096) return null;
+    try { return JSON.parse(output.replace(/,\s*([}\]])/g, "$1")); }
+    catch (_) { return null; }
+  }
+  function setupLiteralAt(source, position) {
+    const initial = source[position];
+    if (initial !== "{" && initial !== "[") return null;
+    const stack = [];
+    let quote = null, escaped = false;
+    for (let i = position; i < source.length && i - position < 24000; i++) {
+      const c = source[i];
+      if (quote) {
+        if (escaped) escaped = false;
+        else if (c === "\\") escaped = true;
+        else if (c === quote) quote = null;
+        continue;
+      }
+      if (c === '"' || c === "'") { quote = c; continue; }
+      if (c === "{" || c === "[") {
+        if (stack.length >= 12) return null;
+        stack.push(c);
+      } else if (c === "}" || c === "]") {
+        if (stack.pop() !== (c === "}" ? "{" : "[")) return null;
+        if (!stack.length) return source.slice(position, i + 1);
+      }
+    }
+    return null;
+  }
   function scanPlayerConfigs() {
-    // Universal, bounded passive discovery: declarative configs from common
-    // players and framework hydration state. Never evaluate site JavaScript.
+    // Universal bounded passive discovery, including independent playlist
+    // items and alternatives for ONE item. The current title is a local hint,
+    // not a document-wide property and never a media stream identity key.
     let remainingNodes = 512;
     function walk(node, depth, parentTitle = null, parentGroup = null, parentPoster = null) {
       if (depth > 8 || --remainingNodes < 0 || !node || typeof node !== "object") return;
       if (Array.isArray(node)) {
-        for (const child of node.slice(0, 48)) walk(child, depth + 1, parentTitle, parentGroup, parentPoster);
+        for (const child of node.slice(0, 48))
+          walk(child, depth + 1, parentTitle, parentGroup, parentPoster);
         return;
       }
-      const title = safeTitle(node.title || node.name || node.label) || parentTitle;
-      const group = parentGroup || (["sources", "renditions", "variants"].some(key =>
-        Array.isArray(node[key])) ? groupFor(node) : null);
-      const poster = typeof node.poster === "string" ? node.poster :
-        (typeof node.thumbnailUrl === "string" ? node.thumbnailUrl : parentPoster);
+      // "label" is normally resolution/audio language, not a film title.
+      const ownTitle = mediaTitleHint(node.title) || mediaTitleHint(node.name);
+      const independent = ownTitle && parentTitle && ownTitle !== parentTitle;
+      const title = ownTitle || parentTitle;
+      const group = (!independent && parentGroup) ||
+        (["sources", "renditions", "variants", "encodings"].some(key =>
+          Array.isArray(node[key])) ? groupFor(node) : null);
+      const poster = (typeof node.poster === "string" ? node.poster :
+        (typeof node.thumbnailUrl === "string" ? node.thumbnailUrl : null)) ||
+        (!independent ? parentPoster : null);
       const mime = typeof node.type === "string" ? node.type :
         (typeof node.mimeType === "string" ? node.mimeType : null);
       for (const key of ["file", "src", "contentUrl", "videoUrl", "streamUrl",
@@ -602,18 +689,16 @@
         if (typeof node[key] === "string")
           submit(node[key], "page", mime, group, title, title ? "video" : null, null, poster);
       }
-      // A source's url is accepted only if it looks like a media resource;
-      // submit() still validates the final URL + format.
       if (typeof node.url === "string" &&
           (mime || /\.(?:mp4|m4v|webm|m3u8|mpd|mov)(?:[?#]|$)/i.test(node.url)))
         submit(node.url, "page", mime, group, title, title ? "video" : null, null, poster);
-      // JSON-only own values: framework wrappers vary, source field names do not.
-      // Budget is per script/config so an unrelated earlier script cannot starve it.
+      // Only alternative streams inherit their owner's title and group.
+      // A playlist item must establish its own title independently.
       for (const key of Object.keys(node).slice(0, 64)) {
-        if (node[key] && typeof node[key] === "object") walk(node[key], depth + 1,
-          ["sources", "source", "renditions", "variants", "encodings"].includes(key) ? title : null,
-          ["sources", "source", "renditions", "variants"].includes(key) ? group : null,
-          ["sources", "source", "renditions", "variants"].includes(key) ? poster : null);
+        if (!node[key] || typeof node[key] !== "object") continue;
+        const sameMovie = ["sources", "source", "renditions", "variants", "encodings"].includes(key);
+        walk(node[key], depth + 1, sameMovie ? title : null,
+          sameMovie ? group : null, sameMovie ? poster : null);
       }
     }
     scanCollection("video[data-setup],video[data-config],[data-player-config],[data-setup]", element => {
@@ -635,16 +720,28 @@
         try { remainingNodes = 512; const previousOffers = offers; walk(JSON.parse(raw), 0);
           if (offers > previousOffers) note("player_config_detected"); } catch (_) {}
       }
-      // In known player setup code read *literal strings only*. Never run
-      // arbitrary site code or fetch a manifest merely for detection.
+      // Read literal setup arguments from known player APIs only. Accept
+      // static object/array data; dynamic JS falls back to anonymous URLs.
+      const setup = /\b(?:jwplayer\s*\([^)\n]{0,128}\)\s*\.\s*setup|videojs\s*\([^)\n]{0,128}\)\s*\.\s*src)\s*\(\s*/gi;
+      let entry, configs = 0;
+      while ((entry = setup.exec(raw)) && ++configs <= 4) {
+        const literal = setupLiteralAt(raw, setup.lastIndex);
+        const config = literal && parseStaticPlayerLiteral(literal);
+        if (config) {
+          remainingNodes = 512;
+          const previousOffers = offers;
+          walk(config, 0);
+          if (offers > previousOffers) note("player_config_detected");
+        }
+      }
+      // Passive URL fallback: never associate adjacent JS variables or
+      // unrelated playlist captions with literal sources by proximity.
       if (!/(?:jwplayer|videojs|plyr|hls\.loadSource|dashjs|shaka|clappr|artplayer|fluidPlayer|new\s+Hls)/i.test(raw) &&
           !/(?:jwplayer|videojs|plyr|hls|shaka|player)/i.test(id)) return;
       const literals = /(?:["']?\b(?:file|src|source|manifest)["']?\s*[:=]|\b(?:loadSource|load|attachSource)\s*\()\s*["']([^"'\s<>]{1,2048})["']/gi;
       let match, n = 0;
       while ((match = literals.exec(raw)) && ++n <= 24)
         submit(match[1].replace(/\\\//g, "/"));
-      // dash.js initialize(videoElement, literalManifest, autoplay). Read only
-      // the literal second argument; never invoke a site's player or code.
       const dashLiteral = /\binitialize\s*\(\s*[A-Za-z_$][\w.$]{0,79}\s*,\s*["']([^"'\s<>]{1,2048})["']/g;
       if (/dashjs/i.test(raw)) while ((match = dashLiteral.exec(raw)) && ++n <= 24)
         submit(match[1].replace(/\\\//g, "/"));
