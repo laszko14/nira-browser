@@ -31,9 +31,9 @@ test("v1168 retains source-safe screen rate and external video request semantics
 });
 test("v1168 signed update metadata preserves clean package and version track",()=>{
  const gradle=read("app/build.gradle"),workflow=read(".github/workflows/apk-release.yml");
- assert.match(gradle,/versionCode = 172/);
- assert.match(gradle,/versionName = "0\.5\.22-alpha77-clean"/);
+ assert.match(gradle,/versionCode = 173/);
+ assert.match(gradle,/versionName = "0\.5\.22-alpha78-clean"/);
  assert.match(gradle,/applicationIdSuffix = '\.debug'/);
- assert.match(workflow,/EXPECTED_VERSION_CODE: "1172"/);
- assert.match(workflow,/EXPECTED_VERSION_NAME: 0\.5\.22-alpha77-clean/);
+ assert.match(workflow,/EXPECTED_VERSION_CODE: "1173"/);
+ assert.match(workflow,/EXPECTED_VERSION_NAME: 0\.5\.22-alpha78-clean/);
 });
