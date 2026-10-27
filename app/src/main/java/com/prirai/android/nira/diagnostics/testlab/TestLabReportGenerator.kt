@@ -86,6 +86,7 @@ object TestLabReportGenerator {
                 appendLine("Brak tytułu: ${v.groupsWithoutTitle}; niepewne grupy: ${v.uncertainGroups}; konflikty grup: ${v.groupTitleConflicts}")
                 appendLine("Pierwsze tytuły: ${v.initialTitles}; ulepszenia: ${v.improvements}; konflikty/odrzucone alternatywy: ${v.rejectedOrConflictingTitles}; słabsze odrzucone: ${v.weakerRejected}")
                 appendLine("Przekazane panelowi źródła: ${v.uiObservedSources}; z indywidualnym tytułem: ${v.uiObservedTitledSources}; pozostałe: ${v.uiObservedSources-v.uiObservedTitledSources} (nie dowodzi narysowania kafelka)")
+                appendLine("Grupy przekazane panelowi: ${v.uiObservedGroups}; z jednoznacznym tytułem: ${v.uiObservedTitledGroups}; bez jednoznacznego tytułu: ${v.uiObservedGroups-v.uiObservedTitledGroups}; konfliktowe: ${v.uiObservedConflictedGroups} (nie dowodzi narysowania kafelków)")
                 appendLine("Nawigacje: ${v.navigations}; odrzucone przez limit ewidencji: ${v.droppedSources}; pochodzenie: ${v.titleKinds}; formaty: ${v.formats}; kanały wykrycia: ${v.detectionOrigins}")
                 v.examples.forEach { appendLine("Film #${it.film} | warianty=${it.variants} | tytuł=${it.titleSource} | ${it.status} | grupa niepewna=${it.groupingUncertain}") }
                 if(v.groups>v.examples.size) appendLine("Pominięto szczegóły ${v.groups-v.examples.size} grup, zachowano agregaty.")
