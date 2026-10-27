@@ -52,29 +52,29 @@ test('explicit import dependency graph creates reverse impacted set',()=>{
  const dir='app/src/main/java/com/prirai/android/nira/diagnostics/testlab/';
  const A=dir+'A.kt',B=dir+'B.kt',C=dir+'C.kt';
  const g=dependencyGraph({
- [A]:'package com.prirai.android.nira.diagnostics.testlab\\nclass A',
- [B]:'package com.prirai.android.nira.diagnostics.testlab\\nimport com.prirai.android.nira.diagnostics.testlab.A\\nclass B',
- [C]:'package com.prirai.android.nira.diagnostics.testlab\\nimport com.prirai.android.nira.diagnostics.testlab.B\\nclass C'
+ [A]:'package com.prirai.android.nira.diagnostics.testlab\nclass A',
+ [B]:'package com.prirai.android.nira.diagnostics.testlab\nimport com.prirai.android.nira.diagnostics.testlab.A\nclass B',
+ [C]:'package com.prirai.android.nira.diagnostics.testlab\nimport com.prirai.android.nira.diagnostics.testlab.B\nclass C'
  },[A]);
  assert.equal(g.edges.length,2);
  assert.deepEqual(g.potentially_affected,[A,B,C]);
  assert.equal(g.runtime_dependencies_proven,false);
 });
 test('unresolved imports remain flagged, never fabricated',()=>{
- const g=dependencyGraph({'app/X.kt':'package com.prirai.android.nira\\nimport com.prirai.android.nira.Missing\\nclass X'});
+ const g=dependencyGraph({'app/X.kt':'package com.prirai.android.nira\nimport com.prirai.android.nira.Missing\nclass X'});
  assert.equal(g.unresolved_imports.length,1);assert.equal(g.edges.length,0);
 });
 test('Kotlin graph read-only and bounded',()=>{err(()=>dependencyGraph({'app/../../X.kt':'class X'}),'INVALID_PATH');err(()=>dependencyGraph({}),'SOURCE_GRAPH_BOUND');});
-const txt='Zavro TestLab • COMPLEX • 0.5.22-alpha73-clean (1168)\\nStan: COMPLETED; rzeczywisty pomiar: 60.000 s\\nNajważniejsze obserwacje (korelacja czasowa nie dowodzi przyczyny):\\nOBSERVED_PERFORMANCE_ANOMALY: SLOW_FRAME ; t=50502.914 ms; wartość=208.096 MILLISECONDS; próg=BRAK DANYCH, n=1\\nn=1070, jank=122 (11.4%), średnia=12 ms, max=214.7 ms\\n';
+const txt='Zavro TestLab • COMPLEX • 0.5.22-alpha73-clean (1168)\nStan: COMPLETED; rzeczywisty pomiar: 60.000 s\nNajważniejsze obserwacje (korelacja czasowa nie dowodzi przyczyny):\nOBSERVED_PERFORMANCE_ANOMALY: SLOW_FRAME ; t=50502.914 ms; wartość=208.096 MILLISECONDS; próg=BRAK DANYCH, n=1\nn=1070, jank=122 (11.4%), średnia=12 ms, max=214.7 ms\n';
 test('realistic Clean TestLab TXT preserves measured limits',()=>{
- const o=inspectTestLab(txt.replaceAll('\\\\n','\n'));
+ const o=inspectTestLab(txt.replaceAll('\\\n','\n'));
  assert.equal(o.test_type,'COMPLEX');assert.equal(o.status,'COMPLETED');assert.equal(o.android_window_frames,1070);
  assert.equal(o.window_jank_percent,11.4);
  assert.equal(o.gecko_fps_measured,false);assert.equal(o.mpv_frames_measured,false);assert.equal(o.causality_claimed,false);
  assert.deepEqual(o.observations,[{kind:'OBSERVED_PERFORMANCE_ANOMALY',code:'SLOW_FRAME'}]);
 });
 test('PARTIAL test is not COMPLETED',()=>{
- const o=inspectTestLab(txt.replaceAll('\\\\n','\n').replace('Stan: COMPLETED','Stan: PARTIAL'));
+ const o=inspectTestLab(txt.replaceAll('\\\n','\n').replace('Stan: COMPLETED','Stan: PARTIAL'));
  assert.equal(o.coverage_complete,false);
 });
 const json=()=>({schemaVersion:1,testType:'VIDEO_METADATA',appVersion:{versionCode:1174,versionName:'0.5.22-alpha79-clean'},status:'COMPLETED',durationMs:60000,
@@ -88,7 +88,7 @@ test('TestLab JSON exports only safe aggregates, never examples or event secrets
  assert.ok(!raw.includes('secret'));assert.equal(o.raw_text_included,false);
 });
 test('JSON string with sensitive URL is rejected',()=>err(()=>inspectTestLab(JSON.stringify(json())),'POSSIBLE_PRIVATE_DATA'));
-test('text with bearer token or URL rejected',()=>err(()=>inspectTestLab(txt.replaceAll('\\\\n','\n')+'\nAuthorization: Bearer abc'),'POSSIBLE_PRIVATE_DATA'));
+test('text with bearer token or URL rejected',()=>err(()=>inspectTestLab(txt.replaceAll('\\\n','\n')+'\nAuthorization: Bearer abc'),'POSSIBLE_PRIVATE_DATA'));
 test('TestLab version must be valid and explicit',()=>{const p=json();p.appVersion.versionCode=-1;err(()=>inspectTestLab(p),'INVALID_APP_VERSION');});
 test('invalid frame samples refused',()=>{const p=json();p.frameMetrics.jankCount=1111;err(()=>inspectTestLab(p),'INVALID_FRAMES');});
 test('a correlation is not a confirmed error',()=>{const o=inspectTestLab(json());assert.equal(o.observations[0].kind,'SUSPECTED_CORRELATION');assert.equal(o.causality_claimed,false);});
