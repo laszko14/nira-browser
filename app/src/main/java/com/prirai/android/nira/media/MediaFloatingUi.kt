@@ -206,7 +206,17 @@ internal class MediaFloatingUi(
                                     now.entries.none { it.id == id }) {
                                     stale()
                                     fillSheet()
-                                } else openVideo(id)
+                                } else {
+                                    val token = TestLab.operation(LabOperation.VIDEO_EXTERNAL_REQUEST)
+                                    TestLab.note(LabCode.VIDEO_EXTERNAL_REQUEST)
+                                    try {
+                                        openVideo(id)
+                                        TestLab.end(token)
+                                    } catch (error: Throwable) {
+                                        TestLab.end(token, OperationOutcome.FAILED)
+                                        throw error
+                                    }
+                                }
                             },
                             onDownload = { id ->
                                 val latest = current()

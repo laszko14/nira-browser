@@ -77,7 +77,11 @@ test("v1128: floating media button and expanded list match the selected referenc
   assert.match(ui, /downloadGlyph\.visibility = if \(amount > 0\) View\.GONE/);
   assert.match(ui, /behavior\.skipCollapsed = true/);
   assert.match(ui, /behavior\.state = BottomSheetBehavior\.STATE_EXPANDED/);
-  assert.match(ui, /height = body\.measuredHeight\.coerceIn\(dp\(130\), maxHeight\)/);
+  // The Codex-style Compose panel owns a finite sheet viewport and internal scroll,
+  // instead of measuring a legacy LinearLayout and recreating its children.
+  assert.match(ui, /val maxHeight = \(bounds\.height\(\) - dp\(24\)\)/);
+  assert.match(ui, /content\.layoutParams\.height != height/);
+  assert.match(ui, /sheetSnapshot = current\(\)/);
 });
 
 test("v1128: address-bar previous/next follows persisted group and tab order", () => {
