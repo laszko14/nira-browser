@@ -82,7 +82,7 @@ export function buildReport({run,jobs,artifacts,config,variant,logs={}}){
  return {schema_version:1,variant,run_id:run.id,commit_sha:run.head_sha,branch:run.head_branch,
   run_url:'https://github.com/'+REPO+'/actions/runs/'+run.id,status:run.status,conclusion:run.conclusion??null,
   run_attempt:run.run_attempt??null,version_code:t.version_code,version_name:t.version_name,package:t.package,abi:'arm64-v8a',
-  expected_certificate_sha256:t.certificate_sha256,jobs:mapping,failures,state,issues,
+  expected_certificate_sha256:t.certificate_sha256,jobs:mapping,failures,state,issues,artifact_observed:candidate,
   ci_verified_log_observed:ciVerified,independently_inspected_apk_bytes:false,artifact,build_started_by_reporter:false};
 }
 
