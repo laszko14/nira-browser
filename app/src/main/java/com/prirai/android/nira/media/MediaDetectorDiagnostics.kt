@@ -15,6 +15,18 @@ internal object MediaDetectorDiagnostics {
     private val tabs = mutableMapOf<String, TabCounters>()
     private var repository: MediaRepository? = null
     @Synchronized fun setRepository(value: MediaRepository) { repository = value }
+
+    /** Snapshot already detected sources when the 60s diagnostic window opens. */
+    @Synchronized fun captureTestLabBaseline() {
+        val current = repository ?: return
+        tabs.entries.take(8).forEach { (id, counts) ->
+            val session = counts.session.get() ?: return@forEach
+            val binding = MediaSessionBinding(session, id, counts.contextId, counts.isPrivate)
+            current.forTab(binding).take(64).forEach { entry ->
+                com.prirai.android.nira.diagnostics.testlab.TestLab.observedMedia(binding, entry)
+            }
+        }
+    }
     private var installState = "Oczekiwanie na uruchomienie"
     private var privatePermission = "Nie sprawdzono"
     private var networkProbeCount = 0

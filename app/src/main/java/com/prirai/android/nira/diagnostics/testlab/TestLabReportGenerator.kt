@@ -79,6 +79,33 @@ object TestLabReportGenerator {
             appendLine("Dowód zakończenia: ${o.completionProofs}; skorelowane klatki=${o.taggedFrames}, jank=${o.taggedJank}, max=${number(o.maxTaggedFrameMs)} ms")
         }
         appendLine("Zewnętrzny odtwarzacz: zarejestrowane żądanie otwarcia nie dowodzi rozpoczęcia odtwarzania.")
+        if(r.testType==TestType.VIDEO_DISCOVERY) {
+            appendLine("\nVIDEO DISCOVERY — anonimowa korelacja:")
+            r.videoDiscovery?.let { v ->
+                appendLine("Zaobserwowane źródła: ${v.sources}; grupy: ${v.groups}; grupy wielowariantowe: ${v.groupsWithVariants}")
+                appendLine("Brak tytułu: ${v.groupsWithoutTitle}; niepewne grupy: ${v.uncertainGroups}; konflikty grup: ${v.groupTitleConflicts}")
+                appendLine("Pierwsze tytuły: ${v.initialTitles}; ulepszenia: ${v.improvements}; konflikty/odrzucone alternatywy: ${v.rejectedOrConflictingTitles}; słabsze odrzucone: ${v.weakerRejected}")
+                appendLine("Nawigacje: ${v.navigations}; odrzucone przez limit ewidencji: ${v.droppedSources}; pochodzenie: ${v.titleKinds}; formaty: ${v.formats}; kanały wykrycia: ${v.detectionOrigins}")
+                v.examples.forEach { appendLine("Film #${it.film} | warianty=${it.variants} | tytuł=${it.titleSource} | ${it.status} | grupa niepewna=${it.groupingUncertain}") }
+                if(v.groups>v.examples.size) appendLine("Pominięto szczegóły ${v.groups-v.examples.size} grup, zachowano agregaty.")
+                appendLine("Zaobserwowana metadana ≠ zweryfikowana zgodność tytułu z treścią filmu.")
+            } ?: appendLine("NOT_MEASURED — nie zaobserwowano zaakceptowanych rekordów.")
+            appendLine("DOM, iframe, SPA i konfiguracje — liczniki zdarzeń:")
+            listOf(LabCode.DETECTOR_SCAN_ELEMENTS,LabCode.DETECTOR_SCAN_YIELD,
+                LabCode.DETECTOR_IFRAME,LabCode.DETECTOR_FRAME_REGISTERED,
+                LabCode.DETECTOR_SPA_NAVIGATION,LabCode.DETECTOR_PLAYER_CONFIG,
+                LabCode.DETECTOR_NO_CANDIDATE,LabCode.DETECTOR_UNAVAILABLE,
+                LabCode.DETECTOR_HLS,LabCode.DETECTOR_DASH,LabCode.DETECTOR_MP4,
+                LabCode.DETECTOR_EARLY_REQUEST,LabCode.DETECTOR_EARLY_BOUND,
+                LabCode.DETECTOR_FRAME_MISMATCH).forEach { appendLine("$it=${r.eventCounts[it] ?: 0}") }
+            appendLine("Limity, odrzucenia i próby ponowienia według mechanizmu:")
+            listOf(LabCode.DETECTOR_QUEUE_NATIVE_CAPACITY,LabCode.DETECTOR_QUEUE_NATIVE_STALE,
+                LabCode.DETECTOR_QUEUE_NATIVE_RETRY,LabCode.DETECTOR_QUEUE_NATIVE_REJECT,
+                LabCode.DETECTOR_QUEUE_DOM_ROOTS,LabCode.DETECTOR_QUEUE_EARLY_EVICT,
+                LabCode.DETECTOR_QUEUE_NETWORK_RATE,LabCode.DETECTOR_QUEUE_MANIFEST_CAPACITY,
+                LabCode.DETECTOR_QUEUE_ANDROID_RATE,LabCode.DETECTOR_QUEUE_TITLE_CANDIDATE_DROPPED).forEach { appendLine("$it=${r.eventCounts[it] ?: 0}") }
+            appendLine("QUEUE_LIMIT jest sumą wielu przyczyn. Odmowa wysłania ≠ potwierdzona utrata tytułu; ograniczenia webRequest nie pozwalają przypisać wszystkich zdarzeń do filmu.")
+        }
         appendLine("\nZasoby: własny proces aplikacji; podprocesy Gecko nie są objęte pomiarem.")
         val m = r.resourceMetrics
         appendLine("Próbki=${m.totalSamples}; odrzucone ze starszego bufora=${m.evictedSamples}")

@@ -280,7 +280,10 @@
   function enqueueNative(payload, epoch) {
     return new Promise(resolve => {
       if (!alive || epoch !== navigationEpoch || nativeQueue.length >= 128) {
-        note("queue_limit"); resolve(false); return;
+        note("queue_limit");
+        note(nativeQueue.length >= 128 ? "queue_native_capacity" : "queue_native_stale");
+        if (payload.title) note("queue_title_candidate_dropped");
+        resolve(false); return;
       }
       nativeQueue.push({ payload, epoch, resolve, created: Date.now(), ready: 0, attempts: 0 });
       drainNative();
@@ -294,7 +297,11 @@
       const index = nativeQueue.findIndex(entry => entry.ready <= now);
       if (index < 0) { scheduleNative(Math.min(...nativeQueue.map(entry => entry.ready)) - now); return; }
       const entry = nativeQueue.splice(index, 1)[0];
-      if (entry.epoch !== navigationEpoch || now - entry.created > 12500) { entry.resolve(false); continue; }
+      if (entry.epoch !== navigationEpoch || now - entry.created > 12500) {
+        note("queue_native_stale");
+        if (entry.payload.title) note("queue_title_candidate_dropped");
+        entry.resolve(false); continue;
+      }
       if (nativeWindowCount >= 64) { nativeQueue.unshift(entry); scheduleNative(5000 - (now - nativeWindowAt)); return; }
       nativeActive++; nativeWindowCount++;
       Promise.resolve().then(() => browser.runtime.sendNativeMessage("nira.media.detector", entry.payload))
@@ -302,8 +309,17 @@
           if (ok === true && alive && entry.epoch === navigationEpoch) entry.resolve(true);
           else if (alive && entry.epoch === navigationEpoch && !entry.attempts && nativeQueue.length < 128) {
             entry.attempts++; entry.ready = Date.now() + 5200; nativeQueue.push(entry);
-          } else entry.resolve(false);
-        }).catch(() => entry.resolve(false)).finally(() => { nativeActive--; drainNative(); });
+            note("queue_native_retry");
+          } else {
+            note("queue_native_reject");
+            if (entry.payload.title) note("queue_title_candidate_dropped");
+            entry.resolve(false);
+          }
+        }).catch(() => {
+          note("queue_native_reject");
+          if (entry.payload.title) note("queue_title_candidate_dropped");
+          entry.resolve(false);
+        }).finally(() => { nativeActive--; drainNative(); });
       now = Date.now();
     }
   }
@@ -553,7 +569,7 @@
   }
   function enqueueRoot(root) {
     if (!root || !alive) return;
-    if (pendingRoots.size >= MAX_ROOTS) { overflowRoot = true; note("queue_limit"); return; }
+    if (pendingRoots.size >= MAX_ROOTS) { overflowRoot = true; note("queue_limit"); note("queue_dom_roots"); return; }
     pendingRoots.add(root);
   }
   function collect(root) {

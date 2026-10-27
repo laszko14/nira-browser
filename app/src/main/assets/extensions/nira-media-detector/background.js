@@ -162,7 +162,7 @@ function captureEarly(details) {
   if (earlyRequests.has(key)) return true; // redirect: retain original epoch/time
   if (earlyRequests.size >= EARLY_LIMIT) {
     const first = earlyRequests.keys().next().value;
-    earlyRequests.delete(first); discovery("queue_limit", details.incognito);
+    earlyRequests.delete(first); discovery("queue_limit", details.incognito); discovery("queue_early_evict", details.incognito);
   }
   earlyRequests.set(key, { tabId: details.tabId, frameId: details.frameId,
     geckoDocumentId: id, parentDocumentId: geckoId(details.parentDocumentId),
@@ -628,7 +628,7 @@ function onHeaders(details) {
   const rateKey = tabId + ":" + String(details.incognito);
   const slot = routedRate.get(rateKey);
   if (!slot || now - slot.since >= 5000) routedRate.set(rateKey, { since: now, count: 1 });
-  else if (slot.count >= MAX_ROUTED_PER_5S) { discovery("queue_limit", details.incognito); return; }
+  else if (slot.count >= MAX_ROUTED_PER_5S) { discovery("queue_limit", details.incognito); discovery("queue_network_rate", details.incognito); return; }
   else slot.count++;
   while (routedRate.size > 64) routedRate.delete(routedRate.keys().next().value);
   seen.delete(dedupKey);
@@ -703,7 +703,7 @@ function queueManifest(task) {
   const cached = manifestCache.get(key);
   if (cached && now - cached < MANIFEST_TTL_MS) return;
   if (manifestInflight.has(key) || manifestQueue.some(item => manifestKey(item) === key)) return;
-  if (manifestQueue.length >= MAX_MANIFEST_QUEUE) { discovery("queue_limit", task.isPrivate); return; }
+  if (manifestQueue.length >= MAX_MANIFEST_QUEUE) { discovery("queue_limit", task.isPrivate); discovery("queue_manifest_capacity", task.isPrivate); return; }
   manifestQueue.push(task);
   drainManifests();
 }
