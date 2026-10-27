@@ -30,13 +30,14 @@ test("v1122: native compact tabs still show favicons and handle tap and long pre
   assert.match(native, /scroller\.scrollTo\(newScroll\.coerceIn\(0, maxScroll\), 0\)/);
 });
 
-test("v1122: side panel has a dedicated drag handle and preview that follows the finger", () => {
-  assert.match(side, /Icons\.Default\.DragHandle/);
-  assert.match(side, /contentDescription = "Przytrzymaj i przeciągnij kartę"/);
+test("v1177: side panel retains long-press dragging and a height-aware preview", () => {
+  // C/D remove the dedicated icon, not the long-press recognizer.
+  assert.match(side, /private fun CompactSideTabRow\(/);
   assert.match(side, /detectDragGesturesAfterLongPress\(/);
   assert.match(side, /haptic\.performHapticFeedback\(HapticFeedbackType\.LongPress\)/);
+  assert.match(side, /currentStart\(rowOrigin \+ offset\)/);
   assert.match(side, /if \(draggedTab != null\) \{/);
-  assert.match(side, /dragY - 23f \* density/);
+  assert.match(side, /dragY - rowHeightDp \* density \/ 2f/);
   assert.match(side, /userScrollEnabled = dragTabId == null/);
   assert.match(side, /hoveredKey == "group_" \+ targetId/);
 });
@@ -105,7 +106,9 @@ test("v1128: side panel supplements temporarily missing group headers from DB st
 });
 
 test("v1128: ungrouped tabs have a named recovery section and real group creation", () => {
-  assert.match(side, /text = "\(\$\{ungroupedTabs\.size\}\) Bez grupy"/);
+  assert.match(side, /title = "Bez grupy"/);
+  assert.match(side, /count = ungroupedTabs\.size/);
+  assert.match(side, /DrawerGroupHeader\(/);
   assert.match(side, /item\(key = "ungrouped_header"\)/);
   assert.match(side, /showNameUngroupedDialog = true/);
   assert.match(side, /viewModel\.createNamedGroupFromUngrouped\(ids, chosenName\)/);
