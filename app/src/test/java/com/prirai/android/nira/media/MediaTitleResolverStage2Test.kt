@@ -82,6 +82,15 @@ class MediaTitleResolverStage2Test {
             entry(1, "Site heading", "page")), true).text)
     }
 
+    @Test fun decodesHtmlAndUrlTextWithoutDestroyingUnicodeOrPlus() {
+        assertEquals("A – B & C", MediaTitleResolver.normalizeText("A &#8211; B &amp; C"))
+        assertEquals("A – B", MediaTitleResolver.normalizeText("A%20%E2%80%93%20B"))
+        assertEquals("A+B", MediaTitleResolver.normalizeText("A+B"))
+        assertEquals("A+B", MediaTitleResolver.normalizeText("A%2BB"))
+        assertEquals("Żółw", MediaTitleResolver.candidate("Żółw", "player")?.text)
+        assertEquals("A — B", MediaTitleResolver.candidate("A &mdash; B", "video")?.text)
+    }
+
     @Test fun noTitleOrForeignGroupReturnsUnknown() {
         val empty = MediaTitleResolver.selectGroup(listOf(entry(1, null)), false)
         assertNull(empty.text)
