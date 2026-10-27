@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "kind": "smart-ci-js",
+  "intent": "diagnostic-only",
+  "repo": "laszko14/nira-browser",
+  "build_requested": false,
+  "variant": "mpv",
+  "branch": "feat/zavro-x-mpv-v1167-reference-video-panel",
+  "sha": "d63f414acecae84c3507c3f4bb998e690281b91e"
+}
