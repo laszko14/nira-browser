@@ -670,6 +670,30 @@
     enqueueRoot(document);
     if (scanTimer === null) pump();
   }
+  // A changed caption does not contain its sibling video. Reinspect only its
+  // single-media card so late DOM titles can update the existing source.
+  function titleMutationRoot(element) {
+    const heading = element && element.closest &&
+      element.closest("figcaption,[itemprop='name'],h1,h2,h3,h4");
+    if (!heading) return null;
+    const card = heading.closest(
+      "figure,article,li,[data-video-id],.video-card,.video-item,.media-card,.media-item,.video-container");
+    if (!card || !card.querySelectorAll) return null;
+    const players = card.querySelectorAll("video,iframe");
+    if (players.length === 1) return card;
+    if (players.length > 1) return null;
+    const declarations = card.querySelectorAll(
+      "[data-video-url],[data-video-src],[data-hls],[data-mpd],[data-player-config],a[href]");
+    let owners = 0;
+    for (const item of declarations) {
+      if (item.matches && (item.matches(
+          "[data-video-url],[data-video-src],[data-hls],[data-mpd],[data-player-config]") ||
+          /\.(?:mp4|m4v|webm|m3u8|mpd)(?:[?#]|$)/i.test(attribute(item, "href") || ""))) {
+        if (++owners > 1) return null;
+      }
+    }
+    return owners === 1 ? card : null;
+  }
   function scheduleScan(records) {
     // Observe the changed subtree, including source/script parent changes.
     if (Array.isArray(records) && records.length) {
@@ -678,12 +702,18 @@
         const changed = target && (target.nodeType === 3 ? target.parentElement : target);
         const changedScript = changed && changed.closest && changed.closest("script");
         if (changedScript) scriptVersions.delete(changedScript);
+        const titleCard = titleMutationRoot(changed);
+        if (titleCard) enqueueRoot(titleCard);
         if (record.type === "attributes" || record.type === "characterData") {
           const element = target.nodeType === 3 ? target.parentElement : target;
           enqueueRoot(element && element.closest && element.closest("video,script") || element);
         }
-        for (const node of record.addedNodes || [])
-          enqueueRoot(node.nodeType === 3 ? node.parentElement : node);
+        for (const node of record.addedNodes || []) {
+          const added = node.nodeType === 3 ? node.parentElement : node;
+          const card = titleMutationRoot(added);
+          if (card) enqueueRoot(card);
+          enqueueRoot(added);
+        }
       }
       if (jobs.length > MAX_JOBS) { jobs.length = 0; overflowRoot = true; }
     } else enqueueRoot(document);
