@@ -279,12 +279,34 @@ internal class MediaFloatingUi(
             behavior.state = BottomSheetBehavior.STATE_EXPANDED
         }
         dialog.show()
-        // BrowserActivity already requests the available high-refresh display mode.
+        // The video sheet has its own Android Window. Request the same supported
+        // high-refresh rate as BrowserActivity, without touching Gecko or video FPS.
+        requestSheetRefreshRate(dialog)
         if (measurement != null) {
             dialog.window?.let(TestLab::attachWindow)
             androidx.core.view.OneShotPreDrawListener.add(content) {
                 capture?.end(measurement, proof = CompletionProof.FIRST_PREDRAW)
             }
+        }
+    }
+
+    private fun requestSheetRefreshRate(dialog: BottomSheetDialog) {
+        val window = dialog.window ?: return
+        val display = window.decorView.display ?: return
+        val mode = display.mode
+        val rates = display.supportedModes.filter {
+            it.physicalWidth == mode.physicalWidth && it.physicalHeight == mode.physicalHeight
+        }.map { it.refreshRate }
+        val chosen = com.prirai.android.nira.browser.HighRefreshRatePolicy.choose(rates) ?: return
+        val attributes = window.attributes
+        if (attributes.preferredDisplayModeId != 0 ||
+            kotlin.math.abs(attributes.preferredRefreshRate - chosen) > 0.1f) {
+            attributes.preferredDisplayModeId = 0
+            attributes.preferredRefreshRate = chosen
+            window.attributes = attributes
+        }
+        if (android.os.Build.VERSION.SDK_INT >= 35) {
+            window.decorView.setRequestedFrameRate(chosen)
         }
     }
 

@@ -25,6 +25,8 @@ test("v1170: actions and metadata are real, not inert UI decoration",()=>{
  assert.match(ui,/ClipboardManager/);
  assert.match(ui,/sameSelection\(snapshot\.tab, latest\.tab\)/);
  assert.match(ui,/MediaFormat\.HLS, MediaFormat\.DASH/);
+ assert.match(ui,/requestSheetRefreshRate\(dialog\)/);
+ assert.match(ui,/HighRefreshRatePolicy\.choose\(rates\)/);
 });
 test("v1170: separate orientation settings and six toggles persist without media URLs",()=>{
  const prefs=read(media+"VideoTilesPreferences.kt");
