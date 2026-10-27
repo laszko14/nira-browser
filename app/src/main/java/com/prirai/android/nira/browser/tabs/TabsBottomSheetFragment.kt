@@ -16,6 +16,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
@@ -90,6 +97,23 @@ import androidx.core.content.edit
  * - Tabs: Mozilla Components Store
  *
  */
+private object SideDrawerPalette {
+    val backgroundTop = ComposeColor(0xFF15151B)
+    val backgroundBottom = ComposeColor(0xFF1B1B28)
+    val cardTop = ComposeColor(0xFF45202A)
+    val cardBottom = ComposeColor(0xFF341D28)
+    val activeTop = ComposeColor(0xFF6B243A)
+    val activeBottom = ComposeColor(0xFF4B202D)
+    val activeAccent = ComposeColor(0xFFFF2B65)
+    val groupTop = ComposeColor(0xFF401E2A)
+    val groupBottom = ComposeColor(0xFF291C26)
+    val ungroupedTop = ComposeColor(0xFF183351)
+    val ungroupedBottom = ComposeColor(0xFF14263E)
+    val blue = ComposeColor(0xFF218EF5)
+    val primaryText = ComposeColor(0xFFF5F0F3)
+    val secondaryText = ComposeColor(0xFFAFA5AD)
+}
+
 class TabsBottomSheetFragment : DialogFragment() {
 
     private var _binding: FragmentTabsBottomSheetBinding? = null
@@ -297,7 +321,15 @@ class TabsBottomSheetFragment : DialogFragment() {
 
         if (isSidePanel) {
             binding.profileButtonContainer.visibility = View.GONE
-            // Keep these capabilities in the full tab manager and toolbar, not in the side drawer.
+            // Only the landscape reference has the pre-existing decorative handle.
+            // This is NOT the horizontal resize grip or a new gesture.
+            binding.dragHandle.visibility = if (resources.configuration.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE) View.VISIBLE else View.GONE
+            (binding.root as ViewGroup).getChildAt(0)?.setBackgroundColor(
+                android.graphics.Color.rgb(21, 21, 28)
+            )
+            // Keep profiles, private mode and search reachable through the
+            // unchanged full manager and toolbar, rather than deleting them.
             (binding.newTabFab.parent?.parent as? View)?.visibility = View.GONE
         }
 
@@ -668,7 +700,11 @@ class TabsBottomSheetFragment : DialogFragment() {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
-        if (isSidePanel) dialog?.window?.setLayout(sidePanelWidth(), ViewGroup.LayoutParams.MATCH_PARENT)
+        if (isSidePanel) {
+            dialog?.window?.setLayout(sidePanelWidth(), ViewGroup.LayoutParams.MATCH_PARENT)
+            binding.dragHandle.visibility = if (newConfig.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE) View.VISIBLE else View.GONE
+        }
     }
 
     override fun onDestroyView() {
@@ -804,6 +840,7 @@ class TabsBottomSheetFragment : DialogFragment() {
 
         // Use Scaffold for proper snackbar positioning
         Scaffold(
+            containerColor = if (isSidePanel) ComposeColor.Transparent else MaterialTheme.colorScheme.surface,
             snackbarHost = {
                 SnackbarHost(
                     hostState = snackbarHostState,
@@ -817,8 +854,37 @@ class TabsBottomSheetFragment : DialogFragment() {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
+                    .then(if (isSidePanel) Modifier
+                        .background(Brush.verticalGradient(listOf(
+                            SideDrawerPalette.backgroundTop,
+                            SideDrawerPalette.backgroundBottom
+                        )))
+                        // Keep the 20 dp edge-resize strip separate from row actions.
+                        .padding(end = 20.dp)
+                        else Modifier)
             ) {
-                // Header: tab count + view mode toggle
+                if (isSidePanel) {
+                    val landscape = LocalConfiguration.current.orientation ==
+                        android.content.res.Configuration.ORIENTATION_LANDSCAPE
+                    Column(Modifier.fillMaxWidth().padding(
+                        start = 12.dp, end = 8.dp,
+                        top = if (landscape) 3.dp else 12.dp,
+                        bottom = 10.dp
+                    )) {
+                        Text(
+                            "Tabs & Groups",
+                            fontSize = if (landscape) 14.sp else 17.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = SideDrawerPalette.primaryText
+                        )
+                        Text(
+                            "${tabs.size} ${if (tabs.size == 1) "Tab" else "Tabs"}",
+                            fontSize = if (landscape) 10.sp else 12.sp,
+                            color = SideDrawerPalette.secondaryText
+                        )
+                    }
+                } else {
+                // The normal (non-side) manager keeps its existing header.
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -855,6 +921,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                     }
                 }
 
+                }
                 // Wrapper Box to hold tabs and menu overlay
                 Box(
                     modifier = Modifier.weight(1f)
@@ -930,6 +997,45 @@ class TabsBottomSheetFragment : DialogFragment() {
                                 .align(androidx.compose.ui.Alignment.BottomCenter)
                                 .fillMaxWidth()
                         )
+                    }
+                }
+                if (isSidePanel) {
+                    val landscape = LocalConfiguration.current.orientation ==
+                        android.content.res.Configuration.ORIENTATION_LANDSCAPE
+                    val footerBrush = if (landscape) {
+                        Brush.horizontalGradient(listOf(
+                            ComposeColor(0xFF8871D9), ComposeColor(0xFF366CF4)
+                        ))
+                    } else {
+                        Brush.horizontalGradient(listOf(
+                            ComposeColor(0xFFC52351), ComposeColor(0xFF7F284A)
+                        ))
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(start = 11.dp, end = 8.dp, top = 9.dp, bottom = 12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(if (landscape) 42.dp else 48.dp)
+                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                                .background(footerBrush)
+                                .clickable {
+                                    addNewTab()
+                                    view?.post { dismiss() }
+                                },
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null,
+                                tint = ComposeColor.White, modifier = Modifier.size(23.dp))
+                            Text("Nowa karta", color = ComposeColor.White,
+                                fontSize = if (landscape) 12.sp else 14.sp,
+                                modifier = Modifier.padding(start = 8.dp))
+                        }
                     }
                 }
             }
@@ -1197,7 +1303,8 @@ class TabsBottomSheetFragment : DialogFragment() {
                     listLeftX = it.positionInRoot().x
                     listWidth = it.size.width.toFloat()
                 },
-            contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)
+            contentPadding = PaddingValues(start = 11.dp, end = 8.dp, top = 2.dp, bottom = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             entries.forEach { (kind, id) ->
                 if (kind == "group") {
@@ -1206,8 +1313,15 @@ class TabsBottomSheetFragment : DialogFragment() {
                     if (members.isEmpty()) return@forEach
                     item(key = "group_" + group.id) {
                         var headerRoot by remember(group.id) { mutableStateOf(Offset.Zero) }
-                        Row(
-                            modifier = Modifier.fillMaxWidth().height(44.dp)
+                        DrawerGroupHeader(
+                            title = group.name,
+                            count = members.size,
+                            expanded = group.id in expanded,
+                            ungrouped = false,
+                            hovered = hoveredKey == "group_" + group.id,
+                            onClick = { viewModel.toggleGroupExpanded(group.id) },
+                            onMenu = { groupMenuId = group.id },
+                            dragModifier = Modifier
                                 .onGloballyPositioned { headerRoot = it.positionInRoot() }
                                 .pointerInput(group.id, activeProfileId, orientation) {
                                     detectDragGesturesAfterLongPress(
@@ -1224,37 +1338,14 @@ class TabsBottomSheetFragment : DialogFragment() {
                                             moveDrag(headerRoot + change.position)
                                         },
                                         onDragEnd = ::finishDrag,
-                                        onDragCancel = { finishTestLabDrag(OperationOutcome.CANCELLED);dragGroupId = null; hoveredKey = null }
+                                        onDragCancel = {
+                                            finishTestLabDrag(OperationOutcome.CANCELLED)
+                                            dragGroupId = null
+                                            hoveredKey = null
+                                        }
                                     )
                                 }
-                                .background(
-                                    if (hoveredKey == "group_" + group.id)
-                                        MaterialTheme.colorScheme.primaryContainer
-                                    else MaterialTheme.colorScheme.surface
-                                )
-                                .clickable { viewModel.toggleGroupExpanded(group.id) }
-                                .padding(start = 8.dp, end = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                if (group.id in expanded) Icons.Default.KeyboardArrowDown
-                                else Icons.Default.KeyboardArrowRight,
-                                contentDescription = "Rozwiń lub zwiń grupę",
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Text(
-                                text = "(" + members.size + ") " + group.name,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                fontWeight = FontWeight.SemiBold,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f).padding(start = 4.dp)
-                            )
-                            IconButton(onClick = { groupMenuId = group.id }, modifier = Modifier.size(40.dp)) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "Opcje grupy",
-                                    modifier = Modifier.size(20.dp))
-                            }
-                        }
+                        )
                     }
                     if (group.id in expanded) {
                         items(members, key = { "group_tab_" + it.id }) { tab ->
@@ -1282,38 +1373,18 @@ class TabsBottomSheetFragment : DialogFragment() {
                     }
                 } else if (kind == "ungrouped_header") {
                     item(key = "ungrouped_header") {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().height(44.dp)
-                                .background(MaterialTheme.colorScheme.surface)
-                                .padding(start = 8.dp, end = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(
-                                onClick = { ungroupedExpanded = !ungroupedExpanded },
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(
-                                    if (ungroupedExpanded) Icons.Default.KeyboardArrowDown
-                                    else Icons.Default.KeyboardArrowRight,
-                                    contentDescription = "Rozwiń lub zwiń karty bez grupy"
-                                )
+                        DrawerGroupHeader(
+                            title = "Bez grupy",
+                            count = ungroupedTabs.size,
+                            expanded = ungroupedExpanded,
+                            ungrouped = true,
+                            hovered = hoveredKey == "ungrouped_header",
+                            onClick = { ungroupedExpanded = !ungroupedExpanded },
+                            onMenu = {
+                                ungroupedName = "Nowa grupa"
+                                showNameUngroupedDialog = true
                             }
-                            Text(
-                                text = "(${ungroupedTabs.size}) Bez grupy",
-                                fontWeight = FontWeight.SemiBold,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f)
-                            )
-                            IconButton(
-                                onClick = {
-                                    ungroupedName = "Nowa grupa"
-                                    showNameUngroupedDialog = true
-                                },
-                                modifier = Modifier.size(40.dp)
-                            ) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "Nazwij i utwórz grupę")
-                            }
-                        }
+                        )
                     }
                 } else if (ungroupedExpanded) {
                     val tab = tabsById[id] ?: return@forEach
@@ -1370,15 +1441,18 @@ class TabsBottomSheetFragment : DialogFragment() {
                 shadowElevation = 10.dp
             ) {
                 Row(
-                    Modifier.height(46.dp).padding(horizontal = 12.dp),
+                    Modifier.height(if (orientation ==
+                        android.content.res.Configuration.ORIENTATION_LANDSCAPE) 36.dp else 48.dp)
+                        .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.DragHandle, contentDescription = null)
+                    com.prirai.android.nira.browser.tabs.compose.FaviconImage(tab = draggedTab, size = 24.dp)
                     Text(
                         draggedTab.content.title.ifBlank { "Nowa karta" },
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(start = 10.dp)
+                        modifier = Modifier.padding(start = 10.dp),
+                        color = SideDrawerPalette.primaryText
                     )
                 }
             }
@@ -1438,6 +1512,81 @@ class TabsBottomSheetFragment : DialogFragment() {
     }
 
     @Composable
+    private fun DrawerGroupHeader(
+        title: String,
+        count: Int,
+        expanded: Boolean,
+        ungrouped: Boolean,
+        hovered: Boolean,
+        onClick: () -> Unit,
+        onMenu: () -> Unit,
+        dragModifier: Modifier = Modifier
+    ) {
+        val landscape = LocalConfiguration.current.orientation ==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val h = if (landscape) 36.dp else 48.dp
+        val accent = if (ungrouped) SideDrawerPalette.blue else SideDrawerPalette.activeAccent
+        val background = if (ungrouped) {
+            Brush.horizontalGradient(listOf(
+                SideDrawerPalette.ungroupedTop, SideDrawerPalette.ungroupedBottom
+            ))
+        } else {
+            Brush.horizontalGradient(listOf(
+                SideDrawerPalette.groupTop, SideDrawerPalette.groupBottom
+            ))
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().height(h)
+                .then(dragModifier)
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                .background(background)
+                .then(if (hovered) Modifier.border(
+                    1.dp, accent, androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
+                ) else Modifier)
+                .clickable(onClick = onClick)
+                .padding(start = 5.dp, end = 1.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                if (expanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowRight,
+                contentDescription = if (expanded) "Zwiń grupę" else "Rozwiń grupę",
+                tint = accent,
+                modifier = Modifier.size(if (landscape) 16.dp else 19.dp)
+            )
+            Box(
+                Modifier.padding(start = 4.dp).size(if (landscape) 25.dp else 31.dp)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(7.dp))
+                    .background(accent.copy(alpha = 0.13f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Folder, contentDescription = null, tint = accent,
+                    modifier = Modifier.size(if (landscape) 19.dp else 23.dp))
+            }
+            Column(
+                Modifier.weight(1f).padding(start = 7.dp),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(title, color = SideDrawerPalette.primaryText,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = if (landscape) 11.sp else 13.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("$count ${if (count == 1) "karta" else if (count in 2..4) "karty" else "kart"}",
+                    color = SideDrawerPalette.secondaryText,
+                    fontSize = if (landscape) 9.sp else 10.sp,
+                    maxLines = 1)
+            }
+            IconButton(
+                onClick = onMenu,
+                modifier = Modifier.size(if (landscape) 30.dp else 36.dp)
+            ) {
+                Icon(Icons.Default.MoreVert, contentDescription = "Opcje grupy $title",
+                    tint = SideDrawerPalette.primaryText,
+                    modifier = Modifier.size(19.dp))
+            }
+        }
+    }
+
+    @Composable
     private fun CompactSideTabRow(
         tab: TabSessionState,
         ordinal: Int,
@@ -1452,90 +1601,113 @@ class TabsBottomSheetFragment : DialogFragment() {
         onDragFinish: () -> Unit,
         onDragCancel: () -> Unit
     ) {
+        // ordinal remains an input of the existing drag/order contract;
+        // reference C/D intentionally do not draw tab numbers.
+        @Suppress("UNUSED_VARIABLE")
+        val retainedOrdinal = ordinal
         var rowOrigin by remember { mutableStateOf(Offset.Zero) }
-        var handleOrigin by remember { mutableStateOf(Offset.Zero) }
-        val rowOrientation = LocalConfiguration.current.orientation
+        val orientation = LocalConfiguration.current.orientation
+        val landscape = orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
         val haptic = LocalHapticFeedback.current
         val currentStart by rememberUpdatedState(onDragStart)
         val currentMove by rememberUpdatedState(onDragMove)
         val currentFinish by rememberUpdatedState(onDragFinish)
         val currentCancel by rememberUpdatedState(onDragCancel)
-        Surface(
-            color = when {
-                hovered || selected -> MaterialTheme.colorScheme.primaryContainer
-                else -> MaterialTheme.colorScheme.surface
-            },
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(5.dp)
+        val rowShape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
+        val rowBrush = Brush.horizontalGradient(
+            if (selected) listOf(SideDrawerPalette.activeTop, SideDrawerPalette.activeBottom)
+            else listOf(SideDrawerPalette.cardTop, SideDrawerPalette.cardBottom)
+        )
+        val host = remember(tab.content.url) {
+            runCatching { android.net.Uri.parse(tab.content.url).host }.getOrNull()
+                ?.removePrefix("www.")
+                ?: tab.content.url.takeIf { it.startsWith("about:") }.orEmpty()
+        }
+        val imageSize = if (landscape) 26.dp else 33.dp
+        Row(
+            modifier = Modifier.fillMaxWidth()
+                .height(if (landscape) 36.dp else 48.dp)
+                .clip(rowShape)
+                .background(rowBrush)
+                .then(if (selected || hovered) Modifier.border(
+                    1.dp,
+                    if (selected) SideDrawerPalette.activeAccent.copy(alpha = 0.55f)
+                    else SideDrawerPalette.activeAccent.copy(alpha = 0.32f),
+                    rowShape
+                ) else Modifier)
+                .onGloballyPositioned { rowOrigin = it.positionInRoot() }
+                .clickable(onClick = onClick)
+                .pointerInput(tab.id, orientation) {
+                    detectDragGesturesAfterLongPress(
+                        onDragStart = { offset ->
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            currentStart(rowOrigin + offset)
+                        },
+                        onDrag = { change, _ ->
+                            change.consume()
+                            currentMove(rowOrigin + change.position)
+                        },
+                        onDragEnd = { currentFinish() },
+                        onDragCancel = { currentCancel() }
+                    )
+                }
+                .padding(end = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().height(46.dp)
-                    .onGloballyPositioned { rowOrigin = it.positionInRoot() }
-                    .clickable(onClick = onClick)
-                    // Attach the long-press recognizer on the inside of click:
-                    // normal taps still select; holding the row starts a drag.
-                    .pointerInput(tab.id, rowOrientation) {
-                        detectDragGesturesAfterLongPress(
-                            onDragStart = { offset ->
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                currentStart(rowOrigin + offset)
-                            },
-                            onDrag = { change, amount ->
-                                change.consume()
-                                currentMove(rowOrigin + change.position)
-                            },
-                            onDragEnd = { currentFinish() },
-                            onDragCancel = { currentCancel() }
-                        )
-                    }
-                    .padding(start = if (indent) 12.dp else 3.dp, end = 1.dp),
-                verticalAlignment = Alignment.CenterVertically
+            if (selected) {
+                Box(Modifier.width(5.dp).fillMaxHeight()
+                    .background(Brush.verticalGradient(listOf(
+                        SideDrawerPalette.activeAccent,
+                        ComposeColor(0xFFDE174A)
+                    ))))
+            } else {
+                Spacer(Modifier.width(5.dp))
+            }
+            Spacer(Modifier.width(if (indent) 7.dp else 4.dp))
+            // Favicon/thumbnail is also the unobtrusive context-menu entry point.
+            // Long-press on the REST of the row still starts the original reorder.
+            Box(
+                modifier = Modifier.size(imageSize)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
+                    .background(ComposeColor.White.copy(alpha = 0.08f))
+                    .semantics { contentDescription = "Opcje karty: ${tab.content.title}" }
+                    .clickable(onClick = onMenu),
+                contentAlignment = Alignment.Center
+            ) {
+                if (selected) {
+                    com.prirai.android.nira.browser.tabs.compose.ThumbnailImageView(
+                        tab = tab, modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    com.prirai.android.nira.browser.tabs.compose.FaviconImage(
+                        tab = tab, size = if (landscape) 22.dp else 28.dp
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier.weight(1f).padding(start = 8.dp),
+                verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = ordinal.toString() + ".",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.width(23.dp)
-                )
-                // A dedicated handle also works when children (including
-                // menu/close buttons) consume their own touch sequences.
-                Icon(
-                    Icons.Default.DragHandle,
-                    contentDescription = "Przytrzymaj i przeciągnij kartę",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(30.dp)
-                        .onGloballyPositioned { handleOrigin = it.positionInRoot() }
-                        .pointerInput(tab.id, rowOrientation) {
-                        detectDragGesturesAfterLongPress(
-                            onDragStart = { offset ->
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                currentStart(handleOrigin + offset)
-                            },
-                            onDrag = { change, amount ->
-                                change.consume()
-                                currentMove(handleOrigin + change.position)
-                            },
-                            onDragEnd = { currentFinish() },
-                            onDragCancel = { currentCancel() }
-                        )
-                        }
-                )
-                com.prirai.android.nira.browser.tabs.compose.FaviconImage(tab = tab, size = 21.dp)
-                Text(
                     text = tab.content.title.ifBlank { "Nowa karta" },
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f).padding(start = 8.dp)
+                    color = SideDrawerPalette.primaryText,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                    fontSize = if (landscape) 11.sp else 12.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
-                IconButton(onClick = onMenu, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "Opcje karty",
-                        modifier = Modifier.size(19.dp))
+                if (host.isNotBlank()) {
+                    Text(host, color = SideDrawerPalette.secondaryText,
+                        fontSize = if (landscape) 9.sp else 10.sp,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                IconButton(onClick = onClose, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Default.Close, contentDescription = "Zamknij kartę",
-                        modifier = Modifier.size(21.dp))
-                }
+            }
+            IconButton(
+                onClick = onClose,
+                modifier = Modifier.size(if (landscape) 31.dp else 38.dp)
+            ) {
+                Icon(Icons.Default.Close, contentDescription = "Zamknij kartę",
+                    tint = SideDrawerPalette.primaryText.copy(alpha = 0.8f),
+                    modifier = Modifier.size(if (landscape) 17.dp else 19.dp))
             }
         }
     }
