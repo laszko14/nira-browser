@@ -129,6 +129,18 @@ object TestLabReportGenerator {
                 appendLine("Widoczność w panelu nie dowodzi wyrenderowania piksela ani odtworzenia filmu.")
             } ?: appendLine("NOT_MEASURED — kolektor metadanych nie zwrócił snapshotu.")
         }
+        if(r.testType in setOf(TestType.FULL_AUDIT,TestType.VIDEO_DISCOVERY,TestType.VIDEO_METADATA)) {
+            appendLine("\\nMEDIA FUNNEL — anonimowe zdarzenia native, bez dowodu poprawności materiału:")
+            r.mediaFunnel?.let { funnel ->
+                appendLine("Etapy: ${funnel.stages} (CANDIDATE=próby zaakceptowane w repo; DISCOVERED/STORED=unikalne rekordy, także baza sprzed testu)")
+                appendLine("ASSOCIATED=indywidualny tytuł lub miniatura przy rekordzie, bez niezależnego potwierdzenia zgodności filmu.")
+                appendLine("VERIFIED=zweryfikowany manifest/strumień lub potwierdzony stan źródła; DISPLAYED=przekazano panelowi, nie wyrenderowano pikseli.")
+                appendLine("Braki: ${funnel.unknownReasons}")
+                appendLine("Konflikty: tytuł=${funnel.titleConflicts}; różne miniatury=${funnel.posterAlternatives}; rozbieżne grupy wariantów=${funnel.variantGroupMismatches}; limit=${funnel.droppedRecords}")
+                appendLine("Rozszerzone sondy sieciowe: ${if(funnel.extendedNetworkProbesEnabled) "ON" else "OFF"}; liczba prób=${funnel.probeRequests ?: "NOT_MEASURED"}, bajty=${funnel.probeBytes ?: "NOT_MEASURED"}, czas=${funnel.probeElapsedMs ?: "NOT_MEASURED"} ms")
+                appendLine("Brak pomiarów sieciowych oznacza NOT_MEASURED, a nie zero żądań ani zero kosztu.")
+            } ?: appendLine("NOT_MEASURED — brak snapshotu kolektora.")
+        }
         appendLine("\nZasoby: własny proces aplikacji; podprocesy Gecko nie są objęte pomiarem.")
         val m = r.resourceMetrics
         appendLine("Próbki=${m.totalSamples}; odrzucone ze starszego bufora=${m.evictedSamples}")
