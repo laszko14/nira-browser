@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "system": "zavro-development-system",
+  "repo": "laszko14/nira-browser",
+  "stage": 1,
+  "stage_state": "audit_only",
+  "devtools_branch": "tools/zavro-development-system-stage1-20261027",
+  "baseline": {
+    "ref": "main",
+    "sha": "0823f24eb48e2eefbe38c7616bc1d55e73917b37"
+  },
+  "allowed_write_prefix": "tools/zavro-development-system-",
+  "controls": {
+    "allow_mutations": false,
+    "allow_workflow_dispatch": false,
+    "allow_release": false,
+    "allow_merge": false,
+    "allow_force_push": false,
+    "require_fresh_ref_check": true,
+    "require_commit_pin": true,
+    "require_human_build_intent": true
+  },
+  "targets": {
+    "clean": {
+      "reference_branch": "feat/zavro-v1174-clean-video-metadata",
+      "reference_sha": "3e194d2a20b6f649e55600580f1e62ba7d78439b",
+      "application_id_debug": "com.prirai.android.nira.debug",
+      "apk_abi": "arm64-v8a"
+    },
+    "mpv": {
+      "reference_branch": "feat/zavro-x-mpv-v1167-reference-video-panel",
+      "reference_sha": "d63f414acecae84c3507c3f4bb998e690281b91e",
+      "application_id_debug": "com.prirai.android.nira.mpv.debug",
+      "apk_abi": "arm64-v8a"
+    }
+  },
+  "signing": {
+    "expected_certificate_sha256": "df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00",
+    "secrets_inspection": "forbidden",
+    "secret_values_stored": false
+  },
+  "evidence": {
+    "github_app_can_read": true,
+    "github_app_can_write": true,
+    "github_app_workflow_dispatch_exposed": false,
+    "github_app_rerun_failed_jobs_exposed": true,
+    "android_build_executed_in_stage1": false
+  }
+}
