@@ -118,7 +118,8 @@ internal class MediaFloatingUi(
 
     fun render(value: MediaUiSnapshot?) {
         displayed = value?.takeIf { it.entries.isNotEmpty() }
-        val amount = displayed?.entries?.groupBy { it.groupId ?: "url:" + it.url }?.size ?: 0
+        // Identical count and frame-aware grouping as the actual tiles.
+        val amount = displayed?.entries?.let(::mediaTileItems)?.size ?: 0
         count.text = if (amount > 99) "99+" else amount.toString()
         count.visibility = if (amount > 0) View.VISIBLE else View.GONE
         downloadGlyph.visibility = if (amount > 0) View.GONE else View.VISIBLE
