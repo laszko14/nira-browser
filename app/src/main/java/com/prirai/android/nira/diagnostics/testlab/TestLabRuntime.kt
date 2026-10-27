@@ -285,10 +285,18 @@ internal class TestLabRuntime(
             setPadding(4,1,4,1)
         }
         // A passive View returns false on touch; no overlay window and no input interception.
-        root.addView(counter,FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,ViewGroup.LayoutParams.WRAP_CONTENT,
-            Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
-            val bar=ViewCompat.getRootWindowInsets(root)?.getInsets(WindowInsetsCompat.Type.statusBars())?.top?:0
-            topMargin=((bar-14*root.resources.displayMetrics.density)/2).toInt().coerceAtLeast(0)
+        // Keep the label in the status-bar area when visible. In immersive or
+        // landscape mode move it to mid-right, away from the address/tab bars
+        // and the bottom-right media button. It is strictly non-interactive.
+        val statusBarHeight=ViewCompat.getRootWindowInsets(root)
+            ?.getInsets(WindowInsetsCompat.Type.statusBars())?.top?:0
+        root.addView(counter,FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            if(statusBarHeight>0)Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            else Gravity.CENTER_VERTICAL or Gravity.END).apply {
+            if(statusBarHeight>0)
+                topMargin=((statusBarHeight-14*root.resources.displayMetrics.density)/2).toInt().coerceAtLeast(0)
+            else rightMargin=(4*root.resources.displayMetrics.density).toInt()
         })
         val probe=WindowProbe(counter)
         windows[window]=probe
