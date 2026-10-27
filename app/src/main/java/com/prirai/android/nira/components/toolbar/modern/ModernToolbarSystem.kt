@@ -143,9 +143,19 @@ class ModernToolbarSystem @JvmOverloads constructor(
             )
             val top = if (toolbarPosition == ToolbarPosition.TOP) bars.top else 0
             val bottom = if (toolbarPosition == ToolbarPosition.BOTTOM) bars.bottom else 0
-            if (view.paddingLeft != bars.left || view.paddingTop != top ||
-                view.paddingRight != bars.right || view.paddingBottom != bottom) {
-                view.setPadding(bars.left, top, bars.right, bottom)
+
+            // BrowserActivity's rootContainer already reserves the left/right
+            // navigation-bar and display-cutout insets for the entire browser.
+            // Reapplying them here in landscape narrows BOTH the address bar
+            // and the tab strip. Keep portrait and vertical inset behavior
+            // unchanged; controls stay inside the root's system-safe area.
+            val landscape = resources.configuration.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            val left = if (landscape) 0 else bars.left
+            val right = if (landscape) 0 else bars.right
+            if (view.paddingLeft != left || view.paddingTop != top ||
+                view.paddingRight != right || view.paddingBottom != bottom) {
+                view.setPadding(left, top, right, bottom)
             }
 
             insets

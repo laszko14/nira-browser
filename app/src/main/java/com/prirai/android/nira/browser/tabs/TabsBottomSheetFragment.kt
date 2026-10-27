@@ -16,6 +16,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
@@ -90,6 +99,92 @@ import androidx.core.content.edit
  * - Tabs: Mozilla Components Store
  *
  */
+private object SideDrawerPalette {
+    val backgroundTop = ComposeColor(0xFF15151B)
+    val backgroundBottom = ComposeColor(0xFF1B1B28)
+    val cardTop = ComposeColor(0xFF45202A)
+    val cardBottom = ComposeColor(0xFF341D28)
+    val activeTop = ComposeColor(0xFF6B243A)
+    val activeBottom = ComposeColor(0xFF4B202D)
+    val activeAccent = ComposeColor(0xFFFF2B65)
+    val groupTop = ComposeColor(0xFF401E2A)
+    val groupBottom = ComposeColor(0xFF291C26)
+    val ungroupedTop = ComposeColor(0xFF183351)
+    val ungroupedBottom = ComposeColor(0xFF14263E)
+    val blue = ComposeColor(0xFF218EF5)
+    val primaryText = ComposeColor(0xFFF5F0F3)
+    val secondaryText = ComposeColor(0xFFAFA5AD)
+}
+
+/**
+ * One source of geometry for the whole side-drawer list.
+ * H is the measured row height; gaps outside LazyColumn items do not count.
+ * Text keeps usable sp sizes and the subtitle disappears if two lines do not fit.
+ */
+internal data class SideDrawerRowGeometry(
+    val height: Dp,
+    val radius: Dp,
+    val accent: Dp,
+    val imageFrame: Dp,
+    val favicon: Dp,
+    val folderFrame: Dp,
+    val folder: Dp,
+    val chevron: Dp,
+    val action: Dp,
+    val actionIcon: Dp,
+    val leadingGap: Dp,
+    val textGap: Dp,
+    val showSubtitle: Boolean
+)
+
+internal object SideDrawerHeight {
+    const val MIN = 24
+    const val MAX = 112
+    const val STEP = 2
+    const val KEY = "row_height_dp"
+    const val PREFERENCES = "nira_side_drawer_height"
+
+    fun base(landscape: Boolean): Int = if (landscape) 36 else 48
+
+    fun validated(value: Int?): Int? =
+        value?.takeIf { it in MIN..MAX && (it - MIN) % STEP == 0 }
+
+    fun snapped(value: Float): Int =
+        ((kotlin.math.round((value - MIN) / STEP).toInt() * STEP) + MIN)
+            .coerceIn(MIN, MAX)
+
+    fun geometry(heightDp: Int, landscape: Boolean, fontScale: Float): SideDrawerRowGeometry {
+        val height = heightDp.coerceIn(MIN, MAX).toFloat()
+        val ratio = height / base(landscape)
+        fun scaled(value: Float, min: Float, max: Float): Dp =
+            (value * ratio).coerceIn(min, max).coerceAtMost(height - 2f).dp
+        val titleLine = if (landscape) 13f else 15f
+        val subtitleLine = if (landscape) 11f else 13f
+        // Approximate measured line-height in dp via system font scale.
+        // Two lines have a little breathing room; 24 dp is always one line.
+        val secondLineFits = height >=
+            (titleLine + subtitleLine) * fontScale + 4f
+        // Keep both the group title and card title usable when the drawer is
+        // resized to its existing 220 dp minimum and the slider is at 112 dp.
+        // These caps do not affect default 48 dp portrait / 36 dp landscape.
+        return SideDrawerRowGeometry(
+            height = height.dp,
+            radius = scaled(10f, 4f, 18f),
+            accent = scaled(5f, 2f, 7f),
+            imageFrame = scaled(if (landscape) 26f else 33f, 13f, 48f),
+            favicon = scaled(if (landscape) 22f else 28f, 11f, 42f),
+            folderFrame = scaled(if (landscape) 25f else 31f, 13f, 36f),
+            folder = scaled(if (landscape) 19f else 23f, 10f, 30f),
+            chevron = scaled(if (landscape) 16f else 19f, 10f, 20f),
+            action = scaled(if (landscape) 30f else 36f, 16f, 42f),
+            actionIcon = scaled(if (landscape) 17f else 19f, 11f, 27f),
+            leadingGap = scaled(5f, 2f, 6f),
+            textGap = scaled(if (landscape) 7f else 8f, 3f, 9f),
+            showSubtitle = secondLineFits
+        )
+    }
+}
+
 class TabsBottomSheetFragment : DialogFragment() {
 
     private var _binding: FragmentTabsBottomSheetBinding? = null
@@ -116,6 +211,18 @@ class TabsBottomSheetFragment : DialogFragment() {
     private val viewPrefs by lazy {
         requireContext().getSharedPreferences("tabs_view_prefs", android.content.Context.MODE_PRIVATE)
     }
+
+    // Independent of the existing width_portrait / width_landscape preferences.
+    private val sideHeightPrefs by lazy {
+        requireContext().getSharedPreferences(
+            SideDrawerHeight.PREFERENCES, android.content.Context.MODE_PRIVATE
+        )
+    }
+
+    private fun loadSideHeight(): Int? =
+        SideDrawerHeight.validated(
+            runCatching { sideHeightPrefs.getInt(SideDrawerHeight.KEY, -1) }.getOrNull()
+        )
 
     /** ActivityResultLauncher registered at fragment creation time for profile ZIP import. */
     private val importProfileLauncher = registerForActivityResult(
@@ -297,7 +404,15 @@ class TabsBottomSheetFragment : DialogFragment() {
 
         if (isSidePanel) {
             binding.profileButtonContainer.visibility = View.GONE
-            // Keep these capabilities in the full tab manager and toolbar, not in the side drawer.
+            // Only the landscape reference has the pre-existing decorative handle.
+            // This is NOT the horizontal resize grip or a new gesture.
+            binding.dragHandle.visibility = if (resources.configuration.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE) View.VISIBLE else View.GONE
+            (binding.root as ViewGroup).getChildAt(0)?.setBackgroundColor(
+                android.graphics.Color.rgb(21, 21, 28)
+            )
+            // Keep profiles, private mode and search reachable through the
+            // unchanged full manager and toolbar, rather than deleting them.
             (binding.newTabFab.parent?.parent as? View)?.visibility = View.GONE
         }
 
@@ -668,7 +783,11 @@ class TabsBottomSheetFragment : DialogFragment() {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
-        if (isSidePanel) dialog?.window?.setLayout(sidePanelWidth(), ViewGroup.LayoutParams.MATCH_PARENT)
+        if (isSidePanel) {
+            dialog?.window?.setLayout(sidePanelWidth(), ViewGroup.LayoutParams.MATCH_PARENT)
+            binding.dragHandle.visibility = if (newConfig.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE) View.VISIBLE else View.GONE
+        }
     }
 
     override fun onDestroyView() {
@@ -804,6 +923,7 @@ class TabsBottomSheetFragment : DialogFragment() {
 
         // Use Scaffold for proper snackbar positioning
         Scaffold(
+            containerColor = if (isSidePanel) ComposeColor.Transparent else MaterialTheme.colorScheme.surface,
             snackbarHost = {
                 SnackbarHost(
                     hostState = snackbarHostState,
@@ -817,8 +937,104 @@ class TabsBottomSheetFragment : DialogFragment() {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
+                    .then(if (isSidePanel) Modifier
+                        .background(Brush.verticalGradient(listOf(
+                            SideDrawerPalette.backgroundTop,
+                            SideDrawerPalette.backgroundBottom
+                        )))
+                        // Keep the 20 dp edge-resize strip separate from row actions.
+                        .padding(end = 20.dp)
+                        else Modifier)
             ) {
-                // Header: tab count + view mode toggle
+                // Manual override is shared between orientations; when absent,
+                // portrait and landscape retain the independently matched C/D bases.
+                val landscape = LocalConfiguration.current.orientation ==
+                    android.content.res.Configuration.ORIENTATION_LANDSCAPE
+                var manualRowHeight by remember {
+                    mutableStateOf(if (isSidePanel) loadSideHeight() else null)
+                }
+                val effectiveRowHeight = manualRowHeight ?: SideDrawerHeight.base(landscape)
+                var showHeightMenu by remember { mutableStateOf(false) }
+                if (isSidePanel) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(
+                            start = 12.dp, end = 5.dp,
+                            top = if (landscape) 2.dp else 9.dp,
+                            bottom = if (landscape) 3.dp else 7.dp
+                        ),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "Tabs & Groups",
+                                fontSize = if (landscape) 14.sp else 17.sp,
+                                lineHeight = if (landscape) 18.sp else 21.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = SideDrawerPalette.primaryText
+                            )
+                            Text(
+                                "${tabs.size} ${if (tabs.size == 1) "Tab" else "Tabs"}",
+                                fontSize = if (landscape) 10.sp else 12.sp,
+                                lineHeight = if (landscape) 12.sp else 15.sp,
+                                color = SideDrawerPalette.secondaryText
+                            )
+                        }
+                        Box {
+                            IconButton(
+                                onClick = { showHeightMenu = true },
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Tune,
+                                    contentDescription = "Ustawienia wysokości kart i grup",
+                                    tint = SideDrawerPalette.primaryText,
+                                    modifier = Modifier.size(21.dp)
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = showHeightMenu,
+                                onDismissRequest = { showHeightMenu = false },
+                                modifier = Modifier.background(SideDrawerPalette.backgroundBottom)
+                            ) {
+                                Column(Modifier.width(198.dp).padding(horizontal = 10.dp, vertical = 7.dp)) {
+                                    Text(
+                                        "Wysokość kart i grup",
+                                        fontSize = 13.sp,
+                                        color = SideDrawerPalette.primaryText
+                                    )
+                                    Text(
+                                        "$effectiveRowHeight dp",
+                                        fontSize = 12.sp,
+                                        color = SideDrawerPalette.secondaryText
+                                    )
+                                    Slider(
+                                        value = effectiveRowHeight.toFloat(),
+                                        onValueChange = { manualRowHeight = SideDrawerHeight.snapped(it) },
+                                        onValueChangeFinished = {
+                                            manualRowHeight?.let { selected ->
+                                                sideHeightPrefs.edit()
+                                                    .putInt(SideDrawerHeight.KEY, selected).apply()
+                                            }
+                                        },
+                                        valueRange = 24f..112f,
+                                        steps = 43,
+                                        modifier = Modifier.fillMaxWidth().semantics {
+                                            contentDescription = "Wysokość kart i grup w dp"
+                                        }
+                                    )
+                                    TextButton(
+                                        onClick = {
+                                            manualRowHeight = null
+                                            sideHeightPrefs.edit().remove(SideDrawerHeight.KEY).apply()
+                                        },
+                                        enabled = manualRowHeight != null
+                                    ) { Text("Przywróć domyślną") }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                // The normal (non-side) manager keeps its existing header.
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -855,13 +1071,14 @@ class TabsBottomSheetFragment : DialogFragment() {
                     }
                 }
 
+                }
                 // Wrapper Box to hold tabs and menu overlay
                 Box(
                     modifier = Modifier.weight(1f)
                 ) {
                     // Choose view based on grid mode
                     if (isSidePanel) {
-                        CompactSideTabs(viewModel, tabs)
+                        CompactSideTabs(viewModel, tabs, effectiveRowHeight)
                     } else if (isGridView) {
                         TabSheetGridView(
                             viewModel = viewModel,
@@ -930,6 +1147,47 @@ class TabsBottomSheetFragment : DialogFragment() {
                                 .align(androidx.compose.ui.Alignment.BottomCenter)
                                 .fillMaxWidth()
                         )
+                    }
+                }
+                if (isSidePanel) {
+                    val landscape = LocalConfiguration.current.orientation ==
+                        android.content.res.Configuration.ORIENTATION_LANDSCAPE
+                    val footerBrush = if (landscape) {
+                        Brush.horizontalGradient(listOf(
+                            ComposeColor(0xFF8871D9), ComposeColor(0xFF366CF4)
+                        ))
+                    } else {
+                        Brush.horizontalGradient(listOf(
+                            ComposeColor(0xFFC52351), ComposeColor(0xFF7F284A)
+                        ))
+                    }
+                    Box(
+                        // Scaffold's content padding already includes the dialog's
+                        // navigation-bar inset; don't reserve it twice.
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 11.dp, end = 8.dp, top = 9.dp, bottom = 12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(if (landscape) 42.dp else 48.dp)
+                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                                .background(footerBrush)
+                                .clickable {
+                                    addNewTab()
+                                    view?.post { dismiss() }
+                                },
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null,
+                                tint = ComposeColor.White, modifier = Modifier.size(23.dp))
+                            Text("Nowa karta", color = ComposeColor.White,
+                                fontSize = if (landscape) 12.sp else 14.sp,
+                                lineHeight = if (landscape) 16.sp else 18.sp,
+                                modifier = Modifier.padding(start = 8.dp))
+                        }
                     }
                 }
             }
@@ -1008,7 +1266,7 @@ class TabsBottomSheetFragment : DialogFragment() {
      * retains all context-menu actions without a competing gesture.
      */
     @Composable
-    private fun CompactSideTabs(viewModel: TabViewModel, tabs: List<TabSessionState>) {
+    private fun CompactSideTabs(viewModel: TabViewModel, tabs: List<TabSessionState>, rowHeightDp: Int) {
         val publishedGroups by unifiedGroupManager.groupsState.collectAsState()
         val activeProfileId by viewModel.currentProfileId.collectAsState()
         // The ViewModel can briefly lag while a BrowserStore refresh cancels an
@@ -1037,6 +1295,8 @@ class TabsBottomSheetFragment : DialogFragment() {
         var ungroupedName by remember { mutableStateOf("Nowa grupa") }
         var ungroupedExpanded by remember { mutableStateOf(true) }
         val orientation = LocalConfiguration.current.orientation
+        val landscape = orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val rowGeometry = SideDrawerHeight.geometry(rowHeightDp, landscape, LocalDensity.current.fontScale)
         var dragTabId by remember(activeProfileId, orientation) { mutableStateOf<String?>(null) }
         var dragGroupId by remember(activeProfileId, orientation) { mutableStateOf<String?>(null) }
         var dragProfileId by remember(activeProfileId, orientation) { mutableStateOf<String?>(null) }
@@ -1197,7 +1457,8 @@ class TabsBottomSheetFragment : DialogFragment() {
                     listLeftX = it.positionInRoot().x
                     listWidth = it.size.width.toFloat()
                 },
-            contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)
+            contentPadding = PaddingValues(start = 11.dp, end = 8.dp, top = 2.dp, bottom = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             entries.forEach { (kind, id) ->
                 if (kind == "group") {
@@ -1206,10 +1467,18 @@ class TabsBottomSheetFragment : DialogFragment() {
                     if (members.isEmpty()) return@forEach
                     item(key = "group_" + group.id) {
                         var headerRoot by remember(group.id) { mutableStateOf(Offset.Zero) }
-                        Row(
-                            modifier = Modifier.fillMaxWidth().height(44.dp)
+                        DrawerGroupHeader(
+                            title = group.name,
+                            count = members.size,
+                            expanded = group.id in expanded,
+                            ungrouped = false,
+                            hovered = hoveredKey == "group_" + group.id,
+                            geometry = rowGeometry,
+                            onClick = { viewModel.toggleGroupExpanded(group.id) },
+                            onMenu = { groupMenuId = group.id },
+                            dragModifier = Modifier
                                 .onGloballyPositioned { headerRoot = it.positionInRoot() }
-                                .pointerInput(group.id, activeProfileId, orientation) {
+                                .pointerInput(group.id, activeProfileId, orientation, rowHeightDp) {
                                     detectDragGesturesAfterLongPress(
                                         onDragStart = { offset ->
                                             startTestLabDrag(true)
@@ -1224,37 +1493,14 @@ class TabsBottomSheetFragment : DialogFragment() {
                                             moveDrag(headerRoot + change.position)
                                         },
                                         onDragEnd = ::finishDrag,
-                                        onDragCancel = { finishTestLabDrag(OperationOutcome.CANCELLED);dragGroupId = null; hoveredKey = null }
+                                        onDragCancel = {
+                                            finishTestLabDrag(OperationOutcome.CANCELLED)
+                                            dragGroupId = null
+                                            hoveredKey = null
+                                        }
                                     )
                                 }
-                                .background(
-                                    if (hoveredKey == "group_" + group.id)
-                                        MaterialTheme.colorScheme.primaryContainer
-                                    else MaterialTheme.colorScheme.surface
-                                )
-                                .clickable { viewModel.toggleGroupExpanded(group.id) }
-                                .padding(start = 8.dp, end = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                if (group.id in expanded) Icons.Default.KeyboardArrowDown
-                                else Icons.Default.KeyboardArrowRight,
-                                contentDescription = "Rozwiń lub zwiń grupę",
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Text(
-                                text = "(" + members.size + ") " + group.name,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                fontWeight = FontWeight.SemiBold,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f).padding(start = 4.dp)
-                            )
-                            IconButton(onClick = { groupMenuId = group.id }, modifier = Modifier.size(40.dp)) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "Opcje grupy",
-                                    modifier = Modifier.size(20.dp))
-                            }
-                        }
+                        )
                     }
                     if (group.id in expanded) {
                         items(members, key = { "group_tab_" + it.id }) { tab ->
@@ -1263,6 +1509,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                                 selected = tab.id == selectedTabId,
                                 hovered = hoveredKey == "group_tab_" + tab.id,
                                 indent = true,
+                                geometry = rowGeometry,
                                 onClick = { if (dragTabId == null) handleTabClickCompose(tab.id) },
                                 onClose = { handleTabCloseCompose(tab.id) },
                                 onMenu = { handleTabLongPressCompose(tab, true) },
@@ -1282,38 +1529,19 @@ class TabsBottomSheetFragment : DialogFragment() {
                     }
                 } else if (kind == "ungrouped_header") {
                     item(key = "ungrouped_header") {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().height(44.dp)
-                                .background(MaterialTheme.colorScheme.surface)
-                                .padding(start = 8.dp, end = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(
-                                onClick = { ungroupedExpanded = !ungroupedExpanded },
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(
-                                    if (ungroupedExpanded) Icons.Default.KeyboardArrowDown
-                                    else Icons.Default.KeyboardArrowRight,
-                                    contentDescription = "Rozwiń lub zwiń karty bez grupy"
-                                )
+                        DrawerGroupHeader(
+                            title = "Bez grupy",
+                            count = ungroupedTabs.size,
+                            expanded = ungroupedExpanded,
+                            ungrouped = true,
+                            hovered = hoveredKey == "ungrouped_header",
+                            geometry = rowGeometry,
+                            onClick = { ungroupedExpanded = !ungroupedExpanded },
+                            onMenu = {
+                                ungroupedName = "Nowa grupa"
+                                showNameUngroupedDialog = true
                             }
-                            Text(
-                                text = "(${ungroupedTabs.size}) Bez grupy",
-                                fontWeight = FontWeight.SemiBold,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f)
-                            )
-                            IconButton(
-                                onClick = {
-                                    ungroupedName = "Nowa grupa"
-                                    showNameUngroupedDialog = true
-                                },
-                                modifier = Modifier.size(40.dp)
-                            ) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "Nazwij i utwórz grupę")
-                            }
-                        }
+                        )
                     }
                 } else if (ungroupedExpanded) {
                     val tab = tabsById[id] ?: return@forEach
@@ -1323,6 +1551,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                     selected = tab.id == selectedTabId,
                     hovered = hoveredKey == "single_tab_" + tab.id,
                     indent = false,
+                    geometry = rowGeometry,
                     onClick = { if (dragTabId == null) handleTabClickCompose(tab.id) },
                     onClose = { handleTabCloseCompose(tab.id) },
                     onMenu = { handleTabLongPressCompose(tab, false) },
@@ -1348,7 +1577,7 @@ class TabsBottomSheetFragment : DialogFragment() {
         if (draggedGroup != null) {
             Surface(
                 modifier = Modifier.fillMaxWidth().offset {
-                    IntOffset(0, (dragY - 22f * density).roundToInt())
+                    IntOffset(0, (dragY - rowHeightDp * density / 2f).roundToInt())
                 },
                 shadowElevation = 8.dp,
                 color = MaterialTheme.colorScheme.primaryContainer
@@ -1362,23 +1591,27 @@ class TabsBottomSheetFragment : DialogFragment() {
                 modifier = Modifier
                     .fillMaxWidth()
                     .offset {
-                        IntOffset(0, (dragY - 23f * density).roundToInt())
+                        IntOffset(0, (dragY - rowHeightDp * density / 2f).roundToInt())
                     }
                     .padding(horizontal = 8.dp),
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                color = SideDrawerPalette.cardTop,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
                 shadowElevation = 10.dp
             ) {
                 Row(
-                    Modifier.height(46.dp).padding(horizontal = 12.dp),
+                    Modifier.height(rowGeometry.height)
+                        .padding(horizontal = 7.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.DragHandle, contentDescription = null)
+                    com.prirai.android.nira.browser.tabs.compose.FaviconImage(
+                        tab = draggedTab, size = rowGeometry.favicon
+                    )
                     Text(
                         draggedTab.content.title.ifBlank { "Nowa karta" },
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(start = 10.dp)
+                        modifier = Modifier.padding(start = 10.dp),
+                        color = SideDrawerPalette.primaryText
                     )
                 }
             }
@@ -1438,12 +1671,95 @@ class TabsBottomSheetFragment : DialogFragment() {
     }
 
     @Composable
+    private fun DrawerGroupHeader(
+        title: String,
+        count: Int,
+        expanded: Boolean,
+        ungrouped: Boolean,
+        hovered: Boolean,
+        geometry: SideDrawerRowGeometry,
+        onClick: () -> Unit,
+        onMenu: () -> Unit,
+        dragModifier: Modifier = Modifier
+    ) {
+        val landscape = LocalConfiguration.current.orientation ==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val accent = if (ungrouped) SideDrawerPalette.blue else SideDrawerPalette.activeAccent
+        val background = if (ungrouped) {
+            Brush.horizontalGradient(listOf(
+                SideDrawerPalette.ungroupedTop, SideDrawerPalette.ungroupedBottom
+            ))
+        } else {
+            Brush.horizontalGradient(listOf(
+                SideDrawerPalette.groupTop, SideDrawerPalette.groupBottom
+            ))
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().height(geometry.height)
+                .then(dragModifier)
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(geometry.radius))
+                .background(background)
+                .then(if (hovered) Modifier.border(
+                    1.dp, accent, androidx.compose.foundation.shape.RoundedCornerShape(geometry.radius)
+                ) else Modifier)
+                .clickable(onClick = onClick)
+                .semantics {
+                    contentDescription = "$title, $count kart, ${if (expanded) "rozwinięta" else "zwinięta"}"
+                }
+                .padding(start = geometry.leadingGap, end = 1.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                if (expanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowRight,
+                contentDescription = if (expanded) "Zwiń grupę" else "Rozwiń grupę",
+                tint = accent,
+                modifier = Modifier.size(geometry.chevron)
+            )
+            Box(
+                Modifier.padding(start = geometry.leadingGap).size(geometry.folderFrame)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(geometry.radius * 0.7f))
+                    .background(accent.copy(alpha = 0.13f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Folder, contentDescription = null, tint = accent,
+                    modifier = Modifier.size(geometry.folder))
+            }
+            Column(
+                Modifier.weight(1f).padding(start = geometry.textGap),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(title, color = SideDrawerPalette.primaryText,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = if (landscape) 11.sp else 13.sp,
+                    lineHeight = if (landscape) 13.sp else 16.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (geometry.showSubtitle) {
+                    Text("$count ${if (count == 1) "karta" else if (count in 2..4) "karty" else "kart"}",
+                        color = SideDrawerPalette.secondaryText,
+                        fontSize = if (landscape) 9.sp else 10.sp,
+                        lineHeight = if (landscape) 11.sp else 13.sp,
+                        maxLines = 1)
+                }
+            }
+            Box(
+                Modifier.size(geometry.action).clickable(onClick = onMenu),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.MoreVert, contentDescription = "Opcje grupy $title",
+                    tint = SideDrawerPalette.primaryText,
+                    modifier = Modifier.size(geometry.actionIcon))
+            }
+        }
+    }
+
+    @Composable
     private fun CompactSideTabRow(
         tab: TabSessionState,
         ordinal: Int,
         selected: Boolean,
         hovered: Boolean,
         indent: Boolean,
+        geometry: SideDrawerRowGeometry,
         onClick: () -> Unit,
         onClose: () -> Unit,
         onMenu: () -> Unit,
@@ -1452,90 +1768,119 @@ class TabsBottomSheetFragment : DialogFragment() {
         onDragFinish: () -> Unit,
         onDragCancel: () -> Unit
     ) {
+        // Retain the existing row API, but never draw numbering absent from C/D.
+        @Suppress("UNUSED_VARIABLE")
+        val unusedOrdinal = ordinal
         var rowOrigin by remember { mutableStateOf(Offset.Zero) }
-        var handleOrigin by remember { mutableStateOf(Offset.Zero) }
-        val rowOrientation = LocalConfiguration.current.orientation
+        val orientation = LocalConfiguration.current.orientation
+        val landscape = orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
         val haptic = LocalHapticFeedback.current
         val currentStart by rememberUpdatedState(onDragStart)
         val currentMove by rememberUpdatedState(onDragMove)
         val currentFinish by rememberUpdatedState(onDragFinish)
         val currentCancel by rememberUpdatedState(onDragCancel)
-        Surface(
-            color = when {
-                hovered || selected -> MaterialTheme.colorScheme.primaryContainer
-                else -> MaterialTheme.colorScheme.surface
-            },
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(5.dp)
+        val rowShape = androidx.compose.foundation.shape.RoundedCornerShape(geometry.radius)
+        val rowBrush = Brush.horizontalGradient(
+            if (selected) listOf(SideDrawerPalette.activeTop, SideDrawerPalette.activeBottom)
+            else listOf(SideDrawerPalette.cardTop, SideDrawerPalette.cardBottom)
+        )
+        val host = remember(tab.content.url) {
+            runCatching { android.net.Uri.parse(tab.content.url).host }.getOrNull()
+                ?.removePrefix("www.")
+                ?: tab.content.url.takeIf { it.startsWith("about:") }.orEmpty()
+        }
+        val imageSize = geometry.imageFrame
+        Row(
+            modifier = Modifier.fillMaxWidth()
+                .height(geometry.height)
+                .clip(rowShape)
+                .background(rowBrush)
+                .then(if (selected || hovered) Modifier.border(
+                    1.dp,
+                    if (selected) SideDrawerPalette.activeAccent.copy(alpha = 0.55f)
+                    else SideDrawerPalette.activeAccent.copy(alpha = 0.32f),
+                    rowShape
+                ) else Modifier)
+                .onGloballyPositioned { rowOrigin = it.positionInRoot() }
+                .clickable(onClick = onClick)
+                .semantics {
+                    contentDescription = "Karta ${tab.content.title.ifBlank { "Nowa karta" }}, $host"
+                }
+                .pointerInput(tab.id, orientation, geometry.height) {
+                    detectDragGesturesAfterLongPress(
+                        onDragStart = { offset ->
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            currentStart(rowOrigin + offset)
+                        },
+                        onDrag = { change, _ ->
+                            change.consume()
+                            currentMove(rowOrigin + change.position)
+                        },
+                        onDragEnd = { currentFinish() },
+                        onDragCancel = { currentCancel() }
+                    )
+                }
+                .padding(end = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().height(46.dp)
-                    .onGloballyPositioned { rowOrigin = it.positionInRoot() }
-                    .clickable(onClick = onClick)
-                    // Attach the long-press recognizer on the inside of click:
-                    // normal taps still select; holding the row starts a drag.
-                    .pointerInput(tab.id, rowOrientation) {
-                        detectDragGesturesAfterLongPress(
-                            onDragStart = { offset ->
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                currentStart(rowOrigin + offset)
-                            },
-                            onDrag = { change, amount ->
-                                change.consume()
-                                currentMove(rowOrigin + change.position)
-                            },
-                            onDragEnd = { currentFinish() },
-                            onDragCancel = { currentCancel() }
-                        )
-                    }
-                    .padding(start = if (indent) 12.dp else 3.dp, end = 1.dp),
-                verticalAlignment = Alignment.CenterVertically
+            if (selected) {
+                Box(Modifier.width(geometry.accent).fillMaxHeight()
+                    .background(Brush.verticalGradient(listOf(
+                        SideDrawerPalette.activeAccent,
+                        ComposeColor(0xFFDE174A)
+                    ))))
+            } else {
+                Spacer(Modifier.width(geometry.accent))
+            }
+            Spacer(Modifier.width(
+                if (indent) geometry.leadingGap + 2.dp else geometry.leadingGap
+            ))
+            // Favicon/thumbnail is also the unobtrusive context-menu entry point.
+            // Long-press on the REST of the row still starts the original reorder.
+            Box(
+                modifier = Modifier.size(imageSize)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(geometry.radius * 0.6f))
+                    .background(ComposeColor.White.copy(alpha = 0.08f))
+                    .semantics { contentDescription = "Opcje karty: ${tab.content.title}" }
+                    .clickable(onClick = onMenu),
+                contentAlignment = Alignment.Center
+            ) {
+                if (selected) {
+                    com.prirai.android.nira.browser.tabs.compose.ThumbnailImageView(
+                        tab = tab, modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    com.prirai.android.nira.browser.tabs.compose.FaviconImage(
+                        tab = tab, size = geometry.favicon
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier.weight(1f).padding(start = geometry.textGap),
+                verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = ordinal.toString() + ".",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.width(23.dp)
-                )
-                // A dedicated handle also works when children (including
-                // menu/close buttons) consume their own touch sequences.
-                Icon(
-                    Icons.Default.DragHandle,
-                    contentDescription = "Przytrzymaj i przeciągnij kartę",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(30.dp)
-                        .onGloballyPositioned { handleOrigin = it.positionInRoot() }
-                        .pointerInput(tab.id, rowOrientation) {
-                        detectDragGesturesAfterLongPress(
-                            onDragStart = { offset ->
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                currentStart(handleOrigin + offset)
-                            },
-                            onDrag = { change, amount ->
-                                change.consume()
-                                currentMove(handleOrigin + change.position)
-                            },
-                            onDragEnd = { currentFinish() },
-                            onDragCancel = { currentCancel() }
-                        )
-                        }
-                )
-                com.prirai.android.nira.browser.tabs.compose.FaviconImage(tab = tab, size = 21.dp)
-                Text(
                     text = tab.content.title.ifBlank { "Nowa karta" },
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f).padding(start = 8.dp)
+                    color = SideDrawerPalette.primaryText,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                    fontSize = if (landscape) 11.sp else 12.sp,
+                    lineHeight = if (landscape) 13.sp else 15.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
-                IconButton(onClick = onMenu, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "Opcje karty",
-                        modifier = Modifier.size(19.dp))
+                if (host.isNotBlank() && geometry.showSubtitle) {
+                    Text(host, color = SideDrawerPalette.secondaryText,
+                        fontSize = if (landscape) 9.sp else 10.sp,
+                        lineHeight = if (landscape) 11.sp else 13.sp,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                IconButton(onClick = onClose, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Default.Close, contentDescription = "Zamknij kartę",
-                        modifier = Modifier.size(21.dp))
-                }
+            }
+            Box(
+                Modifier.size(geometry.action).clickable(onClick = onClose),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Close, contentDescription = "Zamknij kartę",
+                    tint = SideDrawerPalette.primaryText.copy(alpha = 0.8f),
+                    modifier = Modifier.size(geometry.actionIcon))
             }
         }
     }
