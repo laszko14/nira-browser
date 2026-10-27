@@ -35,6 +35,10 @@ internal class MediaEntry(
     val httpStatus: Int? = null,
     val frameAmbiguous: Boolean = false,
     val frameKey: Long? = null,
+    val sizeEstimated: Boolean = false,
+    val durationOrigin: String? = null,
+    val sizeOrigin: String? = null,
+    val isLive: Boolean = false,
 ) {
     override fun toString(): String = "MediaEntry(format=$format, sources=$sources, url=<redacted>)"
 }
@@ -101,6 +105,10 @@ internal class MediaRepository(
         var titleKind: String? = null
         var durationSeconds: Int? = null
         var sizeBytes: Long? = null
+        var sizeEstimated = false
+        var durationOrigin: String? = null
+        var sizeOrigin: String? = null
+        var isLive = false
         var posterUrl: String? = null
         var quality: String? = null
         var bitrate: Long? = null
@@ -129,12 +137,39 @@ internal class MediaRepository(
             }
             if (candidate.posterUrl != null && candidate.source != MediaSource.NETWORK)
                 posterUrl = candidate.posterUrl
-            if (candidate.durationSeconds != null) durationSeconds = candidate.durationSeconds
+            if (candidate.isLive == true) {
+                isLive = true
+                durationSeconds = null
+                durationOrigin = "LIVE"
+                if (sizeEstimated) { sizeBytes = null; sizeEstimated = false; sizeOrigin = null }
+            } else if (candidate.isLive == false) {
+                isLive = false
+            }
+            if (!isLive && candidate.durationSeconds != null) {
+                durationSeconds = candidate.durationSeconds
+                durationOrigin = if (candidate.source == MediaSource.NETWORK &&
+                    candidate.verification == "manifest_verified") {
+                    if (format == MediaFormat.HLS) "HLS_EXTINF" else "DASH_MPD"
+                } else "HTML5"
+            }
             if (candidate.source == MediaSource.NETWORK &&
                 format !in setOf(MediaFormat.HLS, MediaFormat.DASH) &&
-                candidate.sizeBytes != null) sizeBytes = candidate.sizeBytes
+                candidate.sizeBytes != null) {
+                sizeBytes = candidate.sizeBytes
+                sizeEstimated = false
+                sizeOrigin = "HTTP_LENGTH"
+            }
             if (candidate.quality != null) quality = candidate.quality
             if (candidate.bitrate != null) bitrate = candidate.bitrate
+            if (!isLive && format in setOf(MediaFormat.HLS, MediaFormat.DASH) &&
+                durationSeconds != null && bitrate != null) {
+                val estimate = bitrate!! * durationSeconds!!.toLong() / 8L
+                if (estimate in 1L..1_000_000_000_000L) {
+                    sizeBytes = estimate
+                    sizeEstimated = true
+                    sizeOrigin = "MANIFEST_BITRATE"
+                }
+            }
             if (candidate.codecs != null) codecs = candidate.codecs
             if (candidate.frameUrl != null) frameUrl = candidate.frameUrl
             if (candidate.httpStatus != null) httpStatus = candidate.httpStatus
@@ -160,7 +195,8 @@ internal class MediaRepository(
             if (network) add(MediaSource.NETWORK)
         }, groupId, title, titleKind, durationSeconds, sizeBytes, posterUrl,
             quality, bitrate, codecs, revisions.size.coerceAtLeast(1), frameUrl,
-            playbackStatus, httpStatus, ambiguous, frameKey)
+            playbackStatus, httpStatus, ambiguous, frameKey,
+            sizeEstimated, durationOrigin, sizeOrigin, isLive)
     }
 
     private class FrameBinding(val id: Long, val key: Long, val url: String, var active: Boolean)
