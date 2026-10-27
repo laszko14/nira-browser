@@ -1,0 +1,131 @@
+name: Zavro Isolated Signed ARM64 APK Validation
+on:
+  push:
+    branches:
+      - tools/zavro-development-system-stage1-20261027
+    paths:
+      - 'devtools/sandbox-build-probes/*.json'
+permissions: {}
+concurrency:
+  group: zavro-sandbox-signed-clean-1175-once
+  cancel-in-progress: false
+jobs:
+  preflight:
+    if: github.repository == 'laszko14/nira-browser' && github.actor == 'laszko14'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      approved_sha: ${{ github.sha }}
+      valid: ${{ steps.check.outputs.valid }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Validate one-time sandbox build request
+        id: check
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {execFileSync} from 'node:child_process';
+          import {readFileSync,appendFileSync} from 'node:fs';
+          const env=process.env;
+          if(env.GITHUB_ACTOR!=='laszko14'||env.GITHUB_REPOSITORY!=='laszko14/nira-browser'||
+             env.GITHUB_REF!=='refs/heads/tools/zavro-development-system-stage1-20261027'||
+             !/^[a-f0-9]{40}$/.test(env.BEFORE_SHA||'')||!/^[a-f0-9]{40}$/.test(env.GITHUB_SHA||''))
+             throw Error('BAD_EVENT');
+          const diff=execFileSync('git',['diff','--name-status','--no-renames',env.BEFORE_SHA,env.GITHUB_SHA],{encoding:'utf8'}).trim().split('\n');
+          if(diff.length!==1||diff[0]!=='A\tdevtools/sandbox-build-probes/clean-1175-20261027-01.json')
+            throw Error('UNEXPECTED_REQUEST_DIFF');
+          const actual=JSON.parse(readFileSync('devtools/sandbox-build-probes/clean-1175-20261027-01.json','utf8'));
+          const expected={schema_version:1,kind:'signed-sandbox-build',repo:'laszko14/nira-browser',
+            variant:'clean',branch:'tools/zavro-edit-clean-20261027',sha:'d9c233bbf886d3fb2d320fe118f1d2768ca46092',
+            version_code:1175,version_name:'0.5.22-alpha80-clean-sandbox',package:'com.prirai.android.nira.debug',
+            abi:'arm64-v8a',approval:'USER_AUTHORIZED_SANDBOX_TEST_BUILD_20261027',release:false};
+          if(Object.keys(actual).sort().join(',')!==Object.keys(expected).sort().join(',')||
+             Object.keys(expected).some(k=>actual[k]!==expected[k]))
+             throw Error('REQUEST_NOT_AUTHORIZED');
+          appendFileSync(env.GITHUB_OUTPUT,'valid=true\nsha='+expected.sha+'\n');
+          console.log('SANDBOX_BUILD_REQUEST_VALID (preflight only)');
+          NODE
+          test "$(gh api 'repos/laszko14/nira-browser/git/ref/heads/tools/zavro-edit-clean-20261027' --jq '.object.sha')" = 'd9c233bbf886d3fb2d320fe118f1d2768ca46092'
+          gh api 'repos/laszko14/nira-browser/compare/3330a0b3a057008886fde392f788a1941e0dfb84...d9c233bbf886d3fb2d320fe118f1d2768ca46092' > "$RUNNER_TEMP/diff.json"
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const x=JSON.parse(readFileSync(process.env.RUNNER_TEMP+'/diff.json','utf8'));
+          const allow=new Set(['app/build.gradle','app/src/main/java/com/prirai/android/nira/media/MediaRecentDeduplicator.kt',
+            'app/src/test/java/com/prirai/android/nira/media/MediaRecentDeduplicatorTest.kt',
+            'app/src/test/java/com/prirai/android/nira/devtools/ZavroEditorSmokeTest.kt']);
+          if(x.status!=='ahead'||x.files?.length!==4||!x.files.every(f=>allow.has(f.filename)))
+            throw Error('SANDBOX_CHANGED_FILES');
+          console.log('SANDBOX_EXACT_DIFF_PASS');
+          NODE
+  build:
+    needs: preflight
+    # Both explicit user build permission and independent repository owner setting required.
+    if: needs.preflight.result == 'success' && needs.preflight.outputs.valid == 'true' && vars.ZAVRO_ALLOW_SIGNED_BUILD_DISPATCH == 'ENABLED_BY_REPOSITORY_OWNER'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: d9c233bbf886d3fb2d320fe118f1d2768ca46092
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Validate Gradle wrapper
+        uses: gradle/wrapper-validation-action@v2
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Confirm sandbox version and commit
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 'd9c233bbf886d3fb2d320fe118f1d2768ca46092'
+          grep -Fq 'versionCode = 175' app/build.gradle
+          grep -Fq 'versionName = "0.5.22-alpha80-clean-sandbox"' app/build.gradle
+      - name: Build signed single ARM64 test APK; check package, version and certificate
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in ANDROID_KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            [ -n "${!key:-}" ] || { echo "::error::Missing $key"; exit 1; }
+          done
+          store="$RUNNER_TEMP/update.p12"
+          trap 'rm -f "$store"' EXIT
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$store"
+          chmod 600 "$store"
+          export NIRA_SIGNING_STORE_FILE="$store"
+          export NIRA_SIGNING_STORE_PASSWORD="$KEYSTORE_PASSWORD"
+          export NIRA_SIGNING_KEY_ALIAS="$KEY_ALIAS"
+          export NIRA_SIGNING_KEY_PASSWORD="$KEY_PASSWORD"
+          ./gradlew :app:assembleDebug --console=plain --no-daemon --max-workers=2
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/debug/*arm64-v8a*.apk)
+          [ "${#apks[@]}" -eq 1 ] || { echo 'Expected exactly one ARM64 APK'; exit 1; }
+          bash scripts/verify-update-apk.sh "${apks[0]}" com.prirai.android.nira.debug 1175 0.5.22-alpha80-clean-sandbox \
+            df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
+          sha256sum "${apks[0]}" > "$RUNNER_TEMP/sandbox-apk.sha256"
+          echo 'SANDBOX_SIGNED_APK_VERIFIED (not released)' >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload only stable-signed ARM64 sandbox APK without Release
+        uses: actions/upload-artifact@v4
+        with:
+          name: zavro-clean-sandbox-arm64-v1175-update-test
+          path: app/build/outputs/apk/debug/*arm64-v8a*.apk
+          if-no-files-found: error
+          retention-days: 14
