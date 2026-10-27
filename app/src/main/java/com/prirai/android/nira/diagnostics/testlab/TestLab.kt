@@ -71,6 +71,9 @@ internal object TestLab {
     fun observedMedia(binding:MediaSessionBinding,entry:MediaEntry,verifiedEvidence:Boolean=false){
         runtime?.mediaObserver?.entry(binding,entry,verifiedEvidence)
     }
+    fun mediaPanelSnapshot(binding:MediaSessionBinding,entries:List<MediaEntry>){
+        runtime?.mediaObserver?.panelSnapshot(binding,entries)
+    }
     fun mediaCandidate(){runtime?.mediaObserver?.candidate()}
     fun mediaFunnelConflict(kind:MediaFunnelConflict){runtime?.mediaObserver?.conflict(kind)}
     fun mediaDisplayed(binding:MediaSessionBinding,entry:MediaEntry){runtime?.mediaObserver?.displayed(binding,entry)}
