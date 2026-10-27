@@ -96,7 +96,7 @@ object TestLabReportGenerator {
                 LabCode.DETECTOR_QUEUE_NATIVE_RETRY,LabCode.DETECTOR_QUEUE_NATIVE_REJECT,
                 LabCode.DETECTOR_QUEUE_DOM_ROOTS,LabCode.DETECTOR_QUEUE_EARLY_EVICT,
                 LabCode.DETECTOR_QUEUE_NETWORK_RATE,LabCode.DETECTOR_QUEUE_MANIFEST_CAPACITY,
-                LabCode.DETECTOR_QUEUE_ANDROID_RATE).forEach { appendLine("$it=${r.eventCounts[it] ?: 0}") }
+                LabCode.DETECTOR_QUEUE_ANDROID_RATE,LabCode.DETECTOR_QUEUE_TITLE_CANDIDATE_DROPPED).forEach { appendLine("$it=${r.eventCounts[it] ?: 0}") }
             appendLine("QUEUE_LIMIT jest sumą wielu przyczyn. Odmowa wysłania ≠ potwierdzona utrata tytułu; ograniczenia webRequest nie pozwalają przypisać wszystkich zdarzeń do filmu.")
         }
         val m = r.resourceMetrics
