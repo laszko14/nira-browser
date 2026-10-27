@@ -30,7 +30,7 @@
     "mpv": {
       "reference_branch": "feat/zavro-x-mpv-v1167-reference-video-panel",
       "reference_sha": "d63f414acecae84c3507c3f4bb998e690281b91e",
-      "application_id_debug": "com.prirai.android.nira.mpv.debug",
+      "application_id_debug": "com.prirai.android.nira.mpv",
       "apk_abi": "arm64-v8a"
     }
   },

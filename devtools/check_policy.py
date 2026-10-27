@@ -57,7 +57,7 @@ def validate(policy):
     if not isinstance(targets, dict) or set(targets) != {"clean", "mpv"}:
         raise PolicyError("expected exactly two isolated targets")
     ids = {"clean": "com.prirai.android.nira.debug",
-           "mpv": "com.prirai.android.nira.mpv.debug"}
+           "mpv": "com.prirai.android.nira.mpv"}
     for name, target in targets.items():
         if not isinstance(target, dict):
             raise PolicyError("invalid target")

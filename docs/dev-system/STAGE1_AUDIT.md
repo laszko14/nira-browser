@@ -34,3 +34,6 @@
 - Download was unavailable from the local sandbox network; locally reconstructed files were verified byte-for-byte against their GitHub blob SHA (checker cf77389e90fddb34c63a3e2bcad3ed048d2372b8, tests 90af2b3393c7aa550c78db5e50a6b963b3d6b473, policy 9cbc252c09dfd5ccabf37aeedcaeaabd537786f1).
 - Ran actual Python 3 checker successfully; seven offline unittest cases **7/7 PASS** and `py_compile` PASS. No Android code or build executed. GitHub compare vs pinned main shows exactly eight new files, all under `docs/dev-system/` or `devtools/`; branch-specific Actions count **0**.
 - This is an implemented, tested *read-only policy baseline*, not a production-enabled controller or native security boundary. Runtime permission enforcement and dispatch remain stages 2–3.
+
+### Correction discovered in Stage 2
+The MPV v1167 Gradle debug build explicitly has **no .debug suffix**, so the correct package is `com.prirai.android.nira.mpv` (not `com.prirai.android.nira.mpv.debug`). Stage 2 corrected the stage-1 read-only policy and validator before defining build targets. No APK, signing key or product code was changed.

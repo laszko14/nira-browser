@@ -14,3 +14,7 @@ The validator refuses enabling dispatch, merge, release, force push or mutations
 Next stage begins ONLY after the human message `Dalej`. Check `docs/dev-system/CHECKPOINT.json`, refresh GitHub branch refs and confirm every test and commit. Do not silently reuse the stale target SHAs.
 
 Rollback: stop using the isolated `tools/zavro-development-system-stage1-20261027` branch. Do not delete or modify other branches.
+
+
+## Stage 2 Build Control
+See `docs/dev-system/BUILD_CONTROL_STAGE2.md`. The new controller is read-only, validates both variants and blocks dispatch unconditionally. Execute Node 22 tests with `node --test devtools/tests/build-control.test.mjs`.
