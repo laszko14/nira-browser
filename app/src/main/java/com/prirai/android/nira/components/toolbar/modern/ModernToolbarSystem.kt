@@ -218,7 +218,13 @@ class ModernToolbarSystem @JvmOverloads constructor(
                     if (!cancelled) {
                         offsetAnimating = false
                         animatedTargetOffset = null
-                        if (currentOffset != target) setToolbarOffset(target)
+                        // The last animation frame may already reach 'target'.
+                        // We STILL must notify the fragment after offsetAnimating
+                        // becomes false: BrowserFragment swaps its temporary
+                        // swipeRefresh.translationY back to an actual top margin
+                        // only on this non-animating callback. Skipping it leaves
+                        // a permanent blank band below GeckoView after scroll.
+                        setToolbarOffset(target)
                         capture?.end(measurement,proof=CompletionProof.ANIMATOR_END)
                     }
                 }
