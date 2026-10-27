@@ -68,6 +68,23 @@ class VideoMetadataV1174Test {
         assertNull(sizeText(result))
     }
 
+    @Test fun liveTransitionClearsOldVodBytes() {
+        val (repo,tab)=repo()
+        val url="https://cdn.example/switch.m3u8"
+        val media=MediaClassifier.fromNetwork(MediaDetectorMessage.Candidate(url,
+            source=MediaSource.NETWORK),binding)!!
+        val vod=MediaDetectorMessage.Candidate(url,source=MediaSource.NETWORK,
+            isLive=false,durationSeconds=30,sizeBytes=3_000_000,
+            verification="manifest_verified")
+        repo.add(tab,page,1,media,MediaSource.NETWORK,metadata=vod)
+        assertEquals(3_000_000L,repo.currentEntries(tab).single().sizeBytes)
+        val live=MediaDetectorMessage.Candidate(url,source=MediaSource.NETWORK,
+            isLive=true,verification="manifest_verified")
+        repo.add(tab,page,1,media,MediaSource.NETWORK,metadata=live)
+        assertNull(repo.currentEntries(tab).single().sizeBytes)
+        assertTrue(repo.currentEntries(tab).single().isLive)
+    }
+
     @Test fun networkManifestDurationRequiresExplicitLiveBoolean() {
         fun decode(s:String)=MediaMessageProtocol.decode(
             """{"schemaVersion":1,"event":"media_candidate","source":"network",
