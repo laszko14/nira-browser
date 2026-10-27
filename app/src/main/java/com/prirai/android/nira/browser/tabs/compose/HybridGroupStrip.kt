@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -120,7 +121,7 @@ private fun GroupChip(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    val palette = groupColor?.let { TabGroupTones.forGroup(it.value.toRawBits()) }
+    val palette = groupColor?.let { TabGroupTones.forGroup(it.toArgb()) }
     val accent = palette?.let { Color(it.accent) } ?: MaterialTheme.colorScheme.primary
     Surface(
         modifier = Modifier
