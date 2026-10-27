@@ -1,0 +1,100 @@
+name: Zavro ChatGPT Build Bridge
+on:
+  push:
+    branches:
+      - tools/zavro-development-system-stage1-20261027
+    paths:
+      - 'devtools/build-requests/*.json'
+
+permissions: {}
+concurrency:
+  group: zavro-chat-build-control
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    if: github.repository == 'laszko14/nira-browser' && github.actor == 'laszko14'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      status: ${{ steps.request.outputs.status }}
+      variant: ${{ steps.request.outputs.variant }}
+      sha: ${{ steps.request.outputs.sha }}
+      branch: ${{ steps.request.outputs.branch }}
+      package: ${{ steps.request.outputs.package }}
+      version_code: ${{ steps.request.outputs.version_code }}
+      version_name: ${{ steps.request.outputs.version_name }}
+      certificate_sha256: ${{ steps.request.outputs.certificate_sha256 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Validate exactly one approved, pinned build request
+        id: request
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: node devtools/build-request-validator.mjs
+      - name: Verify target HEAD and signed Android workflow (read-only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ steps.request.outputs.sha }}
+          TARGET_BRANCH: ${{ steps.request.outputs.branch }}
+          EXPECTED_PACKAGE: ${{ steps.request.outputs.package }}
+          EXPECTED_VERSION: ${{ steps.request.outputs.version_code }}
+          EXPECTED_NAME: ${{ steps.request.outputs.version_name }}
+          EXPECTED_CERT: ${{ steps.request.outputs.certificate_sha256 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ "$(gh api "repos/laszko14/nira-browser/git/ref/heads/$TARGET_BRANCH" --jq '.object.sha')" = "$TARGET_SHA" ]
+          gh api "repos/laszko14/nira-browser/contents/.github/workflows/apk-release.yml?ref=$TARGET_SHA" --jq '.content' | base64 --decode > "$RUNNER_TEMP/target-workflow.yml"
+          grep -Fq 'workflow_dispatch:' "$RUNNER_TEMP/target-workflow.yml"
+          grep -Fq 'assembleDebug' "$RUNNER_TEMP/target-workflow.yml"
+          grep -Fq 'verify-update-apk.sh' "$RUNNER_TEMP/target-workflow.yml"
+          grep -Fq 'arm64-v8a' "$RUNNER_TEMP/target-workflow.yml"
+          grep -Fq "EXPECTED_PACKAGE: $EXPECTED_PACKAGE" "$RUNNER_TEMP/target-workflow.yml"
+          grep -Fq "EXPECTED_VERSION_CODE: \"$EXPECTED_VERSION\"" "$RUNNER_TEMP/target-workflow.yml"
+          grep -Fq "EXPECTED_VERSION_NAME: $EXPECTED_NAME" "$RUNNER_TEMP/target-workflow.yml"
+          grep -Fq "EXPECTED_CERT_SHA256: $EXPECTED_CERT" "$RUNNER_TEMP/target-workflow.yml"
+          grep -Fq "startsWith(github.ref, 'refs/tags/v')" "$RUNNER_TEMP/target-workflow.yml"
+          grep -Fq "inputs.tag != ''" "$RUNNER_TEMP/target-workflow.yml"
+          existing="$(gh api "repos/laszko14/nira-browser/actions/workflows/apk-release.yml/runs?head_sha=$TARGET_SHA&event=workflow_dispatch&per_page=100" --jq '.workflow_runs | length')"
+          [ "$existing" -eq 0 ] || { echo 'Existing dispatch requires manual review'; exit 1; }
+          echo 'ZAVRO_PREFLIGHT_PASS (no build yet)' >> "$GITHUB_STEP_SUMMARY"
+
+  dispatch:
+    needs: preflight
+    if: needs.preflight.result == 'success' && needs.preflight.outputs.status == 'ready'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TARGET_SHA: ${{ needs.preflight.outputs.sha }}
+      TARGET_BRANCH: ${{ needs.preflight.outputs.branch }}
+      VARIANT: ${{ needs.preflight.outputs.variant }}
+    steps:
+      - name: Check SHA again; create one immutable build tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ "$(gh api "repos/laszko14/nira-browser/git/ref/heads/$TARGET_BRANCH" --jq '.object.sha')" = "$TARGET_SHA" ]
+          tag="zavro-build-$VARIANT-$TARGET_SHA"
+          if gh api "repos/laszko14/nira-browser/git/ref/tags/$tag" >/dev/null 2>&1; then
+            echo 'Build tag already exists; refusing duplicate dispatch'
+            exit 1
+          fi
+          gh api -X POST 'repos/laszko14/nira-browser/git/refs' -f ref="refs/tags/$tag" -f sha="$TARGET_SHA" --silent
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+      - name: Dispatch original CI using immutable non-release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api -X POST 'repos/laszko14/nira-browser/actions/workflows/apk-release.yml/dispatches' -f ref="$TAG" --silent
+          echo "Requested signed ARM64 CI on tag $TAG (not a release tag)" >> "$GITHUB_STEP_SUMMARY"
