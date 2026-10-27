@@ -4,15 +4,15 @@ import kotlinx.serialization.Serializable
 
 @Serializable enum class LabDomain { UI, PANELS, TABS, GECKO, VIDEO, RESOURCES, STABILITY }
 @Serializable enum class TestType {
-    COMPLEX, PANELS_GESTURES, TABS_GROUPS, GECKO_PAGES, VIDEO_DISCOVERY, RESOURCES, STABILITY, VIDEO_METADATA;
-    fun includes(domain: LabDomain): Boolean = domain==LabDomain.UI || this==COMPLEX || when(this) {
+    COMPLEX, PANELS_GESTURES, TABS_GROUPS, GECKO_PAGES, VIDEO_DISCOVERY, RESOURCES, STABILITY, VIDEO_METADATA, FULL_AUDIT;
+    fun includes(domain: LabDomain): Boolean = domain==LabDomain.UI || this==COMPLEX || this==FULL_AUDIT || when(this) {
         PANELS_GESTURES->domain==LabDomain.PANELS
         TABS_GROUPS->domain==LabDomain.TABS
         GECKO_PAGES->domain==LabDomain.GECKO
         VIDEO_DISCOVERY, VIDEO_METADATA->domain==LabDomain.VIDEO
         RESOURCES->domain==LabDomain.RESOURCES
         STABILITY->domain==LabDomain.STABILITY
-        COMPLEX->true
+        COMPLEX, FULL_AUDIT->true
     }
 }
 @Serializable enum class LabPhase { IDLE, PREPARING, RUNNING, FINALIZING, COMPLETED, PARTIAL, CANCELLED, FAILED }
