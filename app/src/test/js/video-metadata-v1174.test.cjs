@@ -53,3 +53,11 @@ test("complete HLS byte ranges expose an exact size only when every segment is c
   const withInit=playlist.replace("#EXTINF:5,", '#EXT-X-MAP:URI="init.mp4"\n#EXTINF:5,');
   assert.equal(parser.parseHls(withInit,base,8).exactSizeBytes,null);
 });
+
+test("single DASH SegmentTemplate representation carries metadata but no invented direct URL", () => {
+  const mpd='<MPD type="static" mediaPresentationDuration="PT50S"><Period><AdaptationSet contentType="video"><SegmentTemplate media="chunk-$Number$.m4s" initialization="init.mp4"/><Representation bandwidth="1000000" width="1280" height="720"/></AdaptationSet></Period></MPD>';
+  const result=parser.parseDash(mpd,"https://cdn.example/watch.mpd",8);
+  assert.equal(result.durationSeconds,50);
+  assert.equal(result.bitrate,1000000);
+  assert.equal(result.variants[0].url,null);
+});
