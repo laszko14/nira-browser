@@ -675,8 +675,12 @@
     function walk(node, depth, parentTitle = null, parentGroup = null, parentPoster = null) {
       if (depth > 8 || --remainingNodes < 0 || !node || typeof node !== "object") return;
       if (Array.isArray(node)) {
-        for (const child of node.slice(0, 48))
-          walk(child, depth + 1, parentTitle, parentGroup, parentPoster);
+        for (const child of node.slice(0, 48)) {
+          if (typeof child === "string" && parentGroup)
+            submit(child, "page", null, parentGroup,
+              parentTitle, parentTitle ? "video" : null, null, parentPoster);
+          else walk(child, depth + 1, parentTitle, parentGroup, parentPoster);
+        }
         return;
       }
       // "label" is normally resolution/audio language, not a film title.
@@ -697,7 +701,7 @@
         (!independent ? parentPoster : null);
       const mime = typeof node.type === "string" ? node.type :
         (typeof node.mimeType === "string" ? node.mimeType : null);
-      for (const key of ["file", "src", "contentUrl", "videoUrl", "streamUrl",
+      for (const key of ["file", "src", "source", "contentUrl", "videoUrl", "streamUrl",
         "playbackUrl", "hlsUrl", "dashUrl", "manifestUrl", "mediaUrl",
         "playlistUrl", "urlVideo", "masterUrl", "video_src"]) {
         if (typeof node[key] === "string")
