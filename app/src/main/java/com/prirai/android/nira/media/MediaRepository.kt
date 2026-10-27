@@ -388,6 +388,11 @@ internal class MediaRepository(
         val found = current.entries[identity] ?: refreshed
         if (found != null) {
             val requestSequence = metadata?.requestSequence
+            // Distinct signatures in the same request sequence are not proof
+            // of a newer credential. Leave the last observed URL untouched.
+            if (refreshed != null && requestSequence != null &&
+                requestSequence <= found.highestNetworkRequestSequence)
+                return InsertResult.DUPLICATE
             if (source == MediaSource.NETWORK && requestSequence != null &&
                 requestSequence < found.highestNetworkRequestSequence) return InsertResult.DUPLICATE
             if (source == MediaSource.NETWORK && requestSequence != null)
