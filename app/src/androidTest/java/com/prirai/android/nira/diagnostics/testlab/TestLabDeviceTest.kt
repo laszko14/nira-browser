@@ -177,10 +177,10 @@ class TestLabDeviceTest {
             results[type]=report
             assertEquals(LabPhase.COMPLETED,report.status)
             assertEquals(60_000.0,report.durationMs,0.0)
-            // Emulator runs the explicit x86_64 instrumentation ABI: Gradle code 169.
-            // The signed ARM64 update uses its ABI-adjusted code 1169, checked by release CI.
-            assertEquals(169,report.appVersion.versionCode)
-            assertEquals("0.5.22-alpha74-clean",report.appVersion.versionName)
+            // Emulator runs the explicit x86_64 instrumentation ABI: Gradle code 170.
+            // The signed ARM64 update uses its ABI-adjusted code 1170, checked by release CI.
+            assertEquals(170,report.appVersion.versionCode)
+            assertEquals("0.5.22-alpha75-clean",report.appVersion.versionName
             assertTrue(report.resourceMetrics.totalSamples>0)
             assertNotNull(report.resourceMetrics.javaHeapMaxBytes)
             assertNotNull(report.frameMetrics)
