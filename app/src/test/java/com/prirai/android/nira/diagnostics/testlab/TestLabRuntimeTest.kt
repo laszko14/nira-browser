@@ -96,5 +96,36 @@ class TestLabRuntimeTest {
         browser.pause().stop().destroy()
     }
 
+    @Test fun videoMetadataRetainsSnapshotWithBackgroundWorker() {
+        val e = engine()
+        val runtime = TestLabRuntime(RuntimeEnvironment.getApplication(), e, { it is ProbeActivity }, true)
+        assertTrue(runtime.prepare(TestType.VIDEO_METADATA))
+        val activity = Robolectric.buildActivity(ProbeActivity::class.java).setup().visible()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(3500))
+        assertEquals(LabPhase.RUNNING, e.phase)
+        val observer = runtime.mediaObserver!!
+        val binding = com.prirai.android.nira.media.MediaSessionBinding(Any(), "t", null, false)
+        val entry = com.prirai.android.nira.media.MediaEntry(1L,
+            "https://example.invalid/signed.mp4", com.prirai.android.nira.media.MediaFormat.MP4,
+            setOf(com.prirai.android.nira.media.MediaSource.NETWORK),
+            durationSeconds = 73, sizeBytes = 987654321)
+        observer.entry(binding, entry)
+        observer.displayed(binding, entry)
+        runtime.stop()
+        val deadline = System.nanoTime() + 5_000_000_000L
+        while (e.phase == LabPhase.FINALIZING && System.nanoTime() < deadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+        }
+        assertEquals(LabPhase.PARTIAL, e.phase)
+        val metadata = e.latest()!!.videoMetadata!!
+        assertEquals(1, metadata.observedSources)
+        assertEquals(1, metadata.sizeExact)
+        assertEquals(1, metadata.uiDisplayed)
+        val export = TestLabReportGenerator.generate(e.latest()!!)
+        assertFalse(export.json.contains("signed.mp4"))
+        activity.pause().stop().destroy()
+    }
+
     class ProbeActivity:Activity()
 }
