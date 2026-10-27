@@ -170,3 +170,21 @@ test("unchanged setup scripts are cached, and mutated scripts can be scanned aga
   separately.scan();
   assert.equal(separately.emitted.filter(x=>x.title)[0].title,"Film B");
 });
+
+
+test("source fields and string rendition arrays retain their local owner", () => {
+  const h=harness();
+  h.scripts.push(scriptElement(JSON.stringify({playlist:[
+    {title:"Direct source",source:"https://cdn.example/direct.mp4"},
+    {title:"Alternatives",sources:[
+      "https://cdn.example/480.mp4","https://cdn.example/1080.mp4"
+    ]}
+  ]}), {type:"application/json"}));
+  h.scan();
+  assert.equal(h.emitted.length,3);
+  assert.equal(h.emitted[0].title,"Direct source");
+  assert.equal(h.emitted[1].title,"Alternatives");
+  assert.equal(h.emitted[2].title,"Alternatives");
+  assert.ok(h.emitted[1].group && h.emitted[1].group===h.emitted[2].group);
+  assert.notEqual(h.emitted[0].group,h.emitted[1].group);
+});
