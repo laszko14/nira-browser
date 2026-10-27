@@ -14,7 +14,7 @@ test("v1122: separate colored group containers with scoped icons and counts", ()
   assert.match(native, /groupSegment\(group, members, selectedId, dark\)/);
   assert.match(native, /members = group\.tabIds\.mapNotNull \{ byId\[it\] \}/);
   assert.match(native, /background = groupBackground\(group\.color\)/);
-  assert.match(native, /"\(\$\{members\.size\}\) " \+ group\.name/);
+  assert.match(native, /if \(collapsed\) "" else " " \+ group\.name/);
   assert.match(native, /val groupedIds = visibleGroups\.flatMap/);
   assert.match(native, /onGroupToggle\?\.invoke\(group\.id\)/);
   assert.match(native, /onNewTabInGroup\?\.invoke\(group\.id\)/);
