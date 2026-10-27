@@ -209,8 +209,15 @@ class TestLabDeviceTest {
         assertTrue(baseline.draws>0)
         // Separate real early cancellation: PREPARING -> RUNNING -> PARTIAL, not fake COMPLETED.
         stage="explicit-partial-after-seven-full-modes"
-        onMain { assertTrue(TestLab.start(app,TestType.STABILITY)) }
-        await(12_000){TestLab.ui.value.phase==LabPhase.RUNNING}
+        // Use the same Activity-return path as a real user. A direct call from
+        // an already-RESUMED BrowserActivity cannot deliver onActivityResumed
+        // to a lifecycle listener registered after that resume event.
+        screen=instrumentation.startActivitySync(Intent(app,TestLabActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as TestLabActivity
+        clickUi("${TestType.STABILITY.labTitle()} — 60 s")
+        clickUi("Rozpocznij i wróć",scroll=false)
+        screen=null
+        await(15_000){TestLab.ui.value.phase==LabPhase.RUNNING}
         onMain { TestLab.stop() }
         await(15_000){!TestLab.busy}
         assertEquals(LabPhase.PARTIAL,TestLab.ui.value.phase)
