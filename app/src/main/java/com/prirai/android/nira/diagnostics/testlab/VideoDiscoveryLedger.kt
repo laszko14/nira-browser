@@ -62,10 +62,12 @@ internal class VideoDiscoveryLedger(private val capacity: Int = 256) {
         previous.format = entry.format.name
         if (entry.groupId != null) previous.group = entry.groupId
         previous.titleAmbiguous = entry.titleAmbiguous
-        if (entry.title != previous.title && entry.title != null) {
+        if (entry.title != null) {
+            // A better provenance can arrive with exactly the same text.
+            // Update titleKind even when title text did not change.
             if (previous.title == null) firstTitles++
             else if (priority(entry.titleKind) > priority(previous.kind)) improved++
-            else conflicts++
+            else if (entry.title != previous.title) conflicts++
             previous.title = entry.title
             previous.kind = entry.titleKind
         }
@@ -96,6 +98,9 @@ internal class VideoDiscoveryLedger(private val capacity: Int = 256) {
         var unknown = 0
         var ambiguous = 0
         var groupConflicts = 0
+        var uiGroups = 0
+        var uiNamedGroups = 0
+        var uiConflictGroups = 0
         var groupNumber = 0
         val uiSources = tracks.values.count { it.displayed }
         val uiWithTitle = tracks.values.count {
@@ -108,9 +113,22 @@ internal class VideoDiscoveryLedger(private val capacity: Int = 256) {
             val titled = members.filter { !it.title.isNullOrBlank() }
             val strongest = titled.maxOfOrNull { priority(it.kind) } ?: 0
             val winners = titled.filter { priority(it.kind) == strongest }
-            val conflict = members.any { it.titleAmbiguous } || winners.map { it.title }.distinct().size > 1
+            // Same title-resolution policy as MediaTitleResolver.selectGroup:
+            // a weaker ambiguous hint does not veto stronger evidence.
+            val ambiguousRank = members.filter { it.titleAmbiguous }
+                .maxOfOrNull { priority(it.kind) } ?: 0
+            val conflict = strongest > 0 && ambiguousRank >= strongest ||
+                winners.map { it.title }.distinct().size > 1
             if (conflict) groupConflicts++
             if (strongest <= 1 || conflict) unknown++
+            if (members.any { it.displayed }) {
+                uiGroups++
+                if (conflict) uiConflictGroups++
+                // PAGE_ONLY is deliberately excluded. The ledger spans many
+                // snapshots, so it cannot prove the panel had one source.
+                if (strongest > 1 && !conflict && winners.isNotEmpty())
+                    uiNamedGroups++
+            }
             val kind = if (conflict) "CONFLICT" else
                 winners.firstOrNull()?.kind?.uppercase() ?: "UNKNOWN"
             kinds[kind] = (kinds[kind] ?: 0) + 1
@@ -138,6 +156,8 @@ internal class VideoDiscoveryLedger(private val capacity: Int = 256) {
             navigations = navigations, droppedSources = dropped,
             titleKinds = kinds, formats = formats, detectionOrigins = detectionOrigins, examples = samples,
             uiObservedSources = uiSources, uiObservedTitledSources = uiWithTitle,
+            uiObservedGroups = uiGroups, uiObservedTitledGroups = uiNamedGroups,
+            uiObservedConflictedGroups = uiConflictGroups,
         )
     }
 
