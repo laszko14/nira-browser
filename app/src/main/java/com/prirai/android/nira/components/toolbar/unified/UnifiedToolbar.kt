@@ -698,6 +698,14 @@ class UnifiedToolbar @JvmOverloads constructor(
             }, android.widget.FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
             ))
+        } else {
+            // Never strand the tab chooser if the upstream toolbar layout changes.
+            android.util.Log.w("ZavroToolbar", "Site indicator unavailable; preserving tab chooser")
+            toolbar.addNavigationAction(BrowserToolbar.Button(
+                imageDrawable = counter,
+                contentDescription = "Otwarte karty",
+                listener = { contextualToolbarListener?.onTabCountClicked() }
+            ))
         }
 
         fun action(icon: Int, label: String, click: () -> Unit) {
@@ -776,7 +784,11 @@ class UnifiedToolbar @JvmOverloads constructor(
                     child.minimumHeight = touchMin
                     val iconDp = (visual * 0.65f).coerceIn(16f, 40f)
                     val padding = (((slotDp - iconDp) / 2f) * densityNow).toInt()
-                    child.setPadding(padding, child.paddingTop, padding, child.paddingBottom)
+                    val heightPx = child.layoutParams.height.takeIf { it > 0 }
+                        ?: (48f * densityNow).toInt()
+                    val verticalPad = ((heightPx - iconDp * densityNow) / 2f)
+                        .toInt().coerceAtLeast(0)
+                    child.setPadding(padding, verticalPad, padding, verticalPad)
                     if (editable && child is android.widget.ImageView) {
                         child.scaleType = android.widget.ImageView.ScaleType.FIT_XY
                     }
