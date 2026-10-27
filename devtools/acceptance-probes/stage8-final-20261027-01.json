@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "kind": "final-acceptance",
+  "repo": "laszko14/nira-browser",
+  "purpose": "read-only-security-recovery-audit",
+  "build_requested": false
+}
