@@ -40,7 +40,7 @@ internal class TestLabViewModel(private val renderer:CoroutineDispatcher=Dispatc
 }
 
 internal fun labClock(seconds:Int):String {
-    val bounded=seconds.coerceIn(0,60)
+    val bounded=seconds.coerceIn(0,120)
     return (bounded/60).toString().padStart(2,'0')+":"+(bounded%60).toString().padStart(2,'0')
 }
 internal fun TestType.labTitle():String=when(this) {
@@ -52,6 +52,7 @@ internal fun TestType.labTitle():String=when(this) {
     TestType.VIDEO_METADATA->"VIDEO_METADATA • Czas i rozmiar filmów"
     TestType.RESOURCES->"Pamięć, CPU i wydajność"
     TestType.STABILITY->"Stabilność i błędy"
+    TestType.FULL_AUDIT->"Test kompletny"
 }
 internal fun TestType.labInstruction():String=when(this) {
     TestType.COMPLEX->"Korzystaj z przeglądarki: otwórz panele, przełącz karty, przewiń stronę i opcjonalnie odtwórz film."
@@ -62,4 +63,5 @@ internal fun TestType.labInstruction():String=when(this) {
     TestType.VIDEO_METADATA->"Przez 60 s odwiedzaj strony z MP4, HLS i DASH, otwieraj kafelki. Raport sprawdzi czas, rozmiar, pochodzenie metadanych i braki — bez adresów URL."
     TestType.RESOURCES->"Korzystaj z wielu kart i stron WWW. Rejestrujemy pamięć, CPU własnego procesu, opóźnienia Main i częstotliwość ekranu — nie FPS silnika Gecko."
     TestType.STABILITY->"Przełączaj funkcje, obracaj telefon i wracaj z tła. Odczyt historii zakończeń procesu nie dowodzi nowej awarii."
+    TestType.FULL_AUDIT->"120 s i jeden raport: zbieramy równocześnie wideo (tytuły, miniatury, formaty, jakość, czas i rozmiar), Gecko, UI, karty, pamięć, CPU, błędy i 120 Hz. Otwórz stronę z wieloma filmami, kafelki, menu, panele, przewiń stronę i przełącz kartę. Lokalnie analizujemy DOM, dane strukturalne i manifesty; bez eksportu URL, tokenów ani treści."
 }
