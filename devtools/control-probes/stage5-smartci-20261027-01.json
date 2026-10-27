@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "kind": "probe",
+  "repo": "laszko14/nira-browser",
+  "purpose": "stage3-chatgpt-connector-verification",
+  "build_requested": false,
+  "reference_stage": 5,
+  "contains_credentials": false
+}
