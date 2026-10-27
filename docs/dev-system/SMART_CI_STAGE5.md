@@ -38,3 +38,32 @@ Audit commands send read-only GETs, use optional `GH_TOKEN`, check moving branch
 
 ## Rollback
 Do not send Smart CI probe requests, and stop using the isolated tooling branch. No Android production workflow is modified.
+
+## Stage 5 implemented and verified fast executor (addendum 2026-10-27)
+
+A separate, opt-in, read-only workflow `.github/workflows/zavro-smart-ci-js.yml` now listens only to new `devtools/smart-ci-probes/*.json` diagnostic files, validates a single newly-added request, variant and **full pinned SHA** against `devtools/build-control.json`, reconfirms target branch HEAD from GitHub and checks out exactly that commit. It executes only `node --test app/src/test/js/*.test.cjs` in the pinned source checkout, **without Gradle or any APK creation**. Its GitHub Actions permission is `contents:read`; no signing secrets or reusable PAT were introduced. Path `devtools/build-requests/` that can invoke Stage 3's build bridge remains separate.
+
+### Verified GitHub executions
+- [Stage 5 controller/safe-plan probe 40468846773](https://github.com/laszko14/nira-browser/actions/runs/40468846773): **31/31 Smart CI Node PASS**, 48/48 existing Node PASS, 9/9 Python PASS; both targets metadata audit PASS; real historical diff classified as Kotlin unit test only.
+- [Updated control probe 40469212651](https://github.com/laszko14/nira-browser/actions/runs/40469212651): **43/43 Smart CI Node PASS**, 48/48 existing Node PASS, 9/9 Python PASS; real diff + both target metadata audits PASS. End-to-end 16s from run start to updated time, job duration 8s.
+- [Clean fast JavaScript 40469224355](https://github.com/laszko14/nira-browser/actions/runs/40469224355): **131/131 JS PASS**, end-to-end 12s, job duration 9s.
+- [Zavro x MPV fast JavaScript 40469257622](https://github.com/laszko14/nira-browser/actions/runs/40469257622): **202/202 JS PASS**, end-to-end 13s, job duration 9s.
+
+The historic full Android CI median was 316s across three runs. These new targeted JavaScript checks are not equivalent to a full Android build, and therefore **do not establish an overall 316→12 second improvement**. They establish the cost of a narrowly scoped diagnostic that can avoid an *unnecessary* Android compile when only JS verification is required.
+
+### Exact scope of optimization
+- Implemented and tested: selective risk-aware planning, fast isolated JS check with pinned source, cache/version/workflow auditing, historical CI timing reports, unnecessary Gradle avoidance for diagnostic-only requests.
+- Audited and deliberately unchanged: existing Gradle cache, parallelism, configuration cache, Android CI jobs. No claims of faster Gradle or Lint.
+- Planned for later separately authorized variant-specific work: instrumentation scheduling, measured Gradle Lint/dependency optimization, safe selective test routing into actual Clean/MPV workflows, APK version/signing checks in production. A potential network HTTP 503 from Mozilla Maven is an infrastructure failure and not proof of an application defect.
+
+### Safe request example — diagnostic JS ONLY
+Create a **new** file `devtools/smart-ci-probes/<unique-safe-id>.json` on the isolated tooling branch, with the following fields, after verifying live SHA and variant:
+```json
+{
+ "schema_version":1, "kind":"smart-ci-js", "intent":"diagnostic-only",
+ "repo":"laszko14/nira-browser", "build_requested":false,
+ "variant":"clean", "branch":"feat/zavro-v1174-clean-video-metadata",
+ "sha":"3330a0b3a057008886fde392f788a1941e0dfb84"
+}
+```
+This request is NOT an Android build request. It will start a short GitHub Actions JS job; use only when requested or justified. SHA snapshots may become stale.

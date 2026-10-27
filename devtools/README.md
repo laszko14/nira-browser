@@ -24,3 +24,6 @@ Connector-triggered GitHub Actions without a new plugin is implemented. See `doc
 
 ## Stage 4 — APK artifacts and reporting
 Read `docs/dev-system/ARTIFACT_REPORTING_STAGE4.md`. A read-only `devtools/report-build.mjs` reports Actions jobs and observed APKs; only an exact signed CI log upgrades confidence. `devtools/verify-apk-artifact.py` optionally checks downloaded ZIP and APK with trusted Android SDK tools. Final stage 4 GitHub tests: 48/48 Node plus 9/9 Python, live metadata PASS, no new build. The full 146 MB artifact was not downloaded/reverified in this stage.
+
+## Stage 5 — Zavro Smart CI
+See `docs/dev-system/SMART_CI_STAGE5.md`. The isolated fast JS workflow now ran on actual pinned Clean and MPV commits with 131/131 and 202/202 PASS. Full Android CI workflows, cache and production branches were not modified. The source classifier and version/signing cache audit are read-only; Android jobs remain opt-in requiring separate explicit approval.
