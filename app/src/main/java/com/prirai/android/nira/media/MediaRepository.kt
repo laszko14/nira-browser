@@ -367,7 +367,25 @@ internal class MediaRepository(
             source == MediaSource.NETWORK -> MediaProvenance.NETWORK_OBSERVED
             else -> MediaProvenance.DOM_HINT
         }
-        val found = current.entries[identity]
+        // Use exact manifest URLs by default. A known SigV4 refresh may
+        // extend one existing record only with independently verified network
+        // lineage: same frame, parser-minted group, observed requests, and a
+        // monotonic request sequence. Group equality alone is NOT sufficient.
+        val refreshSequence = metadata?.requestSequence
+        val refreshed = if (source == MediaSource.NETWORK &&
+            provenance == MediaProvenance.NETWORK_OBSERVED &&
+            groupId?.startsWith("manifest-") == true &&
+            refreshSequence != null) {
+            current.entries.values.firstOrNull { record ->
+                record.groupId == groupId && record.format == media.format &&
+                    record.frameKey == metadata.frameKey &&
+                    record.activeProvenance == MediaProvenance.NETWORK_OBSERVED &&
+                    record.highestNetworkRequestSequence > 0 &&
+                    MediaStreamIdentity.sameSignedRefresh(
+                        record.url, media.url, media.format, metadata.frameKey)
+            }
+        } else null
+        val found = current.entries[identity] ?: refreshed
         if (found != null) {
             val requestSequence = metadata?.requestSequence
             if (source == MediaSource.NETWORK && requestSequence != null &&
