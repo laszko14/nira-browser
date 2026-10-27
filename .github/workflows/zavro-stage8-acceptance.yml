@@ -1,0 +1,87 @@
+name: Zavro Stage 8 Final Acceptance
+on:
+  push:
+    branches:
+      - tools/zavro-development-system-stage1-20261027
+    paths:
+      - 'devtools/acceptance-probes/*.json'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: zavro-stage8-final-acceptance
+  cancel-in-progress: false
+
+jobs:
+  acceptance:
+    if: github.repository == 'laszko14/nira-browser' && github.actor == 'laszko14'
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Reject unsafe event and any changed file outside an acceptance request
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {execFileSync} from 'node:child_process';
+          import {readFileSync} from 'node:fs';
+          const before=process.env.BEFORE_SHA,after=process.env.GITHUB_SHA;
+          if(!/^[a-f0-9]{40}$/.test(before)|| !/^[a-f0-9]{40}$/.test(after)||
+            process.env.GITHUB_REPOSITORY!=='laszko14/nira-browser'||
+            process.env.GITHUB_REF!=='refs/heads/tools/zavro-development-system-stage1-20261027'||
+            process.env.GITHUB_ACTOR!=='laszko14') throw Error('STAGE8_UNAUTHORIZED_EVENT');
+          const diff=execFileSync('git',['diff','--name-status','--no-renames',before,after],{encoding:'utf8'}).trim().split('\n');
+          if(diff.length!==1 || !/^A\tdevtools\/acceptance-probes\/[a-z0-9-]+\.json$/.test(diff[0]))
+            throw Error('STAGE8_UNSAFE_CHANGED_FILES');
+          const file=diff[0].split('\t')[1];
+          const x=JSON.parse(readFileSync(file,'utf8'));
+          const expected=['build_requested','kind','purpose','repo','schema_version'];
+          if(Object.keys(x).sort().join(',')!==expected.join(',')||x.build_requested!==false||
+            x.kind!=='final-acceptance'||x.purpose!=='read-only-security-recovery-audit'||
+            x.repo!=='laszko14/nira-browser'||x.schema_version!==1)
+            throw Error('STAGE8_INVALID_ACCEPTANCE_REQUEST');
+          console.log('STAGE8_ACCEPTANCE_TRIGGER_VALID; Android build forbidden');
+          NODE
+      - name: Execute all Node suites including end-to-end orchestration
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test devtools/tests/*.test.mjs
+      - name: Execute all Python suites and offline Stage 1 policy validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 devtools/check_policy.py
+          python3 -m unittest discover -s devtools/tests -p 'test_*.py' -v
+      - name: Validate protected refs, failure evidence and checkpoint artifacts using GitHub GET only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node devtools/final-acceptance.mjs > "$RUNNER_TEMP/zavro-stage8-final.json"
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const p=JSON.parse(readFileSync(process.env.RUNNER_TEMP+'/zavro-stage8-final.json','utf8'));
+          if(p.static.static_controls!=='PASS'||p.summary.audit!=='STAGE8_DIAGNOSTIC_ACCEPTED_WITH_OPEN_GATES'||
+             p.summary.scenarios_confirmed.length!==7||p.summary.android_build_started!==false||
+             p.summary.apk_generated!==false||p.summary.signed_android_dispatch_tested!==false||
+             p.summary.stage3_dispatch_admin_gated!==true)throw Error('STAGE8_UNVERIFIED_FINAL_STATE');
+          console.log('STAGE8_LIVE_EVIDENCE_PASS; all seven historical scenarios verified');
+          NODE
+      - name: Preserve small sanitized audit result
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zavro-stage8-final-acceptance-${{ github.run_id }}
+          path: ${{ runner.temp }}/zavro-stage8-final.json
+          retention-days: 14
+          if-no-files-found: error
