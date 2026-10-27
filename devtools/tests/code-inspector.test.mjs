@@ -116,3 +116,28 @@ test('live PR inspection with mock data returns 4 PR snapshots',async()=>{
  const result=await inspectLivePRs(api);
  assert.equal(req,8);assert.equal(result.checked_prs.length,4);assert.equal(result.merge_conflicts_claimed,false);
 });
+
+test('VIDEO_METADATA TXT anonymous duration and size aggregates',()=>{
+ const report=['Zavro TestLab • VIDEO_METADATA • 0.5.22-alpha79-clean (1174)',
+  'Stan: COMPLETED; rzeczywisty pomiar: 60.000 s',
+  'Źródła=12; czas znany=10; czas nieznany=2; LIVE=0',
+  'Rozmiar dokładny=8; szacowany=2; nieznany=2'].join('\n');
+ const out=inspectTestLab(report);
+ assert.equal(out.video_metadata.observed_sources,12);
+ assert.equal(out.video_metadata.duration_known,10);
+ assert.equal(out.video_metadata.size_exact,8);
+ assert.equal(out.video_metadata.size_unknown,2);
+ assert.equal(out.raw_text_included,false);
+});
+test('VIDEO_DISCOVERY TXT anonymous title grouping aggregates',()=>{
+ const report=['Zavro TestLab • VIDEO_DISCOVERY • 0.5.22-alpha79-clean (1174)',
+  'Stan: COMPLETED; rzeczywisty pomiar: 60.000 s',
+  'Zaobserwowane źródła: 19; grupy: 11; grupy wielowariantowe: 2',
+  'Brak tytułu: 3; niepewne grupy: 4; konflikty grup: 1'].join('\n');
+ const out=inspectTestLab(report);
+ assert.equal(out.video_discovery.sources,19);
+ assert.equal(out.video_discovery.groups,11);
+ assert.equal(out.video_discovery.uncertain_groups,4);
+ assert.equal(out.video_discovery.title_conflicts,1);
+ assert.equal(out.gecko_fps_measured,false);
+});
