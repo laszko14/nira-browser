@@ -39,3 +39,6 @@ See `docs/dev-system/FINAL_ACCEPTANCE_STAGE8.md`. Live read-only acceptance run 
 
 ## Post-Stage 8 continuation — Build Control + Code Editor
 See `docs/dev-system/POST_STAGE8_BUILD_EDITOR.md`. Authenticated build-readiness reviews: Clean SUCCESS run 40475008770, MPV SUCCESS run 40475634929 (prior failure requires review). A separate Clean sandbox gained one Kotlin JUnit test commit c1021a6; runner 40475558294 passed 18/18 editor guards and Gradle testDebugUnitTest. No signed APK was assembled. General production-code editing and signed build dispatch are still unverified.
+
+## Continued implementation — guarded production Kotlin sandbox & cross-run recovery
+See `docs/dev-system/POST_STAGE8_EDITOR_RECOVERY_V2.md`. An isolated Clean sandbox production Kotlin TTL fix + 4 tests passed JUnit and Android Lint in run 40477361547 (25/25 guard tests). A different Actions run restored and verified MPV diagnostic checkpoint without replay in run 40478070913 (8/8). Both production Clean/MPV branches remain unchanged; no APK built.

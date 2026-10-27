@@ -21,7 +21,7 @@
     "No atomic multi-client dispatch idempotency",
     "Workflow registration GET and real POST must be independently verified in Stage 3"
   ],
-  "resume": "Stage 8 remains completed. A post-stage-8 continuation has begun; see docs/dev-system/POST_STAGE8_BUILD_EDITOR.md. Do not repeat successful Build Reviews or Kotlin smoke; recheck refs and remaining gates. Do not claim signed APK build or production source editor are completed.",
+  "resume": "Read docs/dev-system/POST_STAGE8_EDITOR_RECOVERY_V2.md, confirm sandbox and tooling heads. Do not repeat successful run 40477361547 or 40478070913. Treat production change as sandbox-only, with full Android build/device validation still outstanding; no signed APK created.",
   "verification": {
     "branch_write_verified": true,
     "actual_branch_and_workflow_preflight": "clean+mpv PASSED with authenticated GitHub connector",
@@ -238,10 +238,10 @@
   },
   "post_stage8_continuation": {
     "name": "Build Control and Code Editor implementation",
-    "status": "IN_PROGRESS_FIRST_MILESTONE_VERIFIED",
+    "status": "IN_PROGRESS_SECOND_MILESTONE_VERIFIED",
     "tools_branch": "tools/zavro-development-system-stage1-20261027",
     "sandbox_branch": "tools/zavro-edit-clean-20261027",
-    "sandbox_sha": "c1021a6e8d877feac911986348936f39fdd3863b",
+    "sandbox_sha": "c8f2132a203f0ea9dc5315f7b63c3c3f3f833a0a",
     "build_review": {
       "clean": {
         "run": 40475008770,
@@ -258,12 +258,36 @@
       "source": "devtools/code-editor.mjs",
       "test_workflow": ".github/workflows/zavro-editor-smoke.yml",
       "run": 40475558294,
-      "result": "18/18 guard PASS; Kotlin Gradle BUILD SUCCESSFUL",
+      "result": "25/25 Node guard PASS; 4 Kotlin regression tests + smoke JUnit PASS; Android lintDebug PASS",
       "apk_generated": false,
-      "production_source_edited": false
+      "production_source_edited": true,
+      "real_production_file_changed_in_sandbox_only": "app/src/main/java/com/prirai/android/nira/media/MediaRecentDeduplicator.kt",
+      "test_file": "app/src/test/java/com/prirai/android/nira/media/MediaRecentDeduplicatorTest.kt",
+      "sandbox_commit": "c8f2132a203f0ea9dc5315f7b63c3c3f3f833a0a",
+      "verified_run": 40477361547,
+      "protected_clean_source_edited": false,
+      "full_android_assemble_tested": false
     },
     "status_notes": "This is not full production code editing nor signed APK bridge completion",
-    "next_work": "Review MPV failure, harden signed-build authorization and idempotency, extend guarded Code Editor to reviewed Kotlin application patches, verify cross-run recovery",
-    "signed_build_dispatched": false
+    "next_work": "Continue safe Code Editor automation, partial cross-run resume and MPV test-failure isolation. Signed Build Bridge still unverified and requires separate owner-controlled dispatch.",
+    "signed_build_dispatched": false,
+    "recovery": {
+      "cross_run_restore_run": 40478070913,
+      "source_run": 40472241780,
+      "artifact_id": 12719096410,
+      "tests": "8/8 PASS",
+      "resumed_previous_operations": 0,
+      "complete_checkpoint_cross_run_verified": true,
+      "partial_checkpoint_cross_run_not_verified": true
+    },
+    "mpv_failure_diagnostics": {
+      "android_ci_run": 40444705833,
+      "build": "success",
+      "lint": "success",
+      "test": "timed out installing apt ffmpeg libraries",
+      "emulator_run": 40444705782,
+      "video_tiles_assertions": "failed",
+      "unfixed": true
+    }
   }
 }
