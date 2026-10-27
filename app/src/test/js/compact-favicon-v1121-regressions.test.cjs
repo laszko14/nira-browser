@@ -36,7 +36,7 @@ test("v1121: favicon from tab content, cached or async BrowserIcons loader; no m
 });
 
 test("v1121: selection is visibly outlined, normal click switches tabs, long press closes from menu", () => {
-  assert.match(native, /if \(selected\) setStroke\(dp\(1\), Color\.rgb\(227, 96, 157\)\)/);
+  assert.match(native, /if \\(selected\\) setStroke\\(dp\\(1\\), tones\\.accent\\)/);
   assert.match(native, /setOnClickListener \{ onTabSelected\?\.invoke\(tab\.id\) \}/);
   assert.match(native, /setOnLongClickListener/);
   assert.match(native, /menu\.add\("Zamknij kartę"\)/);
