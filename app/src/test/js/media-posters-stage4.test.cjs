@@ -31,11 +31,21 @@ class Element {
       if(tag && this.tag!==tag.toLowerCase())return false;
       if(s.includes(".")){
         const klass=s.slice(s.indexOf(".")+1);
-        if(!this.cls.split(/\\s+/).includes(klass))return false;
+        if(!this.cls.split(/\s+/).includes(klass))return false;
       }
-      const attr=/\\[([^\\]=]+)(?:=["']?([^\\]"']+)["']?)?\\]/.exec(s);
-      if(attr && !(attr[1] in this.attrs))return false;
-      if(attr && attr[2] && this.attrs[attr[1]]!==attr[2])return false;
+      const open=s.indexOf("[");
+      if(open>=0){
+        const close=s.indexOf("]",open+1);
+        if(close<0)return false;
+        const declaration=s.slice(open+1,close);
+        const split=declaration.indexOf("=");
+        const name=split<0?declaration:declaration.slice(0,split);
+        if(!(name in this.attrs))return false;
+        if(split>=0){
+          const expected=declaration.slice(split+1).replace(/^["']|["']$/g,"");
+          if(String(this.attrs[name])!==expected)return false;
+        }
+      }
       return !!tag||s[0]==="."||s[0]==="[";
     });
   }
