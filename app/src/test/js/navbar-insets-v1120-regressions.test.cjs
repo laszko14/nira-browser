@@ -32,9 +32,9 @@ test("v1120: footer still attaches at bottom inside inset-safe activity content"
 test("v1120: signed ARM64 update code and artifact are bumped", () => {
   const gradle = source("app/build.gradle");
   const workflow = source(".github/workflows/apk-release.yml");
-  assert.match(gradle, /versionCode = 174/);
-  assert.match(gradle, /versionName = "0\.5\.22-alpha79-clean"/);
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1174"/);
-  assert.match(workflow, /EXPECTED_VERSION_NAME: 0\.5\.22-alpha79-clean/);
-  assert.match(workflow, /zavro-arm64-update-apk-v1174/);
+  assert.match(gradle, /versionCode = 175/);
+  assert.match(gradle, /versionName = "0\.5\.22-alpha80-clean"/);
+  assert.match(workflow, /EXPECTED_VERSION_CODE: "1175"/);
+  assert.match(workflow, /EXPECTED_VERSION_NAME: 0\.5\.22-alpha80-clean/);
+  assert.match(workflow, /zavro-arm64-update-apk-v1175/);
 });

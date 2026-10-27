@@ -26,7 +26,7 @@ internal class TestLabMediaObserver(private val capture: LabCapture) {
     fun snapshot(): VideoDiscoverySummary = ledger.snapshot()
     fun metadataSnapshot(): VideoMetadataSummary = metadata.snapshot()
     fun displayed(binding: MediaSessionBinding, entry: MediaEntry) {
-        if (!closed && capture.allows(LabDomain.VIDEO)) metadata.displayed(binding, entry)
+        if (!closed && capture.allows(LabDomain.VIDEO)) { ledger.displayed(binding, entry); metadata.displayed(binding, entry) }
     }
     fun close() { closed = true; ledger.clear(); metadata.clear() }
 
