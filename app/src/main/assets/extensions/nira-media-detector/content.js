@@ -802,7 +802,8 @@
   document.addEventListener("visibilitychange", scheduleScan, { passive: true });
   for (const event of ["pageshow", "popstate", "hashchange"])
     window.addEventListener(event, () => {
-      alive = true; seen.clear(); observeRoot(document); scheduleScan();
+      alive = true; seen.clear(); structuredVersions = new WeakSet();
+      observeRoot(document); scheduleScan();
     }, { passive: true });
   window.addEventListener("pagehide", () => {
     if (FRAME && context) Promise.resolve(browser.runtime.sendMessage({
