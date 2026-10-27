@@ -88,11 +88,10 @@ class CustomizationSettingsFragment : BaseSettingsFragment() {
                 true
             }
         }
-        // The slider's 0..46 progress is displayed as -6..40 dp.
         preferenceScreen.findPreference<SeekBarPreference>("nira_tab_circle_gap_dp")?.apply {
-            value = niraPrefs.niraTabCircleGapDp.coerceIn(-6, 40) + 6
+            value = niraPrefs.niraTabCircleGapDp.coerceIn(-6, 40)
             setOnPreferenceChangeListener { _, updated ->
-                niraPrefs.niraTabCircleGapDp = ((updated as Number).toInt() - 6).coerceIn(-6, 40)
+                niraPrefs.niraTabCircleGapDp = (updated as Number).toInt().coerceIn(-6, 40)
                 true
             }
         }

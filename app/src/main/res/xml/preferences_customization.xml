@@ -58,8 +58,8 @@
             app:showSeekBarValue="true" app:updatesContinuously="true" />
         <SeekBarPreference app:key="nira_tab_circle_gap_dp"
             app:title="Odstęp między ikonami"
-            app:summary="0 na suwaku oznacza −6 dp; 6 oznacza stykające się ikony (0 dp); 46 oznacza 40 dp"
-            android:max="46" app:min="0" app:defaultValue="10"
+            app:summary="−6 dp = nakładanie, 0 dp = stykają się, 40 dp = szeroko"
+            android:max="40" app:min="-6" app:defaultValue="4"
             app:showSeekBarValue="true" app:updatesContinuously="true" />
         <com.prirai.android.nira.settings.MaterialSwitchPreference
             app:key="nira_group_chips_visible"
