@@ -92,6 +92,23 @@ class VideoDiscoveryLedgerV1172Test {
         assertEquals(0, ledger.snapshot().sources)
     }
 
+    @Test fun titleOriginIsTrackedAnonymouslyFromAcceptedSourceToPanel() {
+        val ledger = VideoDiscoveryLedger()
+        val named = media(1, "Private episode title", "video")
+        val unknown = media(2)
+        ledger.observe(session, named)
+        ledger.observe(session, unknown)
+        ledger.displayed(session, named)
+        ledger.displayed(session, unknown)
+        val summary = ledger.snapshot()
+        assertEquals(2, summary.uiObservedSources)
+        assertEquals(1, summary.uiObservedTitledSources)
+        assertEquals("SCOPED_HINT", summary.examples.first().status)
+        assertEquals("FALLBACK", summary.examples.last().status)
+        assertFalse(summary.toString().contains("Private episode title"))
+        assertFalse(summary.toString().contains("private-token"))
+    }
+
     @Test fun exportedReportIsBoundedAndContainsNoRawTitleOrUrl() {
         val ledger = VideoDiscoveryLedger()
         ledger.observe(session, media(1, "Secret program", "player"))
