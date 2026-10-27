@@ -2,6 +2,7 @@
 const assert=require('node:assert/strict');
 const crypto=require('node:crypto');
 const layer=require('./v1165-testlab-patches.json');
+const {reverseV1167}=require('./v1167-ui-integrity.cjs');
 const root='app/src/main/';
 const kotlin=root+'java/com/prirai/android/nira/';
 const expected=[root+'AndroidManifest.xml',root+'res/xml/preferences_headers.xml',
@@ -15,6 +16,7 @@ const expected=[root+'AndroidManifest.xml',root+'res/xml/preferences_headers.xml
 assert.equal(layer.baseCommit,'d890c68bd15d0f79e25ccd2935fb64ee955286b8');
 assert.deepEqual(Object.keys(layer.files).sort(),expected.sort());
 function reverseTestLab(path,bytes){
+ bytes=reverseV1167(path,bytes);
  const file=layer.files[path];if(!file)return bytes;
  let source=bytes.toString('utf8');
  for(const patch of file.patches.slice().reverse()){

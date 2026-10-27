@@ -1,0 +1,16 @@
+# v1167 — zakres walidacji urządzenia
+
+Nowy scenariusz `VideoTilesDeviceTest` renderuje ten sam produkcyjny `VideoTilesPanel` w odizolowanej Activity dostępnej wyłącznie w wariancie `geckoDiscoveryAbi=x86_64`. Dane obejmują 60 syntetycznych pozycji bez miniatur i bez żądań sieciowych. Scenariusz nie symuluje dekodowania MPV ani fizycznego ekranu 120 Hz.
+
+- 10 rzeczywistych rzędów: pozycje 1 i 11 zaczynają kolejne kolumny na tej samej wysokości; pozycja 10 początkowo jest poza widokiem. Prawdziwe gesty Androida odsłaniają pozycję 10 w pionie oraz pozycję 60 po przewinięciu w poziomie. Test jest wykonywany osobno w pionie i poziomie. Nagłówek pozostaje dostępny, a Play ma co najmniej 48 × 48 dp.
+- Play: przewijanie nie wywołuje callbacka; jawne kliknięcie ostatniego Play przekazuje dokładnie jego identyfikator. Brak miniatury, czasu i rozmiaru pozostaje czytelny. Sprawdzane są także pusty panel i pojedynczy film.
+- Ustawienia: dostępnościowa akcja suwaka zmienia pion na 3 rzędy / 220 dp / 12 dp odstępu i zapisuje zakończoną zmianę przez rzeczywiste `VideoTilesPreferences`. Poziom pozostaje 10 / 160; obrót i odtworzenie Activity odczytują odpowiednie zapisane wartości. Wszystkie sześć checkboxów zapisuje się oddzielnie; Play pozostaje dostępny po ukryciu elementów. Test odtwarza wcześniejsze preferencje po zakończeniu.
+- Prawdziwy panel: oddzielny scenariusz tworzy rzeczywisty `MediaFloatingUi` na `FrameLayout`, klika FAB, otwiera `BottomSheetDialog` z produkcyjnym `ComposeView`, potwierdza nagłówek i Play, zamyka panel oraz powtarza otwarcie po obrocie. Sprawdza w ten sposób właścicieli lifecycle/saved state hosta, których sam test Composable nie obejmuje.
+- Menu przy szerokości 100 dp: rzeczywisty dotyk otwiera menu bez Play; dotknięcie brzegu Play przy ukrytej miniaturze nadal uruchamia Play, bez przypadkowego otwarcia menu.
+- Window: ponowna aplikacja preferencji nie powoduje kolejnego zapisu; sprawdzane są odtworzenie Activity i powrót z innej Activity. Na emulatorze bez wspieranego trybu około 120 Hz prawidłowym wynikiem jest automatyczny wybór systemowy (`0`), a nie fikcyjny odczyt 120 Hz.
+
+Wynik wykonania należy odczytać z XML/raportu rzeczywistej instrumentacji CI; samo istnienie lub kompilacja scenariusza nie oznacza PASS. Test hostuje produkcyjny układ i rzeczywisty FAB/dialog w odizolowanej Activity, lecz nie zastępuje sprawdzenia integracji w rzeczywistym BrowserFragment, odtwarzania zewnętrznego MPV Alpha ani pomiaru płynności na Nothing Phone (1).
+
+Integralność: warstwa `v1167-ui-patches.json` odwraca wyłącznie dokładne zmiany współdzielonych plików do bazowego `6ede3b499be3a922e38c3a7b72fbc6e639f7de5c`. Dalej obowiązują niezmienione historyczne hashe v1158/v1160 oraz odwracalne warstwy v1163–v1165. Nie pomija się chronionych plików ani nie zastępuje ich wcześniejszych hashy.
+
+Trzy screenshoty rzeczywistego dialogu: `reference-panel-portrait.png`, `reference-panel-landscape.png`, `reference-settings-portrait.png`. Tytuły „Film testowy”, 1080p, 213 MB i 42:15 są jawnymi syntetycznymi danymi kontrolowanego fixture; nie są raportem wykrytych filmów użytkownika. Produkcja nie dopisuje takich danych. Screenshoty powstają przez UiAutomation, bez komponowania makiet.
