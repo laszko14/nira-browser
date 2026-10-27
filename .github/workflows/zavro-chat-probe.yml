@@ -61,7 +61,7 @@ jobs:
       - name: Run Stage 4 ZIP verifier security tests (no APK download)
         run: python3 -m unittest discover -s devtools/tests -p test_verify_apk_artifact.py -v
       - name: Smart CI selection and audit tests (no Gradle)
-        run: node --test devtools/tests/smart-ci.test.mjs
+        run: node --test devtools/tests/smart-ci.test.mjs devtools/tests/smart-ci-fast-request.test.mjs
       - name: Validate pinned Clean and MPV build metadata (read-only)
         env:
           GH_TOKEN: ${{ github.token }}
