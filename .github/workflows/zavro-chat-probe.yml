@@ -100,6 +100,25 @@ jobs:
             throw Error('SMART_CI_KOTLIN_TEST_SELECTION_ERROR');
           console.log('SMART_CI_REAL_DIFF_PASS: Kotlin unit test only; no APK compile');
           NODE
+      - name: Test Zavro Code Inspector logic and privacy guards (no Android)
+        run: node --test devtools/tests/code-inspector.test.mjs
+      - name: Read live Codex PR #84 #85 #88 #89 and report potential overlap only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node devtools/code-inspector.mjs audit-prs > "$RUNNER_TEMP/codex-readonly.json"
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const r=JSON.parse(readFileSync(process.env.RUNNER_TEMP+'/codex-readonly.json','utf8'));
+          const p=r.overlap_pairs.find(x=>x.pr_a===84&&x.pr_b===85);
+          const q=r.overlap_pairs.find(x=>x.pr_a===88&&x.pr_b===89);
+          if(r.checked_prs.length!==4 || !p || p.overlap_count<2 || !q || q.overlap_count<1 ||
+            !q.historical_chain_detected || r.mutation_allowed!==false ||
+            r.merge_conflicts_claimed!==false)throw Error('CODEX_AUDIT_NOT_VERIFIED');
+          console.log('ZAVRO_CODE_INSPECTOR_LIVE_PR_PASS: potential overlap, no merge, no build');
+          NODE
       - name: Inspect existing signed Clean v1174 Actions run (read-only)
         env:
           GH_TOKEN: ${{ github.token }}
