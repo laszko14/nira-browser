@@ -149,6 +149,7 @@ internal class MediaDetectorController(private val engine: Engine, private val s
                     return false
                 }
                 if (result.removed > 0) MediaDetectorDiagnostics.navigationRemoved(context, result.removed)
+                com.prirai.android.nira.diagnostics.testlab.TestLab.mediaNavigation(context)
                 return true
             }
             if (decoded is MediaDetectorMessage.Frame) {
@@ -186,6 +187,7 @@ internal class MediaDetectorController(private val engine: Engine, private val s
                 rate[registeredSession] = Window(now, 1)
             } else if (window.count >= 96) {
                 MediaDetectorDiagnostics.discovery(context, "queue_limit", 1)
+                MediaDetectorDiagnostics.discovery(context, "queue_android_rate", 1)
                 return false
             } else {
                 window.count++
