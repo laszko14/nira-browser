@@ -85,6 +85,46 @@ class TestLabMetricsTest {
         assertEquals(1L,summary.outOfOrderSamples)
         assertTrue(summary.invalidFields>=3)
     }
+    @Test fun fullAuditResourceOffsetsAndCpuCoverBothMinutes() {
+        val resources=ResourceAccumulator(maxOffsetNanos=TestLabEngine.FULL_DURATION_NS)
+        val times=longArrayOf(59_999L,60_000L,60_001L,119_999L,120_000L)
+        times.forEachIndexed { index, time ->
+            resources.add(ResourceSample(ms(time),javaHeapBytes=1000L+index,
+                pssBytes=2000L+index,cpuTimeMs=index*100L))
+        }
+        val report=resources.snapshot()
+        assertEquals(5L,report.totalSamples)
+        assertEquals(0L,report.invalidFields)
+        assertEquals(0L,report.outOfOrderSamples)
+        assertEquals(4L,report.javaHeapDeltaBytes)
+        assertEquals(2004L,report.pssMaxBytes)
+        assertEquals(400L,report.cpuDeltaMs)
+        assertTrue(report.cpuObservedWallMs!! >= 60_000.0)
+    }
+    @Test fun sixtySecondModeRejectsLateSampleWithoutCallingItOutOfOrder() {
+        val resources=ResourceAccumulator()
+        resources.add(ResourceSample(ms(59_999),javaHeapBytes=1))
+        resources.add(ResourceSample(ms(60_000),javaHeapBytes=2))
+        resources.add(ResourceSample(ms(60_001),javaHeapBytes=3))
+        resources.add(ResourceSample(ms(59_999),javaHeapBytes=4))
+        val result=resources.snapshot()
+        assertEquals(2L,result.totalSamples)
+        assertEquals(1L,result.invalidFields)
+        assertEquals(1L,result.outOfOrderSamples)
+    }
+    @Test fun fullAuditRejectsOnlyTrulyLateSamplesAndPreservesCpuBaseline() {
+        val resources=ResourceAccumulator(maxOffsetNanos=TestLabEngine.FULL_DURATION_NS)
+        resources.add(ResourceSample(0,cpuTimeMs=0,javaHeapBytes=1))
+        resources.add(ResourceSample(ms(119_999),cpuTimeMs=1000,javaHeapBytes=4))
+        resources.add(ResourceSample(ms(120_000),cpuTimeMs=1100,javaHeapBytes=5))
+        resources.add(ResourceSample(ms(120_001),cpuTimeMs=1200,javaHeapBytes=6))
+        val result=resources.snapshot()
+        assertEquals(3L,result.totalSamples)
+        assertEquals(1L,result.invalidFields)
+        assertEquals(0L,result.outOfOrderSamples)
+        assertEquals(1100L,result.cpuDeltaMs)
+        assertEquals(4L,result.javaHeapDeltaBytes)
+    }
     @Test fun oneMemorySampleHasNoMeasuredChange() {
         val resources=ResourceAccumulator()
         resources.add(ResourceSample(0,javaHeapBytes=100))

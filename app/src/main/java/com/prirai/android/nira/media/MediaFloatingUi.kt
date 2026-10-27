@@ -178,6 +178,11 @@ internal class MediaFloatingUi(
             return
         }
         val capture = TestLab.capture()
+        // Intent is a successful user request to open the panel, not render latency.
+        // Only FAB_OPEN measures first pre-draw; no second latency sample is added.
+        val intent = capture?.operation(LabOperation.VIDEO_PANEL, measureLatency = false)
+        capture?.note(LabCode.VIDEO_PANEL_OPEN)
+        capture?.end(intent, proof = CompletionProof.SOURCE_CALLBACK)
         val measurement = capture?.operation(LabOperation.FAB_OPEN)
         sheet?.dismiss()
         sheetSnapshot = initial

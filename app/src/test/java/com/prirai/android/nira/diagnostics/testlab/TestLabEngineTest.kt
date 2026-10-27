@@ -52,6 +52,33 @@ class TestLabEngineTest {
         assertEquals(LabPhase.PARTIAL,report.status)
         assertEquals(89_999.0,report.durationMs,0.001)
     }
+    @Test fun fullAuditExportsCompleteResourceWindowAndSanitizedFunnel() {
+        val e=engine();val t=running(e,TestType.FULL_AUDIT)
+        advance(60_001)
+        assertTrue(e.resource(t,ResourceSample(60_001_000_000L,javaHeapBytes=100,cpuTimeMs=100)))
+        advance(59_998)
+        assertTrue(e.resource(t,ResourceSample(119_999_000_000L,javaHeapBytes=300,cpuTimeMs=300)))
+        advance(1)
+        assertTrue(e.poll(t))
+        val funnel=MediaFunnelSummary(
+            stages=mapOf(MediaFunnelStage.DISCOVERED to 2,MediaFunnelStage.CANDIDATE to 3),
+            unknownReasons=mapOf(MediaUnknownReason.TITLE_UNKNOWN to 2),
+            titleConflicts=0,posterAlternatives=0,variantGroupMismatches=0,droppedRecords=0)
+        assertTrue(e.complete(t,funnel=funnel))
+        val report=e.latest()!!
+        assertEquals(120_000.0,report.durationMs,0.001)
+        assertEquals(2L,report.resourceMetrics.totalSamples)
+        assertEquals(0L,report.resourceMetrics.invalidFields)
+        assertEquals(0L,report.resourceMetrics.outOfOrderSamples)
+        assertEquals(200L,report.resourceMetrics.javaHeapDeltaBytes)
+        assertEquals(200L,report.resourceMetrics.cpuDeltaMs)
+        assertEquals(3L,report.mediaFunnel!!.stages[MediaFunnelStage.CANDIDATE])
+        val exported=TestLabReportGenerator.generate(report)
+        assertTrue(exported.text.contains("MEDIA FUNNEL"))
+        assertTrue(exported.text.contains("NOT_MEASURED"))
+        assertTrue(exported.json.contains("mediaFunnel"))
+        assertFalse(exported.json.contains("https://"))
+    }
     @Test fun sixtySecondDeadlineUsesOnlyMonotonicTimeAndRequiresCleanup() {
         val e=engine();val t=running(e);advance(59_999)
         assertFalse(e.poll(t));advance(1);assertTrue(e.poll(t))

@@ -53,7 +53,7 @@ class TestLabEngine(
     @Synchronized fun start(testType:TestType):SessionToken? {
         if(phase in setOf(LabPhase.PREPARING,LabPhase.RUNNING,LabPhase.FINALIZING))return null
         token=SessionToken(++serial);type=testType;environment=LabEnvironment();started=null;endedOffset=0L
-        covered=0;coveredStart=0;isForeground=false;foregroundGeneration=0;frames=FrameAccumulator();resources=ResourceAccumulator()
+        covered=0;coveredStart=0;isForeground=false;foregroundGeneration=0;frames=FrameAccumulator();resources=ResourceAccumulator(maxOffsetNanos=durationNanos)
         counts.fill(0);errors.fill(0);stats.fill(null);operations.clear();timeline.clear();markerTimes.clear()
         observations.clear();unavailable.clear();evicted=0;eventSerial=0;rateWindow=0;rateCount=0
         operationSerial=0;droppedOperations=0;heartbeatCount=0;heartbeatMax=null;activeOperationMask=0
@@ -254,7 +254,8 @@ class TestLabEngine(
     }
     /** Call only after collectors have been detached, outside their callbacks/on background. */
     @Synchronized fun complete(session:SessionToken, video:VideoDiscoverySummary?=null,
-                              metadata:VideoMetadataSummary?=null):Boolean {
+                              metadata:VideoMetadataSummary?=null,
+                              funnel:MediaFunnelSummary?=null):Boolean {
         if(token!=session||phase!=LabPhase.FINALIZING)return false
         val incomplete=operations.size
         for(op in operations.values)opStats(op.operation).interrupted++
@@ -319,7 +320,7 @@ class TestLabEngine(
             evictedEvents=evicted,droppedOperations=droppedOperations,incompleteOperations=incomplete,
             maxPendingHeartbeatMs=pendingHeartbeatMax?.div(1_000_000.0),pendingHeartbeatSamples=pendingHeartbeatCount,
             finalizationDelayMs=((offset()?:endedOffset)-endedOffset).coerceAtLeast(0)/1_000_000.0,
-            maxHeartbeatDelayMs=heartbeatMax?.div(1_000_000.0),heartbeatSamples=heartbeatCount,limitations=limitations,videoDiscovery=video,videoMetadata=metadata,
+            maxHeartbeatDelayMs=heartbeatMax?.div(1_000_000.0),heartbeatSamples=heartbeatCount,limitations=limitations,videoDiscovery=video,videoMetadata=metadata,mediaFunnel=funnel,
         )
         lastReport=TestLabAnalyzer.analyze(lastReport!!)
         phase=targetStatus;return true

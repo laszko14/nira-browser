@@ -20,6 +20,9 @@ on:
 
 jobs:
   build:
+    # Stage 1 has no approval for APK compilation. PR runs tests and lint only;
+    # all normal release/update workflows remain unchanged.
+    if: github.event_name != 'pull_request' || github.head_ref != 'feat/zavro-clean-mme-stage1-testlab-20261027'
     runs-on: ubuntu-latest
     permissions:
       contents: read

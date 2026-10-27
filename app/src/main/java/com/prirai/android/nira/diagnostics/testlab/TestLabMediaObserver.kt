@@ -8,27 +8,41 @@ internal class TestLabMediaObserver(private val capture: LabCapture) {
     @Volatile private var closed = false
     private val ledger = VideoDiscoveryLedger()
     private val metadata = VideoMetadataLedger()
+    private val funnel = MediaFunnelLedger()
 
     fun discovery(code: String, count: Int) {
         if (closed || count !in 1..100000 || !capture.allows(LabDomain.VIDEO)) return
         val safe = discoveryCodes[code] ?: return
         capture.note(safe, count = count)
     }
-    fun entry(binding: MediaSessionBinding, media: MediaEntry) {
-        if (!closed && capture.allows(LabDomain.VIDEO)) { ledger.observe(binding, media); metadata.observe(binding, media) }
+    fun entry(binding: MediaSessionBinding, media: MediaEntry, verifiedEvidence: Boolean = false) {
+        if (!closed && capture.allows(LabDomain.VIDEO)) {
+            ledger.observe(binding, media); metadata.observe(binding, media)
+            funnel.observe(binding, media, verifiedEvidence)
+        }
+    }
+    fun candidate() {
+        if (!closed && capture.allows(LabDomain.VIDEO)) funnel.candidate()
+    }
+    fun conflict(kind: MediaFunnelConflict) {
+        if (!closed && capture.allows(LabDomain.VIDEO)) funnel.conflict(kind)
     }
     fun navigation(binding: MediaSessionBinding) {
-        if (!closed && capture.allows(LabDomain.VIDEO)) { ledger.navigation(binding); metadata.navigation(binding) }
+        if (!closed && capture.allows(LabDomain.VIDEO)) { ledger.navigation(binding); metadata.navigation(binding); funnel.navigation(binding) }
     }
     fun rejectedTitle(binding: MediaSessionBinding, different: Boolean) {
-        if (!closed && capture.allows(LabDomain.VIDEO)) ledger.rejectedTitle(binding, different)
+        if (!closed && capture.allows(LabDomain.VIDEO)) {
+            ledger.rejectedTitle(binding, different)
+            if (different) funnel.conflict(MediaFunnelConflict.TITLE)
+        }
     }
     fun snapshot(): VideoDiscoverySummary = ledger.snapshot()
     fun metadataSnapshot(): VideoMetadataSummary = metadata.snapshot()
+    fun funnelSnapshot(): MediaFunnelSummary = funnel.snapshot()
     fun displayed(binding: MediaSessionBinding, entry: MediaEntry) {
-        if (!closed && capture.allows(LabDomain.VIDEO)) { ledger.displayed(binding, entry); metadata.displayed(binding, entry) }
+        if (!closed && capture.allows(LabDomain.VIDEO)) { ledger.displayed(binding, entry); metadata.displayed(binding, entry); funnel.displayed(binding, entry) }
     }
-    fun close() { closed = true; ledger.clear(); metadata.clear() }
+    fun close() { closed = true; ledger.clear(); metadata.clear(); funnel.clear() }
 
     private companion object {
         val discoveryCodes = mapOf(

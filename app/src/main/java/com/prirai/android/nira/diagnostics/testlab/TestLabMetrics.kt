@@ -98,7 +98,12 @@ data class ResourceSummary(
 )
 
 /** Sample ring is bounded; first baseline and extrema are independent of ring eviction. */
-class ResourceAccumulator(private val capacity: Int = 180) {
+class ResourceAccumulator(
+    private val capacity: Int = 180,
+    private val maxOffsetNanos: Long = TestLabEngine.DURATION_NS,
+) {
+    // A future timestamp is invalid input, not an out-of-order callback.
+    init { require(maxOffsetNanos in TestLabEngine.DURATION_NS..TestLabEngine.FULL_DURATION_NS) }
     init { require(capacity in 1..180) }
     private val samples = ArrayDeque<ResourceSample>()
     private var total = 0L
@@ -130,7 +135,10 @@ class ResourceAccumulator(private val capacity: Int = 180) {
         return value
     }
     fun add(input: ResourceSample) {
-        if (input.offsetNanos !in 0L..60_000_000_000L || input.offsetNanos <= lastOffset) {
+        if (input.offsetNanos !in 0L..maxOffsetNanos) {
+            invalid++; return
+        }
+        if (input.offsetNanos <= lastOffset) {
             outOfOrder++; return
         }
         val sample = input.copy(

@@ -389,6 +389,8 @@ internal class MediaRepository(
             !frameCurrent(current, metadata?.frameKey, metadata?.frameUrl)) {
             return InsertResult.STALE
         }
+        if (com.prirai.android.nira.diagnostics.testlab.TestLab.mediaObservationActive())
+            com.prirai.android.nira.diagnostics.testlab.TestLab.mediaCandidate()
         current.access = tick()
         val identity = MediaStreamIdentity.key(media.url, media.format, metadata?.frameKey)
         val provenance = when {
@@ -437,6 +439,15 @@ internal class MediaRepository(
             if (provenance == MediaProvenance.NETWORK_OBSERVED) found.format = media.format
             found.observeUrl(media.url, provenance, tick())
             found.mark(if (provenance == MediaProvenance.MANIFEST_DERIVED) MediaSource.PAGE else source)
+            if (com.prirai.android.nira.diagnostics.testlab.TestLab.mediaObservationActive()) {
+                if (groupId != null && found.groupId != null && found.groupId != groupId)
+                    com.prirai.android.nira.diagnostics.testlab.TestLab.mediaFunnelConflict(
+                        com.prirai.android.nira.diagnostics.testlab.MediaFunnelConflict.VARIANT_GROUP_MISMATCH)
+                if (found.posterUrl != null && metadata?.posterUrl != null &&
+                    found.posterUrl != metadata.posterUrl)
+                    com.prirai.android.nira.diagnostics.testlab.TestLab.mediaFunnelConflict(
+                        com.prirai.android.nira.diagnostics.testlab.MediaFunnelConflict.POSTER_ALTERNATIVE)
+            }
             if (groupId != null && (found.groupId == null ||
                     // The network manifest group may reconcile an anonymous
                     // earlier page hint, but must not move a source that already
@@ -452,7 +463,9 @@ internal class MediaRepository(
                     earlierTitle != MediaTitleResolver.normalizeText(metadata.title) && found.title == earlierTitle)
                     com.prirai.android.nira.diagnostics.testlab.TestLab.mediaRejectedTitle(
                         tab.binding, earlierKind == metadata.titleKind)
-                com.prirai.android.nira.diagnostics.testlab.TestLab.observedMedia(tab.binding, found.copy())
+                com.prirai.android.nira.diagnostics.testlab.TestLab.observedMedia(
+                    tab.binding, found.copy(), metadata?.verification in
+                        setOf("manifest_verified", "stream_verified"))
             }
             if (source == MediaSource.NETWORK && metadata?.frameKey == null) found.frameUrl = current.pageUrl
             changed()
@@ -468,7 +481,9 @@ internal class MediaRepository(
         if (source == MediaSource.NETWORK && metadata?.frameKey == null) added.frameUrl = current.pageUrl
         current.entries[identity] = added
         if (com.prirai.android.nira.diagnostics.testlab.TestLab.mediaObservationActive())
-            com.prirai.android.nira.diagnostics.testlab.TestLab.observedMedia(tab.binding, added.copy())
+            com.prirai.android.nira.diagnostics.testlab.TestLab.observedMedia(
+                tab.binding, added.copy(), metadata?.verification in
+                    setOf("manifest_verified", "stream_verified"))
         while (current.entries.size > perTabLimit) current.entries.remove(current.entries.keys.first())
         // Deterministic global FIFO eviction, bounded even under unique URL floods.
         while (scopes.values.sumOf { it.entries.size } > globalLimit) {
