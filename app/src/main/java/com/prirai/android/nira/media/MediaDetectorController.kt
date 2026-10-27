@@ -188,6 +188,8 @@ internal class MediaDetectorController(private val engine: Engine, private val s
             } else if (window.count >= 96) {
                 MediaDetectorDiagnostics.discovery(context, "queue_limit", 1)
                 MediaDetectorDiagnostics.discovery(context, "queue_android_rate", 1)
+                if (candidate.title != null)
+                    MediaDetectorDiagnostics.discovery(context, "queue_title_candidate_dropped", 1)
                 return false
             } else {
                 window.count++
