@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "kind": "sandbox-kotlin-test",
+  "repo": "laszko14/nira-browser",
+  "variant": "clean",
+  "branch": "tools/zavro-edit-clean-20261027",
+  "sha": "c1021a6e8d877feac911986348936f39fdd3863b",
+  "test_class": "com.prirai.android.nira.devtools.ZavroEditorSmokeTest",
+  "build_requested": false
+}
