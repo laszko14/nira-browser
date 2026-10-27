@@ -385,7 +385,15 @@ internal class MediaRepository(
                         record.url, media.url, media.format, metadata?.frameKey)
             }
         } else null
-        val found = current.entries[identity] ?: refreshed
+        // Record.key preserves the first exact URL after a verified refresh.
+        // A later observation of its currently active (new) exact URL must
+        // still resolve to that one record, not create a second tile.
+        val direct = current.entries[identity]
+        val activeUrlMatch = if (direct == null) current.entries.values.firstOrNull {
+            it.url == media.url && it.format == media.format &&
+                it.frameKey == metadata?.frameKey
+        } else null
+        val found = direct ?: activeUrlMatch ?: refreshed
         if (found != null) {
             val requestSequence = metadata?.requestSequence
             // Distinct signatures in the same request sequence are not proof
