@@ -39,10 +39,10 @@ test("v1119: native row supports selecting, closing, and correct-context new tab
 
 test("v1119: separately installable signed ARM64 artifact has current metadata", () => {
   const gradle = source("app/build.gradle");
-  assert.match(gradle, /versionCode = 167/);
-  assert.match(gradle, /versionName = "0\.5\.22-alpha72-clean"/);
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1167"/);
-  assert.match(workflow, /EXPECTED_VERSION_NAME: 0\.5\.22-alpha72-clean/);
-  assert.match(workflow, /zavro-arm64-update-apk-v1167/);
+  assert.match(gradle, /versionCode = 168/);
+  assert.match(gradle, /versionName = "0\.5\.22-alpha73-clean"/);
+  assert.match(workflow, /EXPECTED_VERSION_CODE: "1168"/);
+  assert.match(workflow, /EXPECTED_VERSION_NAME: 0\.5\.22-alpha73-clean/);
+  assert.match(workflow, /zavro-arm64-update-apk-v1168/);
   assert.match(workflow, /EXPECTED_CERT_SHA256/);
 });
