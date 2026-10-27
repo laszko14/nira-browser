@@ -1014,9 +1014,10 @@ class TabsBottomSheetFragment : DialogFragment() {
                         ))
                     }
                     Box(
+                        // Scaffold's content padding already includes the dialog's
+                        // navigation-bar inset; don't reserve it twice.
                         modifier = Modifier
                             .fillMaxWidth()
-                            .navigationBarsPadding()
                             .padding(start = 11.dp, end = 8.dp, top = 9.dp, bottom = 12.dp)
                     ) {
                         Row(
