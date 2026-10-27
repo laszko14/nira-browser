@@ -141,7 +141,7 @@ internal class TestLabRuntime(
                         capture=LabCapture(engine,s,::syncTags)
                         browserObserver=TestLabBrowserObserver(capture!!)
                         if(engine.currentType().includes(LabDomain.VIDEO)||engine.currentType().includes(LabDomain.GECKO))mediaObserver=TestLabMediaObserver(capture!!)
-                        if(engine.currentType() in setOf(TestType.VIDEO_DISCOVERY,TestType.VIDEO_METADATA))
+                        if(engine.currentType() in setOf(TestType.VIDEO_DISCOVERY,TestType.VIDEO_METADATA,TestType.FULL_AUDIT))
                             com.prirai.android.nira.media.MediaDetectorDiagnostics.captureTestLabBaseline()
                         if(Build.VERSION.SDK_INT<31)engine.metricUnavailable(s,LabMetric.FRAME_OVERRUN,Availability.NOT_SUPPORTED_BY_API)
                         
@@ -177,7 +177,7 @@ internal class TestLabRuntime(
         val now=SystemClock.elapsedRealtimeNanos()
         mutableUi.value=LabUiState(engine.phase,engine.currentType(),
             if(engine.phase==LabPhase.PREPARING)countdownAt?.let{((3_000_000_000L-(now-it)).coerceAtLeast(0)+999_999_999L).div(1_000_000_000L).toInt()}?:3 else null,
-            engine.elapsedNanos(s)?.let{((TestLabEngine.DURATION_NS-it+999_999_999L)/1_000_000_000L).toInt()},engine.latest())
+            engine.elapsedNanos(s)?.let{((engine.targetDurationNanos()-it+999_999_999L)/1_000_000_000L).toInt()},engine.latest())
     }
     private fun startWorker(s:SessionToken) {
         worker=scope.launch {
@@ -329,8 +329,8 @@ internal class TestLabRuntime(
         val s=session?:return
         if(cleaned||engine.phase!=LabPhase.FINALIZING)return
         cleaned=true;worker?.cancel();main.removeCallbacksAndMessages(null)
-        val video = if(engine.currentType()==TestType.VIDEO_DISCOVERY) mediaObserver?.snapshot() else null
-        val metadata = if(engine.currentType()==TestType.VIDEO_METADATA) mediaObserver?.metadataSnapshot() else null
+        val video = if(engine.currentType() in setOf(TestType.VIDEO_DISCOVERY,TestType.FULL_AUDIT)) mediaObserver?.snapshot() else null
+        val metadata = if(engine.currentType() in setOf(TestType.VIDEO_METADATA,TestType.FULL_AUDIT)) mediaObserver?.metadataSnapshot() else null
         browserObserver?.close();browserObserver=null
         mediaObserver?.close();mediaObserver=null;capture=null
         app.unregisterActivityLifecycleCallbacks(this);app.unregisterComponentCallbacks(this)
