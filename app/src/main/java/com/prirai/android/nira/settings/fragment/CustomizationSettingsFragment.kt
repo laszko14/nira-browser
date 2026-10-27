@@ -119,6 +119,11 @@ class CustomizationSettingsFragment : BaseSettingsFragment() {
                 Toast.makeText(requireContext(), getString(R.string.app_restart), Toast.LENGTH_SHORT).show()
             }
         )
+        preferenceScreen.findPreference<Preference>("nira_toolbar_config_portrait")
+            ?.setOnPreferenceClickListener { showToolbarActionDialog(false); true }
+        preferenceScreen.findPreference<Preference>("nira_toolbar_config_landscape")
+            ?.setOnPreferenceClickListener { showToolbarActionDialog(true); true }
+
         preferenceScreen.findPreference<SeekBarPreference>("nira_toolbar_action_slot_dp")?.apply {
             value = niraPrefs.niraToolbarActionSlotDp
             setOnPreferenceChangeListener { _, updated ->
@@ -532,5 +537,117 @@ class CustomizationSettingsFragment : BaseSettingsFragment() {
             }
             .show()
     }
+
+
+    /** Saves each change immediately; the toolbar observes the same preferences live. */
+    private fun showToolbarActionDialog(landscape: Boolean) {
+        val ctx = requireContext()
+        val prefs = UserPreferences(ctx)
+        val config = com.prirai.android.nira.components.toolbar.ToolbarActionConfiguration
+        val order = config.getOrder(prefs, landscape).toMutableList()
+        val hidden = config.getHidden(prefs, landscape).toMutableSet()
+        val dp = { value: Int -> (value * resources.displayMetrics.density).toInt() }
+
+        val content = android.widget.LinearLayout(ctx).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(dp(18), dp(8), dp(18), dp(8))
+        }
+        content.addView(android.widget.TextView(ctx).apply {
+            text = "Przytrzymaj ↕ i przeciągnij wiersz, aby zmienić kolejność. " +
+                "Zaznaczenie określa widoczność."
+            setPadding(0, dp(4), 0, dp(10))
+        })
+        val rows = android.widget.LinearLayout(ctx).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+        }
+        content.addView(rows)
+
+        fun redrawRows() {
+            rows.removeAllViews()
+            order.forEach { id ->
+                val row = android.widget.LinearLayout(ctx).apply {
+                    orientation = android.widget.LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    minimumHeight = dp(46)
+                    setPadding(dp(2), 0, dp(2), 0)
+                }
+                val handle = android.widget.TextView(ctx).apply {
+                    text = "↕"
+                    textSize = 23f
+                    gravity = android.view.Gravity.CENTER
+                    contentDescription = "Przeciągnij " + (config.labels[id] ?: id)
+                    layoutParams = android.widget.LinearLayout.LayoutParams(dp(40), dp(46))
+                    setOnLongClickListener {
+                        row.startDragAndDrop(
+                            android.content.ClipData.newPlainText("zavro-toolbar", id),
+                            android.view.View.DragShadowBuilder(row), id, 0
+                        )
+                        true
+                    }
+                }
+                row.setOnDragListener { _, event ->
+                    when (event.action) {
+                        android.view.DragEvent.ACTION_DRAG_STARTED -> event.localState is String
+                        android.view.DragEvent.ACTION_DROP -> {
+                            val moved = event.localState as? String
+                            if (moved != null && moved in order && moved != id) {
+                                order.remove(moved)
+                                order.add(order.indexOf(id), moved)
+                                config.storeOrder(prefs, landscape, order)
+                                rows.post { redrawRows() }
+                            }
+                            true
+                        }
+                        android.view.DragEvent.ACTION_DRAG_ENDED -> true
+                        else -> true
+                    }
+                }
+                row.addView(handle)
+                val toggle = android.widget.CheckBox(ctx).apply {
+                    text = config.labels[id] ?: id
+                    isChecked = id !in hidden
+                    setOnCheckedChangeListener { _, checked ->
+                        if (checked) hidden.remove(id) else hidden.add(id)
+                        config.storeHidden(prefs, landscape, hidden)
+                    }
+                }
+                row.addView(toggle, android.widget.LinearLayout.LayoutParams(
+                    0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+                ))
+                rows.addView(row)
+            }
+        }
+        redrawRows()
+        val amount = android.widget.TextView(ctx).apply {
+            text = "Rozmiar ikon: ${config.getSize(prefs, landscape)} dp"
+            setPadding(0, dp(12), 0, 0)
+        }
+        content.addView(amount)
+        content.addView(android.widget.SeekBar(ctx).apply {
+            max = 40 // 24–64 dp. Android touch targets stay >= 40 dp.
+            progress = config.getSize(prefs, landscape) - 24
+            setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(
+                    seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean
+                ) {
+                    amount.text = "Rozmiar ikon: ${24 + progress} dp"
+                }
+                override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {
+                    seekBar?.let { config.storeSize(prefs, landscape, 24 + it.progress) }
+                }
+            })
+        })
+        val scroll = android.widget.ScrollView(ctx).apply { addView(content) }
+        MaterialAlertDialogBuilder(ctx)
+            .setTitle(if (landscape) "Przyciski paska — poziom" else "Przyciski paska — pion")
+            .setView(scroll)
+            .setPositiveButton("Gotowe", null)
+            .setNeutralButton("Przywróć domyślne") { _, _ ->
+                config.restore(prefs, landscape)
+            }
+            .show()
+    }
+
 
 }

@@ -79,6 +79,12 @@
             app:title="Minimalna szerokość adresu (dp)"
             android:max="220" app:min="64" app:defaultValue="92"
             app:showSeekBarValue="true" />
+        <Preference app:key="nira_toolbar_config_portrait"
+            app:title="Przyciski paska adresu — pion"
+            app:summary="Widoczność, kolejność i wielkość pięciu przycisków w pionie" />
+        <Preference app:key="nira_toolbar_config_landscape"
+            app:title="Przyciski paska adresu — poziom"
+            app:summary="Niezależna konfiguracja pięciu przycisków w poziomie" />
         <Preference app:key="nira_toolbar_drag_hint"
             app:title="Zmień kolejność przycisków"
             app:summary="Przytrzymaj przycisk na pasku adresu i przeciągnij. Kolejność zostanie zapisana." />

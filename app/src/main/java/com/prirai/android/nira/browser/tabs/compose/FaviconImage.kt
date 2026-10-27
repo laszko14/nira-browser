@@ -2,6 +2,8 @@ package com.prirai.android.nira.browser.tabs.compose
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -70,7 +72,7 @@ fun FaviconImage(
     }
 
     Box(
-        modifier = modifier.size(size),
+        modifier = modifier.size(size).clip(CircleShape),
         contentAlignment = Alignment.Center
     ) {
         if (faviconBitmap != null) {
