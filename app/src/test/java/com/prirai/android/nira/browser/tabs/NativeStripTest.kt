@@ -51,4 +51,25 @@ class NativeStripTest {
         strip.updateOrder(UnifiedTabOrder("default", listOf(entry.copy(isExpanded=true))))
         assertEquals(2, descendants(strip).count { it.contentDescription?.toString()?.startsWith("Karta: ") == true })
     }
+    @Test fun titleFaviconAndSelectionChangesReusePillsWithoutRebuildingTheRow() {
+        val strip = PortraitNativeTabStrip(RuntimeEnvironment.getApplication())
+        val original = listOf(tab("a"), tab("b"))
+        strip.updateTabs(original, "a")
+        fun pills() = descendants(strip).filter {
+            it.contentDescription?.toString()?.startsWith("Karta: ") == true
+        }
+        val initial = pills()
+        val firstBackground = initial[0].background
+        val changed = original[0].copy(
+            content = ContentState(url = "about:blank", title = "Nowy tytuł", loading = true)
+        )
+        strip.updateTabs(listOf(changed, original[1]), "b")
+        val updated = pills()
+        assertSame(initial[0], updated[0])
+        assertSame(initial[1], updated[1])
+        assertEquals("Karta: Nowy tytuł", updated[0].contentDescription)
+        assertNotSame(firstBackground, updated[0].background)
+        strip.updateTabs(listOf(original[1], changed), "b")
+        assertNotSame(initial[0], pills()[1]) // structural reorder is still rebuilt
+    }
 }

@@ -60,6 +60,16 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
     var onGroupToggle: ((String) -> Unit)? = null
     private var selectedPill: View? = null
     private var lastSelectedId: String? = null
+    // Title, favicon and selection updates reuse the same native Views.
+    private data class RenderedPill(
+        val container: FrameLayout,
+        val image: ImageView,
+        var title: String,
+        var url: String,
+        var iconIdentity: Int?,
+        var selected: Boolean
+    )
+    private val renderedPills = mutableMapOf<String, RenderedPill>()
 
     var onTabSelected: ((String) -> Unit)? = null
     var onTabClosed: ((String) -> Unit)? = null
@@ -155,6 +165,8 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
     }
 
     private fun bindFavicon(image: ImageView, tab: TabSessionState) {
+        // Invalidate any pending async request when the same view is rebound.
+        image.tag = null
         val url = tab.content.url
         val bitmap = tab.content.icon ?: FaviconLoader.getFromMemorySync(context, url)
         if (bitmap != null) {
@@ -181,8 +193,8 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
      * stream changes, not just when tabs are opened/closed.
      */
     fun updateGroups(groups: List<TabGroupData>) {
+        if (currentGroups == groups) return
         currentGroups = groups
-        lastSignature = null
         updateTabs(lastTabs, lastSelectedId)
     }
 
@@ -190,7 +202,6 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
     fun updateOrder(order: UnifiedTabOrder?) {
         if (currentOrder == order) return
         currentOrder = order
-        lastSignature = null
         updateTabs(lastTabs, lastSelectedId)
     }
 
@@ -231,6 +242,8 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
             dp(23), dp(23), Gravity.CENTER
         ))
         bindFavicon(image, tab)
+        renderedPills[tab.id] = RenderedPill(tabContainer, image, title, tab.content.url,
+            tab.content.icon?.let { System.identityHashCode(it) }, selected)
         parent.addView(tabContainer)
         if (selected) selectedPill = tabContainer
     }
@@ -309,9 +322,10 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
         lastSelectedId = selectedId
         val visibleIds = tabs.map { it.id }.toSet()
         val visibleGroups = currentGroups.filter { g -> g.tabIds.any { it in visibleIds } }
+        val dark = ThemeManager.isDarkMode(context)
+        // Only a structural change (group/order/membership/theme) recreates the row.
         val signature = buildList {
-            add(selectedId.orEmpty())
-            add(ThemeManager.isDarkMode(context).toString())
+            add(dark.toString())
             currentOrder?.primaryOrder?.forEach { item ->
                 when (item) {
                     is UnifiedTabOrder.OrderItem.SingleTab -> add("t:" + item.tabId)
@@ -322,28 +336,22 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
                     }
                 }
             }
-            visibleGroups.forEach { g ->
-                add(g.id)
-                add(g.name)
-                add(g.color.toString())
-                add(g.tabIds.joinToString(","))
-                add(g.isCollapsed.toString())
+            visibleGroups.forEach { group ->
+                add(group.id)
+                add(group.name)
+                add(group.color.toString())
+                add(group.tabIds.joinToString(","))
+                add(group.isCollapsed.toString())
             }
-            tabs.forEach { tab ->
-                add(tab.id)
-                add(tab.content.url)
-                add(tab.content.title)
-                add(tab.content.icon?.let { System.identityHashCode(it) }.toString())
-            }
+            tabs.forEach { add(it.id) }
         }
-        if (signature == lastSignature) return
-        lastSignature = signature
-
-        val dark = ThemeManager.isDarkMode(context)
+        val structureChanged = signature != lastSignature
         val oldScroll = scroller.scrollX
-        row.removeAllViews()
-        selectedPill = null
-
+        if (structureChanged) {
+            lastSignature = signature
+            row.removeAllViews()
+            renderedPills.clear()
+            selectedPill = null
         val byId = tabs.associateBy { it.id }
         val groupsById = visibleGroups.associateBy { it.id }
         val groupedIds = visibleGroups.flatMap { it.tabIds }.toSet()
@@ -422,6 +430,30 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
             setOnClickListener { onNewTab?.invoke() }
         })
 
+        }
+        // Incrementally rebind only the pills whose visible content changed.
+        tabs.forEach { tab ->
+            val pill = renderedPills[tab.id] ?: return@forEach // collapsed group
+            val title = tabTitle(tab)
+            if (pill.title != title) {
+                pill.title = title
+                pill.container.contentDescription = "Karta: $title"
+                pill.image.contentDescription = "Ikona strony: $title"
+            }
+            val iconIdentity = tab.content.icon?.let { System.identityHashCode(it) }
+            if (pill.url != tab.content.url || pill.iconIdentity != iconIdentity) {
+                pill.url = tab.content.url
+                pill.iconIdentity = iconIdentity
+                bindFavicon(pill.image, tab)
+            }
+            val selected = tab.id == selectedId
+            if (pill.selected != selected) {
+                pill.selected = selected
+                pill.container.background = tabBackground(selected, dark)
+            }
+        }
+        selectedPill = selectedId?.let { renderedPills[it]?.container }
+        if (!structureChanged && previousSelectedId == selectedId) return
         val focused = selectedPill
         scroller.post {
             val maxScroll = (row.width - scroller.width).coerceAtLeast(0)

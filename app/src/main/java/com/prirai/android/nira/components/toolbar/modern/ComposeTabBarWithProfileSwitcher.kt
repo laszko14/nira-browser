@@ -26,6 +26,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 
 /**
@@ -38,6 +40,7 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : FrameLayout(context, attrs, defStyleAttr) {
 
+    private val preferences = com.prirai.android.nira.preferences.UserPreferences(context)
     private val composeView = ComposeView(context).apply {
         setViewCompositionStrategy(
             androidx.compose.ui.platform.ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
@@ -49,8 +52,7 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
     private val portraitTabStrip = PortraitNativeTabStrip(context)
 
     private fun useNativePortraitStrip(orientation: Int): Boolean {
-        val prefs = com.prirai.android.nira.preferences.UserPreferences(context)
-        return prefs.niraGroupBarBottom &&
+        return preferences.niraGroupBarBottom &&
             orientation != android.content.res.Configuration.ORIENTATION_LANDSCAPE
     }
 
@@ -93,8 +95,7 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
         // The outer FrameLayout's 40dp minimum alone can display an empty
         // background when the WRAP_CONTENT ComposeView measures to zero.
         val rowMinimumHeightPx =
-            (com.prirai.android.nira.preferences.UserPreferences(context)
-                .niraTabStripHeightDp.coerceIn(40, 80) *
+            (preferences.niraTabStripHeightDp.coerceIn(40, 80) *
                 resources.displayMetrics.density).toInt()
         minimumHeight = rowMinimumHeightPx
         composeView.minimumHeight = rowMinimumHeightPx
@@ -219,8 +220,7 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
     private fun setupComposeContent() {
         composeView.setContent {
             // Read AMOLED preference
-            val prefs = com.prirai.android.nira.preferences.UserPreferences(context)
-            val isAmoledActive = prefs.amoledMode
+            val isAmoledActive = preferences.amoledMode
             
             NiraTheme(amoledMode = isAmoledActive) {
                 TabBarWithProfileSwitcherContent()
@@ -239,14 +239,20 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
         // the view-tree lifecycle helper is not available in this dependency set.
         val lifecycleOwner = context as LifecycleOwner
 
-        // Use produceState to observe store state changes reactively
-        val browserState = produceState(initialValue = store.state, store) {
-            store.flow(lifecycleOwner).collect { state -> value = state }
+        // Unrelated BrowserStore actions (downloads, settings, etc.) must not
+        // invalidate the tab composition.
+        val browserTabsAndSelection = produceState(
+            initialValue = store.state.tabs to store.state.selectedTabId, store, lifecycleOwner
+        ) {
+            store.flow(lifecycleOwner)
+                .map { state -> state.tabs to state.selectedTabId }
+                .distinctUntilChanged()
+                .collect { value = it }
         }
 
         // Get current profile and mode - recalculate when browserState changes
-        val currentProfile = remember(browserState.value, profileRefreshToken) { profileManager.getActiveProfile() }
-        val isPrivateMode = remember(browserState.value, profileRefreshToken) { profileManager.isPrivateMode() }
+        val currentProfile = remember(browserTabsAndSelection.value, profileRefreshToken) { profileManager.getActiveProfile() }
+        val isPrivateMode = remember(browserTabsAndSelection.value, profileRefreshToken) { profileManager.isPrivateMode() }
 
         // Snapshot pushed by the toolbar can restore visible tabs even
         // while an internally collected state lags after orientation changes.
@@ -254,7 +260,7 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
         val pushedState = lastPushedTabState?.takeIf {
             it.profileId == currentProfile.id && it.privateMode == isPrivateMode
         }
-        val tabs = remember(browserState.value.tabs, currentProfile.id, isPrivateMode, pushedState) {
+        val tabs = remember(browserTabsAndSelection.value.first, currentProfile.id, isPrivateMode, pushedState) {
             fun belongsToCurrentProfile(tab: TabSessionState): Boolean {
                 if (tab.content.private != isPrivateMode) return false
                 return if (isPrivateMode) {
@@ -265,12 +271,12 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
                         (currentProfile.id == "default" && tab.contextId == null)
                 }
             }
-            val storedTabs = browserState.value.tabs.filter(::belongsToCurrentProfile)
+            val storedTabs = browserTabsAndSelection.value.first.filter(::belongsToCurrentProfile)
             val pushedTabs = pushedState?.tabs?.filter(::belongsToCurrentProfile)
             if (!pushedTabs.isNullOrEmpty()) pushedTabs else storedTabs
         }
 
-        val selectedTabId = pushedState?.selectedTabId ?: browserState.value.selectedTabId
+        val selectedTabId = pushedState?.selectedTabId ?: browserTabsAndSelection.value.second
 
         val orderManager = tabOrderManager ?: return
         val viewModel = tabViewModel ?: return
@@ -369,11 +375,10 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
 
             Column(
                 modifier = Modifier.fillMaxWidth().heightIn(
-                    min = com.prirai.android.nira.preferences.UserPreferences(context)
-                        .niraTabStripHeightDp.coerceIn(40, 80).dp
+                    min = preferences.niraTabStripHeightDp.coerceIn(40, 80).dp
                 )
             ) {
-                if (com.prirai.android.nira.preferences.UserPreferences(context).niraGroupChipsVisible) HybridGroupChips(
+                if (preferences.niraGroupChipsVisible) HybridGroupChips(
                     groups = visibleGroups,
                     tabs = tabs,
                     activeGroupId = activeGroupId,

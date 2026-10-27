@@ -906,14 +906,16 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
 
         when (cachedToolbarPosition) {
             com.prirai.android.nira.components.toolbar.ToolbarPosition.BOTTOM.ordinal -> {
+                var changed = false
                 if (lp.topMargin != 0) {
                     lp.topMargin = 0
-                    binding.swipeRefresh.layoutParams = lp
+                    changed = true
                 }
                 if (lp.bottomMargin != visibleHeight) {
                     lp.bottomMargin = visibleHeight
-                    binding.swipeRefresh.layoutParams = lp
+                    changed = true
                 }
+                if (changed) binding.swipeRefresh.layoutParams = lp
                 // Clear any stale top padding from a previous TOP-mode layout
                 if (binding.swipeRefresh.paddingTop != 0 ||
                     binding.swipeRefresh.paddingBottom != 0) {

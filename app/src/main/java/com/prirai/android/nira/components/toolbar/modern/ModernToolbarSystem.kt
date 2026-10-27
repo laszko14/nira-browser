@@ -29,6 +29,7 @@ class ModernToolbarSystem @JvmOverloads constructor(
     private var scrollingEnabled = true
     private val hideAnimator = ValueAnimator()
     private var offsetAnimating = false
+    private var animatedTargetOffset: Int? = null
     private var engineView: EngineView? = null
 
     // Position tracking for proper scroll direction
@@ -187,29 +188,43 @@ class ModernToolbarSystem @JvmOverloads constructor(
     }
 
     private fun animateToOffset(targetOffset: Int) {
+        val target = targetOffset.coerceIn(0, getTotalHeight())
+        // Repeated scroll requests must not cancel and restart identical animations.
+        if (hideAnimator.isRunning && animatedTargetOffset == target) return
+        if (!hideAnimator.isRunning && currentOffset == target) return
         hideAnimator.cancel()
         hideAnimator.removeAllUpdateListeners()
         hideAnimator.removeAllListeners()
         offsetAnimating = true
+        animatedTargetOffset = target
         val capture=TestLab.capture()
         val measurement=capture?.operation(if(targetOffset==0)LabOperation.TOOLBAR_SHOW else LabOperation.TOOLBAR_HIDE)
 
         hideAnimator.apply {
-            setIntValues(currentOffset, targetOffset)
+            setIntValues(currentOffset, target)
             duration = 200
             addUpdateListener { animation ->
-                setToolbarOffset(animation.animatedValue as Int)
+                val frameOffset = animation.animatedValue as Int
+                if (frameOffset != currentOffset) setToolbarOffset(frameOffset)
             }
             addListener(object : android.animation.AnimatorListenerAdapter() {
                 private var cancelled = false
                 override fun onAnimationCancel(animation: android.animation.Animator) {
                     cancelled = true
+                    animatedTargetOffset = null
                     capture?.end(measurement,OperationOutcome.CANCELLED)
                 }
                 override fun onAnimationEnd(animation: android.animation.Animator) {
                     if (!cancelled) {
                         offsetAnimating = false
-                        setToolbarOffset(targetOffset)
+                        animatedTargetOffset = null
+                        // The last animation frame may already reach 'target'.
+                        // We STILL must notify the fragment after offsetAnimating
+                        // becomes false: BrowserFragment swaps its temporary
+                        // swipeRefresh.translationY back to an actual top margin
+                        // only on this non-animating callback. Skipping it leaves
+                        // a permanent blank band below GeckoView after scroll.
+                        setToolbarOffset(target)
                         capture?.end(measurement,proof=CompletionProof.ANIMATOR_END)
                     }
                 }
