@@ -27,3 +27,6 @@ Read `docs/dev-system/ARTIFACT_REPORTING_STAGE4.md`. A read-only `devtools/repor
 
 ## Stage 5 — Zavro Smart CI
 See `docs/dev-system/SMART_CI_STAGE5.md`. The isolated fast JS workflow now ran on actual pinned Clean and MPV commits with 131/131 and 202/202 PASS. Full Android CI workflows, cache and production branches were not modified. The source classifier and version/signing cache audit are read-only; Android jobs remain opt-in requiring separate explicit approval.
+
+## Stage 6 — Code Inspector
+See `docs/dev-system/CODE_INSPECTOR_STAGE6.md`. Read-only `devtools/code-inspector.mjs` detects potential Codex PR overlap, protects refs, maps explicit Kotlin/Java imports and extracts anonymous TestLab TXT/JSON diagnostic counters. Real GitHub Actions #40470818731: 33/33 Inspector tests plus 43/43 Smart CI, 48/48 prior Node and 9/9 Python PASS. No merge, no Kotlin compilation, no APK. A true TestLab user export was not supplied or processed.

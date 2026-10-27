@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
   "project": "Zavro Development System",
-  "last_completed_stage": 5,
-  "current_stage": 5,
-  "stage_state": "COMPLETED_SMART_CI_FAST_GATE_VERIFIED_NO_ANDROID_BUILD",
-  "next_stage": 6,
+  "last_completed_stage": 6,
+  "current_stage": 6,
+  "stage_state": "COMPLETED_READ_ONLY_INSPECTOR_REAL_PR_AND_CODE_EVIDENCE",
+  "next_stage": 7,
   "next_stage_requires": "Dalej",
   "infrastructure_branch": "tools/zavro-development-system-stage1-20261027",
   "baseline_sha": "0823f24eb48e2eefbe38c7616bc1d55e73917b37",
@@ -21,7 +21,7 @@
     "No atomic multi-client dispatch idempotency",
     "Workflow registration GET and real POST must be independently verified in Stage 3"
   ],
-  "resume": "Only after user says Dalej begin Stage 6 (Code Inspector). Verify current repo branch and last SHA, checkpoint, protected variants. Do not repeat stage 1-5. Never run Android build without separate explicit order.",
+  "resume": "Only after user says Dalej: read checkpoint and branch HEAD again, then stage 7 orchestration. Preserve main, Clean, MPV, all Codex branches; do not repeat stages 1–6; do not build signed APK without a separate explicit request.",
   "verification": {
     "branch_write_verified": true,
     "actual_branch_and_workflow_preflight": "clean+mpv PASSED with authenticated GitHub connector",
@@ -105,5 +105,47 @@
     "performance_scope": "Only new opt-in JS fast diagnostic verified; no before/after Android full CI measurement",
     "production_workflows_modified": false,
     "rollback": "Stop using tools branch; no production changes; can disable isolated workflow if desired"
+  },
+  "stage6": {
+    "status": "COMPLETED_WITH_BOUNDARIES",
+    "inspector": "devtools/code-inspector.mjs",
+    "tests": "33/33 Inspector; 43/43 Smart CI; 48/48 prior Node; 9/9 Python PASS",
+    "verified_run": 40470818731,
+    "previous_success_runs": [
+      40470365864,
+      40470574701
+    ],
+    "real_prs": [
+      84,
+      85,
+      88,
+      89
+    ],
+    "real_pr_overlap": {
+      "pr84_pr85_shared_paths": 12,
+      "pr88_pr89_shared_paths": 12,
+      "pr88_pr89_sequential_lineage": true,
+      "merge_conflict_proven": false
+    },
+    "real_import_edge": "BrowserFragment.kt -> MediaFloatingUi.kt",
+    "real_testlab_device_export_verified": false,
+    "testlab_formats": [
+      "TXT",
+      "JSON"
+    ],
+    "privacy": "Only bounded anonymous aggregates; raw timelines/URLs/titles never in reports",
+    "inspector_read_only": true,
+    "github_branch_rulesets_enforced_by_inspector": false,
+    "compile_executed": false,
+    "apk_created": false,
+    "branches_modified": [
+      "tools/zavro-development-system-stage1-20261027"
+    ],
+    "limitations": [
+      "Not a merge conflict proof",
+      "Explicit imports only, not all Kotlin dependencies",
+      "TestLab synthetics only; no user device report",
+      "Live PR allowlist restricted to #84 #85 #88 #89"
+    ]
   }
 }
