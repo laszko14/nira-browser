@@ -63,11 +63,52 @@ internal object MediaTitleResolver {
         RegexOption.IGNORE_CASE,
     )
 
+
+    /**
+     * Decode only human-readable captions; signed playback URLs are never
+     * rewritten. Keep decoding bounded (one percent pass + one entity pass).
+     */
+    internal fun normalizeText(raw: String): String {
+        val decoded = if (Regex("%[0-9a-fA-F]{2}").containsMatchIn(raw)) {
+            runCatching {
+                java.net.URLDecoder.decode(raw.replace("+", "%2B"), "UTF-8")
+            }.getOrDefault(raw)
+        } else raw
+        val entities = Regex("&(#(?:[xX][0-9a-fA-F]{1,6}|[0-9]{1,7})|amp|quot|apos|lt|gt|nbsp|ndash|mdash|hellip);",
+            RegexOption.IGNORE_CASE)
+        val expanded = entities.replace(decoded) { match ->
+            val token = match.groupValues[1]
+            if (!token.startsWith("#")) {
+                when (token.lowercase(java.util.Locale.ROOT)) {
+                    "amp" -> "&"
+                    "quot" -> "\""
+                    "apos" -> "'"
+                    "lt" -> "<"
+                    "gt" -> ">"
+                    "nbsp" -> " "
+                    "ndash" -> "\u2013"
+                    "mdash" -> "\u2014"
+                    "hellip" -> "\u2026"
+                    else -> match.value
+                }
+            } else {
+                val hex = token.startsWith("#x", ignoreCase = true)
+                val n = token.drop(if (hex) 2 else 1)
+                    .toIntOrNull(if (hex) 16 else 10)
+                if (n != null && n in 1..0x10FFFF && n !in 0xD800..0xDFFF)
+                    String(Character.toChars(n)) else match.value
+            }
+        }
+        return java.text.Normalizer.normalize(expanded, java.text.Normalizer.Form.NFC)
+            .replace(Regex("[\u0000-\u001f\u007f]"), " ")
+            .replace(Regex("\\s+"), " ").trim()
+    }
+
     /** Quality checks do not assert the relationship between text and media. */
     internal fun candidate(raw: String?, kind: String?): Candidate? {
         if (raw == null || kind == null) return null
         val owner = association(kind) ?: return null
-        val text = raw.trim().replace(Regex("\\s+"), " ")
+        val text = normalizeText(raw)
         if (text.isEmpty() || text.length > 300 ||
             text.toByteArray(Charsets.UTF_8).size > 900 ||
             text.any { it.isISOControl() }) return null
