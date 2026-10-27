@@ -60,6 +60,29 @@ class SideDrawerHeightTest {
         }
     }
 
+    @Test fun entireHeightRangeAndFontScaleKeepVisualActionsInsideRows() {
+        for (landscape in listOf(false, true)) {
+            for (fontScale in listOf(1f, 1.3f, 2f)) {
+                for (height in 24..112 step 2) {
+                    val row = SideDrawerHeight.geometry(height, landscape, fontScale)
+                    assertEquals(height.dp, row.height)
+                    for (size in listOf(
+                        row.radius, row.accent, row.imageFrame, row.favicon,
+                        row.folderFrame, row.folder, row.chevron,
+                        row.action, row.actionIcon, row.leadingGap, row.textGap
+                    )) {
+                        assertTrue("height=$height landscape=$landscape font=$fontScale", size > 0.dp)
+                        assertTrue("height=$height landscape=$landscape font=$fontScale", size < row.height)
+                    }
+                    assertTrue(row.favicon <= row.imageFrame)
+                    assertTrue(row.folder <= row.folderFrame)
+                    assertTrue(row.actionIcon <= row.action)
+                    if (height == 24) assertFalse(row.showSubtitle)
+                }
+            }
+        }
+    }
+
     @Test fun subtitlesFitOnlyWhenSpaceAndFontScaleAllow() {
         assertTrue(SideDrawerHeight.geometry(48, false, 1f).showSubtitle)
         assertTrue(SideDrawerHeight.geometry(36, true, 1f).showSubtitle)
