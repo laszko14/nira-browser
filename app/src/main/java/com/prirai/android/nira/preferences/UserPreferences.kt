@@ -118,6 +118,8 @@ class UserPreferences(appContext: Context) : mozilla.components.support.ktx.andr
     var niraToolbarActionOrder by stringPreference("nira_toolbar_action_order", "")
     var niraAddressBarHeightDp by intPreference("nira_address_height_dp", 56)
     var niraTabStripHeightDp by intPreference("nira_tab_strip_height_dp", 48)
+    var niraTabCircleSizeDp by intPreference("nira_tab_circle_size_dp", 34)
+    var niraTabCircleGapDp by intPreference("nira_tab_circle_gap_dp", 4)
     var niraEdgePanelsEnabled by booleanPreference("nira_edge_panels_enabled", true)
     var niraEdgeWidthDp by intPreference("nira_edge_width_dp", 36)
     var swipeToRefresh by booleanPreference(SWIPE_TO_REFRESH, true)

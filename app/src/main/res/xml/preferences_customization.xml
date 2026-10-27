@@ -51,6 +51,16 @@
             app:title="Wysokość paska kart" android:max="80"
             app:min="40" app:defaultValue="48"
             app:showSeekBarValue="true" app:updatesContinuously="true" />
+        <SeekBarPreference app:key="nira_tab_circle_size_dp"
+            app:title="Rozmiar okrągłych ikon kart"
+            app:summary="Średnica ikon w pasku kart pod adresem: 10–52 dp"
+            android:max="52" app:min="10" app:defaultValue="34"
+            app:showSeekBarValue="true" app:updatesContinuously="true" />
+        <SeekBarPreference app:key="nira_tab_circle_gap_dp"
+            app:title="Odstęp między ikonami"
+            app:summary="0 na suwaku oznacza −6 dp; 6 oznacza stykające się ikony (0 dp); 46 oznacza 40 dp"
+            android:max="46" app:min="0" app:defaultValue="10"
+            app:showSeekBarValue="true" app:updatesContinuously="true" />
         <com.prirai.android.nira.settings.MaterialSwitchPreference
             app:key="nira_group_chips_visible"
             app:title="Pokazuj pasek grup kart"

@@ -81,6 +81,21 @@ class CustomizationSettingsFragment : BaseSettingsFragment() {
                 true
             }
         }
+        preferenceScreen.findPreference<SeekBarPreference>("nira_tab_circle_size_dp")?.apply {
+            value = niraPrefs.niraTabCircleSizeDp.coerceIn(10, 52)
+            setOnPreferenceChangeListener { _, updated ->
+                niraPrefs.niraTabCircleSizeDp = (updated as Number).toInt().coerceIn(10, 52)
+                true
+            }
+        }
+        // The slider's 0..46 progress is displayed as -6..40 dp.
+        preferenceScreen.findPreference<SeekBarPreference>("nira_tab_circle_gap_dp")?.apply {
+            value = niraPrefs.niraTabCircleGapDp.coerceIn(-6, 40) + 6
+            setOnPreferenceChangeListener { _, updated ->
+                niraPrefs.niraTabCircleGapDp = ((updated as Number).toInt() - 6).coerceIn(-6, 40)
+                true
+            }
+        }
         preferenceScreen.findPreference<Preference>("nira_restore_bar_heights")?.setOnPreferenceClickListener {
             niraPrefs.niraAddressBarHeightDp = 56
             niraPrefs.niraTabStripHeightDp = 48
