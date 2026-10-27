@@ -248,7 +248,7 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
             layoutParams = LinearLayout.LayoutParams(dp(size), dp(size)).apply {
                 marginEnd = dp(circleGap)
             }
-            contentDescription = "Karta: $title. Przytrzymaj, aby wyświetlić akcje"
+            contentDescription = "Karta: $title"
             isClickable = true
             isFocusable = true
             setOnClickListener { onTabSelected?.invoke(tab.id) }
