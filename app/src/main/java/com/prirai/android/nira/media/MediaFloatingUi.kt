@@ -180,6 +180,7 @@ internal class MediaFloatingUi(
         val measurement = capture?.operation(LabOperation.FAB_OPEN)
         sheet?.dismiss()
         sheetSnapshot = initial
+        initial.entries.forEach { TestLab.mediaDisplayed(initial.tab.binding, it) }
         val dialog = BottomSheetDialog(context)
         val bounds = Rect()
         parent.getWindowVisibleDisplayFrame(bounds)
@@ -337,7 +338,9 @@ internal class MediaFloatingUi(
 
     private fun fillSheet() {
         // Update the existing composition. Stable item keys and grid state survive metadata changes.
-        sheetSnapshot = current()
+        val latest = current()
+        sheetSnapshot = latest
+        latest?.entries?.forEach { TestLab.mediaDisplayed(latest.tab.binding, it) }
     }
 
     private fun tileItems(entries: List<MediaEntry>): List<VideoTileItem> = mediaTileItems(entries)
