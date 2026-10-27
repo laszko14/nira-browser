@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
   "project": "Zavro Development System",
-  "last_completed_stage": 6,
-  "current_stage": 6,
-  "stage_state": "COMPLETED_READ_ONLY_INSPECTOR_REAL_PR_AND_CODE_EVIDENCE",
-  "next_stage": 7,
+  "last_completed_stage": 7,
+  "current_stage": 7,
+  "stage_state": "COMPLETED_DIAGNOSTIC_ORCHESTRATION_ONLY",
+  "next_stage": 8,
   "next_stage_requires": "Dalej",
   "infrastructure_branch": "tools/zavro-development-system-stage1-20261027",
   "baseline_sha": "0823f24eb48e2eefbe38c7616bc1d55e73917b37",
@@ -21,7 +21,7 @@
     "No atomic multi-client dispatch idempotency",
     "Workflow registration GET and real POST must be independently verified in Stage 3"
   ],
-  "resume": "Only after user says Dalej: read checkpoint and branch HEAD again, then stage 7 orchestration. Preserve main, Clean, MPV, all Codex branches; do not repeat stages 1–6; do not build signed APK without a separate explicit request.",
+  "resume": "After user says Dalej, start Stage 8 final acceptance audit. Read exact branch+checkpoint and verify all relevant GitHub runs, security and failure scenarios. Do not redo stages 1–7; no APK compilation absent separate explicit user order.",
   "verification": {
     "branch_write_verified": true,
     "actual_branch_and_workflow_preflight": "clean+mpv PASSED with authenticated GitHub connector",
@@ -146,6 +146,59 @@
       "Explicit imports only, not all Kotlin dependencies",
       "TestLab synthetics only; no user device report",
       "Live PR allowlist restricted to #84 #85 #88 #89"
+    ]
+  },
+  "stage7": {
+    "state_machine": "CREATED→ANALYZED→INSPECTED→ISOLATION_PLANNED→TEST_VERIFIED→BUILD_SKIPPED→REPORTED",
+    "code": "devtools/orchestrate.mjs",
+    "workflow": ".github/workflows/zavro-stage7-orchestrator.yml",
+    "test_suite": "devtools/tests/orchestrate.test.mjs",
+    "git_commit_sha_at_negative_run": "2c2a294118f695f43df77e8ebbf22ecaa8916984",
+    "clean": {
+      "workflow_run_id": 40471995681,
+      "tests": "27/27 PASS",
+      "result": "success",
+      "artifact_id": 12718951320,
+      "fast_source_run_id": 40469224355
+    },
+    "mpv": {
+      "workflow_run_id": 40472241780,
+      "tests": "27/27 PASS",
+      "result": "success",
+      "artifact_id": 12719096410,
+      "fast_source_run_id": 40469257622,
+      "byte_identical_replay": true,
+      "downloaded_checkpoint_resume_verified": true
+    },
+    "negative": {
+      "workflow_run_id": 40472397516,
+      "expected_conclusion": "failure",
+      "reason": "REQUIRES_ADDITIONAL_TESTS",
+      "partial_checkpoint_artifact_id": 12719177242,
+      "build_started": false
+    },
+    "abilities": {
+      "explicit_source_analysis": true,
+      "live_codex_inspection": true,
+      "isolation_plan_only": true,
+      "fast_js_evidence": true,
+      "android_build_dispatch": false,
+      "apk_report_without_build": "DIAGNOSTIC_ONLY_TEST_VERIFIED",
+      "local_checkpoint_resume": true,
+      "artifact_restore_same_run": true,
+      "cross_run_automatic_resume": false
+    },
+    "tests_pass": "27/27 GitHub Actions",
+    "android_build_executed": false,
+    "artifact_apk_created": false,
+    "production_code_edited": false,
+    "limitations": [
+      "Only tested diagnostic JS-complete paths; Kotlin/Android intentionally blocked",
+      "No real source implementation was applied",
+      "No automatic cross-run resume",
+      "Unkeyed checksum is not a cryptographic signature",
+      "No Stage3 Android dispatch confirmation",
+      "Changed files supplied in the scenario are not automatically proven to be a true commit diff"
     ]
   }
 }
