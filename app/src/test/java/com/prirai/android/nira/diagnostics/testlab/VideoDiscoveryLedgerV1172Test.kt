@@ -109,6 +109,34 @@ class VideoDiscoveryLedgerV1172Test {
         assertFalse(summary.toString().contains("private-token"))
     }
 
+    @Test fun sameTextWithStrongerProvenanceUpdatesReportedOrigin() {
+        val ledger = VideoDiscoveryLedger()
+        ledger.observe(session, media(1, "Odcinek 12", "video"))
+        ledger.observe(session, media(1, "Odcinek 12", "player"))
+        val result = ledger.snapshot()
+        assertEquals(1, result.improvements)
+        assertEquals("PLAYER", result.examples.single().titleSource)
+        assertEquals(1, result.sources)
+    }
+
+    @Test fun weakerAmbiguousVariantDoesNotVetoStrongerIndividualTitle() {
+        val ledger = VideoDiscoveryLedger()
+        val weak = MediaEntry(1L, "https://cdn.example/weak.mp4", MediaFormat.MP4,
+            setOf(MediaSource.DOM), "one", "Ambiguous local", "video",
+            titleAmbiguous = true)
+        val strong = MediaEntry(2L, "https://cdn.example/strong.mp4", MediaFormat.MP4,
+            setOf(MediaSource.DOM), "one", "Confirmed player", "player")
+        ledger.observe(session, weak)
+        ledger.observe(session, strong)
+        ledger.displayed(session, weak)
+        ledger.displayed(session, strong)
+        val result = ledger.snapshot()
+        assertEquals(0, result.groupTitleConflicts)
+        assertEquals(0, result.groupsWithoutTitle)
+        assertEquals(1, result.uiObservedGroups)
+        assertEquals(1, result.uiObservedTitledGroups)
+    }
+
     @Test fun exportedReportIsBoundedAndContainsNoRawTitleOrUrl() {
         val ledger = VideoDiscoveryLedger()
         ledger.observe(session, media(1, "Secret program", "player"))
@@ -120,6 +148,7 @@ class VideoDiscoveryLedgerV1172Test {
         val report = TestLabReportGenerator.generate(engine.latest()!!)
         assertTrue(report.text.contains("VIDEO DISCOVERY"))
         assertTrue(report.text.contains("Film #1"))
+        assertTrue(report.text.contains("Grupy przekazane panelowi:"))
         assertFalse(report.text.contains("Secret program"))
         assertFalse(report.json.contains("Secret program"))
         assertFalse(report.json.contains("cdn.example"))
