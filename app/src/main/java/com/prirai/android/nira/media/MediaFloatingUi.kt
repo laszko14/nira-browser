@@ -1,5 +1,10 @@
 package com.prirai.android.nira.media
 
+import com.prirai.android.nira.diagnostics.testlab.TestLab
+import com.prirai.android.nira.diagnostics.testlab.LabOperation
+import com.prirai.android.nira.diagnostics.testlab.LabCode
+import com.prirai.android.nira.diagnostics.testlab.OperationOutcome
+
 import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
@@ -216,7 +221,10 @@ internal class MediaFloatingUi(
             sheetView.post { behavior.state = BottomSheetBehavior.STATE_EXPANDED }
         }
         fillSheet()
+        val lab = TestLab.operation(LabOperation.VIDEO_PANEL)
         dialog.show()
+        TestLab.end(lab)
+        TestLab.note(LabCode.VIDEO_PANEL_OPEN)
     }
 
     private fun label(text: String, sizeSp: Float, bold: Boolean = false) = TextView(context).apply {
@@ -441,7 +449,16 @@ internal class MediaFloatingUi(
                         stale()
                         fillSheet()
                     } else {
-                        openVideo(entry.id)
+                        val lab = TestLab.operation(LabOperation.VIDEO_EXTERNAL_REQUEST)
+                        TestLab.note(LabCode.VIDEO_EXTERNAL_REQUEST)
+                        // Only the in-app callback is timed. No claim of third-party playback.
+                        try {
+                            openVideo(entry.id)
+                            TestLab.end(lab)
+                        } catch (failure: Throwable) {
+                            TestLab.end(lab, OperationOutcome.FAILED)
+                            throw failure
+                        }
                     }
                 }
             }, LinearLayout.LayoutParams(dp(48), dp(58)))
@@ -483,7 +500,10 @@ internal class MediaFloatingUi(
                                     else -> false
                                 }
                             }
+                            val lab = TestLab.operation(LabOperation.VIDEO_MENU)
                             show()
+                            TestLab.end(lab)
+                            TestLab.note(LabCode.VIDEO_MENU_OPEN)
                         }
                     }
                 }

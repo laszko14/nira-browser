@@ -1,5 +1,7 @@
 package com.prirai.android.nira.components.menu
 
+import com.prirai.android.nira.diagnostics.testlab.*
+
 import android.content.Context
 import android.graphics.Rect
 import android.view.LayoutInflater
@@ -82,6 +84,7 @@ class Material3BrowserMenu(
     private var popupWindow: PopupWindow? = null
     
     fun show(anchor: View, preferBottom: Boolean = true) {
+        val capture=TestLab.capture();val measurement=capture?.operation(LabOperation.MENU_OPEN)
         val inflater = LayoutInflater.from(context)
         val menuView = inflater.inflate(R.layout.material3_browser_menu, null)
         
@@ -148,6 +151,7 @@ class Material3BrowserMenu(
             val y = desiredY.coerceIn(visible.top, maxY)
             showAtLocation(anchor, android.view.Gravity.NO_GRAVITY, x, y)
         }
+        if(measurement!=null)androidx.core.view.OneShotPreDrawListener.add(menuView){capture?.end(measurement,proof=CompletionProof.FIRST_PREDRAW)}
     }
 
         fun dismiss() {

@@ -111,6 +111,7 @@ internal object MediaDetectorDiagnostics {
 
     private fun accumulate(map: MutableMap<String, Int>, code: String, count: Int) {
         if (code !in MediaMessageProtocol.discoveryCodes || count !in 1..100000) return
+        com.prirai.android.nira.diagnostics.testlab.TestLab.discovery(code,count)
         map[code] = ((map[code] ?: 0).toLong() + count).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
     }
     @Synchronized fun discovery(binding: MediaSessionBinding, code: String, count: Int) {
@@ -120,8 +121,8 @@ internal object MediaDetectorDiagnostics {
         accumulate(discoveryUnassigned[bucket(isPrivate)], code, count)
     }
 
-    @Synchronized fun installed() { installState = "Zainstalowane" }
-    @Synchronized fun installFailed() { installState = "BŁĄD instalacji/obsługi" }
+    @Synchronized fun installed() { installState = "Zainstalowane";com.prirai.android.nira.diagnostics.testlab.TestLab.note(com.prirai.android.nira.diagnostics.testlab.LabCode.EXTENSION_READY) }
+    @Synchronized fun installFailed() { installState = "BŁĄD instalacji/obsługi";com.prirai.android.nira.diagnostics.testlab.TestLab.note(com.prirai.android.nira.diagnostics.testlab.LabCode.EXTENSION_FAILED) }
     @Synchronized fun setPrivateAllowed(value: Boolean) {
         privatePermission = if (value) "dozwolone" else "wyłączone"
     }
@@ -129,6 +130,7 @@ internal object MediaDetectorDiagnostics {
     @Synchronized fun rejected() { rejectedCount++ }
     @Synchronized fun validationError(binding: MediaSessionBinding) {
         tab(binding).validation++
+        com.prirai.android.nira.diagnostics.testlab.TestLab.note(com.prirai.android.nira.diagnostics.testlab.LabCode.DETECTOR_REJECTED)
         rejectedCount++
     }
     @Synchronized fun networkUnassigned(isPrivate: Boolean) { unassigned[bucket(isPrivate)]++ }
@@ -136,13 +138,20 @@ internal object MediaDetectorDiagnostics {
         segments[bucket(isPrivate)] = (segments[bucket(isPrivate)].toLong() + count)
             .coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
     }
-    @Synchronized fun duplicate(binding: MediaSessionBinding) { tab(binding).duplicates++ }
-    @Synchronized fun stale(binding: MediaSessionBinding) { tab(binding).stale++ }
+    @Synchronized fun duplicate(binding: MediaSessionBinding) { tab(binding).duplicates++;com.prirai.android.nira.diagnostics.testlab.TestLab.note(com.prirai.android.nira.diagnostics.testlab.LabCode.DETECTOR_DUPLICATE) }
+    @Synchronized fun stale(binding: MediaSessionBinding) { tab(binding).stale++;com.prirai.android.nira.diagnostics.testlab.TestLab.note(com.prirai.android.nira.diagnostics.testlab.LabCode.DETECTOR_STALE) }
     @Synchronized fun navigationRemoved(binding: MediaSessionBinding, count: Int) {
         tab(binding).clearedByNavigation += count
     }
     @Synchronized fun detected(binding: MediaSessionBinding, format: MediaFormat,
                                source: MediaSource = MediaSource.DOM) {
+        com.prirai.android.nira.diagnostics.testlab.TestLab.note(
+            if(source==MediaSource.NETWORK)com.prirai.android.nira.diagnostics.testlab.LabCode.DETECTOR_NETWORK else com.prirai.android.nira.diagnostics.testlab.LabCode.DETECTOR_DOM)
+        com.prirai.android.nira.diagnostics.testlab.TestLab.note(when(format){
+            MediaFormat.HLS->com.prirai.android.nira.diagnostics.testlab.LabCode.DETECTOR_HLS
+            MediaFormat.DASH->com.prirai.android.nira.diagnostics.testlab.LabCode.DETECTOR_DASH
+            MediaFormat.MP4->com.prirai.android.nira.diagnostics.testlab.LabCode.DETECTOR_MP4
+            else->com.prirai.android.nira.diagnostics.testlab.LabCode.DETECTOR_OTHER})
         val counter = tab(binding)
         counter.count++
         counter.last = format
