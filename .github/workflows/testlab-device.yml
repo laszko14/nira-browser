@@ -1,7 +1,7 @@
 name: Zavro Clean TestLab Android instrumentation
 on:
   push:
-    branches: [feat/zavro-v1168-clean-testlab]
+    branches: [feat/zavro-v1169-clean-render-frame-pacing]
     paths:
       - 'app/src/main/java/com/prirai/android/nira/diagnostics/testlab/**'
       - 'app/src/androidTest/java/com/prirai/android/nira/diagnostics/testlab/**'
@@ -44,7 +44,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: zavro-v1168-testlab-android-results
+          name: zavro-v1169-testlab-android-results
           path: |
             app/build/reports/androidTests/**
             app/build/outputs/androidTest-results/**
