@@ -65,6 +65,7 @@ internal class VideoMetadataLedger(private val capacity: Int = 256) {
             entry.sizeBytes == null && entry.format in setOf(MediaFormat.HLS, MediaFormat.DASH) -> "NO_VARIANT_BITRATE"
             entry.sizeBytes == null -> "NO_HTTP_LENGTH"
             entry.sizeEstimated -> "MANIFEST_BITRATE"
+            entry.sizeOrigin == "HLS_BYTERANGE" -> "HLS_BYTERANGE"
             else -> "HTTP_LENGTH"
         }
         val prior = tracks[identity]
