@@ -197,11 +197,22 @@ export async function inspectLivePRs(api=new GithubReader(process.env.GH_TOKEN||
  }
  return inspectCodexFleet(prs);
 }
+async function readLocalReport(file){
+ ensure(typeof file==='string'&&file.length>0&&file.length<=4096,'INVALID_FILE');
+ const info=await fs.lstat(file).catch(()=>{throw new InspectorError('FILE_UNAVAILABLE');});
+ ensure(info.isFile()&&!info.isSymbolicLink()&&info.size<=280000&&info.size>0,'FILE_NOT_SAFE');
+ return inspectTestLab(await fs.readFile(file,'utf8'));
+}
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const args=process.argv.slice(2);
  (async()=>{
-  ensure(args.length===1&&args[0]==='audit-prs','USAGE');
-  const report=await inspectLivePRs();
+  let report;
+  if(args.length===1&&args[0]==='audit-prs')report=await inspectLivePRs();
+  else if(args.length===2&&args[0]==='testlab')report=await readLocalReport(args[1]);
+  else if(args.length===3&&args[0]==='compare-testlab'){
+    const a=await readLocalReport(args[1]);const b=await readLocalReport(args[2]);
+    report=compareTestLabs(a,b);
+  }else throw new InspectorError('USAGE: audit-prs | testlab FILE | compare-testlab OLD NEW');
   console.log(JSON.stringify(report,null,2));
  })().catch(e=>{console.error('ZAVRO_INSPECTOR '+(e instanceof InspectorError?e.code:'FAILED'));process.exitCode=1;});
 }
