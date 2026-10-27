@@ -1060,3 +1060,40 @@ test("v1173: distinct DOM root overload remains bounded and still rechecks newly
   assert.ok(sum("queue_dom_roots") <= 2, "one burst creates one fallback, not one overflow per node");
   assert.equal(p.native.some(([, item]) => item.url === "https://cdn.example/later-video.mp4"), true);
 });
+
+test("stage 1: late caption mutation resubmits only its matching source", async () => {
+  for (const changeType of ["characterData", "childList"]) {
+    const p = page();
+    const video = new p.HTMLVideoElement("https://cdn.example/episode-02.mp4");
+    const other = new p.HTMLVideoElement("https://cdn.example/unrelated.mp4");
+    const card = {
+      nodeType: 1, tagName: "FIGURE", isConnected: true, parentElement: null,
+      matches: selector => selector.split(",").includes("figure"),
+      querySelectorAll: selector => selector === "video,iframe" || selector === "video" ?
+        [video] : selector === "figcaption,[itemprop='name'],h1,h2,h3,h4" ? [caption] : [],
+      contains: node => node === video || node === caption,
+    };
+    const caption = {
+      nodeType: 1, tagName: "FIGCAPTION", isConnected: true, parentElement: card,
+      textContent: "", getAttribute: () => null, querySelectorAll: () => [],
+      closest: selector => selector.includes("figcaption") ? caption : null,
+    };
+    video.parentElement = card;
+    p.videos.push(video, other);
+    await p.mutate();
+    assert.equal(p.native.length, 2);
+    assert.equal(p.native[0][1].title, undefined);
+    caption.textContent = "Odcinek 02 — Zażółć gęślą";
+    const textNode = { nodeType: 3, parentElement: caption };
+    const record = changeType === "characterData" ?
+      { type: changeType, target: textNode, addedNodes: [] } :
+      { type: changeType, target: caption, addedNodes: [textNode] };
+    await p.mutate([record]);
+    assert.equal(p.native.length, 3, changeType + " must update only one source");
+    assert.equal(p.native[2][1].url, p.native[0][1].url);
+    assert.equal(p.native[2][1].title, "Odcinek 02 — Zażółć gęślą");
+    assert.equal(p.native[2][1].titleKind, "video");
+    assert.equal(p.native.filter(([, item]) =>
+      item.url === "https://cdn.example/unrelated.mp4").length, 1);
+  }
+});
