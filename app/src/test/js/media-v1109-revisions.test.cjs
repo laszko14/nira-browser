@@ -40,7 +40,7 @@ function detector(fetchManifest) {
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
-test("rotating signed HLS URL remains in one group while preserving exact revisions", async () => {
+test("arbitrary s and t manifest query values must not share one film group", async () => {
   const d = detector();
   await d.start();
   const a = "https://cdn.test/hls/index.m3u8?s=100&t=A";
@@ -51,8 +51,46 @@ test("rotating signed HLS URL remains in one group while preserving exact revisi
   assert.equal(d.routed.length, 2);
   assert.equal(d.routed[0].url, a);
   assert.equal(d.routed[1].url, b);
-  assert.equal(d.routed[0].groupId, d.routed[1].groupId);
+  assert.notEqual(d.routed[0].groupId, d.routed[1].groupId);
   assert.equal(d.routed[1].provenance, "observed");
+});
+
+test("fully formed AWS SigV4 can keep one group with exact renewed URLs", async () => {
+  const d = detector();
+  await d.start();
+  const root = "https://cdn.test/hls/index.m3u8?video=1&" +
+    "X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=account%2Fregion&" +
+    "X-Amz-SignedHeaders=host&";
+  const a = root + "X-Amz-Date=20261027T100000Z&X-Amz-Expires=300&X-Amz-Signature=AAA";
+  const b = root + "X-Amz-Date=20261027T110000Z&X-Amz-Expires=900&X-Amz-Signature=BBB";
+  d.response(a, "a");
+  d.response(b, "b");
+  await tick();
+  assert.equal(d.routed.length, 2);
+  assert.equal(d.routed[0].url, a);
+  assert.equal(d.routed[1].url, b);
+  assert.equal(d.routed[0].groupId, d.routed[1].groupId);
+  assert.ok(d.routed[1].requestSequence > d.routed[0].requestSequence);
+});
+
+test("token, signed credential, media identity and duplicate fields remain significant", async () => {
+  const d = detector();
+  await d.start();
+  const root = "https://cdn.test/hls/index.m3u8?X-Amz-Algorithm=AWS4-HMAC-SHA256&" +
+    "X-Amz-Credential=account%2Fregion&X-Amz-SignedHeaders=host&X-Amz-Signature=AAA";
+  const urls = [
+    "https://cdn.test/hls/index.m3u8?token=first",
+    "https://cdn.test/hls/index.m3u8?token=second",
+    root + "&video=A",
+    root + "&video=B",
+    root.replace("account%2Fregion", "different%2Fregion") + "&video=A",
+    root + "&video=A&x-amz-signature=duplicate"
+  ];
+  urls.forEach((url,i) => d.response(url, "req" + i));
+  await tick();
+  assert.equal(d.routed.length, urls.length);
+  assert.equal(new Set(d.routed.map(x=>x.groupId)).size, urls.length);
+  assert.deepEqual(d.routed.map(x=>x.url), urls);
 });
 
 test("inspected HLS children are marked derived and never inherit master query", async () => {
