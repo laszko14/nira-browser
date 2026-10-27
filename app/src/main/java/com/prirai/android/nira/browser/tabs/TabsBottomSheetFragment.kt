@@ -874,12 +874,14 @@ class TabsBottomSheetFragment : DialogFragment() {
                         Text(
                             "Tabs & Groups",
                             fontSize = if (landscape) 14.sp else 17.sp,
+                            lineHeight = if (landscape) 18.sp else 21.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = SideDrawerPalette.primaryText
                         )
                         Text(
                             "${tabs.size} ${if (tabs.size == 1) "Tab" else "Tabs"}",
                             fontSize = if (landscape) 10.sp else 12.sp,
+                            lineHeight = if (landscape) 12.sp else 15.sp,
                             color = SideDrawerPalette.secondaryText
                         )
                     }
@@ -1034,6 +1036,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                                 tint = ComposeColor.White, modifier = Modifier.size(23.dp))
                             Text("Nowa karta", color = ComposeColor.White,
                                 fontSize = if (landscape) 12.sp else 14.sp,
+                                lineHeight = if (landscape) 16.sp else 18.sp,
                                 modifier = Modifier.padding(start = 8.dp))
                         }
                     }
@@ -1436,8 +1439,8 @@ class TabsBottomSheetFragment : DialogFragment() {
                         IntOffset(0, (dragY - 23f * density).roundToInt())
                     }
                     .padding(horizontal = 8.dp),
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                color = SideDrawerPalette.cardTop,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
                 shadowElevation = 10.dp
             ) {
                 Row(
@@ -1569,10 +1572,12 @@ class TabsBottomSheetFragment : DialogFragment() {
                 Text(title, color = SideDrawerPalette.primaryText,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = if (landscape) 11.sp else 13.sp,
+                    lineHeight = if (landscape) 13.sp else 16.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("$count ${if (count == 1) "karta" else if (count in 2..4) "karty" else "kart"}",
                     color = SideDrawerPalette.secondaryText,
                     fontSize = if (landscape) 9.sp else 10.sp,
+                    lineHeight = if (landscape) 11.sp else 13.sp,
                     maxLines = 1)
             }
             IconButton(
@@ -1601,10 +1606,9 @@ class TabsBottomSheetFragment : DialogFragment() {
         onDragFinish: () -> Unit,
         onDragCancel: () -> Unit
     ) {
-        // ordinal remains an input of the existing drag/order contract;
-        // reference C/D intentionally do not draw tab numbers.
+        // Retain the existing row API, but never draw numbering absent from C/D.
         @Suppress("UNUSED_VARIABLE")
-        val retainedOrdinal = ordinal
+        val unusedOrdinal = ordinal
         var rowOrigin by remember { mutableStateOf(Offset.Zero) }
         val orientation = LocalConfiguration.current.orientation
         val landscape = orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
@@ -1693,11 +1697,13 @@ class TabsBottomSheetFragment : DialogFragment() {
                     color = SideDrawerPalette.primaryText,
                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                     fontSize = if (landscape) 11.sp else 12.sp,
+                    lineHeight = if (landscape) 13.sp else 15.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
                 if (host.isNotBlank()) {
                     Text(host, color = SideDrawerPalette.secondaryText,
                         fontSize = if (landscape) 9.sp else 10.sp,
+                        lineHeight = if (landscape) 11.sp else 13.sp,
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
