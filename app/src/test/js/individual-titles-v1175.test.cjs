@@ -258,8 +258,8 @@ function stage3Harness() {
       if (selector === "a[href],link[href]")
         links.forEach(callback);
     },
-    submit: (url, source, mime, group, title, titleKind) =>
-      submitted.push({url, source, group, title, titleKind}),
+    submit: (url, source, mime, group, title, titleKind, duration, poster) =>
+      submitted.push({url, source, group, title, titleKind, poster}),
   };
   const identifiers = new WeakMap();
   let counter = 0;
@@ -273,7 +273,7 @@ function stage3Harness() {
   const scopedEnd = script.indexOf("  function posterFor(", scopedStart);
   const declarationStart = script.indexOf("  function scanDeclarations(");
   const declarationEnd = script.indexOf("  // Weakly tied", declarationStart);
-  const structuredStart = script.indexOf("  function structuredGroup(");
+  const structuredStart = script.indexOf("  function mediaThumbnail(");
   const structuredEnd = script.indexOf("  function scanPlayerConfigs(", structuredStart);
   assert.ok(absoluteStart > 0 && absoluteEnd > absoluteStart);
   assert.ok(declarationStart > 0 && declarationEnd > declarationStart);
@@ -364,6 +364,34 @@ test("50 independent direct media links receive their own CSS caption, never pag
     assert.ok(item.group);
   }
   assert.equal(new Set(h.submitted.map(x=>x.group)).size,50);
+});
+
+test("JSON-LD ImageObject thumbnail binds to the correct VideoObject URL", () => {
+  const h=stage3Harness();
+  h.scripts.push(new Element("script",{},"",JSON.stringify({"@graph":[
+    {"@type":"VideoObject",name:"Movie A",
+      contentUrl:"https://cdn.example/a.mp4",
+      thumbnailUrl:{"@type":"ImageObject",url:"https://cdn.example/a.jpg"}},
+    {"@type":"VideoObject",name:"Movie B",
+      contentUrl:"https://cdn.example/b.mp4",
+      thumbnailUrl:["https://cdn.example/b.jpg","https://cdn.example/b.jpg"]}
+  ]})));
+  h.scanStructured();
+  assert.equal(h.submitted.length,2);
+  assert.equal(h.submitted.find(x=>x.title==="Movie A").poster,"https://cdn.example/a.jpg");
+  assert.equal(h.submitted.find(x=>x.title==="Movie B").poster,"https://cdn.example/b.jpg");
+});
+
+test("conflicting JSON-LD thumbnail choices remain unknown rather than choosing another film", () => {
+  const h=stage3Harness();
+  h.scripts.push(new Element("script",{},"",JSON.stringify({
+    "@type":"VideoObject",name:"Movie",
+    contentUrl:"https://cdn.example/movie.mp4",
+    thumbnailUrl:["https://cdn.example/one.jpg","https://cdn.example/two.jpg"]
+  })));
+  h.scanStructured();
+  assert.equal(h.submitted.length,1);
+  assert.equal(h.submitted[0].poster,null);
 });
 
 test("local direct media link uses its own card title and grouping", () => {

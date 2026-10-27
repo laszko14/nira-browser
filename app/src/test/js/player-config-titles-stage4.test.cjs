@@ -39,7 +39,17 @@ function harness() {
     },
     note: kind => notes.push(kind),
   };
+  const posterStart=source.indexOf("  function mediaThumbnail(");
+  const posterEnd=source.indexOf("  function structuredGroup(", posterStart);
+  assert.ok(posterStart>0 && posterEnd>posterStart);
+  runtime.absolute = value => {
+    if(typeof value!=="string") return null;
+    try { const url=new URL(value,"https://example.invalid/");
+      return /^https?:$/.test(url.protocol) ? url.href : null; }
+    catch (_) { return null; }
+  };
   vm.runInNewContext(source.slice(titleStart, titleEnd) +
+    source.slice(posterStart, posterEnd) +
     source.slice(playerStart, playerEnd) +
     "\n globalThis.playerApi = {scanPlayerConfigs, parseStaticPlayerLiteral};", runtime);
   return {scripts, elements, emitted, notes,
@@ -49,6 +59,24 @@ function harness() {
 function scriptElement(code, attrs = {}) {
   return {attrs, textContent: code};
 }
+
+test("player playlist poster stays with the right item and quality alternatives", () => {
+  const h=harness();
+  h.scripts.push(scriptElement(JSON.stringify({
+    playlist:[
+      {title:"Episode A",thumbnailUrl:"https://cdn.example/a.jpg",
+        sources:[{file:"https://cdn.example/a-480.mp4"},{file:"https://cdn.example/a-1080.mp4"}]},
+      {title:"Episode B",thumbnailUrl:"https://cdn.example/b.jpg",
+        sources:[{file:"https://cdn.example/b-480.mp4"},{file:"https://cdn.example/b-720.mp4"}]}
+    ]
+  }),{type:"application/json"}));
+  h.scan();
+  assert.equal(h.emitted.length,4);
+  assert.deepEqual(h.emitted.filter(x=>x.url.includes("a-")).map(x=>x.poster),
+    ["https://cdn.example/a.jpg","https://cdn.example/a.jpg"]);
+  assert.deepEqual(h.emitted.filter(x=>x.url.includes("b-")).map(x=>x.poster),
+    ["https://cdn.example/b.jpg","https://cdn.example/b.jpg"]);
+});
 
 test("playlist with twelve individual titles and 24 qualities preserves owners", () => {
   const h = harness();
