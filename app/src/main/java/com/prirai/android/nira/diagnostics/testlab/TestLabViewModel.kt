@@ -49,6 +49,7 @@ internal fun TestType.labTitle():String=when(this) {
     TestType.TABS_GROUPS->"Karty i grupy"
     TestType.GECKO_PAGES->"GeckoView i strony"
     TestType.VIDEO_DISCOVERY->"Wideo i wykrywanie"
+    TestType.VIDEO_METADATA->"VIDEO_METADATA • Czas i rozmiar filmów"
     TestType.RESOURCES->"Pamięć, CPU i wydajność"
     TestType.STABILITY->"Stabilność i błędy"
 }
@@ -58,6 +59,7 @@ internal fun TestType.labInstruction():String=when(this) {
     TestType.TABS_GROUPS->"Otwieraj linki, przełączaj karty, przenoś je między grupami, zmień profil i sprawdź Zamknij → Cofnij."
     TestType.GECKO_PAGES->"Ładuj strony, użyj Wstecz/Dalej, przewijaj i przełączaj karty. Dane kompozytora Gecko są niedostępne."
     TestType.VIDEO_DISCOVERY->"Otwieraj strony z filmami, panel wykrywania oraz Play i menu ⋮. Test rejestruje detekcję i żądania otwarcia zewnętrznego odtwarzacza, a nie jego klatki."
+    TestType.VIDEO_METADATA->"Przez 60 s odwiedzaj strony z MP4, HLS i DASH, otwieraj kafelki. Raport sprawdzi czas, rozmiar, pochodzenie metadanych i braki — bez adresów URL."
     TestType.RESOURCES->"Korzystaj z wielu kart i stron WWW. Rejestrujemy pamięć, CPU własnego procesu, opóźnienia Main i częstotliwość ekranu — nie FPS silnika Gecko."
     TestType.STABILITY->"Przełączaj funkcje, obracaj telefon i wracaj z tła. Odczyt historii zakończeń procesu nie dowodzi nowej awarii."
 }
