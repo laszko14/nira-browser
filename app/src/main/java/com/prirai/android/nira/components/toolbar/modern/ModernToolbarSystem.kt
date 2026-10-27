@@ -1,5 +1,7 @@
 package com.prirai.android.nira.components.toolbar.modern
 
+import com.prirai.android.nira.diagnostics.testlab.*
+
 import android.animation.ValueAnimator
 import android.content.Context
 import android.util.AttributeSet
@@ -189,6 +191,8 @@ class ModernToolbarSystem @JvmOverloads constructor(
         hideAnimator.removeAllUpdateListeners()
         hideAnimator.removeAllListeners()
         offsetAnimating = true
+        val capture=TestLab.capture()
+        val measurement=capture?.operation(if(targetOffset==0)LabOperation.TOOLBAR_SHOW else LabOperation.TOOLBAR_HIDE)
 
         hideAnimator.apply {
             setIntValues(currentOffset, targetOffset)
@@ -200,11 +204,13 @@ class ModernToolbarSystem @JvmOverloads constructor(
                 private var cancelled = false
                 override fun onAnimationCancel(animation: android.animation.Animator) {
                     cancelled = true
+                    capture?.end(measurement,OperationOutcome.CANCELLED)
                 }
                 override fun onAnimationEnd(animation: android.animation.Animator) {
                     if (!cancelled) {
                         offsetAnimating = false
                         setToolbarOffset(targetOffset)
+                        capture?.end(measurement,proof=CompletionProof.ANIMATOR_END)
                     }
                 }
             })
