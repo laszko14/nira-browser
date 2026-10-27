@@ -696,8 +696,8 @@ function onHeaders(details) {
           pageUrl: doc.pageUrl, isPrivate: details.incognito, groupId: message.groupId,
           frameKey: requestFrame?.frameKey, frameUrl: requestFrame?.frameUrl,
           requestSequence: requestDocumentKey.requestSequence,
-          bitrate: manifestVariantRates.get(streamGroupKey(tabId, doc.documentKey,
-            details.incognito, requestFrame?.frameKey, details.url)),
+          ...(manifestVariantRates.get(streamGroupKey(tabId, doc.documentKey,
+            details.incognito, requestFrame?.frameKey, details.url)) || {}),
         });
       })
       .catch(() => anonymous("network_unassigned", details.incognito));
@@ -820,7 +820,7 @@ async function inspectManifest(task) {
     if (Number.isSafeInteger(parsedBitrate) && parsedBitrate > 0 && parsedBitrate <= 1000000000) {
       verified.bitrate = parsedBitrate;
       // HLS inherited bitrate cannot be assumed to be an average.
-      verified.bitrateKind = task.format === "DASH" ? "declared" : "peak";
+      verified.bitrateKind = task.format === "DASH" ? "declared" : (task.bitrateKind || "peak");
     }
     if (Number.isSafeInteger(task.requestSequence)) verified.requestSequence = task.requestSequence;
     if (task.frameKey && task.frameUrl) {
@@ -895,7 +895,9 @@ async function inspectManifest(task) {
       // inspected only if Gecko already requests it; no extra network probes.
       if (Number.isSafeInteger(variant.bitrate) && variant.bitrate > 0 &&
           variant.bitrate <= 1000000000) {
-        manifestVariantRates.set(lineageKey, variant.bitrate);
+        manifestVariantRates.set(lineageKey, {
+          bitrate: variant.bitrate, bitrateKind: variant.bitrateKind || "peak"
+        });
         while (manifestVariantRates.size > 128)
           manifestVariantRates.delete(manifestVariantRates.keys().next().value);
       }
