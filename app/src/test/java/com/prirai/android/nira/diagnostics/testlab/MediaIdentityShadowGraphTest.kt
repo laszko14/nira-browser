@@ -128,6 +128,27 @@ class MediaIdentityShadowGraphTest {
         assertEquals(0,summary.subtitleTracksLinked)
     }
 
+    @Test fun strongerFrameEvidenceDoesNotCountAsConflictingReassignment() {
+        val graph=MediaIdentityShadowGraph()
+        graph.observe(normal,entry(1,group="g",frame=null))
+        graph.observe(normal,entry(1,group="g",frame=15))
+        graph.observe(normal,entry(1,group="g",frame=null))
+        val snapshot=graph.snapshot()
+        assertEquals(1,snapshot.filmNodes)
+        assertEquals(0,snapshot.sourceFrameReassignments)
+        assertEquals(0,snapshot.groupsWithAmbiguousOwners)
+    }
+
+    @Test fun weakerDifferentPageTitleDoesNotCreateUnsafePanelConflict() {
+        val graph=MediaIdentityShadowGraph()
+        val items=listOf(entry(1,group="g",title="Exact player title",kind="player"),
+            entry(2,group="g",title="Page title",kind="page"))
+        items.forEach { graph.observe(normal,it) }
+        graph.comparePanel(normal,items)
+        assertEquals(0,graph.snapshot().groupsWithConflictingTitles)
+        assertEquals(0,graph.snapshot().panelShadowUnsafeGroups)
+    }
+
     @Test fun sourceGroupAndFrameReassignmentsDoNotSilentlyRewriteShadowIdentity() {
         val graph=MediaIdentityShadowGraph()
         graph.observe(normal,entry(1,group="initial",frame=10))
