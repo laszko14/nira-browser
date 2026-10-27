@@ -786,6 +786,22 @@ async function inspectManifest(task) {
       // Parser-observed metadata is attached to exactly this document and manifest.
       isLive: !!parsed.live,
       contentType: task.format === "HLS" ? "application/vnd.apple.mpegurl" : "application/dash+xml" };
+    if (Array.isArray(parsed.variants) && parsed.variants.length > 0)
+      verified.variantCount = parsed.variants.length;
+    // DASH master metadata is not the current quality unless uniquely determined.
+    if (task.format === "DASH" && parsed.variants.length === 1) {
+      const only = parsed.variants[0];
+      if (Number.isSafeInteger(only.width) && only.width > 0 && only.width <= 16384)
+        verified.width = only.width;
+      if (Number.isSafeInteger(only.height) && only.height > 0 && only.height <= 8640) {
+        verified.height = only.height;
+        verified.quality = only.height + "p";
+      }
+      if (Number.isFinite(only.frameRate) && only.frameRate > 0 && only.frameRate <= 240)
+        verified.frameRate = only.frameRate;
+      if (typeof only.codecs === "string" && only.codecs.length <= 160)
+        verified.codecs = only.codecs;
+    }
     if (task.format === "HLS" && parsed.kind === "media" &&
         Number.isSafeInteger(parsed.exactSizeBytes) && parsed.exactSizeBytes > 0)
       verified.sizeBytes = parsed.exactSizeBytes;
@@ -795,8 +811,11 @@ async function inspectManifest(task) {
     // DASH single-representation total A/V bitrate, or bitrate inherited
     // from the exact HLS child variant being verified; never sum all qualities.
     const parsedBitrate = task.format === "DASH" ? parsed.bitrate : task.bitrate;
-    if (Number.isSafeInteger(parsedBitrate) && parsedBitrate > 0 && parsedBitrate <= 1000000000)
+    if (Number.isSafeInteger(parsedBitrate) && parsedBitrate > 0 && parsedBitrate <= 1000000000) {
       verified.bitrate = parsedBitrate;
+      // HLS inherited bitrate cannot be assumed to be an average.
+      verified.bitrateKind = task.format === "DASH" ? "declared" : "peak";
+    }
     if (Number.isSafeInteger(task.requestSequence)) verified.requestSequence = task.requestSequence;
     if (task.frameKey && task.frameUrl) {
       verified.frameKey = task.frameKey;
@@ -852,10 +871,17 @@ async function inspectManifest(task) {
         message.frameKey = task.frameKey;
         message.frameUrl = task.frameUrl;
       }
-      if (Number.isSafeInteger(variant.height) && variant.height > 0 && variant.height <= 8640)
+      if (Number.isSafeInteger(variant.width) && variant.width > 0 && variant.width <= 16384)
+        message.width = variant.width;
+      if (Number.isSafeInteger(variant.height) && variant.height > 0 && variant.height <= 8640) {
+        message.height = variant.height;
         message.quality = variant.height + "p";
+      }
+      if (Number.isFinite(variant.frameRate) && variant.frameRate > 0 && variant.frameRate <= 240)
+        message.frameRate = variant.frameRate;
       if (Number.isSafeInteger(variant.bitrate) && variant.bitrate > 0 && variant.bitrate <= 1000000000)
-        message.bitrate = variant.bitrate;
+        { message.bitrate = variant.bitrate;
+          message.bitrateKind = variant.bitrateKind; }
       if (typeof variant.codecs === "string" && variant.codecs.length <= 160)
         message.codecs = variant.codecs;
       await browser.tabs.sendMessage(task.tabId, message, { frameId: 0 });

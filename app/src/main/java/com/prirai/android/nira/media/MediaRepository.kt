@@ -40,6 +40,11 @@ internal class MediaEntry(
     val sizeOrigin: String? = null,
     val isLive: Boolean = false,
     val titleAmbiguous: Boolean = false,
+    val width: Int? = null,
+    val height: Int? = null,
+    val frameRate: Double? = null,
+    val variantCount: Int? = null,
+    val bitrateKind: String? = null,
 ) {
     override fun toString(): String = "MediaEntry(format=$format, sources=$sources, url=<redacted>)"
 }
@@ -113,6 +118,12 @@ internal class MediaRepository(
         var sizeOrigin: String? = null
         var isLive = false
         var posterUrl: String? = null
+        var posterRank = 0
+        var width: Int? = null
+        var height: Int? = null
+        var frameRate: Double? = null
+        var variantCount: Int? = null
+        var bitrateKind: String? = null
         var quality: String? = null
         var bitrate: Long? = null
         var codecs: String? = null
@@ -128,8 +139,17 @@ internal class MediaRepository(
             title = titleDecision.text
             titleKind = titleDecision.kind
             titleAmbiguous = titleDecision.ambiguous
-            if (candidate.posterUrl != null && candidate.source != MediaSource.NETWORK)
+            // A weak later candidate must not overwrite a better poster.
+            val rank = when (candidate.titleKind) {
+                "player" -> 3
+                "structured" -> 2
+                else -> 1
+            }
+            if (candidate.posterUrl != null && candidate.source != MediaSource.NETWORK &&
+                rank > posterRank) {
                 posterUrl = candidate.posterUrl
+                posterRank = rank
+            }
             if (candidate.isLive == true) {
                 isLive = true
                 durationSeconds = null
@@ -154,11 +174,19 @@ internal class MediaRepository(
                 sizeEstimated = false
                 sizeOrigin = if (format == MediaFormat.HLS) "HLS_BYTERANGE" else "HTTP_LENGTH"
             }
+            if (candidate.width != null) width = candidate.width
+            if (candidate.height != null) height = candidate.height
+            if (candidate.frameRate != null) frameRate = candidate.frameRate
+            if (candidate.variantCount != null) variantCount = candidate.variantCount
             if (candidate.quality != null) quality = candidate.quality
-            if (candidate.bitrate != null) bitrate = candidate.bitrate
+            if (candidate.bitrate != null) {
+                bitrate = candidate.bitrate
+                bitrateKind = candidate.bitrateKind
+            }
             if (!isLive && (sizeBytes == null || sizeEstimated) &&
                 format in setOf(MediaFormat.HLS, MediaFormat.DASH) &&
-                durationSeconds != null && bitrate != null) {
+                durationSeconds != null && bitrate != null &&
+                bitrateKind == "average") {
                 val estimate = bitrate!! * durationSeconds!!.toLong() / 8L
                 if (estimate in 1L..1_000_000_000_000L) {
                     sizeBytes = estimate
@@ -192,7 +220,8 @@ internal class MediaRepository(
         }, groupId, title, titleKind, durationSeconds, sizeBytes, posterUrl,
             quality, bitrate, codecs, revisions.size.coerceAtLeast(1), frameUrl,
             playbackStatus, httpStatus, ambiguous, frameKey,
-            sizeEstimated, durationOrigin, sizeOrigin, isLive, titleAmbiguous)
+            sizeEstimated, durationOrigin, sizeOrigin, isLive, titleAmbiguous,
+            width, height, frameRate, variantCount, bitrateKind)
     }
 
     private class FrameBinding(val id: Long, val key: Long, val url: String, var active: Boolean)

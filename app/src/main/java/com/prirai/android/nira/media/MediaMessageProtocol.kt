@@ -6,6 +6,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
 
@@ -30,7 +31,12 @@ internal sealed interface MediaDetectorMessage {
                     val verification: String? = null,
                     val httpStatus: Int? = null,
                     val requestSequence: Long? = null,
-                    val isLive: Boolean? = null) : MediaDetectorMessage {
+                    val isLive: Boolean? = null,
+                    val width: Int? = null,
+                    val height: Int? = null,
+                    val frameRate: Double? = null,
+                    val variantCount: Int? = null,
+                    val bitrateKind: String? = null) : MediaDetectorMessage {
         override fun toString() = "MediaCandidate(redacted)"
     }
     class Document(val pageUrl: String, val documentKey: Long, val frameTracking: Boolean = false) : MediaDetectorMessage {
@@ -157,6 +163,11 @@ internal object MediaMessageProtocol {
                 val hasLive = "isLive" in fields
                 val hasSize = "sizeBytes" in fields
                 val hasPoster = "posterUrl" in fields
+                val hasWidth = "width" in fields
+                val hasHeight = "height" in fields
+                val hasFrameRate = "frameRate" in fields
+                val hasVariantCount = "variantCount" in fields
+                val hasBitrateKind = "bitrateKind" in fields
                 val hasQuality = "quality" in fields
                 val hasBitrate = "bitrate" in fields
                 val hasCodecs = "codecs" in fields
@@ -182,6 +193,11 @@ internal object MediaMessageProtocol {
                     (if (hasLive) setOf("isLive") else emptySet()) +
                     (if (hasSize) setOf("sizeBytes") else emptySet()) +
                     (if (hasPoster) setOf("posterUrl") else emptySet()) +
+                    (if (hasWidth) setOf("width") else emptySet()) +
+                    (if (hasHeight) setOf("height") else emptySet()) +
+                    (if (hasFrameRate) setOf("frameRate") else emptySet()) +
+                    (if (hasVariantCount) setOf("variantCount") else emptySet()) +
+                    (if (hasBitrateKind) setOf("bitrateKind") else emptySet()) +
                     (if (hasQuality) setOf("quality") else emptySet()) +
                     (if (hasBitrate) setOf("bitrate") else emptySet()) +
                     (if (hasCodecs) setOf("codecs") else emptySet()) +
@@ -236,6 +252,20 @@ internal object MediaMessageProtocol {
                 val quality = if (hasQuality) string("quality")?.takeIf {
                     it.matches(Regex("[0-9]{2,4}p"))
                 } ?: return null else null
+                fun dimension(field: String, maximum: Int): Int? =
+                    (fields[field] as? JsonPrimitive)?.takeIf { !it.isString }
+                        ?.intOrNull?.takeIf { it in 1..maximum }
+                val width = if (hasWidth) dimension("width", 16384) ?: return null else null
+                val height = if (hasHeight) dimension("height", 8640) ?: return null else null
+                val frameRate = if (hasFrameRate)
+                    (fields["frameRate"] as? JsonPrimitive)?.takeIf { !it.isString }
+                        ?.doubleOrNull?.takeIf { it.isFinite() && it > 0 && it <= 240 }
+                            ?: return null else null
+                val variantCount = if (hasVariantCount) dimension("variantCount", 32)
+                    ?: return null else null
+                val bitrateKind = if (hasBitrateKind) string("bitrateKind")
+                    ?.takeIf { it in setOf("average", "peak", "declared") }
+                    ?: return null else null
                 val bitrate = if (hasBitrate)
                     (fields["bitrate"] as? JsonPrimitive)?.takeIf { !it.isString }
                         ?.longOrNull?.takeIf { it in 1..1_000_000_000L } ?: return null
@@ -260,7 +290,8 @@ internal object MediaMessageProtocol {
                     else null
                 MediaDetectorMessage.Candidate(url, contentType, source, privateHint, pageUrl, key,
                     frameUrl, frameKey, groupId, title, titleKind, duration, size, poster,
-                    quality, bitrate, codecs, provenance, verification, httpStatus, requestSequence, live)
+                    quality, bitrate, codecs, provenance, verification, httpStatus, requestSequence, live,
+                    width, height, frameRate, variantCount, bitrateKind)
             }
             else -> null
         }

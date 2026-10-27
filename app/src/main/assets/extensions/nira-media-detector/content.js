@@ -167,6 +167,15 @@
           !/^[a-z0-9_-]{1,80}$/i.test(message.groupId))) ||
         ("quality" in message && (typeof message.quality !== "string" ||
           !/^\d{2,4}p$/.test(message.quality))) ||
+        ("width" in message && (!Number.isSafeInteger(message.width) ||
+          message.width < 1 || message.width > 16384)) ||
+        ("height" in message && (!Number.isSafeInteger(message.height) ||
+          message.height < 1 || message.height > 8640)) ||
+        ("frameRate" in message && (typeof message.frameRate !== "number" ||
+          !Number.isFinite(message.frameRate) || message.frameRate <= 0 || message.frameRate > 240)) ||
+        ("variantCount" in message && (!Number.isSafeInteger(message.variantCount) ||
+          message.variantCount < 1 || message.variantCount > 32)) ||
+        ("bitrateKind" in message && !["average","peak","declared"].includes(message.bitrateKind)) ||
         ("bitrate" in message && (!Number.isSafeInteger(message.bitrate) ||
           message.bitrate <= 0 || message.bitrate > 1000000000)) ||
         ("codecs" in message && (typeof message.codecs !== "string" ||
@@ -185,7 +194,8 @@
         Object.keys(message).some(key => !["schemaVersion", "event", "source", "url",
           "isPrivate", "documentKey", "pageUrl", "contentType", "sizeBytes",
           "durationSeconds", "isLive",
-          "groupId", "quality", "bitrate", "codecs", "provenance",
+          "groupId", "quality", "bitrate", "codecs", "width", "height",
+          "frameRate", "variantCount", "bitrateKind", "provenance",
           "verification", "httpStatus", "requestSequence",
           "frameUrl", "frameKey"].includes(key)) ||
         message.pageUrl !== location.href) return Promise.resolve(false);
