@@ -141,6 +141,18 @@ object TestLabReportGenerator {
                 appendLine("Brak pomiarów sieciowych oznacza NOT_MEASURED, a nie zero żądań ani zero kosztu.")
             } ?: appendLine("NOT_MEASURED — brak snapshotu kolektora.")
         }
+        if (r.testType in setOf(TestType.FULL_AUDIT,TestType.VIDEO_DISCOVERY,TestType.VIDEO_METADATA)) {
+            appendLine("\nMEDIA IDENTITY — SHADOW MODE (bez wpływu na kafelki i Play):")
+            r.mediaIdentityShadow?.let { g ->
+                appendLine("Shadow=ON, UI/Play niezmienione; źródła=${g.sourceNodes}, kandydaci na filmy=${g.filmNodes}, grupy wieloźródłowe=${g.groupedFilms}, prowizoryczne krawędzie wariantów=${g.provisionalVariantEdges}")
+                appendLine("Konflikty indywidualnych tytułów w grupach=${g.groupsWithConflictingTitles}; niepewni właściciele=${g.groupsWithAmbiguousOwners}; grupy bez indywidualnego tytułu=${g.groupsWithoutIndividualTitles}")
+                appendLine("Wskazówki manifestu bez powiązanych źródeł=${g.manifestVariantHintsWithoutLinkedSources}; zbieżne ID grup w różnych ramkach (niełączone)=${g.crossFrameGroupIdCollisions}")
+                appendLine("Zmiany grupy źródła=${g.sourceGroupReassignments}; zmiany ramki=${g.sourceFrameReassignments}; reset partycji=${g.partitionResets}; epoki nawigacji=${g.navigationEpochs}; odrzucone z limitu=${g.droppedSources}")
+                appendLine("Porównane panele=${g.panelSnapshotsCompared}; rozbieżna liczba grup shadow/UI=${g.panelGroupCountDisagreements}; podejrzane grupy w panelach=${g.panelShadowUnsafeGroups}")
+                appendLine("Audio/subtitle track linkage: ${if(g.trackLinkageAvailable) "SUPPORTED" else "NOT_AVAILABLE"}; nie dopisuj niezaobserwowanych ścieżek.")
+                appendLine("To są hipotezy powiązań z zaakceptowanych rekordów natywnych, nie potwierdzona identyczność filmu; kolizje nazw i brak ramki nie są automatycznie naprawiane.")
+            } ?: appendLine("NOT_MEASURED — brak snapshotu shadow graph.")
+        }
         appendLine("\nZasoby: własny proces aplikacji; podprocesy Gecko nie są objęte pomiarem.")
         val m = r.resourceMetrics
         appendLine("Próbki=${m.totalSamples}; odrzucone ze starszego bufora=${m.evictedSamples}")

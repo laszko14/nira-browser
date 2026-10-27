@@ -92,6 +92,7 @@ data class OperationToken internal constructor(internal val session:Long,interna
     val videoDiscovery:VideoDiscoverySummary?=null,
     val videoMetadata:VideoMetadataSummary?=null,
     val mediaFunnel:MediaFunnelSummary?=null,
+    val mediaIdentityShadow:MediaIdentityShadowSummary?=null,
 )
 
 @Serializable data class VideoDiscoveryFilm(
