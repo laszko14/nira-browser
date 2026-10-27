@@ -25,7 +25,7 @@ import java.io.File
 class TestLabPersistenceHooksTest {
     @Test fun realRoomMovesCommitBeforeSuccessAndRejectedPrivateMoveIsCancellation()=runTest {
         val app=RuntimeEnvironment.getApplication();val db=Room.inMemoryDatabaseBuilder(app,TabGroupDatabase::class.java).build()
-        var now=0L;val e=TestLabEngine({now},LabIdentity(1165,"0.5.22-alpha71-mpv39"))
+        var now=0L;val e=TestLabEngine({now},LabIdentity(1168,"0.5.22-alpha73-clean"))
         val token=e.start(TestType.TABS_GROUPS)!!;e.begin(token);val capture=LabCapture(e,token)
         val tabs=listOf("a","b","c").map{TabSessionState(id=it,content=ContentState(url="about:blank"))}+
             TabSessionState(id="private",contextId="private",content=ContentState(url="about:blank",private=true))
@@ -49,7 +49,7 @@ class TestLabPersistenceHooksTest {
     @Test fun suspendedDataStoreWriteIsNotCompletedEarlyAndReadbackMismatchIsReported()=runTest {
         val app=RuntimeEnvironment.getApplication();val db=Room.inMemoryDatabaseBuilder(app,TabGroupDatabase::class.java).build()
         val groups=UnifiedTabGroupManager(app,db,StandardTestDispatcher(testScheduler)){emptyList()}
-        var now=0L;val e=TestLabEngine({now},LabIdentity(1165,"0.5.22-alpha71-mpv39"))
+        var now=0L;val e=TestLabEngine({now},LabIdentity(1168,"0.5.22-alpha73-clean"))
         val token=e.start(TestType.TABS_GROUPS)!!;e.begin(token);val capture=LabCapture(e,token)
         val file=File(app.cacheDir,"lab-order.preferences_pb").apply{delete()}
         val delegate=PreferenceDataStoreFactory.create(scope=backgroundScope){file}

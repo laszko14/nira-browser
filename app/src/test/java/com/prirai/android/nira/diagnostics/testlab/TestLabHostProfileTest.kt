@@ -16,7 +16,7 @@ class TestLabHostProfileTest {
         if(bean.isThreadCpuTimeSupported)bean.isThreadCpuTimeEnabled=true
         try {
             var now=0L
-            val e=TestLabEngine({now},LabIdentity(1165,"0.5.22-alpha71-mpv39"));val t=e.start(TestType.COMPLEX)!!
+            val e=TestLabEngine({now},LabIdentity(1168,"0.5.22-alpha73-clean"));val t=e.start(TestType.COMPLEX)!!
             e.begin(t);e.foreground(t,true)
             repeat(300_000){e.frameMeasured(t,7_000_000,false,0,false,0,5_000_000,true)}
             val id=Thread.currentThread().id;val n=200_000

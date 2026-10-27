@@ -15,7 +15,7 @@ import org.robolectric.annotation.Config
 @Config(sdk=[35],application=Application::class)
 class TestLabExportsTest {
     private fun bundle():TestLabReportBundle {
-        var now=0L;val e=TestLabEngine({now},LabIdentity(1165,"0.5.22-alpha71-mpv39"));val t=e.start(TestType.COMPLEX)!!
+        var now=0L;val e=TestLabEngine({now},LabIdentity(1168,"0.5.22-alpha73-clean"));val t=e.start(TestType.COMPLEX)!!
         e.begin(t);now=1_000_000;e.stop(t);e.complete(t);return TestLabReportGenerator.generate(e.latest()!!)
     }
     @Test fun simultaneousUserSharesAreBoundedAndUseIndependentProviderUris()=runBlocking {

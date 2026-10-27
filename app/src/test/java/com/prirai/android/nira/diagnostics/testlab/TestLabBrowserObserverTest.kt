@@ -14,7 +14,7 @@ import org.robolectric.annotation.Config
 @Config(sdk=[35],application=Application::class,manifest=Config.NONE)
 class TestLabBrowserObserverTest {
     @Test fun observesTenRealReducerCommitsAndLoadCompletionWithoutSavingPrivateIdentifiers() {
-        var now=0L;val engine=TestLabEngine({now},LabIdentity(1165,"0.5.22-alpha71-mpv39"))
+        var now=0L;val engine=TestLabEngine({now},LabIdentity(1168,"0.5.22-alpha73-clean"))
         val token=engine.start(TestType.COMPLEX)!!;engine.begin(token)
         val observer=TestLabBrowserObserver(LabCapture(engine,token))
         val store=BrowserStore(middleware=listOf(observer))
@@ -33,7 +33,7 @@ class TestLabBrowserObserverTest {
         assertFalse(json.contains("SECRET"));assertFalse(json.contains("secret.example"));assertFalse(json.contains("child_"))
     }
     @Test fun staleLoadCancellationAndSelectedIdDoNotInventSuccessfulLoadOrSourceParent() {
-        val engine=TestLabEngine({0L},LabIdentity(1165,"0.5.22-alpha71-mpv39"))
+        val engine=TestLabEngine({0L},LabIdentity(1168,"0.5.22-alpha73-clean"))
         val token=engine.start(TestType.COMPLEX)!!;engine.begin(token)
         val observer=TestLabBrowserObserver(LabCapture(engine,token));val store=BrowserStore(middleware=listOf(observer))
         val tab=TabSessionState(id="x",content=ContentState(url="about:blank"))
@@ -44,7 +44,7 @@ class TestLabBrowserObserverTest {
         assertEquals(0L,engine.latest()!!.operationMetrics.first{it.operation==LabOperation.LINK_OPEN}.started)
     }
     @Test fun geckoErrorFailsOnlyTheBoundEngineAndNeverTheCurrentlySelectedOtherTab() {
-        val e=TestLabEngine({0L},LabIdentity(1165,"0.5.22-alpha71-mpv39"));val t=e.start(TestType.COMPLEX)!!;e.begin(t)
+        val e=TestLabEngine({0L},LabIdentity(1168,"0.5.22-alpha73-clean"));val t=e.start(TestType.COMPLEX)!!;e.begin(t)
         val observer=TestLabBrowserObserver(LabCapture(e,t));val store=BrowserStore(middleware=listOf(observer))
         val first=org.mockito.Mockito.mock(mozilla.components.concept.engine.EngineSession::class.java)
         val second=org.mockito.Mockito.mock(mozilla.components.concept.engine.EngineSession::class.java)

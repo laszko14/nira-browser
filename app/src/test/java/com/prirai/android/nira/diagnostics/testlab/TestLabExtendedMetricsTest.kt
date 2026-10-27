@@ -23,7 +23,7 @@ class TestLabExtendedMetricsTest {
         assertEquals(1,v.samples.size);assertEquals(100L,v.pssMaxBytes)
     }
     @Test fun outstandingMainMessageIsEvidenceBeforeAckAndOldWindowCannotInflateIt() {
-        var now=0L;val e=TestLabEngine({now},LabIdentity(1165,"0.5.22-alpha71-mpv39"))
+        var now=0L;val e=TestLabEngine({now},LabIdentity(1168,"0.5.22-alpha73-clean"))
         val t=e.start(TestType.STABILITY)!!;e.begin(t);e.foreground(t,true)
         val epoch=e.foregroundGeneration;now=500_000_000
         assertTrue(e.pendingHeartbeat(t,500_000_000,epoch))

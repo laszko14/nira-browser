@@ -9,7 +9,7 @@ import org.junit.Test
 class TestLabEngineTest {
     private var now=0L
     private fun advance(ms:Long){now+=ms*1_000_000L}
-    private fun engine(maxEvents:Int=1024)=TestLabEngine({now},LabIdentity(1165,"0.5.22-alpha71-mpv39"),maxEvents)
+    private fun engine(maxEvents:Int=1024)=TestLabEngine({now},LabIdentity(1168,"0.5.22-alpha73-clean"),maxEvents)
     private fun running(e:TestLabEngine,type:TestType=TestType.COMPLEX):SessionToken {
         val token=e.start(type)!!;assertTrue(e.begin(token));assertTrue(e.foreground(token,true));return token
     }
@@ -31,8 +31,8 @@ class TestLabEngineTest {
         val e=engine();val t=running(e);advance(59_999)
         assertFalse(e.poll(t));advance(1);assertTrue(e.poll(t))
         assertEquals(LabPhase.FINALIZING,e.phase)
-        assertNull(e.start(TestType.VIDEO_MPV))
-        assertFalse(e.note(t,LabCode.MPV_START_FILE))
+        assertNull(e.start(TestType.VIDEO_DISCOVERY))
+        assertFalse(e.note(t,LabCode.VIDEO_EXTERNAL_REQUEST))
         assertTrue(e.complete(t));val report=e.latest()!!
         assertEquals(LabPhase.COMPLETED,report.status)
         assertEquals(60_000.0,report.durationMs,0.001)
@@ -45,9 +45,9 @@ class TestLabEngineTest {
     }
     @Test fun lateTimerCannotExtendTheMeasurementWindow() {
         val e=engine();val t=running(e);advance(65_000)
-        assertFalse(e.note(t,LabCode.MPV_START_FILE));assertTrue(e.poll(t));e.complete(t)
+        assertFalse(e.note(t,LabCode.VIDEO_EXTERNAL_REQUEST));assertTrue(e.poll(t));e.complete(t)
         assertEquals(60_000.0,e.latest()!!.durationMs,0.001)
-        assertNull(e.latest()!!.eventCounts[LabCode.MPV_START_FILE])
+        assertNull(e.latest()!!.eventCounts[LabCode.VIDEO_EXTERNAL_REQUEST])
     }
     @Test fun noParallelStartOrDoubleFinishEvenUnderConcurrentCallers() {
         val e=engine();val pool=Executors.newFixedThreadPool(8);val gate=CountDownLatch(1)
@@ -70,9 +70,9 @@ class TestLabEngineTest {
     @Test fun oldSessionCallbacksCannotAppendToNewSession() {
         val e=engine();val old=running(e);advance(20);val oldReport=finish(e,old)
         val fresh=running(e)
-        assertFalse(e.note(old,LabCode.MPV_START_FILE));assertFalse(e.frame(old,10_000_000,true))
+        assertFalse(e.note(old,LabCode.VIDEO_EXTERNAL_REQUEST));assertFalse(e.frame(old,10_000_000,true))
         assertTrue(e.note(fresh,LabCode.MENU_OPEN));advance(20);val current=finish(e,fresh)
-        assertNull(current.eventCounts[LabCode.MPV_START_FILE]);assertEquals(1L,current.eventCounts[LabCode.MENU_OPEN])
+        assertNull(current.eventCounts[LabCode.VIDEO_EXTERNAL_REQUEST]);assertEquals(1L,current.eventCounts[LabCode.MENU_OPEN])
         assertNull(oldReport.eventCounts[LabCode.MENU_OPEN])
     }
     @Test fun backgroundIsAnExplicitCoverageGap() {
@@ -112,8 +112,8 @@ class TestLabEngineTest {
     }
     @Test fun noVideoIsNotTestedAndNotHealthyPlayback() {
         val e=engine();val t=running(e);advance(100);val report=finish(e,t)
-        assertEquals(Coverage.NOT_TESTED,report.testCoverage[LabOperation.MPV_PLAYBACK])
-        assertEquals(Availability.NOT_EXPOSED_BY_PLATFORM,report.metricAvailability[LabMetric.MPV_PRESENTED_FRAMES])
+        assertEquals(Coverage.NOT_TESTED,report.testCoverage[LabOperation.VIDEO_EXTERNAL_OPEN])
+        assertEquals(Availability.NOT_EXPOSED_BY_PLATFORM,report.metricAvailability[LabMetric.GECKO_COMPOSITOR_FRAMES])
         assertEquals(Availability.NOT_EXPOSED_BY_PLATFORM,report.metricAvailability[LabMetric.GECKO_COMPOSITOR_FRAMES])
     }
     @Test fun correlationAndMeasuredStallAreNotConfirmedAnr() {
@@ -147,7 +147,7 @@ class TestLabEngineTest {
         assertEquals(MetricSource.UNAVAILABLE,report.metricSources[LabMetric.DUAL_AUDIO])
     }
     @Test fun appIdentityCannotCreateAnUnboundedReportHeader() {
-        assertThrows(IllegalArgumentException::class.java){LabIdentity(1165,"0."+"1".repeat(1000)+"-alpha71-mpv39")}
+        assertThrows(IllegalArgumentException::class.java){LabIdentity(1168,"0."+"1".repeat(1000)+"-alpha73-clean")}
     }
     @Test fun aFrameCanCorrelateWithTwoOperationsWithoutBeingCountedTwiceGlobally() {
         val e=engine();val t=running(e)
@@ -187,8 +187,8 @@ class TestLabEngineTest {
 
     @org.junit.Test fun batchedEventsPreserveCandidateCountsWithoutOneRowPerCandidate() {
         var clock=0L
-        val e=TestLabEngine({clock},LabIdentity(1165,"0.5.22-alpha71-mpv39"))
-        val t=e.start(TestType.VIDEO_MPV)!!;e.begin(t)
+        val e=TestLabEngine({clock},LabIdentity(1168,"0.5.22-alpha73-clean"))
+        val t=e.start(TestType.VIDEO_DISCOVERY)!!;e.begin(t)
         e.note(t,LabCode.DETECTOR_NETWORK,count=20)
         org.junit.Assert.assertFalse(e.note(t,LabCode.DETECTOR_NETWORK,count=0))
         clock=1_000_000;e.stop(t);e.complete(t)
@@ -196,7 +196,7 @@ class TestLabEngineTest {
         org.junit.Assert.assertEquals(1,e.latest()!!.timeline.size)
     }
     @org.junit.Test fun gestureLatencyUsesMeasuredDownAndUnknownOriginsNeverInventZeroLatency() {
-        var clock=0L;val e=TestLabEngine({clock},LabIdentity(1165,"0.5.22-alpha71-mpv39"))
+        var clock=0L;val e=TestLabEngine({clock},LabIdentity(1168,"0.5.22-alpha73-clean"))
         val t=e.start(TestType.PANELS_GESTURES)!!;e.begin(t)
         clock=20_000_000
         val gesture=e.operation(t,LabOperation.LEFT_PANEL_OPEN,startOffsetNanos=0)!!
