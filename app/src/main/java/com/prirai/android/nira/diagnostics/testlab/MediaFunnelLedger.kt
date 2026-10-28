@@ -7,7 +7,8 @@ import java.util.IdentityHashMap
 import kotlinx.serialization.Serializable
 
 @Serializable enum class MediaFunnelStage {
-    DISCOVERED, CANDIDATE, ASSOCIATED, VERIFIED, STORED, DISPLAYED
+    DISCOVERED, CANDIDATE, LABEL_PRESENT, ASSOCIATED, VERIFIED, STORED, DISPLAYED,
+    NATIVE_ACCEPTED, TILE_SNAPSHOT_ASSOCIATED
 }
 @Serializable enum class MediaUnknownReason {
     TITLE_UNKNOWN, TITLE_AMBIGUOUS, POSTER_UNKNOWN, DURATION_UNKNOWN,
@@ -115,6 +116,11 @@ internal class MediaFunnelLedger(private val capacity: Int = 256) {
             when (step) {
                 MediaFunnelStage.DISCOVERED, MediaFunnelStage.STORED -> flags.size.toLong()
                 MediaFunnelStage.CANDIDATE -> candidates
+                // Counts record snapshots, NOT independently proven owner/source matches.
+                MediaFunnelStage.LABEL_PRESENT -> flags.count { it.named }.toLong()
+                MediaFunnelStage.NATIVE_ACCEPTED -> flags.size.toLong()
+                MediaFunnelStage.TILE_SNAPSHOT_ASSOCIATED ->
+                    flags.count { it.displayed && it.associated }.toLong()
                 MediaFunnelStage.ASSOCIATED -> flags.count { it.associated }.toLong()
                 MediaFunnelStage.VERIFIED -> flags.count { it.verified }.toLong()
                 MediaFunnelStage.DISPLAYED -> flags.count { it.displayed }.toLong()
