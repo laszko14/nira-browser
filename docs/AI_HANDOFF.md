@@ -333,15 +333,33 @@ Na Nothing Phone (1) zainstalować `app-arm64-v8a-debug.apk`, wpisać publiczny 
 - **Status w chwili checkpointu:** gałąź integracyjna z wersją v1184 przygotowana; pełny PR build/test/lint CI zostanie uruchomiony. Nie deklarować gotowego APK przed rzeczywistym sukcesem joba `build` i obecnością podpisanego artefaktu.
 - **Dalszy krok:** test+lint+signed ARM64 APK → sprawdzenie raportów CI → podanie prawidłowego linku do ZIP z APK. Test fizycznego telefonu i rzeczywistych stron nadal należy do użytkownika. Bez publikacji Google Play/main.
 
-## 2026-10-28 — smart tab scrolling v1188 (in progress)
-- Branch `feat/zavro-clean-v1188-smart-tab-scroll-20261028`, base Clean v1187
-  `dea9f3bdaad785a4cb312d42d0096cc23cd11022` / Draft PR #109. No merge/main/x MPV edits.
-- Shared measured-bounds policy, native layout-time cancellation and single Compose
-  event-driven measurement replace competing approximate centering/requesters.
-- Policy JUnit: 6 PASS (3 expected failures with no-op policy before implementation).
-  Local JS: 212/212 PASS. Android Gradle blocked during dependency resolution;
-  offline diagnostic and full CI pending. Native Robolectric tests added, not yet run.
-- Effective ARM64 code 1188 / 0.5.22-alpha93-clean. Existing fail-closed CI signing kept.
-- Next: inspect PR CI build/test/lint, fix real failures, review, verify signed artifact
-  against pinned df90 certificate and package. No APK compatibility claim yet.
-- Device/Compose visual gestures, 120 Hz and installation: NOT_TESTED (adb has no device).
+## 2026-10-28 — smart tab scrolling v1188: verified delivery
+
+- Branch `feat/zavro-clean-v1188-smart-tab-scroll-20261028`, Draft PR #110:
+  https://github.com/laszko14/nira-browser/pull/110. Base Clean v1187 PR #109,
+  `dea9f3bdaad785a4cb312d42d0096cc23cd11022`. No merge/main/x MPV edits.
+- Verified source/test commit: `35d5ab3aab5f965398793987fc3a0314929ba118`.
+  Following checkpoint commit changes docs only and skips unnecessary CI rerun.
+- Shared measured visibility policy integrated with native and Compose strips.
+  Full visible group wins; comfortable icon does not move; clipped targets center
+  within real range; collapsed group stays collapsed; one tab resets left.
+  Latest checks cancel previous ones; native child touch and Compose fling protected.
+- Final CI https://github.com/laszko14/nira-browser/actions/runs/40752492399 SUCCESS:
+  build/test/lint SUCCESS; release skipped. Downloaded test report: 371 Kotlin,
+  zero failed/skipped (6 policy + 6 native visibility); JS 212/212 PASS.
+  Lint job PASS does not imply zero findings (`abortOnError=false` is pre-existing).
+- APK https://github.com/laszko14/nira-browser/actions/runs/40752492399/artifacts/12845111607
+  (`zavro-arm64-update-apk-v1188`). ZIP CRC and exactly one APK independently checked.
+  Existing verifier/apksigner/aapt independently PASS after download: package
+  `com.prirai.android.nira.debug`, code `1188`, name `0.5.22-alpha93-clean`, arm64-v8a only,
+  certificate SHA256 `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00`.
+  APK SHA256 `17636c4d36e88cbd21ab8f72cd16df7e1483f3b99af8e44f40af5360b0b95231`.
+- Detailed criterion statuses: `docs/SMART_TAB_SCROLL.md`. Independent review's two
+  gesture issues fixed. One subsequent test fixture failure (looper drained before
+  touch) corrected; final suite green. Local Android Gradle cache was incomplete;
+  full Android verification came from CI, not a claimed local build.
+- NOT_TESTED: physical-phone UI in both orientations, actual gestures/drag, 120 Hz,
+  and installation over the user's existing app. No device is connected.
+- Next: install the verified APK as an update on Nothing Phone (1), exercise the
+  device scenarios in SMART_TAB_SCROLL.md. Do not repeat completed CI/unit work;
+  change code only if device evidence exposes a defect. Keep PR draft/unmerged.

@@ -278,3 +278,10 @@
   the looper finished the scroll before targeting the first icon. Dispatch DOWN
   while the visibility check is pending instead, to deterministically exercise
   child-consumed touch cancellation. Production code unchanged; next CI required.
+
+- FINAL v1188: source/test `35d5ab3aab5f965398793987fc3a0314929ba118`, Draft PR #110;
+  CI 40752492399 SUCCESS (371 Kotlin/Robolectric, 212 JS; build/lint success).
+  Artifact 12845111607 downloaded and independently verified: single arm64 APK,
+  code 1188, alpha93-clean, existing debug package and pinned df90 certificate.
+  Physical-device UI/gestures/120 Hz/install NOT_TESTED. Criterion matrix and exact
+  resume instructions saved; final docs-only checkpoint skips redundant CI.
