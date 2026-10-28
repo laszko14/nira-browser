@@ -130,13 +130,23 @@ class NativeStripVisibilityTest {
         // Start the posted animation without advancing its full duration.
         shadowOf(Looper.getMainLooper()).idle()
         val scroller = scroll(strip)
-        val down = MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 100f, 20f, 0)
+        val pill = descendants(strip).single { it.contentDescription == "Karta: 0" }
+        var x = pill.width / 2f + pill.left
+        var parent = pill.parent as View
+        while (parent !== scroller) {
+            x += parent.left
+            parent = parent.parent as View
+        }
+        x -= scroller.scrollX
+        val y = scroller.height / 2f
+        assertTrue(x >= 0 && x < scroller.width)
+        val down = MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, x, y, 0)
         scroller.dispatchTouchEvent(down)
         down.recycle()
         val before = scroller.scrollX
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(400))
         assertEquals(before, scroller.scrollX)
-        val up = MotionEvent.obtain(0, 10, MotionEvent.ACTION_UP, 100f, 20f, 0)
+        val up = MotionEvent.obtain(0, 10, MotionEvent.ACTION_UP, x, y, 0)
         scroller.dispatchTouchEvent(up)
         up.recycle()
     }
