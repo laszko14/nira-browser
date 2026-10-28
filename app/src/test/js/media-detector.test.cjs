@@ -313,7 +313,10 @@ test("v1107: a bounded HLS manifest emits grouped playable variants without segm
   assert.equal(fetches, 1);
   assert.equal(b.routed.length, 3);
   assert.equal(b.routed[0][1].url, "https://site.example/master.m3u8?sig=a");
-  assert.deepEqual(b.routed.slice(1).map(x => x[1].quality), ["1080p", "480p"]);
+  // Declared renditions are available options, not evidence of the active playback quality.
+  assert.equal(b.routed[0][1].availableQualities, "1080p,480p");
+  assert.deepEqual(b.routed.slice(1).map(x => x[1].height), [1080, 480]);
+  assert.ok(b.routed.every(x => x[1].quality === undefined));
   assert.equal(b.routed[1][1].url, "https://redirected.example/media/1080/index.m3u8");
   assert.equal(new Set(b.routed.map(x => x[1].groupId)).size, 1);
 });
