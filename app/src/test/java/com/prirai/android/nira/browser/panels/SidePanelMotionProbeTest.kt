@@ -62,4 +62,24 @@ class SidePanelMotionProbeTest {
         probe.abort()
         activity.finish()
     }
+
+    @Test fun draggingProgressUpdatesBeforeFirstPreDrawWithoutPhaseChange() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val root = SwipeGestureLayout(activity)
+        val host = SidePanelHost(activity)
+        root.addView(host)
+        val probe = SidePanelMotionProbe(host, root)
+        for (side in SidePanelSide.entries) {
+            probe.onSnapshot(SidePanelSnapshot(side, SidePanelPhase.DRAGGING, 0f))
+            probe.onSnapshot(SidePanelSnapshot(side, SidePanelPhase.DRAGGING, 0.35f))
+            assertEquals(0.35f, probe.lastObservedSnapshot.progress, 0.00001f)
+            probe.onSnapshot(SidePanelSnapshot(side, SidePanelPhase.DRAGGING, 0.76f))
+            assertEquals(0.76f, probe.lastObservedSnapshot.progress, 0.00001f)
+            assertEquals(side, probe.lastObservedSnapshot.side)
+            probe.abort()
+            assertEquals(SidePanelPhase.CLOSED, probe.lastObservedSnapshot.phase)
+        }
+        activity.finish()
+    }
+
 }

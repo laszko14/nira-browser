@@ -39,8 +39,9 @@ internal class SidePanelHost @JvmOverloads constructor(
     init {
         visibility = View.GONE
         addView(scrim, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
-        addView(leftContainer, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT, Gravity.START))
-        addView(rightContainer, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT, Gravity.END))
+        // The gesture model uses physical LEFT/RIGHT screen edges, not RTL-relative START/END.
+        addView(leftContainer, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT, Gravity.LEFT))
+        addView(rightContainer, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT, Gravity.RIGHT))
     }
 
     fun setPanelWidth(side: SidePanelSide, widthPx: Int) {

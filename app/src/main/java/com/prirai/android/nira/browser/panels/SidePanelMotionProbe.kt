@@ -26,6 +26,7 @@ internal class SidePanelMotionProbe(
     private val gestures: SwipeGestureLayout
 ) {
     private var previous = SidePanelSnapshot(null, SidePanelPhase.CLOSED, 0f)
+    internal val lastObservedSnapshot: SidePanelSnapshot get() = previous
     private var opening: OperationToken? = null
     private var settling: OperationToken? = null
     private var closing: OperationToken? = null
@@ -36,7 +37,12 @@ internal class SidePanelMotionProbe(
     fun onSnapshot(current: SidePanelSnapshot) {
         val before = previous
         if (before.phase == current.phase && before.side == current.side &&
-            before.targetOpen == current.targetOpen) return // no allocations or TestLab call per frame
+            before.targetOpen == current.targetOpen) {
+            // Save the latest drag progress for the first pre-draw listener.
+            // No TestLab call or object allocation on each MOVE/frame.
+            previous = current
+            return
+        }
         previous = current
 
         // Taking over an in-flight settle does not falsely report completion.
