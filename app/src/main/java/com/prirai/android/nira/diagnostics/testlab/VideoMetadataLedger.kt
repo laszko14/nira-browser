@@ -15,7 +15,8 @@ internal class VideoMetadataLedger(private val capacity: Int = 256) {
         var sizeStatus: String, var sizeSource: String, var durationSeconds: Int?,
         var sizeBytes: Long?, var visible: Boolean = false, var updates: Int = 0,
         var titleKnown: Boolean = false, var titleConflict: Boolean = false,
-        var posterKnown: Boolean = false, var resolutionKnown: Boolean = false,
+        var posterKnown: Boolean = false, var posterOrigin: String? = null,
+        var posterConflict: Boolean = false, var resolutionKnown: Boolean = false,
         var qualityKnown: Boolean = false, var qualityDerived: Boolean = false,
         var fpsKnown: Boolean = false, var codecsKnown: Boolean = false,
         var bitrateKnown: Boolean = false, var variantsKnown: Boolean = false,
@@ -98,6 +99,8 @@ internal class VideoMetadataLedger(private val capacity: Int = 256) {
                 !entry.titleAmbiguous
             titleConflict = entry.titleAmbiguous
             posterKnown = !entry.posterUrl.isNullOrBlank()
+            posterOrigin = entry.posterOrigin
+            posterConflict = entry.posterAmbiguous
             resolutionKnown = entry.width != null && entry.height != null
             qualityKnown = !entry.quality.isNullOrBlank() || entry.height != null
             qualityDerived = entry.quality.isNullOrBlank() && entry.height != null
@@ -131,6 +134,9 @@ internal class VideoMetadataLedger(private val capacity: Int = 256) {
             titlesFallback = items.count { !it.titleKnown },
             titleConflicts = items.count { it.titleConflict },
             postersAssociated = items.count { it.posterKnown },
+            posterOrigins = items.filter { it.posterKnown }
+                .groupingBy { it.posterOrigin ?: "UNKNOWN" }.eachCount(),
+            posterConflicts = items.count { it.posterConflict },
             resolutionKnown = items.count { it.resolutionKnown },
             qualityKnown = items.count { it.qualityKnown },
             qualityDerived = items.count { it.qualityDerived },

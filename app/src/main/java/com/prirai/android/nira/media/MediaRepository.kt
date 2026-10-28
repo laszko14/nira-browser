@@ -45,6 +45,8 @@ internal class MediaEntry(
     val frameRate: Double? = null,
     val variantCount: Int? = null,
     val bitrateKind: String? = null,
+    val posterOrigin: String? = null,
+    val posterAmbiguous: Boolean = false,
 ) {
     override fun toString(): String = "MediaEntry(format=$format, sources=$sources, url=<redacted>)"
 }
@@ -118,7 +120,9 @@ internal class MediaRepository(
         var sizeOrigin: String? = null
         var isLive = false
         var posterUrl: String? = null
-        var posterRank = 0
+        private val posterResolver = MediaPosterResolver.State()
+        var posterOrigin: String? = null
+        var posterAmbiguous = false
         var width: Int? = null
         var height: Int? = null
         var frameRate: Double? = null
@@ -139,16 +143,14 @@ internal class MediaRepository(
             title = titleDecision.text
             titleKind = titleDecision.kind
             titleAmbiguous = titleDecision.ambiguous
-            // A weak later candidate must not overwrite a better poster.
-            val rank = when (candidate.titleKind) {
-                "player" -> 3
-                "structured" -> 2
-                else -> 1
-            }
-            if (candidate.posterUrl != null && candidate.source != MediaSource.NETWORK &&
-                rank > posterRank) {
-                posterUrl = candidate.posterUrl
-                posterRank = rank
+            // Poster and title are separate evidence. Equal-rank conflicts
+            // become UNKNOWN; stronger poster evidence can resolve ambiguity.
+            if (candidate.posterUrl != null && candidate.source != MediaSource.NETWORK) {
+                posterResolver.offer(candidate.posterUrl, candidate.posterKind)
+                val chosen = posterResolver.snapshot()
+                posterUrl = chosen.url
+                posterOrigin = chosen.origin?.name
+                posterAmbiguous = chosen.ambiguous
             }
             if (candidate.isLive == true) {
                 isLive = true
@@ -221,7 +223,8 @@ internal class MediaRepository(
             quality, bitrate, codecs, revisions.size.coerceAtLeast(1), frameUrl,
             playbackStatus, httpStatus, ambiguous, frameKey,
             sizeEstimated, durationOrigin, sizeOrigin, isLive, titleAmbiguous,
-            width, height, frameRate, variantCount, bitrateKind)
+            width, height, frameRate, variantCount, bitrateKind,
+            posterOrigin, posterAmbiguous)
     }
 
     private class FrameBinding(val id: Long, val key: Long, val url: String, var active: Boolean)

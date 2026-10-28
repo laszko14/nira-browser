@@ -36,7 +36,8 @@ internal sealed interface MediaDetectorMessage {
                     val height: Int? = null,
                     val frameRate: Double? = null,
                     val variantCount: Int? = null,
-                    val bitrateKind: String? = null) : MediaDetectorMessage {
+                    val bitrateKind: String? = null,
+                    val posterKind: String? = null) : MediaDetectorMessage {
         override fun toString() = "MediaCandidate(redacted)"
     }
     class Document(val pageUrl: String, val documentKey: Long, val frameTracking: Boolean = false) : MediaDetectorMessage {
@@ -163,6 +164,7 @@ internal object MediaMessageProtocol {
                 val hasLive = "isLive" in fields
                 val hasSize = "sizeBytes" in fields
                 val hasPoster = "posterUrl" in fields
+                val hasPosterKind = "posterKind" in fields
                 val hasWidth = "width" in fields
                 val hasHeight = "height" in fields
                 val hasFrameRate = "frameRate" in fields
@@ -181,6 +183,7 @@ internal object MediaMessageProtocol {
                 if (hasFrame && (!hasDoc ||
                         !("frameUrl" in fields && "frameKey" in fields))) return null
                 if (hasTitle && !("title" in fields && "titleKind" in fields)) return null
+                if (hasPosterKind && !hasPoster) return null
                 if (hasDuration && fromNetwork && !hasLive || hasSize && !fromNetwork ||
                     hasPoster && fromNetwork) return null
                 val acceptedKeys = expected + (if (hasMime) setOf("contentType") else emptySet()) +
@@ -193,6 +196,7 @@ internal object MediaMessageProtocol {
                     (if (hasLive) setOf("isLive") else emptySet()) +
                     (if (hasSize) setOf("sizeBytes") else emptySet()) +
                     (if (hasPoster) setOf("posterUrl") else emptySet()) +
+                    (if (hasPosterKind) setOf("posterKind") else emptySet()) +
                     (if (hasWidth) setOf("width") else emptySet()) +
                     (if (hasHeight) setOf("height") else emptySet()) +
                     (if (hasFrameRate) setOf("frameRate") else emptySet()) +
@@ -249,6 +253,10 @@ internal object MediaMessageProtocol {
                     else null
                 val poster = if (hasPoster) string("posterUrl")?.takeIf(::validUrl)
                     ?: return null else null
+                val posterKind = if (hasPosterKind)
+                    string("posterKind")?.takeIf {
+                        it in setOf("element", "card", "player", "structured")
+                    } ?: return null else null
                 val quality = if (hasQuality) string("quality")?.takeIf {
                     it.matches(Regex("[0-9]{2,4}p"))
                 } ?: return null else null
@@ -291,7 +299,7 @@ internal object MediaMessageProtocol {
                 MediaDetectorMessage.Candidate(url, contentType, source, privateHint, pageUrl, key,
                     frameUrl, frameKey, groupId, title, titleKind, duration, size, poster,
                     quality, bitrate, codecs, provenance, verification, httpStatus, requestSequence, live,
-                    width, height, frameRate, variantCount, bitrateKind)
+                    width, height, frameRate, variantCount, bitrateKind, posterKind)
             }
             else -> null
         }

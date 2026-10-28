@@ -254,3 +254,10 @@
 - Przyczyna: Nira zachowywała `frameUrl`, ale do MPV przekazywała Referer strony nadrzędnej; anonimowy parser manifestu nie rozróżniał wskazówki, dostępnego manifestu i dostępnego segmentu.
 - Dodano stan weryfikacji bez zapisywania tokenów, ograniczony probe pierwszego segmentu `Range: bytes=0-0`, iframe Referer, obsługę 401/403/404/410 oraz zachowanie pełnego oryginalnego URL.
 - 49/49 testów JavaScript PASS. Testy Gradle i fizyczny fulltaboo/MPV pozostają do wykonania w CI/na telefonie.
+
+### 2026-10-28 — integracja końcowa MME i bezpieczna aktualizacja v1184
+
+- Użytkownik wyraził zgodę na wykonanie pozostałych etapów i skompilowanie podpisanego APK do aktualizacji istniejącej instalacji v1183.
+- Zweryfikowano wspólnego przodka v1183 UI i MME etap 6: `d0ddc0a7094c2593b4c6973104a5c4a3073ed735` (MME etap 4). Integracja poprzez PR #105 do gałęzi v1184: merge commit `8bd414e3c1664751de994a38f6f09df072358bf4` (nie do main).
+- Ustawiono Gradle bazowe `versionCode=184` → APK ARM64 `versionCode=1184`, `versionName=0.5.22-alpha89-clean`. Workflow `build` weryfikuje SHA-256 certyfikatu i aktualizacyjną tożsamość APK; artefakt ZIP `zavro-arm64-update-apk-v1184`.
+- Kryteria wyjścia: testy Kotlin+JS PASS, lint wykonany, build podpisany oryginalnym certyfikatem i zweryfikowany przez skrypt, tylko jeden APK arm64-v8a, bez merge do main. Raport z rzeczywistego CI i link do artefaktu należy dopisać dopiero po potwierdzeniu.

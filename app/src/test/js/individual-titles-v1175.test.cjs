@@ -258,8 +258,8 @@ function stage3Harness() {
       if (selector === "a[href],link[href]")
         links.forEach(callback);
     },
-    submit: (url, source, mime, group, title, titleKind, duration, poster) =>
-      submitted.push({url, source, group, title, titleKind, poster}),
+    submit: (url, source, mime, group, title, titleKind, duration, poster, dimensions, posterKind) =>
+      submitted.push({url, source, group, title, titleKind, poster, posterKind}),
   };
   const identifiers = new WeakMap();
   let counter = 0;
@@ -379,6 +379,7 @@ test("JSON-LD ImageObject thumbnail binds to the correct VideoObject URL", () =>
   h.scanStructured();
   assert.equal(h.submitted.length,2);
   assert.equal(h.submitted.find(x=>x.title==="Movie A").poster,"https://cdn.example/a.jpg");
+  assert.equal(h.submitted.find(x=>x.title==="Movie A").posterKind,"structured");
   assert.equal(h.submitted.find(x=>x.title==="Movie B").poster,"https://cdn.example/b.jpg");
 });
 

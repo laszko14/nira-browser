@@ -117,6 +117,8 @@ object TestLabReportGenerator {
                 appendLine("Tytuły powiązane=${v.titlesAssociated}; fallback=${v.titlesFallback}; konflikty=${v.titleConflicts}")
                 appendLine("Miniatury przypisane=${v.postersAssociated}; rozdzielczość znana=${v.resolutionKnown}; jakość znana=${v.qualityKnown}; z samej rozdzielczości=${v.qualityDerived}")
                 appendLine("FPS=${v.fpsKnown}; kodeki=${v.codecsKnown}; bitrate=${v.bitrateKnown}; wiele wariantów=${v.variantsKnown}")
+                appendLine("Pochodzenie miniaturek=${v.posterOrigins}; sprzeczne miniatury o tej samej sile=${v.posterConflicts}")
+                appendLine("Pochodzenie=deklaracja, a nie dowód poprawności obrazu. Konflikt → UNKNOWN; brak miniatury nie oznacza błędu odtwarzania.")
                 appendLine("Miniatura przypisana nie oznacza załadowanej miniatury; jakość z rozdzielczości nie potwierdza przełączania wariantów.")
                 appendLine("Kafelki w otwartym panelu=${v.uiDisplayed}; aktualizacje=${v.updates}; nawigacje=${v.navigations}; limit ewidencji=${v.droppedSources}")
                 v.examples.forEach {
@@ -152,6 +154,17 @@ object TestLabReportGenerator {
                 appendLine("Audio/subtitle track linkage: ${if(g.trackLinkageAvailable) "SUPPORTED" else "NOT_AVAILABLE"}; nie dopisuj niezaobserwowanych ścieżek.")
                 appendLine("To są hipotezy powiązań z zaakceptowanych rekordów natywnych, nie potwierdzona identyczność filmu; kolizje nazw i brak ramki nie są automatycznie naprawiane.")
             } ?: appendLine("NOT_MEASURED — brak snapshotu shadow graph.")
+        }
+        if (r.testType in setOf(TestType.FULL_AUDIT,TestType.VIDEO_DISCOVERY,TestType.VIDEO_METADATA)) {
+            appendLine("\nMEDIA NETWORK CORRELATION — SHADOW MODE (bez ingerencji w Play):")
+            r.mediaNetworkCorrelation?.let { g ->
+                appendLine("Rekordy native=${g.observedRecords}; DOM/PAGE+NETWORK w jednym rekordzie=${g.networkAndDomOnOneRecord}; ze znaną ramką=${g.trustedFrameCoObserved}; z indywidualnymi metadanymi=${g.coObservedWithIndividualMetadata}")
+                appendLine("Tylko sieć=${g.networkOnlyRecords}; tylko DOM/PAGE=${g.domOrPageOnlyRecords}; sieć bez zaufanej ramki=${g.networkWithoutTrustedFrame}")
+                appendLine("Ten sam pełny URL, inne ramki (NIEŁĄCZONE)=${g.exactUrlCrossFramePairs}; nieznana ramka (NIEŁĄCZONE)=${g.exactUrlUnknownFramePairs}")
+                appendLine("Jedno ID grupy i różne pełne URL (hipotezy wariantów)=${g.sameGroupDifferentUrlPairs}; identyczny URL w różnych formatach=${g.exactUrlDifferentFormatPairs}")
+                appendLine("Nawigacje=${g.navigationEpochs}; resety partycji=${g.partitionResets}; limit=${g.droppedRecords}; własne żądania sieciowe=${g.performedNetworkRequests}; zmienia Play/UI=${g.changesMediaOrPlayback}")
+                appendLine("Wspólny adres lub grupa nie są dowodem, że chodzi o ten sam film. Brak pewnego ownera oznacza brak przypisania tytułu lub miniatury.")
+            } ?: appendLine("NOT_MEASURED — brak danych korelacji.")
         }
         appendLine("\nZasoby: własny proces aplikacji; podprocesy Gecko nie są objęte pomiarem.")
         val m = r.resourceMetrics

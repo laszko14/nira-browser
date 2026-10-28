@@ -321,3 +321,14 @@ Na Nothing Phone (1) zainstalować `app-arm64-v8a-debug.apk`, wpisać publiczny 
 - Błędy HTTP 401/403 są oznaczane jako błąd autoryzacji, 404/410 jako wygasły link. Takich wpisów nie można uruchomić z panelu.
 - Wersja `0.5.22-alpha17`, efektywny ARM64 `versionCode=1111`, oczekiwany pakiet `com.prirai.android.nira.debug` i stały certyfikat `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00`.
 - Testy JS: 49/49 PASS. Lokalne Gradle zablokowane brakiem dostępu do dystrybucji; wymagane CI. Test realnej strony i telefonu NIE wykonany.
+
+## 2026-10-28 — Zavro Clean v1184 integracja UI v1183 + MME etapów 1–6
+
+- **Zainstalowana wersja użytkownika:** v1183. Baza UI: `feat/zavro-clean-v1183-toolbar-personalization-20261027` commit `389dbfe8287408b65f8b29673ffc7b9c423276db` (Draft PR #102).
+- MME etapy 1–4 są wspólną bazą UI v1183 i dalszej pracy MME; gałąź MME etapów 5–6 kończy się commitem `f5beeedcf571cd67e8599d51b32ef537f8866c5d` (PR #104). Merge do **osobnej** gałęzi `feat/zavro-clean-v1184-mme-integrated-update-20261028` wykonał PR #105, commit `8bd414e3c1664751de994a38f6f09df072358bf4`. **Bez merge do main.**
+- Efektywny `arm64-v8a versionCode=1184` (`app/build.gradle` bazowy `versionCode=184` + ABI offset 1000), `versionName=0.5.22-alpha89-clean`, pakiet `com.prirai.android.nira.debug`, oczekiwany certyfikat SHA256 `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00`.
+- Zachowano wszystkie zmiany UI v1183: personalizację pięciu przycisków w pionie i poziomie, okrągłe favicon oraz licznik kart w polu adresu. Porównanie gałęzi v1183 i v1184 nie wykazało nadpisania plików UI (tylko MME 5–6, Gradle i workflow).
+- v1184 CI używa wyłącznie stałego sekretnego klucza GitHub Secrets, a `scripts/verify-update-apk.sh` sprawdza pakiet, wersję, ABI i odcisk certyfikatu; błędny podpis lub brak sekretów mają zakończyć job błędem.
+- MME 1–6: TestLab 120 s, shadow identity, indywidualne tytuły, przypisywanie miniaturek, poster provenance, pasywny network correlation shadow. Nie przypisuje niepewnych źródeł sieciowych do innego filmu i nie zmienia odtwarzania.
+- **Status w chwili checkpointu:** gałąź integracyjna z wersją v1184 przygotowana; pełny PR build/test/lint CI zostanie uruchomiony. Nie deklarować gotowego APK przed rzeczywistym sukcesem joba `build` i obecnością podpisanego artefaktu.
+- **Dalszy krok:** test+lint+signed ARM64 APK → sprawdzenie raportów CI → podanie prawidłowego linku do ZIP z APK. Test fizycznego telefonu i rzeczywistych stron nadal należy do użytkownika. Bez publikacji Google Play/main.

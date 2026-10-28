@@ -10,6 +10,7 @@ internal class TestLabMediaObserver(private val capture: LabCapture) {
     private val metadata = VideoMetadataLedger()
     private val funnel = MediaFunnelLedger()
     private val shadowIdentity = MediaIdentityShadowGraph()
+    private val networkCorrelation = MediaNetworkCorrelationLedger()
 
     fun discovery(code: String, count: Int) {
         if (closed || count !in 1..100000 || !capture.allows(LabDomain.VIDEO)) return
@@ -21,6 +22,7 @@ internal class TestLabMediaObserver(private val capture: LabCapture) {
             ledger.observe(binding, media); metadata.observe(binding, media)
             funnel.observe(binding, media, verifiedEvidence)
             shadowIdentity.observe(binding, media)
+            networkCorrelation.observe(binding, media)
         }
     }
     fun panelSnapshot(binding: MediaSessionBinding, entries: List<MediaEntry>) {
@@ -34,7 +36,7 @@ internal class TestLabMediaObserver(private val capture: LabCapture) {
         if (!closed && capture.allows(LabDomain.VIDEO)) funnel.conflict(kind)
     }
     fun navigation(binding: MediaSessionBinding) {
-        if (!closed && capture.allows(LabDomain.VIDEO)) { ledger.navigation(binding); metadata.navigation(binding); funnel.navigation(binding); shadowIdentity.navigation(binding) }
+        if (!closed && capture.allows(LabDomain.VIDEO)) { ledger.navigation(binding); metadata.navigation(binding); funnel.navigation(binding); shadowIdentity.navigation(binding); networkCorrelation.navigation(binding) }
     }
     fun rejectedTitle(binding: MediaSessionBinding, different: Boolean) {
         if (!closed && capture.allows(LabDomain.VIDEO)) {
@@ -46,10 +48,11 @@ internal class TestLabMediaObserver(private val capture: LabCapture) {
     fun metadataSnapshot(): VideoMetadataSummary = metadata.snapshot()
     fun funnelSnapshot(): MediaFunnelSummary = funnel.snapshot()
     fun identityShadowSnapshot(): MediaIdentityShadowSummary = shadowIdentity.snapshot()
+    fun networkCorrelationSnapshot(): MediaNetworkCorrelationSummary = networkCorrelation.snapshot()
     fun displayed(binding: MediaSessionBinding, entry: MediaEntry) {
         if (!closed && capture.allows(LabDomain.VIDEO)) { ledger.displayed(binding, entry); metadata.displayed(binding, entry); funnel.displayed(binding, entry); shadowIdentity.displayed(binding, entry) }
     }
-    fun close() { closed = true; ledger.clear(); metadata.clear(); funnel.clear(); shadowIdentity.clear() }
+    fun close() { closed = true; ledger.clear(); metadata.clear(); funnel.clear(); shadowIdentity.clear(); networkCorrelation.clear() }
 
     private companion object {
         val discoveryCodes = mapOf(

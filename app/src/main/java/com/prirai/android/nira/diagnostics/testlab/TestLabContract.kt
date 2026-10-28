@@ -93,6 +93,7 @@ data class OperationToken internal constructor(internal val session:Long,interna
     val videoMetadata:VideoMetadataSummary?=null,
     val mediaFunnel:MediaFunnelSummary?=null,
     val mediaIdentityShadow:MediaIdentityShadowSummary?=null,
+    val mediaNetworkCorrelation:MediaNetworkCorrelationSummary?=null,
 )
 
 @Serializable data class VideoDiscoveryFilm(
@@ -136,4 +137,6 @@ data class OperationToken internal constructor(internal val session:Long,interna
     val qualityDerived: Int = 0, val fpsKnown: Int = 0,
     val codecsKnown: Int = 0, val bitrateKnown: Int = 0,
     val variantsKnown: Int = 0,
+    val posterOrigins: Map<String, Int> = emptyMap(),
+    val posterConflicts: Int = 0,
 )
