@@ -24,6 +24,8 @@ class EmbeddedSideTabsContractTest {
         val legacy = TabsBottomSheetFragment.newSidePanel()
         val bottomSheet = TabsBottomSheetFragment.newInstance()
         assertFalse(embedded.showsDialog)
+        assertTrue(embedded.arguments!!.getBoolean("nira_embedded_side"))
+        assertFalse(legacy.arguments?.getBoolean("nira_embedded_side") ?: false)
         assertTrue(legacy.showsDialog)
         assertTrue(bottomSheet.showsDialog)
         assertTrue(embedded.arguments!!.getBoolean("nira_side_panel"))

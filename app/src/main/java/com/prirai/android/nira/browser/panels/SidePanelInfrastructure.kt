@@ -36,6 +36,12 @@ internal class SidePanelInfrastructure private constructor(
     private var disposed = false
     private var leftFragmentManager: FragmentManager? = null
     private var leftWasVisible = false
+    private var childInteractionInProgress = false
+
+    /** Native resize and Compose DnD temporarily have priority over panel swipes. */
+    fun setChildInteraction(inProgress: Boolean) {
+        if (!disposed) childInteractionInProgress = inProgress
+    }
 
     /**
      * Called only after a qualified LEFT-edge swipe, before claiming that swipe.
@@ -84,7 +90,8 @@ internal class SidePanelInfrastructure private constructor(
             onWidthChanged = { width ->
                 if (!disposed) host.setPanelWidth(SidePanelSide.LEFT, width)
             },
-            onDismissRequested = { requestLeftClose() }
+            onDismissRequested = { requestLeftClose() },
+            onChildInteractionChanged = { busy -> setChildInteraction(busy) }
         )
         host.setPanelWidth(SidePanelSide.LEFT, tabs.embeddedSidePanelWidth())
         if (found == null) {
@@ -99,6 +106,7 @@ internal class SidePanelInfrastructure private constructor(
 
     /** Called during parent view teardown, when synchronous fragment transactions are unsafe. */
     fun releaseLeftContentBinding(fragmentManager: FragmentManager) {
+        childInteractionInProgress = false
         leftFragmentManager = null
         leftWasVisible = false
         deactivate(SidePanelSide.LEFT)
@@ -114,6 +122,7 @@ internal class SidePanelInfrastructure private constructor(
         if (leftFragmentManager === fragmentManager) leftFragmentManager = null
         leftWasVisible = false
         deactivate(SidePanelSide.LEFT)
+        childInteractionInProgress = false
         tabs.clearEmbeddedSidePanelCallbacks()
         fragmentManager.beginTransaction().remove(tabs).commitNow()
         return true
@@ -147,7 +156,7 @@ internal class SidePanelInfrastructure private constructor(
     }
 
     override fun onSwipeStarted(start: PointF, next: PointF): Boolean {
-        if (disposed || !mayHandle() || !gestures.isSwipeEnabled) return false
+        if (disposed || childInteractionInProgress || !mayHandle() || !gestures.isSwipeEnabled) return false
 
         val density = gestures.resources.displayMetrics.density
         val dx = next.x - start.x
@@ -261,6 +270,7 @@ internal class SidePanelInfrastructure private constructor(
         skipFirstUpdate = false
         enabled.clear()
         leftFragmentManager = null
+        childInteractionInProgress = false
         prepareLeftOnGesture = null
         leftWasVisible = false
         controller.reset()

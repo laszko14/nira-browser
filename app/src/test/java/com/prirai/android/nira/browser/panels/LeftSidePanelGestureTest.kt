@@ -100,4 +100,34 @@ class LeftSidePanelGestureTest {
         panels.dispose()
         activity.finish()
     }
+
+    @Test fun longPressDragAndResizeHavePriorityOverSwipeAndReleaseTheGate() {
+        val (activity, root) = fixture()
+        val panels = SidePanelInfrastructure.attach(root, 36) { true }
+        panels.host.leftContainer.addView(View(activity))
+        assertTrue(panels.activate(SidePanelSide.LEFT, 300))
+        panels.setChildInteraction(true)
+        assertFalse(panels.onSwipeStarted(PointF(2f, 200f), PointF(75f, 200f)))
+        assertFalse(panels.onSwipeStarted(PointF(419f, 200f), PointF(330f, 200f)))
+        assertEquals(SidePanelPhase.CLOSED, panels.panelSnapshot.phase)
+        panels.setChildInteraction(false)
+        assertTrue(panels.onSwipeStarted(PointF(2f, 200f), PointF(75f, 200f)))
+        assertEquals(SidePanelPhase.DRAGGING, panels.panelSnapshot.phase)
+        panels.resetForFullscreen()
+        panels.dispose()
+        activity.finish()
+    }
+
+    @Test fun drawerOpeningDoesNotTakeOverTheOtherEdge() {
+        val (activity, root) = fixture()
+        val panels = SidePanelInfrastructure.attach(root, 36) { true }
+        panels.host.leftContainer.addView(View(activity))
+        assertTrue(panels.activate(SidePanelSide.LEFT, 280))
+        assertFalse(panels.onSwipeStarted(PointF(418f, 180f), PointF(340f, 180f)))
+        assertEquals(SidePanelPhase.CLOSED, panels.panelSnapshot.phase)
+        assertFalse(panels.leftIsEngaged().not())
+        panels.dispose()
+        activity.finish()
+    }
+
 }

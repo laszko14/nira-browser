@@ -208,19 +208,31 @@ class TabsBottomSheetFragment : DialogFragment() {
     private val isEmbeddedSidePanel: Boolean get() = isSidePanel && !showsDialog
     private var embeddedWidthChanged: ((Int) -> Unit)? = null
     private var embeddedDismissRequested: (() -> Unit)? = null
+    private var embeddedChildInteractionChanged: ((Boolean) -> Unit)? = null
+
+    /** A long-press reorder or 20dp resize strip must retain its touch stream. */
+    private fun setEmbeddedChildInteraction(inProgress: Boolean) {
+        if (!isEmbeddedSidePanel) return
+        embeddedChildInteractionChanged?.invoke(inProgress)
+        _binding?.root?.parent?.requestDisallowInterceptTouchEvent(inProgress)
+    }
 
     internal fun bindEmbeddedSidePanel(
         onWidthChanged: (Int) -> Unit,
-        onDismissRequested: () -> Unit
+        onDismissRequested: () -> Unit,
+        onChildInteractionChanged: (Boolean) -> Unit
     ) {
         check(isEmbeddedSidePanel) { "Only embedded side tabs accept host callbacks" }
         embeddedWidthChanged = onWidthChanged
         embeddedDismissRequested = onDismissRequested
+        embeddedChildInteractionChanged = onChildInteractionChanged
     }
 
     internal fun clearEmbeddedSidePanelCallbacks() {
+        setEmbeddedChildInteraction(false)
         embeddedWidthChanged = null
         embeddedDismissRequested = null
+        embeddedChildInteractionChanged = null
     }
 
     internal fun embeddedSidePanelWidth(): Int = sidePanelWidth()
@@ -283,7 +295,10 @@ class TabsBottomSheetFragment : DialogFragment() {
             arguments = Bundle().apply { putBoolean("nira_side_panel", true) }
         }
         /** Reuses all the existing side-panel Compose, profiles and drag/drop UI. */
-        fun newEmbeddedSidePanel() = newSidePanel().apply { setShowsDialog(false) }
+        fun newEmbeddedSidePanel() = newSidePanel().apply {
+            requireNotNull(arguments).putBoolean("nira_embedded_side", true)
+            setShowsDialog(false)
+        }
     }
 
     override fun onCreateView(
@@ -356,6 +371,9 @@ class TabsBottomSheetFragment : DialogFragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // DialogFragment may recompute showsDialog on process recreation; the
+        // saved explicit flag is authoritative only for the embedded variant.
+        if (arguments?.getBoolean("nira_embedded_side") == true) setShowsDialog(false)
         // Use fullscreen dialog style
         setStyle(STYLE_NORMAL, R.style.FullScreenDialogTheme)
     }
@@ -364,11 +382,14 @@ class TabsBottomSheetFragment : DialogFragment() {
     private var testLabResize:Pair<LabCapture,OperationToken>?=null
     private fun startTestLabDrag(group:Boolean) {
         finishTestLabDrag(OperationOutcome.INTERRUPTED)
+        // Protect Compose long-press drag even when TestLab is not running.
+        setEmbeddedChildInteraction(true)
         val capture=TestLab.capture()?:return
         val op=capture.operation(if(group)LabOperation.GROUP_DRAG else LabOperation.TAB_DRAG)?:return
         testLabSideDrag=capture to op
     }
     private fun finishTestLabDrag(outcome:OperationOutcome) {
+        setEmbeddedChildInteraction(false)
         testLabSideDrag?.let{it.first.end(it.second,outcome)};testLabSideDrag=null
     }
     private val testLabPanel = com.prirai.android.nira.diagnostics.testlab.TestLabPanelProbe(
@@ -1263,6 +1284,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                     val capture=TestLab.capture();val op=capture?.operation(LabOperation.PANEL_RESIZE)
                     testLabResize=if(capture!=null&&op!=null)capture to op else null
                     downX = event.rawX
+                    setEmbeddedChildInteraction(true)
                     initialWidth = if (isEmbeddedSidePanel) {
                         binding.root.width.takeIf { it > 0 } ?: sidePanelWidth()
                     } else {
@@ -1278,6 +1300,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                     val desired = (initialWidth + event.rawX - downX).toInt().coerceIn(min, max)
                     applySidePanelWidth(desired)
                     if (event.actionMasked == android.view.MotionEvent.ACTION_UP) {
+                        setEmbeddedChildInteraction(false)
                         val measurement=testLabResize;testLabResize=null
                         if(desired==initialWidth)measurement?.let{it.first.end(it.second,OperationOutcome.CANCELLED)}
                         else if (measurement != null) {
@@ -1297,6 +1320,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                     true
                 }
                 android.view.MotionEvent.ACTION_CANCEL -> {
+                    setEmbeddedChildInteraction(false)
                     testLabResize?.let{it.first.end(it.second,OperationOutcome.CANCELLED)};testLabResize=null
                     false
                 }
@@ -1454,6 +1478,7 @@ class TabsBottomSheetFragment : DialogFragment() {
             }
         }
         fun finishDrag() {
+            setEmbeddedChildInteraction(false)
             val lab=testLabSideDrag;testLabSideDrag=null
             fun cancelled(){lab?.let{it.first.end(it.second,OperationOutcome.CANCELLED)}}
             val fromId = dragTabId
