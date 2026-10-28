@@ -33,7 +33,13 @@ function assertUpdateApkContract(gradle, workflow) {
   expectField("EXPECTED_VERSION_CODE", installCode);
   expectField("EXPECTED_VERSION_NAME", versionName[1]);
   expectField("EXPECTED_CERT_SHA256", "df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00");
-  expectField("name", "zavro-arm64-update-apk-v" + installCode);
+  const artifactNames = buildJob.split("\n")
+    .map(line => line.trim())
+    .filter(line => line.startsWith("name: zavro-arm64-update-apk-v"));
+  assert.deepEqual(
+    artifactNames, ["name: zavro-arm64-update-apk-v" + installCode],
+    "APK artifact name must match the Gradle ARM64 version"
+  );
   assert.match(buildJob, /scripts\/verify-update-apk\.sh/);
   assert.match(buildJob, /ANDROID_KEYSTORE_BASE64/);
   return { installCode, versionName: versionName[1] };
