@@ -1,4 +1,5 @@
 "use strict";
+const { assertUpdateApkContract } = require("./helpers/update-apk-contract.cjs");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -39,10 +40,11 @@ test("v1119: native row supports selecting, closing, and correct-context new tab
 
 test("v1119: separately installable signed ARM64 artifact has current metadata", () => {
   const gradle = source("app/build.gradle");
-  assert.match(gradle, /versionCode = 189/);
-  assert.match(gradle, /versionName = "0\.5\.22-alpha94-clean"/);
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1189"/);
-  assert.match(workflow, /EXPECTED_VERSION_NAME: 0\.5\.22-alpha94-clean/);
-  assert.match(workflow, /zavro-arm64-update-apk-v1189/);
+
+
+
+
+
+  assertUpdateApkContract(gradle, workflow);
   assert.match(workflow, /EXPECTED_CERT_SHA256/);
 });

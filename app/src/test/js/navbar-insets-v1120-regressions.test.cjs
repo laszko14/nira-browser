@@ -1,4 +1,5 @@
 "use strict";
+const { assertUpdateApkContract } = require("./helpers/update-apk-contract.cjs");
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -32,9 +33,10 @@ test("v1120: footer still attaches at bottom inside inset-safe activity content"
 test("v1120: signed ARM64 update code and artifact are bumped", () => {
   const gradle = source("app/build.gradle");
   const workflow = source(".github/workflows/apk-release.yml");
-  assert.match(gradle, /versionCode = 189/);
-  assert.match(gradle, /versionName = "0\.5\.22-alpha94-clean"/);
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1189"/);
-  assert.match(workflow, /EXPECTED_VERSION_NAME: 0\.5\.22-alpha94-clean/);
-  assert.match(workflow, /zavro-arm64-update-apk-v1189/);
+
+
+
+
+
+  assertUpdateApkContract(gradle, workflow);
 });
