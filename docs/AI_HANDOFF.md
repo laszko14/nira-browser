@@ -459,3 +459,11 @@ prywatność i płynność 120 Hz. Nie deklarować naprawy konkretnej strony bez
 Wznowienie: pobrać gałąź, sprawdzić HEAD/status i ten checkpoint. Nie powtarzać
 zielonych kontroli bez nowych zmian; nie otwierać PR uruchamiającego APK bez
 odpowiedniego upoważnienia lub uzgodnionej zmiany CI.
+
+## 2026-10-28 — Zavro Clean v1189 (podpisany APK z poprawkami MME)
+
+- Baza: naprawa MME i testy na gałęzi `fix/zavro-clean-mme-detection-titles-20261028`, commit `f7f5e59c32057b81c5c4540fed27489d05dd6ba6` (kod `21abfc1f`), po v1188 / PR #110.
+- Gałąź wydaniowa: `build/zavro-clean-v1189-mme-regression-fix-20261028`. Wyłącznie zmiany numeru i metadanych wersji: Gradle 189 / effective ARM64 1189, `0.5.22-alpha94-clean`, workflow artefakt `zavro-arm64-update-apk-v1189` oraz zależne asercje wersji w testach.
+- Docelowy pakiet `com.prirai.android.nira.debug`, ABI `arm64-v8a`, certyfikat SHA256 `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00`. Build powinien się przerwać, gdy brak klucza lub podpis jest inny.
+- Zweryfikowane wcześniej dla kodu MME przez Codex: Kotlin 376/376, JS 218/218, Chromium 9/9. Nowy build i lint wymagają weryfikacji w oddzielnym CI dla v1189.
+- PR ma pozostać Draft, bez merge do main i bez modyfikacji Zavro x MPV. Po uruchomieniu CI nie odpytywać w pętli; jeśli build trwa, zakończyć `CI_PENDING` i wznowić z faktycznego run ID. Zweryfikować przed dystrybucją podpis, metadane, ABI i artefakt. Test telefonu oraz rzeczywistych witryn pozostaje osobno `NOT_TESTED`.
