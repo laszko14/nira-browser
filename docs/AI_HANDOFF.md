@@ -1,11 +1,11 @@
-## ZC-AUD — ETAP 2/18 PARTIAL, 2A COMPLETE — 2026-10-28 UTC
+## ZC-AUD — ETAP 2/18 COMPLETE — 2026-10-28 UTC
 
-- Audyt dotyczy wyłącznie Clean. Gałąź dokumentacji: `audit/zavro-clean-20261028`; wejściowy HEAD i remote `3777a62574fd9cf992ec7ecbb4b06abfc49f3e4b`, drzewo było czyste. Baza kodu pozostaje `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79b326529d42e9b9fde4` (v1190).
-- **Ostatni w pełni ukończony etap: 1/18. Bieżący etap 2: PARTIAL; podetap 2A COMPLETE, podetap 2B NOT_STARTED.** Podział: 2A inicjalizacja/Gecko/IPC/cykl życia UI; 2B stan i trwałość kart, grup, profili oraz ich współbieżność.
-- Wyniki, dowody i ograniczenia 2A: [STAGE_02.md](audits/zavro-clean/STAGE_02.md); stan całości: [indeks](audits/zavro-clean/AUDIT_INDEX.md); zgłoszenia: [FINDINGS](audits/zavro-clean/FINDINGS.md). Poprzednia mapa pozostaje w STAGE_01.md, nie powtarzać inwentaryzacji.
-- Najbliższy krok **wyłącznie po „Dalej”: 2B**, zgodnie z końcową listą plików i pytań STAGE_02.md. Przeczytać ten checkpoint i raport, potwierdzić branch/HEAD/working tree/remote. Nie rozpoczynać etapu 3 i nie zmieniać automatycznie bazy na nowszy Clean HEAD.
-- Dokładny zapis 2A: ostatni commit dokumentacyjny gałęzi (`git log -1 --format=%H audit/zavro-clean-20261028`), SHA i wynik push potwierdza raport końcowy rozmowy. Nie tworzyć kolejnego commitu tylko dla wpisania własnego SHA.
-- Tylko dokumentacja audytu/checkpoint. Bez napraw, APK, instalacji zależności, uruchamiania CI, PR-a i merge. Push samej gałęzi audytu bez PR/tag nie odpowiada sprawdzonym triggerom workflow. Po następnym podetapie ponownie zapisać wyniki i STOP.
+- Audyt wyłącznie Clean. Gałąź dokumentacji `audit/zavro-clean-20261028`; wejściowy HEAD podetapu 2B `97b91e3dbf5d3f7dadcb9bfb2f54d27e88e211b0`, drzewo czyste. Baza aplikacji pozostaje `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79b326529d42e9b9fde4` (v1190).
+- **Ostatni ukończony etap: 2/18 COMPLETE. Podetapy 2A i 2B COMPLETE; brak niedokończonego podetapu. Etapu 3 nie rozpoczęto.**
+- Mapa architektury, wyniki i ograniczenia: [STAGE_02.md](audits/zavro-clean/STAGE_02.md); odtwarzalne izolowane próby JVM: [STAGE_02B_PROBES.md](audits/zavro-clean/STAGE_02B_PROBES.md); stan audytu i zgłoszenia w [indeksie](audits/zavro-clean/AUDIT_INDEX.md) i [FINDINGS](audits/zavro-clean/FINDINGS.md). Nie powtarzać tych danych w checkpointach.
+- Wznowienie **wyłącznie po „Dalej”: ETAP 3 — pozostałości starych implementacji**. Odczytać ten wpis i potrzebne mapy z STAGE_01/02, potwierdzić branch/HEAD/working tree/remote. Zachować bazę kodu, nie przełączać automatycznie na nowszy Clean i nie robić merge z x MPV.
+- Punkt zapisu: ostatni commit dokumentacyjny tej gałęzi (`git log -1 --format=%H`), rzeczywisty SHA i powodzenie push w raporcie końcowym rozmowy; bez dodatkowego commitu tylko dla dopisania własnego SHA.
+- Wyłącznie dokumentacja; bez napraw, zmian APK/wersji, Gradle build, instalacji i CI. Po kolejnym etapie raport/checkpoint i STOP. Cały audyt nadal trwa (2/18 ukończone).
 
 
 ## 2026-10-27 — Zavro Clean v1180, metadata engine (prace w toku)

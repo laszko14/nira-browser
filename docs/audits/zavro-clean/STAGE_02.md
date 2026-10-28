@@ -1,6 +1,6 @@
 # Zavro Clean — Audyt 2/18
 
-Status etapu: **PARTIAL**. Podetap **2A COMPLETE**; **2B NOT_STARTED**. Data: 2026-10-28 UTC. Jeden agent; wyłącznie analiza i dokumentacja, bez napraw/APK/nowych testów aplikacji.
+Status etapu: **COMPLETE**. Podetapy **2A COMPLETE** i **2B COMPLETE**. Data: 2026-10-28 UTC. Jeden agent; wyłącznie analiza i dokumentacja, bez napraw/APK/nowych testów aplikacji.
 
 ## Punkt startu i granica podetapu
 
@@ -78,17 +78,69 @@ node --test --test-name-pattern='^network routes only to known tab|^stage 3.3: s
 
 Brak FAIL i CI_PENDING w uruchomionych kontrolach 2A. PASS mockowanych testów JS nie potwierdza działania native Kotlin ani wewnętrznego rejestru handlerów GeckoView. Nie przyjęto niezweryfikowanej semantyki `consumeFlow`/`ViewBoundFeatureWrapper` za dowód testu odtworzenia widoku.
 
-## Pozostały zakres i bezpieczne wznowienie
+## Zakres podetapu 2B
 
-**2B — najbliższy niewykonany fragment, dopiero po „Dalej”:**
+Poniższą listę przekazano z 2A i przeanalizowano w kolejnej turze po „Dalej”:
 
 - `browser/tabs/compose/TabViewModel.kt`, `TabOrderManager.kt`, `UnifiedTabOrder.kt`, `UnifiedItemBuilder.kt` oraz `browser/tabgroups/UnifiedTabGroupManager.kt`/middleware/Room: źródła prawdy, kolejność zdarzeń, mutexy i przejścia między trwałym a bieżącym stanem.
 - `browser/profile/ProfileManager.kt`, `ProfileMiddleware.kt`, `DefaultProfileTabMigration.kt`, interfejsy profilu UI: synchronizacja kontekstu i scope operacji. Nie powtarzać mapy wejść z 2A.
 - `middleware/EnhancedStateCaptureMiddleware.kt`, `browser/tabs/sleep/SleepingTabsManager.kt`, async restore i zależności sesji: własność długich zadań, anulowanie i kolejność przy wymianie sesji. Pogłębione scenariusze funkcjonalne należą do późniejszych etapów.
-- Złożyć wspólny wynik etapu 2 dopiero po zbadaniu 2B; w razie rzeczywistej dodatkowej złożoności jawnie ustalić następny podetap. Nie rozpoczynać etapu 3 w tej samej turze.
+- Po 2B złożono wspólny wynik poniżej; nie rozpoczęto etapu 3.
 
-Zapis obejmuje wyłącznie ten raport, aktualizację indeksu/rejestru i zastąpienie bieżącego checkpointu audytu w `docs/AI_HANDOFF.md`. Stary raport etapu 1 pozostaje bez zmian. Nowy raport wymaga `git add -f` z powodu istniejącego ignorowania `docs/`; bez zmiany `.gitignore`. Przed push ponownie sprawdzono triggery obu workflow: sama gałąź audytu bez PR/tag nie uruchamia tych workflow; nie stosować `[skip ci]` i nie otwierać PR-a dla zapisu.
 
-Punkt wznowienia: `audit/zavro-clean-20261028`, ostatni commit dokumentacyjny tej gałęzi (SHA i faktyczny wynik push podaje raport końcowy rozmowy); wejściowy checkpoint `3777a625…`, kod niezmienny `b7d62f79…`. Odczytać wpis „ZC-AUD — ETAP 2/18 PARTIAL, 2A COMPLETE”, sprawdzić HEAD/working tree/remote i rozpocząć dokładnie 2B.
+## 2B — stan kart, grup, profili i współbieżność
 
-**ETAP 2/18 NIEUKOŃCZONY — STOP. Zapisano punkt wznowienia. Polecenie „Dalej” kontynuuje bieżący etap.**
+Wejściowy checkpoint: `97b91e3dbf5d3f7dadcb9bfb2f54d27e88e211b0`, gałąź `audit/zavro-clean-20261028`, working tree czysty. Baza aplikacji nadal `b7d62f79…`. Nie powtarzano testów ani śledzenia cyklu życia z 2A. Pytania: które warstwy są autorytatywne; jak uzgadniają stan; czy mutacje są serializowane i kończą zapis; co dzieje się po zmianie profilu, anulowaniu, close/Undo i odtworzeniu sesji; kto jest właścicielem pozostałych coroutines i prezentacji.
+
+### Mapa odpowiedzialności i zabezpieczeń
+
+Ścieżki jak w 2A, względem pakietu `com/prirai/android/nira`. To ocena architektury, bez deklaracji poprawności wszystkich gestów lub wszystkich funkcji profilu.
+
+| Warstwa / przepływ | Ustalenie z rzeczywistego kodu |
+| --- | --- |
+| BrowserStore i sesje | Store jest źródłem bieżących kart, wyboru, EngineState i UndoHistory. `ProfileManager.migrateTabToProfile:248–267` zachowuje ID i UI metadata, ale zeruje EngineState, aby nie podpiąć starej sesji do nowej partycji. `ProfileMiddleware:29–86` respektuje jawny kontekst i pochodzenie parentId; nie utożsamia parentId z członkostwem grupy |
+| Dokładny kontrakt AC 156.0.1 | Odczytano oficjalne [lib-state-156.0.1-sources.jar](https://maven.mozilla.org/maven2/org/mozilla/components/lib-state/156.0.1/lib-state-156.0.1-sources.jar), plik `mozilla/components/lib/state/Store.kt:71–95`: `dispatch` jest synchroniczny, synchronizowany na Store i zwraca Unit. Dlatego nie zgłoszono rzekomego błędu ThreadLocal ProfileMigrationGuard wynikającego ze starszej, asynchronicznej semantyki. To odczyt źródła biblioteki, nie wykonanie Androida. SHA256 archiwum: `2d66ed6968910fcaaeb04a3f5f9342cc1e66233e55768f8fe09de34daa3cc546` |
+| Profile — trwałe dane i UI | `ProfileManager:42`, `:99–155`, `:218–233` przechowuje profile JSON, aktywny ID i private flag w SharedPreferences; nie w Room, wbrew historycznej ogólnej mapie. `BrowserProfile.contextIdFor` ustala default→null, private→private, nazwany→profile_ID. `BrowsingModeManager` przechowuje UI state; callbacki `BrowserActivity:421–440` zapisują oba wybory. Nie zmieniano ogólnej dokumentacji projektu |
+| Skutki zmiany profilu | `ProfileManager:153–155` uruchamia niezależną pracę IO polityki dodatków i wyboru wyszukiwarki. Profilowe listy dodatków są lokalnymi preferencjami, ale enable/disable dotyczy jednego silnika rozszerzeń. Brak kontroli generacji po zawieszeniu jest usterką **ZC-AUD-003** |
+| Room i grupy | `UnifiedTabGroupManager:63–109` czeka na inicjalizację, bierze mutationMutex, obejmuje logiczną zmianę `database.withTransaction`, po commicie publikuje jeden groupsState i zdarzenia. W razie błędu odtwarza cache. Publiczne getGroup/getAllGroups czytają opublikowany snapshot (`:565–580`), nie pośredni cache transakcji |
+| Repozytorium grup i DAO | `TabGroupDatabase` schema 3 ma migracje 1→2 i 2→3, bez destrukcyjnego fallback. `TabGroupDao` przechowuje członkostwo i position; `persistPositions:392–398` przelicza pozycje w transakcji. `moveTabRelative`, tworzenie/merge i reassign walidują aktualne konteksty. Przeanalizowano granice operacji, nie wszystkie kombinacje drag/drop z etapu 4 |
+| DataStore — kolejność | `TabOrderManager:61–85` serializuje operacje przez operationMutex, reentrant context Operation i NonCancellable po przyjęciu operacji. Profil jest przechwycony; publish nie nadpisuje widocznego porządku innego aktywnego profilu. `loadOrder:115–143` czeka na inicjalizację Room przed uzgadnianiem. `saveOrder:149–165` publikuje po zapisie |
+| Granica Room/DataStore | Room ustala członkostwo i kolejność wewnątrz grupy; DataStore — kolejność kontenerów i widoczny stan rozwinięcia. `rebuildOrderForProfile:478–513` scala snapshot zamiast zapisywać członkostwo z UI wstecz do Room. `pending_root_<profile>` zapisuje zamiar przeniesienia przed zmianą członkostwa i jest konsumowane z zapisem order w jednej operacji DataStore. Nie jest to jedna transakcja obejmująca Room, BrowserStore i DataStore; scenariusze awarii podczas przenoszenia wymagają dalszych testów |
+| ViewModel i reaktywność | `TabViewModel:90–114`, `:155–177`: viewModelScope, groupsState, anulowanie starszego loadJob, czyszczenie UI przy zmianie profilu, filtrowanie i sprawdzenie profilu przed publikacją. `launchMutation` wiąże mutację z profilem. Podwójna projekcja grup i kolejności ma mechanizm uzgadniania; sama obecność kilku StateFlow nie dowodzi dwóch źródeł prawdy |
+| Renderer i close/Undo | `UnifiedItemBuilder:95–192` filtruje żywe karty i uzupełnia snapshot nowej grupy przed dotarciem order. `closeTab:900–924` pozostawia zachowanie odzyskiwania w UndoMiddleware. `UnifiedTabOrder.reconciled:31–64` zachowuje stare sloty również po ostatecznym zamknięciu, a rebuild zapisuje je ponownie — **ZC-AUD-004** |
+| Zdarzenia jednorazowe | `TabViewModel:827–850` emituje DuplicateTabRequest przez SharedFlow; konsument `ComposeTabBarWithProfileSwitcher:305–331` tworzy tab, ewentualnie ustala grupę, potem wybiera kartę. groupEvents jest dodatkowym strumieniem zdarzeń z DROP_OLDEST; główna projekcja ViewModel obserwuje groupsState, więc utrata pojedynczego eventu nie jest dowodem utraty trwałego członkostwa |
+| Globalny komunikat Cofnij | Singleton GlobalSnackbarManager przyjmuje scope od dwóch kompozycji. Panel może zastąpić scope paska własnym, a po zamknięciu pozostawić go anulowanym — **ZC-AUD-005**. To konflikt własności prezentacji, nie błąd samego natywnego UndoHistory |
+| Capture i usypianie | `EnhancedStateCaptureMiddleware:40–46` zleca checkForFormData wybranej sesji w przekazanym scope Main; nie zawiesza jej. `BrowserActivity:182–188` osobno wywołuje manager usypiania. `SleepingTabsManager:60–88`, `:143–188` ma collectora wyboru i okresowy sweeper Main; pomija wybraną kartę, odtwarzanie, download i prompty, używa SuspendEngineSessionAction. Nie wykonano pomiaru wpływu na formularze ani realnego zwalniania pamięci |
+| Migracja default i async restore | Migracja przechwytuje RestoreAction przed reducerem; zachowuje kolejność listy. Marker migracji jest zapisywany przed asynchronicznym przepisaniem DAO (`DefaultProfileTabMigration:138–159`), a cache grup jest ładowany jednorazowo (`UnifiedTabGroupManager:176–226`). Aliasy null/profile_default są uwzględnione w głównych filtrach. Odnotowano rozdzielone cykle życia; nie zgłoszono z tego samego faktu utraty danych ani powtórnego zgłoszenia bez dowodu skutku |
+| LiveData i pozostałe granice | LiveData znaleziono w `webapp/PwaSuggestionManager:19–24`; główny przepływ kart/grup używa StateFlow/Flow. Wyszukanie observeForever w kodzie aplikacji nie dało wyników. Nie nadano PWA wyniku testu funkcjonalnego; pełne scenariusze tego modułu pozostają do etapów 9/10. Singletony menedżerów używają applicationContext; scope ViewModel należy do właściciela UI wskazanego w 2A |
+
+Nie zgłoszono nieużywanego `closeOtherTabs` jako czynnej usterki: wyszukanie nie wykazało produkcyjnego wywołania. Podobnie sam fakt istnienia metody stop bez bieżącego wywołania nie potwierdza wycieku. To nie zastępuje oceny osiągalności w etapie 3.
+
+### Wyniki 2B i granice dowodów
+
+Potwierdzono **3 nowe P2**: ZC-AUD-003 (nieaktualna polityka profilu), ZC-AUD-004 (nieograniczona retencja slotów) i ZC-AUD-005 (anulowany scope komunikatu Cofnij). Każde ma osobny mechanizm, dokładne lokalizacje i wymagane regresje w [FINDINGS.md](FINDINGS.md). Nie wprowadzono poprawek.
+
+| Kontrola 2B | Wynik | Faktyczny zakres |
+| --- | --- | --- |
+| Kontrakt Store 156.0.1, mapa Room/DataStore/ViewModel/profili i właścicieli zadań | PASS odczytu źródeł | Odrzucono niezgodną ze współczesną wersją hipotezę asynchronicznego dispatch. Nie jest to PASS wszystkich funkcji |
+| Polityka dodatków, rzeczywisty ProfileAddonPolicy.kt | FAIL inwariantu aktualnego profilu; kontrola B PASS | Zawieszony odczyt A, zakończenie B, dopiero potem A: wynik B oczekiwany true, rzeczywisty false; AddonManager, Android i Main są fixture |
+| Retencja, rzeczywisty UnifiedTabOrder.kt | FAIL inwariantu końcowego sprzątania; kontrola partial restore PASS | 500 różnych zamkniętych ID + 1 żywa karta daje 501 slotów. Nie zmierzono rozmiaru ani czasu zapisu DataStore |
+| Komunikat Cofnij, rzeczywisty GlobalSnackbarManager.kt | FAIL inwariantu dostarczenia żądania; kontrola żywego scope PASS | Prawdziwe coroutines, fixture Compose/Log; po anulowaniu scope panelu zero nowych wywołań hosta |
+| Pełny Gradle unit/lint, instrumentacja Android/Gecko, telefon, heap/jank | NOT_TESTED | Brak podstaw do powielania pełnego CI; próby nie uruchamiają APK ani Gradle i nie instalują zależności |
+| Nowe CI | NOT_TESTED | Nie uruchamiano workflow i nie odpytywano istniejących runów |
+
+Trzy izolowane programy kończą się kodem 0, bo ich `check` potwierdza **reprodukcję usterki**. Nie nazywać tego PASS zachowania aplikacji. Kompilacja używa istniejącego Kotlin 2.4.0 z dystrybucji Gradle, a nie całego projektu na Kotlin 2.4.10. Źródła fixture, komendy i pełne wyniki są utrwalone w [STAGE_02B_PROBES.md](STAGE_02B_PROBES.md). Próby nie są nowymi plikami w app/src/test i nie modyfikują danych użytkownika.
+
+### Wspólny wynik etapu 2 i punkt wznowienia
+
+**Etap 2 COMPLETE: 2A i 2B wykonane.** W etapie 2 potwierdzone P0=0, P1=0, P2=3, P3=0; SUSPECTED=1 (ZC-AUD-002 z 2A, potencjalny P2). W całym dotychczasowym audycie CONFIRMED=4 P2, SUSPECTED=1. Nie ma otwartego podetapu 2C.
+
+Kryteria: mapa zależności i właścicieli kompletna dla architektonicznego zakresu etapu; zbadano przejścia JS/native/UI oraz BrowserStore/Room/DataStore/profili, serializację mutacji, kolektory i ich czas życia; znalezione usterki i jedna niepotwierdzona hipoteza sklasyfikowane; kontrole wykonane albo jawnie NOT_TESTED; raport/rejestr/checkpoint zapisane. Nie oznacza to ukończenia późniejszych szczegółowych audytów funkcjonalnych.
+
+Ryzyka do kolejnych etapów: rzeczywisty restart rozszerzenia (002), prawdziwe callbacki AddonManager, awarie procesu podczas wielowarstwowej migracji/przenosin, cykl życia prezentacji na Androidzie, fizyczne zużycie pamięci i płynność. Nie deklaruje się wykluczenia wszystkich wyścigów, wycieków ani potwierdzonej wydajności 120 Hz.
+
+Zapis tylko dokumentacyjny: STAGE_02.md, STAGE_02B_PROBES.md, FINDINGS.md, AUDIT_INDEX.md i bieżący wpis w docs/AI_HANDOFF.md. STAGE_01.md oraz kod aplikacji, build i wersje pozostają bez zmian. Triggery dwóch workflow sprawdzono ponownie; zwykły push gałęzi audytu bez PR/tag nie uruchamia tych workflow. Bez [skip ci], PR-a i dodatkowego zapisu tylko dla własnego SHA.
+
+Checkpoint: ostatni commit dokumentacyjny `audit/zavro-clean-20261028`, którego rzeczywisty SHA i wynik push podaje raport końcowy rozmowy; wejściowy commit 2B `97b91e3d…`, baza kodu `b7d62f79…`. Po „Dalej” odczytać wpis **ZC-AUD — ETAP 2/18 COMPLETE**, potwierdzić HEAD/working tree i rozpocząć **etap 3 — pozostałości starych implementacji**. Nie powtarzać etapów 1/2 bez nowego powodu.
+
+**ETAP 2/18 ZAKOŃCZONY — STOP. Następny etap wymaga polecenia „Dalej”.**

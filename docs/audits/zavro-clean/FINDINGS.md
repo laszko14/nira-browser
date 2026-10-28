@@ -6,6 +6,9 @@ Odniesienia do kodu dotyczą bazy `b7d62f79f285ac81c29a79b326529d42e9b9fde4`. Be
 | --- | --- | --- | --- | --- |
 | ZC-AUD-001 | 1 | P2 MEDIUM | CONFIRMED | Job release oczekuje historycznych metadanych v1182 zamiast bieżących v1190 |
 | ZC-AUD-002 | 2A | P2 MEDIUM (potencjalny) | SUSPECTED | Restart background rozszerzenia może rozjechać generację kluczy dokumentów z zachowanym repozytorium native |
+| ZC-AUD-003 | 2B | P2 MEDIUM | CONFIRMED | Opóźniona polityka rozszerzeń poprzedniego profilu nadpisuje ustawienia aktywnego profilu |
+| ZC-AUD-004 | 2B | P2 MEDIUM | CONFIRMED | Kolejność trwale zachowuje identyfikatory zamkniętych kart bez granicy retencji |
+| ZC-AUD-005 | 2B | P2 MEDIUM | CONFIRMED | Globalny komunikat Cofnij pozostaje przypięty do anulowanego scope panelu |
 
 ## ZC-AUD-001 — niespójny kontrakt wersji joba release
 
@@ -33,4 +36,43 @@ Odniesienia do kodu dotyczą bazy `b7d62f79f285ac81c29a79b326529d42e9b9fde4`. Be
 - **Kierunek ewentualnej naprawy:** dopiero po potwierdzeniu warunku zaprojektować zaufany handshake nowej generacji po stronie native, zachowując odrzucanie opóźnionych komunikatów starej generacji. Nie usuwać ochrony przed starymi kluczami i nie resetować repozytorium na podstawie dowolnej wiadomości strony.
 - **Wymagane testy:** na GeckoView 156 zachować kartę po wielu rejestracjach, odtworzyć niezależny restart background, sprawdzić tożsamość EngineSession i odpowiedź rejestracji. Osobno przypadek restartu całej aplikacji/nowej sesji jako kontrola negatywna; następnie integracyjny test handshake i odrzucania wiadomości poprzedniej generacji. Specyfikacja do późniejszego wdrożenia; nie dodano testów do aplikacji.
 
-Stan po 2A: potwierdzone=1 (ZC-AUD-001); LIKELY=0; SUSPECTED=1 (ZC-AUD-002). Etap 2 pozostaje PARTIAL. Nie doliczać potencjalnego P2 do liczby potwierdzonych błędów.
+## ZC-AUD-003 — starsze zadanie zmienia politykę aktywnego profilu
+
+- **Etap:** 2B — współbieżność ustawień profili i globalnego silnika rozszerzeń.
+- **Miejsce:** [`ProfileManager.kt:147`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/browser/profile/ProfileManager.kt#L147), `setActiveProfile`, niezależne `ioScope.launch` w 153; [`ProfileAddonPolicy.kt:37`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/browser/profile/ProfileAddonPolicy.kt#L37), `applyForProfile`, odczyt dodatków 38–42 i zastosowanie globalnych zmian 54–61.
+- **Problem:** zadania zmiany profilu nie są anulowane/wersjonowane. Polityka nie sprawdza przed zastosowaniem, czy nadal dotyczy aktywnego profilu.
+- **Mechanizm:** użytkownik wybiera A, potem B. Odczyt dodatków dla A pozostaje zawieszony; B kończy odczyt i włącza dodatek według swojej listy. A kończy później i wyłącza ten sam dodatek według listy A. Zapisany aktywny profil pozostaje B, globalna konfiguracja jest z A. Samo wykonanie ostatniego bloku na Main nie ustala kolejności rozpoczętych wcześniej operacji IO.
+- **Dowód:** izolowana próba JVM kompiluje rzeczywisty `ProfileAddonPolicy.kt`. Kontrolowane zawieszenie pierwszego getAddons oraz różne allowlisty dały `operations=[enable, disable]`, końcowe `actualEnabled=false` przy oczekiwanym B=true. Kontrola samego B PASS. Pełne źródła próby i wynik: [STAGE_02B_PROBES.md](STAGE_02B_PROBES.md).
+- **Pewność:** CONFIRMED — mechanizm i wykonanie kodu Kotlin przy dopuszczalnym harmonogramie; zależności Android/AddonManager/Main zastąpiono fixture. Nie odtwarzano szybkiego przełączania na telefonie i nie zmierzono częstości.
+- **Ważność:** P2 MEDIUM — niewłaściwe ustawienia dodatków po przełączeniu profilu. Nie wykazano odczytu cudzych cookies ani przekroczenia izolacji Gecko.
+- **Wpływ:** działanie dodatków, blokowanie treści i inne ustawienia zależne od globalnego stanu rozszerzeń; stary profil może wygrać ze świadomym wyborem nowego.
+- **Kierunek naprawy:** jedno zarządzane uzgadnianie polityki z generacją wyboru profilu i sprawdzeniem aktualności przed skutkami ubocznymi; uwzględnić także asynchroniczne zakończenia enable/disable. Sam mutex bez odrzucania nieaktualnych żądań nie dowodzi poprawnego wyniku.
+- **Wymagane regresje:** A wolne/B szybkie i odwrotnie, A→B→A, zamknięcie widoku w trakcie odczytu, profil bez zapisanej listy, opóźnione callbacki enable/disable. Test integracyjny prawdziwego silnika dodatków oraz brak zmiany partycji sesji.
+
+## ZC-AUD-004 — brak końcowego sprzątania slotów zamkniętych kart
+
+- **Etap:** 2B — cykl życia stanu BrowserStore/Undo a trwała kolejność.
+- **Miejsce:** [`UnifiedTabOrder.kt:31`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/browser/tabs/compose/UnifiedTabOrder.kt#L31), `reconciled`, szczególnie 37–38 i 46–63; `TabOrderManager.kt:478–513`, `rebuildOrderForProfile`; `TabViewModel.kt:900–924`, `closeTab`.
+- **Problem:** brak rozróżnienia karty jeszcze nieodtworzonej/oczekującej na Undo od karty ostatecznie zamkniętej. Zachowanie slotów potrzebne przy częściowym restore jest stosowane bezterminowo.
+- **Mechanizm:** close usuwa kartę z BrowserStore. Przy przebudowie `reconciled` iteruje wcześniejsze `primaryOrder`; `addSingle` nie sprawdza obecności w bieżącym tabIds ani oknie odzyskiwania. Rebuild zapisuje wynik do DataStore. Wygaśnięcie Undo nie usuwa slotu. `TabOrderManager.removeTab` istnieje, ale nie znaleziono wywołania tej metody w produkcyjnym przepływie zamykania; `forgetTabs` służy przenoszeniu między profilami. Renderer filtruje niewidoczne ID, więc brak widocznego kafelka nie oznacza usunięcia zapisu.
+- **Dowód:** rzeczywisty `UnifiedTabOrder.kt` wykonany w JVM: po 500 cyklach dodania i zamknięcia różnych kart, przy jednej żywej karcie, `orderSlots=501`, `retainedClosed=500`. Kontrola częściowego restore zachowuje brakujący jeszcze slot — to oczekiwane zachowanie, które przyszła poprawka musi zachować. [Próba i wynik](STAGE_02B_PROBES.md). Ścieżkę zapisu i brak finalizacji po close/Undo sprawdzono statycznie; nie wykonano 500 operacji w UI ani pomiaru pliku DataStore.
+- **Pewność:** CONFIRMED — retencja wynika z rzeczywistego algorytmu i ścieżki jego ponownego zapisu. Nie jest to dowód widocznych duplikatów kart ani zmierzonego janku.
+- **Ważność:** P2 MEDIUM — nieograniczony wzrost trwałych metadanych i pracy kolejnych przebudów w długiej historii korzystania z aplikacji.
+- **Wpływ:** rozmiar order_<profile>, odczyt/serializacja, uzgadnianie i wyszukiwanie pozycji; analogiczna polityka zachowuje historycznych członków grup. Nie zgłoszono ich znikania jako potwierdzonego skutku.
+- **Kierunek naprawy:** zdefiniować ograniczoną retencję oraz jawne zakończenie życia slotu po trwałym zamknięciu, z uwzględnieniem Undo, przywracania, niedokończonych przenosin i ewentualnego odtwarzania niedawno zamkniętych kart. Nie usuwać wszystkich nieobecnych ID podczas częściowego restore.
+- **Wymagane regresje:** wiele cykli open/close, Undo przed i po upływie okna, restart podczas restore, zamknięcie członka/całej grupy, ponowne otwarcie z historii, przejścia profili i stan prywatny; sprawdzić ograniczony rozmiar faktycznie ponownie otwartego DataStore.
+
+## ZC-AUD-005 — scope komunikatu Cofnij przeżywa swojego właściciela
+
+- **Etap:** 2B — współdzielony stan prezentacji, cykl życia coroutine i callbacków.
+- **Miejsce:** [`GlobalSnackbarManager.kt:37`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/browser/tabs/compose/GlobalSnackbarManager.kt#L37), pole `coroutineScope`; `showSnackbar:60–69`; `TabsBottomSheetFragment.kt:925–933` i `ComposeTabBarWithProfileSwitcher.kt:299–303` przypisują scope z `rememberCoroutineScope` w `LaunchedEffect(Unit)`.
+- **Problem:** globalny singleton przechowuje ostatni scope krócej żyjącej kompozycji panelu. Zamknięcie panelu anuluje ten scope, ale nie przywraca żywego właściciela paska.
+- **Mechanizm:** pasek zapisuje scope A. Otwarcie panelu zastępuje go scope B. Usunięcie panelu/kompozycji anuluje B. Pasek nadal istnieje, lecz jego `LaunchedEffect(Unit)` nie uruchamia się ponownie. Następne `showUndoSnackbar` uruchamia zadanie w B, które nie wykonuje body; host nie dostaje nowego żądania. Pole nie jest null, więc nawet ostrzeżenie „scope not set” nie opisuje sytuacji.
+- **Dowód:** kompilacja rzeczywistego `GlobalSnackbarManager.kt` z prawdziwymi coroutines i atrapą hosta Compose: żywy scope A daje jedno wywołanie hosta (PASS kontroli); po zastąpieniu przez B i anulowaniu B kolejne wywołanie daje `newHostCalls=0`, mimo `chromeActive=true`. [Próba i wynik](STAGE_02B_PROBES.md). Przypisania i brak przywrócenia scope sprawdzono w obu rzeczywistych właścicielach UI.
+- **Pewność:** CONFIRMED — zachowanie managera i utrata właściciela po anulowaniu; nie przeprowadzono instrumentacji całego UI ani pomiaru widoczności komunikatu na telefonie.
+- **Ważność:** P2 MEDIUM — niedostarczone żądanie komunikatu/akcji Cofnij po zamknięciu panelu. Nie oznacza uszkodzenia natywnego UndoHistory ani utraty możliwości programowego cofnięcia.
+- **Wpływ:** zamykanie kart z menu/paska, komunikaty współdzielone między panelem i pozostałym UI; konkretna prezentacja wymaga również obecności żywego SnackbarHost.
+- **Kierunek naprawy:** jawne zarządzanie aktualnym hostem i jego scope, bez trwałego przejmowania singletona przez kompozycję potomną; przy zwalnianiu właściciela nie usuwać nowszego aktywnego hosta. Rozważyć obsługę zdarzeń przez właściciela prezentacji zamiast globalnego mutowalnego scope.
+- **Wymagane regresje:** pasek→panel→zamknięcie panelu→close/Undo, oba rodzaje panelu kart (osadzony/dialog), zmiana orientacji, szybkie ponowne otwarcie, zniszczenie starego hosta po utworzeniu nowego i przypadek braku aktywnego hosta.
+
+Stan po etapie 2: CONFIRMED=4 (wszystkie P2, w tym ZC-AUD-001 z etapu 1); LIKELY=0; SUSPECTED=1 (ZC-AUD-002, potencjalny P2). W samym etapie 2 potwierdzono 3 usterki. Nie doliczać podejrzenia do potwierdzonych błędów.
