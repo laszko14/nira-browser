@@ -147,13 +147,13 @@ class SidePanelMotionControllerTest {
         assertTrue(SidePanelMotionPolicy.shouldOpen(SidePanelSide.RIGHT, 0.1f, -800f, 2f))
         assertTrue(SidePanelMotionPolicy.shouldOpen(SidePanelSide.RIGHT, 0.6f, Float.NaN, 2f))
         assertEquals(0L, SidePanelMotionPolicy.durationMs(0f, 200, 0f, 2f))
-        assertEquals(256L, SidePanelMotionPolicy.durationMs(1f, 200, 0f, 2f))
-        assertTrue(SidePanelMotionPolicy.durationMs(0.5f, 200, 0f, 2f) in 80L..255L)
+        assertEquals(224L, SidePanelMotionPolicy.durationMs(1f, 200, 0f, 2f))
+        assertTrue(SidePanelMotionPolicy.durationMs(0.5f, 200, 0f, 2f) in 90L..223L)
         assertTrue(SidePanelMotionPolicy.durationMs(0.5f, 200, 1400f, 2f) <=
             SidePanelMotionPolicy.durationMs(0.5f, 200, 0f, 2f))
-        assertEquals(0f, SidePanelMotionPolicy.quinticEaseOut(0f), 0.0001f)
-        assertEquals(1f, SidePanelMotionPolicy.quinticEaseOut(1f), 0.0001f)
-        assertTrue(SidePanelMotionPolicy.quinticEaseOut(0.5f) > 0.5f)
+        assertEquals(0f, SidePanelMotionPolicy.easeOutCubic(0f), 0.0001f)
+        assertEquals(1f, SidePanelMotionPolicy.easeOutCubic(1f), 0.0001f)
+        assertTrue(SidePanelMotionPolicy.easeOutCubic(0.5f) > 0.5f)
     }
 
     @Test fun commandCanCloseDuringDragWithoutSnappingToZero() {
@@ -166,6 +166,74 @@ class SidePanelMotionControllerTest {
         assertEquals(SidePanelPhase.SETTLING, controller.snapshot.phase)
         assertEquals(0.6f, driver.current!!.from, 0.0001f)
         assertEquals(0f, driver.current!!.to, 0.0001f)
+        driver.finish()
+        assertEquals(SidePanelPhase.CLOSED, controller.snapshot.phase)
+    }
+
+
+    @Test fun easingIsClampedMonotonicAndLessAbruptThanQuintic() {
+        val points = (0..120).map { SidePanelMotionPolicy.easeOutCubic(it / 120f) }
+        assertEquals(0f, points.first(), 0.000001f)
+        assertEquals(1f, points.last(), 0.000001f)
+        assertTrue(points.all { it in 0f..1f })
+        assertTrue(points.zipWithNext().all { (a, b) -> b >= a })
+        assertEquals(0.875f, SidePanelMotionPolicy.easeOutCubic(0.5f), 0.000001f)
+        assertEquals(0f, SidePanelMotionPolicy.easeOutCubic(Float.NaN), 0f)
+        assertEquals(0f, SidePanelMotionPolicy.easeOutCubic(-10f), 0f)
+        assertEquals(1f, SidePanelMotionPolicy.easeOutCubic(10f), 0f)
+    }
+
+    @Test fun durationsScaleWithTravelWithoutAVisibleOnePixelTail() {
+        for (width in listOf(220, 360, 800)) {
+            val distances = listOf(0.05f, 0.1f, 0.25f, 0.5f, 1f)
+            val durations = distances.map { SidePanelMotionPolicy.durationMs(it, width, 0f, 2f) }
+            assertTrue(durations.zipWithNext().all { (a, b) -> b >= a })
+            assertTrue(durations.all { it in 90L..280L })
+            assertEquals(224L, durations.last())
+            assertEquals(0L, SidePanelMotionPolicy.durationMs(1f / width, width, 0f, 2f))
+        }
+        assertEquals(0L, SidePanelMotionPolicy.durationMs(0f, 300, 0f, 2f))
+    }
+
+    @Test fun fasterFlingsAlwaysShortenOrPreserveSettleTimeForBothDirections() {
+        for (width in listOf(240, 800)) {
+            val slow = SidePanelMotionPolicy.durationMs(0.8f, width, 0f, 3f)
+            val medium = SidePanelMotionPolicy.durationMs(0.8f, width, 1_500f, 3f)
+            val fast = SidePanelMotionPolicy.durationMs(0.8f, width, 6_000f, 3f)
+            assertTrue(medium <= slow)
+            assertTrue(fast <= medium)
+            assertEquals(fast, SidePanelMotionPolicy.durationMs(0.8f, width, -6_000f, 3f))
+            assertTrue(fast in 90L..280L)
+        }
+    }
+
+    @Test fun invalidGeometryIsRejectedAndNonFiniteReleaseSpeedIsSafe() {
+        try {
+            SidePanelMotionPolicy.durationMs(Float.NaN, 300, 0f, 2f)
+            fail("Expected IllegalArgumentException for NaN distance")
+        } catch (_: IllegalArgumentException) { }
+        try {
+            SidePanelMotionPolicy.durationMs(0.5f, 0, 0f, 2f)
+            fail("Expected IllegalArgumentException for zero width")
+        } catch (_: IllegalArgumentException) { }
+        val driver = Driver()
+        val controller = SidePanelMotionController(driver, 2f) { }
+        assertTrue(controller.beginDrag(SidePanelSide.RIGHT, 320))
+        assertTrue(controller.dragBy(-210f))
+        assertTrue(controller.release(Float.NaN))
+        driver.finish()
+        assertEquals(SidePanelPhase.OPEN, controller.snapshot.phase)
+    }
+
+    @Test fun onePixelProgrammaticTailCompletesWithoutSchedulingAnAnimator() {
+        val driver = Driver()
+        val controller = SidePanelMotionController(driver, 2f) { }
+        assertTrue(controller.beginDrag(SidePanelSide.LEFT, 250))
+        assertTrue(controller.dragBy(249.5f))
+        assertTrue(controller.release(0f))
+        assertEquals(SidePanelPhase.OPEN, controller.snapshot.phase)
+        assertNull(driver.current)
+        assertTrue(controller.command(SidePanelSide.LEFT, 250, false))
         driver.finish()
         assertEquals(SidePanelPhase.CLOSED, controller.snapshot.phase)
     }

@@ -9,13 +9,18 @@ internal interface SidePanelAnimationDriver {
     fun cancel()
 }
 
-/** Initial 1DM-like tuning; calibrated in stage 5, not claimed to be measured 1DM values. */
+/**
+ * Stage 5 motion defaults for both sides. These are design targets, NOT 1DM's
+ * measured or reverse-engineered timings. Verify on 60/90/120 Hz in stage 7.
+ * ValueAnimator uses Android's display VSYNC; never force a 60 Hz frame interval.
+ */
 internal object SidePanelMotionPolicy {
     const val FLING_THRESHOLD_DP_PER_SECOND = 400f
     private const val OPEN_THRESHOLD = 0.5f
-    private const val BASE_DURATION_MS = 256f
-    private const val MIN_DURATION_MS = 80L
-    private const val MAX_DURATION_MS = 600L
+    private const val BASE_DURATION_MS = 224f
+    private const val MIN_DURATION_MS = 90L
+    private const val MAX_DURATION_MS = 280L
+    private const val FLING_TRAVEL_FACTOR = 0.85f
 
     fun shouldOpen(side: SidePanelSide, progress: Float, velocityXPxPerSecond: Float, density: Float): Boolean {
         require(density.isFinite() && density > 0f)
@@ -26,23 +31,27 @@ internal object SidePanelMotionPolicy {
         return progress >= OPEN_THRESHOLD
     }
 
+    /** Duration scales with remaining travel; a faster fling never gets a longer tail. */
     fun durationMs(distanceFraction: Float, widthPx: Int, velocityXPxPerSecond: Float, density: Float): Long {
-        require(widthPx > 0 && density.isFinite() && density > 0f)
+        require(widthPx > 0 && density.isFinite() && density > 0f && distanceFraction.isFinite())
         val distance = distanceFraction.coerceIn(0f, 1f)
-        if (distance == 0f) return 0L
+        // Sub-pixel tails should settle immediately instead of animating 1 px for 90 ms.
+        if (distance * widthPx <= 1f) return 0L
         var duration = BASE_DURATION_MS * sqrt(distance)
-        if (velocityXPxPerSecond.isFinite() && abs(velocityXPxPerSecond / density) >= FLING_THRESHOLD_DP_PER_SECOND) {
-            // A fast fling should not be followed by a slow fixed-duration settle.
-            val travelTimeMs = 1_600f * distance * widthPx / abs(velocityXPxPerSecond)
-            duration = minOf(duration, travelTimeMs)
+        if (velocityXPxPerSecond.isFinite() &&
+            abs(velocityXPxPerSecond / density) >= FLING_THRESHOLD_DP_PER_SECOND) {
+            val travelTimeMs = 1_000f * distance * widthPx / abs(velocityXPxPerSecond)
+            duration = minOf(duration, FLING_TRAVEL_FACTOR * travelTimeMs)
         }
         return duration.toLong().coerceIn(MIN_DURATION_MS, MAX_DURATION_MS)
     }
 
-    fun quinticEaseOut(fraction: Float): Float {
+    /** Gentle ease-out cubic: less abrupt initial acceleration than quintic. */
+    fun easeOutCubic(fraction: Float): Float {
+        if (!fraction.isFinite()) return 0f
         val t = fraction.coerceIn(0f, 1f)
         val remaining = 1f - t
-        return 1f - remaining * remaining * remaining * remaining * remaining
+        return 1f - remaining * remaining * remaining
     }
 }
 
@@ -135,6 +144,12 @@ internal class SidePanelMotionController(
             return
         }
         val duration = SidePanelMotionPolicy.durationMs(abs(to - from), widthPx, velocity, density)
+        if (duration == 0L) {
+            // At a sub-pixel distance it is cheaper and cleaner to finish now.
+            model.finishSettle(side)
+            publish()
+            return
+        }
         driver.animate(from, to, duration,
             onFrame = { value ->
                 if (token == generation && model.snapshot.phase == SidePanelPhase.SETTLING &&

@@ -14,7 +14,7 @@ internal class ValueAnimatorSidePanelDriver : SidePanelAnimationDriver {
         val animator = ValueAnimator.ofFloat(from, to)
         running = animator
         animator.duration = durationMs
-        animator.interpolator = Interpolator { SidePanelMotionPolicy.quinticEaseOut(it) }
+        animator.interpolator = Interpolator { SidePanelMotionPolicy.easeOutCubic(it) }
         animator.addUpdateListener {
             if (running === animator) onFrame(it.animatedValue as Float)
         }
