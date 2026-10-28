@@ -22,7 +22,7 @@ jobs:
   build:
     # Stage 1 has no approval for APK compilation. PR runs tests and lint only;
     # all normal release/update workflows remain unchanged.
-    if: github.event_name != 'pull_request' || (github.head_ref != 'feat/zavro-clean-mme-stage1-testlab-20261027' && github.head_ref != 'feat/zavro-clean-mme-stage2-identity-shadow-20261027' && github.head_ref != 'feat/zavro-clean-mme-stage3-individual-media-titles-20261027' && github.head_ref != 'feat/zavro-clean-mme-stage4-poster-attribution-20261027')
+    if: github.event_name != 'pull_request' || (github.head_ref != 'feat/zavro-clean-mme-stage1-testlab-20261027' && github.head_ref != 'feat/zavro-clean-mme-stage2-identity-shadow-20261027' && github.head_ref != 'feat/zavro-clean-mme-stage3-individual-media-titles-20261027' && github.head_ref != 'feat/zavro-clean-mme-stage4-poster-attribution-20261027' && github.head_ref != 'feat/zavro-clean-mme-stage5-metadata-provenance-20261028' && github.head_ref != 'feat/zavro-clean-mme-stage6-network-correlation-shadow-20261028')
     runs-on: ubuntu-latest
     permissions:
       contents: read

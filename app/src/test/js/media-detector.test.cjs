@@ -131,6 +131,35 @@ test("v1181: encoded individual titles are decoded without changing signed sourc
   assert.equal(p.native[0][1].url, url);
 });
 
+test("poster provenance is transported for video element without requiring a title", async () => {
+  const p=page();
+  const url="https://cdn.example.org/clip.mp4?sig=secret";
+  const video=new p.HTMLVideoElement(url,"video/mp4",true);
+  video.poster="https://img.example.org/cover.jpg?sig=private";
+  p.videos.push(video);
+  await p.fire("loadedmetadata",video);
+  assert.equal(p.native.length,1);
+  assert.equal(p.native[0][1].url,url);
+  assert.equal(p.native[0][1].posterUrl,video.poster);
+  assert.equal(p.native[0][1].posterKind,"element");
+  assert.equal(p.native[0][1].title,undefined);
+});
+
+test("background poster-kind validation is closed to malformed or forged metadata", async () => {
+  const b=background();
+  const base={...candidate("https://cdn.example.org/v.mp4"),
+    posterUrl:"https://img.example.org/poster.jpg",posterKind:"card"};
+  assert.equal((await b.receive(base,sender))?.posterKind,"card");
+  for(const invalid of [
+    {...base,posterKind:"network"},
+    {...base,posterKind:"element\nsecret"},
+    {...base,posterKind:1},
+    {...base,posterUrl:undefined},
+    {...base,source:"network"},
+    {...base,posterKind:null}
+  ])assert.equal(await b.receive(invalid,sender),null);
+});
+
 test("background validates without changing signed URLs or trusting supplied IDs", async () => {
   const { receive } = background();
   const message = candidate("https://example.org/flower.mp4?signature=secret");

@@ -40,6 +40,23 @@ class MediaMessageProtocolTest {
         )) assertNull(MediaMessageProtocol.decode(bad))
     }
 
+    @Test fun acceptsPosterKindOnlyWithValidatedPosterUrl() {
+        val message="""{"schemaVersion":1,"event":"media_candidate","source":"page",
+            "url":"https://cdn.example/movie.mp4?token=keep",
+            "posterUrl":"https://cdn.example/cover.jpg?token=private",
+            "posterKind":"card"}"""
+        val decoded=MediaMessageProtocol.decode(message) as MediaDetectorMessage.Candidate
+        assertEquals("card",decoded.posterKind)
+        assertTrue(decoded.posterUrl!!.endsWith("token=private"))
+        assertFalse(decoded.toString().contains("private"))
+        for (bad in listOf(
+            message.replace("\"card\"","\"forged\""),
+            message.replace("\"posterKind\":\"card\"","\"posterKind\":1"),
+            message.replace("\"posterUrl\":\"https://cdn.example/cover.jpg?token=private\",",""),
+            message.replace("\"source\":\"page\"","\"source\":\"network\"")
+        )) assertNull(MediaMessageProtocol.decode(bad))
+    }
+
     private fun message(url: String = "https://example.org/flower.mp4?token=secret") =
         """{"schemaVersion":1,"event":"media_candidate","source":"dom","url":"$url"}"""
 
