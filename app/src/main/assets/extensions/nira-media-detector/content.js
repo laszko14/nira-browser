@@ -597,7 +597,8 @@
       }
     }
     const title = videoTitle(video);
-    if (!title && video.closest && video.closest(MEDIA_CARDS)) note("title_no_owner");
+    if (!title && video.closest && video.closest(MEDIA_CARDS) && !ownedMediaCard(video))
+      note("title_no_owner");
     const kind = explicitVideoTitle(video) ? "player" : "video";
     const seconds = durationOf(video);
     const poster = posterFor(video);
