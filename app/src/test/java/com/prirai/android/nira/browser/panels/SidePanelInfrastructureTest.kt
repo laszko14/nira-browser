@@ -39,6 +39,10 @@ class SidePanelInfrastructureTest {
         val underlay = View(activity).apply { setOnClickListener { clicks++ } }
         // A closed host cannot steal a tap even when it is the topmost child.
         root.addView(underlay, 0, FrameLayout.LayoutParams(-1, -1))
+        // The new child must be measured/layouted before Android can hit-test it.
+        root.measure(View.MeasureSpec.makeMeasureSpec(400, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(800, View.MeasureSpec.EXACTLY))
+        root.layout(0, 0, 400, 800)
         for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
             val touch = MotionEvent.obtain(0L, 100L, action, 200f, 300f, 0)
             root.dispatchTouchEvent(touch)

@@ -62,6 +62,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     private val windowFeature = ViewBoundFeatureWrapper<WindowFeature>()
     private var mediaFloatingUi: MediaFloatingUi? = null
     private var sidePanelInfrastructure: SidePanelInfrastructure? = null
+    private var legacyEdgePanelListener: com.prirai.android.nira.browser.SwipeGestureListener? = null
 
     // Track last tab IDs for auto-grouping detection
     private var lastTabIds = setOf<String>()
@@ -187,6 +188,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     private fun setupEdgePanelGestures() {
         binding.gestureLayout.onVerticalSwipe = { delta -> onVerticalPageGesture(delta) }
         val prefs = UserPreferences(requireContext())
+        legacyEdgePanelListener?.let(binding.gestureLayout::removeGestureListener)
+        legacyEdgePanelListener = null
         // Toolbar handler has priority. New panels are disabled until their content
         // and explicit activation are provided in stages 3B/4B.
         sidePanelInfrastructure?.dispose()
@@ -194,7 +197,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             gestures = binding.gestureLayout,
             edgeWidthDp = prefs.niraEdgeWidthDp.coerceAtLeast(1),
             mayHandle = {
-                isAdded && bindingOrNull != null && binding.gestureLayout.isSwipeEnabled &&
+                prefs.niraEdgePanelsEnabled && isAdded && bindingOrNull != null && binding.gestureLayout.isSwipeEnabled &&
                     !parentFragmentManager.isStateSaved
             }
         )
@@ -202,7 +205,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         val density = resources.displayMetrics.density
         val edgeWidth = prefs.niraEdgeWidthDp * density
         val threshold = 64 * density
-        binding.gestureLayout.addGestureListener(object : com.prirai.android.nira.browser.SwipeGestureListener {
+        val legacyListener = object : com.prirai.android.nira.browser.SwipeGestureListener {
             private var direction = 0
             private var travelled = 0f
             private var labGesture: com.prirai.android.nira.diagnostics.testlab.OperationToken? = null
@@ -264,7 +267,9 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 com.prirai.android.nira.diagnostics.testlab.TestLab.end(labGesture,com.prirai.android.nira.diagnostics.testlab.OperationOutcome.CANCELLED)
                 labGesture=null;direction=0
             }
-        })
+        }
+        binding.gestureLayout.addGestureListener(legacyListener)
+        legacyEdgePanelListener = legacyListener
     }
 
     private fun currentMediaSnapshot(): MediaUiSnapshot? {
@@ -376,6 +381,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     }
 
     override fun onDestroyView() {
+        legacyEdgePanelListener?.let(binding.gestureLayout::removeGestureListener)
+        legacyEdgePanelListener = null
         sidePanelInfrastructure?.dispose()
         sidePanelInfrastructure = null
         binding.gestureLayout.onVerticalSwipe = null
