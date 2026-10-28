@@ -130,3 +130,28 @@ test("v1186 HTTP 206 exact size validates range boundaries and compressed payloa
   assert.equal(size(206, "bytes 0-499/500", "gzip"), null);
   assert.equal(size(403, "bytes 0-499/500"), null);
 });
+
+
+test("v1186 owner generation shadow observes only source changes, never emits URLs", () => {
+  const text = fs.readFileSync(path.join(__dirname,
+    "../../main/assets/extensions/nira-media-detector/content.js"), "utf8");
+  const start = text.indexOf("  let ownerGenerations =");
+  const end = text.indexOf("  let structuredGroups =", start);
+  assert.ok(start >= 0 && end > start);
+  const events = [];
+  const scope = { note: code => events.push(code) };
+  vm.runInNewContext(text.slice(start, end) +
+    "\nglobalThis.shadow = {observeOwnerGeneration, get: element => ownerGenerations.get(element)};",
+    scope, { timeout: 1000 });
+  const owner = {};
+  const other = {};
+  scope.shadow.observeOwnerGeneration(owner, "https://canary.invalid/a.mp4?secret=canary");
+  scope.shadow.observeOwnerGeneration(owner, "https://canary.invalid/a.mp4?secret=canary");
+  scope.shadow.observeOwnerGeneration(other, "https://canary.invalid/a.mp4?secret=canary");
+  assert.equal(scope.shadow.get(owner).id !== scope.shadow.get(other).id, true);
+  assert.equal(scope.shadow.get(owner).generation, 0);
+  scope.shadow.observeOwnerGeneration(owner, "https://canary.invalid/b.mp4?secret=canary");
+  assert.equal(scope.shadow.get(owner).generation, 1);
+  assert.deepEqual(events, ["owner_generation_changed"]);
+  assert.ok(!JSON.stringify(events).includes("canary"));
+});

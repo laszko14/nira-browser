@@ -21,6 +21,19 @@
   // Bounded slices, not a permanent cutoff at the first N nodes.
   const SLICE_MS = 4, MAX_JOBS = 64, MAX_ROOTS = 32;
   const seen = new Map(), groups = new WeakMap();
+  // Shadow-only owner evidence. URLs never enter diagnostics or protocol v1.
+  let ownerGenerations = new WeakMap(), nextLocalElementId = 0;
+  function observeOwnerGeneration(element, signature) {
+    if (!element || typeof signature !== "string") return;
+    const old = ownerGenerations.get(element);
+    if (!old) {
+      ownerGenerations.set(element, { id: ++nextLocalElementId, generation: 0, signature });
+    } else if (old.signature !== signature) {
+      old.signature = signature;
+      old.generation++;
+      note("owner_generation_changed"); // anonymous event count only
+    }
+  }
   let structuredGroups = new WeakMap();
   let nextGroup = 0;
   const opaqueFrameVersions = new WeakMap();
@@ -42,7 +55,8 @@
     cancelNativeQueue();
     context = null;
     registering = null;
-    seen.clear(); structuredGroups = new WeakMap(); offers = 0; playObserved = false; stats.clear();
+    seen.clear(); structuredGroups = new WeakMap(); ownerGenerations = new WeakMap();
+    nextLocalElementId = 0; offers = 0; playObserved = false; stats.clear();
     if (statsTimer !== null) clearTimeout(statsTimer);
     statsTimer = null;
     jobs.length = 0; pendingRoots.clear(); pendingRoots.add(document);
@@ -146,6 +160,7 @@
         if (message.kind === "history") note("spa_navigation");
         navigationEpoch++; cancelNativeQueue(); context = null; registering = null;
         seen.clear(); jobs.length = 0; pendingRoots.clear();
+        ownerGenerations = new WeakMap(); nextLocalElementId = 0;
         scriptVersions = new WeakSet(); structuredVersions = new WeakSet();
         scheduleScan();
       }
@@ -594,10 +609,16 @@
     const playing = video.paused === false;
     const preferred = video.currentSrc || video.src;
     if (!preferred) note("no_source");
+    // Read source declarations once per inspect and bound the work at 16.
+    const sources = typeof video.querySelectorAll === "function" ?
+      Array.from(video.querySelectorAll("source")).slice(0, 16) : [];
+    const signature = [preferred || "", video.src || "",
+      ...sources.map(item => item.src || attribute(item, "data-src") || "")].join("\u0000");
+    observeOwnerGeneration(video, signature);
     let mime = attribute(video, "type");
-    if (typeof video.querySelectorAll === "function") {
-      for (const item of video.querySelectorAll("source")) {
-        if ((item.src || attribute(item, "data-src")) === preferred && item.type) { mime = item.type; break; }
+    for (const item of sources) {
+      if ((item.src || attribute(item, "data-src")) === preferred && item.type) {
+        mime = item.type; break;
       }
     }
     const title = videoTitle(video);
@@ -615,15 +636,11 @@
       submit(video.src, "page", null, group, title, title ? kind : null, seconds,
         poster, null, posterKind);
     // Each declared source matters, even before currentSrc becomes available.
-    if (typeof video.querySelectorAll === "function") {
-      let n = 0;
-      for (const item of video.querySelectorAll("source")) {
-        if (++n > 16) break;
-        const declared = item.src || attribute(item, "data-src");
-        if (declared && declared !== preferred)
-          submit(declared, "page", item.type || null, group,
-            title, title ? kind : null, seconds, poster, null, posterKind);
-      }
+    for (const item of sources) {
+      const declared = item.src || attribute(item, "data-src");
+      if (declared && declared !== preferred)
+        submit(declared, "page", item.type || null, group,
+          title, title ? kind : null, seconds, poster, null, posterKind);
     }
   }
 
