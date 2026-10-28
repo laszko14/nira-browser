@@ -9,7 +9,7 @@
   const FRAME = typeof window.top !== "undefined" && window !== window.top;
   const MAX_ITEMS = 96, MAX_SEEN = 256, MAX_SCRIPT_CHARS = 48000;
   let activeUrl = location.href, context = null, registering = null, navigationEpoch = 0;
-  let scheduled = false;
+  let scheduled = false, pendingOffers = 0;
   let scanRoot = document, scanTimer = null, alive = true;
   let statsTimer = null, offers = 0, playObserved = false;
   const stats = new Map();
@@ -20,7 +20,7 @@
   let overflowRoot = false;
   // Bounded slices, not a permanent cutoff at the first N nodes.
   const SLICE_MS = 4, MAX_JOBS = 64, MAX_ROOTS = 32;
-  const seen = new Map(), groups = new WeakMap();
+  const seen = new Map(), groups = new WeakMap(), groupSources = new WeakMap();
   // Shadow-only owner evidence. URLs never enter diagnostics or protocol v1.
   let ownerGenerations = new WeakMap(), nextLocalElementId = 0;
   function observeOwnerGeneration(element, signature) {
@@ -51,7 +51,7 @@
   function resetNavigation() {
     if (activeUrl === location.href) return;
     activeUrl = location.href;
-    navigationEpoch++;
+    navigationEpoch++; pendingOffers = 0;
     cancelNativeQueue();
     context = null;
     registering = null;
@@ -158,7 +158,7 @@
         Object.keys(message).sort().join(",") === "event,kind,schemaVersion") {
       if (message.kind === "history" || FRAME) {
         if (message.kind === "history") note("spa_navigation");
-        navigationEpoch++; cancelNativeQueue(); context = null; registering = null;
+        navigationEpoch++; pendingOffers = 0; cancelNativeQueue(); context = null; registering = null;
         seen.clear(); jobs.length = 0; pendingRoots.clear();
         ownerGenerations = new WeakMap(); nextLocalElementId = 0;
         scriptVersions = new WeakSet(); structuredVersions = new WeakSet();
@@ -236,8 +236,15 @@
         parsed.href.length <= 8192 ? parsed.href : null;
     } catch (_) { return null; }
   }
-  function groupFor(element) {
+  function groupFor(element, signature = null) {
     if (!element || typeof element !== "object") return null;
+    // A reused player is a new movie when its declared source set changes.
+    // Selecting a quality within that set or changing metadata keeps identity.
+    if (signature !== null) {
+      if (groupSources.has(element) && groupSources.get(element) !== signature)
+        groups.delete(element);
+      groupSources.set(element, signature);
+    }
     if (!groups.has(element)) groups.set(element, "g" + (++nextGroup));
     return groups.get(element);
   }
@@ -312,24 +319,25 @@
   function cardTitle(card) {
     const direct = mediaTitleHint(attribute(card, "data-video-title") ||
       attribute(card, "data-title"));
-    const found = new Set();
-    if (direct) found.add(direct);
-    const targets = card.querySelectorAll(
-      'figcaption,[itemprop="name"],[data-video-title],[data-title],.video-title,' +
-      '.video-name,.media-title,.media-name,.card-title,.video-caption,' +
-      'h1,h2,h3,h4');
-    // Work boundedly, and fail closed on distinct same-owner captions.
-    // Never treat a heading that wraps the actual player as its media title.
-    // A conflicting data-title vs visible caption is ambiguous, not a priority winner.
+    const titleSelector = '[itemprop="name"],[data-video-title],[data-title],.video-title,' +
+      '.video-name,.media-title,.media-name,.card-title,h1,h2,h3,h4';
+    const targets = card.querySelectorAll('figcaption,.video-caption,' + titleSelector);
+    let bestRank = direct ? 2 : 0;
+    const found = new Set(direct ? [direct] : []);
     for (let i = 0; i < Math.min(targets.length, 16); i++) {
       const element = targets[i];
-      if (element.querySelector && element.querySelector("video,iframe")) continue;
+      if (element.closest && element.closest(MEDIA_CARDS) !== card) continue;
+      // A caption wrapper can include both the title and its description.
+      // Read its specific title descendant instead of concatenated text.
+      if (element.querySelector && element.querySelector("video,iframe," + titleSelector)) continue;
       const text = mediaTitleHint(attribute(element, "data-video-title") ||
-        attribute(element, "data-title") || attribute(element, "title") ||
-        element.textContent);
-      if (text) found.add(text);
-      if (found.size > 1) return null;
+        attribute(element, "data-title") || attribute(element, "title") || element.textContent);
+      if (!text) continue;
+      const rank = element.matches && element.matches(titleSelector) ? 2 : 1;
+      if (rank > bestRank) { found.clear(); bestRank = rank; }
+      if (rank === bestRank) found.add(text);
     }
+    // Same-strength, distinct owner-bound titles remain ambiguous.
     return found.size === 1 ? found.values().next().value : null;
   }
   // A valid local media owner is independent of whether its title is known.
@@ -381,12 +389,36 @@
       if (!card.matches || !card.matches(MEDIA_CARDS) ||
           !mediaCardOwner(card, element)) continue;
       const title = cardTitle(card);
-      if (title) return { title, card };
+      return title ? { title, card } : null;
     }
     return null;
   }
   function videoTitle(element) {
     return explicitVideoTitle(element) || scopedMediaCard(element)?.title || null;
+  }
+  function soleVideoPageTitle(video, sources) {
+    // Conservative page fallback: count players, not source/quality variants.
+    // Other declarative owners or structured configs make attribution uncertain.
+    if (document.querySelector && document.querySelector("video,iframe") !== video) return null;
+    const players = document.querySelectorAll("video,iframe");
+    if (players.length !== 1 || players[0] !== video || attribute(video, "aria-labelledby")) return null;
+    const owner = ownedMediaCard(video);
+    if (owner && (attribute(owner, "data-video-title") || attribute(owner, "data-title") ||
+        owner.querySelector?.('figcaption,[itemprop="name"],[data-video-title],[data-title],' +
+          '.video-title,.video-name,.media-title,.media-name,.card-title,.video-caption,h1,h2,h3,h4')))
+      return null; // An unresolved local conflict cannot be masked by a weaker page title.
+    const urls = new Set([video.src, video.currentSrc,
+      ...sources.map(item => item.src || attribute(item, "data-src"))].map(absolute).filter(Boolean));
+    const others = document.querySelectorAll('a[href],link[href],[data-video-url],[data-video-src],' +
+      '[data-hls],[data-mpd],[data-player-config],[data-setup],script[type="application/ld+json"]');
+    for (const element of others) {
+      if (element.tagName === "A" || element.tagName === "LINK") {
+        const href = absolute(attribute(element, "href"));
+        if (href && /\.(?:mp4|m4v|webm|ogv|ogg|mov|m3u8|mpd)(?:[?#]|$)/i.test(href) &&
+            !urls.has(href)) return null;
+      } else return null;
+    }
+    return pageTitle();
   }
   // Never use arbitrary external images as posters. The fallback requires
   // exactly one image in the verified media card; otherwise explicit markings.
@@ -568,6 +600,7 @@
       message.width = dimensions.width;
     if (Number.isSafeInteger(dimensions?.height) && dimensions.height > 0 && dimensions.height <= 8640)
       message.height = dimensions.height;
+    pendingOffers++;
     ensureDocument().then(root => {
       if (!alive || epoch !== navigationEpoch || !root || navigation !== location.href) { seen.delete(key); return; }
       return Promise.resolve(browser.runtime.sendMessage(message)).then(validated => {
@@ -600,14 +633,22 @@
             else { note(afterPlay ? "after_play" : "before_play"); if (FRAME) note("iframe"); }
           });
       });
-    }).catch(() => { seen.delete(key); });
+    }).catch(() => { seen.delete(key); }).finally(() => {
+      if (epoch !== navigationEpoch) return;
+      pendingOffers--;
+      // Resume from the saved DOM cursor when IPC makes room. No polling loop
+      // while the receiver's quota window is full, and no extra DOM scan.
+      if (alive && pendingOffers < 64 && scanTimer === null &&
+          (jobs.length || pendingRoots.size || overflowRoot))
+        scanTimer = setTimeout(pump, 32);
+    });
   }
 
   function inspect(video) {
     if (!(video instanceof HTMLVideoElement) || !video.isConnected || video.ended) return;
-    const group = groupFor(ownedMediaCard(video) || video);
     const playing = video.paused === false;
-    const preferred = video.currentSrc || video.src;
+    // src may already name the next movie while currentSrc still names the old one.
+    const preferred = video.src || video.currentSrc;
     if (!preferred) note("no_source");
     // Read source declarations once per inspect and bound the work at 16.
     const sources = typeof video.querySelectorAll === "function" ?
@@ -615,16 +656,22 @@
     const signature = [preferred || "", video.src || "",
       ...sources.map(item => item.src || attribute(item, "data-src") || "")].join("\u0000");
     observeOwnerGeneration(video, signature);
+    const declaredSet = [...new Set([video.src || "", ...sources.map(item =>
+      item.src || attribute(item, "data-src") || "")].filter(Boolean))].sort();
+    const group = groupFor(ownedMediaCard(video) || video,
+      JSON.stringify(declaredSet.length ? declaredSet : [preferred || ""]));
     let mime = attribute(video, "type");
     for (const item of sources) {
       if ((item.src || attribute(item, "data-src")) === preferred && item.type) {
         mime = item.type; break;
       }
     }
-    const title = videoTitle(video);
+    const playerTitle = explicitVideoTitle(video);
+    const individualTitle = videoTitle(video);
+    const title = individualTitle || soleVideoPageTitle(video, sources);
     if (!title && video.closest && video.closest(MEDIA_CARDS) && !ownedMediaCard(video))
       note("title_no_owner");
-    const kind = explicitVideoTitle(video) ? "player" : "video";
+    const kind = playerTitle ? "player" : individualTitle ? "video" : "page";
     const seconds = durationOf(video);
     const poster = posterFor(video);
     const posterKind = absolute(video.poster || attribute(video, "poster") ||
@@ -655,6 +702,17 @@
     return typeof element.getAttribute === "function" ? element.getAttribute(name) : null;
   }
   function scanDeclarations() {
+    const sourceAttributes = ["data-video-url", "data-video-src", "data-hls", "data-mpd",
+      "data-src", "data-plyr-source", "data-file", "data-stream-url", "data-playback-url",
+      "data-manifest-url", "data-source-url", "data-mp4", "data-m3u8", "data-stream"];
+    function declarationGroup(element, card, values) {
+      // A declaration sharing a real player uses that player's source-set identity.
+      const sharesPlayer = element.tagName === "VIDEO" || element.tagName === "IFRAME" ||
+        card && card.querySelectorAll("video,iframe").length > 0;
+      const signature = sharesPlayer ? null :
+        JSON.stringify([...new Set(values.map(absolute).filter(Boolean))].sort());
+      return groupFor(card || element, signature);
+    }
     scanCollection("a[href],link[href]", element => {
       const href = attribute(element, "href") || element.href;
       // Links without a direct media extension cannot pass submit() with no
@@ -663,23 +721,22 @@
       const scoped = scopedMediaCard(element);
       const posterCard = ownedMediaCard(element);
       const directTitle = mediaTitleHint(element.textContent);
-      const title = directTitle || scoped?.title || null;
-      submit(href, "page", null, groupFor(ownedMediaCard(element) || element),
-        title, title ? (directTitle ? "link" : "video") : null,
+      const title = scoped?.title || directTitle || null;
+      submit(href, "page", null, declarationGroup(element, posterCard, [href]),
+        title, title ? (scoped?.title ? "video" : "link") : null,
         null, posterForCard(posterCard), null, "card");
     });
     scanCollection("[data-video-url],[data-video-src],[data-hls],[data-mpd],[data-src],[data-plyr-source],[data-file],[data-stream-url],[data-playback-url],[data-manifest-url],[data-source-url],[data-mp4],[data-m3u8],[data-stream]", element => {
       const scoped = scopedMediaCard(element);
       const posterCard = ownedMediaCard(element);
       const named = explicitVideoTitle(element) || scoped?.title || null;
-      for (const name of ["data-video-url", "data-video-src", "data-hls",
-        "data-mpd", "data-src", "data-plyr-source", "data-file", "data-stream-url",
-        "data-playback-url", "data-manifest-url", "data-source-url", "data-mp4",
-        "data-m3u8", "data-stream"]) {
+      const group = declarationGroup(element, posterCard,
+        sourceAttributes.map(name => attribute(element, name)));
+      for (const name of sourceAttributes) {
         const value = attribute(element, name);
         if (value) submit(value, "page", attribute(element, "type") ||
           (name === "data-hls" || name === "data-m3u8" ? "application/vnd.apple.mpegurl" :
-            name === "data-mpd" ? "application/dash+xml" : null), groupFor(ownedMediaCard(element) || element),
+            name === "data-mpd" ? "application/dash+xml" : null), group,
           named, named ? (explicitVideoTitle(element) ? "player" : "video") : null,
           null, absolute(attribute(element, "data-poster") || attribute(element, "data-thumbnail")) ||
             posterForCard(posterCard), null, "card");
@@ -1002,7 +1059,7 @@
     resetNavigation();
     const start = Date.now();
     let processed = 0;
-    while (processed < MAX_ITEMS && Date.now() - start < SLICE_MS) {
+    while (processed < MAX_ITEMS && pendingOffers < 64 && Date.now() - start < SLICE_MS) {
       if (!jobs.length) {
         const next = pendingRoots.values().next();
         if (next.done) {
@@ -1022,7 +1079,8 @@
     note("scan_elements", processed);
     if (processed > 0) note("scan_slice_ms", Math.max(1, Math.min(10000, Date.now() - start)));
     if (jobs.length || pendingRoots.size || overflowRoot) {
-      note("scan_yield"); scanTimer = setTimeout(pump, 32);
+      note("scan_yield");
+      if (pendingOffers < 64) scanTimer = setTimeout(pump, 32);
     } else if (!offers) note("no_candidate");
   }
   function scan() {
@@ -1037,11 +1095,15 @@
       element.closest('figcaption,[itemprop="name"],[data-video-title],[data-title],' +
         '.video-title,.video-name,.media-title,.media-name,.card-title,' +
         '.video-caption,h1,h2,h3,h4');
-    if (!heading) return null;
-    const card = heading.closest(
-      "figure,article,li,[data-video-id],.video-card,.video-item,.media-card,.media-item,.video-container");
+    const label = !heading && element && element.closest && element.closest("[id]");
+    const anchor = heading || label;
+    if (!anchor) return null;
+    const card = anchor.closest(
+      "figure,article,li,[data-video-id],[data-media-id],.video-card,.video-item,.video-tile,.video-entry,.media-card,.media-item,.video-container,.playlist-item");
     if (!card || !card.querySelectorAll) return null;
     const players = card.querySelectorAll("video,iframe");
+    if (label && (players.length !== 1 ||
+        !(attribute(players[0], "aria-labelledby") || "").trim().split(/\s+/).includes(attribute(label, "id")))) return null;
     if (players.length === 1) return card;
     if (players.length > 1) return null;
     const declarations = card.querySelectorAll(
@@ -1104,7 +1166,7 @@
   }
   const observer = new MutationObserver(scheduleScan);
   const observerOptions = { childList: true, subtree: true, attributes: true, characterData: true,
-    attributeFilter: ["src", "srcdoc", "type", "content", "href", "title", "aria-label",
+    attributeFilter: ["src", "srcdoc", "type", "content", "href", "title", "aria-label", "aria-labelledby",
       "data-title", "data-video-title", "data-poster", "data-thumbnail", "data-thumb",
       "data-original", "data-lazy-src", "data-srcset", "srcset", "poster",
       "data-src", "data-video-url", "data-video-src",
@@ -1128,7 +1190,7 @@
     if (FRAME && context) Promise.resolve(browser.runtime.sendMessage({
       schemaVersion: 1, event: "frame_ended", frameKey: context.frameKey,
     })).catch(() => {});
-    context = null; navigationEpoch++; registering = null;
+    context = null; navigationEpoch++; pendingOffers = 0; registering = null;
     alive = false; cancelNativeQueue(); observer.disconnect(); observedRoots = new WeakSet();
     if (scanTimer !== null) clearTimeout(scanTimer);
     if (statsTimer !== null) clearTimeout(statsTimer);

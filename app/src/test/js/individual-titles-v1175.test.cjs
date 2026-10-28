@@ -456,9 +456,29 @@ test("v1186 aria-labelledby with two owner-local conflicting IDs is ambiguous", 
   }
 });
 
-test("v1186 tile title cannot inherit a filename as verified movie name", () => {
-  const panel = fs.readFileSync(path.join(__dirname,
-    "../../main/java/com/prirai/android/nira/media/MediaFloatingUi.kt"), "utf8");
-  assert.match(panel, /val title = bestTitle \?: "Film #\$\{index \+ 1\}"/);
-  assert.doesNotMatch(panel, /bestTitle \?: variants\.firstNotNullOfOrNull/);
+// Native fallback presentation is verified by MediaTileTitleEvidenceTest.
+
+test("MME: named local heading outranks a supplemental caption", () => {
+  const card = new Element("figure");
+  card.add(new Element("h3", {}, "video-title", "Właściwy odcinek"));
+  card.add(new Element("figcaption", {}, "video-caption", "Opis, autor i data publikacji"));
+  const video = card.add(new Element("video"));
+  assert.equal(videoTitle(video), "Właściwy odcinek");
+});
+
+test("MME: an ambiguous inner card cannot borrow its outer card's title", () => {
+  const outer = new Element("article", {"data-title": "Nazwa sekcji"});
+  const card = outer.add(new Element("div", {}, "video-tile"));
+  card.add(new Element("h3", {}, "video-title", "Film A"));
+  card.add(new Element("h3", {}, "card-title", "Film B"));
+  const video = card.add(new Element("video"));
+  assert.equal(videoTitle(video), null);
+});
+
+test("MME: a late caption in video-tile queues its owner", () => {
+  const card = new Element("div", {}, "video-tile");
+  const heading = card.add(new Element("h3", {}, "", "Późny tytuł"));
+  card.add(new Element("video"));
+  assert.ok(titleMutationRoots([{type:"characterData", target:{nodeType:3,
+    parentElement:heading}, addedNodes:[]}]).includes(card));
 });

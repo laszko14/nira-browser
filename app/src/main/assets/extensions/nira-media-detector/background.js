@@ -752,6 +752,17 @@ function drainManifests() {
     });
   }
 }
+// Optional delivery must not turn a parsed manifest into a parse failure or
+// prevent subsequent renditions from being offered. Recheck scope per send.
+async function deliverManifest(task, message) {
+  if (!currentTask(task)) return false;
+  try {
+    return await browser.tabs.sendMessage(task.tabId, message, { frameId: 0 }) === true;
+  } catch (_) {
+    anonymous("network_unassigned", task.isPrivate);
+    return false;
+  }
+}
 async function inspectManifest(task) {
   const controller = typeof AbortController === "function" ? new AbortController() : null;
   const key = manifestKey(task);
@@ -826,7 +837,8 @@ async function inspectManifest(task) {
         verified.height = only.height; // advertised resolution, not active quality
       if (Number.isFinite(only.frameRate) && only.frameRate > 0 && only.frameRate <= 240)
         verified.frameRate = only.frameRate;
-      if (typeof only.codecs === "string" && only.codecs.length <= 160)
+      if (typeof only.codecs === "string" && only.codecs.length > 0 && only.codecs.length <= 160 &&
+          !/[\u0000-\u001f\u007f-\u009f]/.test(only.codecs))
         verified.codecs = only.codecs;
     }
     if (task.format === "HLS" && parsed.kind === "media" &&
@@ -851,16 +863,16 @@ async function inspectManifest(task) {
     if (parsed.drm) {
       discovery("drm", task.isPrivate);
       verified.verification = "unplayable";
-      await browser.tabs.sendMessage(task.tabId, verified, { frameId: 0 });
+      await deliverManifest(task, verified);
       return;
     }
     discovery("manifest_valid", task.isPrivate);
     // Send bounded manifest-advertised choices to the same verified document.
     // Neither a DASH MPD nor an HLS master establishes the current Play quality.
     if (task.format === "DASH" || (task.format === "HLS" && parsed.kind === "master"))
-      await browser.tabs.sendMessage(task.tabId, verified, { frameId: 0 });
+      await deliverManifest(task, verified);
     if (task.format === "HLS" && parsed.kind === "media" && safeUrl(parsed.firstSegmentUrl)) {
-      await browser.tabs.sendMessage(task.tabId, verified, { frameId: 0 });
+      await deliverManifest(task, verified);
       segment = await fetch(parsed.firstSegmentUrl, {
         method: "GET", credentials: "omit", redirect: "follow", cache: "no-store",
         referrer: safeUrl(task.frameUrl) ? task.frameUrl : task.pageUrl, headers: { Range: "bytes=0-0" },
@@ -879,7 +891,7 @@ async function inspectManifest(task) {
         verified.url = task.url;
         verified.verification = "stream_verified";
         verified.httpStatus = Number.isInteger(segment.status) ? segment.status : 200;
-        await browser.tabs.sendMessage(task.tabId, verified, { frameId: 0 });
+        await deliverManifest(task, verified);
       }
     }
     // DASH representations can refer to initialization/segment templates, not
@@ -909,9 +921,10 @@ async function inspectManifest(task) {
       if (Number.isSafeInteger(variant.bitrate) && variant.bitrate > 0 && variant.bitrate <= 1000000000)
         { message.bitrate = variant.bitrate;
           message.bitrateKind = variant.bitrateKind; }
-      if (typeof variant.codecs === "string" && variant.codecs.length <= 160)
+      if (typeof variant.codecs === "string" && variant.codecs.length > 0 && variant.codecs.length <= 160 &&
+          !/[\u0000-\u001f\u007f-\u009f]/.test(variant.codecs))
         message.codecs = variant.codecs;
-      await browser.tabs.sendMessage(task.tabId, message, { frameId: 0 });
+      await deliverManifest(task, message);
       // Keep a bounded per-document bandwidth hint. The child playlist is
       // inspected only if Gecko already requests it; no extra network probes.
       if (Number.isSafeInteger(variant.bitrate) && variant.bitrate > 0 &&

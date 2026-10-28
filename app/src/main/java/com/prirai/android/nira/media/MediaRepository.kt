@@ -66,7 +66,7 @@ internal enum class MediaPlaybackStatus {
  * No URL is ever serialized or logged.
  */
 internal class MediaRepository(
-    private val perTabLimit: Int = 64,
+    private val perTabLimit: Int = 128,
     private val globalLimit: Int = 384,
     private val scopeLimit: Int = 128,
 ) {
@@ -89,6 +89,9 @@ internal class MediaRepository(
 
     private class Record(val key: String, var url: String, var format: MediaFormat,
                          val serial: Long, var groupId: String? = null) {
+        // Exact observed URL links a parser group to a local owner without
+        // replacing that owner's identity or using a title as a join key.
+        var observedManifestGroup: String? = null
         var activeProvenance = MediaProvenance.DOM_HINT
         val revisions = ArrayDeque<MediaUrlRevision>()
         fun observeUrl(exactUrl: String, provenance: MediaProvenance, sequence: Long) {
@@ -419,6 +422,15 @@ internal class MediaRepository(
             source == MediaSource.NETWORK -> MediaProvenance.NETWORK_OBSERVED
             else -> MediaProvenance.DOM_HINT
         }
+        val manifestGroup = groupId?.takeIf {
+            source == MediaSource.NETWORK && it.startsWith("manifest-") &&
+                media.format in setOf(MediaFormat.HLS, MediaFormat.DASH)
+        }
+        val localOwners = if (manifestGroup != null) current.entries.values.filter {
+            it.observedManifestGroup == manifestGroup && it.frameKey == metadata?.frameKey &&
+                it.groupId != null && it.title != null && it.titleKind != "page"
+        }.mapNotNull { it.groupId }.distinct() else emptyList()
+        val correlatedGroup = localOwners.singleOrNull() ?: groupId
         // Use exact manifest URLs by default. A known SigV4 refresh may
         // extend one existing record only with independently verified network
         // lineage: same frame, parser-minted group, observed requests, and a
@@ -474,13 +486,15 @@ internal class MediaRepository(
                     com.prirai.android.nira.diagnostics.testlab.TestLab.mediaFunnelConflict(
                         com.prirai.android.nira.diagnostics.testlab.MediaFunnelConflict.POSTER_ALTERNATIVE)
             }
-            if (groupId != null && (found.groupId == null ||
+            if (correlatedGroup != null && (found.groupId == null ||
                     // The network manifest group may reconcile an anonymous
                     // earlier page hint, but must not move a source that already
                     // owns an individual DOM/player/structured title.
                     source == MediaSource.NETWORK && media.format in
                         setOf(MediaFormat.HLS, MediaFormat.DASH) &&
-                        (found.title == null || found.titleKind == "page"))) found.groupId = groupId
+                        (found.title == null || found.titleKind == "page"))) found.groupId = correlatedGroup
+            if (manifestGroup != null && provenance == MediaProvenance.NETWORK_OBSERVED)
+                found.observedManifestGroup = manifestGroup
             val earlierTitle = found.title
             val earlierKind = found.titleKind
             found.metadata(metadata, found.format)
@@ -497,7 +511,9 @@ internal class MediaRepository(
             changed()
             return InsertResult.DUPLICATE
         }
-        val added = Record(identity, media.url, media.format, tick(), groupId)
+        val added = Record(identity, media.url, media.format, tick(), correlatedGroup)
+        if (manifestGroup != null && provenance == MediaProvenance.NETWORK_OBSERVED)
+            added.observedManifestGroup = manifestGroup
         if (source == MediaSource.NETWORK && metadata?.requestSequence != null)
             added.highestNetworkRequestSequence = metadata.requestSequence
         added.observeUrl(media.url, provenance, tick())

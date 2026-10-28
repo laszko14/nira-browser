@@ -23,7 +23,6 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.prirai.android.nira.ui.theme.NiraTheme
 import java.net.URI
-import java.util.Locale
 
 /** A view-layer snapshot; URLs are never logged, serialized or persisted. */
 internal data class MediaUiSnapshot(val tab: MediaTabState, val entries: List<MediaEntry>)
@@ -362,29 +361,33 @@ internal class MediaFloatingUi(
 }
 
 // Pure mapping for unit tests: grouping, identity, and titles must stay coupled.
-internal fun mediaTileItems(entries: List<MediaEntry>): List<VideoTileItem> =
+internal fun mediaTileItems(entries: List<MediaEntry>): List<VideoTileItem> {
     // Group IDs are minted independently per Gecko document/frame.
-    // "g1" inside iframe A must not absorb "g1" inside iframe B.
-    entries.groupBy { it.frameKey to (it.groupId ?: "url:${it.url}") }
-        .values.mapIndexed { index, found ->
+    val movies = entries.groupBy { it.frameKey to (it.groupId ?: "url:${it.url}") }
+    return movies.values.mapIndexed { index, found ->
         val variants = found.sortedWith(compareByDescending<MediaEntry> { MediaSource.NETWORK in it.sources }
             .thenByDescending { MediaSource.DOM in it.sources })
-        // Same resolver decides both record-level conflicts and grouped variants.
-        val bestTitle = MediaTitleResolver.selectGroup(variants, entries.size == 1).text
-        // Filenames are not verified movie titles. Keep the tile neutral until
-        // an owner-bound title is proven, including master.m3u8 and episode-like paths.
-        val title = bestTitle ?: "Film #${index + 1}"
+        val bestTitle = MediaTitleResolver.selectGroup(variants, movies.size == 1).text
+        val filename = if (bestTitle == null) variants.firstNotNullOfOrNull { friendlyFileName(it.url) } else null
+        val title = bestTitle ?: filename?.let { "Plik (niepotwierdzony): $it" }
+            ?: "Film #${index + 1}"
         VideoTileItem(found.minOf { it.id }, variants.first(), title, variants.size)
     }
-
-
+}
 
 /** Local filename is optional unverified context, never a trusted film title. */
 internal fun friendlyFileName(url: String): String? {
-    val raw = try { URI(url).path?.substringAfterLast('/') } catch (_: Exception) { null }
-    val part = raw?.substringBeforeLast('.', raw)?.let(MediaTitleResolver::normalizeText)
-        ?.replace(Regex("[_-]+"), " ")?.trim() ?: return null
-    if (part.length !in 3..65 || !part.any { it.isLetter() } ||
-        part.lowercase(Locale.ROOT) in setOf("video", "master", "playlist", "index", "stream", "watch", "download", "manifest")) return null
+    val raw = try { URI(url).rawPath?.substringAfterLast('/') } catch (_: Exception) { null }
+    val stem = raw?.substringBeforeLast('.', raw)?.let(MediaTitleResolver::normalizeText) ?: return null
+    // Reject hashes, UUIDs and long opaque tokens before replacing separators.
+    if (Regex("[a-f0-9]{12,}", RegexOption.IGNORE_CASE).matches(stem) ||
+        Regex("[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}", RegexOption.IGNORE_CASE).matches(stem) ||
+        Regex("[A-Za-z0-9]{20,}").matches(stem)) return null
+    val part = stem.replace(Regex("[_-]+"), " ").trim()
+    val technical = Regex(
+        "(?:(?:video|master|playlist|index|stream|watch|download|manifest|chunklist|prog|hls|dash|" +
+            "hd|sd|uhd|[0-9]+p?|[0-9]+(?:kbps|mbps)|[va][0-9]+)[ .]*)+",
+        RegexOption.IGNORE_CASE)
+    if (part.length !in 3..65 || !part.any { it.isLetter() } || technical.matches(part)) return null
     return part
 }
