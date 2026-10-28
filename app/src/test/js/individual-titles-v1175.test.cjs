@@ -429,3 +429,36 @@ test("ordinary site navigation links bypass expensive media card matching", () =
   h.scanLinks();
   assert.equal(h.submitted.length, 0);
 });
+
+
+test("v1186 conflicting direct card metadata vs local caption fails closed", () => {
+  const card = new Element("div", { "data-video-title": "Episode 7" }, "video-card");
+  card.add(new Element("h3", {}, "", "Episode 8"));
+  const player = card.add(new Element("video"));
+  assert.equal(videoTitle(player), null);
+  card.children[0].textContent = "Episode 7";
+  assert.equal(videoTitle(player), "Episode 7");
+});
+
+test("v1186 aria-labelledby with two owner-local conflicting IDs is ambiguous", () => {
+  const card = new Element("figure");
+  const first = card.add(new Element("span", {"id": "labelA"}, "", "Film A"));
+  const second = card.add(new Element("span", {"id": "labelB"}, "", "Film B"));
+  const player = card.add(new Element("video", {"aria-labelledby": "labelA labelB"}));
+  const old = ctx.document.getElementById;
+  ctx.document.getElementById = id => id === "labelA" ? first : id === "labelB" ? second : null;
+  try {
+    assert.equal(videoTitle(player), null);
+    second.textContent = "Film A";
+    assert.equal(videoTitle(player), "Film A");
+  } finally {
+    ctx.document.getElementById = old;
+  }
+});
+
+test("v1186 tile title cannot inherit a filename as verified movie name", () => {
+  const panel = fs.readFileSync(path.join(__dirname,
+    "../../main/java/com/prirai/android/nira/media/MediaFloatingUi.kt"), "utf8");
+  assert.match(panel, /val title = bestTitle \?: "Film #\$\{index \+ 1\}"/);
+  assert.doesNotMatch(panel, /bestTitle \?: variants\.firstNotNullOfOrNull/);
+});

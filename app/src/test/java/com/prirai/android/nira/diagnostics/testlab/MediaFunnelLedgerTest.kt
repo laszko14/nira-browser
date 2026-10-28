@@ -29,6 +29,9 @@ class MediaFunnelLedgerTest {
         assertEquals(2L,snapshot.stages[MediaFunnelStage.CANDIDATE])
         assertEquals(1L,snapshot.stages[MediaFunnelStage.DISCOVERED])
         assertEquals(1L,snapshot.stages[MediaFunnelStage.ASSOCIATED])
+        assertEquals(1L,snapshot.stages[MediaFunnelStage.LABEL_PRESENT])
+        assertEquals(1L,snapshot.stages[MediaFunnelStage.NATIVE_ACCEPTED])
+        assertEquals(1L,snapshot.stages[MediaFunnelStage.TILE_SNAPSHOT_ASSOCIATED])
         assertEquals(0L,snapshot.stages[MediaFunnelStage.VERIFIED])
         assertEquals(1L,snapshot.stages[MediaFunnelStage.STORED])
         assertEquals(1L,snapshot.stages[MediaFunnelStage.DISPLAYED])
@@ -44,6 +47,8 @@ class MediaFunnelLedgerTest {
         funnel.navigation(normal)
         funnel.observe(normal,media(7))
         assertEquals(3L,funnel.snapshot().stages[MediaFunnelStage.DISCOVERED])
+        assertEquals(3L,funnel.snapshot().stages[MediaFunnelStage.NATIVE_ACCEPTED])
+        assertEquals(0L,funnel.snapshot().stages[MediaFunnelStage.TILE_SNAPSHOT_ASSOCIATED])
     }
 
     @Test fun conflictsAndUnknownsAreCountersWithoutRawMediaData() {

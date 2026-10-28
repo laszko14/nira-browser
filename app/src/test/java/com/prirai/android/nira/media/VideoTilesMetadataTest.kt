@@ -22,16 +22,20 @@ class VideoTilesMetadataTest {
         assertEquals("2,0 MB", sizeText(entry(MediaFormat.MP4, 2_000_000)))
     }
 
-    @Test fun qualityFallsBackOnlyToObservedResolution() {
+    @Test fun currentQualityRequiresPlaybackConfirmationRatherThanManifestDimensions() {
         val base = entry(MediaFormat.HLS, null)
         assertNull(qualityText(base))
-        val measured = MediaEntry(1, "https://fixture.invalid/video.m3u8",
+        val advertised = MediaEntry(1, "https://fixture.invalid/video.m3u8",
             MediaFormat.HLS, setOf(MediaSource.DOM), width = 1280, height = 720)
-        assertEquals("720p", qualityText(measured))
-        val labelled = MediaEntry(2, "https://fixture.invalid/video.m3u8",
+        assertNull(qualityText(advertised))
+        val unconfirmed = MediaEntry(2, "https://fixture.invalid/video.m3u8",
             MediaFormat.HLS, setOf(MediaSource.NETWORK),
             quality = "Auto", width = 1920, height = 1080)
-        assertEquals("Auto", qualityText(labelled))
+        assertNull(qualityText(unconfirmed))
+        val confirmed = MediaEntry(3, "https://fixture.invalid/video.mp4",
+            MediaFormat.MP4, setOf(MediaSource.DOM), quality = "720p",
+            playbackStatus = MediaPlaybackStatus.CONFIRMED)
+        assertEquals("720p", qualityText(confirmed))
     }
 
     @Test fun durationUsesRealBoundedMetadata() {

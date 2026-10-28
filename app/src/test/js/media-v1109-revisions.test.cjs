@@ -107,10 +107,13 @@ test("inspected HLS children are marked derived and never inherit master query",
   await d.start();
   d.response("https://cdn.test/master.m3u8?token=old", "old");
   await tick(); await tick();
-  assert.equal(d.routed.length, 2);
+  assert.equal(d.routed.length, 3);
   assert.equal(d.routed[0].provenance, "observed");
-  assert.equal(d.routed[1].provenance, "derived");
-  assert.equal(d.routed[1].url, "https://cdn.test/final/index.m3u8");
+  // Verified master metadata now updates the same URL, not a fabricated child.
+  assert.equal(d.routed[1].url, "https://cdn.test/master.m3u8?token=old");
+  assert.equal(d.routed[1].verification, "manifest_verified");
+  assert.equal(d.routed[2].provenance, "derived");
+  assert.equal(d.routed[2].url, "https://cdn.test/final/index.m3u8");
 });
 
 test("DASH MPD does not emit BaseURL child as a fake video", async () => {

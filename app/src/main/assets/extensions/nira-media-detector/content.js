@@ -21,6 +21,19 @@
   // Bounded slices, not a permanent cutoff at the first N nodes.
   const SLICE_MS = 4, MAX_JOBS = 64, MAX_ROOTS = 32;
   const seen = new Map(), groups = new WeakMap();
+  // Shadow-only owner evidence. URLs never enter diagnostics or protocol v1.
+  let ownerGenerations = new WeakMap(), nextLocalElementId = 0;
+  function observeOwnerGeneration(element, signature) {
+    if (!element || typeof signature !== "string") return;
+    const old = ownerGenerations.get(element);
+    if (!old) {
+      ownerGenerations.set(element, { id: ++nextLocalElementId, generation: 0, signature });
+    } else if (old.signature !== signature) {
+      old.signature = signature;
+      old.generation++;
+      note("owner_generation_changed"); // anonymous event count only
+    }
+  }
   let structuredGroups = new WeakMap();
   let nextGroup = 0;
   const opaqueFrameVersions = new WeakMap();
@@ -42,7 +55,8 @@
     cancelNativeQueue();
     context = null;
     registering = null;
-    seen.clear(); structuredGroups = new WeakMap(); offers = 0; playObserved = false; stats.clear();
+    seen.clear(); structuredGroups = new WeakMap(); ownerGenerations = new WeakMap();
+    nextLocalElementId = 0; offers = 0; playObserved = false; stats.clear();
     if (statsTimer !== null) clearTimeout(statsTimer);
     statsTimer = null;
     jobs.length = 0; pendingRoots.clear(); pendingRoots.add(document);
@@ -146,6 +160,7 @@
         if (message.kind === "history") note("spa_navigation");
         navigationEpoch++; cancelNativeQueue(); context = null; registering = null;
         seen.clear(); jobs.length = 0; pendingRoots.clear();
+        ownerGenerations = new WeakMap(); nextLocalElementId = 0;
         scriptVersions = new WeakSet(); structuredVersions = new WeakSet();
         scheduleScan();
       }
@@ -279,14 +294,17 @@
     const players = card.querySelectorAll("video,iframe");
     if (players.length !== 1 || (players[0] !== element &&
         !(players[0].contains && players[0].contains(element)))) return null;
+    const labels = new Set();
     for (const id of ids.trim().split(/\s+/).slice(0, 3)) {
       if (!/^[A-Za-z][\w:.-]{0,79}$/.test(id)) continue;
       const labelled = document.getElementById(id);
       if (!labelled || labelled === element || !card.contains(labelled)) continue;
       const title = mediaTitleHint(labelled.textContent);
-      if (title) return title;
+      if (title) labels.add(title);
+      // Multiple distinct owner-local labels must not choose one arbitrarily.
+      if (labels.size > 1) return null;
     }
-    return null;
+    return labels.size === 1 ? labels.values().next().value : null;
   }
   // Keep the search local to a verified single-media owner. CSS presentation
   // captions (e.g. .video-title) are often siblings of the player, not h1-h4.
@@ -294,14 +312,15 @@
   function cardTitle(card) {
     const direct = mediaTitleHint(attribute(card, "data-video-title") ||
       attribute(card, "data-title"));
-    if (direct) return direct;
+    const found = new Set();
+    if (direct) found.add(direct);
     const targets = card.querySelectorAll(
       'figcaption,[itemprop="name"],[data-video-title],[data-title],.video-title,' +
       '.video-name,.media-title,.media-name,.card-title,.video-caption,' +
       'h1,h2,h3,h4');
     // Work boundedly, and fail closed on distinct same-owner captions.
     // Never treat a heading that wraps the actual player as its media title.
-    const found = new Set();
+    // A conflicting data-title vs visible caption is ambiguous, not a priority winner.
     for (let i = 0; i < Math.min(targets.length, 16); i++) {
       const element = targets[i];
       if (element.querySelector && element.querySelector("video,iframe")) continue;
@@ -590,10 +609,16 @@
     const playing = video.paused === false;
     const preferred = video.currentSrc || video.src;
     if (!preferred) note("no_source");
+    // Read source declarations once per inspect and bound the work at 16.
+    const sources = typeof video.querySelectorAll === "function" ?
+      Array.from(video.querySelectorAll("source")).slice(0, 16) : [];
+    const signature = [preferred || "", video.src || "",
+      ...sources.map(item => item.src || attribute(item, "data-src") || "")].join("\u0000");
+    observeOwnerGeneration(video, signature);
     let mime = attribute(video, "type");
-    if (typeof video.querySelectorAll === "function") {
-      for (const item of video.querySelectorAll("source")) {
-        if ((item.src || attribute(item, "data-src")) === preferred && item.type) { mime = item.type; break; }
+    for (const item of sources) {
+      if ((item.src || attribute(item, "data-src")) === preferred && item.type) {
+        mime = item.type; break;
       }
     }
     const title = videoTitle(video);
@@ -611,15 +636,11 @@
       submit(video.src, "page", null, group, title, title ? kind : null, seconds,
         poster, null, posterKind);
     // Each declared source matters, even before currentSrc becomes available.
-    if (typeof video.querySelectorAll === "function") {
-      let n = 0;
-      for (const item of video.querySelectorAll("source")) {
-        if (++n > 16) break;
-        const declared = item.src || attribute(item, "data-src");
-        if (declared && declared !== preferred)
-          submit(declared, "page", item.type || null, group,
-            title, title ? kind : null, seconds, poster, null, posterKind);
-      }
+    for (const item of sources) {
+      const declared = item.src || attribute(item, "data-src");
+      if (declared && declared !== preferred)
+        submit(declared, "page", item.type || null, group,
+          title, title ? kind : null, seconds, poster, null, posterKind);
     }
   }
 

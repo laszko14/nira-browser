@@ -311,10 +311,15 @@ test("v1107: a bounded HLS manifest emits grouped playable variants without segm
   b.probe(response("https://site.example/master.m3u8?sig=a", "application/vnd.apple.mpegurl"));
   await tick(); await tick(); await tick();
   assert.equal(fetches, 1);
-  assert.equal(b.routed.length, 3);
+  assert.equal(b.routed.length, 4);
   assert.equal(b.routed[0][1].url, "https://site.example/master.m3u8?sig=a");
-  assert.deepEqual(b.routed.slice(1).map(x => x[1].quality), ["1080p", "480p"]);
-  assert.equal(b.routed[1][1].url, "https://redirected.example/media/1080/index.m3u8");
+  // A verified HLS master updates the same exact playable URL with available choices.
+  assert.equal(b.routed[1][1].url, "https://site.example/master.m3u8?sig=a");
+  assert.equal(b.routed[1][1].verification, "manifest_verified");
+  assert.equal(b.routed[1][1].availableQualities, "1080p,480p");
+  assert.deepEqual(b.routed.slice(2).map(x => x[1].height), [1080, 480]);
+  assert.ok(b.routed.every(x => x[1].quality === undefined));
+  assert.equal(b.routed[2][1].url, "https://redirected.example/media/1080/index.m3u8");
   assert.equal(new Set(b.routed.map(x => x[1].groupId)).size, 1);
 });
 

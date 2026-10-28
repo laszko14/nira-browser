@@ -371,12 +371,16 @@ internal fun mediaTileItems(entries: List<MediaEntry>): List<VideoTileItem> =
             .thenByDescending { MediaSource.DOM in it.sources })
         // Same resolver decides both record-level conflicts and grouped variants.
         val bestTitle = MediaTitleResolver.selectGroup(variants, entries.size == 1).text
-        val title = bestTitle ?: variants.firstNotNullOfOrNull { friendlyFileName(it.url) }
-            ?: "Film ${index + 1}"
+        // Filenames are not verified movie titles. Keep the tile neutral until
+        // an owner-bound title is proven, including master.m3u8 and episode-like paths.
+        val title = bestTitle ?: "Film #${index + 1}"
         VideoTileItem(found.minOf { it.id }, variants.first(), title, variants.size)
     }
 
-private fun friendlyFileName(url: String): String? {
+
+
+/** Local filename is optional unverified context, never a trusted film title. */
+internal fun friendlyFileName(url: String): String? {
     val raw = try { URI(url).path?.substringAfterLast('/') } catch (_: Exception) { null }
     val part = raw?.substringBeforeLast('.', raw)?.let(MediaTitleResolver::normalizeText)
         ?.replace(Regex("[_-]+"), " ")?.trim() ?: return null
@@ -384,4 +388,3 @@ private fun friendlyFileName(url: String): String? {
         part.lowercase(Locale.ROOT) in setOf("video", "master", "playlist", "index", "stream", "watch", "download", "manifest")) return null
     return part
 }
-

@@ -37,10 +37,13 @@ globalThis.NiraManifestParser = (() => {
     const variants = [], audioTracks = [], subtitleTracks = [], trickplayTracks = [];
     let seconds = 0, firstSegmentUrl = null, drm = false, endList = false, segments = 0;
     let rangedSegments = 0, rangeBytes = 0, hasInitialization = false;
+    let rangedMediaSegments = 0, validMediaSegments = 0, malformedSegments = false;
+    let malformedRanges = false, encryptedSegments = false;
     for (let index = 0; index < lines.length; index++) {
       const line = lines[index];
       if (/^#EXT-X-(?:SESSION-)?KEY:/.test(line)) {
         const key = attributes(line.slice(line.indexOf(":") + 1));
+        if (key.METHOD && key.METHOD !== "NONE") encryptedSegments = true;
         if (key.METHOD && key.METHOD !== "NONE" &&
             (key.METHOD !== "AES-128" || key.KEYFORMAT && key.KEYFORMAT !== "identity")) drm = true;
       }
@@ -48,17 +51,30 @@ globalThis.NiraManifestParser = (() => {
       if (line.startsWith("#EXT-X-MAP:")) hasInitialization = true;
       if (line.startsWith("#EXT-X-BYTERANGE:")) {
         const match = /^#EXT-X-BYTERANGE:(\d+)(?:@\d+)?$/.exec(line);
-        if (match && Number.isSafeInteger(Number(match[1]))) {
+        if (match && Number.isSafeInteger(Number(match[1])) && Number(match[1]) > 0 &&
+            Number.isSafeInteger(rangeBytes + Number(match[1]))) {
           rangedSegments++;
           rangeBytes += Number(match[1]);
-        }
+        } else malformedRanges = true;
       }
       if (line.startsWith("#EXTINF:")) {
         const value = Number(line.slice(8).split(",")[0]);
         if (Number.isFinite(value) && value > 0) { seconds += value; segments++; }
         let next = index + 1;
-        while (next < lines.length && (!lines[next] || lines[next].startsWith("#"))) next++;
-        if (!firstSegmentUrl && next < lines.length) firstSegmentUrl = url(lines[next], base);
+        let perSegmentRanges = 0;
+        while (next < lines.length && (!lines[next] || lines[next].startsWith("#"))) {
+          if (lines[next].startsWith("#EXT-X-BYTERANGE:")) perSegmentRanges++;
+          if (lines[next].startsWith("#EXTINF:") || lines[next] === "#EXT-X-ENDLIST") break;
+          next++;
+        }
+        const segment = next < lines.length && !lines[next].startsWith("#") ?
+          url(lines[next], base) : null;
+        if (segment) {
+          validMediaSegments++;
+          if (perSegmentRanges === 1) rangedMediaSegments++;
+          else if (perSegmentRanges > 1) malformedRanges = true;
+          if (!firstSegmentUrl) firstSegmentUrl = segment;
+        } else malformedSegments = true;
       }
       if (line.startsWith("#EXT-X-MEDIA:")) {
         const data = attributes(line.slice(13));
@@ -68,6 +84,7 @@ globalThis.NiraManifestParser = (() => {
         if (target && resolved && target.length < limit) target.push({
           url: resolved, language: data.LANGUAGE || null, name: data.NAME || null,
           group: data["GROUP-ID"] || null,
+          role: target === audioTracks ? "audio" : "subtitle",
         });
       }
       if (line.startsWith("#EXT-X-I-FRAME-STREAM-INF:") && trickplayTracks.length < limit) {
@@ -107,6 +124,8 @@ globalThis.NiraManifestParser = (() => {
       // Exact only for a complete single-rendition VOD in which EVERY segment
       // has an explicit byte range and no unknown initialization segment.
       exactSizeBytes: media && endList && segments > 0 && rangedSegments === segments &&
+        rangedMediaSegments === segments && validMediaSegments === segments &&
+        !malformedSegments && !malformedRanges && !encryptedSegments &&
         !hasInitialization && Number.isSafeInteger(rangeBytes) && rangeBytes > 0 &&
         rangeBytes <= 1000000000000 ? rangeBytes : null,
       firstSegmentUrl };

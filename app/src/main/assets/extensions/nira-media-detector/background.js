@@ -132,8 +132,12 @@ function contentSize(details, format) {
   if (details.statusCode === 200) value = get("content-length");
   else if (details.statusCode === 206) {
     const range = get("content-range");
-    const match = range && /^bytes\s+\d+-\d+\/(\d+)$/i.exec(range);
-    if (match) value = match[1];
+    const match = range && /^bytes\s+(\d+)-(\d+)\/(\d+)$/i.exec(range);
+    if (match) {
+      const start = Number(match[1]), end = Number(match[2]), total = Number(match[3]);
+      if (Number.isSafeInteger(start) && Number.isSafeInteger(end) &&
+          Number.isSafeInteger(total) && start <= end && end < total) value = match[3];
+    }
   }
   if (!value || !/^\d{1,13}$/.test(value)) return null;
   const bytes = Number(value);
@@ -818,10 +822,8 @@ async function inspectManifest(task) {
       const only = parsed.variants[0];
       if (Number.isSafeInteger(only.width) && only.width > 0 && only.width <= 16384)
         verified.width = only.width;
-      if (Number.isSafeInteger(only.height) && only.height > 0 && only.height <= 8640) {
-        verified.height = only.height;
-        verified.quality = only.height + "p";
-      }
+      if (Number.isSafeInteger(only.height) && only.height > 0 && only.height <= 8640)
+        verified.height = only.height; // advertised resolution, not active quality
       if (Number.isFinite(only.frameRate) && only.frameRate > 0 && only.frameRate <= 240)
         verified.frameRate = only.frameRate;
       if (typeof only.codecs === "string" && only.codecs.length <= 160)
@@ -853,8 +855,9 @@ async function inspectManifest(task) {
       return;
     }
     discovery("manifest_valid", task.isPrivate);
-    // A validated MPD/master is still NEEDS_VERIFICATION, never stream-confirmed.
-    if (task.format === "DASH")
+    // Send bounded manifest-advertised choices to the same verified document.
+    // Neither a DASH MPD nor an HLS master establishes the current Play quality.
+    if (task.format === "DASH" || (task.format === "HLS" && parsed.kind === "master"))
       await browser.tabs.sendMessage(task.tabId, verified, { frameId: 0 });
     if (task.format === "HLS" && parsed.kind === "media" && safeUrl(parsed.firstSegmentUrl)) {
       await browser.tabs.sendMessage(task.tabId, verified, { frameId: 0 });
@@ -899,8 +902,7 @@ async function inspectManifest(task) {
       if (Number.isSafeInteger(variant.width) && variant.width > 0 && variant.width <= 16384)
         message.width = variant.width;
       if (Number.isSafeInteger(variant.height) && variant.height > 0 && variant.height <= 8640) {
-        message.height = variant.height;
-        message.quality = variant.height + "p";
+        message.height = variant.height; // rendition property, not active Play quality
       }
       if (Number.isFinite(variant.frameRate) && variant.frameRate > 0 && variant.frameRate <= 240)
         message.frameRate = variant.frameRate;
