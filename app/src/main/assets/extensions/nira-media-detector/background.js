@@ -372,6 +372,7 @@ function validDom(message, sender) {
   if ("titleKind" in message) permitted.push("titleKind");
   if ("durationSeconds" in message) permitted.push("durationSeconds");
   if ("posterUrl" in message) permitted.push("posterUrl");
+  if ("posterKind" in message) permitted.push("posterKind");
   if ("width" in message) permitted.push("width");
   if ("height" in message) permitted.push("height");
   if (keys !== permitted.sort().join(",") ||
@@ -382,6 +383,8 @@ function validDom(message, sender) {
       ("titleKind" in message && !["player", "structured", "video", "link", "page"].includes(message.titleKind)) ||
       ("durationSeconds" in message && !validSeconds(message.durationSeconds)) ||
       ("posterUrl" in message && !safeUrl(message.posterUrl)) ||
+      ("posterKind" in message && (!("posterUrl" in message) ||
+        !["element", "card", "player", "structured"].includes(message.posterKind))) ||
       ("width" in message && (!Number.isSafeInteger(message.width) ||
         message.width < 1 || message.width > 16384)) ||
       ("height" in message && (!Number.isSafeInteger(message.height) ||
