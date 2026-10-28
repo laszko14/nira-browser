@@ -385,8 +385,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     }
 
     override fun onDestroyView() {
-        // Embedded fragment views must be released before removing their host.
-        sidePanelInfrastructure?.unmountLeftContent(childFragmentManager, allowStateLoss = true)
+        // During parent view teardown, let FragmentManager own child view destruction.
+        sidePanelInfrastructure?.releaseLeftContentBinding(childFragmentManager)
         legacyEdgePanelListener?.let(binding.gestureLayout::removeGestureListener)
         legacyEdgePanelListener = null
         sidePanelInfrastructure?.dispose()

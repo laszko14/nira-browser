@@ -66,15 +66,21 @@ internal class SidePanelInfrastructure private constructor(
         return tabs.view?.parent === host.leftContainer
     }
 
-    /** Remove embedded content on close/teardown; never touches the legacy dialog. */
-    fun unmountLeftContent(fragmentManager: FragmentManager, allowStateLoss: Boolean = false): Boolean {
+    /** Called during parent view teardown, when synchronous fragment transactions are unsafe. */
+    fun releaseLeftContentBinding(fragmentManager: FragmentManager) {
+        deactivate(SidePanelSide.LEFT)
+        (fragmentManager.findFragmentByTag(LEFT_CONTENT_TAG) as? TabsBottomSheetFragment)
+            ?.clearEmbeddedSidePanelCallbacks()
+    }
+
+    /** Explicit user close, outside FragmentManager's lifecycle dispatch. */
+    fun unmountLeftContent(fragmentManager: FragmentManager): Boolean {
         val tabs = fragmentManager.findFragmentByTag(LEFT_CONTENT_TAG)
             as? TabsBottomSheetFragment ?: return false
-        if (fragmentManager.isStateSaved && !allowStateLoss) return false
+        if (fragmentManager.isStateSaved) return false
         deactivate(SidePanelSide.LEFT)
         tabs.clearEmbeddedSidePanelCallbacks()
-        val tx = fragmentManager.beginTransaction().remove(tabs)
-        if (allowStateLoss) tx.commitNowAllowingStateLoss() else tx.commitNow()
+        fragmentManager.beginTransaction().remove(tabs).commitNow()
         return true
     }
 
