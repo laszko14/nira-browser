@@ -279,14 +279,17 @@
     const players = card.querySelectorAll("video,iframe");
     if (players.length !== 1 || (players[0] !== element &&
         !(players[0].contains && players[0].contains(element)))) return null;
+    const labels = new Set();
     for (const id of ids.trim().split(/\s+/).slice(0, 3)) {
       if (!/^[A-Za-z][\w:.-]{0,79}$/.test(id)) continue;
       const labelled = document.getElementById(id);
       if (!labelled || labelled === element || !card.contains(labelled)) continue;
       const title = mediaTitleHint(labelled.textContent);
-      if (title) return title;
+      if (title) labels.add(title);
+      // Multiple distinct owner-local labels must not choose one arbitrarily.
+      if (labels.size > 1) return null;
     }
-    return null;
+    return labels.size === 1 ? labels.values().next().value : null;
   }
   // Keep the search local to a verified single-media owner. CSS presentation
   // captions (e.g. .video-title) are often siblings of the player, not h1-h4.
@@ -294,14 +297,15 @@
   function cardTitle(card) {
     const direct = mediaTitleHint(attribute(card, "data-video-title") ||
       attribute(card, "data-title"));
-    if (direct) return direct;
+    const found = new Set();
+    if (direct) found.add(direct);
     const targets = card.querySelectorAll(
       'figcaption,[itemprop="name"],[data-video-title],[data-title],.video-title,' +
       '.video-name,.media-title,.media-name,.card-title,.video-caption,' +
       'h1,h2,h3,h4');
     // Work boundedly, and fail closed on distinct same-owner captions.
     // Never treat a heading that wraps the actual player as its media title.
-    const found = new Set();
+    // A conflicting data-title vs visible caption is ambiguous, not a priority winner.
     for (let i = 0; i < Math.min(targets.length, 16); i++) {
       const element = targets[i];
       if (element.querySelector && element.querySelector("video,iframe")) continue;
