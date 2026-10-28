@@ -6,6 +6,7 @@ import android.util.AttributeSet
 import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
+import com.prirai.android.nira.R
 
 /**
  * Inert until attached by the browser in a later stage. Existing dialog panels are untouched.
@@ -25,11 +26,11 @@ internal class SidePanelHost @JvmOverloads constructor(
     }
 
     val leftContainer: FrameLayout = FrameLayout(context).apply {
-        id = View.generateViewId()
+        id = R.id.nira_embedded_side_tabs
         visibility = View.GONE
     }
     val rightContainer: FrameLayout = FrameLayout(context).apply {
-        id = View.generateViewId()
+        id = R.id.nira_embedded_side_bookmarks
         visibility = View.GONE
     }
 

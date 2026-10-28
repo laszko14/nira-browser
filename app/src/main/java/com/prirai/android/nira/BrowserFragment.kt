@@ -62,6 +62,10 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     private val windowFeature = ViewBoundFeatureWrapper<WindowFeature>()
     private var mediaFloatingUi: MediaFloatingUi? = null
     private var sidePanelInfrastructure: SidePanelInfrastructure? = null
+
+    /** Lazy content lifecycle hook; called only once the new left drawer is enabled in 3B. */
+    private fun mountEmbeddedSideTabs(): Boolean =
+        sidePanelInfrastructure?.mountLeftContent(childFragmentManager) == true
     private var legacyEdgePanelListener: com.prirai.android.nira.browser.SwipeGestureListener? = null
 
     // Track last tab IDs for auto-grouping detection
@@ -381,6 +385,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     }
 
     override fun onDestroyView() {
+        // Embedded fragment views must be released before removing their host.
+        sidePanelInfrastructure?.unmountLeftContent(childFragmentManager, allowStateLoss = true)
         legacyEdgePanelListener?.let(binding.gestureLayout::removeGestureListener)
         legacyEdgePanelListener = null
         sidePanelInfrastructure?.dispose()

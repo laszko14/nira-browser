@@ -204,6 +204,31 @@ class TabsBottomSheetFragment : DialogFragment() {
     private val menuIsInGroupState = mutableStateOf(false) // Whether selected tab is in a group
 
     private val isSidePanel: Boolean get() = arguments?.getBoolean("nira_side_panel") == true
+    /** Embedded DialogFragment has no Window; all other tab sheets keep their dialog behavior. */
+    private val isEmbeddedSidePanel: Boolean get() = isSidePanel && !showsDialog
+    private var embeddedWidthChanged: ((Int) -> Unit)? = null
+    private var embeddedDismissRequested: (() -> Unit)? = null
+
+    internal fun bindEmbeddedSidePanel(
+        onWidthChanged: (Int) -> Unit,
+        onDismissRequested: () -> Unit
+    ) {
+        check(isEmbeddedSidePanel) { "Only embedded side tabs accept host callbacks" }
+        embeddedWidthChanged = onWidthChanged
+        embeddedDismissRequested = onDismissRequested
+    }
+
+    internal fun clearEmbeddedSidePanelCallbacks() {
+        embeddedWidthChanged = null
+        embeddedDismissRequested = null
+    }
+
+    internal fun embeddedSidePanelWidth(): Int = sidePanelWidth()
+
+    private fun applySidePanelWidth(width: Int) {
+        if (isEmbeddedSidePanel) embeddedWidthChanged?.invoke(width)
+        else dialog?.window?.setLayout(width, ViewGroup.LayoutParams.MATCH_PARENT)
+    }
     private var isInitializing = true
     private val isGridViewState = mutableStateOf(false)
     private var isGridView: Boolean
@@ -257,6 +282,8 @@ class TabsBottomSheetFragment : DialogFragment() {
         fun newSidePanel() = TabsBottomSheetFragment().apply {
             arguments = Bundle().apply { putBoolean("nira_side_panel", true) }
         }
+        /** Reuses all the existing side-panel Compose, profiles and drag/drop UI. */
+        fun newEmbeddedSidePanel() = newSidePanel().apply { setShowsDialog(false) }
     }
 
     override fun onCreateView(
@@ -346,7 +373,14 @@ class TabsBottomSheetFragment : DialogFragment() {
     }
     private val testLabPanel = com.prirai.android.nira.diagnostics.testlab.TestLabPanelProbe(
         com.prirai.android.nira.diagnostics.testlab.PanelSide.LEFT)
-    override fun dismiss() {testLabPanel.closing();super.dismiss()}
+    override fun dismiss() {
+        testLabPanel.closing()
+        if (isEmbeddedSidePanel && embeddedDismissRequested != null) {
+            embeddedDismissRequested?.invoke()
+        } else {
+            super.dismiss()
+        }
+    }
     override fun onCancel(dialog:android.content.DialogInterface) {testLabPanel.cancelled();super.onCancel(dialog)}
     override fun onDismiss(dialog:android.content.DialogInterface) {testLabPanel.dismissed();super.onDismiss(dialog)}
     override fun onStop() {testLabPanel.stop();super.onStop()}
@@ -785,13 +819,14 @@ class TabsBottomSheetFragment : DialogFragment() {
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
         if (isSidePanel) {
-            dialog?.window?.setLayout(sidePanelWidth(), ViewGroup.LayoutParams.MATCH_PARENT)
-            binding.dragHandle.visibility = if (newConfig.orientation ==
+            applySidePanelWidth(sidePanelWidth())
+            _binding?.dragHandle?.visibility = if (newConfig.orientation ==
                 android.content.res.Configuration.ORIENTATION_LANDSCAPE) View.VISIBLE else View.GONE
         }
     }
 
     override fun onDestroyView() {
+        clearEmbeddedSidePanelCallbacks()
         finishTestLabDrag(OperationOutcome.INTERRUPTED)
         testLabResize?.let{it.first.end(it.second,OperationOutcome.INTERRUPTED)};testLabResize=null
         super.onDestroyView()
@@ -1228,7 +1263,11 @@ class TabsBottomSheetFragment : DialogFragment() {
                     val capture=TestLab.capture();val op=capture?.operation(LabOperation.PANEL_RESIZE)
                     testLabResize=if(capture!=null&&op!=null)capture to op else null
                     downX = event.rawX
-                    initialWidth = dialog?.window?.attributes?.width?.takeIf { it > 0 } ?: sidePanelWidth()
+                    initialWidth = if (isEmbeddedSidePanel) {
+                        binding.root.width.takeIf { it > 0 } ?: sidePanelWidth()
+                    } else {
+                        dialog?.window?.attributes?.width?.takeIf { it > 0 } ?: sidePanelWidth()
+                    }
                     true
                 }
                 android.view.MotionEvent.ACTION_MOVE, android.view.MotionEvent.ACTION_UP -> {
@@ -1237,12 +1276,18 @@ class TabsBottomSheetFragment : DialogFragment() {
                     val min = (220 * density).toInt().coerceAtMost(screenWidth)
                     val max = (screenWidth - 48 * density).toInt().coerceAtLeast(min)
                     val desired = (initialWidth + event.rawX - downX).toInt().coerceIn(min, max)
-                    dialog?.window?.setLayout(desired, ViewGroup.LayoutParams.MATCH_PARENT)
+                    applySidePanelWidth(desired)
                     if (event.actionMasked == android.view.MotionEvent.ACTION_UP) {
                         val measurement=testLabResize;testLabResize=null
                         if(desired==initialWidth)measurement?.let{it.first.end(it.second,OperationOutcome.CANCELLED)}
-                        else if(measurement!=null)dialog?.window?.decorView?.let{decor->
-                            androidx.core.view.OneShotPreDrawListener.add(decor){measurement?.let{it.first.end(it.second,proof=CompletionProof.FIRST_PREDRAW)}}
+                        else if (measurement != null) {
+                            val redrawView = if (isEmbeddedSidePanel) binding.root
+                                else dialog?.window?.decorView
+                            if (redrawView != null) {
+                                androidx.core.view.OneShotPreDrawListener.add(redrawView) {
+                                    measurement.let { it.first.end(it.second, proof = CompletionProof.FIRST_PREDRAW) }
+                                }
+                            } else measurement.let { it.first.end(it.second, OperationOutcome.INTERRUPTED) }
                         }
                         val key = if (resources.configuration.orientation ==
                             android.content.res.Configuration.ORIENTATION_LANDSCAPE) "width_landscape" else "width_portrait"

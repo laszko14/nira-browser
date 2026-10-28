@@ -7,6 +7,8 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import com.prirai.android.nira.browser.SwipeGestureLayout
 import com.prirai.android.nira.browser.SwipeGestureListener
+import com.prirai.android.nira.browser.tabs.TabsBottomSheetFragment
+import androidx.fragment.app.FragmentManager
 import kotlin.math.abs
 
 /**
@@ -31,6 +33,50 @@ internal class SidePanelInfrastructure private constructor(
     private var swipeOwner: SidePanelSide? = null
     private var totalX = 0f
     private var disposed = false
+
+    /**
+     * On-demand content mount only. Do NOT call from browser initialization:
+     * doing so would instantiate a second tab list alongside the legacy sheet.
+     * Stage 3B invokes this before activating the left gesture.
+     */
+    fun mountLeftContent(fragmentManager: FragmentManager): Boolean {
+        if (disposed || fragmentManager.isStateSaved) return false
+        val found = fragmentManager.findFragmentByTag(LEFT_CONTENT_TAG)
+        val tabs = when (found) {
+            null -> TabsBottomSheetFragment.newEmbeddedSidePanel()
+            is TabsBottomSheetFragment -> found
+            else -> return false
+        }
+        if (found != null && tabs.id != host.leftContainer.id) return false
+
+        // A restored instance may have lost non-parcelable callbacks.
+        tabs.bindEmbeddedSidePanel(
+            onWidthChanged = { width ->
+                if (!disposed) host.setPanelWidth(SidePanelSide.LEFT, width)
+            },
+            onDismissRequested = { unmountLeftContent(fragmentManager) }
+        )
+        host.setPanelWidth(SidePanelSide.LEFT, tabs.embeddedSidePanelWidth())
+        if (found == null) {
+            fragmentManager.beginTransaction()
+                .add(host.leftContainer.id, tabs, LEFT_CONTENT_TAG)
+                .commitNow()
+        }
+        // The overlay remains GONE, and no activate(LEFT) is called in stage 3A.
+        return tabs.view?.parent === host.leftContainer
+    }
+
+    /** Remove embedded content on close/teardown; never touches the legacy dialog. */
+    fun unmountLeftContent(fragmentManager: FragmentManager, allowStateLoss: Boolean = false): Boolean {
+        val tabs = fragmentManager.findFragmentByTag(LEFT_CONTENT_TAG)
+            as? TabsBottomSheetFragment ?: return false
+        if (fragmentManager.isStateSaved && !allowStateLoss) return false
+        deactivate(SidePanelSide.LEFT)
+        tabs.clearEmbeddedSidePanelCallbacks()
+        val tx = fragmentManager.beginTransaction().remove(tabs)
+        if (allowStateLoss) tx.commitNowAllowingStateLoss() else tx.commitNow()
+        return true
+    }
 
     init {
         require(edgeWidthDp > 0)
@@ -151,6 +197,8 @@ internal class SidePanelInfrastructure private constructor(
         if (side == SidePanelSide.LEFT) host.leftContainer else host.rightContainer
 
     companion object {
+        private const val LEFT_CONTENT_TAG = "NiraEmbeddedSideTabs"
+
         fun attach(
             gestures: SwipeGestureLayout,
             edgeWidthDp: Int,
