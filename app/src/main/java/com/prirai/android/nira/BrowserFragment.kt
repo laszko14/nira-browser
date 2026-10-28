@@ -79,6 +79,10 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             width
         )
     }
+    /** Dormant until stage 4B connects the right edge swipe. */
+    private fun mountEmbeddedSideBookmarks(): Boolean =
+        sidePanelInfrastructure?.mountRightContent(childFragmentManager) == true
+
     private var legacyEdgePanelListener: com.prirai.android.nira.browser.SwipeGestureListener? = null
 
     // Track last tab IDs for auto-grouping detection
@@ -403,6 +407,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     override fun onDestroyView() {
         // During parent view teardown, let FragmentManager own child view destruction.
         sidePanelInfrastructure?.releaseLeftContentBinding(childFragmentManager)
+        sidePanelInfrastructure?.releaseRightContentBinding(childFragmentManager)
         legacyEdgePanelListener?.let(binding.gestureLayout::removeGestureListener)
         legacyEdgePanelListener = null
         sidePanelInfrastructure?.dispose()

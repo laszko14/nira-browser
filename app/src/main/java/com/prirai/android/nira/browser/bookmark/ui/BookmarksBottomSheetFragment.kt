@@ -26,6 +26,38 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
     private lateinit var currentFolder: BookmarkFolderItem
     private var isMultiSelectMode = false
 
+    /**
+     * Embedded side bookmarks reuse the existing RecyclerView, folder hierarchy and
+     * menu actions, without a BottomSheetDialog window.
+     */
+    private val isEmbeddedSidePanel: Boolean
+        get() = arguments?.getBoolean(ARG_EMBEDDED_SIDE_PANEL) == true
+    private var embeddedDismissRequested: (() -> Unit)? = null
+    private var embeddedWidthChanged: ((Int) -> Unit)? = null
+
+    internal fun bindEmbeddedSidePanel(
+        onDismissRequested: () -> Unit,
+        onWidthChanged: (Int) -> Unit
+    ) {
+        check(isEmbeddedSidePanel && !showsDialog) { "Only embedded bookmarks accept host callbacks" }
+        embeddedDismissRequested = onDismissRequested
+        embeddedWidthChanged = onWidthChanged
+    }
+
+    internal fun clearEmbeddedSidePanelCallbacks() {
+        embeddedDismissRequested = null
+        embeddedWidthChanged = null
+    }
+
+    internal fun embeddedSidePanelWidth(): Int =
+        (resources.displayMetrics.widthPixels * 0.78f).toInt().coerceAtLeast(1)
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // DialogFragment can recompute showsDialog across configuration/process restore.
+        if (isEmbeddedSidePanel) setShowsDialog(false)
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -41,7 +73,7 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
         // Set bottom sheet to 60% of screen height
         if (arguments?.getBoolean("nira_side_panel") != true) setupBottomSheetHeight()
         
-        setupBookmarkManager()
+        setupBookmarkManager(savedInstanceState)
         setupRecyclerView()
         setupClickListeners()
         loadBookmarks()
@@ -58,7 +90,14 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
     }
     private val testLabPanel = com.prirai.android.nira.diagnostics.testlab.TestLabPanelProbe(
         com.prirai.android.nira.diagnostics.testlab.PanelSide.RIGHT)
-    override fun dismiss() {testLabPanel.closing();super.dismiss()}
+    override fun dismiss() {
+        testLabPanel.closing()
+        if (isEmbeddedSidePanel && embeddedDismissRequested != null) {
+            embeddedDismissRequested?.invoke()
+        } else {
+            super.dismiss()
+        }
+    }
     override fun onCancel(dialog:android.content.DialogInterface) {testLabPanel.cancelled();super.onCancel(dialog)}
     override fun onDismiss(dialog:android.content.DialogInterface) {testLabPanel.dismissed();super.onDismiss(dialog)}
     override fun onStop() {testLabPanel.stop();super.onStop()}
@@ -119,11 +158,12 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
         }
     }
 
-    private fun setupBookmarkManager() {
+    private fun setupBookmarkManager(savedInstanceState: Bundle?) {
         manager = BookmarkManager.getInstance(requireActivity())
         
         // Get folderId from arguments if passed
-        val folderId = arguments?.getLong(ARG_FOLDER_ID, -1L) ?: -1L
+        val folderId = savedInstanceState?.getLong(KEY_CURRENT_FOLDER_ID, -1L)
+            ?: arguments?.getLong(ARG_FOLDER_ID, -1L) ?: -1L
         
         // Find the folder if folderId is valid
         currentFolder = if (folderId != -1L) {
@@ -735,7 +775,18 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
             .show()
     }
 
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (isEmbeddedSidePanel) embeddedWidthChanged?.invoke(embeddedSidePanelWidth())
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        if (::currentFolder.isInitialized) outState.putLong(KEY_CURRENT_FOLDER_ID, currentFolder.id)
+    }
+
     override fun onDestroyView() {
+        clearEmbeddedSidePanelCallbacks()
         _binding?.bookmarksRecyclerView?.removeOnScrollListener(testLabScrollListener)
         testLabScroll.finish(com.prirai.android.nira.diagnostics.testlab.OperationOutcome.INTERRUPTED)
         super.onDestroyView()
@@ -744,9 +795,17 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
 
     companion object {
         private const val ARG_FOLDER_ID = "folder_id"
+        private const val ARG_EMBEDDED_SIDE_PANEL = "nira_embedded_bookmarks"
+        private const val KEY_CURRENT_FOLDER_ID = "nira_bookmark_current_folder"
         
         fun newSidePanel() = newInstance().apply {
             arguments?.putBoolean("nira_side_panel", true)
+        }
+
+        /** Side-mode layout and behavior without creating a BottomSheetDialog. */
+        fun newEmbeddedSidePanel() = newSidePanel().apply {
+            requireNotNull(arguments).putBoolean(ARG_EMBEDDED_SIDE_PANEL, true)
+            setShowsDialog(false)
         }
         fun newInstance(folderId: Long = -1L): BookmarksBottomSheetFragment {
             return BookmarksBottomSheetFragment().apply {

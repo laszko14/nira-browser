@@ -8,6 +8,7 @@ import android.widget.FrameLayout
 import com.prirai.android.nira.browser.SwipeGestureLayout
 import com.prirai.android.nira.browser.SwipeGestureListener
 import com.prirai.android.nira.browser.tabs.TabsBottomSheetFragment
+import com.prirai.android.nira.browser.bookmark.ui.BookmarksBottomSheetFragment
 import androidx.fragment.app.FragmentManager
 import kotlin.math.abs
 
@@ -35,6 +36,7 @@ internal class SidePanelInfrastructure private constructor(
     private var skipFirstUpdate = false
     private var disposed = false
     private var leftFragmentManager: FragmentManager? = null
+    private var rightFragmentManager: FragmentManager? = null
     private var leftWasVisible = false
     private var childInteractionInProgress = false
 
@@ -102,6 +104,66 @@ internal class SidePanelInfrastructure private constructor(
         leftFragmentManager = fragmentManager
         // Mounting content alone does not activate the swipe handler.
         return tabs.view?.parent === host.leftContainer
+    }
+
+    /**
+     * Stage 4A: mounts bookmark content only on explicit request. Stage 4B
+     * enables right edge gestures; the legacy bookmarks dialog is still active.
+     */
+    fun mountRightContent(fragmentManager: FragmentManager): Boolean {
+        if (disposed || fragmentManager.isStateSaved || fragmentManager.isDestroyed) return false
+        val found = fragmentManager.findFragmentByTag(RIGHT_CONTENT_TAG)
+        val bookmarks = when (found) {
+            null -> BookmarksBottomSheetFragment.newEmbeddedSidePanel()
+            is BookmarksBottomSheetFragment -> found
+            else -> return false
+        }
+        if (found != null && bookmarks.id != host.rightContainer.id) return false
+
+        bookmarks.bindEmbeddedSidePanel(
+            onDismissRequested = {
+                // A row callback can still be dispatching when dismiss() is called.
+                gestures.post { if (!disposed) requestRightClose() }
+            },
+            onWidthChanged = { width ->
+                if (!disposed) host.setPanelWidth(SidePanelSide.RIGHT, width)
+            }
+        )
+        host.setPanelWidth(SidePanelSide.RIGHT, bookmarks.embeddedSidePanelWidth())
+        if (found == null) {
+            fragmentManager.beginTransaction()
+                .add(host.rightContainer.id, bookmarks, RIGHT_CONTENT_TAG)
+                .commitNow()
+        }
+        rightFragmentManager = fragmentManager
+        // Content is prepared but no activate(RIGHT) is called at stage 4A.
+        return bookmarks.view?.parent === host.rightContainer
+    }
+
+    private fun requestRightClose(): Boolean {
+        if (disposed) return false
+        if (controller.snapshot.side == SidePanelSide.RIGHT) return closeOnBack()
+        val manager = rightFragmentManager ?: return false
+        return unmountRightContent(manager)
+    }
+
+    /** Called by the browser view lifecycle; avoids child transactions in teardown. */
+    fun releaseRightContentBinding(fragmentManager: FragmentManager) {
+        rightFragmentManager = null
+        deactivate(SidePanelSide.RIGHT)
+        (fragmentManager.findFragmentByTag(RIGHT_CONTENT_TAG) as? BookmarksBottomSheetFragment)
+            ?.clearEmbeddedSidePanelCallbacks()
+    }
+
+    fun unmountRightContent(fragmentManager: FragmentManager): Boolean {
+        val bookmarks = fragmentManager.findFragmentByTag(RIGHT_CONTENT_TAG)
+            as? BookmarksBottomSheetFragment ?: return false
+        if (fragmentManager.isStateSaved || fragmentManager.isDestroyed) return false
+        if (rightFragmentManager === fragmentManager) rightFragmentManager = null
+        deactivate(SidePanelSide.RIGHT)
+        bookmarks.clearEmbeddedSidePanelCallbacks()
+        fragmentManager.beginTransaction().remove(bookmarks).commitNow()
+        return true
     }
 
     /** Called during parent view teardown, when synchronous fragment transactions are unsafe. */
@@ -270,6 +332,7 @@ internal class SidePanelInfrastructure private constructor(
         skipFirstUpdate = false
         enabled.clear()
         leftFragmentManager = null
+        rightFragmentManager = null
         childInteractionInProgress = false
         prepareLeftOnGesture = null
         leftWasVisible = false
@@ -284,6 +347,7 @@ internal class SidePanelInfrastructure private constructor(
 
     companion object {
         private const val LEFT_CONTENT_TAG = "NiraEmbeddedSideTabs"
+        private const val RIGHT_CONTENT_TAG = "NiraEmbeddedSideBookmarks"
 
         fun attach(
             gestures: SwipeGestureLayout,
