@@ -53,4 +53,14 @@ class EmbeddedSideTabsContractTest {
         infrastructure.dispose()
         activity.finish()
     }
+
+    @Test fun newEmbeddedTabsCannotReadSharedPreferencesUntilAttached() {
+        val detached = TabsBottomSheetFragment.newEmbeddedSidePanel()
+        assertFalse(detached.isAdded)
+        try {
+            detached.embeddedSidePanelWidth()
+            fail("Detached fragment must not access width preferences before commitNow")
+        } catch (_: IllegalStateException) { }
+    }
+
 }

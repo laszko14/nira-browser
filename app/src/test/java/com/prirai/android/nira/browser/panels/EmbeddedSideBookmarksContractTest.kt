@@ -61,4 +61,14 @@ class EmbeddedSideBookmarksContractTest {
         assertFalse(BookmarksBottomSheetFragment.newInstance()
             .arguments!!.getBoolean("nira_embedded_bookmarks"))
     }
+
+    @Test fun newEmbeddedBookmarksCannotReadFragmentResourcesBeforeAttachment() {
+        val detached = BookmarksBottomSheetFragment.newEmbeddedSidePanel()
+        assertFalse(detached.isAdded)
+        try {
+            detached.embeddedSidePanelWidth()
+            fail("Detached fragment must not provide a Context before commitNow")
+        } catch (_: IllegalStateException) { }
+    }
+
 }

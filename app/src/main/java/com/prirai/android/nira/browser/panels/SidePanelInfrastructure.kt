@@ -190,7 +190,24 @@ internal class SidePanelInfrastructure private constructor(
         }
         if (found != null && tabs.id != host.leftContainer.id) return false
 
-        // A restored instance may have lost non-parcelable callbacks.
+        // CRITICAL: a new Fragment has no Context/Resources before attach.
+        // Both embeddedSidePanelWidth() and the content's view tree require
+        // FragmentManager.commitNow() FIRST. The former ordering crashed on the
+        // very first edge gesture with "Fragment not attached to a context".
+        if (found == null) {
+            fragmentManager.beginTransaction()
+                .add(host.leftContainer.id, tabs, LEFT_CONTENT_TAG)
+                .commitNow()
+        }
+        if (!tabs.isAdded || tabs.view?.parent !== host.leftContainer) {
+            // A child manager below CREATED can attach a fragment without a view.
+            // Do not leave a half-mounted fragment that blocks the legacy fallback.
+            if (found == null && !fragmentManager.isStateSaved) {
+                fragmentManager.beginTransaction().remove(tabs).commitNow()
+            }
+            return false
+        }
+        // Rebind after restore; callbacks intentionally aren't parcelable.
         tabs.bindEmbeddedSidePanel(
             onWidthChanged = { width ->
                 if (!disposed) host.setPanelWidth(SidePanelSide.LEFT, width)
@@ -199,14 +216,9 @@ internal class SidePanelInfrastructure private constructor(
             onChildInteractionChanged = { busy -> setChildInteraction(busy) }
         )
         host.setPanelWidth(SidePanelSide.LEFT, tabs.embeddedSidePanelWidth())
-        if (found == null) {
-            fragmentManager.beginTransaction()
-                .add(host.leftContainer.id, tabs, LEFT_CONTENT_TAG)
-                .commitNow()
-        }
         leftFragmentManager = fragmentManager
-        // Mounting content alone does not activate the swipe handler.
-        return tabs.view?.parent === host.leftContainer
+        // Content is mounted but no gesture listener is enabled until activate().
+        return true
     }
 
     /**
@@ -224,6 +236,18 @@ internal class SidePanelInfrastructure private constructor(
         }
         if (found != null && bookmarks.id != host.rightContainer.id) return false
 
+        // Just as on LEFT, do not query Resources on an unattached DialogFragment.
+        if (found == null) {
+            fragmentManager.beginTransaction()
+                .add(host.rightContainer.id, bookmarks, RIGHT_CONTENT_TAG)
+                .commitNow()
+        }
+        if (!bookmarks.isAdded || bookmarks.view?.parent !== host.rightContainer) {
+            if (found == null && !fragmentManager.isStateSaved) {
+                fragmentManager.beginTransaction().remove(bookmarks).commitNow()
+            }
+            return false
+        }
         bookmarks.bindEmbeddedSidePanel(
             onDismissRequested = {
                 // A row callback can still be dispatching when dismiss() is called.
@@ -234,14 +258,8 @@ internal class SidePanelInfrastructure private constructor(
             }
         )
         host.setPanelWidth(SidePanelSide.RIGHT, bookmarks.embeddedSidePanelWidth())
-        if (found == null) {
-            fragmentManager.beginTransaction()
-                .add(host.rightContainer.id, bookmarks, RIGHT_CONTENT_TAG)
-                .commitNow()
-        }
         rightFragmentManager = fragmentManager
-        // Content is prepared but no activate(RIGHT) is called at stage 4A.
-        return bookmarks.view?.parent === host.rightContainer
+        return true
     }
 
     private fun requestRightClose(): Boolean {

@@ -75,7 +75,9 @@ class SidePanelInfrastructureTest {
         assertTrue(infrastructure.onSwipeStarted(PointF(2f, 200f), PointF(50f, 200f)))
         infrastructure.onSwipeUpdate(-70f, 0f)
         assertEquals(View.VISIBLE, infrastructure.host.visibility)
-        assertEquals(-210f, infrastructure.host.leftContainer.translationX, 0.001f)
+        // The initial onScroll is already applied as dx=48px; the synthetic
+        // next update is intentionally skipped to prevent double-counting.
+        assertEquals(-232f, infrastructure.host.leftContainer.translationX, 0.001f)
         assertFalse(infrastructure.onSwipeStarted(PointF(399f, 200f), PointF(320f, 200f)))
         infrastructure.resetForFullscreen()
         assertEquals(View.GONE, infrastructure.host.visibility)
