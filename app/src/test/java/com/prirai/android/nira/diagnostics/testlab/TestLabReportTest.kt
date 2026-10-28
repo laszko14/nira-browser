@@ -62,6 +62,27 @@ class TestLabReportTest {
         assertFalse(output.json.contains("cookie"))
         assertFalse(output.json.contains("https://"))
     }
+    @Test fun networkCorrelationReportIsAnonymousAndExplicitlyShadowOnly() {
+        val binding=com.prirai.android.nira.media.MediaSessionBinding(Any(),"secret-tab","secret-profile",true)
+        val entry=com.prirai.android.nira.media.MediaEntry(
+            1,"https://secret.example/movie.mp4?token=private",
+            com.prirai.android.nira.media.MediaFormat.MP4,
+            setOf(com.prirai.android.nira.media.MediaSource.DOM,
+                com.prirai.android.nira.media.MediaSource.NETWORK),frameKey=7)
+        val ledger=MediaNetworkCorrelationLedger()
+        ledger.observe(binding,entry)
+        val summary=ledger.snapshot()
+        val report=sample().copy(testType=TestType.FULL_AUDIT,
+            mediaNetworkCorrelation=summary)
+        val output=TestLabReportGenerator.generate(report)
+        assertEquals(summary,
+            Json.decodeFromString<TestLabReport>(output.json).mediaNetworkCorrelation)
+        assertTrue(output.text.contains("MEDIA NETWORK CORRELATION"))
+        assertTrue(output.text.contains("SHADOW MODE"))
+        assertTrue(output.text.contains("NIEŁĄCZONE"))
+        for(secret in listOf("secret.example","token=private","secret-profile","secret-tab"))
+            assertFalse(output.json.contains(secret))
+    }
     @Test fun boundedExportPreservesAggregatesAndMarksOmittedTimeline() {
         val report=sample().copy(timeline=(1L..1024L).map{LabEvent(it,it*1000,LabCode.SLOW_FRAME,
             value=300.0,operationTags=LabOperation.entries.toList())},eventCounts=mapOf(LabCode.SLOW_FRAME to 1024L),
