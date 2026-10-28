@@ -20,6 +20,37 @@ class MediaRepositoryTest {
                     source: MediaSource = MediaSource.DOM, format: MediaFormat = MediaFormat.MP4) =
         repo.add(tab, tab.pageUrl, key, media(tab, url, format), source)
 
+    @Test fun nativePosterProvenanceIsIndependentFromTitleAndFailsClosedOnConflict() {
+        val repo=MediaRepository(); val t=tab(); begin(repo,t)
+        val url="https://cdn.example/movie.mp4?token=private"
+        fun offer(kind:String,poster:String,titleKind:String?=null):MediaRepository.InsertResult {
+            val candidate=MediaDetectorMessage.Candidate(url,source=MediaSource.PAGE,
+                pageUrl=t.pageUrl,documentKey=1,title=if(titleKind!=null)"Film" else null,
+                titleKind=titleKind,posterUrl=poster,posterKind=kind)
+            return repo.add(t,t.pageUrl,1,MediaClassifier.fromPage(candidate,t.binding)!!,
+                MediaSource.PAGE,null,candidate)
+        }
+        assertEquals(MediaRepository.InsertResult.ADDED,
+            offer("structured","https://img.example/a.jpg","player"))
+        assertEquals(MediaRepository.InsertResult.DUPLICATE,
+            offer("card","https://img.example/b.jpg"))
+        var observed=repo.forTab(t.binding).single()
+        assertEquals("https://img.example/b.jpg",observed.posterUrl)
+        assertEquals("LOCAL_CARD",observed.posterOrigin)
+        assertEquals(MediaRepository.InsertResult.DUPLICATE,
+            offer("card","https://img.example/c.jpg"))
+        observed=repo.forTab(t.binding).single()
+        assertNull(observed.posterUrl)
+        assertTrue(observed.posterAmbiguous)
+        assertEquals(MediaRepository.InsertResult.DUPLICATE,
+            offer("element","https://img.example/final.jpg"))
+        observed=repo.forTab(t.binding).single()
+        assertEquals("https://img.example/final.jpg",observed.posterUrl)
+        assertEquals("VIDEO_ELEMENT",observed.posterOrigin)
+        assertFalse(observed.posterAmbiguous)
+        assertFalse(observed.toString().contains("private"))
+    }
+
     @Test fun twoDifferentVideosInOneTabStayIndependent() {
         val repo = MediaRepository()
         val t = tab()

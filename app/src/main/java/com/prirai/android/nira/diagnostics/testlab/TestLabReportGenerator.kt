@@ -117,6 +117,8 @@ object TestLabReportGenerator {
                 appendLine("Tytuły powiązane=${v.titlesAssociated}; fallback=${v.titlesFallback}; konflikty=${v.titleConflicts}")
                 appendLine("Miniatury przypisane=${v.postersAssociated}; rozdzielczość znana=${v.resolutionKnown}; jakość znana=${v.qualityKnown}; z samej rozdzielczości=${v.qualityDerived}")
                 appendLine("FPS=${v.fpsKnown}; kodeki=${v.codecsKnown}; bitrate=${v.bitrateKnown}; wiele wariantów=${v.variantsKnown}")
+                appendLine("Pochodzenie miniaturek=${v.posterOrigins}; sprzeczne miniatury o tej samej sile=${v.posterConflicts}")
+                appendLine("Pochodzenie=deklaracja, a nie dowód poprawności obrazu. Konflikt → UNKNOWN; brak miniatury nie oznacza błędu odtwarzania.")
                 appendLine("Miniatura przypisana nie oznacza załadowanej miniatury; jakość z rozdzielczości nie potwierdza przełączania wariantów.")
                 appendLine("Kafelki w otwartym panelu=${v.uiDisplayed}; aktualizacje=${v.updates}; nawigacje=${v.navigations}; limit ewidencji=${v.droppedSources}")
                 v.examples.forEach {

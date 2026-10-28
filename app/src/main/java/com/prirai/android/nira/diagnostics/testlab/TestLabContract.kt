@@ -136,4 +136,6 @@ data class OperationToken internal constructor(internal val session:Long,interna
     val qualityDerived: Int = 0, val fpsKnown: Int = 0,
     val codecsKnown: Int = 0, val bitrateKnown: Int = 0,
     val variantsKnown: Int = 0,
+    val posterOrigins: Map<String, Int> = emptyMap(),
+    val posterConflicts: Int = 0,
 )

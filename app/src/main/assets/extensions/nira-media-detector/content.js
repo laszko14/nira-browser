@@ -492,7 +492,8 @@
   }
 
   function submit(value, source = "page", type = null, group = null, title = null,
-    titleKind = null, duration = null, poster = null, dimensions = null) {
+    titleKind = null, duration = null, poster = null, dimensions = null,
+    posterKind = null) {
     const url = absolute(value);
     if (!url) return;
     const mediaPath = new URL(url).pathname.toLowerCase();
@@ -509,7 +510,7 @@
     const posterUrl = absolute(poster);
     // A later loadedmetadata event may reveal duration/title for the SAME URL.
     const key = JSON.stringify([activeUrl, url, source, type || "", group || "",
-      named || "", kind || "", seconds, posterUrl || "",
+      named || "", kind || "", seconds, posterUrl || "", posterKind || "",
       dimensions?.width || null, dimensions?.height || null]);
     if (seen.has(key)) { note("duplicate"); return; }
     offers++;
@@ -529,7 +530,11 @@
       message.titleKind = kind;
     }
     if (seconds !== null) message.durationSeconds = seconds;
-    if (posterUrl) message.posterUrl = posterUrl;
+    if (posterUrl) {
+      message.posterUrl = posterUrl;
+      if (["element", "card", "player", "structured"].includes(posterKind))
+        message.posterKind = posterKind;
+    }
     if (Number.isSafeInteger(dimensions?.width) && dimensions.width > 0 && dimensions.width <= 16384)
       message.width = dimensions.width;
     if (Number.isSafeInteger(dimensions?.height) && dimensions.height > 0 && dimensions.height <= 8640)
@@ -544,6 +549,7 @@
             validated.titleKind !== message.titleKind ||
             validated.durationSeconds !== message.durationSeconds ||
             validated.posterUrl !== message.posterUrl ||
+            validated.posterKind !== message.posterKind ||
             validated.width !== message.width ||
             validated.height !== message.height ||
             !alive || epoch !== navigationEpoch || navigation !== location.href) {
@@ -584,11 +590,14 @@
     const kind = explicitVideoTitle(video) ? "player" : "video";
     const seconds = durationOf(video);
     const poster = posterFor(video);
+    const posterKind = absolute(video.poster || attribute(video, "poster") ||
+      attribute(video, "data-poster")) ? "element" : "card";
     if (preferred) submit(preferred, playing ? "dom" : "page", mime, group,
       title, title ? kind : null, seconds, poster,
-      { width: video.videoWidth, height: video.videoHeight });
+      { width: video.videoWidth, height: video.videoHeight }, posterKind);
     if (video.src && video.src !== preferred)
-      submit(video.src, "page", null, group, title, title ? kind : null, seconds, poster);
+      submit(video.src, "page", null, group, title, title ? kind : null, seconds,
+        poster, null, posterKind);
     // Each declared source matters, even before currentSrc becomes available.
     if (typeof video.querySelectorAll === "function") {
       let n = 0;
@@ -597,7 +606,7 @@
         const declared = item.src || attribute(item, "data-src");
         if (declared && declared !== preferred)
           submit(declared, "page", item.type || null, group,
-            title, title ? kind : null, seconds, poster);
+            title, title ? kind : null, seconds, poster, null, posterKind);
       }
     }
   }
@@ -624,7 +633,7 @@
       const title = directTitle || scoped?.title || null;
       submit(href, "page", null, groupFor(scoped?.card || element),
         title, title ? (directTitle ? "link" : "video") : null,
-        null, posterForCard(posterCard));
+        null, posterForCard(posterCard), null, "card");
     });
     scanCollection("[data-video-url],[data-video-src],[data-hls],[data-mpd],[data-src],[data-plyr-source],[data-file],[data-stream-url],[data-playback-url],[data-manifest-url],[data-source-url],[data-mp4],[data-m3u8],[data-stream]", element => {
       const scoped = scopedMediaCard(element);
@@ -640,7 +649,7 @@
             name === "data-mpd" ? "application/dash+xml" : null), groupFor(scoped?.card || element),
           named, named ? (explicitVideoTitle(element) ? "player" : "video") : null,
           null, absolute(attribute(element, "data-poster") || attribute(element, "data-thumbnail")) ||
-            posterForCard(posterCard));
+            posterForCard(posterCard), null, "card");
       }
     });
     scanCollection('meta[property^="og:video"],meta[name="twitter:player:stream"]', element => {
@@ -713,7 +722,7 @@
           const poster = mediaThumbnail(node.thumbnailUrl) ||
             mediaThumbnail(node.thumbnail) || mediaThumbnail(node.image);
           for (const url of urls) submit(url, "page", null, group,
-            name, name ? "structured" : null, null, poster);
+            name, name ? "structured" : null, null, poster, null, "structured");
         }
         for (const field of ["@graph", "video", "mainEntity", "itemListElement"])
           if (node[field]) walk(node[field], depth + 1);
@@ -820,7 +829,8 @@
         for (const child of node.slice(0, 48)) {
           if (typeof child === "string" && parentGroup)
             submit(child, "page", null, parentGroup,
-              parentTitle, parentTitle ? "video" : null, null, parentPoster);
+              parentTitle, parentTitle ? "video" : null, null, parentPoster,
+              null, "player");
           else walk(child, depth + 1, parentTitle, parentGroup, parentPoster);
         }
         return;
@@ -847,11 +857,13 @@
         "playbackUrl", "hlsUrl", "dashUrl", "manifestUrl", "mediaUrl",
         "playlistUrl", "urlVideo", "masterUrl", "video_src"]) {
         if (typeof node[key] === "string")
-          submit(node[key], "page", mime, group, title, title ? "video" : null, null, poster);
+          submit(node[key], "page", mime, group, title, title ? "video" : null,
+            null, poster, null, "player");
       }
       if (typeof node.url === "string" &&
           (mime || /\.(?:mp4|m4v|webm|m3u8|mpd|mov)(?:[?#]|$)/i.test(node.url)))
-        submit(node.url, "page", mime, group, title, title ? "video" : null, null, poster);
+        submit(node.url, "page", mime, group, title, title ? "video" : null,
+          null, poster, null, "player");
       // Only alternative streams inherit their owner's title and group.
       // A playlist item must establish its own title independently.
       for (const key of Object.keys(node).slice(0, 64)) {

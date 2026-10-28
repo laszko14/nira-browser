@@ -31,11 +31,11 @@ function harness() {
       if (selector === "script") scripts.forEach(callback);
       else if (selector.startsWith("video[data-setup]")) elements.forEach(callback);
     },
-    submit: (url, source, mime, group, title, kind, seconds, poster) => {
+    submit: (url, source, mime, group, title, kind, seconds, poster, dimensions, posterKind) => {
       if (typeof url !== "string" ||
           !/\.(?:mp4|m4v|webm|m3u8|mpd)(?:[?#]|$)/i.test(url)) return;
       runtime.offers++;
-      emitted.push({url, source, group, title, kind, poster});
+      emitted.push({url, source, group, title, kind, poster, posterKind});
     },
     note: kind => notes.push(kind),
   };
@@ -72,6 +72,7 @@ test("player playlist poster stays with the right item and quality alternatives"
   }),{type:"application/json"}));
   h.scan();
   assert.equal(h.emitted.length,4);
+  assert.ok(h.emitted.every(x=>x.posterKind==="player"));
   assert.deepEqual(h.emitted.filter(x=>x.url.includes("a-")).map(x=>x.poster),
     ["https://cdn.example/a.jpg","https://cdn.example/a.jpg"]);
   assert.deepEqual(h.emitted.filter(x=>x.url.includes("b-")).map(x=>x.poster),
