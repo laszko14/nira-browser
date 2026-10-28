@@ -9,7 +9,7 @@ Baza kodu: `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79
 | 1 | Aktualny stan, historia i mapa funkcji | COMPLETE | [STAGE_01.md](STAGE_01.md) |
 | 2 | Architektura i zależności | COMPLETE — 2A i 2B | [STAGE_02.md](STAGE_02.md) |
 | 3 | Pozostałości starych implementacji | COMPLETE | [STAGE_03.md](STAGE_03.md) |
-| 4 | Lewy panel kart i grup | NOT_STARTED | — |
+| 4 | Lewy panel kart i grup | PARTIAL — 4A COMPLETE; 4B NOT_STARTED | [STAGE_04.md](STAGE_04.md) |
 | 5 | Prawy panel | NOT_STARTED | — |
 | 6 | Dolny pasek kart | NOT_STARTED | — |
 | 7 | Pasek adresu i personalizacja | NOT_STARTED | — |
@@ -25,6 +25,6 @@ Baza kodu: `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79
 | 17 | Testy regresji | NOT_STARTED | — |
 | 18 | Raport końcowy i plan napraw | NOT_STARTED | — |
 
-Rejestr: [FINDINGS.md](FINDINGS.md). Checkpoint wznowienia: [../../AI_HANDOFF.md](../../AI_HANDOFF.md), wpis „ZC-AUD — ETAP 3/18 COMPLETE”. Nie utworzono raportów przyszłych etapów ani raportu końcowego.
+Rejestr: [FINDINGS.md](FINDINGS.md). Checkpoint wznowienia: [../../AI_HANDOFF.md](../../AI_HANDOFF.md), wpis „ZC-AUD — ETAP 4/18 PARTIAL — 4A COMPLETE”. Nie utworzono raportów przyszłych etapów ani raportu końcowego.
 
-Łącznie po etapie 3: potwierdzone P0=0, P1=0, P2=5, P3=0; CONFIRMED=5; osobno SUSPECTED=1 (potencjalny P2). W etapie 3 dodano 1 zgłoszenie P2 (trzy nieskuteczne przełączniki personalizacji); inwentaryzacja kandydatów do usunięcia nie jest liczona jako usterki. Dowody izolowanych prób JVM etapu 2: [STAGE_02B_PROBES.md](STAGE_02B_PROBES.md). Mapa i testy nie potwierdzają poprawności wszystkich scenariuszy na telefonie. Następny krok dopiero po „Dalej”: **etap 4**.
+Łącznie po 4A: potwierdzone P0=0, P1=0, P2=7, P3=0; CONFIRMED=7; osobno SUSPECTED=1 (potencjalny P2). W 4A dodano 2 zgłoszenia P2 dotyczące uchwytu resize (RTL i tożsamość palca). Dowody bieżących prób: [STAGE_04A_PROBES.md](STAGE_04A_PROBES.md); wcześniejsze JVM: [STAGE_02B_PROBES.md](STAGE_02B_PROBES.md). Kontrole izolowane nie potwierdzają działania pełnego Android UI ani scenariuszy na telefonie. Zakończone etapy: 1–3; etap 4 pozostaje otwarty. Następny krok dopiero po „Dalej”: **podetap 4B**, nie etap 5.

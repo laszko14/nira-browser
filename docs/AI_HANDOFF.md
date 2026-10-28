@@ -1,11 +1,11 @@
-## ZC-AUD — ETAP 3/18 COMPLETE — 2026-10-28 UTC
+## ZC-AUD — ETAP 4/18 PARTIAL — 4A COMPLETE — 2026-10-28 UTC
 
-- Audyt wyłącznie Clean. Gałąź dokumentacji `audit/zavro-clean-20261028`; wejściowy HEAD etapu 3 `9252c2986c5a1bf116fa9480fbb82c431a8b8fd3`, drzewo czyste, zgodny ref zdalny. Baza aplikacji pozostaje `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79b326529d42e9b9fde4` (v1190).
-- **Ostatni ukończony etap: 3/18 COMPLETE. Etapy 1, 2 (2A i 2B) i 3 COMPLETE; brak niedokończonego podetapu. Etapu 4 nie rozpoczęto.**
-- Inwentaryzacja aktywnych/starych implementacji, kandydaci przyszłego usuwania, wykonane kontrole i ograniczenia: [STAGE_03.md](audits/zavro-clean/STAGE_03.md). Nowe ZC-AUD-006: nieskuteczne przełączniki po migracji UI. Stan i pełne zgłoszenia w [indeksie](audits/zavro-clean/AUDIT_INDEX.md) i [FINDINGS](audits/zavro-clean/FINDINGS.md); wcześniejsza mapa architektury w STAGE_02. Nie powtarzać wyników tych raportów w checkpointach.
-- Wznowienie **wyłącznie po „Dalej”: ETAP 4 — lewy panel kart i grup**. Odczytać ten wpis i potrzebną mapę STAGE_03/01/02; potwierdzić branch/HEAD/working tree/remote. Wykorzystać aktywne fabryki i listenery opisane w etapie 3. Zachować bazę kodu, nie przełączać automatycznie na nowszy Clean i nie robić merge z x MPV.
+- Audyt wyłącznie Clean. Gałąź dokumentacji `audit/zavro-clean-20261028`; wejściowy HEAD 4A `d2e94c48439972ff1175a8f488a77fd2581ada88`, drzewo czyste, zgodny ref zdalny. Baza aplikacji pozostaje `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79b326529d42e9b9fde4` (v1190).
+- **Ostatni ukończony cały etap: 3/18. Etap 4 PARTIAL: podetap 4A COMPLETE, 4B NOT_STARTED. Następny fragment to 4B; nie wolno przejść do etapu 5.**
+- Zakres 4A: montaż/gest otwarcia, ruch i animacje, zamknięcie/Cancel/Wstecz, resize, oba klucze szerokości, obrót i cleanup. Raport i pozostały zakres: [STAGE_04.md](audits/zavro-clean/STAGE_04.md); trwałe źródła izolowanych prób i ograniczenia: [STAGE_04A_PROBES.md](audits/zavro-clean/STAGE_04A_PROBES.md). Nowe ZC-AUD-007/008 dotyczą RTL uchwytu i utraty tożsamości palca podczas resize; pełne zgłoszenia w [FINDINGS](audits/zavro-clean/FINDINGS.md), stan w [indeksie](audits/zavro-clean/AUDIT_INDEX.md).
+- Wznowienie **wyłącznie po „Dalej”: 4B — grupy, przeciąganie, kolejność, trwałość i synchronizacja zawartości lewego panelu**. Odczytać ten wpis i STAGE_04, potwierdzić branch/HEAD/working tree/remote. Zacząć od `TabsBottomSheetFragment.CompactSideTabs:1339` i zależności `commitSidePanelDrop`/`commitSidePanelGroupDrop` w TabViewModel; wykorzystać mapę stanu etapu 2 i nie powtarzać ukończonego 4A. Po 4B rozliczyć kompletność etapu 4 i STOP. Zachować bazę kodu; bez automatycznej zmiany linii Clean ani merge z x MPV.
 - Punkt zapisu: ostatni commit dokumentacyjny tej gałęzi (`git log -1 --format=%H`), rzeczywisty SHA i powodzenie push w raporcie końcowym rozmowy; bez dodatkowego commitu tylko dla dopisania własnego SHA.
-- Wyłącznie dokumentacja; bez napraw, zmian APK/wersji, Gradle build, instalacji i CI. Po kolejnym etapie raport/checkpoint i STOP. Cały audyt nadal trwa (3/18 ukończone).
+- Wyłącznie dokumentacja; bez napraw, zmian APK/wersji, Gradle build, instalacji i CI. Próby 4A nie uruchamiały prawdziwego Androida/JUnit/Robolectric; telefon i 120 Hz pozostają NOT_TESTED. Po kolejnym spójnym podetapie raport/checkpoint i STOP. Cały audyt nadal trwa (3/18 całych etapów ukończone, dodatkowo 4A).
 
 
 ## 2026-10-27 — Zavro Clean v1180, metadata engine (prace w toku)
