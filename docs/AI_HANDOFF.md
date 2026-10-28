@@ -1,11 +1,11 @@
-## ZC-AUD — ETAP 2/18 COMPLETE — 2026-10-28 UTC
+## ZC-AUD — ETAP 3/18 COMPLETE — 2026-10-28 UTC
 
-- Audyt wyłącznie Clean. Gałąź dokumentacji `audit/zavro-clean-20261028`; wejściowy HEAD podetapu 2B `97b91e3dbf5d3f7dadcb9bfb2f54d27e88e211b0`, drzewo czyste. Baza aplikacji pozostaje `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79b326529d42e9b9fde4` (v1190).
-- **Ostatni ukończony etap: 2/18 COMPLETE. Podetapy 2A i 2B COMPLETE; brak niedokończonego podetapu. Etapu 3 nie rozpoczęto.**
-- Mapa architektury, wyniki i ograniczenia: [STAGE_02.md](audits/zavro-clean/STAGE_02.md); odtwarzalne izolowane próby JVM: [STAGE_02B_PROBES.md](audits/zavro-clean/STAGE_02B_PROBES.md); stan audytu i zgłoszenia w [indeksie](audits/zavro-clean/AUDIT_INDEX.md) i [FINDINGS](audits/zavro-clean/FINDINGS.md). Nie powtarzać tych danych w checkpointach.
-- Wznowienie **wyłącznie po „Dalej”: ETAP 3 — pozostałości starych implementacji**. Odczytać ten wpis i potrzebne mapy z STAGE_01/02, potwierdzić branch/HEAD/working tree/remote. Zachować bazę kodu, nie przełączać automatycznie na nowszy Clean i nie robić merge z x MPV.
+- Audyt wyłącznie Clean. Gałąź dokumentacji `audit/zavro-clean-20261028`; wejściowy HEAD etapu 3 `9252c2986c5a1bf116fa9480fbb82c431a8b8fd3`, drzewo czyste, zgodny ref zdalny. Baza aplikacji pozostaje `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79b326529d42e9b9fde4` (v1190).
+- **Ostatni ukończony etap: 3/18 COMPLETE. Etapy 1, 2 (2A i 2B) i 3 COMPLETE; brak niedokończonego podetapu. Etapu 4 nie rozpoczęto.**
+- Inwentaryzacja aktywnych/starych implementacji, kandydaci przyszłego usuwania, wykonane kontrole i ograniczenia: [STAGE_03.md](audits/zavro-clean/STAGE_03.md). Nowe ZC-AUD-006: nieskuteczne przełączniki po migracji UI. Stan i pełne zgłoszenia w [indeksie](audits/zavro-clean/AUDIT_INDEX.md) i [FINDINGS](audits/zavro-clean/FINDINGS.md); wcześniejsza mapa architektury w STAGE_02. Nie powtarzać wyników tych raportów w checkpointach.
+- Wznowienie **wyłącznie po „Dalej”: ETAP 4 — lewy panel kart i grup**. Odczytać ten wpis i potrzebną mapę STAGE_03/01/02; potwierdzić branch/HEAD/working tree/remote. Wykorzystać aktywne fabryki i listenery opisane w etapie 3. Zachować bazę kodu, nie przełączać automatycznie na nowszy Clean i nie robić merge z x MPV.
 - Punkt zapisu: ostatni commit dokumentacyjny tej gałęzi (`git log -1 --format=%H`), rzeczywisty SHA i powodzenie push w raporcie końcowym rozmowy; bez dodatkowego commitu tylko dla dopisania własnego SHA.
-- Wyłącznie dokumentacja; bez napraw, zmian APK/wersji, Gradle build, instalacji i CI. Po kolejnym etapie raport/checkpoint i STOP. Cały audyt nadal trwa (2/18 ukończone).
+- Wyłącznie dokumentacja; bez napraw, zmian APK/wersji, Gradle build, instalacji i CI. Po kolejnym etapie raport/checkpoint i STOP. Cały audyt nadal trwa (3/18 ukończone).
 
 
 ## 2026-10-27 — Zavro Clean v1180, metadata engine (prace w toku)
