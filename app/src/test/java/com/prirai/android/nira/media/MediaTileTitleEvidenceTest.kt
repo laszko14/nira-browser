@@ -14,6 +14,17 @@ class MediaTileTitleEvidenceTest {
         assertEquals("Film #1", mediaTileItems(listOf(entry)).single().title)
     }
 
+    @Test fun manifestResolutionIsNotCurrentPlayQuality() {
+        val entry = MediaEntry(
+            id = 21L, url = "https://cdn.example.invalid/master.mpd",
+            format = MediaFormat.DASH, sources = setOf(MediaSource.NETWORK),
+            quality = "1080p", width = 1920, height = 1080,
+            availableQualities = "720p,1080p",
+            playbackStatus = MediaPlaybackStatus.NEEDS_VERIFICATION,
+        )
+        assertEquals(null, qualityText(entry))
+    }
+
     @Test fun distinctFrameGroupsCannotBorrowTitlesOrIdentifiers() {
         val first = MediaEntry(
             id = 1L, url = "https://cdn.example.invalid/a.mp4",

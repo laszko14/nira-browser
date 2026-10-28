@@ -155,3 +155,12 @@ test("v1186 owner generation shadow observes only source changes, never emits UR
   assert.deepEqual(events, ["owner_generation_changed"]);
   assert.ok(!JSON.stringify(events).includes("canary"));
 });
+
+
+test("v1186 passive manifest dimensions and renditions never assert active playback quality", () => {
+  const background = fs.readFileSync(path.join(__dirname,
+    "../../main/assets/extensions/nira-media-detector/background.js"), "utf8");
+  assert.doesNotMatch(background, /verified\.quality\s*=\s*only\.height/);
+  assert.doesNotMatch(background, /message\.quality\s*=\s*variant\.height/);
+  assert.match(background, /verified\.availableQualities\s*=\s*heights\.join/);
+});

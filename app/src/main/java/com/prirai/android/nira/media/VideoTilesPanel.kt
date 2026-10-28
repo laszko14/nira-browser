@@ -358,12 +358,9 @@ private fun TileBadge(text: String, color: Color, modifier: Modifier) {
         color = Color.White, fontSize = 9.sp, lineHeight = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
 }
 
-/**
- * Measured dimensions can provide a resolution hint, not an invented variant.
- */
+/** A declared dimension alone cannot prove the currently selected Play quality. */
 internal fun qualityText(entry: MediaEntry): String? =
-    entry.quality?.takeIf { it.isNotBlank() }
-        ?: entry.height?.takeIf { it in 144..8640 }?.let { "${it}p" }
+    entry.quality?.takeIf { it.isNotBlank() && entry.playbackStatus == MediaPlaybackStatus.CONFIRMED }
 
 internal fun durationText(seconds: Int?): String? {
     val value = seconds?.takeIf { it > 0 } ?: return null
