@@ -119,6 +119,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
+        sidePanelInfrastructure?.onBrowserConfigurationChanged(childFragmentManager)
         // This Activity handles orientation/screenSize without recreation.
         // Re-measure the detached footer after its new constraints apply.
         val bottomStrip = unifiedToolbar?.getBottomComponentsContainer()
@@ -439,6 +440,9 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     override fun onResume() {
         super.onResume()
         // Contextual toolbar updates handled automatically by UnifiedToolbar
+        // Clear any old embedded child that FragmentManager restored while the
+        // new view-bound host starts CLOSED. Never transact within onViewCreated.
+        sidePanelInfrastructure?.pruneClosedContent(childFragmentManager)
 
         // Ensure tab preview is hidden (fixes doubled content issue after returning from settings)
         binding.tabPreview.visibility = View.GONE
@@ -1029,7 +1033,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
      * API calls from the web content.
      */
     override fun onFullScreenModeChanged(inFullScreen: Boolean) {
-        if (inFullScreen) sidePanelInfrastructure?.resetForFullscreen()
+        sidePanelInfrastructure?.onFullscreenChanged(inFullScreen)
+        if (inFullScreen) sidePanelInfrastructure?.pruneClosedContent(childFragmentManager)
         mediaFloatingUi?.setFullscreen(inFullScreen)
         if (inFullScreen) {
             // Entering fullscreen - completely hide and collapse all toolbars

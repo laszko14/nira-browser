@@ -2,6 +2,11 @@ package com.prirai.android.nira.browser.panels
 
 import android.content.res.Configuration
 import android.graphics.PointF
+import android.graphics.Rect
+import android.os.Build
+import android.view.ViewTreeObserver
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -40,6 +45,77 @@ internal class SidePanelInfrastructure private constructor(
     private var leftWasVisible = false
     private var rightWasVisible = false
     private var childInteractionInProgress = false
+    private var fullscreenActive = false
+    private var lastRenderedPhase = SidePanelPhase.CLOSED
+    private var appliedGestureExclusions: List<Rect> = emptyList()
+
+    private val globalLayoutListener = ViewTreeObserver.OnGlobalLayoutListener {
+        refreshGestureExclusions()
+    }
+
+    /**
+     * Android 10+ can honor up to 200dp height of exclusions per edge.
+     * Only narrow, upper-edge zones are requested while the panels are CLOSED.
+     * Never override the browser Activity's OnBackPressedDispatcher.
+     */
+    private fun refreshGestureExclusions() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || disposed) return
+        val insets = ViewCompat.getRootWindowInsets(gestures)
+        val system = insets?.getInsets(WindowInsetsCompat.Type.systemGestures())
+        val status = insets?.getInsets(WindowInsetsCompat.Type.statusBars())?.top ?: 0
+        val rects = SidePanelGestureExclusionPolicy.regions(
+            widthPx = gestures.width,
+            heightPx = gestures.height,
+            density = gestures.resources.displayMetrics.density,
+            requestedEdgeDp = edgeWidthDp,
+            systemGestureLeftPx = system?.left ?: 0,
+            systemGestureRightPx = system?.right ?: 0,
+            statusBarTopPx = status,
+            enabled = gestures.isAttachedToWindow && gestures.isSwipeEnabled &&
+                !fullscreenActive && !anyPanelEngaged() && mayHandle(),
+            imeVisible = insets?.isVisible(WindowInsetsCompat.Type.ime()) == true
+        )
+        if (rects != appliedGestureExclusions) {
+            gestures.systemGestureExclusionRects = rects
+            appliedGestureExclusions = rects
+        }
+    }
+
+    /** Do not retain an exclusion after entering immersive video mode. */
+    fun onFullscreenChanged(inFullscreen: Boolean) {
+        if (disposed) return
+        fullscreenActive = inFullscreen
+        if (inFullscreen) resetForFullscreen()
+        refreshGestureExclusions()
+    }
+
+    /** Rotation invalidates the current drag width. Close, then remount on demand. */
+    fun onBrowserConfigurationChanged(fragmentManager: FragmentManager) {
+        if (disposed) return
+        resetForFullscreen()
+        pruneClosedContent(fragmentManager)
+        refreshGestureExclusions()
+    }
+
+    /**
+     * A child Fragment restored after process death can exist while its old host
+     * is CLOSED and callbacks are unbound. Remove it on the next main-loop pass,
+     * not during FragmentManager restoration / lifecycle dispatch.
+     */
+    fun pruneClosedContent(fragmentManager: FragmentManager) {
+        if (disposed) return
+        gestures.post {
+            if (disposed || controller.snapshot.phase != SidePanelPhase.CLOSED ||
+                fragmentManager.isStateSaved || fragmentManager.isDestroyed) return@post
+            if (fragmentManager.findFragmentByTag(LEFT_CONTENT_TAG) != null) {
+                unmountLeftContent(fragmentManager)
+            }
+            if (fragmentManager.findFragmentByTag(RIGHT_CONTENT_TAG) != null) {
+                unmountRightContent(fragmentManager)
+            }
+            refreshGestureExclusions()
+        }
+    }
 
     /** Native resize and Compose DnD temporarily have priority over panel swipes. */
     fun setChildInteraction(inProgress: Boolean) {
@@ -57,6 +133,10 @@ internal class SidePanelInfrastructure private constructor(
 
     private fun renderPanel(snapshot: SidePanelSnapshot) {
         host.render(snapshot)
+        val previousPhase = lastRenderedPhase
+        lastRenderedPhase = snapshot.phase
+        if ((previousPhase == SidePanelPhase.CLOSED) !=
+            (snapshot.phase == SidePanelPhase.CLOSED)) refreshGestureExclusions()
         if (snapshot.side == SidePanelSide.LEFT) leftWasVisible = true
         if (snapshot.side == SidePanelSide.RIGHT) rightWasVisible = true
         if (snapshot.phase != SidePanelPhase.CLOSED) return
@@ -221,6 +301,9 @@ internal class SidePanelInfrastructure private constructor(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
         ))
         gestures.addGestureListener(this)
+        gestures.viewTreeObserver.addOnGlobalLayoutListener(globalLayoutListener)
+        // First layout/insets normally arrive asynchronously after this attach.
+        gestures.post { refreshGestureExclusions() }
     }
 
     /**
@@ -233,6 +316,7 @@ internal class SidePanelInfrastructure private constructor(
             (side == SidePanelSide.RIGHT && leftIsEngaged())) return false
         host.setPanelWidth(side, widthPx)
         enabled.add(side)
+        refreshGestureExclusions()
         return true
     }
 
@@ -241,6 +325,7 @@ internal class SidePanelInfrastructure private constructor(
         enabled.remove(side)
         if (controller.snapshot.side == side) controller.reset()
         if (swipeOwner == side) swipeOwner = null
+        refreshGestureExclusions()
     }
 
     override fun onSwipeStarted(start: PointF, next: PointF): Boolean {
@@ -356,11 +441,17 @@ internal class SidePanelInfrastructure private constructor(
         swipeOwner = null
         skipFirstUpdate = false
         controller.reset()
+        refreshGestureExclusions()
     }
 
     /** Must be invoked from BrowserFragment.onDestroyView, not onDestroy. */
     fun dispose() {
         if (disposed) return
+        gestures.viewTreeObserver.removeOnGlobalLayoutListener(globalLayoutListener)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            gestures.systemGestureExclusionRects = emptyList()
+        }
+        appliedGestureExclusions = emptyList()
         gestures.removeGestureListener(this)
         swipeOwner = null
         skipFirstUpdate = false
