@@ -155,6 +155,17 @@ object TestLabReportGenerator {
                 appendLine("To są hipotezy powiązań z zaakceptowanych rekordów natywnych, nie potwierdzona identyczność filmu; kolizje nazw i brak ramki nie są automatycznie naprawiane.")
             } ?: appendLine("NOT_MEASURED — brak snapshotu shadow graph.")
         }
+        if (r.testType in setOf(TestType.FULL_AUDIT,TestType.VIDEO_DISCOVERY,TestType.VIDEO_METADATA)) {
+            appendLine("\nMEDIA NETWORK CORRELATION — SHADOW MODE (bez ingerencji w Play):")
+            r.mediaNetworkCorrelation?.let { g ->
+                appendLine("Rekordy native=${g.observedRecords}; DOM/PAGE+NETWORK w jednym rekordzie=${g.networkAndDomOnOneRecord}; ze znaną ramką=${g.trustedFrameCoObserved}; z indywidualnymi metadanymi=${g.coObservedWithIndividualMetadata}")
+                appendLine("Tylko sieć=${g.networkOnlyRecords}; tylko DOM/PAGE=${g.domOrPageOnlyRecords}; sieć bez zaufanej ramki=${g.networkWithoutTrustedFrame}")
+                appendLine("Ten sam pełny URL, inne ramki (NIEŁĄCZONE)=${g.exactUrlCrossFramePairs}; nieznana ramka (NIEŁĄCZONE)=${g.exactUrlUnknownFramePairs}")
+                appendLine("Jedno ID grupy i różne pełne URL (hipotezy wariantów)=${g.sameGroupDifferentUrlPairs}; identyczny URL w różnych formatach=${g.exactUrlDifferentFormatPairs}")
+                appendLine("Nawigacje=${g.navigationEpochs}; resety partycji=${g.partitionResets}; limit=${g.droppedRecords}; własne żądania sieciowe=${g.performedNetworkRequests}; zmienia Play/UI=${g.changesMediaOrPlayback}")
+                appendLine("Wspólny adres lub grupa nie są dowodem, że chodzi o ten sam film. Brak pewnego ownera oznacza brak przypisania tytułu lub miniatury.")
+            } ?: appendLine("NOT_MEASURED — brak danych korelacji.")
+        }
         appendLine("\nZasoby: własny proces aplikacji; podprocesy Gecko nie są objęte pomiarem.")
         val m = r.resourceMetrics
         appendLine("Próbki=${m.totalSamples}; odrzucone ze starszego bufora=${m.evictedSamples}")
