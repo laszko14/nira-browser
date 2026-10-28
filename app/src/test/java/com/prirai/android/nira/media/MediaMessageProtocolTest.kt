@@ -4,6 +4,24 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class MediaMessageProtocolTest {
+    @Test fun advertisedQualitiesAreBoundedToVerifiedNetworkCandidates() {
+        val base = """{"schemaVersion":1,"event":"media_candidate","source":"network",
+          "url":"https://cdn.example/master.m3u8?secret=token","isPrivate":false,
+          "pageUrl":"https://site.example/watch","documentKey":7,
+          "verification":"manifest_verified","availableQualities":"360p,720p,1080p"}"""
+        val decoded = MediaMessageProtocol.decode(base) as MediaDetectorMessage.Candidate
+        assertEquals("360p,720p,1080p", decoded.availableQualities)
+        assertFalse(decoded.toString().contains("secret"))
+        val invalid = listOf(
+            base.replace("360p,720p,1080p", "360p,99999p"),
+            base.replace("360p,720p,1080p", "360p,https://bad.example"),
+            base.replace("360p,720p,1080p", "360p,,720p"),
+            base.replace("\"source\":\"network\"", "\"source\":\"page\"")
+                .replace(",\"isPrivate\":false", "")
+        )
+        for (bad in invalid) assertNull(MediaMessageProtocol.decode(bad))
+    }
+
     @Test fun decodesSanitizedNetworkVerificationWithoutSecrets() {
         val decoded = MediaMessageProtocol.decode("""{"schemaVersion":1,"event":"media_candidate","source":"network","url":"https://cdn.example/index.m3u8?t=secret","isPrivate":false,"pageUrl":"https://site.example/watch","documentKey":7,"verification":"auth_error","httpStatus":403}""") as MediaDetectorMessage.Candidate
         assertEquals("auth_error", decoded.verification)

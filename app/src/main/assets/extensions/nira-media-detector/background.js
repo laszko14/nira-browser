@@ -760,14 +760,20 @@ async function inspectManifest(task) {
       referrer: safeUrl(task.frameUrl) ? task.frameUrl : task.pageUrl,
       signal: controller ? controller.signal : undefined,
     });
-    if (!response || !response.ok) { discovery("unavailable", task.isPrivate); return; }
+    if (!response || !response.ok) {
+      discovery("unavailable", task.isPrivate);
+      discovery(response && (response.status === 401 || response.status === 403) ? "manifest_auth_failed" : "manifest_fetch_failed", task.isPrivate);
+      return;
+    }
     const finalUrl = safeUrl(response.url) ? response.url : task.url;
     const responseType = response.headers && response.headers.get("content-type");
     if (classify(finalUrl, responseType) !== task.format) { discovery("manifest_invalid", task.isPrivate); return; }
     const declared = response.headers && response.headers.get("content-length");
-    if (declared && (!/^\d+$/.test(declared) || Number(declared) > MAX_MANIFEST_BYTES)) return;
+    if (declared && (!/^\d+$/.test(declared) || Number(declared) > MAX_MANIFEST_BYTES)) {
+      discovery("manifest_too_large", task.isPrivate); return;
+    }
     if (!response.body || typeof response.body.getReader !== "function" ||
-        typeof TextDecoder !== "function") return;
+        typeof TextDecoder !== "function") { discovery("manifest_body_unavailable", task.isPrivate); return; }
     reader = response.body.getReader();
     const decoder = new TextDecoder("utf-8", { fatal: false });
     let bytes = 0, text = "";
@@ -777,16 +783,19 @@ async function inspectManifest(task) {
       if (!chunk.value || !Number.isSafeInteger(chunk.value.byteLength) ||
           chunk.value.byteLength < 0) { await reader.cancel(); return; }
       bytes += chunk.value.byteLength;
-      if (bytes > MAX_MANIFEST_BYTES) { await reader.cancel(); return; }
+      if (bytes > MAX_MANIFEST_BYTES) { discovery("manifest_too_large", task.isPrivate); await reader.cancel(); return; }
       text += decoder.decode(chunk.value, { stream: true });
-      if (text.length > MAX_MANIFEST_BYTES) { await reader.cancel(); return; }
+      if (text.length > MAX_MANIFEST_BYTES) { discovery("manifest_too_large", task.isPrivate); await reader.cancel(); return; }
     }
     text += decoder.decode();
+    discovery("manifest_kib", task.isPrivate, Math.max(1, Math.ceil(bytes / 1024)));
     const parsed = task.format === "HLS" ?
       NiraManifestParser.parseHls(text, finalUrl, 8) :
       NiraManifestParser.parseDash(text, finalUrl, 8);
     const current = documents.get(task.tabId);
     if (!currentTask(task) || controller?.signal.aborted) return;
+    discovery(task.format === "HLS" && parsed.kind === "media" ? "manifest_valid_media" : "manifest_valid_master", task.isPrivate);
+    if (!parsed.variants?.length && !parsed.durationSeconds && !parsed.bitrate && !parsed.exactSizeBytes) discovery("manifest_no_technical", task.isPrivate);
     const verified = { schemaVersion: 1, event: "media_candidate", source: "network",
       provenance: "observed", verification: "manifest_verified",
       httpStatus: Number.isInteger(response.status) ? response.status : 200,
@@ -795,8 +804,15 @@ async function inspectManifest(task) {
       // Parser-observed metadata is attached to exactly this document and manifest.
       isLive: !!parsed.live,
       contentType: task.format === "HLS" ? "application/vnd.apple.mpegurl" : "application/dash+xml" };
-    if (Array.isArray(parsed.variants) && parsed.variants.length > 0)
+    if (Array.isArray(parsed.variants) && parsed.variants.length > 0) {
       verified.variantCount = parsed.variants.length;
+      // Advertised choices, never the active playback resolution.
+      const heights = [...new Set(parsed.variants.filter(v =>
+        Number.isSafeInteger(v.width) && Number.isSafeInteger(v.height) &&
+        v.width > 0 && v.height >= 144 && v.height <= 8640)
+        .map(v => v.height + "p"))].slice(0, 16);
+      if (heights.length) verified.availableQualities = heights.join(",");
+    }
     // DASH master metadata is not the current quality unless uniquely determined.
     if (task.format === "DASH" && parsed.variants.length === 1) {
       const only = parsed.variants[0];
@@ -910,6 +926,7 @@ async function inspectManifest(task) {
   } catch (error) {
     if (currentTask(task) && !controller?.signal.aborted) {
       discovery("manifest_invalid", task.isPrivate);
+      discovery(error && (error.name === "AbortError" || error.name === "TypeError") ? "manifest_fetch_failed" : "manifest_parse_failed", task.isPrivate);
       if (/^(?:invalid_hls|invalid_dash)$/.test(error?.message || "")) await rejectManifest(task);
     }
   } finally {

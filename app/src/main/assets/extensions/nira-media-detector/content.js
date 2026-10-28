@@ -7,7 +7,7 @@
   // Only the extension's background can mint root/frame correlation keys.
   // No video playback, network probe, script execution or persistent URL storage.
   const FRAME = typeof window.top !== "undefined" && window !== window.top;
-  const MAX_ITEMS = 128, MAX_SEEN = 256, MAX_SCRIPT_CHARS = 48000;
+  const MAX_ITEMS = 96, MAX_SEEN = 256, MAX_SCRIPT_CHARS = 48000;
   let activeUrl = location.href, context = null, registering = null, navigationEpoch = 0;
   let scheduled = false;
   let scanRoot = document, scanTimer = null, alive = true;
@@ -19,7 +19,7 @@
   let structuredVersions = new WeakSet();
   let overflowRoot = false;
   // Bounded slices, not a permanent cutoff at the first N nodes.
-  const SLICE_MS = 8, MAX_JOBS = 64, MAX_ROOTS = 32;
+  const SLICE_MS = 4, MAX_JOBS = 64, MAX_ROOTS = 32;
   const seen = new Map(), groups = new WeakMap();
   let structuredGroups = new WeakMap();
   let nextGroup = 0;
@@ -173,6 +173,8 @@
           message.height < 1 || message.height > 8640)) ||
         ("frameRate" in message && (typeof message.frameRate !== "number" ||
           !Number.isFinite(message.frameRate) || message.frameRate <= 0 || message.frameRate > 240)) ||
+        ("availableQualities" in message && (typeof message.availableQualities !== "string" ||
+          !/^[0-9]{2,4}p(?:,[0-9]{2,4}p){0,15}$/.test(message.availableQualities))) ||
         ("variantCount" in message && (!Number.isSafeInteger(message.variantCount) ||
           message.variantCount < 1 || message.variantCount > 32)) ||
         ("bitrateKind" in message && !["average","peak","declared"].includes(message.bitrateKind)) ||
@@ -195,7 +197,7 @@
           "isPrivate", "documentKey", "pageUrl", "contentType", "sizeBytes",
           "durationSeconds", "isLive",
           "groupId", "quality", "bitrate", "codecs", "width", "height",
-          "frameRate", "variantCount", "bitrateKind", "provenance",
+          "frameRate", "variantCount", "availableQualities", "bitrateKind", "provenance",
           "verification", "httpStatus", "requestSequence",
           "frameUrl", "frameKey"].includes(key)) ||
         message.pageUrl !== location.href) return Promise.resolve(false);
@@ -323,6 +325,14 @@
     if (players.length > 1) return false;
     if (players.length === 1) {
       const player = players[0];
+      // A sibling media link may belong to ONE real video, but only on exact URL.
+      if (!posterOnly && element?.matches?.("a[href]") &&
+          player.tagName?.toLowerCase() === "video") {
+        const href = absolute(attribute(element, "href"));
+        const src = absolute(player.currentSrc || player.src);
+        if (href && src && href === src && card.querySelectorAll("a[href]").length === 1)
+          return true;
+      }
       return posterOnly || element === card || element === player ||
         typeof player.contains === "function" && player.contains(element) ||
         typeof element.contains === "function" && element.contains(player);
@@ -514,7 +524,7 @@
       dimensions?.width || null, dimensions?.height || null]);
     if (seen.has(key)) { note("duplicate"); return; }
     offers++;
-    if (!named) note("title_unknown");
+    if (!named) { note("title_unknown"); note("title_no_label"); }
     else if (kind === "structured") note("title_structured");
     else note("title_individual");
     seen.set(key, true);
@@ -553,7 +563,7 @@
             validated.width !== message.width ||
             validated.height !== message.height ||
             !alive || epoch !== navigationEpoch || navigation !== location.href) {
-          context = null; seen.delete(key); return;
+          note("title_ipc_rejected"); context = null; seen.delete(key); return;
         }
         const bound = { ...validated, documentKey: root.documentKey,
           pageUrl: root.pageUrl };
@@ -567,7 +577,7 @@
         }
         return enqueueNative(bound, epoch)
           .then(ok => {
-            if (ok !== true) { seen.delete(key); note("native_rejected"); }
+            if (ok !== true) { seen.delete(key); note("native_rejected"); if (named) note("title_native_rejected"); }
             else { note(afterPlay ? "after_play" : "before_play"); if (FRAME) note("iframe"); }
           });
       });
@@ -576,7 +586,7 @@
 
   function inspect(video) {
     if (!(video instanceof HTMLVideoElement) || !video.isConnected || video.ended) return;
-    const group = groupFor(scopedMediaCard(video)?.card || video);
+    const group = groupFor(ownedMediaCard(video) || video);
     const playing = video.paused === false;
     const preferred = video.currentSrc || video.src;
     if (!preferred) note("no_source");
@@ -587,6 +597,8 @@
       }
     }
     const title = videoTitle(video);
+    if (!title && video.closest && video.closest(MEDIA_CARDS) && !ownedMediaCard(video))
+      note("title_no_owner");
     const kind = explicitVideoTitle(video) ? "player" : "video";
     const seconds = durationOf(video);
     const poster = posterFor(video);
@@ -631,7 +643,7 @@
       const posterCard = ownedMediaCard(element);
       const directTitle = mediaTitleHint(element.textContent);
       const title = directTitle || scoped?.title || null;
-      submit(href, "page", null, groupFor(scoped?.card || element),
+      submit(href, "page", null, groupFor(ownedMediaCard(element) || element),
         title, title ? (directTitle ? "link" : "video") : null,
         null, posterForCard(posterCard), null, "card");
     });
@@ -646,7 +658,7 @@
         const value = attribute(element, name);
         if (value) submit(value, "page", attribute(element, "type") ||
           (name === "data-hls" || name === "data-m3u8" ? "application/vnd.apple.mpegurl" :
-            name === "data-mpd" ? "application/dash+xml" : null), groupFor(scoped?.card || element),
+            name === "data-mpd" ? "application/dash+xml" : null), groupFor(ownedMediaCard(element) || element),
           named, named ? (explicitVideoTitle(element) ? "player" : "video") : null,
           null, absolute(attribute(element, "data-poster") || attribute(element, "data-thumbnail")) ||
             posterForCard(posterCard), null, "card");
@@ -718,6 +730,7 @@
           // Only direct, valid media URLs own this VideoObject title. embedUrl
           // is a document/player location, never assumed to be a stream URL.
           const urls = [...new Set(sources.map(absolute).filter(Boolean))].slice(0, 9);
+          if (name && urls.length === 0) note("title_no_direct_source");
           const group = structuredGroup(element, urls);
           const poster = mediaThumbnail(node.thumbnailUrl) ||
             mediaThumbnail(node.thumbnail) || mediaThumbnail(node.image);
@@ -946,6 +959,7 @@
   }
   function collect(root) {
     scanRoot = root;
+    note("scan_root");
     inspectFrame(root);
     scanCollection("video", inspect);
     scanDeclarations(); scanStructuredData(); scanPlayerConfigs();
@@ -985,6 +999,7 @@
       processed++;
     }
     note("scan_elements", processed);
+    if (processed > 0) note("scan_slice_ms", Math.max(1, Math.min(10000, Date.now() - start)));
     if (jobs.length || pendingRoots.size || overflowRoot) {
       note("scan_yield"); scanTimer = setTimeout(pump, 32);
     } else if (!offers) note("no_candidate");

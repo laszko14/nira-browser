@@ -109,6 +109,13 @@ object TestLabReportGenerator {
                 LabCode.DETECTOR_QUEUE_ANDROID_RATE,LabCode.DETECTOR_QUEUE_TITLE_CANDIDATE_DROPPED).forEach { appendLine("$it=${r.eventCounts[it] ?: 0}") }
             appendLine("QUEUE_LIMIT jest sumą wielu przyczyn. Odmowa wysłania ≠ potwierdzona utrata tytułu; ograniczenia webRequest nie pozwalają przypisać wszystkich zdarzeń do filmu.")
         }
+        if(r.testType in setOf(TestType.VIDEO_DISCOVERY,TestType.VIDEO_METADATA,TestType.FULL_AUDIT)) {
+            appendLine("\nMME NEXTGEN — liczniki przyczyn; to zdarzenia, nie unikalne filmy:")
+            listOf(LabCode.MME_TITLE_NO_LABEL, LabCode.MME_TITLE_NO_DIRECT_SOURCE, LabCode.MME_TITLE_NO_OWNER, LabCode.MME_TITLE_IPC_REJECTED, LabCode.MME_TITLE_NATIVE_REJECTED, LabCode.MME_MANIFEST_FETCH_FAILED, LabCode.MME_MANIFEST_AUTH_FAILED, LabCode.MME_MANIFEST_TOO_LARGE, LabCode.MME_MANIFEST_BODY_UNAVAILABLE, LabCode.MME_MANIFEST_PARSE_FAILED, LabCode.MME_MANIFEST_VALID_MASTER, LabCode.MME_MANIFEST_VALID_MEDIA, LabCode.MME_MANIFEST_NO_TECHNICAL, LabCode.MME_MANIFEST_KIB, LabCode.MME_SCAN_SLICE_MS, LabCode.MME_SCAN_ROOT).forEach { appendLine("$it=${r.eventCounts[it] ?: 0}") }
+            appendLine("Konflikty rozdzielczości dla tego samego źródła=${r.eventCounts[LabCode.MME_RESOLUTION_CONFLICT] ?: 0}; konflikt → UNKNOWN.")
+            appendLine("Miniatury: powodzenie ładowania=${r.eventCounts[LabCode.MME_POSTER_LOADED] ?: 0}; błąd ładowania=${r.eventCounts[LabCode.MME_POSTER_FAILED] ?: 0}; callback loadera nie potwierdza poprawności miniatury ani wszystkich pikseli.")
+            appendLine("MANIFEST_KIB i SCAN_SLICE_MS są sumami jednostek diagnostycznych; zero nie dowodzi poprawności rozpoznawania metadanych.")
+        }
         if(r.testType in setOf(TestType.VIDEO_METADATA,TestType.FULL_AUDIT)) {
             appendLine("\nVIDEO METADATA — anonimowe obserwacje zaakceptowanych filmów:")
             r.videoMetadata?.let { v ->
@@ -116,7 +123,7 @@ object TestLabReportGenerator {
                 appendLine("Rozmiar dokładny=${v.sizeExact}; szacowany=${v.sizeEstimated}; nieznany=${v.sizeUnknown}")
                 appendLine("Tytuły powiązane=${v.titlesAssociated}; fallback=${v.titlesFallback}; konflikty=${v.titleConflicts}")
                 appendLine("Miniatury przypisane=${v.postersAssociated}; rozdzielczość znana=${v.resolutionKnown}; jakość znana=${v.qualityKnown}; z samej rozdzielczości=${v.qualityDerived}")
-                appendLine("FPS=${v.fpsKnown}; kodeki=${v.codecsKnown}; bitrate=${v.bitrateKnown}; wiele wariantów=${v.variantsKnown}")
+                appendLine("FPS=${v.fpsKnown}; kodeki=${v.codecsKnown}; bitrate=${v.bitrateKnown}; wiele wariantów=${v.variantsKnown}; listy dostępnych jakości=${v.availableQualitiesKnown}")
                 appendLine("Pochodzenie miniaturek=${v.posterOrigins}; sprzeczne miniatury o tej samej sile=${v.posterConflicts}")
                 appendLine("Pochodzenie=deklaracja, a nie dowód poprawności obrazu. Konflikt → UNKNOWN; brak miniatury nie oznacza błędu odtwarzania.")
                 appendLine("Miniatura przypisana nie oznacza załadowanej miniatury; jakość z rozdzielczości nie potwierdza przełączania wariantów.")
@@ -139,6 +146,7 @@ object TestLabReportGenerator {
                 appendLine("VERIFIED=zweryfikowany manifest/strumień lub potwierdzony stan źródła; DISPLAYED=przekazano panelowi, nie wyrenderowano pikseli.")
                 appendLine("Braki: ${funnel.unknownReasons}")
                 appendLine("Konflikty: tytuł=${funnel.titleConflicts}; różne miniatury=${funnel.posterAlternatives}; rozbieżne grupy wariantów=${funnel.variantGroupMismatches}; limit=${funnel.droppedRecords}")
+                appendLine("Powody zmian groupId: NETWORK wobec DOM/PAGE=${funnel.variantGroupDomNetwork}; pozostale=${funnel.variantGroupOther}; zdarzenia, nie dowod blednego scalenia.")
                 appendLine("Rozszerzone sondy sieciowe: ${if(funnel.extendedNetworkProbesEnabled) "ON" else "OFF"}; liczba prób=${funnel.probeRequests ?: "NOT_MEASURED"}, bajty=${funnel.probeBytes ?: "NOT_MEASURED"}, czas=${funnel.probeElapsedMs ?: "NOT_MEASURED"} ms")
                 appendLine("Brak pomiarów sieciowych oznacza NOT_MEASURED, a nie zero żądań ani zero kosztu.")
             } ?: appendLine("NOT_MEASURED — brak snapshotu kolektora.")

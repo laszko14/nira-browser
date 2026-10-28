@@ -47,6 +47,7 @@ internal class MediaEntry(
     val bitrateKind: String? = null,
     val posterOrigin: String? = null,
     val posterAmbiguous: Boolean = false,
+    val availableQualities: String? = null,
 ) {
     override fun toString(): String = "MediaEntry(format=$format, sources=$sources, url=<redacted>)"
 }
@@ -125,8 +126,10 @@ internal class MediaRepository(
         var posterAmbiguous = false
         var width: Int? = null
         var height: Int? = null
+        private var dimensionConflict = false
         var frameRate: Double? = null
         var variantCount: Int? = null
+        var availableQualities: String? = null
         var bitrateKind: String? = null
         var quality: String? = null
         var bitrate: Long? = null
@@ -176,11 +179,26 @@ internal class MediaRepository(
                 sizeEstimated = false
                 sizeOrigin = if (format == MediaFormat.HLS) "HLS_BYTERANGE" else "HTTP_LENGTH"
             }
-            if (candidate.width != null) width = candidate.width
-            if (candidate.height != null) height = candidate.height
+            // A resolution is an atomic WIDTH+HEIGHT observation. Never combine
+            // dimensions from different manifest renditions or player generations.
+            if (!dimensionConflict && candidate.width != null && candidate.height != null) {
+                if (width != null && height != null &&
+                    (width != candidate.width || height != candidate.height)) {
+                    dimensionConflict = true
+                    width = null; height = null; quality = null
+                    com.prirai.android.nira.diagnostics.testlab.TestLab.note(
+                        com.prirai.android.nira.diagnostics.testlab.LabCode.MME_RESOLUTION_CONFLICT)
+                } else {
+                    width = candidate.width; height = candidate.height
+                }
+            }
             if (candidate.frameRate != null) frameRate = candidate.frameRate
             if (candidate.variantCount != null) variantCount = candidate.variantCount
-            if (candidate.quality != null) quality = candidate.quality
+            if (candidate.source == MediaSource.NETWORK && candidate.verification == "manifest_verified" &&
+                candidate.availableQualities != null) availableQualities = candidate.availableQualities
+            if (!dimensionConflict && candidate.quality != null &&
+                (candidate.height == null || candidate.quality == "${candidate.height}p"))
+                quality = candidate.quality
             if (candidate.bitrate != null) {
                 bitrate = candidate.bitrate
                 bitrateKind = candidate.bitrateKind
@@ -224,7 +242,7 @@ internal class MediaRepository(
             playbackStatus, httpStatus, ambiguous, frameKey,
             sizeEstimated, durationOrigin, sizeOrigin, isLive, titleAmbiguous,
             width, height, frameRate, variantCount, bitrateKind,
-            posterOrigin, posterAmbiguous)
+            posterOrigin, posterAmbiguous, availableQualities)
     }
 
     private class FrameBinding(val id: Long, val key: Long, val url: String, var active: Boolean)
@@ -443,9 +461,14 @@ internal class MediaRepository(
             found.observeUrl(media.url, provenance, tick())
             found.mark(if (provenance == MediaProvenance.MANIFEST_DERIVED) MediaSource.PAGE else source)
             if (com.prirai.android.nira.diagnostics.testlab.TestLab.mediaObservationActive()) {
-                if (groupId != null && found.groupId != null && found.groupId != groupId)
+                if (groupId != null && found.groupId != null && found.groupId != groupId) {
                     com.prirai.android.nira.diagnostics.testlab.TestLab.mediaFunnelConflict(
                         com.prirai.android.nira.diagnostics.testlab.MediaFunnelConflict.VARIANT_GROUP_MISMATCH)
+                    com.prirai.android.nira.diagnostics.testlab.TestLab.mediaFunnelConflict(
+                        if (source == MediaSource.NETWORK && (found.dom || found.page))
+                            com.prirai.android.nira.diagnostics.testlab.MediaFunnelConflict.VARIANT_GROUP_DOM_NETWORK
+                        else com.prirai.android.nira.diagnostics.testlab.MediaFunnelConflict.VARIANT_GROUP_OTHER)
+                }
                 if (found.posterUrl != null && metadata?.posterUrl != null &&
                     found.posterUrl != metadata.posterUrl)
                     com.prirai.android.nira.diagnostics.testlab.TestLab.mediaFunnelConflict(

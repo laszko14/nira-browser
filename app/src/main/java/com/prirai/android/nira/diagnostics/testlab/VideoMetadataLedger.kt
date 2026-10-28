@@ -20,6 +20,7 @@ internal class VideoMetadataLedger(private val capacity: Int = 256) {
         var qualityKnown: Boolean = false, var qualityDerived: Boolean = false,
         var fpsKnown: Boolean = false, var codecsKnown: Boolean = false,
         var bitrateKnown: Boolean = false, var variantsKnown: Boolean = false,
+        var availableQualitiesKnown: Boolean = false,
     )
     private val scopes = IdentityHashMap<Any, Scope>()
     private val tracks = LinkedHashMap<String, Track>()
@@ -108,6 +109,7 @@ internal class VideoMetadataLedger(private val capacity: Int = 256) {
             codecsKnown = !entry.codecs.isNullOrBlank()
             bitrateKnown = entry.bitrate != null
             variantsKnown = (entry.variantCount ?: 0) > 1
+            availableQualitiesKnown = !entry.availableQualities.isNullOrBlank()
         }
     }
 
@@ -144,6 +146,7 @@ internal class VideoMetadataLedger(private val capacity: Int = 256) {
             codecsKnown = items.count { it.codecsKnown },
             bitrateKnown = items.count { it.bitrateKnown },
             variantsKnown = items.count { it.variantsKnown },
+            availableQualitiesKnown = items.count { it.availableQualitiesKnown },
             examples = items.take(32).map {
                 VideoMetadataFilm(it.ordinal, it.format, it.durationStatus, it.durationSource,
                     it.sizeStatus, it.sizeSource, it.durationSeconds, it.sizeBytes, it.visible, it.updates)

@@ -51,6 +51,27 @@ class MediaRepositoryTest {
         assertFalse(observed.toString().contains("private"))
     }
 
+    @Test fun conflictingDimensionsOfSameSourceRemainUnknownRatherThanMixVariants() {
+        val repo = MediaRepository()
+        val t = tab()
+        begin(repo, t)
+        val url = "https://cdn.example/video.mp4"
+        fun offer(w: Int, h: Int, quality: String) {
+            val candidate = MediaDetectorMessage.Candidate(url,
+                source = MediaSource.PAGE, pageUrl = t.pageUrl, documentKey = 1,
+                width = w, height = h, quality = quality)
+            repo.add(t, t.pageUrl, 1, MediaClassifier.fromPage(candidate, t.binding)!!,
+                MediaSource.PAGE, null, candidate)
+        }
+        offer(1280, 720, "720p")
+        assertEquals(720, repo.forTab(t.binding).single().height)
+        offer(1920, 1080, "1080p")
+        assertNull(repo.forTab(t.binding).single().height)
+        assertNull(repo.forTab(t.binding).single().quality)
+        offer(1280, 720, "720p")
+        assertNull(repo.forTab(t.binding).single().quality)
+    }
+
     @Test fun twoDifferentVideosInOneTabStayIndependent() {
         val repo = MediaRepository()
         val t = tab()

@@ -37,7 +37,8 @@ internal sealed interface MediaDetectorMessage {
                     val frameRate: Double? = null,
                     val variantCount: Int? = null,
                     val bitrateKind: String? = null,
-                    val posterKind: String? = null) : MediaDetectorMessage {
+                    val posterKind: String? = null,
+                    val availableQualities: String? = null) : MediaDetectorMessage {
         override fun toString() = "MediaCandidate(redacted)"
     }
     class Document(val pageUrl: String, val documentKey: Long, val frameTracking: Boolean = false) : MediaDetectorMessage {
@@ -66,6 +67,7 @@ internal object MediaMessageProtocol {
         "title_individual", "title_structured", "title_unknown",
         "queue_native_capacity", "queue_native_stale", "queue_native_retry", "queue_native_reject",
         "queue_dom_roots", "queue_early_evict", "queue_network_rate",
+        "title_no_label", "title_no_direct_source", "title_no_owner", "title_ipc_rejected", "title_native_rejected", "manifest_fetch_failed", "manifest_auth_failed", "manifest_too_large", "manifest_body_unavailable", "manifest_parse_failed", "manifest_valid_master", "manifest_valid_media", "manifest_no_technical", "manifest_kib", "scan_slice_ms", "scan_root",
         "queue_manifest_capacity", "queue_android_rate", "queue_title_candidate_dropped")
     private const val MAX_MESSAGE_BYTES = 16 * 1024
     private const val MAX_URL_BYTES = 8 * 1024
@@ -170,6 +172,7 @@ internal object MediaMessageProtocol {
                 val hasFrameRate = "frameRate" in fields
                 val hasVariantCount = "variantCount" in fields
                 val hasBitrateKind = "bitrateKind" in fields
+                val hasAvailableQualities = "availableQualities" in fields
                 val hasQuality = "quality" in fields
                 val hasBitrate = "bitrate" in fields
                 val hasCodecs = "codecs" in fields
@@ -203,6 +206,7 @@ internal object MediaMessageProtocol {
                     (if (hasVariantCount) setOf("variantCount") else emptySet()) +
                     (if (hasBitrateKind) setOf("bitrateKind") else emptySet()) +
                     (if (hasQuality) setOf("quality") else emptySet()) +
+                    (if (hasAvailableQualities) setOf("availableQualities") else emptySet()) +
                     (if (hasBitrate) setOf("bitrate") else emptySet()) +
                     (if (hasCodecs) setOf("codecs") else emptySet()) +
                     (if (hasProvenance) setOf("provenance") else emptySet()) +
@@ -257,6 +261,10 @@ internal object MediaMessageProtocol {
                     string("posterKind")?.takeIf {
                         it in setOf("element", "card", "player", "structured")
                     } ?: return null else null
+                val availableQualities = if (hasAvailableQualities)
+                    string("availableQualities")?.takeIf {
+                        it.length <= 96 && it.matches(Regex("[0-9]{2,4}p(?:,[0-9]{2,4}p){0,15}")) && fromNetwork
+                    } ?: return null else null
                 val quality = if (hasQuality) string("quality")?.takeIf {
                     it.matches(Regex("[0-9]{2,4}p"))
                 } ?: return null else null
@@ -299,7 +307,7 @@ internal object MediaMessageProtocol {
                 MediaDetectorMessage.Candidate(url, contentType, source, privateHint, pageUrl, key,
                     frameUrl, frameKey, groupId, title, titleKind, duration, size, poster,
                     quality, bitrate, codecs, provenance, verification, httpStatus, requestSequence, live,
-                    width, height, frameRate, variantCount, bitrateKind, posterKind)
+                    width, height, frameRate, variantCount, bitrateKind, posterKind, availableQualities)
             }
             else -> null
         }

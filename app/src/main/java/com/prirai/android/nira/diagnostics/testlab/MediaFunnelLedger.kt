@@ -14,7 +14,7 @@ import kotlinx.serialization.Serializable
     SIZE_UNKNOWN, QUALITY_UNKNOWN, OWNER_AMBIGUOUS
 }
 @Serializable internal enum class MediaFunnelConflict {
-    TITLE, POSTER_ALTERNATIVE, VARIANT_GROUP_MISMATCH
+    TITLE, POSTER_ALTERNATIVE, VARIANT_GROUP_MISMATCH, VARIANT_GROUP_DOM_NETWORK, VARIANT_GROUP_OTHER
 }
 
 /**
@@ -33,6 +33,8 @@ import kotlinx.serialization.Serializable
     val probeRequests: Long? = null,
     val probeBytes: Long? = null,
     val probeElapsedMs: Double? = null,
+    val variantGroupDomNetwork: Long = 0,
+    val variantGroupOther: Long = 0,
 )
 
 internal class MediaFunnelLedger(private val capacity: Int = 256) {
@@ -53,6 +55,8 @@ internal class MediaFunnelLedger(private val capacity: Int = 256) {
     private var titleConflicts = 0L
     private var posterAlternatives = 0L
     private var variantMismatches = 0L
+    private var variantDomNetwork = 0L
+    private var variantOther = 0L
     private fun scope(binding: MediaSessionBinding): Scope? {
         scopes[binding.session]?.let { return it }
         if (scopes.size >= capacity) { dropped++; return null }
@@ -68,6 +72,8 @@ internal class MediaFunnelLedger(private val capacity: Int = 256) {
             MediaFunnelConflict.TITLE -> titleConflicts++
             MediaFunnelConflict.POSTER_ALTERNATIVE -> posterAlternatives++
             MediaFunnelConflict.VARIANT_GROUP_MISMATCH -> variantMismatches++
+            MediaFunnelConflict.VARIANT_GROUP_DOM_NETWORK -> variantDomNetwork++
+            MediaFunnelConflict.VARIANT_GROUP_OTHER -> variantOther++
         }
     }
     @Synchronized fun observe(binding: MediaSessionBinding, entry: MediaEntry, verifiedEvidence: Boolean = false) {
@@ -115,7 +121,8 @@ internal class MediaFunnelLedger(private val capacity: Int = 256) {
             }
         }
         return MediaFunnelSummary(stage, unknown, titleConflicts, posterAlternatives,
-            variantMismatches, dropped)
+            variantMismatches, dropped, variantGroupDomNetwork = variantDomNetwork,
+            variantGroupOther = variantOther)
     }
     @Synchronized fun clear() { scopes.clear(); records.clear() }
 }
