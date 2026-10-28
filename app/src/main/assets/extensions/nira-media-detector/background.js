@@ -132,8 +132,12 @@ function contentSize(details, format) {
   if (details.statusCode === 200) value = get("content-length");
   else if (details.statusCode === 206) {
     const range = get("content-range");
-    const match = range && /^bytes\s+\d+-\d+\/(\d+)$/i.exec(range);
-    if (match) value = match[1];
+    const match = range && /^bytes\s+(\d+)-(\d+)\/(\d+)$/i.exec(range);
+    if (match) {
+      const start = Number(match[1]), end = Number(match[2]), total = Number(match[3]);
+      if (Number.isSafeInteger(start) && Number.isSafeInteger(end) &&
+          Number.isSafeInteger(total) && start <= end && end < total) value = match[3];
+    }
   }
   if (!value || !/^\d{1,13}$/.test(value)) return null;
   const bytes = Number(value);

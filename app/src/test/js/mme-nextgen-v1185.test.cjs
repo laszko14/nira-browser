@@ -69,3 +69,64 @@ test("v1185 DASH dynamic keeps video, audio and subtitles separate", () => {
   assert.equal(p.audioTracks[0].role, "audio");
   assert.equal(p.trickplayTracks.length, 0);
 });
+
+
+test("v1186 HLS exact byte ranges reject malformed and missing media, initialization and encryption", () => {
+  const source = [
+    "#EXTM3U", "#EXTINF:5,", "#EXT-X-BYTERANGE:100@0", "a.ts",
+    "#EXTINF:4,", "#EXT-X-BYTERANGE:200@100", "a.ts",
+    "#EXT-X-ENDLIST"
+  ].join("\n");
+  const parse = value => parser().parseHls(value, "https://example.invalid/vod.m3u8", 8);
+  assert.equal(parse(source).exactSizeBytes, 300);
+  assert.equal(parse(source.replace("a.ts\n#EXT-X-ENDLIST", "#EXT-X-ENDLIST")).exactSizeBytes, null);
+  assert.equal(parse(source.replace("#EXT-X-BYTERANGE:200@100", "#EXT-X-BYTERANGE:invalid")).exactSizeBytes, null);
+  assert.equal(parse(source.replace("#EXT-X-BYTERANGE:200@100", "#EXT-X-BYTERANGE:0@100")).exactSizeBytes, null);
+  assert.equal(parse(source.replace("#EXT-X-ENDLIST", "#EXT-X-MAP:URI=\"init.mp4\"\n#EXT-X-ENDLIST")).exactSizeBytes, null);
+  assert.equal(parse(source.replace("#EXT-X-ENDLIST", "#EXT-X-KEY:METHOD=AES-128,URI=\"key\"\n#EXT-X-ENDLIST")).exactSizeBytes, null);
+  assert.equal(parse(source.replace("#EXT-X-ENDLIST", "")).exactSizeBytes, null);
+});
+
+test("v1186 HLS rendition audio and subtitle remain separate from video", () => {
+  const source = [
+    "#EXTM3U",
+    "#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aud\",NAME=\"English\",URI=\"en.m3u8\"",
+    "#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"sub\",NAME=\"Polski\",URI=\"pl.m3u8\"",
+    "#EXT-X-STREAM-INF:BANDWIDTH=3000000,AVERAGE-BANDWIDTH=2000000,RESOLUTION=1280x720,AUDIO=\"aud\",SUBTITLES=\"sub\"",
+    "video.m3u8"
+  ].join("\n");
+  const result = parser().parseHls(source, "https://example.invalid/master.m3u8", 8);
+  assert.equal(result.variants.length, 1);
+  assert.equal(result.variants[0].bitrateKind, "average");
+  assert.equal(result.variants[0].bitrate, 2000000);
+  assert.equal(result.variants[0].peakBitrate, 3000000);
+  assert.equal(result.audioTracks[0].role, "audio");
+  assert.equal(result.audioTracks[0].group, result.variants[0].audioGroup);
+  assert.equal(result.subtitleTracks[0].role, "subtitle");
+  assert.equal(result.subtitleTracks[0].group, result.variants[0].subtitleGroup);
+});
+
+test("v1186 HTTP 206 exact size validates range boundaries and compressed payload", () => {
+  const background = fs.readFileSync(path.join(__dirname,
+    "../../main/assets/extensions/nira-media-detector/background.js"), "utf8");
+  const start = background.indexOf("const validSeconds =");
+  const end = background.indexOf("// Gecko 153+", start);
+  assert.ok(start > 0 && end > start);
+  const ctx = {};
+  vm.runInNewContext(background.slice(start, end) +
+    "\nglobalThis.testContentSize = contentSize;", ctx, { timeout: 1000 });
+  const headers = (statusCode, range, encoding = null) => ({
+    statusCode, responseHeaders: [
+      { name: "Content-Range", value: range },
+      ...(encoding ? [{ name: "Content-Encoding", value: encoding }] : [])
+    ]
+  });
+  const size = (s, r, enc = null) => ctx.testContentSize(headers(s, r, enc), "MP4");
+  assert.equal(size(206, "bytes 100-199/1000"), 1000);
+  assert.equal(size(206, "bytes 100-999/500"), null);
+  assert.equal(size(206, "bytes 100-99/500"), null);
+  assert.equal(size(206, "bytes 0-500/500"), null);
+  assert.equal(size(206, "bytes */500"), null);
+  assert.equal(size(206, "bytes 0-499/500", "gzip"), null);
+  assert.equal(size(403, "bytes 0-499/500"), null);
+});
