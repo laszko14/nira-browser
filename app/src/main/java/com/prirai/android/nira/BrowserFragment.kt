@@ -63,9 +63,22 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     private var mediaFloatingUi: MediaFloatingUi? = null
     private var sidePanelInfrastructure: SidePanelInfrastructure? = null
 
-    /** Lazy content lifecycle hook; called only once the new left drawer is enabled in 3B. */
-    private fun mountEmbeddedSideTabs(): Boolean =
-        sidePanelInfrastructure?.mountLeftContent(childFragmentManager) == true
+    /** Mount only when a qualified left-edge gesture needs a real panel. */
+    private fun mountEmbeddedSideTabs(): Boolean {
+        val panels = sidePanelInfrastructure ?: return false
+        if (parentFragmentManager.isStateSaved || childFragmentManager.isStateSaved ||
+            childFragmentManager.isDestroyed) return false
+        // A visible legacy sheet or right bookmarks dialog takes precedence.
+        if (listOf("NiraSideTabs", "NiraSideBookmarks",
+                com.prirai.android.nira.browser.tabs.TabsBottomSheetFragment.TAG)
+                .any { parentFragmentManager.findFragmentByTag(it) != null }) return false
+        if (!panels.mountLeftContent(childFragmentManager)) return false
+        val width = panels.host.leftContainer.layoutParams.width
+        return panels.activate(
+            com.prirai.android.nira.browser.panels.SidePanelSide.LEFT,
+            width
+        )
+    }
     private var legacyEdgePanelListener: com.prirai.android.nira.browser.SwipeGestureListener? = null
 
     // Track last tab IDs for auto-grouping detection
@@ -205,6 +218,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                     !parentFragmentManager.isStateSaved
             }
         )
+        sidePanelInfrastructure?.prepareLeftOnGesture = { mountEmbeddedSideTabs() }
         if (!prefs.niraEdgePanelsEnabled) return
         val density = resources.displayMetrics.density
         val edgeWidth = prefs.niraEdgeWidthDp * density
@@ -214,6 +228,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             private var travelled = 0f
             private var labGesture: com.prirai.android.nira.diagnostics.testlab.OperationToken? = null
             override fun onSwipeStarted(start: android.graphics.PointF, next: android.graphics.PointF): Boolean {
+                // Never open a legacy dialog over an embedded drawer.
+                if (sidePanelInfrastructure?.leftIsEngaged() == true) return false
                 val dx = next.x - start.x
                 val dy = next.y - start.y
                 if (kotlin.math.abs(dx) < 12 * density ||

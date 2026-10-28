@@ -106,7 +106,7 @@ internal class SidePanelMotionController(
     fun command(side: SidePanelSide, measuredWidthPx: Int, open: Boolean): Boolean {
         if (measuredWidthPx <= 0) return false
         val before = model.snapshot
-        if (before.phase == SidePanelPhase.DRAGGING || (before.side != null && before.side != side)) return false
+        if (before.side != null && before.side != side) return false
         if (before.phase == SidePanelPhase.SETTLING) {
             // startDrag makes the old SETTLING interruptible, preserving its last position.
             if (!model.startDrag(side)) return false

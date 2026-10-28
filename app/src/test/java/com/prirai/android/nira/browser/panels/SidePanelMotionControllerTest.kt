@@ -155,4 +155,19 @@ class SidePanelMotionControllerTest {
         assertEquals(1f, SidePanelMotionPolicy.quinticEaseOut(1f), 0.0001f)
         assertTrue(SidePanelMotionPolicy.quinticEaseOut(0.5f) > 0.5f)
     }
+
+    @Test fun commandCanCloseDuringDragWithoutSnappingToZero() {
+        val driver = Driver()
+        val controller = SidePanelMotionController(driver, 2f) { }
+        assertTrue(controller.beginDrag(SidePanelSide.LEFT, 300))
+        assertTrue(controller.dragBy(180f))
+        assertEquals(0.6f, controller.snapshot.progress, 0.0001f)
+        assertTrue(controller.command(SidePanelSide.LEFT, 300, false))
+        assertEquals(SidePanelPhase.SETTLING, controller.snapshot.phase)
+        assertEquals(0.6f, driver.current!!.from, 0.0001f)
+        assertEquals(0f, driver.current!!.to, 0.0001f)
+        driver.finish()
+        assertEquals(SidePanelPhase.CLOSED, controller.snapshot.phase)
+    }
+
 }
