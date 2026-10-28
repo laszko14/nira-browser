@@ -601,3 +601,12 @@ odpowiedniego upoważnienia lub uzgodnionej zmiany CI.
 - \`ValueAnimatorSidePanelDriver\` nadal korzysta z domyślnego Android ValueAnimator, którego callbacki są wyzwalane przez VSYNC i animator duration scale. **Nie ustawiono na sztywno 60/90/120 Hz ani nie obiecano 120 kl./s**. Zachowano poprzednie tokeny cancel, możliwość przerwania, reset i velocity dla obu kierunków.
 - Testy: \`SidePanelMotionControllerTest.kt\` rozszerzono z 8 do 13 testów: spójność krzywej 120 kroków, adaptacyjna długość, fling szybko/dwukierunkowo, NaN i zła geometria, domknięcie <=1 px bez animatora, plus dotychczasowe testy gestów/ownership. Odrębne testy Robolectric gesture nadal istnieją. **Weryfikacja rzeczywistego 120 Hz/jank i dopasowania do 1DM wymaga pomiaru na urządzeniu (etap 7C); parametry są propozycją projektową, nie zmierzonymi własnościami 1DM.**
 - Po pojedynczym \`Dalej\` WYŁĄCZNIE **ETAP 6A**: konflikty przesuwania z GeckoView/paskami/Compose. Nadal bez APK/CI i bez nowych PR, dopóki użytkownik nie powie \`KOMPILUJ\` lub \`JUŻ\`.
+
+
+### 2026-10-28 — ETAP 6A: arbitraż gestów WWW, toolbar i paneli
+- Baza: feat/zavro-clean-side-panels-1dm-20261028 @ 7717fabd2ceff32ad81531170170db0168f5c359. Clean v1189. Bez PR/CI/APK/merge, bez zmian MPV.
+- SwipeGestureLayout: naprawiono podwójne przekazywanie tego samego ACTION_MOVE po przechwyceniu ViewGroup przez porównanie znaczników czasu, współrzędnych i liczby wskaźników; bez alokacji obiektów per klatkę. Zachowano pierwszeństwo toolbarowego SwipeGestureListener oraz niezajęte gesty strony/Compose.
+- Multi-touch: ACTION_POINTER_DOWN albo dwa pointery blokują przejęcie gestu panelu/toolbaru, a aktywny handler jest anulowany. Brak nowego odbierania pinch-zoom z GeckoView. requestDisallowInterceptTouchEvent child nadal jest honorowany.
+- Przewijanie panelu nie uruchamia auto-hide toolbaru: allowPageScrollObservation kontroluje pasywne onVerticalSwipe; BrowserFragment włącza tę obserwację tylko gdy nie ma zamontowanego/aktywnego panelu. Callback czyszczony przy onDestroyView.
+- Dodano 6 testów Robolectric SwipeGestureLayoutArbitrationTest.kt: pionowy scroll, poziomy poza krawędzią, child disallow intercept, pojedynczy MOVE na przejęcie, priorytet toolbaru, pionowy scroll panelu. Kompilacja Gradle/Robolectric i test GeckoView/Compose na telefonie nadal NOT_TESTED; weryfikacja strukturalna i commit nie potwierdzają 120 Hz.
+- ETAP 6B po kolejnym DALEJ: systemowe gesty Back, fullscreen, lifecycle i insets. Nie uruchamiać instalacyjnego APK/CI/PR do osobnej komendy KOMPILUJ/JUŻ.

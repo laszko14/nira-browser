@@ -221,6 +221,9 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
 
     private fun setupEdgePanelGestures() {
         binding.gestureLayout.onVerticalSwipe = { delta -> onVerticalPageGesture(delta) }
+        binding.gestureLayout.allowPageScrollObservation = {
+            sidePanelInfrastructure?.anyPanelEngaged() != true
+        }
         val prefs = UserPreferences(requireContext())
         legacyEdgePanelListener?.let(binding.gestureLayout::removeGestureListener)
         legacyEdgePanelListener = null
@@ -427,6 +430,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         sidePanelInfrastructure?.dispose()
         sidePanelInfrastructure = null
         binding.gestureLayout.onVerticalSwipe = null
+        binding.gestureLayout.allowPageScrollObservation = null
         mediaFloatingUi?.detach()
         mediaFloatingUi = null
         super.onDestroyView()
