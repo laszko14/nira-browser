@@ -72,6 +72,25 @@ class MediaRepositoryTest {
         assertNull(repo.forTab(t.binding).single().quality)
     }
 
+    @Test fun hundredIndividualMoviesSurviveMetadataUpdatesWithoutDuplicates() {
+        val repo = MediaRepository()
+        val t = tab()
+        begin(repo, t)
+        for (i in 1..100) {
+            val url = "https://cdn.example/movie-$i.mp4"
+            add(repo, t, 1, url)
+            val candidate = MediaDetectorMessage.Candidate(url, source = MediaSource.PAGE,
+                pageUrl = t.pageUrl, documentKey = 1, groupId = "card-$i",
+                title = "Odcinek $i", titleKind = "video")
+            assertEquals(MediaRepository.InsertResult.DUPLICATE,
+                repo.add(t, t.pageUrl, 1, media(t, url), MediaSource.PAGE, candidate.groupId, candidate))
+        }
+        val entries = repo.currentEntries(t)
+        assertEquals(100, entries.size)
+        assertEquals((1..100).map { "Odcinek $it" }.toSet(), entries.map { it.title }.toSet())
+        assertEquals(100, mediaTileItems(entries).size)
+    }
+
     @Test fun twoDifferentVideosInOneTabStayIndependent() {
         val repo = MediaRepository()
         val t = tab()

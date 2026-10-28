@@ -120,6 +120,41 @@ class MediaFrameGroupCorrelationStage5Test {
         assertEquals(setOf(MediaSource.PAGE, MediaSource.NETWORK), record.sources)
     }
 
+    @Test fun derivedVariantsJoinTheirExactObservedLocallyTitledMaster() {
+        val repository = repository()
+        val master = "https://cdn.example/master.m3u8"
+        add(repository, master, MediaSource.PAGE, "g1", "Właściwy film")
+        add(repository, master, MediaSource.NETWORK, "manifest-1-1")
+        val variant = "https://cdn.example/720/index.m3u8"
+        val candidate = MediaDetectorMessage.Candidate(variant, source = MediaSource.NETWORK,
+            pageUrl = pageUrl, documentKey = 1, groupId = "manifest-1-1", provenance = "derived")
+        repository.add(tab, pageUrl, 1, DetectedMedia(variant, MediaFormat.HLS,
+            tab.binding.tabId, tab.binding.contextId, false), MediaSource.NETWORK, candidate.groupId, candidate)
+        // A later real request for the child must preserve the correlation.
+        add(repository, variant, MediaSource.NETWORK, "manifest-1-1")
+        val items = mediaTileItems(repository.currentEntries(tab))
+        assertEquals(1, items.size)
+        assertEquals("Właściwy film", items.single().title)
+        assertEquals(2, items.single().variantCount)
+        assertEquals("g1", repository.currentEntries(tab).first().groupId)
+    }
+
+    @Test fun conflictingLocalOwnersCannotTitleAnUnownedDerivedVariant() {
+        val repository = repository()
+        add(repository, "https://cdn.example/a.m3u8", MediaSource.PAGE, "g1", "Film A")
+        add(repository, "https://cdn.example/b.m3u8", MediaSource.PAGE, "g2", "Film B")
+        add(repository, "https://cdn.example/a.m3u8", MediaSource.NETWORK, "manifest-1-1")
+        add(repository, "https://cdn.example/b.m3u8", MediaSource.NETWORK, "manifest-1-1")
+        val variant = "https://cdn.example/720/index.m3u8"
+        val candidate = MediaDetectorMessage.Candidate(variant, source = MediaSource.NETWORK,
+            pageUrl = pageUrl, documentKey = 1, groupId = "manifest-1-1", provenance = "derived")
+        repository.add(tab, pageUrl, 1, DetectedMedia(variant, MediaFormat.HLS,
+            tab.binding.tabId, tab.binding.contextId, false), MediaSource.NETWORK, candidate.groupId, candidate)
+        val items = mediaTileItems(repository.currentEntries(tab))
+        assertEquals(3, items.size)
+        assertEquals("Film #3", items.single { it.entry.url == variant }.title)
+    }
+
     @Test fun pageOnlyTitleCannotBlockAnonymousManifestReconciliation() {
         val repository = repository()
         val url = "https://cdn.example/page-only.m3u8"

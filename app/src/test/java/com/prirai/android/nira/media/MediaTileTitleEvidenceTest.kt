@@ -4,14 +4,15 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class MediaTileTitleEvidenceTest {
-    @Test fun filenameIsNeverDisplayedAsVerifiedTitle() {
+    @Test fun filenameFallbackIsExplicitlyUnverified() {
         val entry = MediaEntry(
             id = 11L,
             url = "https://cdn.example.invalid/episode-7-master.m3u8?token=fixture",
             format = MediaFormat.HLS,
             sources = setOf(MediaSource.DOM),
         )
-        assertEquals("Film #1", mediaTileItems(listOf(entry)).single().title)
+        assertEquals("Plik (niepotwierdzony): episode 7 master",
+            mediaTileItems(listOf(entry)).single().title)
         assertEquals("episode 7 master", friendlyFileName(entry.url))
     }
 
@@ -41,4 +42,28 @@ class MediaTileTitleEvidenceTest {
         assertEquals(2, tiles.size)
         assertEquals(setOf("Film A", "Film B"), tiles.map { it.title }.toSet())
     }
+    @Test fun pageTitleBelongsToOneLogicalMovieRegardlessOfVariantCount() {
+        val variants = (1L..3L).map { id -> MediaEntry(
+            id = id, url = "https://cdn.example.invalid/$id.m3u8", format = MediaFormat.HLS,
+            sources = setOf(MediaSource.PAGE), groupId = "manifest-1-1",
+            title = "Jedyny film", titleKind = "page",
+        ) }
+        assertEquals("Jedyny film", mediaTileItems(variants).single().title)
+        val other = MediaEntry(id = 4L, groupId = "other",
+            url = "https://cdn.example.invalid/other/master.m3u8", format = MediaFormat.HLS,
+            sources = setOf(MediaSource.PAGE), title = "Jedyny film", titleKind = "page")
+        assertEquals(listOf("Film #1", "Film #2"),
+            mediaTileItems(variants + other).map { it.title })
+    }
+
+    @Test fun technicalAndOpaqueFilenamesDoNotBecomeFallbackNames() {
+        for (name in listOf("master", "playlist", "index", "stream", "1080p", "video_720p",
+                "a8f74b30bc2040fdac63032433bd68ad", "550e8400-e29b-41d4-a716-446655440000",
+                "aB3dE7fG9hJ2kL5mN8pQ0rS6tU1vW4xY")) {
+            assertEquals(null, friendlyFileName("https://cdn.example.invalid/$name.m3u8"))
+        }
+        assertEquals("Żółw nad rzeką", friendlyFileName(
+            "https://cdn.example.invalid/%C5%BB%C3%B3%C5%82w_nad-rzek%C4%85.mp4?private=fixture"))
+    }
+
 }

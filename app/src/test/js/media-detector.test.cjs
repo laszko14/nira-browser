@@ -1073,7 +1073,9 @@ test("v1172: native queue saturation is separately attributed and title-bearing 
     v.getAttribute = key => key === "data-video-title" ? "Synthetic " + i : null;
     p.videos.push(v);
   }
-  await p.mutate(); await tick(); await tick(); await p.mutate(); await tick();
+  // Event bursts bypass scan backpressure and still exercise the hard queue cap.
+  await Promise.all(p.videos.map(v => p.fire("loadedmetadata", v)));
+  await p.mutate(); await tick();
   assert.equal(p.native.length, 4);
   const stats = p.diagnostics.reduce((m, v) => (m[v.code] = (m[v.code] || 0) + v.count, m), {});
   assert.ok((stats.queue_native_capacity || 0) > 0);
@@ -1107,4 +1109,68 @@ test("v1173: distinct DOM root overload remains bounded and still rechecks newly
   assert.ok(sum("queue_dom_roots") >= 1, "real capacity exhaustion is still measured");
   assert.ok(sum("queue_dom_roots") <= 2, "one burst creates one fallback, not one overflow per node");
   assert.equal(p.native.some(([, item]) => item.url === "https://cdn.example/later-video.mp4"), true);
+});
+
+test("MME: failure delivering master metadata or one variant does not discard later HLS variants", async () => {
+  for (const failure of ["manifest_verified", "first_variant"]) {
+    let fetches = 0;
+    const body = new TextEncoder().encode('#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=2000000,RESOLUTION=1280x720\na.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=4000000,RESOLUTION=1920x1080\nb.m3u8');
+    const b = background(async (_tab, message) => {
+      if (message.verification === failure ||
+          failure === "first_variant" && message.url.endsWith("/a.m3u8")) throw new Error("synthetic delivery failure");
+      return true;
+    }, true, async () => {
+      fetches++;
+      return {ok:true, url:"https://site.example/master.m3u8", headers:{get:()=>null},
+        body:{getReader:()=>{let done=false; return {
+          read:async()=>done?{done:true}:(done=true,{done:false,value:body}), cancel:async()=>{}
+        };}}};
+    });
+    b.probe(response("https://site.example/master.m3u8", "application/vnd.apple.mpegurl"));
+    await tick(); await tick();
+    assert.ok(b.routed.some(([,m])=>m.url.endsWith("/b.m3u8")), "later variant must still be offered");
+    assert.equal(fetches, 1, "delivery failure must not cause extra network requests");
+  }
+});
+
+test("MME: invalid optional poster bytes do not discard an otherwise valid video", async () => {
+  const p = page();
+  const video = new p.HTMLVideoElement("https://cdn.example/valid.mp4", "video/mp4", true);
+  video.poster = "https://img.example/" + "ą".repeat(1600) + ".jpg";
+  p.videos.push(video);
+  await p.mutate();
+  assert.equal(p.native.length, 1);
+  assert.equal(p.native[0][1].url, video.src);
+  assert.equal(p.native[0][1].posterUrl, undefined);
+});
+
+test("MME: changing a player's source starts a different logical group", async () => {
+  const p = page();
+  const video = new p.HTMLVideoElement("https://cdn.example/first.mp4", null, true);
+  video.getAttribute = key => key === "data-title" ? video.caption : null;
+  video.caption = "Pierwszy film";
+  p.videos.push(video);
+  await p.mutate();
+  video.src = video.currentSrc = "https://cdn.example/second.mp4";
+  video.caption = "Drugi film";
+  await p.mutate();
+  assert.equal(p.native.length, 2);
+  assert.notEqual(p.native[0][1].groupId, p.native[1][1].groupId);
+});
+
+test("MME: rejected optional codec text cannot hide a valid HLS rendition", async () => {
+  const p = page();
+  await tick();
+  const body = new TextEncoder().encode('#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=2000000,CODECS="avc1.\u0001"\na.m3u8');
+  const b = background((_tab,message)=>p.onNetwork(message),true,async()=>({
+    ok:true,url:"https://site.example/master.m3u8",headers:{get:()=>null},
+    body:{getReader:()=>{let done=false;return {
+      read:async()=>done?{done:true}:(done=true,{done:false,value:body}),cancel:async()=>{}
+    };}}
+  }));
+  b.probe(response("https://site.example/master.m3u8","application/vnd.apple.mpegurl"));
+  await tick(); await tick();
+  const variant=p.native.find(([,m])=>m.url.endsWith("/a.m3u8"));
+  assert.ok(variant,"valid source must reach native despite invalid optional codecs");
+  assert.equal(variant[1].codecs,undefined);
 });

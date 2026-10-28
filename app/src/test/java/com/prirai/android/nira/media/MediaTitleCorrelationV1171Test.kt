@@ -44,7 +44,8 @@ class MediaTitleCorrelationV1171Test {
         for (i in 1..12) add(repository, i, null)
         val items = mediaTileItems(repository.currentEntries(tab))
         assertEquals(12, items.size)
-        assertTrue(items.all { it.title.startsWith("Film ") || it.title.startsWith("clip") })
+        assertEquals((1..12).map { "Plik (niepotwierdzony): clip$it" }.toSet(),
+            items.map { it.title }.toSet())
         assertTrue(items.none { it.title == "Shared document title" })
     }
 
