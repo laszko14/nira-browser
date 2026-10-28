@@ -124,13 +124,16 @@ class TestLabReportTest {
             addMeasured(8_000_000,false,0,false)
             addMeasured(16_000_000,true,0,false)
         }.snapshot()
-        val ops=base.operationMetrics.map { op ->
-            if(op.operation==LabOperation.LEFT_PANEL_SETTLE)
-                op.copy(started=2, succeeded=1, interrupted=1, taggedFrames=2,
-                    taggedJank=1, maxTaggedFrameMs=16.0,
-                    latency=LatencySummary(1,196.0,196.0,null))
-            else op
-        }
+        // The initial sample has no panel gestures, so fabricate one explicit
+        // anonymous completed/interrupt pair rather than mapping an empty list.
+        val ops=base.operationMetrics + OperationSummary(
+            operation=LabOperation.LEFT_PANEL_SETTLE,
+            started=2, accepted=0, succeeded=1, cancelled=0, failed=0,
+            timedOut=0, interrupted=1, unknown=0,
+            latency=LatencySummary(1,196.0,196.0,null),
+            taggedFrames=2, taggedJank=1, maxTaggedFrameMs=16.0,
+            completionProofs=mapOf(CompletionProof.ANIMATOR_END to 1L)
+        )
         val output=TestLabReportGenerator.generate(base.copy(
             environment=LabEnvironment(35,8,listOf(60.0,90.0,119.88),119.88,120.0),
             frameMetrics=frames,operationMetrics=ops
