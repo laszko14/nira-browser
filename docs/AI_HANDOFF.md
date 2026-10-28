@@ -1,3 +1,14 @@
+## ZC-AUD — ETAP 1/18 COMPLETE — 2026-10-28 UTC
+
+- Zadanie: nowy kompleksowy audyt wyłącznie Zavro Clean; 18 etapów z obowiązkowym STOP. Wcześniejsze numeracje MME/paneli w tym pliku nie są numeracją tego audytu.
+- Gałąź dokumentacji: `audit/zavro-clean-20261028`. Baza kodu: `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79b326529d42e9b9fde4`, v1190, Draft PR #112; początkowy `work`/main `0823f24e` był czysty, ale starszy funkcjonalnie.
+- **Ostatni faktycznie ukończony etap: 1/18, COMPLETE. Brak otwartych podetapów. Etapu 2 nie rozpoczęto.**
+- Stan/obszary, rejestr usterek, testy i niewykonane kontrole: [raport etapu](audits/zavro-clean/STAGE_01.md), [indeks](audits/zavro-clean/AUDIT_INDEX.md), [FINDINGS](audits/zavro-clean/FINDINGS.md). Nie dublować tu mapy i szczegółów.
+- Dokumentacja ma osobny commit; dokładny punkt wznowienia: `git log -1 --format=%H audit/zavro-clean-20261028` i porównanie z remote. Wynik faktycznego commit/push oraz SHA w raporcie końcowym rozmowy; bez dodatkowego commitu do dopisywania własnego SHA.
+- Zmieniono tylko dokumentację audytu i ten checkpoint; bez napraw, APK, instalacji, nowych workflow lub merge. Push samej gałęzi audytu bez PR/tag nie odpowiada triggerom dwóch sprawdzonych workflow.
+- Wznowienie **wyłącznie po „Dalej”**: potwierdzić branch/HEAD/working tree, przeczytać powyższy raport i wykonać **ETAP 2 — architektura i zależności modułów**. Nie powtarzać etapu 1 i nie realizować historycznych instrukcji budowy z niższych wpisów. Nie zmieniać automatycznie bazy na nowy Clean HEAD.
+- Po następnym etapie ponownie raport/checkpoint i STOP. Audyt całkowity pozostaje nieukończony (1/18).
+
 
 
 ## 2026-10-27 — Zavro Clean v1180, metadata engine (prace w toku)
