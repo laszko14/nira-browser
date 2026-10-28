@@ -66,6 +66,7 @@ internal object MediaMessageProtocol {
         "title_individual", "title_structured", "title_unknown",
         "queue_native_capacity", "queue_native_stale", "queue_native_retry", "queue_native_reject",
         "queue_dom_roots", "queue_early_evict", "queue_network_rate",
+        "title_no_label", "title_no_direct_source", "title_no_owner", "title_ipc_rejected", "title_native_rejected", "manifest_fetch_failed", "manifest_auth_failed", "manifest_too_large", "manifest_body_unavailable", "manifest_parse_failed", "manifest_valid_master", "manifest_valid_media", "manifest_no_technical", "manifest_kib", "scan_slice_ms", "scan_root",
         "queue_manifest_capacity", "queue_android_rate", "queue_title_candidate_dropped")
     private const val MAX_MESSAGE_BYTES = 16 * 1024
     private const val MAX_URL_BYTES = 8 * 1024

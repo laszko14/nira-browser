@@ -109,6 +109,11 @@ object TestLabReportGenerator {
                 LabCode.DETECTOR_QUEUE_ANDROID_RATE,LabCode.DETECTOR_QUEUE_TITLE_CANDIDATE_DROPPED).forEach { appendLine("$it=${r.eventCounts[it] ?: 0}") }
             appendLine("QUEUE_LIMIT jest sumą wielu przyczyn. Odmowa wysłania ≠ potwierdzona utrata tytułu; ograniczenia webRequest nie pozwalają przypisać wszystkich zdarzeń do filmu.")
         }
+        if(r.testType in setOf(TestType.VIDEO_DISCOVERY,TestType.VIDEO_METADATA,TestType.FULL_AUDIT)) {
+            appendLine("\nMME NEXTGEN — liczniki przyczyn; to zdarzenia, nie unikalne filmy:")
+            listOf(LabCode.MME_TITLE_NO_LABEL, LabCode.MME_TITLE_NO_DIRECT_SOURCE, LabCode.MME_TITLE_NO_OWNER, LabCode.MME_TITLE_IPC_REJECTED, LabCode.MME_TITLE_NATIVE_REJECTED, LabCode.MME_MANIFEST_FETCH_FAILED, LabCode.MME_MANIFEST_AUTH_FAILED, LabCode.MME_MANIFEST_TOO_LARGE, LabCode.MME_MANIFEST_BODY_UNAVAILABLE, LabCode.MME_MANIFEST_PARSE_FAILED, LabCode.MME_MANIFEST_VALID_MASTER, LabCode.MME_MANIFEST_VALID_MEDIA, LabCode.MME_MANIFEST_NO_TECHNICAL, LabCode.MME_MANIFEST_KIB, LabCode.MME_SCAN_SLICE_MS, LabCode.MME_SCAN_ROOT).forEach { appendLine("$it=${r.eventCounts[it] ?: 0}") }
+            appendLine("MANIFEST_KIB i SCAN_SLICE_MS są sumami jednostek diagnostycznych; zero nie dowodzi poprawności rozpoznawania metadanych.")
+        }
         if(r.testType in setOf(TestType.VIDEO_METADATA,TestType.FULL_AUDIT)) {
             appendLine("\nVIDEO METADATA — anonimowe obserwacje zaakceptowanych filmów:")
             r.videoMetadata?.let { v ->

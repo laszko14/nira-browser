@@ -514,7 +514,7 @@
       dimensions?.width || null, dimensions?.height || null]);
     if (seen.has(key)) { note("duplicate"); return; }
     offers++;
-    if (!named) note("title_unknown");
+    if (!named) { note("title_unknown"); note("title_no_label"); }
     else if (kind === "structured") note("title_structured");
     else note("title_individual");
     seen.set(key, true);
@@ -553,7 +553,7 @@
             validated.width !== message.width ||
             validated.height !== message.height ||
             !alive || epoch !== navigationEpoch || navigation !== location.href) {
-          context = null; seen.delete(key); return;
+          note("title_ipc_rejected"); context = null; seen.delete(key); return;
         }
         const bound = { ...validated, documentKey: root.documentKey,
           pageUrl: root.pageUrl };
@@ -567,7 +567,7 @@
         }
         return enqueueNative(bound, epoch)
           .then(ok => {
-            if (ok !== true) { seen.delete(key); note("native_rejected"); }
+            if (ok !== true) { seen.delete(key); note("native_rejected"); if (named) note("title_native_rejected"); }
             else { note(afterPlay ? "after_play" : "before_play"); if (FRAME) note("iframe"); }
           });
       });
@@ -718,6 +718,7 @@
           // Only direct, valid media URLs own this VideoObject title. embedUrl
           // is a document/player location, never assumed to be a stream URL.
           const urls = [...new Set(sources.map(absolute).filter(Boolean))].slice(0, 9);
+          if (name && urls.length === 0) note("title_no_direct_source");
           const group = structuredGroup(element, urls);
           const poster = mediaThumbnail(node.thumbnailUrl) ||
             mediaThumbnail(node.thumbnail) || mediaThumbnail(node.image);
@@ -946,6 +947,7 @@
   }
   function collect(root) {
     scanRoot = root;
+    note("scan_root");
     inspectFrame(root);
     scanCollection("video", inspect);
     scanDeclarations(); scanStructuredData(); scanPlayerConfigs();
@@ -985,6 +987,7 @@
       processed++;
     }
     note("scan_elements", processed);
+    if (processed > 0) note("scan_slice_ms", Math.max(1, Math.min(10000, Date.now() - start)));
     if (jobs.length || pendingRoots.size || overflowRoot) {
       note("scan_yield"); scanTimer = setTimeout(pump, 32);
     } else if (!offers) note("no_candidate");
