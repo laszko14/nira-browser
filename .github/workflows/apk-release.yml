@@ -28,8 +28,8 @@ jobs:
       contents: read
     env:
       EXPECTED_PACKAGE: com.prirai.android.nira.debug
-      EXPECTED_VERSION_CODE: "1187"
-      EXPECTED_VERSION_NAME: 0.5.22-alpha92-clean
+      EXPECTED_VERSION_CODE: "1188"
+      EXPECTED_VERSION_NAME: 0.5.22-alpha93-clean
       EXPECTED_CERT_SHA256: df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
 
     steps:
@@ -91,7 +91,7 @@ jobs:
       - name: Upload only arm64 debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: zavro-arm64-update-apk-v1187
+          name: zavro-arm64-update-apk-v1188
           path: app/build/outputs/apk/debug/*arm64-v8a*.apk
           if-no-files-found: error
           retention-days: 30

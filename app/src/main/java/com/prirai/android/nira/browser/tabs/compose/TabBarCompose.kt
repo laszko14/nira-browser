@@ -24,8 +24,18 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.runtime.withFrameNanos
+import com.prirai.android.nira.browser.tabs.ActiveTabVisibility
+import com.prirai.android.nira.browser.tabs.TabStripBounds
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -68,6 +78,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import mozilla.components.browser.state.state.TabSessionState
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.job
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -131,91 +145,76 @@ fun TabBarCompose(
         }
     }
 
-    // Scroll to selected tab once on initial composition (e.g. app open).
-    // Grouped tabs only ensure the group is visible; the selected tab pill
-    // inside the group is aligned by its own BringIntoViewRequester.
-    // Ungrouped tabs are centered in the viewport when possible.
-    var hasInitialScrolled by remember { mutableStateOf(false) }
-    LaunchedEffect(order, selectedTabId, listState.layoutInfo.viewportSize) {
-        if (!hasInitialScrolled && order != null && selectedTabId != null) {
-            val selectedLocation = findSelectedTabLocation(order!!, selectedTabId)
-            if (selectedLocation != null) {
-                if (selectedLocation.isGrouped) {
-                    val isGroupVisible = listState.layoutInfo.visibleItemsInfo.any { it.index == selectedLocation.itemIndex }
-                    if (!isGroupVisible) {
-                        listState.scrollToItem(selectedLocation.itemIndex)
-                    }
-                    hasInitialScrolled = true
-                } else {
-                    // Wait for layout to be ready
-                    val viewportSize = listState.layoutInfo.viewportSize.width
-                    if (viewportSize > 0) {
-                        // Negative offset moves the item towards the center
-                        val averageItemSize = 180 // Approximate tab width in pixels (150dp + spacing)
-                        val scrollOffset = -(viewportSize / 2 - averageItemSize / 2)
-                        listState.scrollToItem(selectedLocation.itemIndex, scrollOffset.coerceAtLeast(-viewportSize))
-                        hasInitialScrolled = true
-                    }
-                }
-            }
+    // Coordinates are deliberately not snapshot state: scrolling updates them without
+    // recomposition or retriggering visibility checks on each frame.
+    val tabCoordinates = remember { mutableMapOf<String, LayoutCoordinates>() }
+    val groupCoordinates = remember { mutableMapOf<String, LayoutCoordinates>() }
+    var viewportWidth by remember { mutableIntStateOf(0) }
+    var viewportCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    val edgeMargin = with(LocalDensity.current) { 12.dp.toPx() }
+    val manuallyDragging by listState.interactionSource.collectIsDraggedAsState()
+    val dragging = coordinator.dragState.value.isDragging
+    val visibilityJobs = remember { arrayOfNulls<Job>(1) }
+    var positioned by remember { mutableStateOf(false) }
+    // Only layout-relevant data. Page titles and favicon updates must not scroll.
+    val structure = uniqueItems.map { item ->
+        when (item) {
+            is BarItem.SingleTab -> listOf(item.id)
+            is BarItem.Group -> listOf(item.id, item.groupName, item.isExpanded.toString()) + item.tabIds
         }
     }
-
-    var lastSelectedTabId by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(selectedTabId, order) {
-        val currentOrder = order ?: return@LaunchedEffect
-        val currentTabId = selectedTabId ?: return@LaunchedEffect
-        if (currentTabId == lastSelectedTabId || !hasInitialScrolled) {
-            lastSelectedTabId = currentTabId
+    LaunchedEffect(selectedTabId, structure, profileId, autoScrollTrigger,
+        viewportWidth, iconSizeDp, iconGapDp, dragging) {
+        // Join the cancelled previous check before inspecting scroll state, so its
+        // automatic animation cannot be mistaken for a user's drag/fling.
+        visibilityJobs[0]?.cancelAndJoin()
+        visibilityJobs[0] = currentCoroutineContext().job
+        if (viewportWidth <= 0 || manuallyDragging || dragging || listState.isScrollInProgress) return@LaunchedEffect
+        tabCoordinates.keys.retainAll(visibleIds)
+        groupCoordinates.keys.retainAll(uniqueItems.filterIsInstance<BarItem.Group>().map { it.id }.toSet())
+        // Allow the new structure and nested pills to finish placement.
+        withFrameNanos { }
+        withFrameNanos { }
+        if (manuallyDragging || coordinator.dragState.value.isDragging || listState.isScrollInProgress) return@LaunchedEffect
+        val animate = positioned
+        if (tabs.size <= 1) {
+            listState.scrollToItem(0)
+            positioned = true
             return@LaunchedEffect
         }
-
-        if (!listState.isScrollInProgress) {
-            val selectedLocation = findSelectedTabLocation(currentOrder, currentTabId)
-            if (selectedLocation != null) {
-                if (selectedLocation.isGrouped) {
-                    val isGroupVisible = listState.layoutInfo.visibleItemsInfo.any { it.index == selectedLocation.itemIndex }
-                    if (!isGroupVisible) {
-                        listState.scrollToItem(selectedLocation.itemIndex)
-                    }
-                } else {
-                    val viewportSize = listState.layoutInfo.viewportSize.width
-                    if (viewportSize > 0) {
-                        val averageItemSize = 180
-                        val scrollOffset = -(viewportSize / 2 - averageItemSize / 2)
-                        listState.scrollToItem(selectedLocation.itemIndex, scrollOffset.coerceAtLeast(-viewportSize))
-                    }
-                }
+        val index = uniqueItems.indexOfFirst { item ->
+            when (item) {
+                is BarItem.SingleTab -> item.id == selectedTabId
+                is BarItem.Group -> selectedTabId in item.tabIds
             }
         }
-
-        lastSelectedTabId = currentTabId
-    }
-
-    // Auto-scroll to selected tab when explicitly triggered (tab sheet dismissed,
-    // new tab created, etc.). Only fires when autoScrollTrigger changes, so it
-    // never interrupts the user while they are manually scrolling the tab bar.
-    // Grouped tabs keep intra-group alignment handled by BringIntoViewRequester.
-    LaunchedEffect(autoScrollTrigger, order) {
-        if (autoScrollTrigger > 0L && System.currentTimeMillis() - autoScrollTrigger < 2000L) {
-            val currentOrder = order ?: return@LaunchedEffect
-            val currentTabId = selectedTabId ?: return@LaunchedEffect
-            val selectedLocation = findSelectedTabLocation(currentOrder, currentTabId)
-            if (selectedLocation != null) {
-                if (selectedLocation.isGrouped) {
-                    val isGroupVisible = listState.layoutInfo.visibleItemsInfo.any { it.index == selectedLocation.itemIndex }
-                    if (!isGroupVisible) {
-                        listState.animateScrollToItem(selectedLocation.itemIndex)
-                    }
-                } else {
-                    val viewportSize = listState.layoutInfo.viewportSize.width
-                    if (viewportSize > 0) {
-                        val averageItemSize = 180 // Approximate tab width in pixels
-                        val scrollOffset = -(viewportSize / 2 - averageItemSize / 2)
-                        listState.animateScrollToItem(selectedLocation.itemIndex, scrollOffset.coerceAtLeast(-viewportSize))
-                    }
-                }
-            }
+        if (index < 0) return@LaunchedEffect
+        val item = uniqueItems[index]
+        // Materialize an absent lazy item before measuring; never estimate widths.
+        if (listState.layoutInfo.visibleItemsInfo.none { it.index == index }) {
+            if (animate) listState.animateScrollToItem(index)
+            else listState.scrollToItem(index)
+            withFrameNanos { }
+            withFrameNanos { }
+        }
+        val viewport = viewportCoordinates?.takeIf { it.isAttached } ?: return@LaunchedEffect
+        fun bounds(coordinates: LayoutCoordinates?): TabStripBounds? {
+            if (coordinates == null || !coordinates.isAttached) return null
+            val left = coordinates.positionInRoot().x - viewport.positionInRoot().x
+            return TabStripBounds(left, left + coordinates.size.width)
+        }
+        val group = (item as? BarItem.Group)?.let { bounds(groupCoordinates[it.id]) }
+        val target = if (item is BarItem.Group && !item.isExpanded) group
+            else bounds(tabCoordinates[selectedTabId])
+        if (target == null || manuallyDragging || coordinator.dragState.value.isDragging) return@LaunchedEffect
+        val delta = ActiveTabVisibility.scrollDelta(tabs.size, 0f, viewportWidth.toFloat(),
+            target, group?.takeIf { item is BarItem.Group && item.isExpanded },
+            listState.canScrollBackward, listState.canScrollForward, edgeMargin)
+        positioned = true
+        if (delta != 0f) {
+            // LazyListState clamps to the real range and user gestures cancel its mutation.
+            if (animate) listState.animateScrollBy(delta, tween(180))
+            else listState.scrollBy(delta)
         }
     }
 
@@ -232,6 +231,8 @@ fun TabBarCompose(
                 horizontalArrangement = Arrangement.spacedBy(0.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxSize()
+                    .onSizeChanged { viewportWidth = it.width }
+                    .onGloballyPositioned { viewportCoordinates = it }
             ) {
                 itemsIndexed(
                     uniqueItems,
@@ -288,6 +289,7 @@ fun TabBarCompose(
                             ) {
                                 TabPill(
                                     tab = item.tab,
+                                    onPositioned = { tabCoordinates[item.id] = it },
                                     isSelected = item.tab.id == selectedTabId,
                                     coordinator = coordinator,
                                     onTabClick = onTabClick,
@@ -377,6 +379,7 @@ fun TabBarCompose(
                             ) {
                                 GroupPill(
                                     group = item,
+                                    onTabPositioned = { id, coordinates -> tabCoordinates[id] = coordinates },
                                     isSelected = selectedTabId in item.tabIds,
                                     selectedTabId = selectedTabId,
                                     coordinator = coordinator,
@@ -390,6 +393,7 @@ fun TabBarCompose(
                                     iconGapDp = iconGapDp,
                                     isDragging = false,
                                     modifier = Modifier
+                                        .onGloballyPositioned { groupCoordinates[item.id] = it }
                                         .offset { IntOffset(0, offsetY.roundToInt()) }
                                         .zIndex(1f)
                                 )
@@ -591,6 +595,7 @@ private fun findSelectedTabLocation(order: UnifiedTabOrder, tabId: String): Sele
 @Composable
 private fun TabPill(
     tab: TabSessionState,
+    onPositioned: (LayoutCoordinates) -> Unit = {},
     isSelected: Boolean,
     coordinator: DragCoordinator,
     onTabClick: (String) -> Unit,
@@ -602,7 +607,7 @@ private fun TabPill(
     Surface(
         // requiredSize preserves the requested visual diameter even when the measured
         // row step is smaller (negative gap intentionally overlaps circles).
-        modifier = modifier.requiredSize(iconSizeDp.dp),
+        modifier = modifier.requiredSize(iconSizeDp.dp).onGloballyPositioned(onPositioned),
         shape = CircleShape,
         color = Color(if (isSelected) tones.activeStart else tones.tabStart),
         border = if (isSelected) BorderStroke(1.dp, Color(tones.accent)) else null
@@ -699,6 +704,7 @@ private fun ShowGroupMenu(
 @Composable
 private fun GroupPill(
     group: BarItem.Group,
+    onTabPositioned: (String, LayoutCoordinates) -> Unit = { _, _ -> },
     isSelected: Boolean,
     selectedTabId: String?,
     coordinator: DragCoordinator,
@@ -770,26 +776,20 @@ private fun GroupPill(
                 ) {
                     group.tabs.forEachIndexed { index, tab ->
                         // Key each pill by tab id so its remembered state (drag offset,
-                        // BringIntoViewRequester) travels with the tab across insertions
+                        // placement) travels with the tab across insertions
                         // and removals instead of being reused by whichever tab now sits
                         // in the same slot. Without this, closing a tab caused the next
                         // pill to inherit the closed pill's transient state and disappear.
                         key(tab.id) {
                             // Wrap SwipeableTabPill with draggable and drop target for individual tab reordering
                             val isTabSelected = selectedTabId == tab.id
-                            val bringIntoViewRequester = remember { BringIntoViewRequester() }
-                            LaunchedEffect(isTabSelected) {
-                                if (isTabSelected) {
-                                    bringIntoViewRequester.bringIntoView()
-                                }
-                            }
                             Box(
                                 modifier = Modifier
                                     .draggableItem(
                                         itemType = DraggableItemType.Tab(tab.id),
                                         coordinator = coordinator
                                     )
-                                    .bringIntoViewRequester(bringIntoViewRequester)
+                                    .onGloballyPositioned { onTabPositioned(tab.id, it) }
                                     .dropTarget(
                                         id = tab.id,
                                         type = DropTargetType.TAB,

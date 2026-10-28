@@ -1,5 +1,10 @@
 package com.prirai.android.nira.components.toolbar.modern
 
+import android.animation.ValueAnimator
+import android.view.MotionEvent
+import androidx.core.view.doOnLayout
+import com.prirai.android.nira.browser.tabs.ActiveTabVisibility
+import com.prirai.android.nira.browser.tabs.TabStripBounds
 import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Color
@@ -62,7 +67,22 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
         clipToPadding = false
         setPadding(dp(5), 0, dp(5), 0)
     }
-    private val scroller = HorizontalScrollView(context).apply {
+    private val scroller = object : HorizontalScrollView(context) {
+        override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+            // Observe DOWN before a clickable child consumes it. A listener on the
+            // scroll view alone misses gestures beginning on tab/group controls.
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                manualTouch = true
+                scrollGeneration++
+                scrollAnimation?.cancel()
+            }
+            val handled = super.dispatchTouchEvent(event)
+            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                manualTouch = false
+            }
+            return handled
+        }
+    }.apply {
         isHorizontalScrollBarEnabled = false
         isFillViewport = false
         overScrollMode = View.OVER_SCROLL_NEVER
@@ -75,6 +95,11 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
     private var currentOrder: UnifiedTabOrder? = null
     var onGroupToggle: ((String) -> Unit)? = null
     private var selectedPill: View? = null
+    private val groupTargets = mutableMapOf<String, Pair<View, View>>()
+    private var scrollGeneration = 0
+    private var scrollAnimation: ValueAnimator? = null
+    private var positioned = false
+    private var manualTouch = false
     private var lastSelectedId: String? = null
     // Title, favicon and selection updates reuse the same native Views.
     private data class RenderedPill(
@@ -99,6 +124,9 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
         clipChildren = false
         clipToPadding = false
 
+        scroller.addOnLayoutChangeListener { _, left, _, right, _, oldLeft, _, oldRight, _ ->
+            if (right - left != oldRight - oldLeft) requestActiveVisibility()
+        }
         scroller.addView(row, FrameLayout.LayoutParams(
             LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT
         ))
@@ -109,6 +137,9 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
 
     override fun onDetachedFromWindow() {
         tabPrefs.preferences.unregisterOnSharedPreferenceChangeListener(appearanceListener)
+        scrollGeneration++
+        scrollAnimation?.cancel()
+        positioned = false
         iconScope.cancel()
         super.onDetachedFromWindow()
     }
@@ -316,6 +347,7 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
         segment.addView(header, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT, pillHeight
         ))
+        members.forEach { groupTargets[it.id] = segment to header }
         if (!collapsed) {
             members.forEach { tab -> tabChip(tab, selectedId, dark, segment, group.color) }
             segment.addView(actionText("+", 29, 22f, dark).apply {
@@ -373,11 +405,11 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
             tabs.forEach { add(it.id) }
         }
         val structureChanged = signature != lastSignature
-        val oldScroll = scroller.scrollX
         if (structureChanged) {
             lastSignature = signature
             row.removeAllViews()
             renderedPills.clear()
+            groupTargets.clear()
             selectedPill = null
         val byId = tabs.associateBy { it.id }
         val groupsById = visibleGroups.associateBy { it.id }
@@ -481,18 +513,41 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
         }
         selectedPill = selectedId?.let { renderedPills[it]?.container }
         if (!structureChanged && previousSelectedId == selectedId) return
-        val focused = selectedPill
-        scroller.post {
-            val maxScroll = (row.width - scroller.width).coerceAtLeast(0)
-            var newScroll = oldScroll.coerceIn(0, maxScroll)
-            if (focused != null && previousSelectedId != selectedId) {
-                val left = selectedOffsetInsideRow(focused)
-                if (left < newScroll) newScroll = left
-                if (left + focused.width > newScroll + scroller.width) {
-                    newScroll = left + focused.width - scroller.width
+        requestActiveVisibility()
+    }
+
+    private fun requestActiveVisibility() {
+        val generation = ++scrollGeneration
+        scrollAnimation?.cancel()
+        row.doOnLayout {
+            scroller.post {
+                if (generation != scrollGeneration || manualTouch || scroller.width <= 0) return@post
+                val maxScroll = (row.width - scroller.width).coerceAtLeast(0)
+                val start = scroller.scrollX
+                val group = groupTargets[lastSelectedId]
+                val focused = renderedPills[lastSelectedId]?.container ?: group?.second
+                val target = if (lastTabs.size <= 1 || maxScroll == 0) 0 else {
+                    if (focused == null) return@post
+                    fun bounds(view: View): TabStripBounds {
+                        val left = selectedOffsetInsideRow(view).toFloat()
+                        return TabStripBounds(left, left + view.width)
+                    }
+                    val delta = ActiveTabVisibility.scrollDelta(lastTabs.size, start.toFloat(),
+                        (start + scroller.width).toFloat(), bounds(focused),
+                        group?.takeIf { renderedPills.containsKey(lastSelectedId) }?.first?.let(::bounds),
+                        start > 0, start < maxScroll, dp(12).toFloat())
+                    (start + delta.roundToInt()).coerceIn(0, maxScroll)
+                }
+                val animate = positioned
+                positioned = true
+                if (target == start) return@post
+                if (!animate) scroller.scrollTo(target, 0)
+                else scrollAnimation = ValueAnimator.ofInt(start, target).apply {
+                    duration = 180L
+                    addUpdateListener { scroller.scrollTo(it.animatedValue as Int, 0) }
+                    start()
                 }
             }
-            scroller.scrollTo(newScroll.coerceIn(0, maxScroll), 0)
         }
     }
 }

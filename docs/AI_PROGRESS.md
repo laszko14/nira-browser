@@ -261,3 +261,27 @@
 - Zweryfikowano wspólnego przodka v1183 UI i MME etap 6: `d0ddc0a7094c2593b4c6973104a5c4a3073ed735` (MME etap 4). Integracja poprzez PR #105 do gałęzi v1184: merge commit `8bd414e3c1664751de994a38f6f09df072358bf4` (nie do main).
 - Ustawiono Gradle bazowe `versionCode=184` → APK ARM64 `versionCode=1184`, `versionName=0.5.22-alpha89-clean`. Workflow `build` weryfikuje SHA-256 certyfikatu i aktualizacyjną tożsamość APK; artefakt ZIP `zavro-arm64-update-apk-v1184`.
 - Kryteria wyjścia: testy Kotlin+JS PASS, lint wykonany, build podpisany oryginalnym certyfikatem i zweryfikowany przez skrypt, tylko jeden APK arm64-v8a, bez merge do main. Raport z rzeczywistego CI i link do artefaktu należy dopisać dopiero po potwierdzeniu.
+
+## 2026-10-28 — Clean v1188 smart active-tab scroll
+- Base v1187 PR #109 verified; separate branch. Shared policy 6 JUnit PASS;
+  JS 212/212 PASS. Native and Compose integration implemented, Android CI pending.
+- Added native regression coverage; retained group ordering, no X badges, private
+  filtering, icon preferences and refresh-rate policy. No physical device available.
+- Independent review found child-consumed touch DOWN and Compose fling protection
+  gaps. Native now observes dispatchTouchEvent before children; Compose joins the
+  cancelled prior check before guarding isScrollInProgress. Added six-card visible
+  group, latest-selection/resize and touch-cancellation native regressions.
+- Draft PR #110; initial CI https://github.com/laszko14/nira-browser/actions/runs/40750523098
+  still running at this checkpoint. Local pure JUnit 6/6 + JS 212/212 still PASS.
+- CI 40750934477 SUCCESS: 371 Kotlin/Robolectric, 212 JS, build and lint.
+  Subsequent test-only refinement run 40751580654 found a fixture error: draining
+  the looper finished the scroll before targeting the first icon. Dispatch DOWN
+  while the visibility check is pending instead, to deterministically exercise
+  child-consumed touch cancellation. Production code unchanged; next CI required.
+
+- FINAL v1188: source/test `35d5ab3aab5f965398793987fc3a0314929ba118`, Draft PR #110;
+  CI 40752492399 SUCCESS (371 Kotlin/Robolectric, 212 JS; build/lint success).
+  Artifact 12845111607 downloaded and independently verified: single arm64 APK,
+  code 1188, alpha93-clean, existing debug package and pinned df90 certificate.
+  Physical-device UI/gestures/120 Hz/install NOT_TESTED. Criterion matrix and exact
+  resume instructions saved; final docs-only checkpoint skips redundant CI.
