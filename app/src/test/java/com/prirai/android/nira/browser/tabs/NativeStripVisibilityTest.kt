@@ -3,6 +3,7 @@ package com.prirai.android.nira.browser.tabs
 import android.app.Activity
 import android.app.Application
 import android.os.Looper
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.HorizontalScrollView
@@ -80,4 +81,64 @@ class NativeStripVisibilityTest {
             it.contentDescription?.toString()?.startsWith("Rozwiń grupę") == true
         })
     }
+    @Test fun sixTabGroupRemainsStillWithOtherGroupsOutsideViewport() {
+        val strip = strip()
+        val tabs = tabs(40)
+        val first = TabGroupData("first", "A", 0xff336699.toInt(), (0..5).map { "$it" }, 0)
+        val second = TabGroupData("second", "B", first.color, (6..11).map { "$it" }, 1)
+        strip.updateGroups(listOf(first, second))
+        strip.updateTabs(tabs, "0"); layout(strip, 600)
+        val header = descendants(strip).single {
+            it.contentDescription?.toString()?.startsWith("Zwiń grupę B") == true
+        }
+        val segment = header.parent as View
+        assertTrue(segment.width <= scroll(strip).width - 20)
+        scroll(strip).scrollTo(segment.left - 10, 0)
+        val before = scroll(strip).scrollX
+        for (id in listOf("6", "8", "11")) {
+            strip.updateTabs(tabs, id); layout(strip, 600)
+            assertEquals(before, scroll(strip).scrollX)
+        }
+    }
+    @Test fun latestSelectionWinsBeforePendingChecksRunAndAfterResize() {
+        val strip = strip()
+        val tabs = tabs(30)
+        strip.updateTabs(tabs, "0"); layout(strip)
+        strip.updateTabs(tabs, "29")
+        strip.updateTabs(tabs, "0")
+        layout(strip)
+        assertEquals(0, scroll(strip).scrollX)
+        strip.updateTabs(tabs, "29"); layout(strip)
+        layout(strip, 600)
+        val target = descendants(strip).single { it.contentDescription == "Karta: 29" }
+        val row = scroll(strip).getChildAt(0)
+        var left = target.left
+        var parent = target.parent as View
+        while (parent !== row) {
+            left += parent.left
+            parent = parent.parent as View
+        }
+        assertTrue(left >= scroll(strip).scrollX)
+        assertTrue(left + target.width <= scroll(strip).scrollX + scroll(strip).width)
+    }
+
+    @Test fun touchBeginningOnClickablePillCancelsRunningAutomaticAnimation() {
+        val strip = strip()
+        val tabs = tabs(30)
+        strip.updateTabs(tabs, "0"); layout(strip)
+        strip.updateTabs(tabs, "29")
+        // Start the posted animation without advancing its full duration.
+        shadowOf(Looper.getMainLooper()).idle()
+        val scroller = scroll(strip)
+        val down = MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 100f, 20f, 0)
+        scroller.dispatchTouchEvent(down)
+        down.recycle()
+        val before = scroller.scrollX
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(400))
+        assertEquals(before, scroller.scrollX)
+        val up = MotionEvent.obtain(0, 10, MotionEvent.ACTION_UP, 100f, 20f, 0)
+        scroller.dispatchTouchEvent(up)
+        up.recycle()
+    }
+
 }

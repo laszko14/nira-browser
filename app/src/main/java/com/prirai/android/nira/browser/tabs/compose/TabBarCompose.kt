@@ -78,6 +78,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import mozilla.components.browser.state.state.TabSessionState
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.job
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -150,6 +154,7 @@ fun TabBarCompose(
     val edgeMargin = with(LocalDensity.current) { 12.dp.toPx() }
     val manuallyDragging by listState.interactionSource.collectIsDraggedAsState()
     val dragging = coordinator.dragState.value.isDragging
+    val visibilityJobs = remember { arrayOfNulls<Job>(1) }
     var positioned by remember { mutableStateOf(false) }
     // Only layout-relevant data. Page titles and favicon updates must not scroll.
     val structure = uniqueItems.map { item ->
@@ -160,13 +165,17 @@ fun TabBarCompose(
     }
     LaunchedEffect(selectedTabId, structure, profileId, autoScrollTrigger,
         viewportWidth, iconSizeDp, iconGapDp, dragging) {
-        if (viewportWidth <= 0 || manuallyDragging || dragging) return@LaunchedEffect
+        // Join the cancelled previous check before inspecting scroll state, so its
+        // automatic animation cannot be mistaken for a user's drag/fling.
+        visibilityJobs[0]?.cancelAndJoin()
+        visibilityJobs[0] = currentCoroutineContext().job
+        if (viewportWidth <= 0 || manuallyDragging || dragging || listState.isScrollInProgress) return@LaunchedEffect
         tabCoordinates.keys.retainAll(visibleIds)
         groupCoordinates.keys.retainAll(uniqueItems.filterIsInstance<BarItem.Group>().map { it.id }.toSet())
         // Allow the new structure and nested pills to finish placement.
         withFrameNanos { }
         withFrameNanos { }
-        if (manuallyDragging || coordinator.dragState.value.isDragging) return@LaunchedEffect
+        if (manuallyDragging || coordinator.dragState.value.isDragging || listState.isScrollInProgress) return@LaunchedEffect
         val animate = positioned
         if (tabs.size <= 1) {
             listState.scrollToItem(0)

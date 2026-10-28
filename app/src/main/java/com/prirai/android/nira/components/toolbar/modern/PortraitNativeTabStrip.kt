@@ -67,7 +67,22 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
         clipToPadding = false
         setPadding(dp(5), 0, dp(5), 0)
     }
-    private val scroller = HorizontalScrollView(context).apply {
+    private val scroller = object : HorizontalScrollView(context) {
+        override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+            // Observe DOWN before a clickable child consumes it. A listener on the
+            // scroll view alone misses gestures beginning on tab/group controls.
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                manualTouch = true
+                scrollGeneration++
+                scrollAnimation?.cancel()
+            }
+            val handled = super.dispatchTouchEvent(event)
+            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                manualTouch = false
+            }
+            return handled
+        }
+    }.apply {
         isHorizontalScrollBarEnabled = false
         isFillViewport = false
         overScrollMode = View.OVER_SCROLL_NEVER
@@ -109,17 +124,6 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
         clipChildren = false
         clipToPadding = false
 
-        scroller.setOnTouchListener { _, event ->
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    manualTouch = true
-                    scrollGeneration++
-                    scrollAnimation?.cancel()
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> manualTouch = false
-            }
-            false
-        }
         scroller.addOnLayoutChangeListener { _, left, _, right, _, oldLeft, _, oldRight, _ ->
             if (right - left != oldRight - oldLeft) requestActiveVisibility()
         }

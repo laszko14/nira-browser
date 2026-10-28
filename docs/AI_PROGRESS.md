@@ -267,3 +267,9 @@
   JS 212/212 PASS. Native and Compose integration implemented, Android CI pending.
 - Added native regression coverage; retained group ordering, no X badges, private
   filtering, icon preferences and refresh-rate policy. No physical device available.
+- Independent review found child-consumed touch DOWN and Compose fling protection
+  gaps. Native now observes dispatchTouchEvent before children; Compose joins the
+  cancelled prior check before guarding isScrollInProgress. Added six-card visible
+  group, latest-selection/resize and touch-cancellation native regressions.
+- Draft PR #110; initial CI https://github.com/laszko14/nira-browser/actions/runs/40750523098
+  still running at this checkpoint. Local pure JUnit 6/6 + JS 212/212 still PASS.
