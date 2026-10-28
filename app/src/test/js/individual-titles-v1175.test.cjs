@@ -73,8 +73,8 @@ test("single-media declaration, iframe embedding and filename links get only car
   assert.equal(videoTitle(link),"Film with link");
 });
 
-test("30 and 50 card-local CSS captions resolve to distinct movies before Play", () => {
-  for (const count of [30,50]) {
+test("30, 50 and 100 card-local CSS captions resolve to distinct movies before Play", () => {
+  for (const count of [30,50,100]) {
     const listing = new Element("main");
     listing.add(new Element("h1",{},"","One global listing title"));
     const videos=[];
