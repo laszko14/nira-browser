@@ -4,9 +4,12 @@ import com.prirai.android.nira.preferences.UserPreferences
 
 /** Stable action IDs shared by preferences, settings and Android toolbar views. */
 object ToolbarActionConfiguration {
-    val editableIds = listOf("new", "close", "settings", "back", "forward")
+    // Keep the existing five IDs first so saved orders migrate without being reset.
+    // "previous" and "next" already exist as actions in UnifiedToolbar.
+    val editableIds = listOf("new", "close", "settings", "back", "forward", "previous", "next")
     val labels = mapOf("new" to "Nowa karta (+)", "close" to "Zamknij kartę (×)",
-        "settings" to "Menu (⋮)", "back" to "Wstecz (‹)", "forward" to "Dalej (›)")
+        "settings" to "Menu (⋮)", "back" to "Wstecz (‹)", "forward" to "Dalej (›)",
+        "previous" to "Poprzednia karta (⇤)", "next" to "Następna karta (⇥)")
 
     fun normalizedOrder(raw: String): List<String> {
         val parsed = raw.split(",").filter { it in editableIds }.distinct()
