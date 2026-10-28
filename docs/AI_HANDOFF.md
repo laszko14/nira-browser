@@ -363,3 +363,99 @@ Na Nothing Phone (1) zainstalować `app-arm64-v8a-debug.apk`, wpisać publiczny 
 - Next: install the verified APK as an update on Nothing Phone (1), exercise the
   device scenarios in SMART_TAB_SCROLL.md. Do not repeat completed CI/unit work;
   change code only if device evidence exposes a defect. Keep PR draft/unmerged.
+
+## 2026-10-28 — Zavro Clean: regresja wykrywania i tytułów MME (bez APK)
+
+- Cel: niezależność poprawnych źródeł od opcjonalnych metadanych, indywidualne tytuły,
+  warianty jednego filmu, bezpieczny fallback i kontynuacja skanowania przed Play.
+- Baza potwierdzona lokalnie i na GitHub: v1188 / draft PR #110,
+  `41f24ed4c04e783ffd2f1ca447f3aff043fc9dcd`; PR pozostaje otwarty, bez merge.
+  Początkowy checkout `work` / `0823f24eb48e2eefbe38c7616bc1d55e73917b37` był czysty
+  i nie zawierał bieżącego Clean. Nie użyto main jako bazy. Odczytano AGENTS.md v1.5.
+- Gałąź: `fix/zavro-clean-mme-detection-titles-20261028`.
+- Zapisany i testowany kod/testy: `21abfc1fe78d3d2855368c8afd9cc1584c1b5b93`.
+  Następny commit dodaje wyłącznie ten checkpoint; jego SHA podaje końcowy raport/Git.
+
+Zweryfikowane przyczyny i poprawki:
+- Selektywne porównanie Clean v1184 `c7a4d17e`, v1185 `6e6f08d3`, v1186 `1f418851`:
+  v1186 usunęło fallback plikowy z kafelka. Przywrócono go z widocznym prefiksem
+  „Plik (niepotwierdzony):”, filtrami nazw technicznych, hashy, UUID i długich tokenów.
+- Wywołanie selectGroup uzależniało tytuł strony od liczby rekordów. Liczy teraz
+  grupy filmów wraz z frameKey. Content dopuszcza stronę tylko dla jednego
+  jednoznacznego odtwarzacza; kilka deklaracji jakości nie zwiększa liczby filmów.
+  Konflikt lokalny nie jest maskowany przez tytuł strony; sieć nie pożycza document.title.
+- cardTitle traktowało dodatkowy opis jako równorzędny tytuł. Nazwane lokalne tytuły
+  i nagłówki mają pierwszeństwo przed ogólnym podpisem/opisem. Równorzędne sprzeczne
+  nazwy pozostają nieznane. Zagnieżdżona karta nie pożycza tytułu od nadrzędnej.
+  Tytuł lokalnej karty ma pierwszeństwo przed tekstem bezpośredniego linku.
+- Mutation handler pomijał część obsługiwanych klas kart i zwykłe etykiety
+  aria-labelledby. Późny tytuł wznawia skanowanie własnej karty, zachowując grupę.
+- Błąd sendMessage przy metadanych HLS master (dodanych w v1186) przerywał warianty.
+  Dostarczanie metadanych/każdego wariantu jest izolowane od kolejnych źródeł.
+  Nieprawidłowy opcjonalny CODECS jest pomijany u producenta komunikatu, bez
+  rozluźniania walidacji IPC. Test przechodzi przez rzeczywisty walidator content.
+- Limity 4 ms / 96 elementów nie były stałym odcięciem skanowania; zachowywały indeks.
+  Natomiast producent mógł przepełnić kolejkę natywną. Skaner czeka teraz na miejsce
+  w IPC i wznawia pracę z kursora, bez pętli odpytywania i dodatkowych skanów/sieci.
+  Zastany limit 64 rekordów/kartę uniemożliwiał zachowanie 100 filmów; podniesiono go
+  do 128, utrzymując globalny limit 384 i istniejące pozostałe ograniczenia.
+- Grupa elementu była ponownie używana po zmianie filmu. Nowy zestaw źródeł HTML5,
+  deklaracji i linków dostaje nową grupę; zmiana samego tytułu lub wybór istniejącej
+  jakości zachowuje grupę. Źródło src ma pierwszeństwo przed opóźnionym currentSrc.
+- Warianty parsowanego mastera mogły pozostać osobnym kafelkiem obok tytułowanego
+  źródła DOM. Dokładnie zaobserwowane źródło wiąże grupę manifestu z jednym lokalnym
+  właścicielem w tej samej ramce. Nie zastępuje jego identyfikatora ani nie łączy
+  przez tekst tytułu. Dwóch sprzecznych właścicieli nie nadaje nazwy wariantowi.
+
+Weryfikacja końcowa:
+- PASS: `node --test app/src/test/js/*.test.cjs` — 218/218, zero pominiętych.
+- PASS: `./gradlew testDebugUnitTest --max-workers=2 --console=plain` — 376/376,
+  66 raportów klas, zero błędów/pominięć. Obejmuje grupowanie, tytuły, 100 rekordów,
+  dokładne źródła, deduplikację, ramki, nawigację, profile i prywatność.
+  Pełne testy lokalne wymagały środowiskowego proxy JVM i zaufanego magazynu CA:
+  `JAVA_TOOL_OPTIONS="-Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080 -Djavax.net.ssl.trustStore=/workspace/setup/cacerts"`,
+  `GRADLE_USER_HOME=/workspace/.gradle`, `ANDROID_HOME=/workspace/android-sdk`.
+  Pierwsze uruchomienia ujawniły brak cache, potem brak proxy/CA dla Robolectric;
+  końcowy pełny przebieg zakończył się BUILD SUCCESSFUL. Nie zmieniono konfiguracji repo.
+- PASS: `MME_CHROMIUM=/usr/bin/chromium node --test app/src/test/browser/mme-regression.cjs`
+  — 9/9. Runner używa istniejącego Playwright/Chromium, niczego nie instaluje i nie
+  dodaje zależności projektu. Uruchamia rzeczywisty content/background i protokół,
+  zastępując granicę WebExtension/native. Wszystkie żądania fixture są przechwycone.
+  Realny DOM: 10/100/200 filmów przed Play, kolejka, indywidualne tytuły/opisy,
+  późny DOM/aria, warianty HLS, SPA, Shadow DOM, iframe HTTP, deklaracja HLS obok
+  blob/MSE, konflikty, brak tytułu i wymiana źródeł/deklaracji/linków.
+  To nie jest test GeckoView ani potwierdzenie odtwarzania lub rzeczywistych witryn.
+- Reprodukcje RED/GREEN: tytuł + opis, późny video-tile/aria, źródło/grupa,
+  master/pojedynczy wariant po błędzie IPC, odrzucony CODECS, utrata przy 200 filmach,
+  page fallback i warianty tytułowanego mastera. Zaktualizowano stare oczekiwania
+  fallbacku; zastąpiono tekstowy regex kafelka testem faktycznej prezentacji Kotlin.
+- PASS: przegląd końcowego diffu i `git diff --check`.
+- NOT_TESTED: osobny lint, fizyczny telefon, rzeczywiste witryny i zachowanie GeckoView.
+- APK: nie kompilowano instalacyjnego APK, nie zmieniano wersji/podpisu.
+  Nie modyfikowano Zavro x MPV, GeckoView, 120 Hz ani workflow.
+- CI/PR: NOT_TESTED; brak nowego run ID. Push tej gałęzi nie pasuje do triggerów
+  istniejących workflow; nowy PR wymusiłby APK w apk-release.yml. Nie tworzono PR,
+  nie zmieniano workflow i nie uruchamiano CI ręcznie. Bez merge i bez odpytywania Actions.
+
+Zmienione pliki:
+- `app/src/main/assets/extensions/nira-media-detector/content.js`
+- `app/src/main/assets/extensions/nira-media-detector/background.js`
+- `app/src/main/java/com/prirai/android/nira/media/MediaFloatingUi.kt`
+- `app/src/main/java/com/prirai/android/nira/media/MediaRepository.kt`
+- `app/src/test/java/com/prirai/android/nira/media/MediaFrameGroupCorrelationStage5Test.kt`
+- `app/src/test/java/com/prirai/android/nira/media/MediaRepositoryTest.kt`
+- `app/src/test/java/com/prirai/android/nira/media/MediaTileTitleEvidenceTest.kt`
+- `app/src/test/java/com/prirai/android/nira/media/MediaTitleCorrelationV1171Test.kt`
+- `app/src/test/js/individual-titles-v1175.test.cjs`
+- `app/src/test/js/media-detector.test.cjs`
+- `app/src/test/browser/mme-regression.cjs`
+- `app/src/test/fixtures/mme-regression.html`
+- `docs/AI_HANDOFF.md`
+
+Dalsze sprawdzenie po osobnym upoważnieniu do dostarczenia APK: Nothing Phone (1),
+Android 15 — wykrywanie przed Play i nazwy na zgłoszonych witrynach, odtwarzacze
+SPA/iframe/Shadow DOM/MSE, zmiana filmu/jakości, miniaturki, formaty, profile,
+prywatność i płynność 120 Hz. Nie deklarować naprawy konkretnej strony bez testu.
+Wznowienie: pobrać gałąź, sprawdzić HEAD/status i ten checkpoint. Nie powtarzać
+zielonych kontroli bez nowych zmian; nie otwierać PR uruchamiającego APK bez
+odpowiedniego upoważnienia lub uzgodnionej zmiany CI.
