@@ -291,7 +291,6 @@ fun TabBarCompose(
                                     isSelected = item.tab.id == selectedTabId,
                                     coordinator = coordinator,
                                     onTabClick = onTabClick,
-                                    onTabClose = onTabClose,
                                     iconSizeDp = iconSizeDp,
                                     isDragging = false,
                                     modifier = Modifier
@@ -464,7 +463,6 @@ fun TabBarCompose(
                                 isSelected = false,
                                 coordinator = coordinator,
                                 onTabClick = {},
-                                onTabClose = {},
                                 iconSizeDp = iconSizeDp,
                                 isDragging = true
                             )
@@ -596,7 +594,6 @@ private fun TabPill(
     isSelected: Boolean,
     coordinator: DragCoordinator,
     onTabClick: (String) -> Unit,
-    onTabClose: (String) -> Unit,
     iconSizeDp: Int = 34,
     isDragging: Boolean = false,
     modifier: Modifier = Modifier
@@ -619,17 +616,7 @@ private fun TabPill(
             ) {
                 FaviconImage(tab = tab, size = (iconSizeDp * 0.58f).roundToInt().coerceAtLeast(6).dp)
             }
-            val badgeSize = (iconSizeDp * 0.38f).roundToInt().coerceIn(6, 16)
-            Box(
-                modifier = Modifier.align(Alignment.TopEnd).size(badgeSize.dp)
-                    .clip(CircleShape).background(Color(0xFFC83C67))
-                    .clickable { onTabClose(tab.id) }
-                    .semantics { contentDescription = "Zamknij kartę: ${getTabDisplayTitle(tab)}" },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.Close, contentDescription = null, tint = Color.White,
-                    modifier = Modifier.size((badgeSize * 0.75f).dp))
-            }
+
         }
     }
 }

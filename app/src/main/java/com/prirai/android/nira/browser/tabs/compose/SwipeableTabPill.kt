@@ -9,7 +9,6 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
@@ -203,17 +202,7 @@ fun SwipeableTabPill(
                 ) {
                     FaviconImage(tab = tab, size = (iconSizeDp * 0.58f).roundToInt().coerceAtLeast(6).dp)
                 }
-                val badgeSize = (iconSizeDp * 0.38f).roundToInt().coerceIn(6, 16)
-                Box(
-                    modifier = Modifier.align(Alignment.TopEnd).size(badgeSize.dp)
-                        .clip(CircleShape).background(Color(0xFFC83C67))
-                        .clickable(onClick = onTabClose)
-                        .semantics { contentDescription = "Zamknij kartę: ${getTabDisplayTitle(tab)}" },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Close, contentDescription = null, tint = Color.White,
-                        modifier = Modifier.size((badgeSize * 0.75f).dp))
-                }
+
             }
         }
     }

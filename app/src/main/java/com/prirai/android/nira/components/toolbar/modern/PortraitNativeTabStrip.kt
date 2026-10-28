@@ -271,24 +271,6 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
         tabContainer.addView(image, FrameLayout.LayoutParams(
             dp(faviconSize), dp(faviconSize), Gravity.CENTER
         ))
-        val badgeSize = (size * 0.38f).roundToInt().coerceIn(6, 16)
-        val close = TextView(context).apply {
-            text = "×"
-            gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
-            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, (badgeSize * 0.7f).coerceAtLeast(6f))
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.rgb(200, 60, 103))
-            }
-            contentDescription = "Zamknij kartę: $title"
-            isClickable = true
-            isFocusable = true
-            setOnClickListener { onTabClosed?.invoke(tab.id) }
-        }
-        tabContainer.addView(close, FrameLayout.LayoutParams(
-            dp(badgeSize), dp(badgeSize), Gravity.TOP or Gravity.END
-        ))
         bindFavicon(image, tab)
         renderedPills[tab.id] = RenderedPill(tabContainer, image, title, tab.content.url,
             tab.content.icon?.let { System.identityHashCode(it) }, selected)
