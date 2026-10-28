@@ -919,6 +919,7 @@ async function inspectManifest(task) {
   } catch (error) {
     if (currentTask(task) && !controller?.signal.aborted) {
       discovery("manifest_invalid", task.isPrivate);
+      discovery(error && (error.name === "AbortError" || error.name === "TypeError") ? "manifest_fetch_failed" : "manifest_parse_failed", task.isPrivate);
       if (/^(?:invalid_hls|invalid_dash)$/.test(error?.message || "")) await rejectManifest(task);
     }
   } finally {

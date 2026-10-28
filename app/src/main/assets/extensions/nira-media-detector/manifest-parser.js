@@ -34,7 +34,7 @@ globalThis.NiraManifestParser = (() => {
     limit = bounded(text, limit);
     const lines = text.replace(/\r/g, "").split("\n").map(line => line.trim());
     if (lines[0] !== "#EXTM3U") throw new Error("invalid_hls");
-    const variants = [], audioTracks = [], subtitleTracks = [];
+    const variants = [], audioTracks = [], subtitleTracks = [], trickplayTracks = [];
     let seconds = 0, firstSegmentUrl = null, drm = false, endList = false, segments = 0;
     let rangedSegments = 0, rangeBytes = 0, hasInitialization = false;
     for (let index = 0; index < lines.length; index++) {
@@ -70,6 +70,14 @@ globalThis.NiraManifestParser = (() => {
           group: data["GROUP-ID"] || null,
         });
       }
+      if (line.startsWith("#EXT-X-I-FRAME-STREAM-INF:") && trickplayTracks.length < limit) {
+        const data = attributes(line.slice("#EXT-X-I-FRAME-STREAM-INF:".length));
+        const source = data.URI && url(data.URI, base);
+        const res = /^(\d+)x(\d+)$/i.exec(data.RESOLUTION || "");
+        if (source) trickplayTracks.push({url:source, width:res?number(res[1]):null,
+          height:res?number(res[2]):null, bitrate:number(data.BANDWIDTH),
+          codecs:data.CODECS || null, role:"trickplay"});
+      }
       if (line.startsWith("#EXT-X-STREAM-INF:") && variants.length < limit) {
         const data = attributes(line.slice(18));
         let next = index + 1;
@@ -94,7 +102,7 @@ globalThis.NiraManifestParser = (() => {
     const media = variants.length === 0;
     // A non-final playlist has only a moving window; never call that a movie duration.
     return { protocol: "HLS", drm, kind: media ? "media" : "master", variants,
-      audioTracks, subtitleTracks, live: media && !endList,
+      audioTracks, subtitleTracks, trickplayTracks, live: media && !endList,
       durationSeconds: media && endList && segments > 0 ? Math.ceil(seconds) : null,
       // Exact only for a complete single-rendition VOD in which EVERY segment
       // has an explicit byte range and no unknown initialization segment.
@@ -198,7 +206,8 @@ globalThis.NiraManifestParser = (() => {
             bitrateKind: "declared",
             codecs: attr(rep, "codecs") || attr(set, "codecs") || null,
             language: attr(rep, "lang") || attr(set, "lang") || null,
-            periodIndex, representationId: attr(rep, "id") || null, segmented
+            periodIndex, representationId: attr(rep, "id") || null, segmented,
+            role: dest === variants ? "video" : dest === audioTracks ? "audio" : "subtitle"
           });
         }
       }
@@ -210,7 +219,7 @@ globalThis.NiraManifestParser = (() => {
     return { protocol: "DASH", drm: /<ContentProtection\b/i.test(text), dynamic,
       live: dynamic, durationSeconds: dynamic ? null :
         (duration(attr(root, "mediaPresentationDuration")) || (completeDuration ? periodDuration : null)),
-      bitrate, variants, audioTracks, subtitleTracks, periodCount: periods.length };
+      bitrate, variants, audioTracks, subtitleTracks, trickplayTracks: [], periodCount: periods.length };
   }
   return { parseHls, parseDash };
 })();

@@ -144,6 +144,7 @@ object TestLabReportGenerator {
                 appendLine("VERIFIED=zweryfikowany manifest/strumień lub potwierdzony stan źródła; DISPLAYED=przekazano panelowi, nie wyrenderowano pikseli.")
                 appendLine("Braki: ${funnel.unknownReasons}")
                 appendLine("Konflikty: tytuł=${funnel.titleConflicts}; różne miniatury=${funnel.posterAlternatives}; rozbieżne grupy wariantów=${funnel.variantGroupMismatches}; limit=${funnel.droppedRecords}")
+                appendLine("Powody zmian groupId: NETWORK wobec DOM/PAGE=${funnel.variantGroupDomNetwork}; pozostale=${funnel.variantGroupOther}; zdarzenia, nie dowod blednego scalenia.")
                 appendLine("Rozszerzone sondy sieciowe: ${if(funnel.extendedNetworkProbesEnabled) "ON" else "OFF"}; liczba prób=${funnel.probeRequests ?: "NOT_MEASURED"}, bajty=${funnel.probeBytes ?: "NOT_MEASURED"}, czas=${funnel.probeElapsedMs ?: "NOT_MEASURED"} ms")
                 appendLine("Brak pomiarów sieciowych oznacza NOT_MEASURED, a nie zero żądań ani zero kosztu.")
             } ?: appendLine("NOT_MEASURED — brak snapshotu kolektora.")

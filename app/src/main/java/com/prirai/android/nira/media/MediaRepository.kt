@@ -443,9 +443,14 @@ internal class MediaRepository(
             found.observeUrl(media.url, provenance, tick())
             found.mark(if (provenance == MediaProvenance.MANIFEST_DERIVED) MediaSource.PAGE else source)
             if (com.prirai.android.nira.diagnostics.testlab.TestLab.mediaObservationActive()) {
-                if (groupId != null && found.groupId != null && found.groupId != groupId)
+                if (groupId != null && found.groupId != null && found.groupId != groupId) {
                     com.prirai.android.nira.diagnostics.testlab.TestLab.mediaFunnelConflict(
                         com.prirai.android.nira.diagnostics.testlab.MediaFunnelConflict.VARIANT_GROUP_MISMATCH)
+                    com.prirai.android.nira.diagnostics.testlab.TestLab.mediaFunnelConflict(
+                        if (source == MediaSource.NETWORK && (found.dom || found.page))
+                            com.prirai.android.nira.diagnostics.testlab.MediaFunnelConflict.VARIANT_GROUP_DOM_NETWORK
+                        else com.prirai.android.nira.diagnostics.testlab.MediaFunnelConflict.VARIANT_GROUP_OTHER)
+                }
                 if (found.posterUrl != null && metadata?.posterUrl != null &&
                     found.posterUrl != metadata.posterUrl)
                     com.prirai.android.nira.diagnostics.testlab.TestLab.mediaFunnelConflict(

@@ -7,7 +7,7 @@
   // Only the extension's background can mint root/frame correlation keys.
   // No video playback, network probe, script execution or persistent URL storage.
   const FRAME = typeof window.top !== "undefined" && window !== window.top;
-  const MAX_ITEMS = 128, MAX_SEEN = 256, MAX_SCRIPT_CHARS = 48000;
+  const MAX_ITEMS = 96, MAX_SEEN = 256, MAX_SCRIPT_CHARS = 48000;
   let activeUrl = location.href, context = null, registering = null, navigationEpoch = 0;
   let scheduled = false;
   let scanRoot = document, scanTimer = null, alive = true;
@@ -19,7 +19,7 @@
   let structuredVersions = new WeakSet();
   let overflowRoot = false;
   // Bounded slices, not a permanent cutoff at the first N nodes.
-  const SLICE_MS = 8, MAX_JOBS = 64, MAX_ROOTS = 32;
+  const SLICE_MS = 4, MAX_JOBS = 64, MAX_ROOTS = 32;
   const seen = new Map(), groups = new WeakMap();
   let structuredGroups = new WeakMap();
   let nextGroup = 0;
@@ -323,6 +323,14 @@
     if (players.length > 1) return false;
     if (players.length === 1) {
       const player = players[0];
+      // A sibling media link may belong to ONE real video, but only on exact URL.
+      if (!posterOnly && element?.matches?.("a[href]") &&
+          player.tagName?.toLowerCase() === "video") {
+        const href = absolute(attribute(element, "href"));
+        const src = absolute(player.currentSrc || player.src);
+        if (href && src && href === src && card.querySelectorAll("a[href]").length === 1)
+          return true;
+      }
       return posterOnly || element === card || element === player ||
         typeof player.contains === "function" && player.contains(element) ||
         typeof element.contains === "function" && element.contains(player);
@@ -587,6 +595,7 @@
       }
     }
     const title = videoTitle(video);
+    if (!title && video.closest && video.closest(MEDIA_CARDS)) note("title_no_owner");
     const kind = explicitVideoTitle(video) ? "player" : "video";
     const seconds = durationOf(video);
     const poster = posterFor(video);
