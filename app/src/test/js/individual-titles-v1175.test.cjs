@@ -242,13 +242,14 @@ test("media link inside a different player's card never inherits player heading"
 });
 
 function stage3Harness() {
-  const submitted = [];
+  const submitted = [], diagnosticReasons = [];
   const scripts = [], links = [];
   const runtime = {
     TextEncoder, URL,
     document: {baseURI:"https://site.example/list", title:"Global page title"},
     location: {href:"https://site.example/list"},
     MAX_SCRIPT_CHARS:48000,
+    note: (code) => diagnosticReasons.push(code),
     structuredGroups: new WeakMap(),
     structuredVersions: new WeakSet(),
     attribute: (el, key) => el.getAttribute(key),
@@ -284,7 +285,7 @@ function stage3Harness() {
     script.slice(declarationStart, declarationEnd) +
     script.slice(structuredStart, structuredEnd) +
     "\n globalThis.stage3 = {scanStructuredData, scanDeclarations};", runtime);
-  return {submitted, scripts, links, runtime,
+  return {submitted, diagnosticReasons, scripts, links, runtime,
     scanStructured: () => runtime.stage3.scanStructuredData(),
     scanLinks: () => runtime.stage3.scanDeclarations()};
 }
@@ -345,6 +346,7 @@ test("unrelated structured recommendations cannot title another source", () => {
   assert.equal(h.submitted.length, 1);
   assert.equal(h.submitted[0].url, "https://cdn.example/recommend.mp4");
   assert.equal(h.submitted[0].title, "Recommended");
+  assert.ok(h.diagnosticReasons.includes("title_no_direct_source"));
 });
 
 test("50 independent direct media links receive their own CSS caption, never page title", () => {
