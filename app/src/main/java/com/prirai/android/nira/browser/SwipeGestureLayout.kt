@@ -27,6 +27,8 @@ class SwipeGestureLayout @JvmOverloads constructor(
 
     /** Passive vertical scroll signal; never intercepts GeckoView's page gestures. */
     var onVerticalSwipe: ((Float) -> Unit)? = null
+    /** Prevent panel scrolling from hiding the browser toolbar. */
+    var allowPageScrollObservation: (() -> Boolean)? = null
     private var verticalStartX = 0f
     private var verticalStartY = 0f
     private var verticalLastY = 0f
@@ -44,6 +46,12 @@ class SwipeGestureLayout @JvmOverloads constructor(
                 verticalDirection = false
             }
             MotionEvent.ACTION_MOVE -> {
+                if (allowPageScrollObservation?.invoke() == false) {
+                    verticalDirection = false
+                    directionDecided = true
+                    verticalLastY = event.y
+                    return
+                }
                 val dx = kotlin.math.abs(event.x - verticalStartX)
                 val dy = kotlin.math.abs(event.y - verticalStartY)
                 if (!directionDecided && maxOf(dx, dy) >= 12f * resources.displayMetrics.density) {
@@ -78,14 +86,21 @@ class SwipeGestureLayout @JvmOverloads constructor(
                 val totalX = kotlin.math.abs(next.x - start.x)
                 val totalY = kotlin.math.abs(next.y - start.y)
                 val slop = android.view.ViewConfiguration.get(context).scaledTouchSlop.toFloat()
-                // Do not reject the entire gesture on the first small MOVE.
-                // Decide once enough travel establishes a horizontal/vertical intent.
-                if (totalX >= maxOf(12f * resources.displayMetrics.density, slop * 1.5f) ||
-                    totalY >= maxOf(12f * resources.displayMetrics.density, slop * 1.5f)) {
-                    activeListener = listeners.firstOrNull { listener ->
-                        listener.onSwipeStarted(start, next)
+                // Recognize intent before offering touch to toolbar/side drawers.
+                // A vertical page scroll stays with GeckoView/RecyclerView, with
+                // no unnecessary onSwipeStarted callbacks on that finger stream.
+                val threshold = maxOf(12f * resources.displayMetrics.density, slop * 1.5f)
+                when {
+                    totalY >= threshold && totalY > totalX -> {
+                        handledInitialScroll = true
                     }
-                    handledInitialScroll = true
+                    totalX >= threshold && totalX > totalY -> {
+                        activeListener = listeners.firstOrNull { listener ->
+                            listener.onSwipeStarted(start, next)
+                        }
+                        handledInitialScroll = true
+                    }
+                    // Diagonal/short movement: wait for an unambiguous direction.
                 }
             }
             activeListener?.onSwipeUpdate(distanceX, distanceY)
@@ -113,9 +128,51 @@ class SwipeGestureLayout @JvmOverloads constructor(
     private val listeners = mutableListOf<SwipeGestureListener>()
     private var activeListener: SwipeGestureListener? = null
     private var handledInitialScroll = false
+    private var multiTouchStream = false
+
+    // Interception hands the same MOVE to onTouchEvent after cancelling the child.
+    // Keep an allocation-free signature to prevent double delivery to GestureDetector.
+    private var lastInterceptDown = Long.MIN_VALUE
+    private var lastInterceptTime = Long.MIN_VALUE
+    private var lastInterceptAction = -1
+    private var lastInterceptX = Float.NaN
+    private var lastInterceptY = Float.NaN
+    private var lastInterceptPointers = -1
+
+    private fun feedFromIntercept(event: MotionEvent): Boolean {
+        val handled = gestureDetector.onTouchEvent(event)
+        lastInterceptDown = event.downTime
+        lastInterceptTime = event.eventTime
+        lastInterceptAction = event.action
+        lastInterceptX = event.x
+        lastInterceptY = event.y
+        lastInterceptPointers = event.pointerCount
+        return handled
+    }
+
+    private fun wasFedFromIntercept(event: MotionEvent): Boolean =
+        lastInterceptDown == event.downTime && lastInterceptTime == event.eventTime &&
+            lastInterceptAction == event.action && lastInterceptX == event.x &&
+            lastInterceptY == event.y && lastInterceptPointers == event.pointerCount
+
+    private fun cancelOwnedSwipe() {
+        activeListener?.onSwipeCancelled()
+        activeListener = null
+        handledInitialScroll = true
+    }
 
     fun addGestureListener(listener: SwipeGestureListener) {
         listeners.add(listener)
+    }
+
+    /** View-scoped handlers must not survive fragment view teardown. */
+    fun removeGestureListener(listener: SwipeGestureListener) {
+        if (activeListener === listener) {
+            activeListener = null
+            handledInitialScroll = true // Do not hand this finger stream to another listener.
+            listener.onSwipeCancelled()
+        }
+        listeners.remove(listener)
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
@@ -126,36 +183,53 @@ class SwipeGestureLayout @JvmOverloads constructor(
     }
 
     override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
-        if (!isSwipeEnabled) {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            multiTouchStream = false
+            handledInitialScroll = false
+            activeListener = null
+            if (isSwipeEnabled) feedFromIntercept(event)
             return false
         }
+        if (!isSwipeEnabled) {
+            if (activeListener != null) cancelOwnedSwipe()
+            return false
+        }
+        if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN || event.pointerCount > 1) {
+            multiTouchStream = true
+            cancelOwnedSwipe()
+            return false
+        }
+        if (multiTouchStream) return false
 
         return when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                handledInitialScroll = false
-                activeListener = null
-                gestureDetector.onTouchEvent(event)
+            MotionEvent.ACTION_MOVE -> feedFromIntercept(event) && activeListener != null
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                feedFromIntercept(event)
                 false
             }
-            MotionEvent.ACTION_MOVE -> {
-                val shouldIntercept = gestureDetector.onTouchEvent(event)
-                // Return true to intercept if we have an active listener
-                shouldIntercept && activeListener != null
-            }
-            else -> gestureDetector.onTouchEvent(event)
+            else -> false
         }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val owned = activeListener != null
-        gestureDetector.onTouchEvent(event)
+        if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN || event.pointerCount > 1) {
+            val wasOwned = owned || multiTouchStream
+            multiTouchStream = true
+            cancelOwnedSwipe()
+            // Keep a stream already intercepted by this parent until ACTION_UP.
+            return wasOwned
+        }
+        if (multiTouchStream) {
+            if (event.actionMasked == MotionEvent.ACTION_UP ||
+                event.actionMasked == MotionEvent.ACTION_CANCEL) multiTouchStream = false
+            return true
+        }
+        if (!wasFedFromIntercept(event)) gestureDetector.onTouchEvent(event)
         when (event.actionMasked) {
-            MotionEvent.ACTION_CANCEL -> {
-                activeListener?.onSwipeCancelled()
-                activeListener = null
-            }
+            MotionEvent.ACTION_CANCEL -> cancelOwnedSwipe()
             MotionEvent.ACTION_UP -> {
-                // onFling already clears activeListener when it finishes.
+                // onFling may have already completed and cleared the listener.
                 activeListener?.onSwipeFinished(0f, 0f)
                 activeListener = null
             }

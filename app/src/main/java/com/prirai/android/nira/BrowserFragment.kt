@@ -19,6 +19,7 @@ import androidx.lifecycle.lifecycleScope
 import com.prirai.android.nira.browser.home.compose.jumpBackInItems
 import com.prirai.android.nira.browser.home.compose.recentlyClosedItems
 import com.prirai.android.nira.browser.toolbar.ToolbarGestureHandler
+import com.prirai.android.nira.browser.panels.SidePanelInfrastructure
 import com.prirai.android.nira.components.toolbar.ToolbarMenu
 import com.prirai.android.nira.downloads.DownloadsBottomSheetFragment
 import com.prirai.android.nira.ext.components
@@ -60,6 +61,42 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
 
     private val windowFeature = ViewBoundFeatureWrapper<WindowFeature>()
     private var mediaFloatingUi: MediaFloatingUi? = null
+    private var sidePanelInfrastructure: SidePanelInfrastructure? = null
+
+    /** Mount only when a qualified left-edge gesture needs a real panel. */
+    private fun mountEmbeddedSideTabs(): Boolean {
+        val panels = sidePanelInfrastructure ?: return false
+        if (parentFragmentManager.isStateSaved || childFragmentManager.isStateSaved ||
+            childFragmentManager.isDestroyed) return false
+        // A visible legacy sheet or a mounted right drawer takes precedence.
+        if (panels.rightIsEngaged()) return false
+        if (listOf("NiraSideTabs", "NiraSideBookmarks",
+                com.prirai.android.nira.browser.tabs.TabsBottomSheetFragment.TAG)
+                .any { parentFragmentManager.findFragmentByTag(it) != null }) return false
+        if (!panels.mountLeftContent(childFragmentManager)) return false
+        val width = panels.host.leftContainer.layoutParams.width
+        return panels.activate(
+            com.prirai.android.nira.browser.panels.SidePanelSide.LEFT,
+            width
+        )
+    }
+    /** Mirror of the left drawer: mount only for a qualified RIGHT-edge swipe. */
+    private fun mountEmbeddedSideBookmarks(): Boolean {
+        val panels = sidePanelInfrastructure ?: return false
+        if (parentFragmentManager.isStateSaved || childFragmentManager.isStateSaved ||
+            childFragmentManager.isDestroyed || panels.leftIsEngaged()) return false
+        if (listOf("NiraSideTabs", "NiraSideBookmarks",
+                com.prirai.android.nira.browser.tabs.TabsBottomSheetFragment.TAG)
+                .any { parentFragmentManager.findFragmentByTag(it) != null }) return false
+        if (!panels.mountRightContent(childFragmentManager)) return false
+        val width = panels.host.rightContainer.layoutParams.width
+        return panels.activate(
+            com.prirai.android.nira.browser.panels.SidePanelSide.RIGHT,
+            width
+        )
+    }
+
+    private var legacyEdgePanelListener: com.prirai.android.nira.browser.SwipeGestureListener? = null
 
     // Track last tab IDs for auto-grouping detection
     private var lastTabIds = setOf<String>()
@@ -82,6 +119,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
+        sidePanelInfrastructure?.onBrowserConfigurationChanged(childFragmentManager)
         // This Activity handles orientation/screenSize without recreation.
         // Re-measure the detached footer after its new constraints apply.
         val bottomStrip = unifiedToolbar?.getBottomComponentsContainer()
@@ -184,16 +222,36 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
 
     private fun setupEdgePanelGestures() {
         binding.gestureLayout.onVerticalSwipe = { delta -> onVerticalPageGesture(delta) }
+        binding.gestureLayout.allowPageScrollObservation = {
+            sidePanelInfrastructure?.anyPanelEngaged() != true
+        }
         val prefs = UserPreferences(requireContext())
+        legacyEdgePanelListener?.let(binding.gestureLayout::removeGestureListener)
+        legacyEdgePanelListener = null
+        // Toolbar handler has priority. New panels are disabled until their content
+        // and explicit activation are provided in stages 3B/4B.
+        sidePanelInfrastructure?.dispose()
+        sidePanelInfrastructure = SidePanelInfrastructure.attach(
+            gestures = binding.gestureLayout,
+            edgeWidthDp = prefs.niraEdgeWidthDp.coerceAtLeast(1),
+            mayHandle = {
+                prefs.niraEdgePanelsEnabled && isAdded && bindingOrNull != null && binding.gestureLayout.isSwipeEnabled &&
+                    !parentFragmentManager.isStateSaved
+            }
+        )
+        sidePanelInfrastructure?.prepareLeftOnGesture = { mountEmbeddedSideTabs() }
+        sidePanelInfrastructure?.prepareRightOnGesture = { mountEmbeddedSideBookmarks() }
         if (!prefs.niraEdgePanelsEnabled) return
         val density = resources.displayMetrics.density
         val edgeWidth = prefs.niraEdgeWidthDp * density
         val threshold = 64 * density
-        binding.gestureLayout.addGestureListener(object : com.prirai.android.nira.browser.SwipeGestureListener {
+        val legacyListener = object : com.prirai.android.nira.browser.SwipeGestureListener {
             private var direction = 0
             private var travelled = 0f
             private var labGesture: com.prirai.android.nira.diagnostics.testlab.OperationToken? = null
             override fun onSwipeStarted(start: android.graphics.PointF, next: android.graphics.PointF): Boolean {
+                // Never open either legacy dialog over a mounted or settling drawer.
+                if (sidePanelInfrastructure?.anyPanelEngaged() == true) return false
                 val dx = next.x - start.x
                 val dy = next.y - start.y
                 if (kotlin.math.abs(dx) < 12 * density ||
@@ -251,7 +309,9 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 com.prirai.android.nira.diagnostics.testlab.TestLab.end(labGesture,com.prirai.android.nira.diagnostics.testlab.OperationOutcome.CANCELLED)
                 labGesture=null;direction=0
             }
-        })
+        }
+        binding.gestureLayout.addGestureListener(legacyListener)
+        legacyEdgePanelListener = legacyListener
     }
 
     private fun currentMediaSnapshot(): MediaUiSnapshot? {
@@ -363,7 +423,15 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     }
 
     override fun onDestroyView() {
+        // During parent view teardown, let FragmentManager own child view destruction.
+        sidePanelInfrastructure?.releaseLeftContentBinding(childFragmentManager)
+        sidePanelInfrastructure?.releaseRightContentBinding(childFragmentManager)
+        legacyEdgePanelListener?.let(binding.gestureLayout::removeGestureListener)
+        legacyEdgePanelListener = null
+        sidePanelInfrastructure?.dispose()
+        sidePanelInfrastructure = null
         binding.gestureLayout.onVerticalSwipe = null
+        binding.gestureLayout.allowPageScrollObservation = null
         mediaFloatingUi?.detach()
         mediaFloatingUi = null
         super.onDestroyView()
@@ -372,6 +440,9 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     override fun onResume() {
         super.onResume()
         // Contextual toolbar updates handled automatically by UnifiedToolbar
+        // Clear any old embedded child that FragmentManager restored while the
+        // new view-bound host starts CLOSED. Never transact within onViewCreated.
+        sidePanelInfrastructure?.pruneClosedContent(childFragmentManager)
 
         // Ensure tab preview is hidden (fixes doubled content issue after returning from settings)
         binding.tabPreview.visibility = View.GONE
@@ -962,6 +1033,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
      * API calls from the web content.
      */
     override fun onFullScreenModeChanged(inFullScreen: Boolean) {
+        sidePanelInfrastructure?.onFullscreenChanged(inFullScreen)
+        if (inFullScreen) sidePanelInfrastructure?.pruneClosedContent(childFragmentManager)
         mediaFloatingUi?.setFullscreen(inFullScreen)
         if (inFullScreen) {
             // Entering fullscreen - completely hide and collapse all toolbars
@@ -1486,6 +1559,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     }
 
     override fun onBackPressed(): Boolean {
+        if (sidePanelInfrastructure?.closeOnBack() == true) return true
         // First, try the default back handling (reader mode, find in page, fullscreen, etc.)
         val handled = super.onBackPressed()
         

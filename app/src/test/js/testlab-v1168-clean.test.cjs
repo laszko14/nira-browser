@@ -1,4 +1,5 @@
 "use strict";
+const { assertUpdateApkContract } = require("./helpers/update-apk-contract.cjs");
 const test=require("node:test"),assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path");
 const repo=path.resolve(__dirname,"../../../..");
 const read=p=>fs.readFileSync(path.join(repo,p),"utf8");
@@ -31,9 +32,10 @@ test("v1168 retains source-safe screen rate and external video request semantics
 });
 test("v1168 signed update metadata preserves clean package and version track",()=>{
  const gradle=read("app/build.gradle"),workflow=read(".github/workflows/apk-release.yml");
- assert.match(gradle,/versionCode = 189/);
- assert.match(gradle,/versionName = "0\.5\.22-alpha94-clean"/);
+
+
+  assertUpdateApkContract(gradle, workflow);
  assert.match(gradle,/applicationIdSuffix = '\.debug'/);
- assert.match(workflow,/EXPECTED_VERSION_CODE: "1189"/);
- assert.match(workflow,/EXPECTED_VERSION_NAME: 0\.5\.22-alpha94-clean/);
+
+
 });

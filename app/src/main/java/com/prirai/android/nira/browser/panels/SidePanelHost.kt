@@ -1,0 +1,99 @@
+package com.prirai.android.nira.browser.panels
+
+import android.content.Context
+import android.graphics.Color
+import android.util.AttributeSet
+import android.view.Gravity
+import android.view.View
+import android.widget.FrameLayout
+import com.prirai.android.nira.R
+
+/**
+ * Inert until attached by the browser in a later stage. Existing dialog panels are untouched.
+ * Hosts ONE active panel over the browser and a single dismiss-on-outside surface.
+ */
+internal class SidePanelHost @JvmOverloads constructor(
+    context: Context,
+    attrs: AttributeSet? = null
+) : FrameLayout(context, attrs) {
+
+    private val scrim = View(context).apply {
+        setBackgroundColor(Color.BLACK)
+        alpha = 0f
+        isClickable = true
+        visibility = View.GONE
+        setOnClickListener { onOutsideTap?.invoke() }
+    }
+
+    val leftContainer: FrameLayout = FrameLayout(context).apply {
+        id = R.id.nira_embedded_side_tabs
+        visibility = View.GONE
+    }
+    val rightContainer: FrameLayout = FrameLayout(context).apply {
+        id = R.id.nira_embedded_side_bookmarks
+        visibility = View.GONE
+    }
+
+    var onOutsideTap: (() -> Unit)? = null
+
+    init {
+        visibility = View.GONE
+        addView(scrim, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        // The gesture model uses physical LEFT/RIGHT screen edges, not RTL-relative START/END.
+        addView(leftContainer, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT, Gravity.LEFT))
+        addView(rightContainer, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT, Gravity.RIGHT))
+    }
+
+    fun setPanelWidth(side: SidePanelSide, widthPx: Int) {
+        require(widthPx > 0) { "Panel width must be positive" }
+        val container = containerFor(side)
+        val params = container.layoutParams as LayoutParams
+        // setLayoutParams() triggers a measure/layout pass; repeated mounting
+        // with the same stored width must not invalidate the whole drawer.
+        if (params.width != widthPx) {
+            params.width = widthPx
+            container.layoutParams = params
+        }
+    }
+
+    private fun View.setVisibleIfChanged(visible: Boolean) {
+        val desired = if (visible) View.VISIBLE else View.GONE
+        if (visibility != desired) visibility = desired
+    }
+
+    /**
+     * Hot path on every ValueAnimator frame (up to 120 Hz and higher).
+     * Only alpha/translation change between frames; visibility transitions
+     * must not repeatedly invalidate layout of the embedded Compose/RecyclerView.
+     */
+    fun render(state: SidePanelSnapshot) {
+        if (state.phase == SidePanelPhase.CLOSED) {
+            setVisibleIfChanged(false)
+            scrim.setVisibleIfChanged(false)
+            leftContainer.setVisibleIfChanged(false)
+            rightContainer.setVisibleIfChanged(false)
+            return
+        }
+        val side = checkNotNull(state.side) { "Active panel requires a side" }
+        check(state.progress.isFinite() && state.progress in 0f..1f) { "Invalid panel progress" }
+        val active = containerFor(side)
+        val width = active.layoutParams.width
+        check(width > 0) { "Set panel width before rendering" }
+        setVisibleIfChanged(true)
+        scrim.setVisibleIfChanged(true)
+        leftContainer.setVisibleIfChanged(side == SidePanelSide.LEFT)
+        rightContainer.setVisibleIfChanged(side == SidePanelSide.RIGHT)
+        val nextAlpha = state.progress * MAX_SCRIM_ALPHA
+        if (scrim.alpha != nextAlpha) scrim.alpha = nextAlpha
+        val nextTranslation = (1f - state.progress) * width *
+            if (side == SidePanelSide.LEFT) -1f else 1f
+        if (active.translationX != nextTranslation) active.translationX = nextTranslation
+    }
+
+    private fun containerFor(side: SidePanelSide): FrameLayout =
+        if (side == SidePanelSide.LEFT) leftContainer else rightContainer
+
+    companion object {
+        private const val MAX_SCRIM_ALPHA = 0.55f
+    }
+}

@@ -6,4 +6,7 @@
     <item name="tabs_button" type="id"/>
     <!-- Custom tag IDs for storing metadata -->
     <item name="tag_context_id" type="id"/>
+    <!-- Stable across browser-view recreation so child fragments can find their host. -->
+    <item name="nira_embedded_side_tabs" type="id"/>
+    <item name="nira_embedded_side_bookmarks" type="id"/>
 </resources>

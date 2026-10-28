@@ -106,4 +106,53 @@ class TestLabReportTest {
         assertTrue(output.text.indexOf("CONFIRMED_INVARIANT_FAILURE")<output.text.indexOf("OBSERVED_PERFORMANCE_ANOMALY"))
         assertTrue(output.text.contains("korelacja"))
     }
+
+    @Test fun panelPerformanceSectionDoesNotInvent120HzOrJankWhenNoFrames() {
+        val base=sample().copy(testType=TestType.PANELS_GESTURES)
+        val output=TestLabReportGenerator.generate(base).text
+        assertTrue(output.contains("Cel 120 Hz: 8.333 ms"))
+        assertTrue(output.contains("NIEPOTWIERDZONY"))
+        assertTrue(output.contains("JankStats: NIEPRZETESTOWANY"))
+        assertTrue(output.contains("LEFT_PANEL_SETTLE: NIEPRZETESTOWANY"))
+        assertTrue(output.contains("RIGHT_PANEL_SETTLE: NIEPRZETESTOWANY"))
+        assertFalse(output.contains("FPS:"))
+    }
+
+    @Test fun panelPerformanceSectionUsesActualRefreshAndExistingWindowSamplesOnly() {
+        val base=sample()
+        val frames=FrameAccumulator().apply {
+            addMeasured(8_000_000,false,0,false)
+            addMeasured(16_000_000,true,0,false)
+        }.snapshot()
+        // The initial sample has no panel gestures, so fabricate one explicit
+        // anonymous completed/interrupt pair rather than mapping an empty list.
+        val ops=base.operationMetrics.filterNot {
+            it.operation == LabOperation.LEFT_PANEL_SETTLE
+        } + OperationSummary(
+            operation=LabOperation.LEFT_PANEL_SETTLE,
+            started=2, accepted=0, succeeded=1, cancelled=0, failed=0,
+            timedOut=0, interrupted=1, unknown=0,
+            latency=LatencySummary(1,196.0,196.0,null),
+            taggedFrames=2, taggedJank=1, maxTaggedFrameMs=16.0,
+            completionProofs=mapOf(CompletionProof.ANIMATOR_END to 1L)
+        )
+        val output=TestLabReportGenerator.generate(base.copy(
+            environment=LabEnvironment(35,8,listOf(60.0,90.0,119.88),119.88,120.0),
+            frameMetrics=frames,operationMetrics=ops
+        ))
+        assertTrue(output.text.contains("Tryb odczytany: 119.880 Hz"))
+        assertTrue(output.text.contains("budżet cyklu: 8.342 ms"))
+        assertEquals(1, ops.count { it.operation == LabOperation.LEFT_PANEL_SETTLE })
+        assertTrue(output.text.contains("LEFT_PANEL_SETTLE: próby=2; ukończone=1"))
+        assertTrue(output.text.contains("jank w oknie operacji=1/2"))
+        assertTrue(output.text.contains("RIGHT_PANEL_SETTLE: NIEPRZETESTOWANY"))
+        assertFalse(output.text.contains("FPS:"))
+        assertFalse(output.json.contains("https://"))
+    }
+
+    @Test fun generalVideoDiscoveryReportDoesNotAddUnrelatedPanelBudgetSection() {
+        val output=TestLabReportGenerator.generate(sample().copy(testType=TestType.VIDEO_DISCOVERY))
+        assertFalse(output.text.contains("PANELE — płynność animacji"))
+    }
+
 }
