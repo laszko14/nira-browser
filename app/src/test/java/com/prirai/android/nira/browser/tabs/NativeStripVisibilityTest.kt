@@ -122,13 +122,13 @@ class NativeStripVisibilityTest {
         assertTrue(left + target.width <= scroll(strip).scrollX + scroll(strip).width)
     }
 
-    @Test fun touchBeginningOnClickablePillCancelsRunningAutomaticAnimation() {
+    @Test fun touchBeginningOnClickablePillCancelsPendingAutomaticScroll() {
         val strip = strip()
         val tabs = tabs(30)
         strip.updateTabs(tabs, "0"); layout(strip)
         strip.updateTabs(tabs, "29")
-        // Start the posted animation without advancing its full duration.
-        shadowOf(Looper.getMainLooper()).idle()
+        // Dispatch before draining the posted visibility check. Advancing the
+        // Robolectric looper here can finish the animation before the touch.
         val scroller = scroll(strip)
         val pill = descendants(strip).single { it.contentDescription == "Karta: 0" }
         var x = pill.width / 2f + pill.left

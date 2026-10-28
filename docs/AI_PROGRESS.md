@@ -273,3 +273,8 @@
   group, latest-selection/resize and touch-cancellation native regressions.
 - Draft PR #110; initial CI https://github.com/laszko14/nira-browser/actions/runs/40750523098
   still running at this checkpoint. Local pure JUnit 6/6 + JS 212/212 still PASS.
+- CI 40750934477 SUCCESS: 371 Kotlin/Robolectric, 212 JS, build and lint.
+  Subsequent test-only refinement run 40751580654 found a fixture error: draining
+  the looper finished the scroll before targeting the first icon. Dispatch DOWN
+  while the visibility check is pending instead, to deterministically exercise
+  child-consumed touch cancellation. Production code unchanged; next CI required.
