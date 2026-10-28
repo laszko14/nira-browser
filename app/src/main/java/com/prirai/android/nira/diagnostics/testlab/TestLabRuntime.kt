@@ -333,17 +333,18 @@ internal class TestLabRuntime(
         val metadata = if(engine.currentType() in setOf(TestType.VIDEO_METADATA,TestType.FULL_AUDIT)) mediaObserver?.metadataSnapshot() else null
         val funnel = if(engine.currentType() in setOf(TestType.VIDEO_METADATA,TestType.VIDEO_DISCOVERY,TestType.FULL_AUDIT)) mediaObserver?.funnelSnapshot() else null
         val identityShadow = if(engine.currentType() in setOf(TestType.VIDEO_METADATA,TestType.VIDEO_DISCOVERY,TestType.FULL_AUDIT)) mediaObserver?.identityShadowSnapshot() else null
+        val networkCorrelation = if(engine.currentType() in setOf(TestType.VIDEO_METADATA,TestType.VIDEO_DISCOVERY,TestType.FULL_AUDIT)) mediaObserver?.networkCorrelationSnapshot() else null
         browserObserver?.close();browserObserver=null
         mediaObserver?.close();mediaObserver=null;capture=null
         app.unregisterActivityLifecycleCallbacks(this);app.unregisterComponentCallbacks(this)
         windows.keys.toList().forEach(::detachWindow);activities.clear();activitiesVisible=false
         heartbeatPending=null;countdownAt=null;panelOpeners.fill(null)
         publish()
-        if(worker==null&&recovery==null){engine.complete(s,video,metadata,funnel,identityShadow);publish();scope.cancel()}
+        if(worker==null&&recovery==null){engine.complete(s,video,metadata,funnel,identityShadow,networkCorrelation);publish();scope.cancel()}
         else scope.launch(Dispatchers.Main.immediate) {
             worker?.join()
             withContext(Dispatchers.IO){recovery?.end(recoveryGeneration)}
-            engine.complete(s,video,metadata,funnel,identityShadow);publish();scope.cancel()
+            engine.complete(s,video,metadata,funnel,identityShadow,networkCorrelation);publish();scope.cancel()
         }
     }
     override fun onActivityResumed(activity:Activity) {
