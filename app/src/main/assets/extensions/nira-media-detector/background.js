@@ -855,8 +855,9 @@ async function inspectManifest(task) {
       return;
     }
     discovery("manifest_valid", task.isPrivate);
-    // A validated MPD/master is still NEEDS_VERIFICATION, never stream-confirmed.
-    if (task.format === "DASH")
+    // Send bounded manifest-advertised choices to the same verified document.
+    // Neither a DASH MPD nor an HLS master establishes the current Play quality.
+    if (task.format === "DASH" || (task.format === "HLS" && parsed.kind === "master"))
       await browser.tabs.sendMessage(task.tabId, verified, { frameId: 0 });
     if (task.format === "HLS" && parsed.kind === "media" && safeUrl(parsed.firstSegmentUrl)) {
       await browser.tabs.sendMessage(task.tabId, verified, { frameId: 0 });
