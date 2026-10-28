@@ -30,6 +30,8 @@ import kotlinx.serialization.Serializable
 @Serializable enum class LabOperation(val domain:LabDomain,val needsAccept:Boolean=false) {
     LEFT_PANEL_OPEN(LabDomain.PANELS,true), LEFT_PANEL_CLOSE(LabDomain.PANELS,true),
     RIGHT_PANEL_OPEN(LabDomain.PANELS,true), RIGHT_PANEL_CLOSE(LabDomain.PANELS,true),
+    // Embedded drawer: independent settle measurements (first pre-draw != animator end).
+    LEFT_PANEL_SETTLE(LabDomain.PANELS), RIGHT_PANEL_SETTLE(LabDomain.PANELS),
     PANEL_SCROLL(LabDomain.PANELS), PANEL_RESIZE(LabDomain.PANELS), GROUP_DRAG(LabDomain.TABS),
     GROUP_EXPAND(LabDomain.TABS), GROUP_COLLAPSE(LabDomain.TABS), GROUP_CREATE(LabDomain.TABS),
     GROUP_MOVE(LabDomain.TABS), GROUP_DELETE(LabDomain.TABS), TAB_DRAG(LabDomain.TABS), TAB_OPEN(LabDomain.TABS), LINK_OPEN(LabDomain.TABS),

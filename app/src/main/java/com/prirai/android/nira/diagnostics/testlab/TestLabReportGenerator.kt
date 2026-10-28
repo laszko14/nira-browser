@@ -68,7 +68,9 @@ object TestLabReportGenerator {
         appendLine("Obsługiwane tryby Hz: ${r.environment.refreshRatesHz}; aktualny: ${r.environment.currentRefreshHz ?: "BRAK DANYCH"}; żądany: ${r.environment.requestedRefreshHz ?: "BRAK DANYCH"}")
         appendLine("\nŹródła i dostępność:")
         LabMetric.entries.forEach { appendLine("$it: ${r.metricAvailability[it]} / ${r.metricSources[it]}") }
-        appendLine("FIRST_PREDRAW potwierdza widoczny układ, nie koniec animacji okna systemowego. Tego końca nie zmierzono.")
+        appendLine("FIRST_PREDRAW potwierdza pierwszą gotową do rysowania klatkę, nie zakończenie animacji.")
+        appendLine("Dla osadzonych paneli LEFT/RIGHT_PANEL_OPEN mierzy pierwszą klatkę (FIRST_PREDRAW), PANEL_SETTLE kończy się wraz z animatorem (ANIMATOR_END), a PANEL_CLOSE oznacza domknięcie do CLOSED.")
+        appendLine("ANIMATOR_END jest końcem animacji aplikacji, nie dowodem prezentacji wszystkich pikseli przez system/GPU ani pomiarem kompozytora Gecko.")
         appendLine("PROCESS_EXIT oznacza odczyt historycznej przyczyny zakończenia własnego procesu, nie awarię podczas tego testu.")
         appendLine("\nOperacje: START ≠ ACCEPT ≠ zakończenie. Anulowanie gestu nie jest błędem.")
         r.testCoverage.forEach { (operation, coverage) ->

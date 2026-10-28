@@ -30,6 +30,7 @@ internal class SidePanelInfrastructure private constructor(
     private val mayHandle: () -> Boolean
 ) : SwipeGestureListener {
     internal val host = SidePanelHost(gestures.context)
+    private val motionProbe = SidePanelMotionProbe(host, gestures)
     private val controller = SidePanelMotionController(
         ValueAnimatorSidePanelDriver(),
         gestures.resources.displayMetrics.density
@@ -133,6 +134,7 @@ internal class SidePanelInfrastructure private constructor(
 
     private fun renderPanel(snapshot: SidePanelSnapshot) {
         host.render(snapshot)
+        motionProbe.onSnapshot(snapshot)
         val previousPhase = lastRenderedPhase
         lastRenderedPhase = snapshot.phase
         if ((previousPhase == SidePanelPhase.CLOSED) !=
@@ -323,7 +325,10 @@ internal class SidePanelInfrastructure private constructor(
     fun deactivate(side: SidePanelSide) {
         if (disposed) return
         enabled.remove(side)
-        if (controller.snapshot.side == side) controller.reset()
+        if (controller.snapshot.side == side) {
+            motionProbe.abort()
+            controller.reset()
+        }
         if (swipeOwner == side) swipeOwner = null
         refreshGestureExclusions()
     }
@@ -440,6 +445,7 @@ internal class SidePanelInfrastructure private constructor(
         if (disposed) return
         swipeOwner = null
         skipFirstUpdate = false
+        motionProbe.abort()
         controller.reset()
         refreshGestureExclusions()
     }
@@ -447,6 +453,7 @@ internal class SidePanelInfrastructure private constructor(
     /** Must be invoked from BrowserFragment.onDestroyView, not onDestroy. */
     fun dispose() {
         if (disposed) return
+        motionProbe.abort()
         gestures.viewTreeObserver.removeOnGlobalLayoutListener(globalLayoutListener)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             gestures.systemGestureExclusionRects = emptyList()
