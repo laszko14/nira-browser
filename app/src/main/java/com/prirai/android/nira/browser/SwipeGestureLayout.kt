@@ -86,14 +86,21 @@ class SwipeGestureLayout @JvmOverloads constructor(
                 val totalX = kotlin.math.abs(next.x - start.x)
                 val totalY = kotlin.math.abs(next.y - start.y)
                 val slop = android.view.ViewConfiguration.get(context).scaledTouchSlop.toFloat()
-                // Do not reject the entire gesture on the first small MOVE.
-                // Decide once enough travel establishes a horizontal/vertical intent.
-                if (totalX >= maxOf(12f * resources.displayMetrics.density, slop * 1.5f) ||
-                    totalY >= maxOf(12f * resources.displayMetrics.density, slop * 1.5f)) {
-                    activeListener = listeners.firstOrNull { listener ->
-                        listener.onSwipeStarted(start, next)
+                // Recognize intent before offering touch to toolbar/side drawers.
+                // A vertical page scroll stays with GeckoView/RecyclerView, with
+                // no unnecessary onSwipeStarted callbacks on that finger stream.
+                val threshold = maxOf(12f * resources.displayMetrics.density, slop * 1.5f)
+                when {
+                    totalY >= threshold && totalY > totalX -> {
+                        handledInitialScroll = true
                     }
-                    handledInitialScroll = true
+                    totalX >= threshold && totalX > totalY -> {
+                        activeListener = listeners.firstOrNull { listener ->
+                            listener.onSwipeStarted(start, next)
+                        }
+                        handledInitialScroll = true
+                    }
+                    // Diagonal/short movement: wait for an unambiguous direction.
                 }
             }
             activeListener?.onSwipeUpdate(distanceX, distanceY)

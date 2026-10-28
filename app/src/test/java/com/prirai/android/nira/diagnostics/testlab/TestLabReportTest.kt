@@ -126,7 +126,9 @@ class TestLabReportTest {
         }.snapshot()
         // The initial sample has no panel gestures, so fabricate one explicit
         // anonymous completed/interrupt pair rather than mapping an empty list.
-        val ops=base.operationMetrics + OperationSummary(
+        val ops=base.operationMetrics.filterNot {
+            it.operation == LabOperation.LEFT_PANEL_SETTLE
+        } + OperationSummary(
             operation=LabOperation.LEFT_PANEL_SETTLE,
             started=2, accepted=0, succeeded=1, cancelled=0, failed=0,
             timedOut=0, interrupted=1, unknown=0,
@@ -140,6 +142,7 @@ class TestLabReportTest {
         ))
         assertTrue(output.text.contains("Tryb odczytany: 119.880 Hz"))
         assertTrue(output.text.contains("budżet cyklu: 8.342 ms"))
+        assertEquals(1, ops.count { it.operation == LabOperation.LEFT_PANEL_SETTLE })
         assertTrue(output.text.contains("LEFT_PANEL_SETTLE: próby=2; ukończone=1"))
         assertTrue(output.text.contains("jank w oknie operacji=1/2"))
         assertTrue(output.text.contains("RIGHT_PANEL_SETTLE: NIEPRZETESTOWANY"))

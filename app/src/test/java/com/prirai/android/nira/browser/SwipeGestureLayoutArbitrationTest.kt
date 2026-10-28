@@ -74,6 +74,21 @@ class SwipeGestureLayoutArbitrationTest {
         f.activity.finish()
     }
 
+    @Test fun diagonalPageScrollIsNotOfferedToHorizontalDrawerListeners() {
+        val f = fixture()
+        val spy = Spy()
+        f.root.addGestureListener(spy)
+        send(f.root, 130, 130, MotionEvent.ACTION_DOWN, 2f, 140f)
+        send(f.root, 130, 170, MotionEvent.ACTION_MOVE, 20f, 210f)
+        send(f.root, 130, 210, MotionEvent.ACTION_MOVE, 42f, 295f)
+        send(f.root, 130, 250, MotionEvent.ACTION_UP, 42f, 295f)
+        assertEquals(0, spy.offers)
+        assertEquals(0, spy.updates)
+        assertFalse(f.touches.contains(MotionEvent.ACTION_CANCEL))
+        assertTrue(f.touches.contains(MotionEvent.ACTION_UP))
+        f.activity.finish()
+    }
+
     @Test fun horizontalGestureAwayFromEdgeDoesNotCancelPage() {
         val f = fixture()
         val spy = Spy()
