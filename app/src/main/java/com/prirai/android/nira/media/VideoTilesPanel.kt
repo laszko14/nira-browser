@@ -259,9 +259,24 @@ private fun VideoTile(item: VideoTileItem, settings: VideoTilesSettings,
                     it.startsWith("http://", ignoreCase = true)) &&
                     runCatching { java.net.URI(it).host?.isNotBlank() == true }.getOrDefault(false)
             }
+            var posterReported by remember(item.key, poster) { mutableStateOf(false) }
             if (settings.showThumbnail && poster != null) {
                 AsyncImage(
                     model = poster,
+                    onSuccess = {
+                        if (!posterReported) {
+                            posterReported = true
+                            com.prirai.android.nira.diagnostics.testlab.TestLab.note(
+                                com.prirai.android.nira.diagnostics.testlab.LabCode.MME_POSTER_LOADED)
+                        }
+                    },
+                    onError = {
+                        if (!posterReported) {
+                            posterReported = true
+                            com.prirai.android.nira.diagnostics.testlab.TestLab.note(
+                                com.prirai.android.nira.diagnostics.testlab.LabCode.MME_POSTER_FAILED)
+                        }
+                    },
                     contentDescription = "Miniatura filmu: ${item.title}",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize().clip(thumbnailShape)
