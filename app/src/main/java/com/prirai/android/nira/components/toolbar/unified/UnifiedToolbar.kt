@@ -756,8 +756,10 @@ class UnifiedToolbar @JvmOverloads constructor(
                 val horizontal = landscape()
                 val orderedIds = options.getOrder(prefs, horizontal)
                 val hidden = options.getHidden(prefs, horizontal)
+                // Both tab-cycling actions now participate in saved per-orientation order.
+                // Do not append them again after editableIds, which would defeat drag order.
                 val desiredIds = (0 until prefixCount).map { "refresh_$it" } +
-                    orderedIds + listOf("next", "previous")
+                    orderedIds
                 val desiredViews = (desiredIds.mapNotNull { name ->
                     ids.entries.firstOrNull { it.value == name }?.key
                 } + (0 until actions.childCount).map { actions.getChildAt(it) }).distinct()
@@ -804,10 +806,12 @@ class UnifiedToolbar @JvmOverloads constructor(
                     .filter { it.visibility == View.VISIBLE }
                     .sumOf { it.layoutParams.width.coerceAtLeast(0) }
 
-                // Respect explicit hidden flags. Auto-hide low-priority extras
-                // when space is tight; never re-enable user-hidden actions.
-                for (name in listOf("previous", "next", "forward", "close", "back", "new")) {
+                // Explicit visibility always wins; width-related overflow is temporary.
+                // When not all enabled buttons fit, prioritize the user's saved order:
+                // hide from its end, leaving earlier actions accessible first.
+                for (name in orderedIds.asReversed()) {
                     if (visibleWidth() <= availableWidth) break
+                    if (name == "settings") continue // preserve access to the menu
                     ids.entries.firstOrNull { it.value == name }?.key?.visibility = View.GONE
                 }
                 if (visibleWidth() > availableWidth) {
