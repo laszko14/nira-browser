@@ -16,7 +16,7 @@ test("v1179 adjustable diameter and signed icon gap are persisted", () => {
   assert.match(settings, /coerceIn\(10, 52\)/);
   assert.match(settings, /coerceIn\(-6, 40\)/);
 });
-test("v1179 circles, close buttons and collapsed headers on both toolbars", () => {
+test("v1187 circles have no close overlays; collapsed headers and contextual/swipe close remain", () => {
   const native = read("java/com/prirai/android/nira/components/toolbar/modern/PortraitNativeTabStrip.kt");
   const bar = read("java/com/prirai/android/nira/browser/tabs/compose/TabBarCompose.kt");
   const grouped = read("java/com/prirai/android/nira/browser/tabs/compose/SwipeableTabPill.kt");
@@ -26,7 +26,14 @@ test("v1179 circles, close buttons and collapsed headers on both toolbars", () =
   assert.match(bar, /shape = CircleShape/);
   assert.match(bar, /if \(expanded\) .* else "\(/);
   assert.match(grouped, /shape = CircleShape/);
-  assert.match(grouped, /clickable\(onClick = onTabClose\)/);
+  // Closing tabs remains available via contextual menu and vertical swipe,
+  // without any touchable close overlay on the favicon itself.
+  assert.match(native, /menu\.add\("Zamknij kartę"\)/);
+  assert.doesNotMatch(native, /tabContainer\.addView\(close/);
+  assert.doesNotMatch(bar.slice(bar.indexOf("private fun TabPill("), bar.indexOf("* Invisible divider")), /badgeSize|Icons\.Default\.Close/);
+  assert.match(grouped, /offsetY < -swipeThreshold/);
+  assert.match(grouped, /onTabClose\(\)/);
+  assert.doesNotMatch(grouped, /clickable\(onClick = onTabClose\)|badgeSize/);
 });
 test("v1179 signed spacing controls group and ungrouped layout", () => {
   const native = read("java/com/prirai/android/nira/components/toolbar/modern/PortraitNativeTabStrip.kt");
