@@ -467,3 +467,46 @@ odpowiedniego upoważnienia lub uzgodnionej zmiany CI.
 - Docelowy pakiet `com.prirai.android.nira.debug`, ABI `arm64-v8a`, certyfikat SHA256 `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00`. Build powinien się przerwać, gdy brak klucza lub podpis jest inny.
 - Zweryfikowane wcześniej dla kodu MME przez Codex: Kotlin 376/376, JS 218/218, Chromium 9/9. Nowy build i lint wymagają weryfikacji w oddzielnym CI dla v1189.
 - PR ma pozostać Draft, bez merge do main i bez modyfikacji Zavro x MPV. Po uruchomieniu CI nie odpytywać w pętli; jeśli build trwa, zakończyć `CI_PENDING` i wznowić z faktycznego run ID. Zweryfikować przed dystrybucją podpis, metadane, ABI i artefakt. Test telefonu oraz rzeczywistych witryn pozostaje osobno `NOT_TESTED`.
+
+
+---
+
+## 2026-10-28 — ETAP 1 PASS: Zavro Clean, panele 1DM-like (v2.1)
+
+**Zlecenie:** tylko analiza/projekt techniczny, potem STOP i oczekiwanie na „Dalej”. Nie kompilować APK/nie uruchamiać CI do osobnego „KOMPILUJ” lub „JUŻ”. Kolejne „Dalej” = dokładnie jeden etap/podetap. Nie merge, nie zmieniać Zavro x MPV.
+
+**Baza zweryfikowana:** v1189 Clean, Draft PR #111, gałąź \`build/zavro-clean-v1189-mme-regression-fix-20261028\`, HEAD \`2919b1c946407a3c9eca4c00d8dc024b89187a45\`, PR base v1188 \`41f24ed4c04e783ffd2f1ca447f3aff043fc9dcd\`. Własna oddzielna gałąź: \`feat/zavro-clean-side-panels-1dm-20261028\`; dokładny checkpoint HEAD ustalić po commicie tego dokumentu. GitHub pozwala czytać/pisać; brak lokalnego checkoutu Android, Gradle/ADB i fizycznego telefonu. Nie można potwierdzić stanu obcego lokalnego working tree. \`AGENTS.md\` v1.5 przeczytany.
+
+**Wyniki czytania źródeł v1189:**
+- \`BrowserFragment.kt:185-255\`: \`setupEdgePanelGestures()\` nasłuchuje od krawędzi (pref \`niraEdgeWidthDp\` domyślnie 36 dp, landscape min. 80 dp), po przekroczeniu 12 dp i kierunku 1,5:1 zbiera drogę, lecz czeka na koniec gestu i próg 64 dp, a dopiero potem wywołuje \`show()\` jednego z dialogów; prędkość \`velocityX\` nie zmienia decyzji. \`ToolbarGestureHandler\` rejestrowany przed gestem panelu (\`BrowserFragment.kt:118\`), więc nie wolno odebrać mu obszaru paska.
+- \`SwipeGestureLayout.kt\`: istnieje publiczny interfejs start/update/finish/cancel, wspólny \`GestureDetectorCompat\` i obserwacja pionowego scrolla strony bez intercepcji; \`onFling\` kończy gest przed \`ACTION_UP\`. Wymagana własność pojedynczego zakończenia, testy \`ACTION_CANCEL\`, wielodotyku i początkowego \`MotionEvent\` (obecny \`e1!!\`).
+- \`TabsBottomSheetFragment.kt\` jest \`DialogFragment\` używany w obu trybach: normalny sheet oraz \`nira_side_panel\`; osobne \`width_portrait\`/\`width_landscape\`, min. 220 dp, zapas 48 dp; 20 dp grip po prawej reguluje szerokość przez \`dialog.window.setLayout\`. Są Compose listy, DnD, profile, wysokości wierszy, menu i wiele ścieżek \`dismiss()\`. Nie wolno zmieniać danych, wyglądu ani zachowania trybu standardowego.
+- \`BookmarksBottomSheetFragment.kt\` dziedziczy \`BottomSheetDialogFragment\`; tryb boczny ma szerokość 78% ekranu, \`isDraggable=false\`, \`STATE_EXPANDED\` i osobne okno; normalny bottom sheet musi zachować działanie.
+- \`fragment_browser.xml\`: korzeń \`SwipeGestureLayout : FrameLayout\`, w środku \`browserWindow\`, \`browserLayout\` i GeckoView; możliwe utworzenie pojedynczego hosta overlay bez ruszania silnika.
+- \`BaseBrowserFragment.kt\`: na fullscreen ustawia \`gestureLayout.isSwipeEnabled=false\`; klasyczny przycisk licznika kart wciąż otwiera normalny dialog (nie zastępować go automatycznie). \`BrowserActivity.kt\` deleguje Back fragmentom, zaś \`BrowserFragment.onBackPressed()\` dzisiaj najpierw wchodzi w historię/fullscreen — po migracji otwarty panel musi obsłużyć Back przed historią.
+- \`TestLabPanelProbe.kt\` dowodzi tylko \`FIRST_PREDRAW\` dialogowego okna, a nie zakończenia pozycyjnej animacji. Diagnostykę trzeba przenieść na faktyczne przejścia kontrolera.
+- \`UserPreferences.kt\`: \`niraEdgePanelsEnabled\` i \`niraEdgeWidthDp\` są funkcjonalnymi ustawieniami do zachowania.
+- \`.github/workflows/apk-release.yml\`: \`pull_request\` na dowolną gałąź uruchomi build podpisanego APK; \`push\` tylko na \`main\` i tagi v*. Osobny branch bez PR oraz commit dokumentacji nie uruchamia tego workflow. \`testlab-device.yml\` ma osobny ograniczony push filter i dispatch. PR/CI odroczyć do autoryzowanego etapu 9.
+
+**Porównanie architektur:** pełny \`DrawerLayout\` zapewnia dojrzałe przesuwanie, scrim i obsługę velocity, ale ingeruje w hierarchię root/GeckoView, domyślne przejmowanie poziomych gestów może kolidować z 20 dp grip i DnD wewnątrz panelu, a istniejąca konfigurowalna strefa krawędzi wymagałaby dodatkowej adaptacji. Sterowanie \`Window\` obecnych dialogów pozostawia problem przełączenia okna w środku strumienia dotyku oraz zimnego pojawiania się dialogu. **Wybór:** niewielki wspólny \`SidePanelHost\` overlay wewnątrz istniejącego \`SwipeGestureLayout\` i jeden kontroler przesunięcia obu paneli (otwarcie od lewej/prawej, scrim, state machine \`CLOSED/DRAGGING/SETTLING/OPEN\`); po rozpoznaniu gestu aktualizować pozycję \`translationX\` bez przebudowy layoutu; po puszczeniu animować do 0 lub 1 z velocity, możliwością przerwania oraz jednokrotnym zakończeniem. Wygląd/insety/rozmiary i gest resize pozostają niezależne od fizyki. Zachować priorytet toolbar, klawiatury, strony, systemu i fullscreen. Brak wyłączeń gestów systemowych w etapie 1; ewentualne lokalne wyłączenia tylko po testach. Parametry 1DM (256/600 ms, 50%, ~400 dp/s, 20 dp, quintic ease-out) to historyczna analiza statyczna, nie pomiary ani wartości implementacyjne bez walidacji.
+**Migracja zawartości:** AndroidX \`DialogFragment\` można osadzić jako zwykły fragment przez \`FragmentTransaction.add(containerId,...)\` zamiast \`show()\` (dokumentacja AndroidX DialogFragment, metoda \`setShowsDialog\`). Preferować ponowne użycie istniejących Fragmentów i ich layoutów w trybie bocznym, z kontrolowaną adaptacją odwołań do \`dialog.window\`, \`dismiss()\`, grip, insets i TestLab; standardowe dialogi pozostają bez zmian. Weryfikować technicznie i testować lifecycle. Jeśli osadzenie konkretnych Fragmentów okaże się zawodnym kontraktem, wydzielić UI do współdzielonego komponentu bez zmiany funkcji.
+
+**Plan jednostek / sprawdzalne kryteria** (adaptacyjnie korygować po kodzie, bez mikroetapów):
+- 2A HOST i model: kontener/scrim po obu stronach oraz cztery stany, jeden panel naraz; test inwariantów i brak ingerencji w GeckoView.
+- 2B Motion: wspólny kontroler fractional displacement/velocity i animacji, anulowanie/przejęcie w trakcie settle; testy kierunków, granic, jednokrotnego finish.
+- 2C Integracja infrastruktury: podpięcie do \`SwipeGestureLayout\`, lifecycle, hit testing, host Back/fullscreen i ochrona przed nakładającymi się panelami; testy bez zmiany zawartości paneli.
+- 3A Lewy content: osadzony fragment z zachowaniem profili, list, wyglądu, szerokości pion/poziom i grip; testy inicjalizacji, orientacji i rozmiarów.
+- 3B Lewy drag: otwieranie/partial/settle/reverse/close i scrim, brak dublowania fragmentów, testy gestów.
+- 3C Lewy regresje: DnD, grupy, sortowanie, wyszukiwanie, wysokość wierszy, menu i profile; testy + brak regressu zwykłego sheet.
+- 4A Prawy content: osadzona zawartość zakładek bez poziomego \`BottomSheetBehavior\`, normalny bottom sheet nietknięty; testy folderów/edit/sort/search.
+- 4B Prawy drag: ta sama fizyka, kierunek od prawej, anulowania oraz zamknięcie i rotacja; testy symetrii.
+- 5 Dopasowanie fizyki: sprawdzić progi, easing, velocity, czas zależny od drogi, 120 Hz; testy granic, bez kopiowania zasobów 1DM.
+- 6A Konflikty strona/UI: GeckoView poziom/pion, toolbar, formularze, klawiatura, DnD, resize, overlay mediów/fullscreen; macierz regresji.
+- 6B System/lifecycle: 3 przyciski vs gestowa nawigacja, Back, outside, multitou ch, ACTION_CANCEL, rotation, zmiana aktywności; testy końcowych stanów i usuwania callbacków.
+- 7A TestLab: rzeczywisty start gestu, pierwszy ruch, settle finish/interruption/cancel; bez prywatnych danych i bez błędnego FIRST_PREDRAW.
+- 7B Funkcjonalne: automatyczne testy stanów/gestów/orientacji w dostępnej instrumentacji; status urządzenia oddzielny.
+- 7C Wydajność: 60 s scenariusz lewy/prawy, jank, frames, cold/warm, alokacje, bez mylenia 120 Hz z 120 FPS; realne pomiary tylko na wykonanym środowisku.
+- 8 Audyt: końcowy diff, lifecycle, pamięć, regresje, błędy P0/P1, gotowość do podpisania; STOP jeśli fail.
+- 9 Budowa: **wyłącznie** po „KOMPILUJ”/„JUŻ”, kolejny versionCode >1189, arm64-v8a, dokładny applicationId i SHA-256 podpisu, CI/artifact, opcjonalny Draft PR (bez merge).
+
+**Weryfikacja ETAP 1:** PASS: odczyt remote HEAD/PR, instrukcje, kluczowe źródła, schemat UI, wyzwalacze CI, udokumentowana decyzja architektoniczna. NOT_TESTED: kompilacja, testy jednostkowe, emulator i telefon; kod aplikacji nie był zmieniany. Następna jednostka: **2A**, wyłącznie po poleceniu „Dalej”. Przy wznowieniu sprawdzić aktualny HEAD własnej gałęzi, nowsze zmiany w bazie, \`AGENTS.md\` i ten checkpoint; nie powtarzać pełnego audytu bez potrzeby.
