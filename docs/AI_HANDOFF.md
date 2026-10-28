@@ -332,3 +332,16 @@ Na Nothing Phone (1) zainstalować `app-arm64-v8a-debug.apk`, wpisać publiczny 
 - MME 1–6: TestLab 120 s, shadow identity, indywidualne tytuły, przypisywanie miniaturek, poster provenance, pasywny network correlation shadow. Nie przypisuje niepewnych źródeł sieciowych do innego filmu i nie zmienia odtwarzania.
 - **Status w chwili checkpointu:** gałąź integracyjna z wersją v1184 przygotowana; pełny PR build/test/lint CI zostanie uruchomiony. Nie deklarować gotowego APK przed rzeczywistym sukcesem joba `build` i obecnością podpisanego artefaktu.
 - **Dalszy krok:** test+lint+signed ARM64 APK → sprawdzenie raportów CI → podanie prawidłowego linku do ZIP z APK. Test fizycznego telefonu i rzeczywistych stron nadal należy do użytkownika. Bez publikacji Google Play/main.
+
+## 2026-10-28 — smart tab scrolling v1188 (in progress)
+- Branch `feat/zavro-clean-v1188-smart-tab-scroll-20261028`, base Clean v1187
+  `dea9f3bdaad785a4cb312d42d0096cc23cd11022` / Draft PR #109. No merge/main/x MPV edits.
+- Shared measured-bounds policy, native layout-time cancellation and single Compose
+  event-driven measurement replace competing approximate centering/requesters.
+- Policy JUnit: 6 PASS (3 expected failures with no-op policy before implementation).
+  Local JS: 212/212 PASS. Android Gradle blocked during dependency resolution;
+  offline diagnostic and full CI pending. Native Robolectric tests added, not yet run.
+- Effective ARM64 code 1188 / 0.5.22-alpha93-clean. Existing fail-closed CI signing kept.
+- Next: inspect PR CI build/test/lint, fix real failures, review, verify signed artifact
+  against pinned df90 certificate and package. No APK compatibility claim yet.
+- Device/Compose visual gestures, 120 Hz and installation: NOT_TESTED (adb has no device).

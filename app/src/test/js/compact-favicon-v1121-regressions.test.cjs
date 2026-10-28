@@ -45,17 +45,17 @@ test("v1121: selection is visibly outlined, normal click switches tabs, long pre
 
 test("v1121: keeps horizontal scroll while selected favicon is visible", () => {
   assert.match(native, /HorizontalScrollView\(context\)/);
-  assert.match(native, /val oldScroll = scroller\.scrollX/);
-  assert.match(native, /scroller\.scrollTo\(newScroll\.coerceIn\(0, maxScroll\), 0\)/);
+  assert.match(native, /val start = scroller\.scrollX/);
+  assert.match(native, /ActiveTabVisibility\.scrollDelta/);
 });
 
 test("v1121: signed APK version is 1121 and debug package + same certificate", () => {
   const gradle = source("app/build.gradle");
   const workflow = source(".github/workflows/apk-release.yml");
-  assert.match(gradle, /versionCode = 187/);
-  assert.match(gradle, /versionName = "0\.5\.22-alpha92-clean"/);
+  assert.match(gradle, /versionCode = 188/);
+  assert.match(gradle, /versionName = "0\.5\.22-alpha93-clean"/);
   assert.match(gradle, /applicationIdSuffix = '\.debug'/);
-  assert.match(workflow, /EXPECTED_VERSION_CODE: "1187"/);
+  assert.match(workflow, /EXPECTED_VERSION_CODE: "1188"/);
   assert.match(workflow, /EXPECTED_CERT_SHA256/);
-  assert.match(workflow, /zavro-arm64-update-apk-v1187/);
+  assert.match(workflow, /zavro-arm64-update-apk-v1188/);
 });

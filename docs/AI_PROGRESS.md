@@ -261,3 +261,9 @@
 - Zweryfikowano wspólnego przodka v1183 UI i MME etap 6: `d0ddc0a7094c2593b4c6973104a5c4a3073ed735` (MME etap 4). Integracja poprzez PR #105 do gałęzi v1184: merge commit `8bd414e3c1664751de994a38f6f09df072358bf4` (nie do main).
 - Ustawiono Gradle bazowe `versionCode=184` → APK ARM64 `versionCode=1184`, `versionName=0.5.22-alpha89-clean`. Workflow `build` weryfikuje SHA-256 certyfikatu i aktualizacyjną tożsamość APK; artefakt ZIP `zavro-arm64-update-apk-v1184`.
 - Kryteria wyjścia: testy Kotlin+JS PASS, lint wykonany, build podpisany oryginalnym certyfikatem i zweryfikowany przez skrypt, tylko jeden APK arm64-v8a, bez merge do main. Raport z rzeczywistego CI i link do artefaktu należy dopisać dopiero po potwierdzeniu.
+
+## 2026-10-28 — Clean v1188 smart active-tab scroll
+- Base v1187 PR #109 verified; separate branch. Shared policy 6 JUnit PASS;
+  JS 212/212 PASS. Native and Compose integration implemented, Android CI pending.
+- Added native regression coverage; retained group ordering, no X badges, private
+  filtering, icon preferences and refresh-rate policy. No physical device available.
