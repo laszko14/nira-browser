@@ -20,7 +20,7 @@ Repozytorium: `laszko14/nira-browser`; Kotlin, GeckoView, Android Components. Ko
 - Źródło komend/środowiska: `.github/workflows/apk-release.yml`, Gradle i skrypty. Dostępne kontrole: `./gradlew testDebugUnitTest`, `./gradlew lintDebug`, `node --test app/src/test/js/*.test.cjs`; wybierz zakres według zmiany. Dodawaj wartościowe testy regresji, nie testy powtarzające implementację.
 - Lokalnie wykonuj dostępne szybkie kontrole; nie odtwarzaj ciężkiego środowiska tylko dla powielenia CI. Sprawdź automatyczny run przed ręcznym startem. Zachowaj wymagane kontrole; PASS joba lint nie dowodzi braku usterek przy `abortOnError=false`.
 - Wyniki wiąż z rzeczywistym SHA, workflow, konfiguracją i run ID/próbą. Nie przypisuj starego wyniku nowemu HEAD. Zmiany wyłącznie dokumentacyjne oceniaj przez diff; nie wymagają APK, jeśli nie wpływają na build.
-- Bez pętli odpytywania. Odbierz wynik zgodnie z mechanizmem narzędzia; jeśli potwierdzone CI nadal trwa i brak dalszych niezależnych czynności, zapisz checkpoint i zakończ z `CI_PENDING`. Niepotwierdzony start to `NOT_TESTED`. Wznowienie domyślnie na polecenie użytkownika.
+- Bez pętli odpytywania. Odbierz wynik zgodnie z mechanizmem narzędzia; jeśli potwierdzone CI nadal trwa i brak dalszych niezależnych czynności, zachowaj stan zgodnie z zasadą checkpointów poniżej i zakończ z `CI_PENDING`. Niepotwierdzony start to `NOT_TESTED`. Wznowienie domyślnie na polecenie użytkownika.
 
 ## APK i dane użytkownika
 - Buduj instalacyjne APK tylko gdy zadanie ich wymaga: wyłącznie `arm64-v8a`, stały `applicationId` (testowy: `com.prirai.android.nira.debug`), ten sam certyfikat, rosnący `versionCode` i zaktualizowany `versionName`.
@@ -28,6 +28,6 @@ Repozytorium: `laszko14/nira-browser`; Kotlin, GeckoView, Android Components. Ko
 - Przed dostarczeniem stosuj `scripts/verify-update-apk.sh` i politykę podpisu z `docs/ANDROID_SIGNING_SETUP.md`. Nie zakładaj zgodności z instalacją użytkownika bez dowodu. Nie odinstalowuj aplikacji ani nie kasuj danych.
 
 ## Zapis i zakończenie
-- Checkpoint w `docs/AI_HANDOFF.md` aktualizuj przy istotnym przekazaniu, blokadzie, ryzyku utraty pracy lub `CI_PENDING`; nie po każdej poprawce. Nie duplikuj go obowiązkowo w `AI_PROGRESS.md`.
-- Zapisz cel, gałąź/SHA, zmiany, testowany SHA i wyniki, run/link, pozostałe kroki oraz sposób wznowienia. Zabezpiecz niezacommitowaną pracę przed utratą; potwierdź commit/push lub trwały patch w uprawnionym zakresie.
+- Checkpoint w `docs/AI_HANDOFF.md` aktualizuj przy istotnym przekazaniu, blokadzie, ryzyku utraty pracy lub przed przekazaniem do CI (`CI_PENDING`); nie po każdej poprawce. Jeśli dokument jest śledzony w Git, przygotuj go przed ostatnim pushem uruchamiającym CI. Nie duplikuj go obowiązkowo w `AI_PROGRESS.md`.
+- Zapisz cel, gałąź/SHA, zmiany, testowany SHA i wyniki, znany w chwili zapisu run/link, pozostałe kroki oraz sposób wznowienia. Jeśli run ID pojawia się dopiero po pushu, umieść go w raporcie końcowym lub komentarzu PR. Nie twórz kolejnego commitu tylko po to, by dopisać run ID lub SHA do checkpointu: taki push może uruchomić dodatkowe CI. Zabezpiecz niezacommitowaną pracę przed utratą; potwierdź commit/push lub trwały patch w uprawnionym zakresie.
 - Przejrzyj końcowy diff i zakończ po spełnieniu kryteriów. Raport: wykonane zmiany, dowody `PASS/FAIL/NOT_TESTED/CI_PENDING/BLOCKED`, commit, potrzebne artefakty i rzeczywiste ograniczenia. Kompilacja, podpis i test telefonu to osobne wyniki. Nie dodawaj kolejnego audytu ani refaktoringu po ukończeniu zadania.
