@@ -125,6 +125,7 @@ internal class MediaRepository(
         var posterAmbiguous = false
         var width: Int? = null
         var height: Int? = null
+        private var dimensionConflict = false
         var frameRate: Double? = null
         var variantCount: Int? = null
         var bitrateKind: String? = null
@@ -176,11 +177,24 @@ internal class MediaRepository(
                 sizeEstimated = false
                 sizeOrigin = if (format == MediaFormat.HLS) "HLS_BYTERANGE" else "HTTP_LENGTH"
             }
-            if (candidate.width != null) width = candidate.width
-            if (candidate.height != null) height = candidate.height
+            // A resolution is an atomic WIDTH+HEIGHT observation. Never combine
+            // dimensions from different manifest renditions or player generations.
+            if (!dimensionConflict && candidate.width != null && candidate.height != null) {
+                if (width != null && height != null &&
+                    (width != candidate.width || height != candidate.height)) {
+                    dimensionConflict = true
+                    width = null; height = null; quality = null
+                    com.prirai.android.nira.diagnostics.testlab.TestLab.note(
+                        com.prirai.android.nira.diagnostics.testlab.LabCode.MME_RESOLUTION_CONFLICT)
+                } else {
+                    width = candidate.width; height = candidate.height
+                }
+            }
             if (candidate.frameRate != null) frameRate = candidate.frameRate
             if (candidate.variantCount != null) variantCount = candidate.variantCount
-            if (candidate.quality != null) quality = candidate.quality
+            if (!dimensionConflict && candidate.quality != null &&
+                (candidate.height == null || candidate.quality == "${candidate.height}p"))
+                quality = candidate.quality
             if (candidate.bitrate != null) {
                 bitrate = candidate.bitrate
                 bitrateKind = candidate.bitrateKind
