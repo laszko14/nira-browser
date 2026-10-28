@@ -38,6 +38,7 @@ internal class SidePanelInfrastructure private constructor(
     private var leftFragmentManager: FragmentManager? = null
     private var rightFragmentManager: FragmentManager? = null
     private var leftWasVisible = false
+    private var rightWasVisible = false
     private var childInteractionInProgress = false
 
     /** Native resize and Compose DnD temporarily have priority over panel swipes. */
@@ -50,14 +51,20 @@ internal class SidePanelInfrastructure private constructor(
      * The browser installs this to mount content and activate LEFT on demand.
      */
     var prepareLeftOnGesture: (() -> Boolean)? = null
+    /** Stage 4B: mount and activate RIGHT only after the swipe is accepted. */
+    var prepareRightOnGesture: (() -> Boolean)? = null
     internal val panelSnapshot: SidePanelSnapshot get() = controller.snapshot
 
     private fun renderPanel(snapshot: SidePanelSnapshot) {
         host.render(snapshot)
         if (snapshot.side == SidePanelSide.LEFT) leftWasVisible = true
-        if (snapshot.phase == SidePanelPhase.CLOSED && leftWasVisible) {
+        if (snapshot.side == SidePanelSide.RIGHT) rightWasVisible = true
+        if (snapshot.phase != SidePanelPhase.CLOSED) return
+
+        // Never mutate FragmentManager from an animation callback or a touch dispatch.
+        // Each side is released after its own transition, only if still CLOSED.
+        if (leftWasVisible) {
             leftWasVisible = false
-            // Do not remove a Fragment inside Animator's onEnd or a touch dispatch.
             gestures.post {
                 if (!disposed && controller.snapshot.phase == SidePanelPhase.CLOSED) {
                     leftFragmentManager?.let { manager ->
@@ -66,11 +73,24 @@ internal class SidePanelInfrastructure private constructor(
                 }
             }
         }
+        if (rightWasVisible) {
+            rightWasVisible = false
+            gestures.post {
+                if (!disposed && controller.snapshot.phase == SidePanelPhase.CLOSED) {
+                    rightFragmentManager?.let { manager ->
+                        if (!manager.isStateSaved && !manager.isDestroyed) unmountRightContent(manager)
+                    }
+                }
+            }
+        }
     }
 
-    /** Prevents the legacy listener from opening a second dialog over the embedded one. */
+    /** Includes pending unmounts, so a second drawer cannot be mounted between frames. */
     fun leftIsEngaged(): Boolean = !disposed &&
         (host.leftContainer.childCount > 0 || controller.snapshot.side == SidePanelSide.LEFT)
+    fun rightIsEngaged(): Boolean = !disposed &&
+        (host.rightContainer.childCount > 0 || controller.snapshot.side == SidePanelSide.RIGHT)
+    fun anyPanelEngaged(): Boolean = leftIsEngaged() || rightIsEngaged()
 
     /**
      * On-demand content mount only. Do NOT call from browser initialization:
@@ -78,7 +98,8 @@ internal class SidePanelInfrastructure private constructor(
      * Stage 3B invokes this before activating the left gesture.
      */
     fun mountLeftContent(fragmentManager: FragmentManager): Boolean {
-        if (disposed || fragmentManager.isStateSaved || fragmentManager.isDestroyed) return false
+        if (disposed || rightIsEngaged() ||
+            fragmentManager.isStateSaved || fragmentManager.isDestroyed) return false
         val found = fragmentManager.findFragmentByTag(LEFT_CONTENT_TAG)
         val tabs = when (found) {
             null -> TabsBottomSheetFragment.newEmbeddedSidePanel()
@@ -111,7 +132,8 @@ internal class SidePanelInfrastructure private constructor(
      * enables right edge gestures; the legacy bookmarks dialog is still active.
      */
     fun mountRightContent(fragmentManager: FragmentManager): Boolean {
-        if (disposed || fragmentManager.isStateSaved || fragmentManager.isDestroyed) return false
+        if (disposed || leftIsEngaged() ||
+            fragmentManager.isStateSaved || fragmentManager.isDestroyed) return false
         val found = fragmentManager.findFragmentByTag(RIGHT_CONTENT_TAG)
         val bookmarks = when (found) {
             null -> BookmarksBottomSheetFragment.newEmbeddedSidePanel()
@@ -149,6 +171,7 @@ internal class SidePanelInfrastructure private constructor(
 
     /** Called by the browser view lifecycle; avoids child transactions in teardown. */
     fun releaseRightContentBinding(fragmentManager: FragmentManager) {
+        rightWasVisible = false
         rightFragmentManager = null
         deactivate(SidePanelSide.RIGHT)
         (fragmentManager.findFragmentByTag(RIGHT_CONTENT_TAG) as? BookmarksBottomSheetFragment)
@@ -160,6 +183,7 @@ internal class SidePanelInfrastructure private constructor(
             as? BookmarksBottomSheetFragment ?: return false
         if (fragmentManager.isStateSaved || fragmentManager.isDestroyed) return false
         if (rightFragmentManager === fragmentManager) rightFragmentManager = null
+        rightWasVisible = false
         deactivate(SidePanelSide.RIGHT)
         bookmarks.clearEmbeddedSidePanelCallbacks()
         fragmentManager.beginTransaction().remove(bookmarks).commitNow()
@@ -204,7 +228,9 @@ internal class SidePanelInfrastructure private constructor(
      * Mounting content alone (stage 3A/4A) does not turn on gesture handling.
      */
     fun activate(side: SidePanelSide, widthPx: Int): Boolean {
-        if (disposed || widthPx <= 0 || container(side).childCount == 0) return false
+        if (disposed || widthPx <= 0 || container(side).childCount == 0 ||
+            (side == SidePanelSide.LEFT && rightIsEngaged()) ||
+            (side == SidePanelSide.RIGHT && leftIsEngaged())) return false
         host.setPanelWidth(side, widthPx)
         enabled.add(side)
         return true
@@ -243,14 +269,22 @@ internal class SidePanelInfrastructure private constructor(
                 else -> return false
             }
         } else {
-            // Swipe LEFT within the already open/settling left drawer to close
-            // or reverse its animation. Right remains strictly disabled until 4B.
-            if (state.side != SidePanelSide.LEFT || dx >= 0f ||
-                localX < 0f || localX > host.leftContainer.layoutParams.width) return false
-            SidePanelSide.LEFT
+            // The finger starts INSIDE the current panel. Opposite travel closes
+            // it or interrupts an in-flight settle without handing off to Gecko.
+            val owner = state.side ?: return false
+            val width = container(owner).layoutParams.width
+            if (width <= 0) return false
+            val withinPanel = when (owner) {
+                SidePanelSide.LEFT -> localX in 0f..width.toFloat() && dx < 0f
+                SidePanelSide.RIGHT -> localX in (viewWidth - width)..viewWidth && dx > 0f
+            }
+            if (!withinPanel) return false
+            owner
         }
         if (side == SidePanelSide.LEFT && side !in enabled) {
-            if (prepareLeftOnGesture?.invoke() != true) return false
+            if (rightIsEngaged() || prepareLeftOnGesture?.invoke() != true) return false
+        } else if (side == SidePanelSide.RIGHT && side !in enabled) {
+            if (leftIsEngaged() || prepareRightOnGesture?.invoke() != true) return false
         }
         if (side !in enabled || container(side).childCount == 0) return false
         val width = container(side).layoutParams.width
@@ -335,7 +369,9 @@ internal class SidePanelInfrastructure private constructor(
         rightFragmentManager = null
         childInteractionInProgress = false
         prepareLeftOnGesture = null
+        prepareRightOnGesture = null
         leftWasVisible = false
+        rightWasVisible = false
         controller.reset()
         host.onOutsideTap = null
         (host.parent as? ViewGroup)?.removeView(host)

@@ -68,7 +68,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         val panels = sidePanelInfrastructure ?: return false
         if (parentFragmentManager.isStateSaved || childFragmentManager.isStateSaved ||
             childFragmentManager.isDestroyed) return false
-        // A visible legacy sheet or right bookmarks dialog takes precedence.
+        // A visible legacy sheet or a mounted right drawer takes precedence.
+        if (panels.rightIsEngaged()) return false
         if (listOf("NiraSideTabs", "NiraSideBookmarks",
                 com.prirai.android.nira.browser.tabs.TabsBottomSheetFragment.TAG)
                 .any { parentFragmentManager.findFragmentByTag(it) != null }) return false
@@ -79,9 +80,21 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             width
         )
     }
-    /** Dormant until stage 4B connects the right edge swipe. */
-    private fun mountEmbeddedSideBookmarks(): Boolean =
-        sidePanelInfrastructure?.mountRightContent(childFragmentManager) == true
+    /** Mirror of the left drawer: mount only for a qualified RIGHT-edge swipe. */
+    private fun mountEmbeddedSideBookmarks(): Boolean {
+        val panels = sidePanelInfrastructure ?: return false
+        if (parentFragmentManager.isStateSaved || childFragmentManager.isStateSaved ||
+            childFragmentManager.isDestroyed || panels.leftIsEngaged()) return false
+        if (listOf("NiraSideTabs", "NiraSideBookmarks",
+                com.prirai.android.nira.browser.tabs.TabsBottomSheetFragment.TAG)
+                .any { parentFragmentManager.findFragmentByTag(it) != null }) return false
+        if (!panels.mountRightContent(childFragmentManager)) return false
+        val width = panels.host.rightContainer.layoutParams.width
+        return panels.activate(
+            com.prirai.android.nira.browser.panels.SidePanelSide.RIGHT,
+            width
+        )
+    }
 
     private var legacyEdgePanelListener: com.prirai.android.nira.browser.SwipeGestureListener? = null
 
@@ -223,6 +236,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             }
         )
         sidePanelInfrastructure?.prepareLeftOnGesture = { mountEmbeddedSideTabs() }
+        sidePanelInfrastructure?.prepareRightOnGesture = { mountEmbeddedSideBookmarks() }
         if (!prefs.niraEdgePanelsEnabled) return
         val density = resources.displayMetrics.density
         val edgeWidth = prefs.niraEdgeWidthDp * density
@@ -232,8 +246,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             private var travelled = 0f
             private var labGesture: com.prirai.android.nira.diagnostics.testlab.OperationToken? = null
             override fun onSwipeStarted(start: android.graphics.PointF, next: android.graphics.PointF): Boolean {
-                // Never open a legacy dialog over an embedded drawer.
-                if (sidePanelInfrastructure?.leftIsEngaged() == true) return false
+                // Never open either legacy dialog over a mounted or settling drawer.
+                if (sidePanelInfrastructure?.anyPanelEngaged() == true) return false
                 val dx = next.x - start.x
                 val dy = next.y - start.y
                 if (kotlin.math.abs(dx) < 12 * density ||
