@@ -310,6 +310,11 @@ private fun VideoTile(item: VideoTileItem, settings: VideoTilesSettings,
                         onClick = { menu = false; onCopy(entry.id) })
                     HorizontalDivider()
                     DropdownMenuItem(text = { Text("Pełny tytuł: ${item.title}") }, onClick = { menu = false })
+                    // Preserve filename context, but never pass it off as a verified title.
+                    friendlyFileName(entry.url)?.let { candidate ->
+                        DropdownMenuItem(text = { Text("Nazwa z pliku (niepotwierdzona): $candidate") },
+                            onClick = { menu = false })
+                    }
                     DropdownMenuItem(text = { Text("Format: ${entry.format.name}") }, onClick = { menu = false })
                     DropdownMenuItem(text = { Text("Jakość: ${qualityText(entry) ?: "nieznana"}") }, onClick = { menu = false })
                     if (entry.width != null && entry.height != null)

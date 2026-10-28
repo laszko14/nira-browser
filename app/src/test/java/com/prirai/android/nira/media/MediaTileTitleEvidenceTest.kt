@@ -12,6 +12,7 @@ class MediaTileTitleEvidenceTest {
             sources = setOf(MediaSource.DOM),
         )
         assertEquals("Film #1", mediaTileItems(listOf(entry)).single().title)
+        assertEquals("episode 7 master", friendlyFileName(entry.url))
     }
 
     @Test fun manifestResolutionIsNotCurrentPlayQuality() {

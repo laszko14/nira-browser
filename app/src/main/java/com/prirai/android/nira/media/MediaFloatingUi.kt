@@ -378,3 +378,13 @@ internal fun mediaTileItems(entries: List<MediaEntry>): List<VideoTileItem> =
     }
 
 
+
+/** Local filename is optional unverified context, never a trusted film title. */
+internal fun friendlyFileName(url: String): String? {
+    val raw = try { URI(url).path?.substringAfterLast('/') } catch (_: Exception) { null }
+    val part = raw?.substringBeforeLast('.', raw)?.let(MediaTitleResolver::normalizeText)
+        ?.replace(Regex("[_-]+"), " ")?.trim() ?: return null
+    if (part.length !in 3..65 || !part.any { it.isLetter() } ||
+        part.lowercase(Locale.ROOT) in setOf("video", "master", "playlist", "index", "stream", "watch", "download", "manifest")) return null
+    return part
+}
