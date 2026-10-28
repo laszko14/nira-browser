@@ -584,7 +584,7 @@
 
   function inspect(video) {
     if (!(video instanceof HTMLVideoElement) || !video.isConnected || video.ended) return;
-    const group = groupFor(scopedMediaCard(video)?.card || video);
+    const group = groupFor(ownedMediaCard(video) || video);
     const playing = video.paused === false;
     const preferred = video.currentSrc || video.src;
     if (!preferred) note("no_source");
@@ -640,7 +640,7 @@
       const posterCard = ownedMediaCard(element);
       const directTitle = mediaTitleHint(element.textContent);
       const title = directTitle || scoped?.title || null;
-      submit(href, "page", null, groupFor(scoped?.card || element),
+      submit(href, "page", null, groupFor(ownedMediaCard(element) || element),
         title, title ? (directTitle ? "link" : "video") : null,
         null, posterForCard(posterCard), null, "card");
     });
@@ -655,7 +655,7 @@
         const value = attribute(element, name);
         if (value) submit(value, "page", attribute(element, "type") ||
           (name === "data-hls" || name === "data-m3u8" ? "application/vnd.apple.mpegurl" :
-            name === "data-mpd" ? "application/dash+xml" : null), groupFor(scoped?.card || element),
+            name === "data-mpd" ? "application/dash+xml" : null), groupFor(ownedMediaCard(element) || element),
           named, named ? (explicitVideoTitle(element) ? "player" : "video") : null,
           null, absolute(attribute(element, "data-poster") || attribute(element, "data-thumbnail")) ||
             posterForCard(posterCard), null, "card");
