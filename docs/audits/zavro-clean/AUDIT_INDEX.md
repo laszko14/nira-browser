@@ -7,7 +7,7 @@ Baza kodu: `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79
 | Etap | Zakres | Status | Raport |
 | --- | --- | --- | --- |
 | 1 | Aktualny stan, historia i mapa funkcji | COMPLETE | [STAGE_01.md](STAGE_01.md) |
-| 2 | Architektura i zależności | NOT_STARTED | — |
+| 2 | Architektura i zależności | PARTIAL — 2A COMPLETE, 2B NOT_STARTED | [STAGE_02.md](STAGE_02.md) |
 | 3 | Pozostałości starych implementacji | NOT_STARTED | — |
 | 4 | Lewy panel kart i grup | NOT_STARTED | — |
 | 5 | Prawy panel | NOT_STARTED | — |
@@ -25,6 +25,6 @@ Baza kodu: `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79
 | 17 | Testy regresji | NOT_STARTED | — |
 | 18 | Raport końcowy i plan napraw | NOT_STARTED | — |
 
-Rejestr: [FINDINGS.md](FINDINGS.md). Checkpoint wznowienia: [../../AI_HANDOFF.md](../../AI_HANDOFF.md), wpis „ZC-AUD — ETAP 1/18”. Nie utworzono raportów przyszłych etapów ani raportu końcowego.
+Rejestr: [FINDINGS.md](FINDINGS.md). Checkpoint wznowienia: [../../AI_HANDOFF.md](../../AI_HANDOFF.md), wpis „ZC-AUD — ETAP 2/18 PARTIAL, 2A COMPLETE”. Nie utworzono raportów przyszłych etapów ani raportu końcowego.
 
-Wynik etapu 1: P0=0, P1=0, P2=1, P3=0; CONFIRMED=1, podejrzenia usterek=0. To inwentaryzacja, nie potwierdzenie poprawności działania wszystkich modułów. Następny krok dopiero po „Dalej”: etap 2.
+Łącznie po 2A: potwierdzone P0=0, P1=0, P2=1, P3=0; CONFIRMED=1; osobno SUSPECTED=1 (potencjalny P2). W 2A nie dodano potwierdzonych usterek. Mapa nie jest potwierdzeniem poprawności wszystkich modułów. Następny krok dopiero po „Dalej”: **2B**, nie etap 3.
