@@ -19,6 +19,7 @@ import androidx.lifecycle.lifecycleScope
 import com.prirai.android.nira.browser.home.compose.jumpBackInItems
 import com.prirai.android.nira.browser.home.compose.recentlyClosedItems
 import com.prirai.android.nira.browser.toolbar.ToolbarGestureHandler
+import com.prirai.android.nira.browser.panels.SidePanelInfrastructure
 import com.prirai.android.nira.components.toolbar.ToolbarMenu
 import com.prirai.android.nira.downloads.DownloadsBottomSheetFragment
 import com.prirai.android.nira.ext.components
@@ -60,6 +61,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
 
     private val windowFeature = ViewBoundFeatureWrapper<WindowFeature>()
     private var mediaFloatingUi: MediaFloatingUi? = null
+    private var sidePanelInfrastructure: SidePanelInfrastructure? = null
 
     // Track last tab IDs for auto-grouping detection
     private var lastTabIds = setOf<String>()
@@ -185,6 +187,17 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     private fun setupEdgePanelGestures() {
         binding.gestureLayout.onVerticalSwipe = { delta -> onVerticalPageGesture(delta) }
         val prefs = UserPreferences(requireContext())
+        // Toolbar handler has priority. New panels are disabled until their content
+        // and explicit activation are provided in stages 3B/4B.
+        sidePanelInfrastructure?.dispose()
+        sidePanelInfrastructure = SidePanelInfrastructure.attach(
+            gestures = binding.gestureLayout,
+            edgeWidthDp = prefs.niraEdgeWidthDp.coerceAtLeast(1),
+            mayHandle = {
+                isAdded && bindingOrNull != null && binding.gestureLayout.isSwipeEnabled &&
+                    !parentFragmentManager.isStateSaved
+            }
+        )
         if (!prefs.niraEdgePanelsEnabled) return
         val density = resources.displayMetrics.density
         val edgeWidth = prefs.niraEdgeWidthDp * density
@@ -363,6 +376,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     }
 
     override fun onDestroyView() {
+        sidePanelInfrastructure?.dispose()
+        sidePanelInfrastructure = null
         binding.gestureLayout.onVerticalSwipe = null
         mediaFloatingUi?.detach()
         mediaFloatingUi = null
@@ -962,6 +977,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
      * API calls from the web content.
      */
     override fun onFullScreenModeChanged(inFullScreen: Boolean) {
+        if (inFullScreen) sidePanelInfrastructure?.resetForFullscreen()
         mediaFloatingUi?.setFullscreen(inFullScreen)
         if (inFullScreen) {
             // Entering fullscreen - completely hide and collapse all toolbars
@@ -1486,6 +1502,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     }
 
     override fun onBackPressed(): Boolean {
+        if (sidePanelInfrastructure?.closeOnBack() == true) return true
         // First, try the default back handling (reader mode, find in page, fullscreen, etc.)
         val handled = super.onBackPressed()
         

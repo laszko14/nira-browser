@@ -118,6 +118,16 @@ class SwipeGestureLayout @JvmOverloads constructor(
         listeners.add(listener)
     }
 
+    /** View-scoped handlers must not survive fragment view teardown. */
+    fun removeGestureListener(listener: SwipeGestureListener) {
+        if (activeListener === listener) {
+            activeListener = null
+            handledInitialScroll = true // Do not hand this finger stream to another listener.
+            listener.onSwipeCancelled()
+        }
+        listeners.remove(listener)
+    }
+
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         // dispatchTouchEvent sees moves even when GeckoView asks its parent
         // not to intercept; ordinary page scrolling remains uninterrupted.
