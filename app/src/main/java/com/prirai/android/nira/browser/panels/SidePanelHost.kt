@@ -48,16 +48,30 @@ internal class SidePanelHost @JvmOverloads constructor(
         require(widthPx > 0) { "Panel width must be positive" }
         val container = containerFor(side)
         val params = container.layoutParams as LayoutParams
-        params.width = widthPx
-        container.layoutParams = params
+        // setLayoutParams() triggers a measure/layout pass; repeated mounting
+        // with the same stored width must not invalidate the whole drawer.
+        if (params.width != widthPx) {
+            params.width = widthPx
+            container.layoutParams = params
+        }
     }
 
+    private fun View.setVisibleIfChanged(visible: Boolean) {
+        val desired = if (visible) View.VISIBLE else View.GONE
+        if (visibility != desired) visibility = desired
+    }
+
+    /**
+     * Hot path on every ValueAnimator frame (up to 120 Hz and higher).
+     * Only alpha/translation change between frames; visibility transitions
+     * must not repeatedly invalidate layout of the embedded Compose/RecyclerView.
+     */
     fun render(state: SidePanelSnapshot) {
         if (state.phase == SidePanelPhase.CLOSED) {
-            visibility = View.GONE
-            scrim.visibility = View.GONE
-            leftContainer.visibility = View.GONE
-            rightContainer.visibility = View.GONE
+            setVisibleIfChanged(false)
+            scrim.setVisibleIfChanged(false)
+            leftContainer.setVisibleIfChanged(false)
+            rightContainer.setVisibleIfChanged(false)
             return
         }
         val side = checkNotNull(state.side) { "Active panel requires a side" }
@@ -65,13 +79,15 @@ internal class SidePanelHost @JvmOverloads constructor(
         val active = containerFor(side)
         val width = active.layoutParams.width
         check(width > 0) { "Set panel width before rendering" }
-        visibility = View.VISIBLE
-        scrim.visibility = View.VISIBLE
-        scrim.alpha = state.progress * MAX_SCRIM_ALPHA
-        leftContainer.visibility = if (side == SidePanelSide.LEFT) View.VISIBLE else View.GONE
-        rightContainer.visibility = if (side == SidePanelSide.RIGHT) View.VISIBLE else View.GONE
-        active.translationX = (1f - state.progress) * width *
+        setVisibleIfChanged(true)
+        scrim.setVisibleIfChanged(true)
+        leftContainer.setVisibleIfChanged(side == SidePanelSide.LEFT)
+        rightContainer.setVisibleIfChanged(side == SidePanelSide.RIGHT)
+        val nextAlpha = state.progress * MAX_SCRIM_ALPHA
+        if (scrim.alpha != nextAlpha) scrim.alpha = nextAlpha
+        val nextTranslation = (1f - state.progress) * width *
             if (side == SidePanelSide.LEFT) -1f else 1f
+        if (active.translationX != nextTranslation) active.translationX = nextTranslation
     }
 
     private fun containerFor(side: SidePanelSide): FrameLayout =

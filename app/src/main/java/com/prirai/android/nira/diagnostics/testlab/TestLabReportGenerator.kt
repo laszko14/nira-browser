@@ -66,6 +66,31 @@ object TestLabReportGenerator {
             appendLine("Przekroczenie budżetu: n=${f.overrunSamples}, średnia=${number(f.meanOverrunMs)}, max=${number(f.maxOverrunMs)} ms")
         } ?: appendLine("NIEPRZETESTOWANY: brak prawidłowych próbek klatek.")
         appendLine("Obsługiwane tryby Hz: ${r.environment.refreshRatesHz}; aktualny: ${r.environment.currentRefreshHz ?: "BRAK DANYCH"}; żądany: ${r.environment.requestedRefreshHz ?: "BRAK DANYCH"}")
+        if (r.testType in setOf(TestType.PANELS_GESTURES, TestType.COMPLEX, TestType.FULL_AUDIT)) {
+            appendLine("\nPANELE — płynność animacji (tylko Android UI Window):")
+            appendLine("Cel 120 Hz: 8.333 ms na cykl odświeżania. To budżet teoretyczny, NIE zmierzony FPS ani potwierdzone 120 Hz.")
+            val measuredHz = r.environment.currentRefreshHz?.takeIf { it.isFinite() && it > 0.0 }
+            if (measuredHz == null) {
+                appendLine("Tryb wyświetlacza: NIEPOTWIERDZONY; brak aktualnego odczytu Hz.")
+            } else {
+                appendLine("Tryb odczytany: ${number(measuredHz)} Hz; budżet cyklu: ${number(1000.0 / measuredHz)} ms. Tryb żądany nie dowodzi trybu aktywnego.")
+            }
+            if ((r.frameMetrics?.count ?: 0L) == 0L)
+                appendLine("JankStats: NIEPRZETESTOWANY — brak klatek UI Window.")
+            else
+                appendLine("JankStats: ${r.frameMetrics!!.count} próbek, jank=${r.frameMetrics!!.jankCount}; to nie liczba pominiętych klatek ani FPS.")
+            for (operation in listOf(LabOperation.LEFT_PANEL_SETTLE, LabOperation.RIGHT_PANEL_SETTLE)) {
+                val stat = r.operationMetrics.firstOrNull { it.operation == operation }
+                if (stat == null || stat.started == 0L) {
+                    appendLine("${operation}: NIEPRZETESTOWANY (0 prób).")
+                } else {
+                    appendLine("${operation}: próby=${stat.started}; ukończone=${stat.succeeded}; przerwane=${stat.interrupted}; jank w oknie operacji=${stat.taggedJank}/${stat.taggedFrames} klatek; max UI=${number(stat.maxTaggedFrameMs)} ms; latency avg=${number(stat.latency?.meanMs)} ms.")
+                    if (stat.taggedFrames == 0L)
+                        appendLine("${operation}: BRAK POWIĄZANYCH KLATEK — nie oceniać płynności tej animacji.")
+                }
+            }
+            appendLine("JankStats nie obejmuje kompozytora Gecko/MPV; korelacja operacji i klatek nie dowodzi przyczynowości. Porównaj powtarzalne próby i sprawdź osobno płynność na urządzeniu.")
+        }
         appendLine("\nŹródła i dostępność:")
         LabMetric.entries.forEach { appendLine("$it: ${r.metricAvailability[it]} / ${r.metricSources[it]}") }
         appendLine("FIRST_PREDRAW potwierdza pierwszą gotową do rysowania klatkę, nie zakończenie animacji.")

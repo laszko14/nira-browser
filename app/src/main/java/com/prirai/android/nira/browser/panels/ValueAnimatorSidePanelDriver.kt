@@ -8,13 +8,15 @@ import android.view.animation.Interpolator
 /** UI-thread-only Android frame driver. Never owns the panel state itself. */
 internal class ValueAnimatorSidePanelDriver : SidePanelAnimationDriver {
     private var running: ValueAnimator? = null
+    // One immutable interpolator per driver, rather than one object per gesture.
+    private val easeOut = Interpolator(SidePanelMotionPolicy::easeOutCubic)
 
     override fun animate(from: Float, to: Float, durationMs: Long, onFrame: (Float) -> Unit, onEnd: () -> Unit) {
         cancel()
         val animator = ValueAnimator.ofFloat(from, to)
         running = animator
         animator.duration = durationMs
-        animator.interpolator = Interpolator { SidePanelMotionPolicy.easeOutCubic(it) }
+        animator.interpolator = easeOut
         animator.addUpdateListener {
             if (running === animator) onFrame(it.animatedValue as Float)
         }
