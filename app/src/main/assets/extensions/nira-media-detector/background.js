@@ -804,8 +804,15 @@ async function inspectManifest(task) {
       // Parser-observed metadata is attached to exactly this document and manifest.
       isLive: !!parsed.live,
       contentType: task.format === "HLS" ? "application/vnd.apple.mpegurl" : "application/dash+xml" };
-    if (Array.isArray(parsed.variants) && parsed.variants.length > 0)
+    if (Array.isArray(parsed.variants) && parsed.variants.length > 0) {
       verified.variantCount = parsed.variants.length;
+      // Advertised choices, never the active playback resolution.
+      const heights = [...new Set(parsed.variants.filter(v =>
+        Number.isSafeInteger(v.width) && Number.isSafeInteger(v.height) &&
+        v.width > 0 && v.height >= 144 && v.height <= 8640)
+        .map(v => v.height + "p"))].slice(0, 16);
+      if (heights.length) verified.availableQualities = heights.join(",");
+    }
     // DASH master metadata is not the current quality unless uniquely determined.
     if (task.format === "DASH" && parsed.variants.length === 1) {
       const only = parsed.variants[0];

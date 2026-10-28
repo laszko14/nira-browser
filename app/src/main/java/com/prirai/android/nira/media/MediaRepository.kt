@@ -47,6 +47,7 @@ internal class MediaEntry(
     val bitrateKind: String? = null,
     val posterOrigin: String? = null,
     val posterAmbiguous: Boolean = false,
+    val availableQualities: String? = null,
 ) {
     override fun toString(): String = "MediaEntry(format=$format, sources=$sources, url=<redacted>)"
 }
@@ -128,6 +129,7 @@ internal class MediaRepository(
         private var dimensionConflict = false
         var frameRate: Double? = null
         var variantCount: Int? = null
+        var availableQualities: String? = null
         var bitrateKind: String? = null
         var quality: String? = null
         var bitrate: Long? = null
@@ -192,6 +194,8 @@ internal class MediaRepository(
             }
             if (candidate.frameRate != null) frameRate = candidate.frameRate
             if (candidate.variantCount != null) variantCount = candidate.variantCount
+            if (candidate.source == MediaSource.NETWORK && candidate.verification == "manifest_verified" &&
+                candidate.availableQualities != null) availableQualities = candidate.availableQualities
             if (!dimensionConflict && candidate.quality != null &&
                 (candidate.height == null || candidate.quality == "${candidate.height}p"))
                 quality = candidate.quality
@@ -238,7 +242,7 @@ internal class MediaRepository(
             playbackStatus, httpStatus, ambiguous, frameKey,
             sizeEstimated, durationOrigin, sizeOrigin, isLive, titleAmbiguous,
             width, height, frameRate, variantCount, bitrateKind,
-            posterOrigin, posterAmbiguous)
+            posterOrigin, posterAmbiguous, availableQualities)
     }
 
     private class FrameBinding(val id: Long, val key: Long, val url: String, var active: Boolean)

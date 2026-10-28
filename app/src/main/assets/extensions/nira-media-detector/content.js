@@ -173,6 +173,8 @@
           message.height < 1 || message.height > 8640)) ||
         ("frameRate" in message && (typeof message.frameRate !== "number" ||
           !Number.isFinite(message.frameRate) || message.frameRate <= 0 || message.frameRate > 240)) ||
+        ("availableQualities" in message && (typeof message.availableQualities !== "string" ||
+          !/^[0-9]{2,4}p(?:,[0-9]{2,4}p){0,15}$/.test(message.availableQualities))) ||
         ("variantCount" in message && (!Number.isSafeInteger(message.variantCount) ||
           message.variantCount < 1 || message.variantCount > 32)) ||
         ("bitrateKind" in message && !["average","peak","declared"].includes(message.bitrateKind)) ||
@@ -195,7 +197,7 @@
           "isPrivate", "documentKey", "pageUrl", "contentType", "sizeBytes",
           "durationSeconds", "isLive",
           "groupId", "quality", "bitrate", "codecs", "width", "height",
-          "frameRate", "variantCount", "bitrateKind", "provenance",
+          "frameRate", "variantCount", "availableQualities", "bitrateKind", "provenance",
           "verification", "httpStatus", "requestSequence",
           "frameUrl", "frameKey"].includes(key)) ||
         message.pageUrl !== location.href) return Promise.resolve(false);
