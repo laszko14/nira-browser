@@ -66,6 +66,11 @@ class SidePanelGestureExclusionPolicyTest {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         val root = SwipeGestureLayout(activity)
         activity.setContentView(root)
+        root.measure(
+            View.MeasureSpec.makeMeasureSpec(420, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(840, View.MeasureSpec.EXACTLY)
+        )
+        root.layout(0, 0, 420, 840)
         val panels = SidePanelInfrastructure.attach(root, 36) { true }
         panels.host.leftContainer.addView(View(activity))
         assertTrue(panels.activate(SidePanelSide.LEFT, 300))
@@ -89,6 +94,11 @@ class SidePanelGestureExclusionPolicyTest {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         val root = SwipeGestureLayout(activity)
         activity.setContentView(root)
+        root.measure(
+            View.MeasureSpec.makeMeasureSpec(420, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(840, View.MeasureSpec.EXACTLY)
+        )
+        root.layout(0, 0, 420, 840)
         val panels = SidePanelInfrastructure.attach(root, 36) { true }
         panels.host.rightContainer.addView(View(activity))
         assertTrue(panels.activate(SidePanelSide.RIGHT, 280))
@@ -96,11 +106,11 @@ class SidePanelGestureExclusionPolicyTest {
         root.isSwipeEnabled = true
         panels.onFullscreenChanged(false)
         assertFalse(panels.closeOnBack())
-        assertTrue(panels.onSwipeStarted(
+        assertFalse(panels.onSwipeStarted(
             android.graphics.PointF(2f, 180f), android.graphics.PointF(100f, 180f)
-        ) == false) // left content is absent
+        )) // left content is absent
         assertTrue(panels.onSwipeStarted(
-            android.graphics.PointF(398f, 180f), android.graphics.PointF(330f, 180f)
+            android.graphics.PointF(418f, 180f), android.graphics.PointF(330f, 180f)
         ))
         panels.dispose()
         activity.finish()
