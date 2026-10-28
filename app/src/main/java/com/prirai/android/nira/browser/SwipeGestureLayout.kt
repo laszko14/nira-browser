@@ -207,9 +207,11 @@ class SwipeGestureLayout @JvmOverloads constructor(
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val owned = activeListener != null
         if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN || event.pointerCount > 1) {
+            val wasOwned = owned || multiTouchStream
             multiTouchStream = true
             cancelOwnedSwipe()
-            return owned
+            // Keep a stream already intercepted by this parent until ACTION_UP.
+            return wasOwned
         }
         if (multiTouchStream) {
             if (event.actionMasked == MotionEvent.ACTION_UP ||
