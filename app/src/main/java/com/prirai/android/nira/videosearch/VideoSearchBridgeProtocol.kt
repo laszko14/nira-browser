@@ -414,7 +414,7 @@ internal object VideoSearchBridgeProtocol {
         documentId: String, requestId: String,
         config: VideoSiteConfiguration, startIndex: Int,
     ): JSONObject {
-        require(startIndex in 0..64 && startIndex % 16 == 0)
+        require(startIndex in 0..79) // shorter packets may split at any card
         return extract(documentId, requestId, config).apply {
             put("event", "extract_batch")
             put("startIndex", startIndex)

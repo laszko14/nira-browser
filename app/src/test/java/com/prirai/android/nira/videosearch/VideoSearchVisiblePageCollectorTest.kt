@@ -38,6 +38,17 @@ class VideoSearchVisiblePageCollectorTest {
         assertEquals(VideoSearchPagination.NEXT_LINK, page.paginationStrategy)
     }
 
+    @Test fun nonAlignedBudgetSplitsReassembleAllCards() {
+        val collector = VideoSearchVisiblePageCollector(origin, 80, VideoSearchPagination.NONE)
+        collector.append(0, batch(0, size = 3, more = true))
+        assertEquals(3, collector.nextCardIndex)
+        collector.append(3, batch(3, size = 2, more = true))
+        collector.append(5, batch(5, size = 13, more = false))
+        assertEquals((0 until 18).toList(),
+            collector.snapshot().films.map { it.originalIndex })
+        assertEquals(18, collector.snapshot().scannedCards)
+    }
+
     @Test fun repeatsAcrossWindowsMergeOnlyByExactFilmUrl() {
         val collector = VideoSearchVisiblePageCollector(origin, 200, VideoSearchPagination.NONE)
         val url = "https://films.example/watch?id=42&lang=pl"

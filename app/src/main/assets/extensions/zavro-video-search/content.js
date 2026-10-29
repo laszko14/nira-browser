@@ -599,12 +599,17 @@
 
     // A continuation is an absolute card offset within THIS document.
     // Each request inspects at most 16 cards, even if no valid films exist.
-    const start = Number.isInteger(command.startIndex) &&
-      command.startIndex >= 0 && command.startIndex <= 80 ?
-      command.startIndex : 0;
+    // Never rewind an invalid continuation cursor to card zero.
+    const start = command.event === "extract" ? 0 : command.startIndex;
+    const maximumIndex = crawl ? 319 : 79;
+    if (!Number.isInteger(start) || start < 0 || start > maximumIndex)
+      return { status: "stale", films: [], inspectedCards: 0, moreOnPage: false };
     const end = Math.min(cards.length, start + 16);
     const found = new Map(), maximum = 16;
+    const encoder = new TextEncoder();
+    const serializedBytes = row => encoder.encode(JSON.stringify(row)).length;
     let usedBytes = 0, more = false;
+    let consumed = end - start;
     for (let index = start; index < end; index++) {
       const card = cards[index];
       const match = selectedAnchor(card);
@@ -639,12 +644,17 @@
       };
       const existing = found.get(filmUrl);
       const next = existing ? merge(existing, fresh) : fresh;
-      const oldCost = existing ? JSON.stringify(existing).length : 0;
-      const nextCost = JSON.stringify(next).length;
-      if (!existing && found.size >= maximum) { more = true; continue; }
-      if (usedBytes - oldCost + nextCost > 6400) {
+      const oldCost = existing ? serializedBytes(existing) : 0;
+      const nextCost = serializedBytes(next);
+      if (nextCost > 6400) {
+        // One film cannot fit. Fail explicitly; never silently skip it.
+        return { status: "stale", films: [], inspectedCards: 0, moreOnPage: false };
+      }
+      if ((!existing && found.size >= maximum) ||
+          usedBytes - oldCost + nextCost > 6400) {
+        consumed = index - start;
         more = true;
-        continue; // retain existing data, never send a truncated field
+        break; // retry this position in the next absolute-cursor window
       }
       usedBytes += nextCost - oldCost;
       found.set(filmUrl, next);
@@ -652,7 +662,7 @@
     if (end < cards.length || cards.length === cardCap) more = true;
     const films = Array.from(found.values());
     return { status: films.length ? "ok" : "empty",
-      films, inspectedCards: Math.max(0, end - start), moreOnPage: more };
+      films, inspectedCards: consumed, moreOnPage: more };
   }
 
   // Only an explicit user request can trigger pagination. Never follow a
@@ -755,8 +765,7 @@
             keys === "documentId,durationSelector,event,linkSelector,requestId," +
                     "resultsCardSelector,schemaVersion,startIndex,thumbnailSelector,titleSelector" &&
             Number.isInteger(message.startIndex) &&
-            message.startIndex >= 0 && message.startIndex <= 64 &&
-            message.startIndex % 16 === 0) {
+            message.startIndex >= 0 && message.startIndex <= 79) {
           busy = true;
           try {
             post("results", message.requestId, extractResults(message));

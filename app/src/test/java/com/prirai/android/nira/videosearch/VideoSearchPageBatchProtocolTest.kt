@@ -52,13 +52,13 @@ class VideoSearchPageBatchProtocolTest {
         assertFalse(json.has("filmCount"))
     }
 
-    @Test fun fiveValidWindowCursorsAndNoSixth() {
-        for (offset in listOf(0, 16, 32, 48, 64)) {
+    @Test fun budgetSplitsMayStartAtAnyCursorBelowEighty() {
+        for (offset in listOf(0, 1, 3, 15, 16, 17, 32, 64, 65, 79)) {
             assertEquals(offset,
                 VideoSearchBridgeProtocol.extractBatch(doc, request, config, offset)
                     .getInt("startIndex"))
         }
-        for (invalid in listOf(-1, 1, 15, 17, 65, 80, 1000)) {
+        for (invalid in listOf(-1, 80, 1000)) {
             try {
                 VideoSearchBridgeProtocol.extractBatch(doc, request, config, invalid)
                 fail("Bad cursor accepted: $invalid")

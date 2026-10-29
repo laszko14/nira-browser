@@ -21,7 +21,7 @@ internal data class VideoSearchVisiblePage(
 }
 
 /**
- * Aggregates 16-card document windows. Cursor is a card offset rather than
+ * Aggregates up-to-16-card document windows. Cursor is a card offset rather than
  * a film count: duplicates and cards without valid links never stall progress.
  * No page navigation, Room writes, timers, or lasting session state.
  */
@@ -42,7 +42,7 @@ internal class VideoSearchVisiblePageCollector(
 
     fun append(startIndex: Int, page: VideoSearchExtractedPage) {
         require(shouldReadAnotherBatch) { "No further page batches permitted" }
-        require(startIndex == cursor && startIndex in 0..64 && startIndex % 16 == 0) {
+        require(startIndex == cursor && startIndex in 0..79) {
             "Non-contiguous page batch"
         }
         require(page.status != "stale" && page.inspectedCards in 0..16 &&
