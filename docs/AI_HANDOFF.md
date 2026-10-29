@@ -1,3 +1,13 @@
+# Checkpoint — Wyszukiwarka filmów — P2A/16 (LC-01) — 2026-10-29
+
+- **STATUS: PARTIAL** — poprawka kodu i 8 testów regresyjnych są zapisane, ale nowe JUnit/Robolectric, integracyjne Gecko i telefon **NOT_TESTED** w tym środowisku. P2 nie oznaczać jako zakończone. P1 pozostaje ukończone i niezmienione.
+- Gałąź `fix/zavro-clean-video-search-audit-20261029`, rodzic `03cf0fe4bef86febf5d861d5b76db371a695c111`. Nowy commit ustala HEAD. Bez APK, workflow budującego APK, PR, merge, release, zmian wersji/certyfikatu/pakietu/ABI/120 Hz.
+- Powód: Activity-owned `collectLatest` i `delay(300)` mogły pominąć inventory zero po close-last. Usunięto ten observer, przeniesiono synchronizację do `VideoSearchPrivateTabLifecycleMiddleware` podpiętego na stałe do procesowego `BrowserStore`. Middleware reaguje na każdą `TabListAction` po reducerze, nie używa czasu do autoryzacji. Rejestr uznaje tylko prawdziwe private-context; stare scope są wycofywane przy ostatnim zamknięciu. Zwykłe karty, profil i inne mechanizmy niedotknięte.
+- Nowy plik `VideoSearchPrivateTabLifecycleMiddlewareTest.kt`: 8 przypadków Store/epoch/private RAM, immediate close-reopen (także to samo ID), samotna i zachowana karta, profil, kontrolowana migracja oraz niepoprawny kontekst. Testy dodane, nie wykonane. Brak w kontenerze Android SDK/Gradle i brak sieci do klonowania, a istniejące workflows repo budują APK i nie mogą być uruchomione bez zgody. Statyczne kontrole struktury commit/diff nie stanowią JUnit PASS.
+- Następny **P2B/16** po poleceniu „Dalej”: uruchomić nowe testy, `VideoSearchPrivateSessionRegistryTest`, `VideoSearchPrivateSitesAccessTest`, `ProfileMigrationTest`, `VideoSearchPrivateWorkerLeaseTest`, `VideoSearchPrivateJobGateTest`, szerszą regresję; naprawić błędy. Zweryfikować faktyczny BrowserStore/rotację i Gecko/telefon, jeśli dostępne. Bez fizycznego dostępu uczciwie NOT_TESTED. P3 dopiero po zakończeniu P2. APK wyłącznie „Kompiluj”/„Już”. STOP.
+
+---
+
 # Checkpoint — Wyszukiwarka filmów — P1 / 16 — 2026-10-29
 
 - **STATUS: PASS kontrole lokalne; fizyczne UI/IME/Gecko/120 Hz NOT_TESTED. P1 wdrożony w kodzie, 1/16.** Bez APK, CI, PR, merge/release, zmiany wersji/certyfikatu/pakietu/ABI/limitów. A1–A4 zakończone; szczegóły i kryteria P1 w `docs/VIDEO_SEARCH_AUDIT.md`.

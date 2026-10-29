@@ -40,7 +40,8 @@ internal class VideoSearchPrivateSessionRegistry(
 
     fun reconcile(tabs: List<VideoSearchPrivateTab>, activeProfileId: String) =
         synchronized(lock) {
-            val privateTabs = tabs.filter { it.isPrivate }
+            // Only real Gecko-private tabs sustain this lifetime.
+            val privateTabs = tabs.filter { it.isPrivate && it.contextId == "private" }
             val ids = privateTabs.mapTo(LinkedHashSet()) { it.id }
             if (ids.isEmpty()) {
                 lifetime?.let { privateStore.finish(it.scope) }

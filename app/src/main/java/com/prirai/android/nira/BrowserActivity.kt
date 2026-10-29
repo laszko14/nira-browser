@@ -29,8 +29,6 @@ import com.prirai.android.nira.browser.BrowsingModeManager
 import com.prirai.android.nira.browser.DefaultBrowsingModeManager
 import com.prirai.android.nira.browser.SearchEngineList
 import com.prirai.android.nira.browser.SearchEnginePreferences
-import com.prirai.android.nira.videosearch.VideoSearchPrivateTab
-import com.prirai.android.nira.videosearch.VideoSearchPrivateSessionHost
 import com.prirai.android.nira.databinding.ActivityMainBinding
 import com.prirai.android.nira.ext.alreadyOnDestination
 import com.prirai.android.nira.ext.components
@@ -40,12 +38,6 @@ import com.prirai.android.nira.preferences.UserPreferences
 import com.prirai.android.nira.search.SearchDialogFragmentDirections
 import com.prirai.android.nira.utils.Utils
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import mozilla.components.browser.state.action.AppLifecycleAction
 import mozilla.components.browser.state.search.SearchEngine
@@ -57,7 +49,6 @@ import mozilla.components.concept.engine.EngineView
 import mozilla.components.feature.contextmenu.ext.DefaultSelectionActionDelegate
 import mozilla.components.support.base.feature.ActivityResultHandler
 import mozilla.components.support.base.feature.UserInteractionHandler
-import mozilla.components.lib.state.ext.flowScoped
 import mozilla.components.support.ktx.kotlin.isUrl
 import mozilla.components.support.ktx.kotlin.toNormalizedUrl
 import mozilla.components.support.locale.LocaleAwareAppCompatActivity
@@ -73,7 +64,6 @@ open class BrowserActivity : LocaleAwareAppCompatActivity(), ComponentCallbacks2
     lateinit var binding: ActivityMainBinding
 
     lateinit var browsingModeManager: BrowsingModeManager
-    private var privateSearchTabObserver: kotlinx.coroutines.CoroutineScope? = null
     private lateinit var currentTheme: BrowsingMode
 
     private var isToolbarInflated = false
@@ -153,7 +143,6 @@ open class BrowserActivity : LocaleAwareAppCompatActivity(), ComponentCallbacks2
         )
         currentTheme = browsingModeManager.mode
 
-        observePrivateSearchTabLifetime()
 
         // Tab-group management goes through `context.components.tabGroupManager`
         // (a UnifiedTabGroupManager singleton). The legacy `TabGroupManager`
@@ -338,8 +327,6 @@ open class BrowserActivity : LocaleAwareAppCompatActivity(), ComponentCallbacks2
      *      through those children.
      */
     override fun onDestroy() {
-        privateSearchTabObserver?.cancel()
-        privateSearchTabObserver = null
         val taskGone = isFinishing && isTaskRoot && !isChangingConfigurations
         super.onDestroy()
         if (!taskGone) return
@@ -433,53 +420,6 @@ open class BrowserActivity : LocaleAwareAppCompatActivity(), ComponentCallbacks2
         }
     }
 
-
-    /**
-     * Stage 10A: a private-search lifetime belongs to the real BrowserStore
-     * private tabs, NOT to the selected mode, onPause or Activity onDestroy.
-     * A temporary empty list during a tab move/restore is rechecked once
-     * after 300 ms; a new state cancels that check. No polling/background
-     * service, and no private identifiers in preferences or saved state.
-     *
-     * The existing search UI/Gecko bridge still rejects private searches.
-     * Stage 10B will explicitly bind eligible private operations to this
-     * RAM-only owner; do not silently route them into ordinary Room/Coil.
-     */
-    private fun observePrivateSearchTabLifetime() {
-        privateSearchTabObserver?.cancel()
-        privateSearchTabObserver = components.store.flowScoped(
-            dispatcher = Dispatchers.Main,
-        ) { flow ->
-            flow.map { state ->
-                state.tabs.map { tab ->
-                    VideoSearchPrivateTab(
-                        id = tab.id, contextId = tab.contextId,
-                        isPrivate = tab.content.private,
-                    )
-                }
-            }.distinctUntilChanged().collectLatest { snapshot ->
-                val manager = com.prirai.android.nira.browser.profile.ProfileManager
-                    .getInstance(applicationContext)
-                if (snapshot.any { it.isPrivate }) {
-                    VideoSearchPrivateSessionHost.registry.reconcile(
-                        snapshot, manager.getActiveProfile().id
-                    )
-                } else {
-                    // Remove/Add migration can expose a transient zero-tab
-                    // state. Never end a lifetime on that intermediate event.
-                    delay(300)
-                    val latest = components.store.state.tabs.map { tab ->
-                        VideoSearchPrivateTab(
-                            tab.id, tab.contextId, tab.content.private,
-                        )
-                    }
-                    VideoSearchPrivateSessionHost.registry.reconcile(
-                        latest, manager.getActiveProfile().id
-                    )
-                }
-            }
-        }
-    }
 
     protected open fun createBrowsingModeManager(
         initialMode: BrowsingMode,

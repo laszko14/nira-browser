@@ -422,6 +422,11 @@ open class Components(private val applicationContext: Context) {
                         // opens a Room database on first touch).
                         tabGroupMiddleware,
                         profileMiddleware,  // Use the exposed instance
+                        // Each tab-inventory action retires private RAM synchronously.
+                        // Independent of Activity and without a conflated Flow or delay.
+                        com.prirai.android.nira.videosearch.VideoSearchPrivateTabLifecycleMiddleware(
+                            activeProfileId = { profileManager.getActiveProfile().id },
+                        ),
                         com.prirai.android.nira.diagnostics.testlab.TestLabMiddleware(),
                         SessionPrioritizationMiddleware(),
                         TranslationsMiddleware(
