@@ -34,7 +34,7 @@ Odniesienia do kodu dotyczą bazy `b7d62f79f285ac81c29a79b326529d42e9b9fde4`. Be
 | ZC-AUD-028 | 10B | P2 MEDIUM | CONFIRMED | PWA profilu default używa innej partycji Gecko niż główna przeglądarka |
 | ZC-AUD-029 | 10B | P2 MEDIUM | CONFIRMED | Menu kontekstowe PWA obserwuje wybraną kartę BrowserStore zamiast sesji PWA |
 | ZC-AUD-030 | 10B | P1 HIGH (potencjalny) | SUSPECTED | Przy window.open kontekst przygotowanej sesji Gecko może różnić się od kontekstu karty |
-| ZC-AUD-031 | 10B | P2 MEDIUM | CONFIRMED | Usunięcie profilu pozostawia jego karty w BrowserStore i trwałym snapshot |
+| ZC-AUD-031 | 10B,16A | P2 MEDIUM | CONFIRMED | Usunięcie profilu pozostawia karty i nie czyści partycji danych Gecko |
 | ZC-AUD-032 | 11A | P2 MEDIUM | CONFIRMED | Wznowienie tego samego DOM pomija już przetworzone konfiguracje skryptowe |
 | ZC-AUD-033 | 11A | P2 MEDIUM | CONFIRMED | Dodanie source do istniejącego video nie kolejkuje ponownego inspect rodzica |
 | ZC-AUD-034 | 11A | P2 MEDIUM | CONFIRMED | Późny open shadowRoot na już przeskanowanym hoście nie jest odkrywany przez skaner DOM |
@@ -56,6 +56,8 @@ Odniesienia do kodu dotyczą bazy `b7d62f79f285ac81c29a79b326529d42e9b9fde4`. Be
 | ZC-AUD-050 | 14B | P2 MEDIUM | CONFIRMED | Migracja profilu zachowuje MediaSessionState i kontroler starego silnika |
 | ZC-AUD-051 | 14B | P2 MEDIUM | CONFIRMED | Hash-router zmieniający film zachowuje klucz dokumentu i media poprzedniej trasy |
 | ZC-AUD-052 | 15B | P2 MEDIUM | CONFIRMED | Arkusz filmów otwarty podczas odliczania nie trafia do pomiaru JankStats |
+| ZC-AUD-053 | 16A | P2 MEDIUM | CONFIRMED | Diagnostyka Sync kopiuje fragmenty parametrów OAuth do udostępnianego tekstu |
+| ZC-AUD-054 | 16A | P2 MEDIUM | CONFIRMED | Favicon prywatnej karty może trafić do wspólnego trwałego cache |
 
 ## ZC-AUD-001 — niespójny kontrakt wersji joba release
 
@@ -457,16 +459,17 @@ Uzupełnienie 024 z 10B: ten sam kontrakt menu występuje również w `browser/h
 
 ## ZC-AUD-031 — usunięcie profilu pozostawia osierocone karty
 
-- **Etap:** 10B — cleanup profilu i restore.
+- **Etap:** 10B; rozszerzenie16A — cleanup profilu, restore i kasowanie danych witryn.
 - **Miejsce:** [`ProfileManager.kt:197`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/browser/profile/ProfileManager.kt#L197), deleteProfile:197–212/cleanupProfileStorage:236–239; TabsBottomSheetFragment.onDelete:795–807; AC BrowserStateWriter:49–52,81–82/Reader:206,242 ([źródła](STAGE_10.md#źródła-10b)).
 - **Problem:** profil znika z rejestru, ale jego karty/EngineSession pozostają i mogą wrócić pod nieistniejącym profilem po restore.
 - **Mechanizm:** UI przełącza currentProfile na default i usuwa metadane. Menedżer kasuje tylko appowy katalog; brak remove/migrate kart i uzgodnienia grup. AutoSave kwalifikuje normalne karty według content.private, nie istnienia profilu, i zachowuje contextId; reader go odtwarza.
 - **Dowód:** karta B/profile_B istnieje; deleteProfile(B) nie zmienia Store ani selected ID. Po ukończonym zapisie snapshot zawiera tę kartę/profile_B; po restore nie ma profilu na liście, ale karta nadal jest osiągalna przez sugestie 025/fallback. Nie wykonywano usuwania danych użytkownika.
-- **Pewność:** CONFIRMED statycznie: brak domknięcia referencji i odtworzenie osieroconego kontekstu. Telefon/cleanup cookies NOT_TESTED; pełna polityka erasure do 16.
+- **Rozszerzenie16A — dane witryn:** cleanup usuwa wyłącznie katalog z Context.getDir, którego nie używa fabryka GeckoRuntime (`components/Components.kt:683–719`). W kodzie aplikacji brak wywołania clearDataForSessionContext ani innego kasowania partycji w ścieżce deleteProfile. GeckoView `StorageController.java:147–162` udostępnia jawne kasowanie danych contextId i wymaga wcześniejszego zamknięcia wszystkich sesji tego kontekstu, aby nie odtworzyły danych. Samo usunięcie metadanych/katalogu nie zastępuje tej operacji. Użyto wersjonowanych źródeł z cache, URL/SHA w [STAGE_16](STAGE_16.md#źródła16a). Nie zmierzono zawartości cookies/localStorage po usunięciu.
+- **Pewność:** CONFIRMED statycznie: brak domknięcia referencji i odtworzenie osieroconego kontekstu. Brak operacji kasowania partycji Gecko potwierdzony statycznie; telefon i rzeczywisty stan cookies/danych po usunięciu NOT_TESTED.
 - **Ważność:** P2 MEDIUM — osierocone karty, aktywny engine i niespójne wybieranie/odtwarzanie. Bez potwierdzenia bezpowrotnej utraty lub naruszenia partycji.
 - **Wpływ:** UI profili, grupy, pamięć, restore, liczniki/filtrowanie i wyszukiwanie. W 023 profil nadal istnieje; tutaj został usunięty, więc przyczyna jest odrębna.
-- **Kierunek:** jawna polityka kart/grup przed usunięciem profilu: bezpieczne zamknięcie lub świadoma migracja, spójny selected i zapis. Nie przenosić cookies ani nie kasować całej sesji jako skrótu; cleanup Gecko zaplanować osobno.
-- **Regresje:** usunięcie active/inactive named z live/sleeping kartami i grupami; Store/engine/snapshot/restart bez referencji do nieistniejącego profilu. Pusty/default jako kontrole; wyłącznie izolowane dane, z ochroną pozostałych profili.
+- **Kierunek:** jawna polityka kart/grup przed usunięciem profilu: bezpieczne zamknięcie lub świadoma migracja, spójny selected i zapis. Nie przenosić cookies ani nie kasować całej sesji jako skrótu; domknąć kasowanie właściwego contextId Gecko po zamknięciu jego sesji, bez czyszczenia innych profili lub całego runtime.
+- **Regresje:** usunięcie active/inactive named z live/sleeping kartami i grupami; Store/engine/snapshot/restart bez referencji do nieistniejącego profilu. Dodać kontrolne dane witryny w dwóch kontekstach: po usunięciu źródłowy nie może zachować danych ani ponownie ich zapisać, a drugi ma zachować swoje. Sprawdzić brak późnego wskrzeszenia przez restore. Pusty/default jako kontrole; wyłącznie izolowane dane, z ochroną pozostałych profili.
 
 ## ZC-AUD-032 — konfiguracje script nie wracają po wznowieniu tego samego DOM
 
@@ -729,4 +732,30 @@ Uzupełnienie 024 z 10B: ten sam kontrakt menu występuje również w `browser/h
 - **Kierunek naprawy:** oddzielić rejestrację okna od uzyskania tokenu opóźnienia FAB_OPEN; dopuścić rejestrację podczas PREPARING i rozpoczęcie trackingu po begin. Zachować detach przy dismiss/teardown/końcu testu i pasywność po wyłączeniu TestLab. Nie zastępować braku próbek zerowym jankiem.
 - **Wymagane regresje:** przygotować test otwarcia arkusza w PREPARING, przejścia do RUNNING i obecności jego okna/trackingu; kontrolne otwarcie po begin, odmowa tokenu przy limicie operacji, dismiss przed begin, obrót/pause/resume i zakończenie testu bez zatrzymanego Window. Realny Android: przewijanie sheet i niezależne potwierdzenie próbek jego Window; Robolectric bez generowania klatek nie potwierdza płynności. Specyfikacja do przyszłej naprawy, bez nowych testów app.
 
-Stan po15: CONFIRMED=45 (P0=0,P1=3,P2=40,P3=2); LIKELY=4 (010,016,019,043 — potencjalne P2); SUSPECTED=3 (002,025 potencjalne P2;030 potencjalny P1). 15A rozszerza013,15B dodaje052 CONFIRMED P2. Etapy1–15 COMPLETE, bez nowych hipotez.
+## ZC-AUD-053 — parametry uwierzytelniania w diagnostyce Sync
+
+- **Etap:** 16A — prywatność diagnostyki i logowania.
+- **Miejsce:** [`FxaSyncManager.kt:203`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/browser/sync/FxaSyncManager.kt#L203), finishAuthentication:211–231, lastAuthDebugInfo:59; `settings/fragment/SyncSettingsFragment.kt`, onExportLogs:253–301, szczególnie277–279 i293–301.
+- **Problem:** udostępniany raport zawiera początkowe fragmenty OAuth code/state, dane konta i surowe komunikaty błędów zamiast wyłącznie statusu próby. Wartości nie są redagowane przed przekazaniem odbiorcy raportu.
+- **Mechanizm:** po zakończeniu finishAuthentication manager zapisuje w procesowym lastAuthDebugInfo po6 początkowych znaków code/state i email. Eksport wkleja całe pole do text, loguje ten sam text i przekazuje go do ACTION_SEND/EXTRA_TEXT. Gałąź błędu wkleja także e.message; jej konkretną treść trzeba osobno zweryfikować. W tym audycie nie pozyskiwano żadnych rzeczywistych danych uwierzytelniania.
+- **Dowód statyczny:** wejściowe parametry code/state → take(6) w linii215 → lastAuthDebugInfo → odczyt w277 → tekst279 → EXTRA_TEXT297. To bezpośredni przepływ danych, niezależny od tego, czy parametry są jeszcze użyteczne po logowaniu. Log.d w debug nie ma lokalnego warunku DEBUG. R8 release usuwa d/v/i/w (`app/proguard-rules.pro:54–59`, minify w app/build.gradle:67–71), ale nie usuwa tekstu potrzebnego do udostępnienia. Nie twierdzi się, że release zachowuje te same logi.
+- **Pewność:** CONFIRMED kopiowanie fragmentów do raportu. Logowanie, rzeczywisty OAuth i udostępnienie na Androidzie NOT_TESTED; brak dowodu ujawnienia pełnych tokenów, przejęcia konta lub odczytu logcat przez dowolną aplikację.
+- **Ważność:** P2 MEDIUM — niepotrzebne fragmenty materiału uwierzytelniania trafiają do diagnostyki udostępnianej poza aplikację. Użytkownik świadomie wybiera Share, lecz treść nie przechodzi redakcji; nie jest to automatyczna wysyłka ani nieautoryzowane wykonanie OAuth.
+- **Wpływ:** Sync diagnostics, debug logcat i utrzymywana w RAM informacja ostatniej próby. TestLab ma osobny schemat i nie został uznany za źródło tej usterki.
+- **Kierunek naprawy:** nie przechowywać ani nie eksportować code/state, nawet prefiksów; stosować statusy/typy błędów i losowy identyfikator korelacji. Redagować dane konta oraz komunikaty wyjątków przed logowaniem/udostępnieniem według jawnej polityki, bez ingerencji w sam protokół logowania.
+- **Regresje:** syntetyczne znaczniki code/state/email w sukcesie/błędzie/opóźnionej kontroli; żaden znacznik ani jego prefiks nie może trafić do pola diagnostycznego, eksportu czy logów. Osobno debug/release, anulowanie Share i wylogowanie. Bez realnych kont i nowych testów app podczas audytu.
+
+## ZC-AUD-054 — trwały cache favicon z prywatnej karty
+
+- **Etap:** 16A — prywatność danych lokalnych i granica private/normal.
+- **Miejsce:** [`PortraitNativeTabStrip.kt:216`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/components/toolbar/modern/PortraitNativeTabStrip.kt#L216), bindFavicon:216–236; wrapper `ComposeTabBarWithProfileSwitcher.updateTabs`:441–462; `utils/FaviconLoader.loadFavicon`:55–92; `utils/FaviconCache`:58,89–100,180–205,233–269.
+- **Problem:** fallback ikony natywnego paska może zapisać ślad prywatnej witryny na dysku w cache współdzielonym z normalnym trybem i profilami; zamknięcie prywatnej karty nie usuwa tego wpisu.
+- **Mechanizm:** wrapper przekazuje prywatne taby do tego samego paska. Jeśli tab.content.icon jest null i pamięć/dysk nie ma wpisu, bindFavicon dla HTTP(S) wywołuje loader bez informacji o private/contextId. Loader uzyskuje bitmapę z BrowserIcons i bezwarunkowo wywołuje saveFaviconSync. Cache zapisuje PNG w filesDir/favicon_cache, a klucz zależy tylko od MD5 znormalizowanej domeny. Ta sama domena w normalnym trybie odczytuje ten sam wpis; nie ma rozdzielenia cyklu życia private ani wywołania clearAll przy zamknięciu prywatnych kart.
+- **Dowód statyczny:** prywatny tab HTTP(S), pusty icon i cold cache → Native:232 → Loader:92 → FileOutputStream w Cache:97–99. Zapis nie jest warunkowany isPrivate i nie znajduje się w efemerycznym magazynie sesji. Pełny URL nie jest tutaj zapisywany jako nazwa pliku, ale deterministyczny identyfikator domeny i ikona pozostają śladem; MD5 nie jest granicą izolacji. Istniejący bitmap/cache hit omija nowy zapis — nie twierdzi się, że każda prywatna nawigacja tworzy plik.
+- **Pewność:** CONFIRMED mechanizm zapisu pod opisanymi warunkami. Runtime/Gecko/network, faktyczna zawartość dysku i czas zakończenia asynchronicznego żądania NOT_TESTED. Nie wykazano wycieku cookies, treści stron, pełnych URL ani dostępu do filesDir przez dowolną aplikację.
+- **Ważność:** P2 MEDIUM — prywatna aktywność może pozostawić trwały artefakt domeny/ikony i wpływać na wspólny cache po zakończeniu private. Wymaga ścieżki fallback; nie jest dowodem przełamania partycji Gecko.
+- **Wpływ:** natywny pionowy pasek, wspólny FaviconLoader/cache i odczyt ikon w kolejnych sesjach/profilach. Ewentualne inne ścieżki BrowserIcons wymagają osobnej oceny; to zgłoszenie nie opiera się na ich domyślnych parametrach ani zachowaniu biblioteki na dysku.
+- **Kierunek naprawy:** przekazywać tryb prywatny przez cały fallback i korzystać z pamięci o odpowiednim cyklu życia bez zapisu na dysk; propagować private do żądań biblioteki, jeśli są używane. Nie naprawiać przez czyszczenie całego cache normalnych profili przy każdym zamknięciu karty. Uwzględnić już zapisane artefakty z zachowaniem danych użytkownika.
+- **Regresje:** prywatny cold-cache tab z pustą ikoną nie tworzy pliku, normalny nadal może cache'ować; private→normal i profileA→B, zamknięcie karty przed ukończeniem async, restart aplikacji oraz pamięciowy hit. Test tylko w izolowanym katalogu/domenie syntetycznej; osobno rzeczywista ścieżka Android/Gecko. Specyfikacja, bez nowych testów app.
+
+Stan po16A: CONFIRMED=47 (P0=0,P1=3,P2=42,P3=2); LIKELY=4 (010,016,019,043 — potencjalne P2); SUSPECTED=3 (002,025 potencjalne P2;030 potencjalny P1). 16A dodaje053/054 i rozszerza031; etapy1–15 COMPLETE,16 PARTIAL (16A COMPLETE,16B NOT_STARTED), bez nowych hipotez.
