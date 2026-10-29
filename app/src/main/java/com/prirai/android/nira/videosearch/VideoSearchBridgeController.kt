@@ -465,7 +465,7 @@ internal class VideoSearchBridgeController(
         tab: VideoSearchPrivateTab, activeProfileId: String,
         siteId: String, query: String,
     ): Boolean {
-        if (!extensionReady || privateJob?.isActive == true ||
+        if (!extensionReady || !VideoSearchPrivateJobGate.canStart(privateJob) ||
             !VideoSearchBridgeProtocol.validQuery(query)) return false
         val manager = ProfileManager.getInstance(applicationContext)
         if (!manager.isPrivateMode() || manager.getActiveProfile().id != activeProfileId)
@@ -509,7 +509,7 @@ internal class VideoSearchBridgeController(
     fun startPrivateMultiSite(
         anchor: VideoSearchPrivateTab, activeProfileId: String, query: String,
     ): Boolean {
-        if (!extensionReady || privateJob?.isActive == true ||
+        if (!extensionReady || !VideoSearchPrivateJobGate.canStart(privateJob) ||
             !VideoSearchBridgeProtocol.validQuery(query)) return false
         val manager = ProfileManager.getInstance(applicationContext)
         if (!manager.isPrivateMode() || manager.getActiveProfile().id != activeProfileId)
@@ -696,6 +696,15 @@ internal class VideoSearchBridgeController(
                 } catch (_: Exception) { }
                 if (privateJob === coroutineContext[Job]) privateJob = null
             }
+        }
+        // A cancelled job may complete BEFORE entering its body on Main.
+        // In that case the in-body finally never runs; still finalize RAM
+        // tasks. finish() is idempotent when the normal finally ran first.
+        // No durable data or application-wide background worker is created.
+        privateJob?.invokeOnCompletion {
+            try {
+                privateGroup.finish(anchor, activeProfileId, groupRunId)
+            } catch (_: Exception) { }
         }
         return true
     }

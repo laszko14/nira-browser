@@ -214,4 +214,17 @@ class VideoSearchPrivateGroupAccessTest {
         assertEquals(VideoSearchPrivateGroupAccess.MAX_AGGREGATE_FILMS,
             f.reader.history(f.tab, "default")!!.single().films.size)
     }
+    @Test fun finishWithoutStartedWorkerStopsAllQueuedTasks() {
+        val f = Fixture(count = 4)
+        val id = f.start()
+        assertTrue(f.groups.finish(f.tab, "default", id))
+        assertEquals(VideoSearchRunState.STOPPED, f.store.runs(f.owner).single().status)
+        assertTrue(f.store.tasks(f.owner, id).all {
+            it.status == VideoSearchSiteState.STOPPED &&
+                it.completionReason == null
+        })
+        assertTrue(f.reader.history(f.tab, "default")!!.single().films.isEmpty())
+        assertFalse(f.groups.finish(f.tab, "default", id))
+    }
+
 }

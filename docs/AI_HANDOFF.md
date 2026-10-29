@@ -1,3 +1,13 @@
+# Checkpoint — Wyszukiwarka filmów / ETAP 12 / 12 / 2026-10-29
+
+- **STATUS: FINAL SOURCE CHECKPOINT COMMITTED. BUILD/APK/CI/JUNIT/GECKO/DEVICE NOT EXECUTED.** Parent `11c51ce8485345bfae851e5f6de2e3b6c0559a33` (etap 11). Branch `feat/zavro-clean-video-search-20261029` remains separate from `main`; no PR, merge, versionCode/name, signing, Room, WebExtension, regular profiles or 120Hz changes.
+- **Stage 12 correctness fix:** `VideoSearchPrivateJobGate` requires previous private coroutine Job to be **fully completed**, not merely `!isActive`, before allowing a new single-site or multi-site Gecko private search. This closes overlap during cancellation/finally. After multi-site launch, `invokeOnCompletion` additionally attempts idempotent `privateGroup.finish`: a Job cancelled before entering its body must not leave a RAM grouped run forever RUNNING while the authorized anchor remains. No new background service/polling.
+- **Regression authored, NOT EXECUTED:** added `VideoSearchPrivateJobGateTest.kt` (5 JVM JUnit cases including suspended NonCancellable finally), and one `VideoSearchPrivateGroupAccessTest.kt` case for finishing all queued tasks as STOPPED without invented completion. Static source assertions and GitHub commit checks are NOT Kotlin/JUnit PASS. Existing private/navigation tests preserved.
+- **Audit and test matrix:** `docs/VIDEO_SEARCH_STAGE12_VERIFICATION.md` identifies unverified Gecko background lifecycle, worker ownership/adoption, selected tab/profile and private RAM boundaries, Room result/folder regressions, result correctness, 120Hz/jank, Android/UI lifecycle and release workflow hazards. No claim of complete feature parity on real websites until user-authorized verification.
+- **Next action:** user must explicitly say **`Kompiluj`** or **`Już`** for first actual build/CI/APK. After it, inspect compile errors and run real tests, retaining one-task/commit/checkpoint discipline. No further numbered implementation stage is implied by `Dalej`. STOP.
+
+---
+
 # Checkpoint — Wyszukiwarka filmów / ETAP 11 / 12 / 2026-10-29
 
 - **STATUS: SOURCE COMMITTED + STATIC CONTRACT INSPECTION ONLY. NO GRADLE, CI, APK, JUNIT, GECKO OR DEVICE TEST EXECUTED.** Branch `feat/zavro-clean-video-search-20261029`, parent `c62ff33c8f47c04288430375701a4d4c477aa172` (10G). No merge to main; unchanged versionCode, signature, Room, normal profile results, Gecko JS or 120 Hz.
