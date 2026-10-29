@@ -1501,6 +1501,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
         val suffix = when (snapshot.reason) {
             VideoSearchPaginationStop.LIMIT_REACHED -> "Osiągnięto limit"
             VideoSearchPaginationStop.NO_MORE_RESULTS -> "Brak kolejnych wyników"
+            VideoSearchPaginationStop.NO_RESULTS -> "Potwierdzono brak filmów"
             VideoSearchPaginationStop.UNSUPPORTED -> "Nieustawiona paginacja"
             VideoSearchPaginationStop.STALLED -> "Zatrzymano: brak postępu"
             VideoSearchPaginationStop.UNSAFE -> "Zatrzymano: ryzyko niebezpiecznej nawigacji"
