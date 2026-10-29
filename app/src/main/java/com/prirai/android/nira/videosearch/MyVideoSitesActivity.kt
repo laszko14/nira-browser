@@ -1,7 +1,7 @@
 package com.prirai.android.nira.videosearch
 
 import android.os.Bundle
-import android.view.View
+import android.text.InputType
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
@@ -9,10 +9,11 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.prirai.android.nira.browser.profile.ProfileManager
@@ -23,21 +24,19 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Stage 2A: local site management inside the app. This is NOT the results tab
- * and does not modify GeckoView, tabs, or the browser's side panels.
- *
- * Private-site management will be enabled only after the Gecko private
- * lifetime registry is integrated (stage 10). Never fall back to normal DB.
+ * "Moje witryny" belongs to the ordinary profile that opened it.
+ * Its rows are persistent even without working site-search configuration.
+ * The temporary private-mode gate prevents leaks until stage 10.
  */
 class MyVideoSitesActivity : AppCompatActivity() {
     private lateinit var repository: VideoSearchRepository
     private lateinit var input: EditText
     private lateinit var addButton: Button
     private lateinit var info: TextView
-    private lateinit var list: RecyclerView
     private lateinit var adapter: SitesAdapter
     private var scope: VideoSearchScope.Normal? = null
     private var observer: Job? = null
+    private var reorderPending = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,40 +49,74 @@ class MyVideoSitesActivity : AppCompatActivity() {
             setPadding(dp(16), dp(12), dp(16), dp(12))
         }
         info = TextView(this).apply { textSize = 14f }
-        root.addView(info, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ))
+        root.addView(info, LinearLayout.LayoutParams(-1, -2))
+
         val inputRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         input = EditText(this).apply {
             hint = "Adres witryny (np. example.org)"
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or
-                android.text.InputType.TYPE_TEXT_VARIATION_URI
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
             setSingleLine(true)
         }
-        inputRow.addView(input, LinearLayout.LayoutParams(
-            0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
-        ))
+        inputRow.addView(input, LinearLayout.LayoutParams(0, -2, 1f))
         addButton = Button(this).apply {
             text = "Dodaj"
             setOnClickListener { addSite() }
         }
         inputRow.addView(addButton)
         root.addView(inputRow)
-        val caption = TextView(this).apply {
-            text = "Witryny pozostają zapisane, nawet gdy nie uda się ich skonfigurować."
+
+        root.addView(TextView(this).apply {
+            text = "Witryny pozostają na liście nawet po błędzie konfiguracji. " +
+                "Przytrzymaj i przeciągnij wiersz, aby zmienić kolejność."
             textSize = 13f
-        }
-        root.addView(caption)
-        adapter = SitesAdapter { selected -> confirmRemoval(selected) }
-        list = RecyclerView(this).apply {
+        })
+
+        adapter = SitesAdapter(
+            onEdit = ::editSite,
+            onToggle = ::toggleSite,
+            onDelete = ::confirmRemoval,
+        )
+        val list = RecyclerView(this).apply {
             layoutManager = LinearLayoutManager(this@MyVideoSitesActivity)
             adapter = this@MyVideoSitesActivity.adapter
-            setHasFixedSize(false)
         }
-        root.addView(list, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
-        ))
+        root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
+
+        ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
+            ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0,
+        ) {
+            override fun isLongPressDragEnabled() = !reorderPending && ownerIfCurrent() != null
+            override fun onMove(
+                recyclerView: RecyclerView, source: RecyclerView.ViewHolder,
+                target: RecyclerView.ViewHolder,
+            ): Boolean {
+                if (reorderPending || ownerIfCurrent() == null) return false
+                val from = source.bindingAdapterPosition
+                val to = target.bindingAdapterPosition
+                return adapter.move(from, to)
+            }
+
+            override fun onSwiped(holder: RecyclerView.ViewHolder, direction: Int) = Unit
+
+            override fun onSelectedChanged(viewHolder: RecyclerView.ViewHolder?, actionState: Int) {
+                super.onSelectedChanged(viewHolder, actionState)
+                if (actionState == ItemTouchHelper.ACTION_STATE_DRAG &&
+                    !reorderPending && ownerIfCurrent() != null) adapter.beginDrag()
+            }
+
+            override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
+                super.clearView(recyclerView, viewHolder)
+                val moved = adapter.finishDrag()
+                if (moved != null) {
+                    saveOrder(moved.first, moved.second)
+                } else {
+                    // A drag without movement may have hidden a concurrent Flow update.
+                    val current = ownerIfCurrent()
+                    if (current != null && !reorderPending) lifecycleScope.launch { refresh(current) }
+                }
+            }
+        }).attachToRecyclerView(list)
     }
 
     override fun onResume() {
@@ -93,24 +126,28 @@ class MyVideoSitesActivity : AppCompatActivity() {
             observer?.cancel()
             observer = null
             scope = null
-            adapter.submitList(emptyList())
+            reorderPending = false
+            adapter.replace(emptyList())
             input.isEnabled = false
             addButton.isEnabled = false
-            info.text = "Tryb prywatny: lista nie może używać trwałego magazynu. " +
-                "Obsługa prywatnych sesji zostanie włączona po integracji ich cyklu życia."
+            info.text = "Tryb prywatny: zapis do zwykłego profilu jest wyłączony. " +
+                "Lista prywatna będzie dostępna po integracji sesji prywatnej."
             return
         }
         val current = VideoSearchScope.Normal(manager.getActiveProfile().id)
         input.isEnabled = true
         addButton.isEnabled = true
-        info.text = "Profil: ${manager.getActiveProfile().name} • Tylko zapisane witryny"
+        info.text = "Profil: ${manager.getActiveProfile().name}"
         if (scope == current && observer?.isActive == true) return
         observer?.cancel()
         scope = current
-        adapter.submitList(emptyList())
+        reorderPending = false
+        adapter.replace(emptyList())
         observer = lifecycleScope.launch {
             repository.observeSites(current).collectLatest { sites ->
-                if (scope == current) adapter.submitList(sites)
+                if (ownerIfCurrent() == current && !reorderPending && !adapter.isDragging) {
+                    adapter.replace(sites)
+                }
             }
         }
     }
@@ -118,6 +155,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
     override fun onPause() {
         observer?.cancel()
         observer = null
+        adapter.cancelDrag()
         super.onPause()
     }
 
@@ -135,7 +173,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
     }
 
     private fun addSite() {
-        val current = ownerIfCurrent() ?: return
+        val owner = ownerIfCurrent() ?: return
         val typed = input.text.toString()
         if (typed.isBlank()) {
             input.error = "Wpisz adres witryny"
@@ -144,100 +182,265 @@ class MyVideoSitesActivity : AppCompatActivity() {
         addButton.isEnabled = false
         lifecycleScope.launch {
             try {
-                withContext(Dispatchers.IO) {
-                    repository.addSite(current, typed)
-                }
-                if (ownerIfCurrent() == current) {
+                withContext(Dispatchers.IO) { repository.addSite(owner, typed) }
+                if (ownerIfCurrent() == owner) {
                     input.text.clear()
-                    Toast.makeText(this@MyVideoSitesActivity,
-                        "Witryna zapisana — wymaga konfiguracji", Toast.LENGTH_SHORT).show()
+                    message("Witryna zapisana — wymaga konfiguracji")
                 }
             } catch (_: IllegalArgumentException) {
-                if (ownerIfCurrent() == current) {
-                    input.error = "Nieprawidłowy adres witryny"
-                }
+                if (ownerIfCurrent() == owner) input.error = "Nieprawidłowy adres witryny"
             } catch (_: Exception) {
-                if (ownerIfCurrent() == current) {
-                    Toast.makeText(this@MyVideoSitesActivity,
-                        "Nie udało się zapisać witryny", Toast.LENGTH_LONG).show()
-                }
+                if (ownerIfCurrent() == owner) message("Nie udało się zapisać witryny")
             } finally {
                 addButton.isEnabled = ownerIfCurrent() != null
             }
         }
     }
 
+    private fun editSite(site: VideoSearchSite) {
+        val owner = ownerIfCurrent() ?: return
+        if (site.scope != owner) return
+        val form = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), 0)
+        }
+        val name = EditText(this).apply {
+            setText(site.displayName)
+            hint = "Nazwa witryny"
+            setSingleLine(true)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+        }
+        val limit = EditText(this).apply {
+            setText(site.resultLimit.toString())
+            hint = "Limit wyników (1–10000)"
+            inputType = InputType.TYPE_CLASS_NUMBER
+            setSingleLine(true)
+        }
+        form.addView(TextView(this).apply { text = "Nazwa wyświetlana" })
+        form.addView(name)
+        form.addView(TextView(this).apply { text = "Limit filmów na witrynę (domyślnie 200)" })
+        form.addView(limit)
+
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("Edytuj witrynę")
+            .setView(form)
+            .setNegativeButton("Anuluj", null)
+            .setPositiveButton("Zapisz", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val cleaned = name.text.toString().trim()
+                val number = limit.text.toString().toIntOrNull()
+                if (cleaned.isEmpty() || cleaned.length > 120 ||
+                    cleaned.any { it.isISOControl() }) {
+                    name.error = "Nazwa musi mieć 1–120 znaków"
+                    return@setOnClickListener
+                }
+                if (number == null || number !in 1..10_000) {
+                    limit.error = "Wpisz liczbę od 1 do 10000"
+                    return@setOnClickListener
+                }
+                if (ownerIfCurrent() != owner) return@setOnClickListener
+                dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).isEnabled = false
+                lifecycleScope.launch {
+                    try {
+                        val updated = withContext(Dispatchers.IO) {
+                            repository.updateSiteDetails(owner, site.id, cleaned, number)
+                        }
+                        if (ownerIfCurrent() == owner) {
+                            if (!updated) message("Witryna została już usunięta")
+                            dialog.dismiss()
+                        } else dialog.dismiss()
+                    } catch (_: Exception) {
+                        if (ownerIfCurrent() == owner) message("Nie udało się zapisać zmian")
+                    } finally {
+                        dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)?.isEnabled = true
+                    }
+                }
+            }
+        }
+        dialog.show()
+    }
+
+    private fun toggleSite(site: VideoSearchSite, enabled: Boolean) {
+        val owner = ownerIfCurrent() ?: return
+        if (site.scope != owner) return
+        lifecycleScope.launch {
+            try {
+                val success = withContext(Dispatchers.IO) {
+                    repository.setSiteEnabled(owner, site.id, enabled)
+                }
+                if (!success && ownerIfCurrent() == owner) message("Witryna została już usunięta")
+            } catch (_: Exception) {
+                if (ownerIfCurrent() == owner) message("Nie udało się zmienić stanu witryny")
+            } finally {
+                refresh(owner)
+            }
+        }
+    }
+
+    private fun saveOrder(before: List<String>, after: List<String>) {
+        val owner = ownerIfCurrent() ?: return
+        if (before == after || reorderPending) return
+        reorderPending = true
+        lifecycleScope.launch {
+            try {
+                val success = withContext(Dispatchers.IO) {
+                    repository.reorderSites(owner, before, after)
+                }
+                if (!success && ownerIfCurrent() == owner) {
+                    message("Lista uległa zmianie. Odświeżono aktualną kolejność.")
+                }
+            } catch (_: Exception) {
+                if (ownerIfCurrent() == owner) message("Nie udało się zapisać kolejności")
+            } finally {
+                // Do not leave a speculative drag order on screen after failure.
+                refresh(owner)
+                reorderPending = false
+            }
+        }
+    }
+
+    private suspend fun refresh(owner: VideoSearchScope.Normal) {
+        try {
+            val rows = withContext(Dispatchers.IO) { repository.sites(owner) }
+            if (ownerIfCurrent() == owner && !adapter.isDragging) adapter.replace(rows)
+        } catch (_: Exception) {
+            if (ownerIfCurrent() == owner) message("Nie udało się odświeżyć listy")
+        }
+    }
+
     private fun confirmRemoval(site: VideoSearchSite) {
-        val current = ownerIfCurrent() ?: return
-        if (site.scope != current) return
+        val owner = ownerIfCurrent() ?: return
+        if (site.scope != owner) return
         MaterialAlertDialogBuilder(this)
             .setTitle("Usunąć witrynę?")
             .setMessage("„${site.displayName}” zostanie usunięta z listy. " +
-                "Nie jest to wykonywane automatycznie przy błędach konfiguracji.")
+                "Błędy konfiguracji nie usuwają witryn automatycznie.")
             .setNegativeButton("Anuluj", null)
             .setPositiveButton("Usuń") { _, _ ->
                 lifecycleScope.launch {
                     try {
-                        if (ownerIfCurrent() != current) return@launch
-                        withContext(Dispatchers.IO) {
-                            repository.removeSite(current, site.id, confirmed = true)
+                        if (ownerIfCurrent() != owner) return@launch
+                        val removed = withContext(Dispatchers.IO) {
+                            repository.removeSite(owner, site.id, confirmed = true)
+                        }
+                        if (!removed && ownerIfCurrent() == owner) {
+                            message("Witryna została już usunięta")
                         }
                     } catch (_: Exception) {
-                        Toast.makeText(this@MyVideoSitesActivity,
-                            "Nie udało się usunąć witryny", Toast.LENGTH_LONG).show()
+                        if (ownerIfCurrent() == owner) message("Nie udało się usunąć witryny")
                     }
                 }
             }
             .show()
     }
 
-    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+    private fun message(text: String) =
+        Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
+
+    private fun dp(px: Int) = (px * resources.displayMetrics.density).toInt()
 
     private class SitesAdapter(
+        private val onEdit: (VideoSearchSite) -> Unit,
+        private val onToggle: (VideoSearchSite, Boolean) -> Unit,
         private val onDelete: (VideoSearchSite) -> Unit,
-    ) : ListAdapter<VideoSearchSite, SitesAdapter.Holder>(object :
-        DiffUtil.ItemCallback<VideoSearchSite>() {
-        override fun areItemsTheSame(old: VideoSearchSite, new: VideoSearchSite) =
-            old.scope == new.scope && old.id == new.id
-        override fun areContentsTheSame(old: VideoSearchSite, new: VideoSearchSite) = old == new
-    }) {
+    ) : RecyclerView.Adapter<SitesAdapter.Holder>() {
+        private val rows = mutableListOf<VideoSearchSite>()
+        private var initialDragOrder: List<String>? = null
+        val isDragging: Boolean get() = initialDragOrder != null
+
+        fun replace(newRows: List<VideoSearchSite>) {
+            if (isDragging) return
+            val old = rows.toList()
+            val update = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
+                override fun getOldListSize() = old.size
+                override fun getNewListSize() = newRows.size
+                override fun areItemsTheSame(a: Int, b: Int) =
+                    old[a].scope == newRows[b].scope && old[a].id == newRows[b].id
+                override fun areContentsTheSame(a: Int, b: Int) = old[a] == newRows[b]
+            })
+            rows.clear()
+            rows.addAll(newRows)
+            update.dispatchUpdatesTo(this)
+        }
+
+        fun beginDrag() {
+            if (initialDragOrder == null) initialDragOrder = rows.map { it.id }
+        }
+
+        fun move(from: Int, to: Int): Boolean {
+            if (from !in rows.indices || to !in rows.indices) return false
+            beginDrag()
+            if (from != to) {
+                val moved = rows.removeAt(from)
+                rows.add(to, moved)
+                notifyItemMoved(from, to)
+            }
+            return true
+        }
+
+        fun finishDrag(): Pair<List<String>, List<String>>? {
+            val before = initialDragOrder ?: return null
+            initialDragOrder = null
+            val after = rows.map { it.id }
+            return if (before == after) null else before to after
+        }
+
+        fun cancelDrag() { initialDragOrder = null }
+        override fun getItemCount() = rows.size
+
         class Holder(
             root: LinearLayout,
             val heading: TextView,
             val detail: TextView,
-            val remove: Button,
+            val toggle: SwitchCompat,
+            val edit: Button,
+            val delete: Button,
         ) : RecyclerView.ViewHolder(root)
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
-            val context = parent.context
-            val root = LinearLayout(context).apply {
+            val ctx = parent.context
+            val density = ctx.resources.displayMetrics.density
+            val root = LinearLayout(ctx).apply {
                 orientation = LinearLayout.VERTICAL
-                val d = context.resources.displayMetrics.density
-                setPadding(0, (10 * d).toInt(), 0, (10 * d).toInt())
+                setPadding(0, (10 * density).toInt(), 0, (10 * density).toInt())
             }
-            val title = TextView(context).apply { textSize = 17f }
-            val detail = TextView(context).apply {
-                textSize = 13f
-                maxLines = 3
+            val first = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+            val heading = TextView(ctx).apply {
+                textSize = 17f
+                setPadding(0, 0, (8 * density).toInt(), 0)
             }
-            val button = Button(context).apply { text = "Usuń" }
-            root.addView(title)
+            val toggle = SwitchCompat(ctx).apply { text = "Aktywna" }
+            first.addView(heading, LinearLayout.LayoutParams(0, -2, 1f))
+            first.addView(toggle)
+            val detail = TextView(ctx).apply { textSize = 13f; maxLines = 3 }
+            val buttons = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+            val edit = Button(ctx).apply { text = "Edytuj" }
+            val delete = Button(ctx).apply { text = "Usuń" }
+            buttons.addView(edit, LinearLayout.LayoutParams(0, -2, 1f))
+            buttons.addView(delete, LinearLayout.LayoutParams(0, -2, 1f))
+            root.addView(first)
             root.addView(detail)
-            root.addView(button)
-            return Holder(root, title, detail, button)
+            root.addView(buttons)
+            return Holder(root, heading, detail, toggle, edit, delete)
         }
 
         override fun onBindViewHolder(holder: Holder, position: Int) {
-            val site = getItem(position)
+            val site = rows[position]
             holder.heading.text = site.displayName
-            val status = when (site.configurationState) {
+            val state = when (site.configurationState) {
                 VideoSiteConfigurationState.NEEDS_CONFIGURATION -> "Wymaga konfiguracji"
                 VideoSiteConfigurationState.AUTO_CONFIGURING -> "Konfiguracja w toku"
                 VideoSiteConfigurationState.CONFIGURED -> "Skonfigurowana"
                 VideoSiteConfigurationState.REPAIR_REQUIRED -> "Wymaga naprawy konfiguracji"
             }
-            holder.detail.text = "${site.siteUrl}\n$status"
-            holder.remove.setOnClickListener { onDelete(site) }
+            holder.detail.text = "${site.siteUrl}\n$state • Limit: ${site.resultLimit}"
+            holder.toggle.setOnCheckedChangeListener(null)
+            holder.toggle.isChecked = site.enabled
+            holder.toggle.setOnCheckedChangeListener { _, checked -> onToggle(site, checked) }
+            holder.edit.setOnClickListener { onEdit(site) }
+            holder.delete.setOnClickListener { onDelete(site) }
         }
     }
 }

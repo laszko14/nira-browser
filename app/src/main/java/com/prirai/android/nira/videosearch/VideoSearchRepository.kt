@@ -65,6 +65,54 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
         return dao.deleteSite(scope.profileId, id) > 0
     }
 
+    /** Rename without touching URL, configuration, enabled flag or limit. */
+    suspend fun renameSite(
+        scope: VideoSearchScope.Normal, id: String, name: String,
+        nowMs: Long = System.currentTimeMillis(),
+    ): Boolean {
+        val cleaned = name.trim()
+        require(cleaned.isNotEmpty() && cleaned.length <= 120 &&
+            cleaned.none { it.isISOControl() }) { "Nazwa musi mieć 1–120 znaków" }
+        return dao.renameSite(scope.profileId, id, cleaned, nowMs) == 1
+    }
+
+    /** Single UPDATE so name and limit never partially apply. */
+    suspend fun updateSiteDetails(
+        scope: VideoSearchScope.Normal, id: String, name: String, limit: Int,
+        nowMs: Long = System.currentTimeMillis(),
+    ): Boolean {
+        val cleaned = name.trim()
+        require(cleaned.isNotEmpty() && cleaned.length <= 120 &&
+            cleaned.none { it.isISOControl() }) { "Nazwa musi mieć 1–120 znaków" }
+        require(limit in 1..10_000) { "Limit musi wynosić od 1 do 10000" }
+        return dao.updateSiteDetails(scope.profileId, id, cleaned, limit, nowMs) == 1
+    }
+
+    suspend fun setSiteEnabled(
+        scope: VideoSearchScope.Normal, id: String, enabled: Boolean,
+        nowMs: Long = System.currentTimeMillis(),
+    ): Boolean = dao.setSiteEnabled(scope.profileId, id, enabled, nowMs) == 1
+
+    /** Limit belongs to the SITE; existing runs keep their own limit snapshot. */
+    suspend fun setSiteLimit(
+        scope: VideoSearchScope.Normal, id: String, limit: Int,
+        nowMs: Long = System.currentTimeMillis(),
+    ): Boolean {
+        require(limit in 1..10_000) { "Limit musi wynosić od 1 do 10000" }
+        return dao.setSiteLimit(scope.profileId, id, limit, nowMs) == 1
+    }
+
+    /**
+     * Submit a drag gesture's original and final order. Stale snapshots are
+     * rejected rather than silently overwriting concurrent changes.
+     */
+    suspend fun reorderSites(
+        scope: VideoSearchScope.Normal,
+        originalIds: List<String>,
+        orderedIds: List<String>,
+        nowMs: Long = System.currentTimeMillis(),
+    ): Boolean = dao.reorderSites(scope.profileId, originalIds, orderedIds, nowMs)
+
     suspend fun putSettings(settings: VideoSearchSettings) {
         dao.putSettings(with(VideoSearchRowCodec) { settings.toRow() })
     }

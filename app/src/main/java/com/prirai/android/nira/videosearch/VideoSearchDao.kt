@@ -44,6 +44,46 @@ internal interface VideoSearchDao {
         return ordered
     }
 
+    // Update only the edited field: never overwrite saved selectors or other settings.
+    @Query("UPDATE video_search_sites SET displayName = :name, updatedAtMs = :nowMs WHERE profileId = :profileId AND id = :id")
+    suspend fun renameSite(profileId: String, id: String, name: String, nowMs: Long): Int
+
+    @Query("UPDATE video_search_sites SET displayName = :name, resultLimit = :limit, updatedAtMs = :nowMs WHERE profileId = :profileId AND id = :id")
+    suspend fun updateSiteDetails(profileId: String, id: String, name: String, limit: Int, nowMs: Long): Int
+
+    @Query("UPDATE video_search_sites SET enabled = :enabled, updatedAtMs = :nowMs WHERE profileId = :profileId AND id = :id")
+    suspend fun setSiteEnabled(profileId: String, id: String, enabled: Boolean, nowMs: Long): Int
+
+    @Query("UPDATE video_search_sites SET resultLimit = :limit, updatedAtMs = :nowMs WHERE profileId = :profileId AND id = :id")
+    suspend fun setSiteLimit(profileId: String, id: String, limit: Int, nowMs: Long): Int
+
+    @Query("UPDATE video_search_sites SET position = :position, updatedAtMs = :nowMs WHERE profileId = :profileId AND id = :id")
+    suspend fun setSitePosition(profileId: String, id: String, position: Int, nowMs: Long): Int
+
+    /**
+     * A single transaction prevents partial ordering. Refuse stale drag
+     * snapshots (including sites added/deleted from another screen).
+     * Any failure keeps the prior order intact.
+     */
+    @Transaction
+    suspend fun reorderSites(
+        profileId: String,
+        expectedIds: List<String>,
+        orderedIds: List<String>,
+        nowMs: Long,
+    ): Boolean {
+        val currentIds = getSites(profileId).map { it.id }
+        if (currentIds != expectedIds) return false
+        require(orderedIds.size == currentIds.size &&
+            orderedIds.toSet() == currentIds.toSet()) {
+            "Reorder must include each site exactly once"
+        }
+        orderedIds.forEachIndexed { index, id ->
+            check(setSitePosition(profileId, id, index, nowMs) == 1)
+        }
+        return true
+    }
+
     @Query("DELETE FROM video_search_sites WHERE profileId = :profileId AND id = :id")
     suspend fun deleteSite(profileId: String, id: String): Int
 

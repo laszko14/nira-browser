@@ -1,3 +1,16 @@
+# Checkpoint — Wyszukiwarka filmów / ETAP 2B / 2026-10-29
+
+- **Status:** kod ETAP 2B wdrożony (SOURCE ONLY), testy wykonaniowe **NOT_TESTED**. Nie rozpoczynaj 2C bez nowego `Dalej`. Bez Gradle, APK, CI, PR, merge i zmiany wersji.
+- **Gałąź:** `feat/zavro-clean-video-search-20261029`; poprzedni HEAD `e1f63d776cb8bcbca20e0285970324a873756925`; punkt bazowy Clean v1190 PR #112 bez merge. Checkpoint + kod w jednym commicie.
+- **UI `MyVideoSitesActivity.kt`:** edycja wyświetlanej nazwy i indywidualnego limitu w jednym dialogu; wierszowy przełącznik aktywna/nieaktywna; przytrzymanie/przeciąganie wierszy w RecyclerView + ItemTouchHelper; natychmiastowy zapis aktualnej kolejności i odświeżenie z DB przy błędzie/starym stanie; zachowano natychmiastowe dodawanie, status konfiguracji, potwierdzenie usuwania i blokadę prywatnego trybu dopóki nie ma lifecycle private. Nazwa 1–120 znaków, limit 1–10000, domyślnie 200; witryna wyłączona nie jest usuwana.
+- **DAO/repo:** `VideoSearchDao.kt` ma atomowe UPDATE poszczególnych pól w ramach wyłącznie `(profileId,id)`, bez nadpisania selektorów/stanu/URL. `updateSiteDetails` zapisuje nazwę+limit jednym SQL UPDATE. `@Transaction reorderSites` odrzuca nieaktualną listę (stan wejściowy musi zgadzać się dokładnie z DB), odrzuca brakujące/zdublowane obiekty i zapisuje gęste indeksy 0..n-1. Przerwanie SQL wycofuje cały drag. `VideoSearchRepository.kt` wymusza normalny scope, waliduje zakres i obsługuje brakujący rekord bez jego odtworzenia. Brak zmian schematu Room v1; brak migracji.
+- **Testy:** `MyVideoSitesManagementTest.kt` (9 regresji: konfiguracja zachowana po edycji, toggle, walidacja, drag, odrzucenie stale, rollback SQL, izolacja profili, zapis/reopen DB, brak wskrzeszania usuniętych). 20/20 kontroli strukturalnych **PASS**. Testy Robolectric, kompilacja Kotlin/Room, APK, urządzenie — **NOT_TESTED**. Nie sugeruj, że PASS statyczny jest PASS wykonaniowym.
+- **Pliki:** `app/src/main/java/com/prirai/android/nira/videosearch/{VideoSearchDao.kt,VideoSearchRepository.kt,MyVideoSitesActivity.kt}`; `app/src/test/java/com/prirai/android/nira/videosearch/MyVideoSitesManagementTest.kt`; `docs/AI_HANDOFF.md`. Bez zmian funkcji kart, grup, Gecko, MPV i 120Hz.
+- **Ważna granica:** 2B nie zmienia zachowania wyszukiwania, bo silnik wyszukiwania jeszcze nie jest wdrożony. Status witryny `REPAIR_REQUIRED` i konfiguracja pozostają na liście; ponowna auto/ręczna konfiguracja to ETAP 3. Integracja realnego trybu prywatnego pozostaje ETAP 10.
+- **Następne pojedyncze `Dalej`:** tylko ETAP 2C — wybór witryn i `Zaznacz wszystkie aktywne`, przywrócenie ostatnich wyborów per profil, bez uzależniania liczby zaznaczonych od równoległości. Po kodzie/testach/checkpoincie STOP. `Kompiluj`/`Już` to osobna bramka dla budowy.
+
+---
+
 # Checkpoint — Wyszukiwarka filmów / ETAP 2A / 2026-10-29
 
 - **Status:** kod ETAPU 2A wdrożony i zapisany w GitHub; testy wykonaniowe **NOT_TESTED**; jedno kolejne `Dalej` uruchamia wyłącznie ETAP 2B. Nie wykonano Gradle, CI, builda APK, PR, merge ani aktualizacji numerów wersji.
