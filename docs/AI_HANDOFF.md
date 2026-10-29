@@ -1,3 +1,29 @@
+# Checkpoint — Wyszukiwarka filmów / ETAP 0 / 2026-10-29
+
+- **Status:** DONE (audyt kodu zdalnego, bez modyfikacji aplikacji i bez kompilacji). Bramka: następne pojedyncze `Dalej` = tylko **ETAP 1A**.
+- **Repo:** `laszko14/nira-browser`. Baza Clean: Draft PR #112, `feat/zavro-clean-side-panels-1dm-20261028`, SHA `b7d62f79f285ac81c29a79b326529d42e9b9fde4`, v1190; parent PR #111 v1189. `main` nie jest bazą. Gałąź zadania: `feat/zavro-clean-video-search-20261029`, początkowo identyczny kod z bazą. Uprawnienia GitHub `push=true`. Brak lokalnego working tree: tylko zdalne GitHub API.
+- **Instrukcje:** root `AGENTS.md`, `.github/agents.md`, `docs/AGENT_REFERENCE.md` przeczytane w zakresie subsystemów. Dokument pełnych wymagań: załączony `Zavro_Clean_Wyszukiwarka_Filmow_Prompt_ChatGPT_v1.md`, sekcje A–G, 22 przypadki regresyjne, zasady v2.1. Nie skracać ani nie pomijać zatwierdzonej funkcjonalności.
+- **Reużycie:** `MediaDetectorController.kt` + `nira-media-detector/{content.js,background.js,manifest.json}` jako wzorce sprawdzania EngineSession/document/frame/priv i ograniczania IPC; `MediaTitleResolver.kt` i `MediaPosterResolver.kt` wyłącznie jako wzorce ostrożnego przypisywania metadanych (nie zastępować strumieniowego detektora); `BrowserProfile.kt`, `ProfileManager.kt`, `ProfileMiddleware.kt` do izolacji; `UnifiedTabGroupManager.kt` i `TabViewModel.kt` do istniejących grup; `TabGroupDatabase.kt` jako wzorzec Room; `VideoTilesPanel.kt`/Coil jako inspiracja UI, nie kopia modelu strumieni; `BrowserFragment.kt` do menu; `TestLab*` i testy JS/Kotlin.
+- **Architektura:** nowy autonomiczny moduł wyszukiwania stron filmów + dedykowana WebExtension/IPC, własny model wyników (film/link, nie strumień) i własna baza Room per profileKey bez modyfikacji istniejącej TabGroupDatabase, jeśli wystarczy; efemeryczny storage private RAM. Widok wyników musi być zwykłą kartą w istniejącym BrowserStore, nigdy lewym drawer. Przed realizacją ustalić bezpieczny mechanizm wewnętrznej karty i utrzymania GeckoSession. Nie używać zwykłego `SearchEngineList.kt` (Google i inne globalne wyszukiwarki).
+- **Ryzyka:** brak gotowego uniwersalnego sterowania wyszukiwarką witryny; własny mechanizm bezpiecznej, ograniczonej automatyzacji DOM/formularzy/SPA/iframe/Shadow DOM; utrzymanie roboczych sesji Gecko po przełączeniu zwykłych kart i ograniczenia Androida; `private` contextId wspólny dla trybu prywatnego, a zapamiętany stan trybu przetrwa restart — nie utożsamiać z końcem prywatnej sesji; per-card owner dla tytułu/obrazu/linku bez `document.title` fallback dla całej listy; semantyczne parametry URL; RAM i 120 Hz; autoryzacja/CAPTCHA tylko interwencja, bez omijania; bez wycieku do logów.
+- **Adaptacyjne podetapy i kolejność** (jeden na jedno `Dalej`; każdy: kod, lokalne adekwatne kontrole, raport, STOP):
+  - 1A schemat modeli/kluczy profile i private; 1B Room/DAO/migracja + repozytorium; 1C transakcje/walidacja i testy.
+  - 2A trwały CRUD `Moje witryny` nawet przy błędnej konfiguracji; 2B kolejność, limity, włącz/wyłącz, potwierdzone usuwanie; 2C zapamiętany wybór i `Zaznacz wszystkie`.
+  - 3A WebExtension i walidowany most JS↔Kotlin; 3B autodetekcja i prawdziwy test wyszukiwania; 3C ręczne wskazywanie elementów; 3D naprawa konfiguracji i statusy.
+  - 4A per-card link/tytuł i izolacja źródła; 4B miniatura/czas; 4C paginacja/load-more/scroll + dedup do 200 unikatów na witrynę; 4D SPA/iframe/Shadow DOM i fixture.
+  - 5A zadania per witryna i częściowe wyniki; 5B 1–5/`Wszystkie` + RAM/backpressure; 5C pause/resume/retry/CAPTCHA/stop; 5D sesje robocze w tle karty i cleanup.
+  - 6A zwykła karta wyników i stan; 6B kafelki/lista, rozwijane grupy i sortowanie; 6C inkrementalne aktualizacje, pozycja scroll, regresja lewego gestu.
+  - 7A domyślna grupa w profilu i kliknięcie; 7B wszystkie akcje long-press; 7C fallback po usunięciu grupy.
+  - 8A folder frazy, zapisy metadanych i duplikaty; 8B foldery własne, rename/copy/move/delete; 8C dwa wspólne wejścia UI.
+  - 9A historia wyników/fraz, TTL 30 dni bez naruszania folderów; 9B cache miniaturek 500 MB, LRU i ponowne pobranie.
+  - 10A izolacja profili w całym pipeline; 10B efemeryczna prywatność i zamknięcie sesji; 10C testy wycieków/lifecycle.
+  - 11A nawigacja i końcowe integracje; 11B macierz 22 regresji, TestLab/wydajność 120 Hz, wskazanie `NOT_TESTED` dla telefonu.
+  - 12 — WYŁĄCZNIE po osobnym `Kompiluj`/`Już`: aktualny versionCode i podpisany ARM64 APK + CI. `Dalej` nie kompiluje.
+- **Wyniki:** źródła i architektura odczytane przez GitHub API; testy i APK: `NOT_TESTED` (celowo). Brak PR/merge/CI. Kod źródłowy bez zmian, wersja bez zmian.
+- **Wznowienie:** Sprawdź HEAD tej gałęzi oraz ten checkpoint, potem **1A**; nowe zatwierdzone funkcje wyłącznie z pełnej specyfikacji. Nie otwieraj kolejnego etapu bez `Dalej`.
+
+---
+
 
 
 ## 2026-10-27 — Zavro Clean v1180, metadata engine (prace w toku)
