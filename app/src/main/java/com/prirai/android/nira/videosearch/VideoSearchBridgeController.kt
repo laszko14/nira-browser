@@ -83,6 +83,9 @@ internal class VideoSearchBridgeController(
     private var privateJob: Job? = null
     private val privateResults = VideoSearchPrivateRunAccess()
     private val privateGroup = VideoSearchPrivateGroupAccess()
+    // Only the current background-created private tab can hold a worker lease.
+    // A user selecting it latches permanent adoption (even after switching away).
+    private var privateWorkerLease: VideoSearchPrivateWorkerLease? = null
     private var multiQueue: VideoSearchDispatchQueue? = null
     private val lastMulti = LinkedHashMap<String, VideoSearchQueueSnapshot>()
     private val lastMultiRunIds = LinkedHashMap<String, String>()
@@ -170,12 +173,15 @@ internal class VideoSearchBridgeController(
     private fun attach(extension: WebExtension) {
         observer = store.flowScoped(dispatcher = Dispatchers.Main) { flow ->
             flow.map { state ->
-                state.tabs.mapNotNull { tab ->
+                // Include selection: a focus change must not be suppressed just
+                // because Gecko's session inventory is otherwise unchanged.
+                state.selectedTabId to state.tabs.mapNotNull { tab ->
                     tab.engineState.engineSession?.let { session ->
                         Triple(session, tab.contextId, tab.content.url to tab.content.private)
                     }
                 }
-            }.distinctUntilChanged().collect { live ->
+            }.distinctUntilChanged().collect { (selectedId, live) ->
+                privateWorkerLease?.observeSelection(selectedId)
                 val sessions = live.map { it.first }
                 val obsolete = attached.keys.filter { old -> sessions.none { it === old } }
                 obsolete.forEach { old ->
@@ -342,6 +348,10 @@ internal class VideoSearchBridgeController(
             it.id == tabId && (!requireSelected || it.id == store.state.selectedTabId)
         } ?: return null
         val session = tab.engineState.engineSession ?: return null
+        privateWorkerLease?.takeIf { it.tabId == tabId }?.let { lease ->
+            if (!lease.canUse(store.state.selectedTabId) ||
+                !lease.acceptsSession(session)) return null
+        }
         val state = currentTab(session) ?: return null
         if (!site.enabled || state.tabId != tabId || state.owner != owner ||
             !VideoSearchBridgeProtocol.sameOrigin(state.pageUrl, site.siteUrl) ||
@@ -357,6 +367,16 @@ internal class VideoSearchBridgeController(
         requireSelected: Boolean = true,
         packet: (String, String) -> org.json.JSONObject,
     ): VideoSearchBridgeMessage? {
+        // Low-memory can arise during a 120s crawl, not only before leasing.
+        if (!requireSelected) {
+            val manager = applicationContext.getSystemService(
+                Context.ACTIVITY_SERVICE) as? ActivityManager ?: return null
+            val info = ActivityManager.MemoryInfo()
+            try { manager.getMemoryInfo(info) }
+            catch (_: Exception) { return null }
+            if (VideoSearchWorkerBudget.permits(info.availMem, info.lowMemory) < 1)
+                return null
+        }
         val (session, entry) = privateSiteTab(
             site, tabId, exactPage, requireSelected
         ) ?: return null
@@ -481,11 +501,10 @@ internal class VideoSearchBridgeController(
     }
 
     /**
-     * Stage 10E: user-directed, RAM-only sequential search across ALREADY
-     * OPEN private Gecko tabs. No hidden new workers or normal profile DB.
-     * A site with no unique matching private tab is explicitly skipped.
-     * The 180-second global budget and one active worker prevent unbounded
-     * engine work. Each site gets independently reauthorized after enqueue.
+     * Private multi-site searches are sequential. A missing site gets a
+     * background-created private worker tab; existing user tabs are NEVER
+     * owned or reclaimed. The 180s total budget still applies. Worker
+     * ownership, session identity, adoption and private epoch are checked.
      */
     fun startPrivateMultiSite(
         anchor: VideoSearchPrivateTab, activeProfileId: String, query: String,
@@ -542,6 +561,7 @@ internal class VideoSearchBridgeController(
                         continue
                     }
                     var createdTabId: String? = null
+                    var lease: VideoSearchPrivateWorkerLease? = null
                     try {
                         val tabId = if (candidates.size == 1) candidates.single().id else {
                             val newId = applicationContext.components.tabsUseCases
@@ -550,6 +570,11 @@ internal class VideoSearchBridgeController(
                                     contextId = "private",
                                 )
                             createdTabId = newId
+                            VideoSearchPrivateWorkerLease(newId, plan.owner).also {
+                                lease = it
+                                privateWorkerLease = it
+                                it.observeSelection(store.state.selectedTabId)
+                            }
                             newId
                         }
                         // Gecko may suspend newly created background sessions.
@@ -570,21 +595,43 @@ internal class VideoSearchBridgeController(
                             }
                             false
                         } ?: false
-                        if (!ready) {
+                        if (!ready || lease?.canUse(store.state.selectedTabId) == false) {
                             missing++
                             privateGroup.checkpoint(
                                 anchor, activeProfileId, groupRunId, site, null
                             )
                             continue
                         }
+                        val boundLease = lease
+                        if (boundLease != null) {
+                            val readySession = store.state.tabs.singleOrNull {
+                                it.id == tabId
+                            }?.engineState?.engineSession
+                            if (!boundLease.bindSession(readySession)) {
+                                missing++
+                                privateGroup.checkpoint(
+                                    anchor, activeProfileId, groupRunId, site, null
+                                )
+                                continue
+                            }
+                        }
                         visited++
                         val snapshot = executePrivateSiteSearch(
                             site, tabId, activeProfileId, query,
                             requireSelected = false, deadlineMs = deadline
                         )
+                        // A worker selected/adopted while crawling cannot
+                        // checkpoint its possibly outdated private payload.
+                        val finalLease = lease
+                        val safeSnapshot = snapshot?.takeIf {
+                            finalLease == null || (finalLease.canUse(store.state.selectedTabId) &&
+                                finalLease.acceptsSession(store.state.tabs.singleOrNull {
+                                    it.id == tabId
+                                }?.engineState?.engineSession))
+                        }
                         if (privateGroup.checkpoint(
-                                anchor, activeProfileId, groupRunId, site, snapshot
-                            ) && snapshot != null) saved++
+                                anchor, activeProfileId, groupRunId, site, safeSnapshot
+                            ) && safeSnapshot != null) saved++
                     } catch (cancelled: kotlinx.coroutines.CancellationException) {
                         throw cancelled
                     } catch (_: Exception) {
@@ -592,18 +639,42 @@ internal class VideoSearchBridgeController(
                             anchor, activeProfileId, groupRunId, site, null
                         )
                     } finally {
-                        // Only a tab CREATED BY THIS LOOP may be removed.
-                        // Never close a user tab or a worker the user selected.
+                        // Fail closed on selection (including earlier focus),
+                        // epoch/profile switch, replaced Gecko session or
+                        // navigation outside the owned site's origin.
                         createdTabId?.let { id ->
                             val tab = store.state.tabs.singleOrNull { it.id == id }
-                            if (tab != null && tab.content.private &&
-                                tab.contextId == "private" &&
-                                store.state.selectedTabId != id) {
+                            val currentOwner = tab?.let {
+                                VideoSearchPrivateSessionHost.registry.ownerForTab(
+                                    VideoSearchPrivateTab(
+                                        it.id, it.contextId, it.content.private
+                                    ), activeProfileId
+                                )
+                            }
+                            val safeDocument = tab?.content?.url?.let { url ->
+                                if (lease?.hasBoundSession == true)
+                                    VideoSearchBridgeProtocol.sameOrigin(url, site.siteUrl)
+                                else url.trimEnd('/') == site.siteUrl.trimEnd('/')
+                            } ?: false
+                            val cleanupLease = lease
+                            if (cleanupLease != null && cleanupLease.mayReclaim(
+                                    tab?.let {
+                                        VideoSearchPrivateTab(
+                                            it.id, it.contextId, it.content.private
+                                        )
+                                    },
+                                    store.state.selectedTabId, currentOwner,
+                                    sameEngine = cleanupLease.acceptsSession(
+                                        tab?.engineState?.engineSession
+                                    ),
+                                    safeDocument = safeDocument,
+                                )) {
                                 try {
                                     applicationContext.components.tabsUseCases.removeTab(id)
                                 } catch (_: Exception) { }
                             }
                         }
+                        if (privateWorkerLease === lease) privateWorkerLease = null
                     }
                     delay(40)
                 }
