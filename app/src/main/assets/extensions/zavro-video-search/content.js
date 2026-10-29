@@ -208,7 +208,7 @@
     const tag = element.tagName.toLowerCase();
     function unique(candidate) {
       if (!candidate || candidate.length > 160 ||
-          !/^[\\p{L}\\p{N}#\\-_.\\[\\]=\\\\\"' >:*+]+$/u.test(candidate)) return false;
+          !/^[\p{L}\p{N}#_.\[\]=\\"' >:*+-]+$/u.test(candidate)) return false;
       try {
         const matches = document.querySelectorAll(candidate);
         return matches.length === 1 && matches[0] === element;
@@ -224,7 +224,7 @@
         const value = node.getAttribute(attr);
         // No executable/pseudo CSS, page URLs, user queries or unbounded text.
         if (typeof value !== "string" || value.length < 1 || value.length > 64 ||
-            !/^[\\p{L}\\p{N} ._-]+$/u.test(value)) continue;
+            !/^[\p{L}\p{N} ._-]+$/u.test(value)) continue;
         options.push(name + "[" + attr + '="' + value + '"]');
       }
       const classes = Array.from(node.classList || [])
