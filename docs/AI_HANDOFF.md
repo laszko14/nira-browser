@@ -1,3 +1,13 @@
+# Checkpoint — P5/16 CFG-03, monotoniczny CAS witryn — 2026-10-29
+
+- **STATUS: CI_PENDING** dla implementacji P5; testy urządzenia/Gecko NOT_TESTED, nie tworzyć APK. Naprawiono realny wyścig konfiguracji: używanie zegara `updatedAtMs` jako wersji bez gwarancji zmiany przy tej samej milisekundzie. Wszystkie 9 aktualizacji `video_search_sites` w DAO podnoszą `updatedAtMs` wewnątrz tego samego atomowego SQL UPDATE: `CASE WHEN updatedAtMs >= :nowMs THEN updatedAtMs + 1 ELSE :nowMs END`. Znacznik jest teraz logicznie monotoniczną rewizją, również przy cofniętym zegarze; istniejące WHERE `updatedAtMs = :expectedUpdatedMs` w auto/manual/validation pozostają atomowym CAS.
+- Bez zmiany schematu `VideoSearchDatabase` (v1), bez migracji i naruszania zapisanych witryn, wyników, folderów, profili, cache ani limitów. Zachowany `confirmedReplace`: świadoma naprawa z aktualnego snapshotu działa, stary zapis z takim samym nowMs już nie. Stare konfiguracje odrzucane również po zmianie enabled/nazwy/limitu/kolejności. Wyjątkowe `putSite` dla tworzenia nowego rekordu pozostaje poza zmianą.
+- Nowe `VideoSearchConfigurationRevisionTest` — 9 testów prawdziwego Room/SQLite: kolizje ręczny↔auto/picker, cofnięty zegar, disable→enable, świadome zastąpienie, incomplete, ten sam ID w dwóch profilach, detale/limity i reorder. Rozszerzono istniejący workflow testowy P3-P4 o testy P5: targeted i pełne Kotlin/Robolectric, JavaScript, lint; tylko testy, żadnego `assemble` ani APK.
+- **P4:** wcześniejszy SHA `35e0aae7f7f86e6b834669ce3749ae2202a602ea` miał PASS testów celowanych, pełnego Kotlin/Robolectric i JS podczas weryfikacji; końcowe `lintDebug` sprawdzić w run 40925645332 (jeżeli workflow anulowany późniejszym pushem, testy P3–P5 uruchamia bieżący workflow).
+- Kolejne `Dalej` po zakończeniu CI P5 należy poświęcić P6/16; przy FAIL/CI_PENDING najpierw doprowadzić P5 do PASS. P6 nie rozpoczęto. Nie merge do main, nie zmieniano podpisu/ABI/package/120 Hz.
+
+---
+
 # P4 / 16 — LC-03 (2026-10-29) — bramka Stop → Start, CI_PENDING
 
 - **Etap implementacji P4:** dodano `VideoSearchNormalRunGate` wiążący tożsamością `Job` i `VideoSearchDispatchQueue`. Dopuszcza nowy start dopiero gdy `previousJob.isCompleted`, nie gdy `!isActive`; wcześniej anulowany Job w `finally` / `NonCancellable` nadal blokuje nowy start. Dzierżawa poprzedniej kolejki przechowywana do nowego rozpoczęcia, a publikacja `lastMulti` i komunikatu po cleanup sprawdza tożsamość bieżącego Job i kolejki.

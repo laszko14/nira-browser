@@ -64,16 +64,23 @@ internal interface VideoSearchDao {
         return ordered
     }
 
+    /**
+     * P5: updatedAtMs is also a logical site revision token. Advance it in
+     * SQLite under the same atomic UPDATE as the changed fields, even when
+     * two writes share a millisecond or the device clock moves backwards.
+     * All nine site mutations below use MAX(old+1, nowMs), not wall time
+     * alone. Existing persisted rows need no schema migration.
+     */
     // Update only the edited field: never overwrite saved selectors or other settings.
     /**
      * Only replace the saved configuration when the inspected site record is
      * still the one the user approved. Never delete a site on scan failure.
      */
-    @Query("UPDATE video_search_sites SET configurationState = 'CONFIGURED', configurationJson = :json, updatedAtMs = :nowMs WHERE profileId = :profileId AND id = :id AND siteUrl = :url AND updatedAtMs = :expectedUpdatedMs AND enabled = 1")
+    @Query("UPDATE video_search_sites SET configurationState = 'CONFIGURED', configurationJson = :json, updatedAtMs = CASE WHEN updatedAtMs >= :nowMs THEN updatedAtMs + 1 ELSE :nowMs END WHERE profileId = :profileId AND id = :id AND siteUrl = :url AND updatedAtMs = :expectedUpdatedMs AND enabled = 1")
     suspend fun acceptAutoConfiguration(profileId: String, id: String, url: String,
                                         expectedUpdatedMs: Long, json: String, nowMs: Long): Int
 
-    @Query("UPDATE video_search_sites SET configurationState = 'REPAIR_REQUIRED', updatedAtMs = :nowMs WHERE profileId = :profileId AND id = :id AND siteUrl = :url AND updatedAtMs = :expectedUpdatedMs AND configurationState != 'CONFIGURED'")
+    @Query("UPDATE video_search_sites SET configurationState = 'REPAIR_REQUIRED', updatedAtMs = CASE WHEN updatedAtMs >= :nowMs THEN updatedAtMs + 1 ELSE :nowMs END WHERE profileId = :profileId AND id = :id AND siteUrl = :url AND updatedAtMs = :expectedUpdatedMs AND configurationState != 'CONFIGURED'")
     suspend fun markAutoConfigurationIncomplete(profileId: String, id: String, url: String,
                                                expectedUpdatedMs: Long, nowMs: Long): Int
 
@@ -82,7 +89,7 @@ internal interface VideoSearchDao {
      * known. Only a complete, validated configuration gets CONFIGURED.
      * Compare-and-set prevents stale picker sessions overwriting newer edits.
      */
-    @Query("UPDATE video_search_sites SET configurationState = :state, configurationJson = :json, updatedAtMs = :nowMs WHERE profileId = :profileId AND id = :id AND siteUrl = :url AND updatedAtMs = :expectedUpdatedMs AND enabled = 1")
+    @Query("UPDATE video_search_sites SET configurationState = :state, configurationJson = :json, updatedAtMs = CASE WHEN updatedAtMs >= :nowMs THEN updatedAtMs + 1 ELSE :nowMs END WHERE profileId = :profileId AND id = :id AND siteUrl = :url AND updatedAtMs = :expectedUpdatedMs AND enabled = 1")
     suspend fun acceptManualConfiguration(
         profileId: String, id: String, url: String, expectedUpdatedMs: Long,
         state: String, json: String, nowMs: Long
@@ -92,25 +99,25 @@ internal interface VideoSearchDao {
      * Only an explicitly confirmed, definitively invalid selector check
      * may mark a configured record as needing repair. Never erase JSON.
      */
-    @Query("UPDATE video_search_sites SET configurationState = 'REPAIR_REQUIRED', updatedAtMs = :nowMs WHERE profileId = :profileId AND id = :id AND siteUrl = :url AND updatedAtMs = :expectedUpdatedMs AND enabled = 1 AND configurationState = 'CONFIGURED'")
+    @Query("UPDATE video_search_sites SET configurationState = 'REPAIR_REQUIRED', updatedAtMs = CASE WHEN updatedAtMs >= :nowMs THEN updatedAtMs + 1 ELSE :nowMs END WHERE profileId = :profileId AND id = :id AND siteUrl = :url AND updatedAtMs = :expectedUpdatedMs AND enabled = 1 AND configurationState = 'CONFIGURED'")
     suspend fun flagValidatedBrokenConfiguration(
         profileId: String, id: String, url: String,
         expectedUpdatedMs: Long, nowMs: Long
     ): Int
 
-    @Query("UPDATE video_search_sites SET displayName = :name, updatedAtMs = :nowMs WHERE profileId = :profileId AND id = :id")
+    @Query("UPDATE video_search_sites SET displayName = :name, updatedAtMs = CASE WHEN updatedAtMs >= :nowMs THEN updatedAtMs + 1 ELSE :nowMs END WHERE profileId = :profileId AND id = :id")
     suspend fun renameSite(profileId: String, id: String, name: String, nowMs: Long): Int
 
-    @Query("UPDATE video_search_sites SET displayName = :name, resultLimit = :limit, updatedAtMs = :nowMs WHERE profileId = :profileId AND id = :id")
+    @Query("UPDATE video_search_sites SET displayName = :name, resultLimit = :limit, updatedAtMs = CASE WHEN updatedAtMs >= :nowMs THEN updatedAtMs + 1 ELSE :nowMs END WHERE profileId = :profileId AND id = :id")
     suspend fun updateSiteDetails(profileId: String, id: String, name: String, limit: Int, nowMs: Long): Int
 
-    @Query("UPDATE video_search_sites SET enabled = :enabled, updatedAtMs = :nowMs WHERE profileId = :profileId AND id = :id")
+    @Query("UPDATE video_search_sites SET enabled = :enabled, updatedAtMs = CASE WHEN updatedAtMs >= :nowMs THEN updatedAtMs + 1 ELSE :nowMs END WHERE profileId = :profileId AND id = :id")
     suspend fun setSiteEnabled(profileId: String, id: String, enabled: Boolean, nowMs: Long): Int
 
-    @Query("UPDATE video_search_sites SET resultLimit = :limit, updatedAtMs = :nowMs WHERE profileId = :profileId AND id = :id")
+    @Query("UPDATE video_search_sites SET resultLimit = :limit, updatedAtMs = CASE WHEN updatedAtMs >= :nowMs THEN updatedAtMs + 1 ELSE :nowMs END WHERE profileId = :profileId AND id = :id")
     suspend fun setSiteLimit(profileId: String, id: String, limit: Int, nowMs: Long): Int
 
-    @Query("UPDATE video_search_sites SET position = :position, updatedAtMs = :nowMs WHERE profileId = :profileId AND id = :id")
+    @Query("UPDATE video_search_sites SET position = :position, updatedAtMs = CASE WHEN updatedAtMs >= :nowMs THEN updatedAtMs + 1 ELSE :nowMs END WHERE profileId = :profileId AND id = :id")
     suspend fun setSitePosition(profileId: String, id: String, position: Int, nowMs: Long): Int
 
     /**
