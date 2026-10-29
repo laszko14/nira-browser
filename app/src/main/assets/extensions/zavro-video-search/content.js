@@ -6,10 +6,16 @@
 (function () {
   "use strict";
   if (window.top !== window || !/^https?:$/.test(location.protocol)) return;
-  const bytes = new Uint8Array(16);
-  try { crypto.getRandomValues(bytes); } catch (_) { return; }
-  const documentId = Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
-  const startUrl = location.href;
+  function newDocumentId() {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
+  }
+  let documentId;
+  try { documentId = newDocumentId(); } catch (_) { return; }
+  let startUrl = location.href;
+  let navigationRevision = 0;
+  let originRevoked = false;
   let ready = false, busy = false, picker = null, manuallySelectedInput = null;
   // Consecutive trusted terminal observations are limited to this document.
   let endProbe = null;
@@ -309,8 +315,49 @@
     document.addEventListener("keydown", key, true);
   }
 
+  /**
+   * SPA navigation is NOT a new Gecko document, but it MUST have a new
+   * binding revision and nonce. Never carry an old picker/timeout, page-end
+   * probe or pending request into a different URL generation.
+   *
+   * Gecko may notify BrowserStore after history.pushState. Native url_sync
+   * retries the unchanged same-origin port after its Store URL catches up.
+   * No page-world history monkeypatch or periodic DOM/network polling.
+   */
+  function hello() {
+    try {
+      port.postMessage({
+        schemaVersion: 1, event: "hello", documentId,
+        pageUrl: startUrl, navigationRevision
+      });
+    } catch (_) { ready = false; }
+  }
+  function syncLocation() {
+    if (originRevoked || !port || !ready && !documentId) return;
+    const current = location.href;
+    if (current === startUrl) return;
+    let next;
+    try { next = new URL(current); } catch (_) { originRevoked = true; ready = false; return; }
+    if (next.origin !== new URL(startUrl).origin || !/^https?:$/.test(next.protocol) ||
+        next.username || next.password || navigationRevision >= 1000000) {
+      originRevoked = true;
+      ready = false;
+      cancelPicker();
+      return;
+    }
+    // Revocation precedes the new hello: callbacks from the old route
+    // cannot be mistaken for results of a newly requested search.
+    ready = false;
+    cancelPicker();
+    manuallySelectedInput = null;
+    endProbe = null;
+    try { documentId = newDocumentId(); } catch (_) { originRevoked = true; return; }
+    navigationRevision++;
+    startUrl = current;
+    hello();
+  }
   function post(event, requestId, extra) {
-    if (!ready || location.href !== startUrl) return;
+    if (!ready || originRevoked || location.href !== startUrl) return;
     try { port.postMessage(Object.assign({
       schemaVersion: 1, event, requestId, documentId
     }, extra)); } catch (_) { ready = false; }
@@ -337,9 +384,12 @@
     field.dispatchEvent(new Event("input", { bubbles: true }));
     field.dispatchEvent(new Event("change", { bubbles: true }));
     // The acknowledgment precedes GET navigation, which destroys the port.
+    // SPA rebinding must also revoke an old queued form submission.
+    const issuedRevision = navigationRevision;
     post("submitted", command.requestId, {});
     setTimeout(function () {
-      if (location.href !== startUrl || !document.contains(field)) return;
+      if (issuedRevision !== navigationRevision ||
+          location.href !== startUrl || !document.contains(field)) return;
       try {
         if (button) button.click();
         else if (form.requestSubmit) form.requestSubmit();
@@ -400,12 +450,15 @@
     return result("valid", "ok", linked);
   }
   async function validateStored(command) {
+    const issuedRevision = navigationRevision;
     const timings = [0, 350, 800]; // 3 attempts, <= 1.2 seconds total
     let last, attempts = 0;
     for (let i = 0; i < timings.length; i++) {
-      if (!ready || location.href !== startUrl || picker) return;
+      if (!ready || issuedRevision !== navigationRevision ||
+          location.href !== startUrl || picker) return;
       if (timings[i]) await new Promise(resolve => setTimeout(resolve, timings[i]));
-      if (!ready || location.href !== startUrl || picker) return;
+      if (!ready || issuedRevision !== navigationRevision ||
+          location.href !== startUrl || picker) return;
       last = checkConfiguration(command);
       attempts++;
       // Do not retry on valid, unsafe, malformed, or ambiguous selectors.
@@ -763,8 +816,10 @@
         return terminal();
       if (loading()) return "pending";
       endProbe = null;
+      const issuedRevision = navigationRevision;
       setTimeout(function () {
-        if (location.href === startUrl && ready)
+        if (issuedRevision === navigationRevision &&
+            location.href === startUrl && ready)
           window.scrollBy({ top: Math.max(360, window.innerHeight), behavior: "instant" });
       }, 70);
       return "dispatched";
@@ -799,8 +854,10 @@
       if (!target.matches("button") || target.disabled ||
           target.closest("form") || target.type === "submit") return "unsafe";
     }
+    const issuedRevision = navigationRevision;
     setTimeout(function () {
-      if (ready && location.href === startUrl && document.contains(target))
+      if (issuedRevision === navigationRevision && ready &&
+          location.href === startUrl && document.contains(target))
         target.click();
     }, 70);
     return "dispatched";
@@ -809,11 +866,28 @@
   try {
     port = browser.runtime.connectNative("zavro.video.search");
     if (!port) return;
+    // These events work for popstate/hash and hydration. pushState itself
+    // has no standard event: the native BrowserStore URL observer sends
+    // url_sync on any changed same-origin tab URL.
+    for (const event of ["popstate", "hashchange", "pageshow"])
+      window.addEventListener(event, syncLocation);
+    if (typeof MutationObserver === "function" && document.documentElement) {
+      const monitor = new MutationObserver(syncLocation);
+      monitor.observe(document.documentElement, {subtree: true, childList: true});
+      window.addEventListener("pagehide", function () { monitor.disconnect(); }, { once: true });
+    }
     port.onMessage.addListener(function (message) {
       if (!message || typeof message !== "object" || Array.isArray(message) ||
-          message.schemaVersion !== 1 || message.documentId !== documentId ||
-          location.href !== startUrl) return;
+          message.schemaVersion !== 1) return;
       const keys = Object.keys(message).sort().join(",");
+      if (message.event === "url_sync" && keys === "event,schemaVersion") {
+        syncLocation();
+        if (!originRevoked && !ready && location.href === startUrl) hello();
+        return;
+      }
+      syncLocation();
+      if (originRevoked || message.documentId !== documentId ||
+          location.href !== startUrl) return;
       if (message.event === "bound" && keys === "documentId,event,schemaVersion") {
         ready = true;
       } else if (message.event === "ping" && ready &&
@@ -889,6 +963,6 @@
     });
     port.onDisconnect.addListener(function () { ready = false; cancelPicker(); });
     window.addEventListener("pagehide", cancelPicker, { once: true });
-    port.postMessage({ schemaVersion: 1, event: "hello", documentId, pageUrl: startUrl });
+    hello();
   } catch (_) { ready = false; }
 })();

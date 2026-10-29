@@ -54,6 +54,7 @@ internal class VideoSearchBridgeController(
         var pageUrl: String? = null,
         var owner: VideoSearchScope? = null,
         var lastPong: Boolean = false,
+        var navigationRevision: Int = -1,
     )
     private data class TabSnapshot(
         val tabId: String,
@@ -210,8 +211,26 @@ internal class VideoSearchBridgeController(
                             if (!isFresh(session, connection)) {
                                 pending.remove(session)?.result?.cancel()
                                 proposals.entries.removeAll { it.value.session === session }
-                                ports.remove(session)
-                                try { connection.port.disconnect() } catch (_: Exception) {}
+                                connection.lastPong = false
+                                val current = currentTab(session)
+                                if (VideoSearchSpaBinding.maySync(
+                                        connection.pageUrl, connection.owner,
+                                        current?.pageUrl, current?.owner
+                                    )) {
+                                    // Keep the *same* Gecko document port; request
+                                    // new nonce/revision. Old replies are cancelled.
+                                    try {
+                                        connection.port.postMessage(
+                                            VideoSearchBridgeProtocol.syncUrl()
+                                        )
+                                    } catch (_: Exception) {
+                                        ports.remove(session)
+                                        try { connection.port.disconnect() } catch (_: Exception) {}
+                                    }
+                                } else {
+                                    ports.remove(session)
+                                    try { connection.port.disconnect() } catch (_: Exception) {}
+                                }
                             }
                         }
                     }
@@ -249,10 +268,18 @@ internal class VideoSearchBridgeController(
             val tab = currentTab(session) ?: return
             when (parsed) {
                 is VideoSearchBridgeMessage.Hello -> {
-                    if (parsed.pageUrl != tab.pageUrl) return
+                    if (!VideoSearchSpaBinding.acceptHello(
+                            entry.pageUrl, entry.owner, entry.navigationRevision,
+                            tab.pageUrl, tab.owner, parsed
+                        )) return
+                    // A valid newer same-origin route revokes every previous
+                    // request/proposal, even when the underlying port survives.
+                    pending.remove(session)?.result?.cancel()
+                    proposals.entries.removeAll { it.value.session === session }
                     entry.documentId = parsed.documentId
                     entry.pageUrl = parsed.pageUrl
                     entry.owner = tab.owner
+                    entry.navigationRevision = parsed.navigationRevision
                     entry.lastPong = false
                     try {
                         port.postMessage(VideoSearchBridgeProtocol.bound(parsed.documentId))

@@ -1,4 +1,4 @@
-name: Zavro video search P3-P13 regressions (no APK)
+name: Zavro video search P3-P14 regressions (no APK)
 
 on:
   push:
@@ -19,6 +19,9 @@ on:
       - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchManualStages.kt'
       - 'app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchManualConfigurationTest.kt'
       - 'app/src/test/js/video-search-p13-two-page-picker.test.cjs'
+      - 'app/src/test/js/video-search-p14-spa-rebind.test.cjs'
+      - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchSpaBinding.kt'
+      - 'app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchSpaBindingTest.kt'
       - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchIntegrity.kt'
       - 'app/src/main/assets/extensions/zavro-video-search/content.js'
       - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchBridgeProtocol.kt'
@@ -78,7 +81,7 @@ jobs:
           java-version: '17'
           distribution: zulu
       - uses: gradle/actions/setup-gradle@v5
-      - name: P3-P13 targeted two-page configuration, redirect and pagination regression
+      - name: P3-P14 targeted SPA rebind, two-page configuration and pagination regression
         run: |
           ./gradlew :app:testDebugUnitTest --console=plain \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchNormalWorkerLeaseTest' \
@@ -89,6 +92,7 @@ jobs:
             --tests 'com.prirai.android.nira.videosearch.VideoSearchConfigurationRevisionTest' \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchAutoConfigurationTest' \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchManualConfigurationTest' \
+            --tests 'com.prirai.android.nira.videosearch.VideoSearchSpaBindingTest' \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchConfigurationHealthTest' \
             --tests 'com.prirai.android.nira.videosearch.MyVideoSitesManagementTest' \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchAddressCorrectionTest' \
@@ -116,7 +120,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: video-search-p3-p4-p5-p6-p7-p8-p9-p10-p11-p12-p13-tests
+          name: video-search-p3-p4-p5-p6-p7-p8-p9-p10-p11-p12-p13-p14-tests
           path: |
             app/build/test-results/testDebugUnitTest/**
             app/build/reports/tests/testDebugUnitTest/**

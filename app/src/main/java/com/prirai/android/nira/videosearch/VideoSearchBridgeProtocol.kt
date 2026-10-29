@@ -8,7 +8,10 @@ import org.json.JSONObject
  */
 internal sealed interface VideoSearchBridgeMessage {
     val documentId: String
-    class Hello(override val documentId: String, val pageUrl: String) : VideoSearchBridgeMessage {
+    class Hello(
+        override val documentId: String, val pageUrl: String,
+        val navigationRevision: Int = 0,
+    ) : VideoSearchBridgeMessage {
         override fun toString() = "VideoSearchBridgeMessage.Hello(redacted)"
     }
     class Pong(override val documentId: String) : VideoSearchBridgeMessage
@@ -139,11 +142,19 @@ internal object VideoSearchBridgeProtocol {
         val id = json.string("documentId")?.takeIf(::validToken) ?: return null
         return when (event) {
             "hello" -> {
-                if (!json.strict("schemaVersion", "event", "documentId", "pageUrl")) return null
+                val versioned = json.strict("schemaVersion", "event", "documentId",
+                    "pageUrl", "navigationRevision")
+                if (!versioned &&
+                    !json.strict("schemaVersion", "event", "documentId", "pageUrl"))
+                    return null
+                val revision = if (versioned)
+                    (json.opt("navigationRevision") as? Int)?.takeIf { it in 0..1_000_000 }
+                        ?: return null
+                    else 0
                 val url = json.string("pageUrl") ?: return null
                 try { VideoSearchIntegrity.requirePageUrl(url) }
                 catch (_: IllegalArgumentException) { return null }
-                VideoSearchBridgeMessage.Hello(id, url)
+                VideoSearchBridgeMessage.Hello(id, url, revision)
             }
             "pong" -> if (json.strict("schemaVersion", "event", "documentId"))
                 VideoSearchBridgeMessage.Pong(id) else null
@@ -352,6 +363,13 @@ internal object VideoSearchBridgeProtocol {
 
     fun bound(documentId: String): JSONObject = base("bound", documentId)
     fun ping(documentId: String): JSONObject = base("ping", documentId)
+
+    /** Sent only to the existing Gecko port when BrowserStore records a
+     * same-origin SPA URL transition; no page-supplied profile/URL metadata. */
+    fun syncUrl(): JSONObject = JSONObject().apply {
+        put("schemaVersion", SCHEMA_VERSION)
+        put("event", "url_sync")
+    }
     fun inspect(documentId: String, requestId: String): JSONObject =
         base("inspect", documentId, requestId)
 

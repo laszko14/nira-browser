@@ -1,3 +1,9 @@
+# P14/16 — CFG-04 — sesja portu po zmianie URL w SPA
+
+- P13 PASS: `f8acdf82` CI [40946787127](https://github.com/laszko14/nira-browser/actions/runs/40946787127). CFG-04: usunięta bezterminowa blokada `startUrl` przy zmianie History API w tym samym dokumencie. Przy zmianie URL same-origin następuje reset pending/picker i nowy nonce/rewizja Hello na **tym samym** Gecko port; natywny `url_sync` wysyłany przez obserwator BrowserStore po same-origin change, bez polling i bez naruszania prywatnego profilu. `isFresh` nadal wymaga dokładnego URL, a `VideoSearchSpaBinding` odrzuca obce origin/owner, stary Hello i niedopasowanie Store URL. Odroczone działania JS są związane z rewizją. Testy Kotlin (9) i real content.js Node (8), raport **CI_PENDING** dla nowego SHA. Urządzenie/realna kolejność Gecko History API **NOT_TESTED**. Następne P15 CFG-05 po kolejnym „Dalej”.
+
+---
+
 # P13/16 — CFG-02 — konfiguracja dwudokumentowa
 
 - P12 PASS w [CI 40944491883](https://github.com/laszko14/nira-browser/actions/runs/40944491883), SHA `b91ce5cc`. P13: `manualSiteTab` i `pickSite` pozostają ograniczone do normalnego profilu i jednego aktualnego dokumentu; **wymagane są dwa osobne działania użytkownika**: zapisać samo pole na homepage, później samodzielnie otworzyć /results i tylko tam wskazać karty/next. Ręczne i częściowo automatyczne selektory formularza są zachowywane w Room jako `REPAIR_REQUIRED`; `VideoSearchManualStages` łączy je z poprawnymi kartami w nowym dokumencie, CAS odrzuca zmiany rekordów, anulowanie nie zapisuje. P9 sprawdza czy karta ma prawdziwy filmowy URL.
