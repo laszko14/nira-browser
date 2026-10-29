@@ -47,6 +47,7 @@ internal class VideoSearchPrivateStore {
     fun putSite(site: VideoSearchSite) {
         val scope = site.scope as? VideoSearchScope.Private
             ?: throw IllegalArgumentException("Expected private site")
+        VideoSearchIntegrity.requirePageUrl(site.siteUrl)
         access(scope) { it.sites[site.id] = site }
     }
 
@@ -65,7 +66,15 @@ internal class VideoSearchPrivateStore {
     fun putRun(run: VideoSearchRun) {
         val scope = run.scope as? VideoSearchScope.Private
             ?: throw IllegalArgumentException("Expected private run")
-        access(scope) { it.runs[run.id] = run }
+        access(scope) {
+            val previous = it.runs[run.id]
+            require(previous == null || (previous.query == run.query &&
+                previous.siteIds == run.siteIds &&
+                previous.parallelism == run.parallelism &&
+                previous.startedAtMs == run.startedAtMs &&
+                run.updatedAtMs >= previous.updatedAtMs)) { "Run identity is immutable" }
+            it.runs[run.id] = run
+        }
     }
 
     fun runs(scope: VideoSearchScope.Private): List<VideoSearchRun> =
@@ -77,6 +86,10 @@ internal class VideoSearchPrivateStore {
         access(scope) {
             val run = it.runs[task.runId] ?: error("Private run missing")
             require(task.siteId in run.siteIds)
+            val previous = it.tasks[task.runId to task.siteId]
+            require(previous == null || (task.resultLimit == previous.resultLimit &&
+                task.uniqueResults >= previous.uniqueResults &&
+                task.visitedPages >= previous.visitedPages)) { "Task counters cannot move backward" }
             it.tasks[task.runId to task.siteId] = task
         }
     }
@@ -84,13 +97,27 @@ internal class VideoSearchPrivateStore {
     fun tasks(scope: VideoSearchScope.Private, runId: String): List<VideoSearchSiteTask> =
         access(scope) { it.tasks.filterKeys { key -> key.first == runId }.values.toList() }
 
-    fun putFilm(film: VideoSearchFilm) {
+    fun putFilm(film: VideoSearchFilm): Boolean {
         val scope = film.scope as? VideoSearchScope.Private
             ?: throw IllegalArgumentException("Expected private film")
-        access(scope) {
+        VideoSearchIntegrity.requirePageUrl(film.filmPageUrl)
+        film.thumbnailUrl?.let(VideoSearchIntegrity::requirePageUrl)
+        return access(scope) {
             val run = it.runs[film.runId] ?: error("Private run missing")
             require(film.siteId in run.siteIds)
-            it.films[film.id] = film
+            val old = it.films[film.id]
+            require(old == null || (old.runId == film.runId &&
+                old.siteId == film.siteId && old.filmPageUrl == film.filmPageUrl)) {
+                "Film identity cannot move"
+            }
+            if (it.films.values.any { existing ->
+                    existing.id != film.id && existing.runId == film.runId &&
+                    existing.siteId == film.siteId && existing.filmPageUrl == film.filmPageUrl
+                }) false
+            else {
+                it.films[film.id] = film
+                true
+            }
         }
     }
 

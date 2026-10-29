@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -36,6 +37,23 @@ internal interface VideoSearchDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun putRun(row: VideoSearchRunRow)
 
+    /**
+     * Run selection/identity is immutable once created. Check and replace in
+     * ONE transaction so a concurrent task write cannot observe a new site set.
+     */
+    @Transaction
+    suspend fun putRunChecked(row: VideoSearchRunRow) {
+        val previous = getRun(row.profileId, row.id)
+        if (previous != null) {
+            require(previous.siteIdsJson == row.siteIdsJson &&
+                previous.query == row.query &&
+                previous.parallelism == row.parallelism &&
+                previous.startedAtMs == row.startedAtMs) { "Run identity is immutable" }
+            require(row.updatedAtMs >= previous.updatedAtMs) { "Stale run update" }
+        }
+        putRun(row)
+    }
+
     @Query("SELECT * FROM video_search_runs WHERE profileId = :profileId AND id = :id LIMIT 1")
     suspend fun getRun(profileId: String, id: String): VideoSearchRunRow?
 
@@ -45,11 +63,76 @@ internal interface VideoSearchDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun putTask(row: VideoSearchTaskRow)
 
+    @Query("SELECT * FROM video_search_tasks WHERE profileId = :profileId AND runId = :runId AND siteId = :siteId LIMIT 1")
+    suspend fun getTask(profileId: String, runId: String, siteId: String): VideoSearchTaskRow?
+
+    @Transaction
+    suspend fun putTaskChecked(row: VideoSearchTaskRow) {
+        requireRunSite(row.profileId, row.runId, row.siteId)
+        val previous = getTask(row.profileId, row.runId, row.siteId)
+        require(previous == null || (row.resultLimit == previous.resultLimit &&
+            row.uniqueResults >= previous.uniqueResults &&
+            row.visitedPages >= previous.visitedPages)) {
+            "Task counters and limit cannot move backward"
+        }
+        putTask(row)
+    }
+
+    /** Caller must be inside a Room @Transaction for read-then-write safety. */
+    suspend fun requireRunSite(profileId: String, runId: String, siteId: String) {
+        val run = getRun(profileId, runId)
+            ?: throw IllegalArgumentException("Search run missing from this profile")
+        require(siteId in VideoSearchRowCodec.readStrings(run.siteIdsJson)) {
+            "Site is not part of the search run"
+        }
+    }
+
     @Query("SELECT * FROM video_search_tasks WHERE profileId = :profileId AND runId = :runId ORDER BY siteId")
     suspend fun getTasks(profileId: String, runId: String): List<VideoSearchTaskRow>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun putFilm(row: VideoSearchFilmRow)
+
+    @Query("SELECT * FROM video_search_films WHERE profileId = :profileId AND id = :id LIMIT 1")
+    suspend fun getFilmById(profileId: String, id: String): VideoSearchFilmRow?
+
+    @Query("SELECT * FROM video_search_films WHERE profileId = :profileId AND runId = :runId AND siteId = :siteId AND filmPageUrl = :url LIMIT 1")
+    suspend fun getFilmByUrl(profileId: String, runId: String, siteId: String, url: String): VideoSearchFilmRow?
+
+    /** Keep original URL exact, including semantic query parameters. */
+    @Transaction
+    suspend fun putFilmChecked(row: VideoSearchFilmRow): Boolean {
+        requireRunSite(row.profileId, row.runId, row.siteId)
+        val previousId = getFilmById(row.profileId, row.id)
+        require(previousId == null || (previousId.runId == row.runId &&
+            previousId.siteId == row.siteId && previousId.filmPageUrl == row.filmPageUrl)) {
+            "Film identity cannot move across a run, site or URL"
+        }
+        val previousUrl = getFilmByUrl(row.profileId, row.runId, row.siteId, row.filmPageUrl)
+        if (previousUrl != null && previousUrl.id != row.id) return false
+        putFilm(row)
+        return true
+    }
+
+    /**
+     * One all-or-nothing checkpoint of the running search. If a task or film
+     * fails validation/SQL write, neither run status nor counters are changed.
+     * Duplicate URLs with different IDs are ignored, not re-inserted.
+     */
+    @Transaction
+    suspend fun putSnapshotChecked(
+        run: VideoSearchRunRow,
+        tasks: List<VideoSearchTaskRow>,
+        films: List<VideoSearchFilmRow>,
+    ) {
+        require(tasks.all { it.profileId == run.profileId && it.runId == run.id } &&
+            films.all { it.profileId == run.profileId && it.runId == run.id }) {
+            "Snapshot contains a foreign run or profile"
+        }
+        putRunChecked(run)
+        tasks.forEach { putTaskChecked(it) }
+        films.forEach { putFilmChecked(it) }
+    }
 
     @Query("SELECT * FROM video_search_films WHERE profileId = :profileId AND runId = :runId AND siteId = :siteId ORDER BY originalIndex")
     suspend fun getFilms(profileId: String, runId: String, siteId: String): List<VideoSearchFilmRow>
@@ -65,6 +148,14 @@ internal interface VideoSearchDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertSavedLink(row: VideoSavedLinkRow): Long
+
+    @Transaction
+    suspend fun insertSavedLinkChecked(row: VideoSavedLinkRow): Boolean {
+        require(getFolder(row.profileId, row.folderId) != null) {
+            "Saved folder is missing from this profile"
+        }
+        return insertSavedLink(row) != -1L
+    }
 
     @Query("SELECT * FROM video_saved_links WHERE profileId = :profileId AND folderId = :folderId ORDER BY createdAtMs")
     suspend fun getSavedLinks(profileId: String, folderId: String): List<VideoSavedLinkRow>

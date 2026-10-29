@@ -9,7 +9,8 @@ import kotlinx.coroutines.flow.map
  * accepted for private scopes. Every write is checked before touching Room.
  *
  * This module is not yet integrated with UI, search automation or workers.
- * Multi-row transaction invariants/expiration are staged separately (1C/9).
+ * Cross-record checks and writes are atomic via Room DAO transactions.
+ * Expiry and full lifecycle integration are scheduled for later stages.
  */
 internal class VideoSearchRepository(private val dao: VideoSearchDao) {
     companion object {
@@ -19,6 +20,7 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
     }
 
     suspend fun putSite(site: VideoSearchSite) {
+        VideoSearchIntegrity.requirePageUrl(site.siteUrl)
         dao.putSite(with(VideoSearchRowCodec) { site.toRow() })
     }
 
@@ -49,7 +51,31 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
         } ?: VideoSearchSettings(scope)
 
     suspend fun putRun(run: VideoSearchRun) {
-        dao.putRun(with(VideoSearchRowCodec) { run.toRow() })
+        dao.putRunChecked(with(VideoSearchRowCodec) { run.toRow() })
+    }
+
+    /**
+     * Atomically persist a coherent run/task/film checkpoint.
+     * Verifies every row's scope before calling Room, and checks each task's
+     * run membership inside the SQL transaction. No partial checkpoint.
+     */
+    suspend fun putSnapshot(
+        run: VideoSearchRun,
+        tasks: List<VideoSearchSiteTask>,
+        films: List<VideoSearchFilm>,
+    ) {
+        val runRow = with(VideoSearchRowCodec) { run.toRow() }
+        val taskRows = tasks.map { with(VideoSearchRowCodec) { it.toRow() } }
+        val filmRows = films.map {
+            VideoSearchIntegrity.requirePageUrl(it.filmPageUrl)
+            it.thumbnailUrl?.let(VideoSearchIntegrity::requirePageUrl)
+            with(VideoSearchRowCodec) { it.toRow() }
+        }
+        require(taskRows.all { it.profileId == runRow.profileId && it.runId == runRow.id } &&
+            filmRows.all { it.profileId == runRow.profileId && it.runId == runRow.id }) {
+            "Snapshot owner must match the run"
+        }
+        dao.putSnapshotChecked(runRow, taskRows, filmRows)
     }
 
     suspend fun run(scope: VideoSearchScope.Normal, id: String): VideoSearchRun? =
@@ -58,19 +84,9 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
     suspend fun runs(scope: VideoSearchScope.Normal): List<VideoSearchRun> =
         dao.getRuns(scope.profileId).map { with(VideoSearchRowCodec) { it.toModel() } }
 
-    private suspend fun requireSiteInRun(scope: VideoSearchScope, runId: String, siteId: String) {
-        val normal = scope as? VideoSearchScope.Normal
-            ?: throw IllegalArgumentException("Private run must stay in memory")
-        val run = dao.getRun(normal.profileId, runId)
-            ?: throw IllegalArgumentException("Search run missing from this profile")
-        require(siteId in VideoSearchRowCodec.readStrings(run.siteIdsJson)) {
-            "Site is not part of the search run"
-        }
-    }
-
     suspend fun putTask(task: VideoSearchSiteTask) {
-        requireSiteInRun(task.scope, task.runId, task.siteId)
-        dao.putTask(with(VideoSearchRowCodec) { task.toRow() })
+        // Mapper rejects private scopes before the transactional read/write.
+        dao.putTaskChecked(with(VideoSearchRowCodec) { task.toRow() })
     }
 
     suspend fun tasks(scope: VideoSearchScope.Normal, runId: String): List<VideoSearchSiteTask> =
@@ -78,9 +94,11 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
             with(VideoSearchRowCodec) { it.toModel() }
         }
 
-    suspend fun putFilm(film: VideoSearchFilm) {
-        requireSiteInRun(film.scope, film.runId, film.siteId)
-        dao.putFilm(with(VideoSearchRowCodec) { film.toRow() })
+    /** False means the exact URL already exists in this run/site under another ID. */
+    suspend fun putFilm(film: VideoSearchFilm): Boolean {
+        VideoSearchIntegrity.requirePageUrl(film.filmPageUrl)
+        film.thumbnailUrl?.let(VideoSearchIntegrity::requirePageUrl)
+        return dao.putFilmChecked(with(VideoSearchRowCodec) { film.toRow() })
     }
 
     suspend fun films(scope: VideoSearchScope.Normal, runId: String, siteId: String): List<VideoSearchFilm> =
@@ -102,10 +120,9 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
      * Never strip URL parameters: they can identify a different film.
      */
     suspend fun addSavedLink(link: VideoSavedFilmLink): Boolean {
-        require(dao.getFolder(link.scope.profileId, link.folderId) != null) {
-            "Saved folder is missing from this profile"
-        }
-        return dao.insertSavedLink(with(VideoSearchRowCodec) { link.toRow() }) != -1L
+        VideoSearchIntegrity.requirePageUrl(link.filmPageUrl)
+        link.thumbnailUrl?.let(VideoSearchIntegrity::requirePageUrl)
+        return dao.insertSavedLinkChecked(with(VideoSearchRowCodec) { link.toRow() })
     }
 
     suspend fun savedLinks(scope: VideoSearchScope.Normal, folderId: String): List<VideoSavedFilmLink> =
