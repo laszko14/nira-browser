@@ -8,6 +8,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '../../main/java/com/prirai/android/nira');
 const tabs = fs.readFileSync(path.join(root, 'browser/tabs/TabsBottomSheetFragment.kt'), 'utf8');
 const sites = fs.readFileSync(path.join(root, 'videosearch/MyVideoSitesActivity.kt'), 'utf8');
+const bridge = fs.readFileSync(path.join(root, 'videosearch/VideoSearchBridgeController.kt'), 'utf8');
 
 function between(source, start, end) {
   const from = source.indexOf(start);
@@ -54,4 +55,29 @@ test('private multi-site search stays with RAM results instead of leaving settin
   const privateMulti = between(sites, 'if (VideoSearchBridgeHost.instance()?.startPrivateMultiSite(', 'header.addView(TextView(this).apply {');
   assert.match(privateMulti, /refreshPrivatePanel\(\)/);
   assert.doesNotMatch(privateMulti, /finish\(\)/);
+});
+
+test('Wskaż opens the exact saved site and starts the picker without a second dialog', () => {
+  const manual = between(sites, 'private fun configureManually(site:', '/** Temporary read-only preview');
+  assert.match(manual, /repository\.site\(owner, site\.id\)/);
+  assert.match(manual, /bridge\.canOpenManual\(current\)/);
+  assert.match(manual, /bridge\.canStartManual\(current\)/);
+  assert.match(manual, /VideoSearchIntegrity\.requirePageUrl\(current\.siteUrl\)/);
+  assert.match(manual, /tabsUseCases\.addTab\.invoke\(/);
+  assert.match(manual, /current\.siteUrl,\s*selectTab = true,\s*private = false,\s*contextId = owner\.contextId/);
+  assert.match(manual, /bridge\.startManual\(current, repository, expectedTabId = targetId\)/);
+  assert.match(manual, /Intent\(this@MyVideoSitesActivity, BrowserActivity::class\.java\)/);
+  assert.doesNotMatch(manual, /MaterialAlertDialogBuilder/);
+});
+
+test('auto-opened picker is bound to exact selected normal tab and bounded ready port', () => {
+  const launch = between(bridge, 'fun canOpenManual(site:', 'val original = manualSiteTab(site) ?: return@launch');
+  assert.match(launch, /!manager\.isPrivateMode\(\)/);
+  assert.match(launch, /manager\.getActiveProfile\(\)\.id == owner\.profileId/);
+  assert.match(launch, /manualBusy \|\| crawlBusy \|\| isMultiSiteActive\(\)/);
+  assert.match(launch, /store\.state\.selectedTabId != expectedTabId/);
+  assert.match(launch, /withTimeoutOrNull<Boolean>\(20_000L\)/);
+  assert.match(launch, /owner\.ownsTab\(/);
+  assert.match(launch, /manualSiteTab\(site\)/);
+  assert.match(launch, /currentTab\(target\.first\)\?\.tabId == expectedTabId/);
 });
