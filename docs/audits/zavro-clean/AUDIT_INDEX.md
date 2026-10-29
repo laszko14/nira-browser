@@ -20,11 +20,11 @@ Baza kodu: `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79
 | 12 | Metadane i warianty | COMPLETE — 12A i 12B | [STAGE_12.md](STAGE_12.md) |
 | 13 | FAB, kafelki i odtwarzanie stron | COMPLETE | [STAGE_13.md](STAGE_13.md) |
 | 14 | Konflikty funkcji | COMPLETE — 14A i 14B | [STAGE_14.md](STAGE_14.md) |
-| 15 | Wydajność, pamięć i 120 Hz | NOT_STARTED | — |
+| 15 | Wydajność, pamięć i 120 Hz | PARTIAL — 15A COMPLETE,15B NOT_STARTED | [STAGE_15.md](STAGE_15.md) |
 | 16 | Stabilność i bezpieczeństwo | NOT_STARTED | — |
 | 17 | Testy regresji | NOT_STARTED | — |
 | 18 | Raport końcowy i plan napraw | NOT_STARTED | — |
 
-Rejestr: [FINDINGS.md](FINDINGS.md). Checkpoint wznowienia: [../../AI_HANDOFF.md](../../AI_HANDOFF.md), wpis „ZC-AUD — ETAP 14/18 COMPLETE”. Obowiązuje v1.8 (zastępuje optymalizacje v1.6/v1.7). Nie utworzono raportów przyszłych etapów ani raportu końcowego.
+Rejestr: [FINDINGS.md](FINDINGS.md). Checkpoint wznowienia: [../../AI_HANDOFF.md](../../AI_HANDOFF.md), wpis „ZC-AUD — ETAP 15/18 PARTIAL”. Obowiązuje v1.8 (zastępuje optymalizacje v1.6/v1.7). Nie utworzono raportów przyszłych etapów ani raportu końcowego.
 
-Łącznie po 14: CONFIRMED=44 (P0=0,P1=3,P2=39,P3=2); LIKELY=4 (010,016,019,043 — potencjalne P2), SUSPECTED=3 (002/025 potencjalne P2,030 potencjalny P1). Nowe 050/051 CONFIRMED P2, bez nowych hipotez; etap 14 łącznie 5 P2. Etapy 1–14 COMPLETE. Dowody/ograniczenia w [STAGE_14](STAGE_14.md) oraz rejestrze. Następny po „Dalej”: **15 — wydajność, pamięć i 120 Hz**. Rekomendacja GPT-6.1 Sol / High / Standard.
+Łącznie po15A: CONFIRMED=44 (P0=0,P1=3,P2=39,P3=2); LIKELY=4 (010,016,019,043 — potencjalne P2), SUSPECTED=3 (002/025 potencjalne P2,030 potencjalny P1). Rozszerzono013 o natywny pasek, bez nowych ID ani podejrzeń. Etapy1–14 COMPLETE,15 PARTIAL. Dowody/ograniczenia w [STAGE_15](STAGE_15.md) i rejestrze. Następny po „Dalej”: **15B — pamięć, cykl życia i wiarygodność pomiarów TestLab**. Rekomendacja GPT-6.1 Sol / High / Standard.

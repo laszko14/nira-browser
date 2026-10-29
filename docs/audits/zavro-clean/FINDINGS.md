@@ -16,7 +16,7 @@ Odniesienia do kodu dotyczą bazy `b7d62f79f285ac81c29a79b326529d42e9b9fde4`. Be
 | ZC-AUD-010 | 4B | P2 MEDIUM (potencjalny) | LIKELY | Hover i automatyczne rozwijanie grupy mogą używać starego celu podczas autoscroll |
 | ZC-AUD-011 | 5 | P1 HIGH | CONFIRMED | Callback okna nad prawym panelem odwołuje się do zwolnionego widoku lub odłączonego fragmentu |
 | ZC-AUD-012 | 5 | P2 MEDIUM | CONFIRMED | Opcje sortowania zakładek według URL i daty wykonują sortowanie po tytule |
-| ZC-AUD-013 | 6 | P2 MEDIUM | CONFIRMED | Budowa modelu paska Compose wielokrotnie skanuje całą listę kart |
+| ZC-AUD-013 | 6,15A | P2 MEDIUM | CONFIRMED | Projekcja kolejności pasków Compose i natywnego wielokrotnie przeszukuje listy |
 | ZC-AUD-014 | 7 | P2 MEDIUM | CONFIRMED | Dialog kolejności przycisków nie obsługuje upuszczenia za celem ani na koniec |
 | ZC-AUD-015 | 7 | P2 MEDIUM | CONFIRMED | Zmiana orientacji przy stałej szerokości nie odświeża konfiguracji przycisków |
 | ZC-AUD-016 | 7 | P2 MEDIUM (potencjalny) | LIKELY | Zamykanie wyszukiwania przełącza IME zamiast jednoznacznie go ukryć |
@@ -215,18 +215,21 @@ Odniesienia do kodu dotyczą bazy `b7d62f79f285ac81c29a79b326529d42e9b9fde4`. Be
 - **Kierunek naprawy:** udostępniać wyłącznie rzeczywiście obsługiwane kryteria albo przekazać odrębne kryteria URL/daty z poprawnymi komparatorami i uzgodnioną polityką folderów, brakujących metadanych oraz trwałości kolejności. Najpierw potwierdzić dostępność źródła daty dodania zamiast zastępować ją niezweryfikowanym polem.
 - **Wymagane regresje:** lista, dla której nazwy, URL i daty mają różne porządki; sprawdzić każdy wybór menu, foldery i puste wartości, obie orientacje i warianty panelu oraz kolejność po jego ponownym otwarciu. Nie dodano nowych testów aplikacji.
 
-## ZC-AUD-013 — kwadratowy koszt budowy modelu paska Compose
+<a id="zc-aud-013--kwadratowy-koszt-budowy-modelu-paska-compose"></a>
 
-- **Etap:** 6 — duża liczba kart i koszt aktualizacji modelu renderowania.
+## ZC-AUD-013 — kwadratowy koszt projekcji kolejności pasków kart
+
+- **Etap:** 6; rozszerzenie15A — duża liczba kart i koszt aktualizacji modelu renderowania.
 - **Miejsce:** [`TabBarCompose.kt:505`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/browser/tabs/compose/TabBarCompose.kt#L505), `buildBarItems`, wyszukiwania tabs.find w liniach518 i523; wywołanie w remember(order,tabs,groups):135–136. Kotlin względem app/src/main/java/com/prirai/android/nira/.
 - **Problem:** projekcja wspólnej kolejności na model widocznego paska ma koszt O(n²) dla n żywych kart, mimo że potrzebne jest tylko powiązanie ID→karta. LazyRow nie eliminuje kosztu budowy całego wejściowego modelu.
 - **Mechanizm:** dla każdego SingleTab funkcja zaczyna tabs.find od początku listy. Dla grup powtarza to dla każdego ID członka. Obliczenie odbywa się bezpośrednio w kompozycji, przed przekazaniem modelu do LazyRow. Zmiana tabs (także tytułu/ikony/innych metadanych obiektu) unieważnia remember; nie jest to koszt wyłącznie pierwszego otwarcia paska. Nie twierdzi się, że sama zmiana selectedId zawsze unieważnia ten remember.
 - **Dowód statyczny:** dla n niezgrupowanych kart, z order zawierającym te same ID w tej samej kolejności co tabs, kolejne find sprawdzają1,2,…,n pozycji: n(n+1)/2. Dla1000 daje to500500 sprawdzeń ID zamiast jednego indeksowania i n odczytów. To wyliczenie z pętli, nie wynik uruchomienia ani benchmark. Fallback i pozostałe operacje liniowe nie usuwają tej składowej.
-- **Pewność:** CONFIRMED — kwadratowy mechanizm na ścieżce kompozycji wynika bezpośrednio z kodu. Czas, próg odczuwalnego opóźnienia, dropped frames i zachowanie telefonu: NOT_TESTED. Nie podano zmyślonej liczby milisekund ani FPS.
+- **Rozszerzenie15A — natywny pion:** [`PortraitNativeTabStrip.kt:373`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/components/toolbar/modern/PortraitNativeTabStrip.kt#L373), `updateTabs`: orderedIds po getAllTabIds().distinct() jest List, a tabs.filterNot { it.id in orderedIds } (377) uruchamia liniowe List.contains dla każdej karty. Przy n żywych niezgrupowanych kartach obecnych w tej samej kolejności koszt tej części wynosi również n(n+1)/2 porównań, mimo istniejącej mapy byIdForChooser. Dzieje się to przed porównaniem sygnatury struktury (407), więc pominięcie przebudowy dzieci nie usuwa kosztu. `ComposeTabBarWithProfileSwitcher.updateTabs:441–462` przekazuje aktualizacje filtrowanych kart Store do tego widoku. To dowód statyczny, nie benchmark; obecność historycznych ID z004 może dodatkowo powiększać listę, ale nie jest konieczna do013.
+- **Pewność:** CONFIRMED — kwadratowy mechanizm na ścieżkach aktualizacji UI wynika bezpośrednio z kodu. Czas, próg odczuwalnego opóźnienia, dropped frames i zachowanie telefonu: NOT_TESTED. Nie podano zmyślonej liczby milisekund ani FPS.
 - **Ważność:** P2 MEDIUM — koszt aktualizacji UI rosnący kwadratowo z liczbą kart; znaczenie praktyczne wymaga pomiaru przy reprezentatywnej dużej sesji. Dla małej listy może być nieodczuwalny.
-- **Wpływ:** wariant Compose dolnego paska, przede wszystkim poziom i tryb All; aktualizacje metadanych mogą ponawiać pracę, choć nie zmieniają kolejności. Nie jest to ta sama przyczyna co retencja zamkniętych ID z004 ani dowód błędnego porządku kart.
-- **Kierunek naprawy:** zbudować tabsById raz i korzystać z mapy w obu gałęziach, zachowując kolejność order, żywe członkostwo, uzupełnianie nowych kart i filtrowanie profilu. Istniejący UnifiedItemBuilder stosuje podobny indeks; nie kopiować całej implementacji ani łączyć modułów bez potrzeby.
-- **Wymagane regresje:** identyczna projekcja dla SingleTab/przeplatanych grup, brakujących ID i świeżo dodanych kart; zmiany tytułu/ikony bez zmiany kolejności; profile i private. Kontrola skali przez liczbę operacji lub benchmark dla rosnącej liczby kart oraz pomiar UI na urządzeniu, bez utożsamiania czasu JVM z płynnością120 Hz. Nowych testów nie dodano.
+- **Wpływ:** wariant Compose dolnego paska (przede wszystkim poziom i tryb All) oraz natywny pasek pionowy; aktualizacje metadanych mogą ponawiać pracę, choć nie zmieniają kolejności. Nie jest to ta sama przyczyna co retencja zamkniętych ID z004 ani dowód błędnego porządku kart.
+- **Kierunek naprawy:** zbudować tabsById raz i korzystać z mapy w obu gałęziach oraz przygotować Set do membership orderedIds w natywnym pasku, zachowując kolejność order, żywe członkostwo, uzupełnianie nowych kart i filtrowanie profilu. Istniejący UnifiedItemBuilder stosuje podobny indeks; nie kopiować całej implementacji ani łączyć modułów bez potrzeby.
+- **Wymagane regresje:** identyczna projekcja dla SingleTab/przeplatanych grup, brakujących ID i świeżo dodanych kart; zmiany tytułu/ikony bez zmiany kolejności w obu wariantach i bez przebudowy struktury; profile i private. Kontrola skali przez liczbę operacji lub benchmark dla rosnącej liczby kart oraz pomiar UI na urządzeniu, bez utożsamiania czasu JVM z płynnością120 Hz. Nowych testów nie dodano.
 
 ## ZC-AUD-014 — dialog kolejności nie rozróżnia upuszczenia przed i za wierszem
 
@@ -712,4 +715,4 @@ Uzupełnienie 024 z 10B: ten sam kontrakt menu występuje również w `browser/h
 - **Kierunek:** uzgodnić aktualność materiału między routingiem content, generacją background i retencją native; obsłużyć hash-routery oraz zwykłe kotwice bez przypisywania starego rekordu do nowego materiału. Nie usuwać ochrony przed opóźnionymi wiadomościami i nie modyfikować podpisanych URL mediów.
 - **Regresje:** hash A→B z usunięciem A, B→A, kotwica w tym samym filmie, hash+query/path, różne źródła/literal config/iframe, brak lub wzrost loading. Potwierdzić rejestrację i retencję wpisów/ID, licznik oraz odrzucenie starych akcji po zmianie materiału; osobno realny Gecko hashchange/History API i Store. Specyfikacja, bez nowych testów app.
 
-Stan po etapie 14: CONFIRMED=44 (P0=0,P1=3,P2=39,P3=2); LIKELY=4 (010,016,019,043 — potencjalne P2); SUSPECTED=3 (002,025 potencjalne P2;030 potencjalny P1). Nowe 050/051 CONFIRMED P2; etap 14 łącznie5 CONFIRMED P2 (047–051), bez nowych hipotez. Etap 14 COMPLETE (14A i14B).
+Stan po15A: CONFIRMED=44 (P0=0,P1=3,P2=39,P3=2); LIKELY=4 (010,016,019,043 — potencjalne P2); SUSPECTED=3 (002,025 potencjalne P2;030 potencjalny P1). 15A rozszerza013 o natywny pasek; nowych ID i hipotez0. Etapy1–14 COMPLETE;15 PARTIAL (15A COMPLETE,15B NOT_STARTED).
