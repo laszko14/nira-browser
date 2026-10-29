@@ -51,20 +51,20 @@ internal class VideoSearchBridgeController(
         val port: Port,
         var documentId: String? = null,
         var pageUrl: String? = null,
-        var profileId: String? = null,
+        var owner: VideoSearchScope? = null,
         var lastPong: Boolean = false,
     )
     private data class TabSnapshot(
         val tabId: String,
         val pageUrl: String,
-        val owner: VideoSearchScope.Normal,
+        val owner: VideoSearchScope,
     )
     private class Window(var start: Long, var count: Int)
 
     private data class Pending(
         val requestId: String,
         val documentId: String,
-        val owner: VideoSearchScope.Normal,
+        val owner: VideoSearchScope,
         val siteId: String,
         val pageUrl: String,
         val kind: String,
@@ -80,6 +80,8 @@ internal class VideoSearchBridgeController(
     private var manualBusy = false
     private var crawlBusy = false
     private var multiJob: Job? = null
+    private var privateJob: Job? = null
+    private val privateResults = VideoSearchPrivateRunAccess()
     private var multiQueue: VideoSearchDispatchQueue? = null
     private val lastMulti = LinkedHashMap<String, VideoSearchQueueSnapshot>()
     private val lastMultiRunIds = LinkedHashMap<String, String>()
@@ -126,16 +128,19 @@ internal class VideoSearchBridgeController(
         val tab = store.state.tabs.singleOrNull {
             it.engineState.engineSession === session
         } ?: return null
-        if (tab.content.private) return null
-
-        // Derive owner from trusted BrowserStore + registered profiles,
-        // never a JS-provided profile ID or the currently active UI profile.
-        val profile = ProfileManager.getInstance(applicationContext)
-            .getAllProfiles()
-            .firstOrNull { candidate ->
-                VideoSearchScope.Normal(candidate.id).ownsTab(tab.contextId, tab.content.private)
+        // Private owner is assigned by the process-only tab registry, not JS.
+        val manager = ProfileManager.getInstance(applicationContext)
+        val owner: VideoSearchScope = if (tab.content.private) {
+            VideoSearchPrivateSessionHost.registry.ownerForTab(
+                VideoSearchPrivateTab(tab.id, tab.contextId, true),
+                manager.getActiveProfile().id
+            ) ?: return null
+        } else {
+            val profile = manager.getAllProfiles().firstOrNull { candidate ->
+                VideoSearchScope.Normal(candidate.id).ownsTab(tab.contextId, false)
             } ?: return null
-        val owner = VideoSearchScope.Normal(profile.id)
+            VideoSearchScope.Normal(profile.id)
+        }
         val url = tab.content.url
         try { VideoSearchIntegrity.requirePageUrl(url) }
         catch (_: IllegalArgumentException) { return null }
@@ -144,7 +149,7 @@ internal class VideoSearchBridgeController(
 
     private fun isFresh(session: EngineSession, entry: DocumentPort): Boolean {
         val tab = currentTab(session) ?: return false
-        return tab.owner.profileId == entry.profileId &&
+        return tab.owner == entry.owner &&
             tab.pageUrl == entry.pageUrl &&
             entry.documentId != null
     }
@@ -239,7 +244,7 @@ internal class VideoSearchBridgeController(
                     if (parsed.pageUrl != tab.pageUrl) return
                     entry.documentId = parsed.documentId
                     entry.pageUrl = parsed.pageUrl
-                    entry.profileId = tab.owner.profileId
+                    entry.owner = tab.owner
                     entry.lastPong = false
                     try {
                         port.postMessage(VideoSearchBridgeProtocol.bound(parsed.documentId))
@@ -296,7 +301,8 @@ internal class VideoSearchBridgeController(
                             else -> return
                         }) return
                     pending.remove(session)
-                    if (parsed is VideoSearchBridgeMessage.Inspection &&
+                    if (job.owner is VideoSearchScope.Normal &&
+                        parsed is VideoSearchBridgeMessage.Inspection &&
                         parsed.inputSelector != null && parsed.submission != null) {
                         proposals[job.owner.profileId to job.siteId] =
                             Proposal(session, parsed.documentId, SystemClock.elapsedRealtime(), parsed)
@@ -315,6 +321,158 @@ internal class VideoSearchBridgeController(
                 proposals.entries.removeAll { it.value.session === session }
             }
         }
+    }
+
+
+    /**
+     * Explicit, single-site, currently selected PRIVATE Gecko tab.
+     * The normal worker path remains strictly typed VideoSearchScope.Normal.
+     * No private Room writes, disk image cache, background private worker tabs.
+     */
+    private fun privateSiteTab(
+        site: VideoSearchSite, tabId: String, exactPage: Boolean,
+    ): Pair<EngineSession, DocumentPort>? {
+        val owner = site.scope as? VideoSearchScope.Private ?: return null
+        val manager = ProfileManager.getInstance(applicationContext)
+        if (!manager.isPrivateMode() || manager.getActiveProfile().id != owner.profileId)
+            return null
+        val tab = store.state.tabs.singleOrNull {
+            it.id == tabId && it.id == store.state.selectedTabId
+        } ?: return null
+        val session = tab.engineState.engineSession ?: return null
+        val state = currentTab(session) ?: return null
+        if (!site.enabled || state.tabId != tabId || state.owner != owner ||
+            !VideoSearchBridgeProtocol.sameOrigin(state.pageUrl, site.siteUrl) ||
+            (exactPage && state.pageUrl.trimEnd('/') != site.siteUrl.trimEnd('/')))
+            return null
+        val port = ports[session] ?: return null
+        return if (isFresh(session, port)) session to port else null
+    }
+
+    private suspend fun privateRequest(
+        site: VideoSearchSite, tabId: String,
+        kind: String, exactPage: Boolean,
+        packet: (String, String) -> org.json.JSONObject,
+    ): VideoSearchBridgeMessage? {
+        val (session, entry) = privateSiteTab(site, tabId, exactPage) ?: return null
+        val document = entry.documentId ?: return null
+        if (pending.containsKey(session)) return null
+        val requestId = UUID.randomUUID().toString().replace("-", "")
+        val result = CompletableDeferred<VideoSearchBridgeMessage>()
+        val work = Pending(requestId, document, site.scope, site.id,
+            entry.pageUrl ?: return null, kind, result)
+        pending[session] = work
+        try {
+            entry.port.postMessage(packet(document, requestId))
+            return withTimeoutOrNull(6_000L) { result.await() }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return null
+        } finally {
+            if (pending[session] === work) pending.remove(session)
+        }
+    }
+
+    /** One visible private site's search, not multi-site crawling/pagination. */
+    fun startPrivateSiteSearch(
+        tab: VideoSearchPrivateTab, activeProfileId: String,
+        siteId: String, query: String,
+    ): Boolean {
+        if (!extensionReady || privateJob?.isActive == true ||
+            !VideoSearchBridgeProtocol.validQuery(query)) return false
+        val manager = ProfileManager.getInstance(applicationContext)
+        if (!manager.isPrivateMode() || manager.getActiveProfile().id != activeProfileId)
+            return false
+        val site = privateResults.selectedSite(tab, activeProfileId, siteId)
+            ?: return false
+        if (privateSiteTab(site, tab.id, exactPage = true) == null) return false
+        privateJob = manualScope.launch {
+            try {
+                val detected = privateRequest(site, tab.id, "inspect", true) { doc, id ->
+                    VideoSearchBridgeProtocol.inspect(doc, id)
+                } as? VideoSearchBridgeMessage.Inspection
+                if (detected?.inputSelector == null || detected.submission == null) {
+                    Toast.makeText(applicationContext,
+                        "Nie rozpoznano prywatnego formularza wyszukiwania.",
+                        Toast.LENGTH_LONG).show()
+                    return@launch
+                }
+                val submitted = privateRequest(site, tab.id, "search", true) { doc, id ->
+                    VideoSearchBridgeProtocol.search(
+                        doc, id, query, detected.inputSelector, detected.submission,
+                        detected.submitSelector
+                    )
+                } is VideoSearchBridgeMessage.Submitted
+                if (!submitted) {
+                    Toast.makeText(applicationContext,
+                        "Nie potwierdzono prywatnego wyszukiwania.", Toast.LENGTH_LONG).show()
+                    return@launch
+                }
+
+                // Search may cause navigation or SPA updates. Bounded checks.
+                var config: VideoSiteConfiguration? = null
+                for (attempt in 0 until 6) {
+                    delay(650)
+                    val inspected = privateRequest(
+                        site, tab.id, "inspect", false
+                    ) { doc, id -> VideoSearchBridgeProtocol.inspect(doc, id) }
+                        as? VideoSearchBridgeMessage.Inspection
+                    if (inspected?.inputSelector != null &&
+                        inspected.submission != null && inspected.resultsCardSelector != null) {
+                        config = VideoSiteConfiguration(
+                            searchInputSelector = inspected.inputSelector,
+                            resultsCardSelector = inspected.resultsCardSelector,
+                            submission = inspected.submission,
+                            submitSelector = inspected.submitSelector,
+                        )
+                        break
+                    }
+                }
+                val found = mutableListOf<VideoSearchExtractedFilm>()
+                val ready = config
+                if (ready != null) {
+                    val page = privateSiteTab(site, tab.id, false)
+                        ?.first?.let { currentTab(it)?.pageUrl }
+                    if (page != null) {
+                        val collector = VideoSearchVisiblePageCollector(
+                            page, 80, VideoSearchPagination.NONE
+                        )
+                        while (collector.shouldReadAnotherBatch) {
+                            val response = privateRequest(
+                                site, tab.id, "extract_batch", false
+                            ) { doc, id ->
+                                VideoSearchBridgeProtocol.extractBatch(
+                                    doc, id, ready, collector.nextCardIndex
+                                )
+                            } as? VideoSearchBridgeMessage.Results ?: break
+                            try {
+                                collector.append(collector.nextCardIndex, response.page)
+                            } catch (_: IllegalArgumentException) { break }
+                        }
+                        found.addAll(collector.snapshot().films)
+                    }
+                }
+                val stillPrivate = ProfileManager.getInstance(applicationContext).let {
+                    it.isPrivateMode() && it.getActiveProfile().id == activeProfileId
+                }
+                if (stillPrivate && privateResults.record(
+                        tab, activeProfileId, siteId, query, found
+                    )) {
+                    Toast.makeText(applicationContext,
+                        "Prywatne wyniki w RAM: ${found.size}. Otwórz Moje witryny.",
+                        Toast.LENGTH_LONG).show()
+                }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                Toast.makeText(applicationContext,
+                    "Prywatne wyszukiwanie przerwane.", Toast.LENGTH_LONG).show()
+            } finally {
+                privateJob = null
+            }
+        }
+        return true
     }
 
     private fun existingSiteTab(site: VideoSearchSite): Pair<EngineSession, DocumentPort>? {

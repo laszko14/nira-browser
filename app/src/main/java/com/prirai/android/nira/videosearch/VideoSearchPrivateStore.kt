@@ -122,6 +122,20 @@ internal class VideoSearchPrivateStore {
     fun runs(scope: VideoSearchScope.Private): List<VideoSearchRun> =
         access(scope) { it.runs.values.toList() }
 
+    /** Never retain an unbounded number of private searches in RAM. */
+    fun trimOldRuns(scope: VideoSearchScope.Private, maximum: Int = 12) {
+        require(maximum in 1..12)
+        access(scope) { state ->
+            val expired = state.runs.values.sortedWith(
+                compareBy<VideoSearchRun> { it.startedAtMs }.thenBy { it.id }
+            ).take((state.runs.size - maximum).coerceAtLeast(0))
+                .mapTo(HashSet()) { it.id }
+            expired.forEach { state.runs.remove(it) }
+            state.tasks.keys.removeAll { it.first in expired }
+            state.films.entries.removeAll { it.value.runId in expired }
+        }
+    }
+
     fun putTask(task: VideoSearchSiteTask) {
         val scope = task.scope as? VideoSearchScope.Private
             ?: throw IllegalArgumentException("Expected private task")

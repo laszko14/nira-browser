@@ -65,6 +65,9 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private lateinit var privateSitesContainer: LinearLayout
     private lateinit var privateStatus: TextView
     private lateinit var privateAddButton: Button
+    private lateinit var privateQueryInput: EditText
+    private lateinit var privateResultsLabel: TextView
+    private val privateRunAccess = VideoSearchPrivateRunAccess()
     private val privateSitesAccess = VideoSearchPrivateSitesAccess()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -292,11 +295,48 @@ class MyVideoSitesActivity : AppCompatActivity() {
             setOnClickListener { updateAll(false) }
         }, LinearLayout.LayoutParams(0, -2, 1f))
         privatePanel.addView(selection)
-        privatePanel.addView(TextView(this).apply {
-            text = "Wysyłanie wyszukiwań i wyniki prywatne: kolejny etap 10C. " +
-                "Ta lista służy do bezpiecznego przygotowania witryn w RAM."
-            textSize = 13f
+        privateQueryInput = EditText(this).apply {
+            hint = "Fraza wyszukiwania (prywatnie)"
+            setSingleLine(true)
+            imeOptions = imeOptions or EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+        }
+        privatePanel.addView(privateQueryInput)
+        privatePanel.addView(Button(this).apply {
+            text = "Wyszukaj na bieżącej prywatnej witrynie"
+            setOnClickListener {
+                val target = selectedPrivateTab() ?: return@setOnClickListener
+                val sites = privateSitesAccess.snapshot(target.first, target.second)
+                    ?: return@setOnClickListener
+                val currentUrl = applicationContext.components.store.state.tabs
+                    .singleOrNull { it.id == target.first.id }?.content?.url
+                    ?: return@setOnClickListener
+                val site = sites.sites.singleOrNull {
+                    it.id in sites.selectedIds &&
+                        it.siteUrl.trimEnd('/') == currentUrl.trimEnd('/')
+                }
+                if (site == null) {
+                    message("Otwórz wybraną witrynę na prywatnej karcie.")
+                    return@setOnClickListener
+                }
+                val query = privateQueryInput.text.toString().trim()
+                if (!VideoSearchBridgeProtocol.validQuery(query)) {
+                    privateQueryInput.error = "Podaj frazę (do 250 znaków)"
+                    return@setOnClickListener
+                }
+                if (VideoSearchBridgeHost.instance()?.startPrivateSiteSearch(
+                        target.first, target.second, site.id, query
+                    ) == true) {
+                    privateQueryInput.text.clear()
+                    // Give the own-site Gecko form the visible foreground tab.
+                    finish()
+                } else message("Most Gecko nie jest gotowy na tej prywatnej karcie.")
+            }
         })
+        privateResultsLabel = TextView(this).apply {
+            textSize = 13f
+            text = "Brak poprzednich wyników prywatnych w tej sesji."
+        }
+        privatePanel.addView(privateResultsLabel)
         privateSitesContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
@@ -328,11 +368,29 @@ class MyVideoSitesActivity : AppCompatActivity() {
         val snapshot = target?.let { privateSitesAccess.snapshot(it.first, it.second) }
         if (snapshot == null) {
             privateAddButton.isEnabled = false
+            privateResultsLabel.text = ""
             privateStatus.text = "Brak aktywnej prywatnej karty wyszukiwarki. " +
                 "Wróć do prywatnej karty i otwórz Moje witryny ponownie."
             return
         }
         privateAddButton.isEnabled = true
+        if (snapshot.sites.isNotEmpty()) {
+            val components = applicationContext.components
+            VideoSearchBridgeHost.start(
+                applicationContext, components.engine, components.store
+            )
+        }
+        val latest = target?.let { privateRunAccess.latest(it.first, it.second) }
+        privateResultsLabel.text = if (latest == null) {
+            "Brak poprzednich wyników prywatnych w tej sesji."
+        } else {
+            val titles = latest.films.take(20).mapIndexed { i, film ->
+                "${i + 1}. " + (film.originalTitle ?: "Tytuł nieznany")
+            }
+            "Ostatnie wyszukiwanie (RAM): ${latest.films.size} pozycji. " +
+                "Tylko widoczna strona, bez paginacji.\n" +
+                titles.joinToString("\n")
+        }
         privateStatus.text = "Witryny tylko w RAM: ${snapshot.sites.size}, " +
             "wybrane: ${snapshot.selectedIds.size}. " +
             "Znikną po zamknięciu ostatniej prywatnej karty."
