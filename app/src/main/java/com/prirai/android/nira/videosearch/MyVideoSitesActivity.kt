@@ -18,6 +18,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.prirai.android.nira.browser.profile.ProfileManager
+import com.prirai.android.nira.ext.components
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
@@ -176,6 +177,14 @@ class MyVideoSitesActivity : AppCompatActivity() {
                     if (ownerIfCurrent() == current && !reorderPending && !adapter.isDragging) {
                         adapter.replace(sites, selected)
                         updateSelectionControls(sites, selected)
+                        // Opt-in extension install only after user has added a site
+                        // and opened this screen. No Gecko cold-start injection.
+                        if (sites.isNotEmpty()) {
+                            val components = applicationContext.components
+                            VideoSearchBridgeHost.start(
+                                applicationContext, components.engine, components.store
+                            )
+                        }
                     }
                 }
         }
