@@ -5,7 +5,7 @@
 - 2026-10-29: **A1–A4 / 4 zakończone, P1 / 16 wdrożony w kodzie i sprawdzony lokalnie**. Ustalenia audytu odnoszą się do bazy v1191; bieżący status napraw poniżej. Fizyczne UI/Gecko pozostają NOT_TESTED.
 - Gałąź: `fix/zavro-clean-video-search-audit-20261029`, baza `1ad05e9d12af3e060e4110880abb3fd65b313f1b` (potwierdzona przez `git ls-remote`). Bazowa gałąź `feat/zavro-clean-video-search-20261029` zachowana.
 - Źródła APK v1191: `200f17f5914b328598ddf8724db49cff2f5107ad`. Porównanie z bazą audytu: różni się wyłącznie `docs/AI_HANDOFF.md`; kod UI odpowiada zatem źródłom skompilowanego APK. Historyczne CI: https://github.com/laszko14/nira-browser/actions/runs/40894977952 — nie uruchamiano ponownie i nie przypisujemy jego wyników nowemu commitowi.
-- Implementacja: **1 / 16 wdrożony w kodzie; 64/64 lokalne testy P1 PASS**. **P2/16 LC-01 zakończony w kodzie: 11 nowych testów, CI JVM/Robolectric PASS, JS 218/218 PASS, lint task PASS (raport niekoniecznie czysty); Nothing/Gecko/dysk NOT_TESTED.** **P3/16 LC-02: kod i 10 testów zapisane, CI_PENDING.** Następne „Dalej” dotyczy weryfikacji P3/16; P4 jeszcze nie rozpoczęty. Kryteria wymagające urządzenia pozostają NOT_TESTED, dopóki nie zostaną rzeczywiście sprawdzone.
+- Implementacja: **1 / 16 wdrożony w kodzie; 64/64 lokalne testy P1 PASS**. **P2/16 LC-01 zakończony w kodzie: 11 nowych testów, CI JVM/Robolectric PASS, JS 218/218 PASS, lint task PASS (raport niekoniecznie czysty); Nothing/Gecko/dysk NOT_TESTED.** **P3/16 LC-02 DONE: 10 nowych testów, finalne CI Kotlin/Robolectric PASS, JS 218/218 PASS, lintDebug task PASS; fizyczny Gecko/telefon NOT_TESTED.** Następne „Dalej” rozpocznie wyłącznie P4/16 (LC-03). Kryteria wymagające urządzenia pozostają NOT_TESTED, dopóki nie zostaną rzeczywiście sprawdzone.
 - Jedno „Dalej” = jeden następny etap/podetap. Bez APK/workflow budującego APK do osobnego „Kompiluj”/„Już”.
 
 ## A1 / 4 — cel, zakres, dowody
@@ -267,7 +267,7 @@ Goal: przywrócić dostępność i poprawność obecnej funkcji bez zmiany jej p
 
 **Dlaczego 16:** to odrębne, wykazane problemy o różnych cyklach testów, nie 16 nowych funkcji. Połączono tylko ściśle związane: dostępność/stabilność formularza (UI-01/02 i odpowiednia część UI-03), kontrakt kontynuacji pakietów (SR-01/02), trwałość przerwanych run (SR-04/LC-04). CFG-05 i niezmierzone ryzyka nie tworzą dodatkowych etapów optymalizacji ani obietnicy heurystyki na wszystkie witryny. P1 jest pierwszy zgodnie z wyraźnym poleceniem użytkownika; zaraz po nim P0 granicy prywatnej. Numery Pn to etapy, niezależne od klas priorytetu P0–P3.
 
-Poniżej każdy wiersz jest jednym logicznym commitem + aktualizacją tego audytu/checkpointu, raportem i STOP. **P1 wdrożony; P2 LC-01 wdrożony, testy finalnego CI PASS; P3–P16 TODO.** Moduły skrótowe wskazane przy A2/A3 oznaczają dokładne pliki w pakiecie videosearch, JS oznacza istniejący content.js. Bez nowych zależności, zmian limitów 200/2000/cache, podpisu, package, ABI, Hz ani stable/x MPV. Brak APK/merge/release; testy lokalne mogą kompilować kod testowany, ale nie wykonywać assemble/publish. Budowa APK tylko osobnym poleceniem.
+Poniżej każdy wiersz jest jednym logicznym commitem + aktualizacją tego audytu/checkpointu, raportem i STOP. **P1–P3 wdrożone i zweryfikowane testami dostępnymi dla każdego etapu; P4–P16 TODO.** Moduły skrótowe wskazane przy A2/A3 oznaczają dokładne pliki w pakiecie videosearch, JS oznacza istniejący content.js. Bez nowych zależności, zmian limitów 200/2000/cache, podpisu, package, ABI, Hz ani stable/x MPV. Brak APK/merge/release; testy lokalne mogą kompilować kod testowany, ale nie wykonywać assemble/publish. Budowa APK tylko osobnym poleceniem.
 
 | Etap / priorytet / ID | Objaw i przyczyna | Zakres plików i proponowana naprawa | Ryzyko regresji | Kryteria PASS i wymagane testy |
 | --- | --- | --- | --- | --- |
@@ -335,7 +335,8 @@ Niezależny przegląd tylko zmienionego UI/adapterów nie wskazał istotnych reg
 - A3 / 4: zakończony; SR-01–07 i zakres ograniczeń powyżej, bez napraw.
 - A4 / 4: zakończony; backlog N=16 zapisany. P1 wdrożony i sprawdzony lokalnie; telefon nadal NOT_TESTED.
 - **P2 / 16 — DONE:** LC-01, middleware BrowserStore i izolacja epok/profili, 11 nowych testów. Końcowy run CI 40920420939 SUCCESS (celowane i pełne JVM/Robolectric PASS, JS 218/218, lint task PASS; fizyczne NOT_TESTED). Bez APK.
-- **P3 / 16 — następny wyłącznie po „Dalej”:** LC-02, sticky adoption normalnego workera i bezpieczne zatrzymanie kontroli / cleanup karty użytkownika. Po implementacji testy, checkpoint i STOP. Bez APK.
+- **P3 / 16 — DONE:** LC-02, sticky adoption normalnego workera, testy Kotlin/Robolectric, JS i lintDebug w run 40923520271 SUCCESS; telefon NOT_TESTED. Bez APK.
+- **P4 / 16 — następny wyłącznie po „Dalej”:** LC-03, bramka normalnego Stop→Start po ukończeniu Job oraz ochrona przed sprzątaniem starego run. Testy coroutine + regresje i STOP.
 
 
 ## P2 / 16 — zakończenie LC-01 — 2026-10-29
@@ -345,4 +346,4 @@ Niezależny przegląd tylko zmienionego UI/adapterów nie wskazał istotnych reg
 
 ## P3 / 16 — LC-02 (2026-10-29)
 
-Przygotowano indywidualną dzierżawę normalnych kart roboczych z trwałą adopcją po wyborze użytkownika. Nowy procesowy middleware synchronizuje wybory nawet przy błyskawicznym powrocie na inną kartę; kontrola profilu/context/EngineSession/origin oraz niewracanie do sterowania i cleanup dla przejętych kart. 10 nowych testów `VideoSearchNormalWorkerLeaseTest` wraz z celowaną regresją prywatnego worker lease. **Stan: CI_PENDING** do końca osobnego GitHub Actions JVM/JS/lint; żadnego APK. Gecko/telefon NOT_TESTED. P4 nie rozpoczęto.
+Przygotowano indywidualną dzierżawę normalnych kart roboczych z trwałą adopcją po wyborze użytkownika. Nowy procesowy middleware synchronizuje wybory nawet przy błyskawicznym powrocie na inną kartę; kontrola profilu/context/EngineSession/origin oraz niewracanie do sterowania i cleanup dla przejętych kart. 10 nowych testów `VideoSearchNormalWorkerLeaseTest` wraz z celowaną regresją prywatnego worker lease. **Stan: DONE, CI SUCCESS**, run [40923520271](https://github.com/laszko14/nira-browser/actions/runs/40923520271) dla SHA `0d723c4deaa9721a58d129215998acaf681b4b5b`: targeted i pełne Kotlin/Robolectric PASS, Node JS 218/218 PASS, lintDebug task PASS (nie oznacza czystego raportu). Gecko/telefon NOT_TESTED, APK nie budowano. Następny P4 po osobnym `Dalej`.

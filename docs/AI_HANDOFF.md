@@ -1,3 +1,13 @@
+# Checkpoint — P3/16 (LC-02) zakończony — 2026-10-29
+
+- **Stan: DONE — testy CI PASS.** Wdrożona ochrona normalnych kart roboczych przed kontynuacją sterowania i automatycznym usunięciem po przejęciu przez użytkownika. Selekcja w BrowserStore jest obserwowana synchronicznie; po jednorazowym wybraniu karty prawo workera do niej nie wraca. Każda dzierżawa ma odrębne ID karty, właściciela profilu i tożsamość EngineSession; cleanup sprawdza ponadto context, origin i aktualną sesję. Udana praca nie staje się fałszywie STOPPED tylko dlatego, że worker prawidłowo usunął swoją nieprzejętą kartę.
+- **Kod P3:** commit `568432d230fb0ebe61f9eb5ce868acc56463eddf`; końcowe doprecyzowanie oceny statusu przed cleanup: `0d723c4deaa9721a58d129215998acaf681b4b5b`. Wszystko na `fix/zavro-clean-video-search-audit-20261029`. Dodano 10 testów `VideoSearchNormalWorkerLeaseTest`; wcześniejszy P2 pozostaje niezmieniony.
+- **CI ostateczne:** [workflow 40923520271](https://github.com/laszko14/nira-browser/actions/runs/40923520271) na SHA `0d723c4deaa9721a58d129215998acaf681b4b5b`, `completed / success`. PASS: targeted normal/private leases, pełna regresja JVM/Robolectric, Node **218/218** (0 FAIL), zadanie `lintDebug`. Android lint ma `abortOnError=false` — PASS zadania NIE znaczy „raport wolny od ostrzeżeń/błędów”.
+- **NOT_TESTED:** realna kontrola kart GeckoView na urządzeniu Nothing Phone (1), dokładna sekwencja przejęcia w UI, fizyczny Android 15 i 120 Hz. Nie wykonywano `assemble`, nie tworzono APK; brak zmian podpisu, package, ABI, wersji, limitów, PR, merge i release.
+- **Dalej:** wyłącznie P4/16 — LC-03: start nowego normalnego run dopiero po zakończeniu pełnego sprzątania poprzedniego; status i kolejka muszą należeć do właściwej generacji. Przeprowadzić audyt konkretnego kodu P4, testy i commit, STOP. Nie ponawiać niezmienionych testów P3 i nie budować APK.
+
+---
+
 # P3 / 16 — LC-02 (2026-10-29): kod i 10 testów, CI_PENDING
 
 - Normalny worker ma osobną krótkotrwałą, procesową dzierżawę po ID karty oraz owner normalnego profilu; sesja Gecko związana identycznością referencji. Procesowy BrowserStore middleware natychmiast, synchronicznie oznacza każdą kartę wybraną przez użytkownika jako przejętą bez prawa późniejszego odzyskania, także po wybraniu innej karty. Nie opieramy się na asynchronicznym Flow.
