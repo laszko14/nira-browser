@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items as listItems
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -198,19 +199,25 @@ internal fun VideoSearchResultsScreen(
     var runsExpanded by remember { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
     var statusesExpanded by remember(run?.id) { mutableStateOf(false) }
+    var byWebsite by remember(run?.id) { mutableStateOf(true) }
+    // null = all expanded; the expansion state is local to the current run.
+    var expandedSites by remember(run?.id) { mutableStateOf<Set<String>?>(null) }
 
-    // Sorting thousands of saved cards must not block 120 Hz Compose frames.
-    val results by produceState<VideoSearchResultsDisplay?>(
-        null, snapshot, siteFilter, sort
-    ) {
+    // Both sorting AND grouping are computed off Main for 120 Hz responsiveness.
+    val projection by produceState<
+        Pair<VideoSearchResultsDisplay, List<VideoSearchResultsGroup>>?
+    >(null, snapshot, siteFilter, sort) {
         value = withContext(Dispatchers.Default) {
             snapshot?.let {
-                VideoSearchResultsPresenter.project(
+                val display = VideoSearchResultsPresenter.project(
                     it.run, it.tasks, it.films, it.siteNames, siteFilter, sort
                 )
+                display to VideoSearchResultsPresenter.groups(display, siteFilter)
             }
         }
     }
+    val results = projection?.first
+    val groups = projection?.second.orEmpty()
 
     Surface(modifier = Modifier.fillMaxSize(), color = Color(0xff0c1015)) {
         Column(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
@@ -342,7 +349,45 @@ internal fun VideoSearchResultsScreen(
                 Text("${results.visibleFilms.size} wyników",
                     style = MaterialTheme.typography.labelSmall)
             }
-            if (results.visibleFilms.isEmpty()) {
+            // The grouping choice is intentionally session-only. It does not
+            // modify persisted site selection, the run, or sorting preferences.
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                item {
+                    FilterChip(
+                        selected = byWebsite, onClick = { byWebsite = true },
+                        label = { Text("Według witryn") }
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = !byWebsite, onClick = { byWebsite = false },
+                        label = { Text("Wszystkie razem") }
+                    )
+                }
+                if (byWebsite && groups.isNotEmpty()) {
+                    item {
+                        val allOpen = results.sources.all {
+                            VideoSearchGroupExpansion.isExpanded(
+                                expandedSites, it.siteId
+                            )
+                        }
+                        TextButton(onClick = {
+                            expandedSites = VideoSearchGroupExpansion.toggleAll(
+                                expandedSites, results.sources
+                            )
+                        }) {
+                            Text(if (allOpen) "Zwiń wszystkie" else "Rozwiń wszystkie")
+                        }
+                    }
+                }
+            }
+            if (!byWebsite && results.visibleFilms.isEmpty() ||
+                byWebsite && groups.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("Brak zapisanych filmów w tym widoku.",
                         modifier = Modifier.padding(20.dp))
@@ -355,11 +400,42 @@ internal fun VideoSearchResultsScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    gridItems(results.visibleFilms.size, key = {
-                        val f = results.visibleFilms[it]
-                        "${f.siteId}:${f.id}"
-                    }) { idx ->
-                        VideoSearchFilmTile(results.visibleFilms[idx], onOpen)
+                    if (byWebsite) {
+                        groups.forEach { group ->
+                            item(
+                                key = "site:${group.source.siteId}",
+                                span = { GridItemSpan(maxLineSpan) },
+                            ) {
+                                VideoSearchSourceHeader(
+                                    group = group,
+                                    expanded = VideoSearchGroupExpansion.isExpanded(
+                                        expandedSites, group.source.siteId
+                                    ),
+                                    onToggle = {
+                                        expandedSites = VideoSearchGroupExpansion.toggle(
+                                            expandedSites, results.sources,
+                                            group.source.siteId
+                                        )
+                                    },
+                                )
+                            }
+                            if (VideoSearchGroupExpansion.isExpanded(
+                                    expandedSites, group.source.siteId)) {
+                                gridItems(group.films.size, key = { index ->
+                                    val film = group.films[index]
+                                    "film:${film.siteId}:${film.id}"
+                                }) { index ->
+                                    VideoSearchFilmTile(group.films[index], onOpen)
+                                }
+                            }
+                        }
+                    } else {
+                        gridItems(results.visibleFilms.size, key = { index ->
+                            val film = results.visibleFilms[index]
+                            "film:${film.siteId}:${film.id}"
+                        }) { index ->
+                            VideoSearchFilmTile(results.visibleFilms[index], onOpen)
+                        }
                     }
                 }
             } else {
@@ -368,13 +444,84 @@ internal fun VideoSearchResultsScreen(
                     contentPadding = PaddingValues(10.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    listItems(results.visibleFilms.size, key = {
-                        val f = results.visibleFilms[it]
-                        "${f.siteId}:${f.id}"
-                    }) { idx ->
-                        VideoSearchFilmRow(results.visibleFilms[idx], onOpen)
+                    if (byWebsite) {
+                        groups.forEach { group ->
+                            item(key = "site:${group.source.siteId}") {
+                                VideoSearchSourceHeader(
+                                    group = group,
+                                    expanded = VideoSearchGroupExpansion.isExpanded(
+                                        expandedSites, group.source.siteId
+                                    ),
+                                    onToggle = {
+                                        expandedSites = VideoSearchGroupExpansion.toggle(
+                                            expandedSites, results.sources,
+                                            group.source.siteId
+                                        )
+                                    },
+                                )
+                            }
+                            if (VideoSearchGroupExpansion.isExpanded(
+                                    expandedSites, group.source.siteId)) {
+                                listItems(group.films.size, key = { index ->
+                                    val film = group.films[index]
+                                    "film:${film.siteId}:${film.id}"
+                                }) { index ->
+                                    VideoSearchFilmRow(group.films[index], onOpen)
+                                }
+                            }
+                        }
+                    } else {
+                        listItems(results.visibleFilms.size, key = { index ->
+                            val film = results.visibleFilms[index]
+                            "film:${film.siteId}:${film.id}"
+                        }) { index ->
+                            VideoSearchFilmRow(results.visibleFilms[index], onOpen)
+                        }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * The header stays visible with zero saved films and for failed/partial sites.
+ * It never equates "limit 200" with actual result count.
+ */
+@Composable
+private fun VideoSearchSourceHeader(
+    group: VideoSearchResultsGroup,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    val source = group.source
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle),
+        colors = CardDefaults.cardColors(containerColor = Color(0xff24313d)),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(if (expanded) "▾" else "▸", Modifier.padding(end = 8.dp),
+                    style = MaterialTheme.typography.titleLarge)
+                Text(source.name, Modifier.weight(1f),
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium)
+                Text("${group.savedCount} filmów",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color(0xffa8c3d7))
+            }
+            Text(VideoSearchResultsPresenter.statusLabel(source.state) +
+                " · ${source.pages} str. · limit ${source.limit}" +
+                (VideoSearchResultsPresenter.completionLabel(source.reason)
+                    ?.let { " · $it" } ?: ""),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xffb7c5d2))
+            if (expanded && group.films.isEmpty()) {
+                Text("Brak zapisanych filmów z tej witryny.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xffb7c5d2),
+                    modifier = Modifier.padding(top = 5.dp))
             }
         }
     }

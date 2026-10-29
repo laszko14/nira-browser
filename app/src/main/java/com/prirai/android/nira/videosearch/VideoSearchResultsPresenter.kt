@@ -35,6 +35,40 @@ internal data class VideoSearchResultsDisplay(
     override fun toString() = "VideoSearchResultsDisplay(redacted)"
 }
 
+/**
+ * A per-site group, in the original site order (not alphabetical order).
+ * count is the actual number of saved unique cards, not a promised limit.
+ */
+internal data class VideoSearchResultsGroup(
+    val source: VideoSearchResultsSource,
+    val films: List<VideoSearchFilm>,
+) {
+    val savedCount: Int get() = films.size
+    override fun toString() = "VideoSearchResultsGroup(redacted)"
+}
+
+/** Pure selection logic; null means every group expanded by default. */
+internal object VideoSearchGroupExpansion {
+    fun isExpanded(expandedIds: Set<String>?, siteId: String): Boolean =
+        expandedIds == null || siteId in expandedIds
+
+    fun toggle(expandedIds: Set<String>?, sources: List<VideoSearchResultsSource>,
+               siteId: String): Set<String>? {
+        val known = sources.map { it.siteId }.toSet()
+        if (siteId !in known) return expandedIds
+        val expanded = (expandedIds ?: known).intersect(known)
+        val next = if (siteId in expanded) expanded - siteId else expanded + siteId
+        return if (next.size == known.size) null else next
+    }
+
+    fun toggleAll(expandedIds: Set<String>?, sources: List<VideoSearchResultsSource>): Set<String>? {
+        val known = sources.map { it.siteId }.toSet()
+        if (known.isEmpty()) return expandedIds
+        return if (expandedIds == null || known.all { it in expandedIds }) emptySet()
+        else null
+    }
+}
+
 internal object VideoSearchResultsPresenter {
     fun project(
         run: VideoSearchRun,
@@ -103,6 +137,22 @@ internal object VideoSearchResultsPresenter {
                         VideoSearchSiteState.NEEDS_ATTENTION))
             },
         )
+    }
+
+    /**
+     * Group the already-validated and globally sorted display in O(n + m).
+     * Every selected source receives a header, including empty/failed sites.
+     * Within each site, cards retain the selected user sort.
+     */
+    fun groups(
+        display: VideoSearchResultsDisplay,
+        selectedSiteId: String? = null,
+    ): List<VideoSearchResultsGroup> {
+        val bySite = display.visibleFilms.groupBy { it.siteId }
+        return display.sources.asSequence()
+            .filter { selectedSiteId == null || it.siteId == selectedSiteId }
+            .map { source -> VideoSearchResultsGroup(source, bySite[source.siteId].orEmpty()) }
+            .toList()
     }
 
     fun durationLabel(seconds: Long?): String? {
