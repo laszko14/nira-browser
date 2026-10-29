@@ -201,21 +201,101 @@
     }
     return null;
   }
+  // Navigation controls frequently share all their classes with Previous
+  // and page-number buttons. Generate a unique, reusable CSS selector for
+  // the actual touched element, without brittle page-number/nth-child paths.
+  function paginationSelector(element) {
+    const tag = element.tagName.toLowerCase();
+    function unique(candidate) {
+      if (!candidate || candidate.length > 160 ||
+          !/^[\\p{L}\\p{N}#\\-_.\\[\\]=\\\\\"' >:*+]+$/u.test(candidate)) return false;
+      try {
+        const matches = document.querySelectorAll(candidate);
+        return matches.length === 1 && matches[0] === element;
+      } catch (_) { return false; }
+    }
+    const direct = selectorFor(element);
+    if (unique(direct)) return direct;
+    function attrSelectors(node) {
+      const name = node.tagName.toLowerCase();
+      const options = [];
+      for (const attr of ["rel", "aria-label", "title", "data-testid",
+        "data-test", "data-qa", "data-action"]) {
+        const value = node.getAttribute(attr);
+        // No executable/pseudo CSS, page URLs, user queries or unbounded text.
+        if (typeof value !== "string" || value.length < 1 || value.length > 64 ||
+            !/^[\\p{L}\\p{N} ._-]+$/u.test(value)) continue;
+        options.push(name + "[" + attr + '="' + value + '"]');
+      }
+      const classes = Array.from(node.classList || [])
+        .filter(c => c.length > 0 && c.length <= 45 &&
+          /^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(c)).slice(0, 6);
+      for (let i = 0; i < classes.length; i++) {
+        for (let j = i + 1; j < classes.length; j++)
+          options.push(name + "." + classes[i] + "." + classes[j]);
+      }
+      return options;
+    }
+    for (const candidate of attrSelectors(element)) if (unique(candidate)) return candidate;
+    // Select within a uniquely identified navigation container when the
+    // button itself has no distinct global class or ID.
+    let ancestor = element.parentElement;
+    for (let depth = 0; ancestor && depth < 4; depth++, ancestor = ancestor.parentElement) {
+      const rootOptions = [selectorFor(ancestor), ...attrSelectors(ancestor)];
+      for (const base of rootOptions) {
+        if (!base) continue;
+        let roots;
+        try { roots = document.querySelectorAll(base); } catch (_) { continue; }
+        if (roots.length !== 1 || roots[0] !== ancestor) continue;
+        const children = [tag, ...attrSelectors(element)];
+        for (const child of children) {
+          const path = base + " " + child;
+          if (unique(path)) return path;
+        }
+        // A semantic next button is often the last element in its pager.
+        for (const tail of [tag + ":last-of-type", tag + ":last-child"]) {
+          if (unique(base + " " + tail)) return base + " " + tail;
+        }
+      }
+    }
+    return null;
+  }
+  function safeSamePageAction(el) {
+    const hint = [el.className, el.id, el.getAttribute("aria-label"),
+      el.getAttribute("title"), el.getAttribute("rel"), el.innerText]
+      .filter(value => typeof value === "string").join(" ");
+    return /next|dalej|nast[eę]pn|load.more|więcej|more|pagination|paginac/i.test(hint);
+  }
   function manualNext(node) {
-    const el = node.closest('a[href],button');
-    if (!el || !visible(el) || el.disabled) return null;
-    const selector = selectorFor(el);
-    if (!selector) return null;
+    const el = node.closest('a[href],button,[role="button"]');
+    if (!el || !visible(el) || el.disabled ||
+        el.closest('[hidden],[inert],[aria-hidden="true"]')) return null;
+    let pagination;
     if (el.tagName === "A") {
       try {
-        const url = new URL(el.href);
-        return url.origin === location.origin && !url.username && !url.password ?
-          { selector, pagination: "NEXT_LINK" } : null;
+        const href = el.getAttribute("href");
+        if (!href || href.length > 2048 || el.hasAttribute("download") ||
+            (el.target && !["_self", ""].includes(el.target))) return null;
+        const url = new URL(href, location.href);
+        if (!["https:", "http:"].includes(url.protocol) ||
+            url.origin !== location.origin || url.username || url.password ||
+            blocked.test(url.pathname)) return null;
+        const samePage = url.pathname === location.pathname &&
+          url.search === location.search;
+        if (!samePage) pagination = "NEXT_LINK";
+        else if (href.startsWith("#") && safeSamePageAction(el))
+          pagination = "LOAD_MORE";
+        else return null;
       } catch (_) { return null; }
-    }
-    if (el.tagName === "BUTTON" && el.type !== "submit")
-      return { selector, pagination: "LOAD_MORE" };
-    return null;
+    } else if (el.tagName === "BUTTON") {
+      if (el.type === "submit" || el.closest("form")) return null;
+      pagination = "LOAD_MORE";
+    } else if (el.getAttribute("role") === "button" &&
+        !el.closest("form") && safeSamePageAction(el)) {
+      pagination = "LOAD_MORE";
+    } else return null;
+    const selector = paginationSelector(el);
+    return selector ? { selector, pagination } : null;
   }
   function cancelPicker() {
     const state = picker;
@@ -920,8 +1000,23 @@
       if (target.hasAttribute("download") ||
           (target.target && !["_self", ""].includes(target.target))) return "unsafe";
     } else {
-      if (!target.matches("button") || target.disabled ||
-          target.closest("form") || target.type === "submit") return "unsafe";
+      const button = target.matches("button") && target.type !== "submit";
+      const roleButton = target.getAttribute("role") === "button" &&
+        safeSamePageAction(target);
+      const hashLink = target.matches("a[href]") &&
+        (target.getAttribute("href") || "").startsWith("#") &&
+        safeSamePageAction(target) && !target.hasAttribute("download") &&
+        (!target.target || target.target === "_self") &&
+        (() => {
+          try {
+            const dest = new URL(target.getAttribute("href"), location.href);
+            return ["http:", "https:"].includes(dest.protocol) &&
+              dest.origin === location.origin && !dest.username && !dest.password &&
+              dest.pathname === location.pathname && dest.search === location.search;
+          } catch (_) { return false; }
+        })();
+      if ((!button && !roleButton && !hashLink) || target.disabled ||
+          target.closest("form")) return "unsafe";
     }
     const issuedRevision = navigationRevision;
     setTimeout(function () {
