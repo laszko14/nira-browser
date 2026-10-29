@@ -414,13 +414,30 @@ internal class VideoSearchBridgeController(
     ): VideoSearchPaginationSnapshot? {
         if (SystemClock.elapsedRealtime() >= deadlineMs) return null
         val tab = VideoSearchPrivateTab(tabId, "private", true)
-        if (privateResults.selectedSite(tab, profileId, site.id) != site ||
-            privateSiteTab(site, tabId, true, requireSelected) == null) return null
+        val before = privateSiteTab(site, tabId, true, requireSelected) ?: return null
+        val originalSession = before.first
+        val originalDocument = before.second.documentId ?: return null
         val detected = privateRequest(
             site, tabId, "inspect", true, requireSelected
         ) { doc, id -> VideoSearchBridgeProtocol.inspect(doc, id) }
             as? VideoSearchBridgeMessage.Inspection ?: return null
         if (detected.inputSelector == null || detected.submission == null) return null
+        // Snapshot BEFORE the search. Only a read-only, validated crawl of
+        // the exact same selector can prove an SPA's new film generation.
+        // A missing/invalid baseline allows only a new Gecko document.
+        val baselineSelector = site.configuration?.resultsCardSelector
+            ?: detected.resultsCardSelector
+        val beforePage = baselineSelector?.let { selector ->
+            (privateRequest(site, tabId, "crawl", true, requireSelected) { doc, id ->
+                VideoSearchBridgeProtocol.extractCrawl(doc, id,
+                    VideoSiteConfiguration(
+                        searchInputSelector = detected.inputSelector,
+                        resultsCardSelector = selector,
+                        submission = detected.submission,
+                        submitSelector = detected.submitSelector,
+                    ), 0)
+            } as? VideoSearchBridgeMessage.Results)?.page
+        }?.takeIf { it.status != "stale" }
         val submitted = privateRequest(site, tabId, "search", true, requireSelected) {
             doc, id -> VideoSearchBridgeProtocol.search(
                 doc, id, query, detected.inputSelector, detected.submission,
@@ -429,34 +446,50 @@ internal class VideoSearchBridgeController(
         } is VideoSearchBridgeMessage.Submitted
         if (!submitted) return null
 
+        // ACK is only dispatch, not proof. Even if cards remain visible,
+        // don't attribute them to this query until a NEW document or a
+        // verified change of film URLs in the SAME document is observed.
         var config: VideoSiteConfiguration? = null
-        for (attempt in 0 until 6) {
+        var confirmed = false
+        for (attempt in 0 until 9) {
             if (SystemClock.elapsedRealtime() >= deadlineMs) return null
-            delay(650)
+            delay(900)
+            val live = privateSiteTab(site, tabId, false, requireSelected)
+                ?: return null
+            if (live.first !== originalSession) return null
+            if (privateResults.selectedSite(tab, profileId, site.id) != site) return null
             val inspected = privateRequest(
                 site, tabId, "inspect", false, requireSelected
             ) { doc, id -> VideoSearchBridgeProtocol.inspect(doc, id) }
                 as? VideoSearchBridgeMessage.Inspection
-            if (inspected?.inputSelector != null && inspected.submission != null &&
-                inspected.resultsCardSelector != null) {
-                config = VideoSiteConfiguration(
-                    searchInputSelector = inspected.inputSelector,
-                    resultsCardSelector = inspected.resultsCardSelector,
-                    submission = inspected.submission,
-                    submitSelector = inspected.submitSelector,
-                    pagination = inspected.pagination,
-                    nextPageSelector = inspected.nextPageSelector,
-                )
+            if (inspected?.inputSelector == null || inspected.submission == null ||
+                inspected.resultsCardSelector == null) continue
+            val candidate = VideoSiteConfiguration(
+                searchInputSelector = inspected.inputSelector,
+                resultsCardSelector = inspected.resultsCardSelector,
+                submission = inspected.submission,
+                submitSelector = inspected.submitSelector,
+                pagination = inspected.pagination,
+                nextPageSelector = inspected.nextPageSelector,
+            )
+            val page = (privateRequest(site, tabId, "crawl", false, requireSelected) { doc, id ->
+                VideoSearchBridgeProtocol.extractCrawl(doc, id, candidate, 0)
+            } as? VideoSearchBridgeMessage.Results)?.page
+            // SPA baseline is only comparable for the same configured selector.
+            val beforeForSelector = beforePage?.takeIf {
+                baselineSelector == candidate.resultsCardSelector
+            }
+            if (VideoSearchWorkerVerification.confirmed(
+                    originalDocument, live.second.documentId, page, beforeForSelector
+                )) {
+                config = candidate
+                confirmed = true
                 break
             }
         }
-        val snapshot = config?.let {
-            executePrivatePagination(site, tabId, it, requireSelected, deadlineMs,
-                hasAggregateCapacity, onProgress)
-        } ?: VideoSearchPaginationSnapshot(
-            films = emptyList(), scannedCards = 0, visitedPages = 1,
-            pageActions = 0, reason = VideoSearchPaginationStop.UNSUPPORTED,
-        )
+        if (!confirmed) return null
+        val snapshot = executePrivatePagination(site, tabId, config!!,
+            requireSelected, deadlineMs, hasAggregateCapacity, onProgress)
         val manager = ProfileManager.getInstance(applicationContext)
         return snapshot.takeIf {
             manager.isPrivateMode() && manager.getActiveProfile().id == profileId &&
@@ -1488,6 +1521,7 @@ internal class VideoSearchBridgeController(
      */
     private suspend fun awaitWorkerResults(
         site: VideoSearchSite, tabId: String, beforeDocument: String,
+        beforePage: VideoSearchExtractedPage?,
     ): Boolean {
         val scope = site.scope as? VideoSearchScope.Normal ?: return false
         val start = SystemClock.elapsedRealtime()
@@ -1499,12 +1533,12 @@ internal class VideoSearchBridgeController(
             if (manager.isPrivateMode() ||
                 manager.getActiveProfile().id != scope.profileId) return false
             val live = workerOwnedTab(site, tabId)
-            if (live != null && live.second.documentId != beforeDocument) {
+            if (live != null) {
                 val answer = request(site, "crawl", workerTabId = tabId) { doc, req ->
                     VideoSearchBridgeProtocol.extractCrawl(doc, req, cfg, 0)
                 } as? VideoSearchBridgeMessage.Results
                 if (VideoSearchWorkerVerification.confirmed(
-                        beforeDocument, live.second.documentId, answer?.page
+                        beforeDocument, live.second.documentId, answer?.page, beforePage
                     )) return true
                 if (answer?.page?.status == "stale") return false
             }
@@ -1610,9 +1644,19 @@ internal class VideoSearchBridgeController(
                                     if (before == null) {
                                         outcome = VideoSearchQueueStatus.NEEDS_ATTENTION
                                     } else {
+                                        // The pre-submit crawl is read-only and tied to the
+                                        // original worker document/selector. If it fails,
+                                        // same-document result acceptance fails closed.
+                                        val beforePage = current.configuration?.let { config ->
+                                            (request(current, "crawl", workerTabId = tabId) { doc, req ->
+                                                VideoSearchBridgeProtocol.extractCrawl(doc, req, config, 0)
+                                            } as? VideoSearchBridgeMessage.Results)?.page
+                                        }?.takeIf { it.status != "stale" }
                                         outcome = submitWorker(current, tabId, plan.query, repository)
                                         if (outcome == VideoSearchQueueStatus.SUBMITTED) {
-                                            val confirmed = awaitWorkerResults(current, tabId, before)
+                                            val confirmed = awaitWorkerResults(
+                                                current, tabId, before, beforePage
+                                            )
                                             if (!journal.hasCapacity()) {
                                                 outcome = VideoSearchQueueStatus.STOPPED
                                             } else if (!confirmed) {

@@ -1,3 +1,10 @@
+# P10/16 — SR-06 — bramka generacji po wysłaniu frazy
+
+- P9 PASS: SHA `16e73c10`, CI [40936307515](https://github.com/laszko14/nira-browser/actions/runs/40936307515). P10: proof gate odróżnia nowy Gecko dokument od niezmienionej starej listy; dla SPA porównuje pre-submit i post-submit film URL z tego samego selektora, zachowuje pełne query jako tożsamość. Brak dowodu → brak zapisu wyników nowej frazy. Private pozostaje RAM-only i związany z epoką/profilami.
+- Kotlin/JVM i rzeczywisty JS (ACK + preventDefault + SPA) testowane w planie workflow P3–P10; wynik dla nowego SHA **CI_PENDING**, realny GeckoView/Android 15 i strony SPA **NOT_TESTED**. Konserwatywny gate może odrzucić prawdziwą stronę przy tych samych URL w dwóch różnych wyszukiwaniach; nie należy uznawać tego za fałszywe pomyślne wyszukiwanie. Brak zmian schematu, APK i merge. Następne P11 SR-07 po osobnym `Dalej`.
+
+---
+
 # P9/16 — SR-05 — przypisywanie prawdziwego adresu filmu
 
 - Zakres: `selectedAnchor` w content.js nie może pobierać pierwszego dowolnego same-origin URL z karty. Adres kategorii/reklamy w pobliżu tytułu jest ryzykiem fałszywych wyników; jednoznaczne lokalne powiązanie tytuł↔link i zgodna semantyka, miniatura, wzorzec ścieżki to dopuszczalne sygnały. Gdy dwie różne strony nadal są nierozróżnialne, pomiń kartę zamiast losowego przypisania.
