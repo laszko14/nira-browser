@@ -1,3 +1,17 @@
+# Checkpoint — Wyszukiwarka filmów / ETAP 2A / 2026-10-29
+
+- **Status:** kod ETAPU 2A wdrożony i zapisany w GitHub; testy wykonaniowe **NOT_TESTED**; jedno kolejne `Dalej` uruchamia wyłącznie ETAP 2B. Nie wykonano Gradle, CI, builda APK, PR, merge ani aktualizacji numerów wersji.
+- **Gałąź/baza:** `feat/zavro-clean-video-search-20261029`, poprzedni HEAD `93e0406cef1d25c980d7d19d0d7a17d0b1cf483e`, Clean v1190 Draft PR #112. Checkpoint zapisany razem z kodem w jednym commicie (SHA przez GitHub).
+- **Moje witryny:** osobny ekran `MyVideoSitesActivity` dostępny tymczasowo z `Ustawienia → Ogólne → Moje witryny` (menu wyszukiwarki zostanie scalone w ETAPIE 11). Lista Room obserwowana Flow + RecyclerView/ListAdapter; dodawanie z pola URL zapisuje natychmiast i wyłącznie lokalnie (`NEEDS_CONFIGURATION`, bez sieci). Status „Wymaga konfiguracji”, ponowne uruchomienie pokazuje zapisane witryny. Przed usunięciem `MaterialAlertDialogBuilder` wymaga ręcznego potwierdzenia; awaria konfiguracji nigdy nie usuwa wpisu.
+- **Dane:** `VideoSearchDao.createSiteIfAbsent` to transakcja sprawdzająca duplikat w aktualnym profilu i nadająca nową pozycję; powtórne wpisanie dokładnie tego samego URL zwraca istniejący rekord, nie zeruje konfiguracji/limitu/nazwy. `VideoSearchRepository.addSite` tworzy nazwę początkową od hosta i izoluje wpis per `Normal(profileId)`; `VideoSearchIntegrity.siteInputUrl` przyjmuje http(s) URL lub domenę bez prefiksu, zachowuje ścieżkę/query i sprawdza bez żądania do witryny.
+- **Prywatność:** przed pokazaniem/zapisem/usunięciem sprawdzany jest bieżący normalny profil; przy aktywnym trybie prywatnym ekran blokuje zapis do zwykłej bazy i nie pokazuje zwykłych wpisów. Tymczasowe ograniczenie do integracji prawdziwego lifetime prywatnego w ETAPIE 10; nie twierdzić, że osobna prywatna lista już działa.
+- **Zmiany:** `app/src/main/java/com/prirai/android/nira/videosearch/{MyVideoSitesActivity.kt,VideoSearchDao.kt,VideoSearchRepository.kt,VideoSearchIntegrity.kt}`, `app/src/main/java/com/prirai/android/nira/settings/fragment/GeneralSettingsFragment.kt`, `app/src/main/res/xml/preferences_general.xml`, `app/src/main/AndroidManifest.xml`, `app/src/test/java/com/prirai/android/nira/videosearch/MyVideoSitesRepositoryTest.kt` oraz `docs/AI_HANDOFF.md`. Bez zmian innych funkcji i Gecko.
+- **Weryfikacja:** 18/18 statycznych kontroli zakresu, DAO, potwierdzenia, manifestu, profilu i UI **PASS**; dodano 7 testów Robolectric (immediate persistence, duplikat bez resetu, błąd konfiguracji, usuwanie z potwierdzeniem, profile, reopen DB, współbieżność i zła składnia URL). **Testy Kotlin/Room i UI na telefonie NOT_TESTED**, bo nie było zgody na budowanie APK/CI. Statyczna kontrola nie jest dowodem poprawnej kompilacji.
+- **Pozostałe (poza 2A):** 2B rename, drag&drop, active toggle, limity i dopracowanie usuwania; 2C wybór/wszystkie; ETAP 3 auto/ręczna konfiguracja faktycznej wyszukiwarki (nie mylić zapisania z konfiguracją); 10 private lifetime; 11 pełne wejścia menu. Gdy auto-konfiguracja będzie wdrażana, musi nastąpić PO trwałym zapisie i nie usuwać witryny po niepowodzeniu.
+- **Następna komenda `Dalej`:** wyłącznie **ETAP 2B**; kod, weryfikacja, checkpoint, raport i **STOP**. Samo `Dalej` nie upoważnia do kompilowania.
+
+---
+
 # Checkpoint — Wyszukiwarka filmów / ETAP 1C / 2026-10-29
 
 - **Status:** IMPLEMENTED (SOURCE ONLY), runtime tests **NOT_TESTED**. Tylko 1C; następne pojedyncze `Dalej` = ETAP 2A; STOP po tym commicie. Żadnego APK, Gradle, CI, PR ani merge.

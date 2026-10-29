@@ -5,6 +5,18 @@ import java.net.URI
 /** Pure persistence-boundary checks. Do not log rejected URLs or query text. */
 internal object VideoSearchIntegrity {
     /** Preserve exact query parameters and case; validation is not normalization. */
+    /**
+     * Accept a full URL or a bare domain. Validation never contacts the site.
+     * Keep path and query untouched; strip only surrounding input whitespace.
+     */
+    fun siteInputUrl(input: String): String {
+        val typed = input.trim()
+        require(typed.isNotEmpty()) { "Podaj adres witryny" }
+        val normalized = if (typed.contains("://")) typed else "https://$typed"
+        requirePageUrl(normalized)
+        return normalized
+    }
+
     fun requirePageUrl(url: String) {
         require(url.length <= 8192 && url.isNotBlank() &&
             url.none { it.isWhitespace() || it.isISOControl() }) { "Invalid page URL" }

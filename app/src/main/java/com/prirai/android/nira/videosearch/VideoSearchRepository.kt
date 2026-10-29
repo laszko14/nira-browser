@@ -24,6 +24,30 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
         dao.putSite(with(VideoSearchRowCodec) { site.toRow() })
     }
 
+    /**
+     * Stage 2A: save before ANY site configuration attempt or network request.
+     * Re-adding the same URL does not overwrite an existing site's settings.
+     */
+    suspend fun addSite(
+        scope: VideoSearchScope.Normal,
+        input: String,
+        nowMs: Long = System.currentTimeMillis(),
+        newId: String = java.util.UUID.randomUUID().toString(),
+    ): VideoSearchSite {
+        val url = VideoSearchIntegrity.siteInputUrl(input)
+        val host = java.net.URI(url).host ?: throw IllegalArgumentException("Invalid site")
+        val pending = VideoSearchSite(
+            id = newId,
+            scope = scope,
+            siteUrl = url,
+            displayName = host,
+            position = 0,
+            configurationState = VideoSiteConfigurationState.NEEDS_CONFIGURATION,
+            createdAtMs = nowMs,
+        )
+        return with(VideoSearchRowCodec) { dao.createSiteIfAbsent(pending.toRow()).toModel() }
+    }
+
     fun observeSites(scope: VideoSearchScope.Normal): Flow<List<VideoSearchSite>> =
         dao.observeSites(scope.profileId).map { rows ->
             rows.map { with(VideoSearchRowCodec) { it.toModel() } }

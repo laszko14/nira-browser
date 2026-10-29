@@ -2,6 +2,7 @@ package com.prirai.android.nira.settings.fragment
 
 import android.app.AlertDialog
 import android.os.Bundle
+import android.content.Intent
 import android.text.InputType
 import android.widget.EditText
 import android.widget.Toast
@@ -13,6 +14,7 @@ import com.prirai.android.nira.ext.components
 import com.prirai.android.nira.preferences.UserPreferences
 import com.prirai.android.nira.settings.HomepageChoice
 import com.prirai.android.nira.utils.Utils
+import com.prirai.android.nira.videosearch.MyVideoSitesActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.launch
 import mozilla.components.browser.state.action.DefaultDesktopModeAction
@@ -22,6 +24,13 @@ class GeneralSettingsFragment : BaseSettingsFragment() {
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, s: String?) {
         addPreferencesFromResource(R.xml.preferences_general)
+
+        clickablePreference(
+            preference = "video_search_my_sites",
+            onClick = {
+                startActivity(Intent(requireContext(), MyVideoSitesActivity::class.java))
+            }
+        )
 
         switchPreference(
                 preference = requireContext().resources.getString(R.string.key_javascript_enabled),

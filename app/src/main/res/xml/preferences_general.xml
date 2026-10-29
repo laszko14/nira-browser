@@ -35,6 +35,13 @@
             app:defaultValue="5"
             app:dependency="@string/key_search_suggestions_enabled"/>
 
+        <Preference
+            app:key="video_search_my_sites"
+            app:title="Moje witryny"
+            app:summary="Wyszukiwarka filmów — dodaj i zarządzaj witrynami"
+            app:icon="@drawable/mozac_ic_search_24"
+            app:singleLineTitle="false"/>
+
     </PreferenceCategory>
 
     <PreferenceCategory android:title="Privacy &amp; Security">

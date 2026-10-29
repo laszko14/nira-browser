@@ -96,6 +96,12 @@
             android:theme="@style/AppThemeAddons"
         />
 
+    <!-- Search-site management; explicitly internal, no external intents. -->
+    <activity
+            android:name=".videosearch.MyVideoSitesActivity"
+            android:exported="false"
+            android:theme="@style/AppThemeSettings" />
+
     <activity
             android:name=".settings.activity.SettingsActivity"
             android:label="@string/settings"

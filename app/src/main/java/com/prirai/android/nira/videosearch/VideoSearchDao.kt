@@ -25,6 +25,25 @@ internal interface VideoSearchDao {
     @Query("SELECT * FROM video_search_sites WHERE profileId = :profileId AND id = :id LIMIT 1")
     suspend fun getSite(profileId: String, id: String): VideoSearchSiteRow?
 
+    @Query("SELECT * FROM video_search_sites WHERE profileId = :profileId AND siteUrl = :siteUrl LIMIT 1")
+    suspend fun getSiteByUrl(profileId: String, siteUrl: String): VideoSearchSiteRow?
+
+    @Query("SELECT COALESCE(MAX(position), -1) + 1 FROM video_search_sites WHERE profileId = :profileId")
+    suspend fun nextSitePosition(profileId: String): Int
+
+    /**
+     * Persist an unconfigured site immediately. Duplicate submissions return
+     * the existing row without losing its configuration or resetting its state.
+     * Room serializes the check+position+insert in one transaction.
+     */
+    @Transaction
+    suspend fun createSiteIfAbsent(row: VideoSearchSiteRow): VideoSearchSiteRow {
+        getSiteByUrl(row.profileId, row.siteUrl)?.let { return it }
+        val ordered = row.copy(position = nextSitePosition(row.profileId))
+        putSite(ordered)
+        return ordered
+    }
+
     @Query("DELETE FROM video_search_sites WHERE profileId = :profileId AND id = :id")
     suspend fun deleteSite(profileId: String, id: String): Int
 
