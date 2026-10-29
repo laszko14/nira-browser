@@ -2,6 +2,8 @@ package com.prirai.android.nira.videosearch
 
 import android.content.Context
 import android.os.SystemClock
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeoutOrNull
 import com.prirai.android.nira.browser.profile.ProfileManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -14,6 +16,7 @@ import mozilla.components.concept.engine.webextension.Port
 import mozilla.components.concept.engine.webextension.WebExtension
 import mozilla.components.lib.state.ext.flowScoped
 import java.util.IdentityHashMap
+import java.util.UUID
 
 /**
  * Separate, opt-in GeckoView bridge for VIDEO SEARCH only.
@@ -22,10 +25,9 @@ import java.util.IdentityHashMap
  * lazily when the user opens their configured-site management screen, rather
  * than injecting a content script into every tab during browser cold-start.
  *
- * In stage 3A the ONLY accepted payloads are document hello and pong.
- * No DOM access, search submission, results, network capture or persistent
- * writes are performed by the bridge. Commands for site interaction belong
- * to 3B+ and MUST verify the requested site/profile/tab again.
+ * In stage 3B site inspection / GET search are permitted only after explicit
+ * user action on an already open exact-site tab. No automatic DOM polling,
+ * pagination, result harvesting, private browsing or persistent writes here.
  */
 internal class VideoSearchBridgeController(
     private val applicationContext: Context,
@@ -46,6 +48,23 @@ internal class VideoSearchBridgeController(
     )
     private class Window(var start: Long, var count: Int)
 
+    private data class Pending(
+        val requestId: String,
+        val documentId: String,
+        val owner: VideoSearchScope.Normal,
+        val siteId: String,
+        val pageUrl: String,
+        val kind: String,
+        val result: CompletableDeferred<VideoSearchBridgeMessage>,
+    )
+    private data class Proposal(
+        val session: EngineSession,
+        val documentId: String,
+        val createdMs: Long,
+        val inspection: VideoSearchBridgeMessage.Inspection,
+    )
+    private val pending = IdentityHashMap<EngineSession, Pending>()
+    private val proposals = mutableMapOf<Pair<String, String>, Proposal>()
     private val attached = IdentityHashMap<EngineSession, Unit>()
     private val ports = IdentityHashMap<EngineSession, DocumentPort>()
     private val windows = IdentityHashMap<EngineSession, Window>()
@@ -128,6 +147,8 @@ internal class VideoSearchBridgeController(
                 obsolete.forEach { old ->
                     attached.remove(old)
                     windows.remove(old)
+                    pending.remove(old)?.result?.cancel()
+                    proposals.entries.removeAll { it.value.session === old }
                     ports.remove(old)?.port?.let {
                         try { it.disconnect() } catch (_: Exception) {}
                     }
@@ -146,6 +167,8 @@ internal class VideoSearchBridgeController(
                         ports[session]?.let { connection ->
                             // Navigation or profile moves invalidate the old document.
                             if (!isFresh(session, connection)) {
+                                pending.remove(session)?.result?.cancel()
+                                proposals.entries.removeAll { it.value.session === session }
                                 ports.remove(session)
                                 try { connection.port.disconnect() } catch (_: Exception) {}
                             }
@@ -164,6 +187,8 @@ internal class VideoSearchBridgeController(
                 try { port.disconnect() } catch (_: Exception) {}
                 return
             }
+            pending.remove(session)?.result?.cancel()
+            proposals.entries.removeAll { it.value.session === session }
             val old = ports.put(session, DocumentPort(port))
             if (old != null && old.port !== port) {
                 try { old.port.disconnect() } catch (_: Exception) {}
@@ -198,12 +223,112 @@ internal class VideoSearchBridgeController(
                     if (isFresh(session, entry) &&
                         parsed.documentId == entry.documentId) entry.lastPong = true
                 }
+                is VideoSearchBridgeMessage.Inspection,
+                is VideoSearchBridgeMessage.Submitted,
+                is VideoSearchBridgeMessage.SearchFailed -> {
+                    val job = pending[session] ?: return
+                    val req = when (parsed) {
+                        is VideoSearchBridgeMessage.Inspection -> parsed.requestId
+                        is VideoSearchBridgeMessage.Submitted -> parsed.requestId
+                        is VideoSearchBridgeMessage.SearchFailed -> parsed.requestId
+                        else -> return
+                    }
+                    if (job.requestId != req || job.documentId != parsed.documentId ||
+                        !isFresh(session, entry) || job.pageUrl != tab.pageUrl ||
+                        tab.owner != job.owner || job.kind != when (parsed) {
+                            is VideoSearchBridgeMessage.Inspection -> "inspect"
+                            else -> "search"
+                        }) return
+                    pending.remove(session)
+                    if (parsed is VideoSearchBridgeMessage.Inspection &&
+                        parsed.inputSelector != null && parsed.submission != null) {
+                        proposals[job.owner.profileId to job.siteId] =
+                            Proposal(session, parsed.documentId, SystemClock.elapsedRealtime(), parsed)
+                    }
+                    job.result.complete(parsed)
+                }
             }
         }
 
         override fun onPortDisconnected(port: Port) {
-            if (ports[session]?.port === port) ports.remove(session)
+            val old = ports[session]
+            if (old != null && old.port.name() == port.name() &&
+                old.port.senderUrl() == port.senderUrl()) {
+                ports.remove(session)
+                pending.remove(session)?.result?.cancel()
+                proposals.entries.removeAll { it.value.session === session }
+            }
         }
+    }
+
+    private fun existingSiteTab(site: VideoSearchSite): Pair<EngineSession, DocumentPort>? {
+        val scope = site.scope as? VideoSearchScope.Normal ?: return null
+        if (!site.enabled) return null
+        val matching = store.state.tabs.mapNotNull { tab ->
+            val session = tab.engineState.engineSession ?: return@mapNotNull null
+            val state = currentTab(session) ?: return@mapNotNull null
+            // Exact saved page, except its optional final slash. Never act
+            // on unrelated pages of the same origin.
+            if (state.owner != scope ||
+                state.pageUrl.trimEnd('/') != site.siteUrl.trimEnd('/')) return@mapNotNull null
+            val entry = ports[session] ?: return@mapNotNull null
+            if (!isFresh(session, entry)) return@mapNotNull null
+            session to entry
+        }
+        return matching.singleOrNull() // no guessing among duplicate tabs
+    }
+
+    private suspend fun request(
+        site: VideoSearchSite,
+        kind: String,
+        packet: (String, String) -> org.json.JSONObject,
+    ): VideoSearchBridgeMessage? {
+        val scope = site.scope as? VideoSearchScope.Normal ?: return null
+        val (session, entry) = existingSiteTab(site) ?: return null
+        val documentId = entry.documentId ?: return null
+        if (pending.containsKey(session)) return null
+        val requestId = UUID.randomUUID().toString().replace("-", "")
+        val result = CompletableDeferred<VideoSearchBridgeMessage>()
+        val work = Pending(requestId, documentId, scope, site.id,
+            entry.pageUrl ?: return null, kind, result)
+        pending[session] = work
+        try {
+            entry.port.postMessage(packet(documentId, requestId))
+            return withTimeoutOrNull(8_000L) { result.await() }
+        } catch (_: Exception) {
+            return null
+        } finally {
+            if (pending[session] === work) pending.remove(session)
+        }
+    }
+
+    /** Inspection is read-only and only runs when user taps Rozpoznaj. */
+    suspend fun inspectSite(site: VideoSearchSite): VideoSearchBridgeMessage.Inspection? =
+        request(site, "inspect") { document, request ->
+            VideoSearchBridgeProtocol.inspect(document, request)
+        } as? VideoSearchBridgeMessage.Inspection
+
+    /**
+     * Search stays on the site's own page: no Google, no navigation of
+     * unrelated tabs. A partial detection can run a one-off search but is
+     * not marked CONFIGURED until result cards are recognized.
+     */
+    suspend fun searchSite(site: VideoSearchSite, query: String): Boolean {
+        if (!VideoSearchBridgeProtocol.validQuery(query)) return false
+        val scoped = site.scope as? VideoSearchScope.Normal ?: return false
+        val (session, entry) = existingSiteTab(site) ?: return false
+        val previous = proposals[scoped.profileId to site.id]
+        val setup = if (previous != null && previous.session === session &&
+            previous.documentId == entry.documentId &&
+            SystemClock.elapsedRealtime() - previous.createdMs <= 120_000L) {
+            previous.inspection
+        } else null
+        val input = setup?.inputSelector ?: site.configuration?.searchInputSelector ?: return false
+        val method = setup?.submission ?: site.configuration?.submission ?: return false
+        val button = setup?.submitSelector ?: site.configuration?.submitSelector
+        return request(site, "search") { document, request ->
+            VideoSearchBridgeProtocol.search(document, request, query, input, method, button)
+        } is VideoSearchBridgeMessage.Submitted
     }
 
     /**
@@ -238,6 +363,8 @@ internal class VideoSearchBridgeController(
 /** Starts only on user access to the feature; never during app cold-start. */
 internal object VideoSearchBridgeHost {
     private var controller: VideoSearchBridgeController? = null
+
+    fun instance(): VideoSearchBridgeController? = controller
 
     fun start(context: Context, engine: Engine, store: BrowserStore) {
         val instance = controller ?: VideoSearchBridgeController(

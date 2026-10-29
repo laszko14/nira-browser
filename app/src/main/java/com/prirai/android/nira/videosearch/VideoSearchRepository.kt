@@ -48,6 +48,39 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
         return with(VideoSearchRowCodec) { dao.createSiteIfAbsent(pending.toRow()).toModel() }
     }
 
+    /** Atomic compare-and-set: a stale inspection may not overwrite user edits. */
+    suspend fun applyAutoConfiguration(
+        site: VideoSearchSite,
+        inspection: VideoSearchBridgeMessage.Inspection,
+        nowMs: Long = System.currentTimeMillis(),
+    ): Boolean {
+        val scope = site.scope as? VideoSearchScope.Normal ?: return false
+        if (inspection.status != "ready") return false
+        val input = inspection.inputSelector ?: return false
+        val cards = inspection.resultsCardSelector ?: return false
+        val submit = inspection.submission ?: return false
+        val config = VideoSiteConfiguration(
+            searchInputSelector = input,
+            resultsCardSelector = cards,
+            submission = submit,
+            submitSelector = inspection.submitSelector,
+            pagination = inspection.pagination,
+            nextPageSelector = inspection.nextPageSelector,
+        )
+        return dao.acceptAutoConfiguration(scope.profileId, site.id, site.siteUrl,
+            site.updatedAtMs, VideoSearchRowCodec.configurationJson(config)!!, nowMs) == 1
+    }
+
+    /** Incomplete detection must not delete/disable a site or erase good selectors. */
+    suspend fun markAutoConfigurationIncomplete(
+        site: VideoSearchSite, nowMs: Long = System.currentTimeMillis(),
+    ): Boolean {
+        val scope = site.scope as? VideoSearchScope.Normal ?: return false
+        return dao.markAutoConfigurationIncomplete(
+            scope.profileId, site.id, site.siteUrl, site.updatedAtMs, nowMs
+        ) == 1
+    }
+
     fun observeSites(scope: VideoSearchScope.Normal): Flow<List<VideoSearchSite>> =
         dao.observeSites(scope.profileId).map { rows ->
             rows.map { with(VideoSearchRowCodec) { it.toModel() } }

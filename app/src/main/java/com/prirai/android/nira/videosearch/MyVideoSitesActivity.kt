@@ -96,6 +96,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
             onEdit = ::editSite,
             onToggle = ::toggleSite,
             onSelect = ::setSiteSelected,
+            onInspect = ::inspectSite,
+            onSearch = ::searchSite,
             onDelete = ::confirmRemoval,
         )
         val list = RecyclerView(this).apply {
@@ -283,6 +285,94 @@ class MyVideoSitesActivity : AppCompatActivity() {
         }
     }
 
+    private fun inspectSite(site: VideoSearchSite) {
+        val owner = ownerIfCurrent() ?: return
+        if (site.scope != owner || !site.enabled) return
+        lifecycleScope.launch {
+            val current = try {
+                withContext(Dispatchers.IO) { repository.site(owner, site.id) }
+            } catch (_: Exception) { null }
+            if (ownerIfCurrent() != owner || current == null ||
+                !current.enabled || current.siteUrl != site.siteUrl) return@launch
+            val bridge = VideoSearchBridgeHost.instance()
+            if (bridge == null) {
+                message("Most nie jest gotowy. Otwórz witrynę i wróć do listy.")
+                return@launch
+            }
+            val inspected = bridge.inspectSite(current)
+            if (ownerIfCurrent() != owner) return@launch
+            if (inspected == null) {
+                message("Otwórz dokładny adres witryny w jednej karcie i odśwież ją.")
+                return@launch
+            }
+            try {
+                if (inspected.status == "ready") {
+                    val saved = withContext(Dispatchers.IO) {
+                        repository.applyAutoConfiguration(current, inspected)
+                    }
+                    message(if (saved) "Rozpoznano wyszukiwarkę i karty wyników"
+                        else "Witryna zmieniła się — ponów rozpoznawanie")
+                } else {
+                    withContext(Dispatchers.IO) {
+                        repository.markAutoConfigurationIncomplete(current)
+                    }
+                    message(if (inspected.inputSelector != null)
+                        "Rozpoznano pole. Możesz spróbować „Szukaj”. Wyniki wymagają konfiguracji."
+                        else "Nie rozpoznano wyszukiwarki. Potrzebne wskazanie ręczne (etap 3C).")
+                }
+            } catch (_: Exception) {
+                message("Nie udało się zapisać konfiguracji. Witryna pozostaje na liście.")
+            }
+        }
+    }
+
+    private fun searchSite(site: VideoSearchSite) {
+        val owner = ownerIfCurrent() ?: return
+        if (site.scope != owner || !site.enabled) return
+        val field = EditText(this).apply {
+            hint = "Fraza do wyszukania na tej witrynie"
+            setSingleLine(true)
+            inputType = InputType.TYPE_CLASS_TEXT
+            setPadding(dp(20), dp(12), dp(20), dp(12))
+        }
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("Szukaj: ${site.displayName}")
+            .setMessage("Użyta zostanie wyszukiwarka tej witryny, nie Google. " +
+                "Otwórz wcześniej jej adres w zwykłej karcie Zavro.")
+            .setView(field)
+            .setNegativeButton("Anuluj", null)
+            .setPositiveButton("Szukaj", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val query = field.text.toString().trim()
+                if (!VideoSearchBridgeProtocol.validQuery(query)) {
+                    field.error = "Wpisz frazę (maksymalnie 250 znaków)"
+                    return@setOnClickListener
+                }
+                if (ownerIfCurrent() != owner) return@setOnClickListener
+                dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).isEnabled = false
+                lifecycleScope.launch {
+                    try {
+                        val current = withContext(Dispatchers.IO) { repository.site(owner, site.id) }
+                        if (ownerIfCurrent() != owner || current == null || !current.enabled ||
+                            current.siteUrl != site.siteUrl) return@launch
+                        val success = VideoSearchBridgeHost.instance()?.searchSite(current, query) == true
+                        if (ownerIfCurrent() == owner) message(if (success)
+                            "Wysłano wyszukiwanie do witryny. Sprawdź jej kartę."
+                            else "Nie wysłano. Otwórz witrynę i użyj „Rozpoznaj”.")
+                        if (success) dialog.dismiss()
+                    } catch (_: Exception) {
+                        if (ownerIfCurrent() == owner) message("Nie udało się wysłać wyszukiwania")
+                    } finally {
+                        dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)?.isEnabled = true
+                    }
+                }
+            }
+        }
+        dialog.show()
+    }
+
     private fun editSite(site: VideoSearchSite) {
         val owner = ownerIfCurrent() ?: return
         if (site.scope != owner) return
@@ -436,6 +526,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
         private val onEdit: (VideoSearchSite) -> Unit,
         private val onToggle: (VideoSearchSite, Boolean) -> Unit,
         private val onSelect: (VideoSearchSite, Boolean) -> Unit,
+        private val onInspect: (VideoSearchSite) -> Unit,
+        private val onSearch: (VideoSearchSite) -> Unit,
         private val onDelete: (VideoSearchSite) -> Unit,
     ) : RecyclerView.Adapter<SitesAdapter.Holder>() {
         private val rows = mutableListOf<VideoSearchSite>()
@@ -494,6 +586,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
             val toggle: SwitchCompat,
             val select: CheckBox,
             val edit: Button,
+            val inspect: Button,
+            val search: Button,
             val delete: Button,
         ) : RecyclerView.ViewHolder(root)
 
@@ -514,16 +608,24 @@ class MyVideoSitesActivity : AppCompatActivity() {
             first.addView(toggle)
             val detail = TextView(ctx).apply { textSize = 13f; maxLines = 3 }
             val select = CheckBox(ctx).apply { text = "Uwzględnij w wyszukiwaniu" }
-            val buttons = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+            val actions = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+            val firstActions = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+            val secondActions = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
             val edit = Button(ctx).apply { text = "Edytuj" }
+            val inspect = Button(ctx).apply { text = "Rozpoznaj" }
+            val search = Button(ctx).apply { text = "Szukaj" }
             val delete = Button(ctx).apply { text = "Usuń" }
-            buttons.addView(edit, LinearLayout.LayoutParams(0, -2, 1f))
-            buttons.addView(delete, LinearLayout.LayoutParams(0, -2, 1f))
+            firstActions.addView(inspect, LinearLayout.LayoutParams(0, -2, 1f))
+            firstActions.addView(search, LinearLayout.LayoutParams(0, -2, 1f))
+            secondActions.addView(edit, LinearLayout.LayoutParams(0, -2, 1f))
+            secondActions.addView(delete, LinearLayout.LayoutParams(0, -2, 1f))
+            actions.addView(firstActions)
+            actions.addView(secondActions)
             root.addView(first)
             root.addView(detail)
             root.addView(select)
-            root.addView(buttons)
-            return Holder(root, heading, detail, toggle, select, edit, delete)
+            root.addView(actions)
+            return Holder(root, heading, detail, toggle, select, edit, inspect, search, delete)
         }
 
         override fun onBindViewHolder(holder: Holder, position: Int) {
@@ -544,6 +646,10 @@ class MyVideoSitesActivity : AppCompatActivity() {
             holder.select.isEnabled = site.enabled
             holder.select.setOnCheckedChangeListener { _, checked -> onSelect(site, checked) }
             holder.edit.setOnClickListener { onEdit(site) }
+            holder.inspect.isEnabled = site.enabled
+            holder.search.isEnabled = site.enabled
+            holder.inspect.setOnClickListener { onInspect(site) }
+            holder.search.setOnClickListener { onSearch(site) }
             holder.delete.setOnClickListener { onDelete(site) }
         }
     }

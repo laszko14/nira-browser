@@ -45,6 +45,18 @@ internal interface VideoSearchDao {
     }
 
     // Update only the edited field: never overwrite saved selectors or other settings.
+    /**
+     * Only replace the saved configuration when the inspected site record is
+     * still the one the user approved. Never delete a site on scan failure.
+     */
+    @Query("UPDATE video_search_sites SET configurationState = 'CONFIGURED', configurationJson = :json, updatedAtMs = :nowMs WHERE profileId = :profileId AND id = :id AND siteUrl = :url AND updatedAtMs = :expectedUpdatedMs AND enabled = 1")
+    suspend fun acceptAutoConfiguration(profileId: String, id: String, url: String,
+                                        expectedUpdatedMs: Long, json: String, nowMs: Long): Int
+
+    @Query("UPDATE video_search_sites SET configurationState = 'REPAIR_REQUIRED', updatedAtMs = :nowMs WHERE profileId = :profileId AND id = :id AND siteUrl = :url AND updatedAtMs = :expectedUpdatedMs AND configurationState != 'CONFIGURED'")
+    suspend fun markAutoConfigurationIncomplete(profileId: String, id: String, url: String,
+                                               expectedUpdatedMs: Long, nowMs: Long): Int
+
     @Query("UPDATE video_search_sites SET displayName = :name, updatedAtMs = :nowMs WHERE profileId = :profileId AND id = :id")
     suspend fun renameSite(profileId: String, id: String, name: String, nowMs: Long): Int
 
