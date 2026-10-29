@@ -100,6 +100,7 @@
     <activity
             android:name=".videosearch.MyVideoSitesActivity"
             android:exported="false"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/AppThemeSettings" />
 
     <!-- Results are an ordinary internal BrowserStore tab (not an Activity). -->

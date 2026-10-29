@@ -2,10 +2,10 @@
 
 ## Stan i zasady wznowienia
 
-- 2026-10-29: **A1–A4 / 4 zakończone** (A1: kod + zdjęcie; A2: kod + eksperyment SQL; A3: kod + trzy reprodukcje JS; A4: kod granic prywatności/cyklu życia, ryzyka i końcowy backlog). Żadnej naprawy aplikacji jeszcze nie wdrożono.
+- 2026-10-29: **A1–A4 / 4 zakończone, P1 / 16 wdrożony w kodzie i sprawdzony lokalnie**. Ustalenia audytu odnoszą się do bazy v1191; bieżący status napraw poniżej. Fizyczne UI/Gecko pozostają NOT_TESTED.
 - Gałąź: `fix/zavro-clean-video-search-audit-20261029`, baza `1ad05e9d12af3e060e4110880abb3fd65b313f1b` (potwierdzona przez `git ls-remote`). Bazowa gałąź `feat/zavro-clean-video-search-20261029` zachowana.
 - Źródła APK v1191: `200f17f5914b328598ddf8724db49cff2f5107ad`. Porównanie z bazą audytu: różni się wyłącznie `docs/AI_HANDOFF.md`; kod UI odpowiada zatem źródłom skompilowanego APK. Historyczne CI: https://github.com/laszko14/nira-browser/actions/runs/40894977952 — nie uruchamiano ponownie i nie przypisujemy jego wyników nowemu commitowi.
-- Implementacja: **0 / 16 etapów wykonanych**. Następne „Dalej” upoważnia wyłącznie do P1 / 16 (formularz), nie do całego backlogu. Kryteria wymagające urządzenia pozostają NOT_TESTED, dopóki nie zostaną rzeczywiście sprawdzone.
+- Implementacja: **1 / 16 wdrożony w kodzie; 64/64 lokalne testy P1 PASS**. Następne „Dalej” upoważnia wyłącznie do P2 / 16 (granica prywatnej epoki), nie do całego backlogu. Kryteria wymagające urządzenia pozostają NOT_TESTED, dopóki nie zostaną rzeczywiście sprawdzone.
 - Jedno „Dalej” = jeden następny etap/podetap. Bez APK/workflow budującego APK do osobnego „Kompiluj”/„Już”.
 
 ## A1 / 4 — cel, zakres, dowody
@@ -267,7 +267,7 @@ Goal: przywrócić dostępność i poprawność obecnej funkcji bez zmiany jej p
 
 **Dlaczego 16:** to odrębne, wykazane problemy o różnych cyklach testów, nie 16 nowych funkcji. Połączono tylko ściśle związane: dostępność/stabilność formularza (UI-01/02 i odpowiednia część UI-03), kontrakt kontynuacji pakietów (SR-01/02), trwałość przerwanych run (SR-04/LC-04). CFG-05 i niezmierzone ryzyka nie tworzą dodatkowych etapów optymalizacji ani obietnicy heurystyki na wszystkie witryny. P1 jest pierwszy zgodnie z wyraźnym poleceniem użytkownika; zaraz po nim P0 granicy prywatnej. Numery Pn to etapy, niezależne od klas priorytetu P0–P3.
 
-Poniżej każdy wiersz jest jednym logicznym commitem + aktualizacją tego audytu/checkpointu, raportem i STOP. Każdy ma status **TODO / NOT_TESTED**; nie ma jeszcze napraw PASS. Moduły skrótowe wskazane przy A2/A3 oznaczają dokładne pliki w pakiecie videosearch, JS oznacza istniejący content.js. Bez nowych zależności, zmian limitów 200/2000/cache, podpisu, package, ABI, Hz ani stable/x MPV. Brak APK/merge/release; testy lokalne mogą kompilować kod testowany, ale nie wykonywać assemble/publish. Budowa APK tylko osobnym poleceniem.
+Poniżej każdy wiersz jest jednym logicznym commitem + aktualizacją tego audytu/checkpointu, raportem i STOP. **P1 wdrożony, kontrole lokalne PASS, telefon NOT_TESTED; P2–P16 TODO / NOT_TESTED.** Moduły skrótowe wskazane przy A2/A3 oznaczają dokładne pliki w pakiecie videosearch, JS oznacza istniejący content.js. Bez nowych zależności, zmian limitów 200/2000/cache, podpisu, package, ABI, Hz ani stable/x MPV. Brak APK/merge/release; testy lokalne mogą kompilować kod testowany, ale nie wykonywać assemble/publish. Budowa APK tylko osobnym poleceniem.
 
 | Etap / priorytet / ID | Objaw i przyczyna | Zakres plików i proponowana naprawa | Ryzyko regresji | Kryteria PASS i wymagane testy |
 | --- | --- | --- | --- | --- |
@@ -299,9 +299,39 @@ Poniżej każdy wiersz jest jednym logicznym commitem + aktualizacją tego audyt
 
 Pozycje bez wykazanego błędu produkcyjnego: prywatny parytet CRUD, heurystyki CFG-05, logcat/dysk/recents, pełne source duration, sesyjne miniatury, batch utilization, koszty Main/24 tys. rekordów w RAM i nowe tryby historii. Pozostają scenariuszami/ograniczeniami weryfikacji, **nie automatycznie zatwierdzonymi zmianami polityki lub dodatkowymi etapami**. Reprodukcja nowego błędu może uzasadnić aktualizację backlogu/checkpointu, nie samowolne rozszerzenie bieżącego Pn.
 
+## P1 / 16 — dostępny formularz witryn — 2026-10-29
+
+**Stan: wdrożono poprawkę; lokalna walidacja PASS, Nothing/realna IME/Gecko NOT_TESTED.** Rodzic `d3cd712564fecf030a19e7668581bc3755309c60`, ta sama gałąź robocza; jeden commit kodu, testów i checkpointu. Zakres wyłącznie UI-01/02 i zwykły szkic/pozycja listy z UI-03. Nie rozpoczęto P2 ani napraw silnika/Room/WebExtension.
+
+### Potwierdzona przyczyna i zmiana
+
+- **RED przed poprawką:** rzeczywista hierarchia MyVideoSitesActivity w Robolectric API35, z motywem aplikacji, wykazała formularz częściowo pod decor ActionBar: pole `Rect(16,53–256,111)`, toolbar `Rect(0,0–360,64)`. Test dostępu do dolnej akcji w oknie 640×280 również nie przeszedł. To odtworzone nakładanie widoków i brak przewijania, nie dokładny pomiar telefonu ze zdjęcia. Nie przypisujemy automatycznie identycznego offsetu wszystkim urządzeniom.
+- MVS ma teraz lokalny Toolbar w tym samym pionowym kontenerze co treść; wyłączony wyłącznie jego decor ActionBar. Obszar root obsługuje systemBars/displayCutout/IME, używając maksymalnych insetów zamiast sumowania IME z nawigacją. W manifeście tylko ta Activity otrzymała adjustResize. Wysokość paska pochodzi z motywu, brak sztucznych offsetów, ujemnych marginesów i wymuszonego scroll-to.
+- Normalny formularz, profil i akcje są nagłówkiem ConcatAdapter przed dotychczasowym SitesAdapter. Przewijanie obejmuje cały nagłówek; długa nazwa profilu nie może odebrać liście całego viewportu (dodatkowa regresja RED → GREEN). Lista witryn zachowuje RecyclerView i drag z pozycjami względnymi SitesAdapter; nagłówek nie daje się przeciągać.
+- W panelu prywatnym analogicznie przewijają się formularz/akcje/profil, wyniki pozostają wirtualizowane i tekstowe, a dotychczasowe wiersze witryn są stopką. `VideoSitesViewAdapters.kt` obsługuje te małe adaptery; wybór wyniku nadal używa pozycji względnej i dotychczasowego resolvera autoryzowanego RAM. Bez obrazów/cache/Room dla private. Nie rozszerzono prywatnego CRUD ani polityki sesji.
+- Test z natywną metryką tekstu ujawnił dodatkowo Add o granicach top=1/bottom=49 w wierszu wysokości 48 — przycinanie 1 px wskutek wyrównania baseline różniących się kontrolek. W obu wierszach adres/Dodaj wyłączono wspólne baseline i zastosowano pionowe centrowanie, bez zmniejszania celów dotyku lub rozmiaru czcionki.
+- Normalny niewysłany adres i pozycja listy są zapisywane jawnie z owner profileId; lista odtwarza pozycję dopiero po danych Room. Inny profil/prywatny tryb nie odtwarzają szkicu; wejście w private usuwa normalny szkic prezentacji. Prywatne pola/lista nadal wyłączają auto-save, a czyszczenie prywatnej prezentacji na pause zachowano. Nie zmieniono zapisanych witryn, wyborów, konfiguracji, folderów, limitów ani logiki wyszukiwania.
+
+### Dowody i kryteria P1
+
+| Kryterium | Stan i dowód |
+| --- | --- |
+| Adres i Dodaj dostępne od wejścia, poniżej paska | **PASS lokalnie:** realny layout Activity, po poprawce oba pełne; przed poprawką test nakładania FAIL. **NOT_TESTED:** identyczna ścieżka Menu/Ustawienia na Nothing. |
+| Dodanie bez auto-detekcji, zachowanie poprzedniej konfiguracji | **PASS:** test wywołuje rzeczywisty przycisk Dodaj i zapis Room: nowa witryna NEEDS_CONFIGURATION/config=null, poprzednia konfiguracja bez zmian, pole wyczyszczone. Dodatkowo istniejące Repo/Management/Selection testy. **NOT_TESTED:** dotyk/klawiatura i realna strona. |
+| Dostępność wszystkich akcji i krótkie okna | **PASS lokalnie:** 640×280, 320×480/fontScale=2, odczyt pełnych bounds kontrolek po żądaniu ich odsłonięcia; długi label profilu nie zeruje viewportu. Testy nie wymuszają przewijania w produkcji. |
+| IME i WindowInsets | **PASS modelu layoutu:** powtórzony dispatch status=24, nav=20, IME=240 nie kumuluje paddingu, lista i całe pole leżą ponad IME. **NOT_TESTED:** prawdziwa IME/animacja, cutout/boczna nawigacja i fizyczny landscape na Androidzie 15. |
+| Odtwarzanie stanu i profile | **PASS:** save/recreate z Bundle zachowuje normalny szkic, odrzuca obcego owner i tryb prywatny; private nie zapisuje szkicu. **NOT_TESTED:** pełny systemowy obrót/restore pozycji listy z aktywnym Flow i procesem na urządzeniu. |
+| Drag i prywatne wyniki | **PASS:** nagłówek nieprzeciągalny, dwa istniejące wiersze zmieniają właściwą kolejność; klik drugiego wyniku przy nagłówku trafia do indeksu 1; 200 prywatnych etykiet nie tworzy 200 widoków, prywatna lista ma auto-save wyłączony. Existing PrivateSitesAccess/PrivateResultNavigation PASS. **NOT_TESTED:** fizyczne gesty i otwarcie Gecko. |
+
+Końcowy celowany przebieg `testDebugUnitTest`: **64 testy, 0 błędów** (54 dotychczasowe + 9 Activity layout/state/add/drag + 1 adapter click). Klasy: MyVideoSitesLayoutTest, VideoSitesViewAdaptersTest, MyVideoSitesRepositoryTest, MyVideoSitesManagementTest, MyVideoSitesSelectionTest, VideoSearchPrivateSitesAccessTest, VideoSearchPrivateResultNavigationTest. Layout używa natywnych pomiarów tekstu Robolectric API35; onResume obserwatory/Gecko są celowo poza harness, co jest ograniczeniem tego dowodu.
+
+Komenda lokalna: `bash gradlew testDebugUnitTest --tests '*MyVideoSites*Test' --tests '*VideoSitesViewAdaptersTest' --tests '*VideoSearchPrivateSitesAccessTest' --tests '*VideoSearchPrivateResultNavigationTest' --console=plain --max-workers=2`. W tym środowisku ustawiono GRADLE_USER_HOME=/workspace/.gradle, ANDROID_HOME=/workspace/android-sdk i inicjalizator `/workspace/scratch/video-p1-test-network.init.gradle`, który przekazuje proxy/CA do JVM Robolectric. Pierwszy bootstrap SDK zakończył się ConnectException; po konfiguracji wyłącznie środowiska wykonano prawdziwe RED/GREEN, bez zmian zależności projektu. Inicjalizator jest plikiem roboczym środowiska, nie częścią repo.
+
+Niezależny przegląd tylko zmienionego UI/adapterów nie wskazał istotnych regresji; nie był testem runtime. Końcowy wynik lokalnego lint i ograniczenia raportu zapisuje bieżący AI_HANDOFF. Nie uruchamiano JS suite (JS niezmieniony), assemble, workflow ani budowy instalacyjnego APK. Fizyczna weryfikacja, 120 Hz i pozostałe ustalenia audytu nadal otwarte. **STOP po P1; następne „Dalej” dotyczy wyłącznie P2/16.**
+
 ## Mapa dalszych etapów
 
 - A2 / 4: zakończony; dowody i CFG-01–05 powyżej, bez napraw.
 - A3 / 4: zakończony; SR-01–07 i zakres ograniczeń powyżej, bez napraw.
-- A4 / 4: zakończony; backlog N=16 zapisany, żadnej naprawy jeszcze nie wdrożono.
-- **P1 / 16 — następny wyłącznie po „Dalej”**: przywrócić formularz UI-01 i ściśle związane warunki jego dostępności/rekreacji, odtworzyć i usunąć rzeczywistą przyczynę, testy proporcjonalne, commit/checkpoint i STOP. Nie rozpoczynać P2 ani APK. **STOP po A4.**
+- A4 / 4: zakończony; backlog N=16 zapisany. P1 wdrożony i sprawdzony lokalnie; telefon nadal NOT_TESTED.
+- **P2 / 16 — następny wyłącznie po „Dalej”**: LC-01, jawna granica prywatnej epoki i synchronizacja inventory niezależna od życia Activity, z zachowaniem sesji podczas kontrolowanej migracji/rotacji. Wykorzystać gotowy audyt, bez ponownej analizy całej funkcji. Testy celowane coroutine/Registry i regresje RAM/profili, commit/checkpoint i STOP. Bez APK i bez P3. **STOP po P1.**

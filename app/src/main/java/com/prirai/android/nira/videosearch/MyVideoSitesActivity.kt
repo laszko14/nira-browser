@@ -1,11 +1,14 @@
 package com.prirai.android.nira.videosearch
 
 import android.os.Bundle
+import android.os.Parcelable
 import android.content.Intent
 import com.prirai.android.nira.BrowserActivity
 import android.text.InputType
 import android.view.View
 import android.view.ViewGroup
+import android.view.Window
+import android.view.Gravity
 import android.view.inputmethod.EditorInfo
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
@@ -13,15 +16,19 @@ import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.ListView
-import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
+import androidx.appcompat.widget.Toolbar
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.content.withStyledAttributes
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ConcatAdapter
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -43,10 +50,16 @@ import kotlinx.coroutines.withContext
  * The temporary private-mode gate prevents leaks until stage 10.
  */
 class MyVideoSitesActivity : AppCompatActivity() {
+    private companion object {
+        const val STATE_DRAFT_OWNER = "videoSites.normalOwner"
+        const val STATE_ADDRESS = "videoSites.normalAddress"
+        const val STATE_LIST = "videoSites.normalList"
+    }
     private lateinit var repository: VideoSearchRepository
     private lateinit var input: EditText
     private lateinit var addButton: Button
     private lateinit var info: TextView
+    private lateinit var privateInfo: TextView
     private lateinit var selectionInfo: TextView
     private lateinit var selectAllButton: Button
     private lateinit var clearButton: Button
@@ -58,6 +71,9 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private lateinit var multiHistoryButton: Button
     private lateinit var savedFoldersButton: Button
     private lateinit var adapter: SitesAdapter
+    private lateinit var sitesList: RecyclerView
+    private var draftOwnerId: String? = null
+    private var normalListState: Parcelable? = null
     private var scope: VideoSearchScope.Normal? = null
     private var observer: Job? = null
     private var deletedDefaultObserver: Job? = null
@@ -75,8 +91,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private lateinit var privateRunPickerAdapter: ArrayAdapter<String>
     private var privateRunHistory: List<VideoSearchPrivateRunSnapshot> = emptyList()
     private var selectedPrivateRunId: String? = null
-    private lateinit var privateResultsList: ListView
-    private lateinit var privateResultsAdapter: ArrayAdapter<String>
+    private lateinit var privateResultsAdapter: VideoSitesTextAdapter
     private var privateResultsItems: List<VideoSearchFilm> = emptyList()
     private val privateRunAccess = VideoSearchPrivateRunAccess()
     private val privateSitesAccess = VideoSearchPrivateSitesAccess()
@@ -84,26 +99,49 @@ class MyVideoSitesActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Keep the toolbar and content in one hierarchy. A decor ActionBar can
+        // overlap this programmatic content under Android's edge-to-edge window.
+        supportRequestWindowFeature(Window.FEATURE_NO_TITLE)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         repository = VideoSearchRepository.from(applicationContext)
         title = "Moje witryny"
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(12), dp(16), dp(12))
         }
+        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
+            val safe = insets.getInsets(WindowInsetsCompat.Type.systemBars() or
+                WindowInsetsCompat.Type.displayCutout() or WindowInsetsCompat.Type.ime())
+            view.setPadding(safe.left, safe.top, safe.right, safe.bottom)
+            insets
+        }
+        val toolbar = Toolbar(this).apply {
+            this@MyVideoSitesActivity.withStyledAttributes(
+                attrs = intArrayOf(androidx.appcompat.R.attr.actionBarSize)
+            ) {
+                minimumHeight = getDimensionPixelSize(0, 0)
+            }
+        }
+        root.addView(toolbar, LinearLayout.LayoutParams(-1, -2))
         info = TextView(this).apply { textSize = 14f }
-        root.addView(info, LinearLayout.LayoutParams(-1, -2))
 
         normalPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(12), dp(16), dp(12))
         }
         privatePanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             visibility = View.GONE
+            setPadding(dp(16), dp(12), dp(16), dp(12))
         }
+        val normalHeader = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        normalHeader.addView(info, LinearLayout.LayoutParams(-1, -2))
 
-        val inputRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val inputRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            isBaselineAligned = false
+            gravity = Gravity.CENTER_VERTICAL
+        }
         input = EditText(this).apply {
             hint = "Adres witryny (np. example.org)"
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
@@ -115,10 +153,10 @@ class MyVideoSitesActivity : AppCompatActivity() {
             setOnClickListener { addSite() }
         }
         inputRow.addView(addButton)
-        normalPanel.addView(inputRow)
+        normalHeader.addView(inputRow)
 
         selectionInfo = TextView(this).apply { text = "Wybrano 0 witryn"; textSize = 14f }
-        normalPanel.addView(selectionInfo)
+        normalHeader.addView(selectionInfo)
         val selectionActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         selectAllButton = Button(this).apply {
             text = "Zaznacz wszystkie"
@@ -130,7 +168,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
         }
         selectionActions.addView(selectAllButton, LinearLayout.LayoutParams(0, -2, 1f))
         selectionActions.addView(clearButton, LinearLayout.LayoutParams(0, -2, 1f))
-        normalPanel.addView(selectionActions)
+        normalHeader.addView(selectionActions)
 
         val dispatchControls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -145,12 +183,12 @@ class MyVideoSitesActivity : AppCompatActivity() {
         }
         dispatchControls.addView(parallelismButton, LinearLayout.LayoutParams(0, -2, 1f))
         dispatchControls.addView(queuePreviewButton, LinearLayout.LayoutParams(0, -2, 1f))
-        normalPanel.addView(dispatchControls)
+        normalHeader.addView(dispatchControls)
         defaultGroupButton = Button(this).apply {
             text = "Filmy otwieraj: Bez grupy"
             setOnClickListener { chooseDefaultVideoGroup() }
         }
-        normalPanel.addView(defaultGroupButton)
+        normalHeader.addView(defaultGroupButton)
 
         val multiActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         multiStatusButton = Button(this).apply {
@@ -163,7 +201,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
         }
         multiActions.addView(multiStatusButton, LinearLayout.LayoutParams(0, -2, 1f))
         multiActions.addView(stopMultiButton, LinearLayout.LayoutParams(0, -2, 1f))
-        normalPanel.addView(multiActions)
+        normalHeader.addView(multiActions)
         multiHistoryButton = Button(this).apply {
             text = "Historia znalezionych filmów"
             setOnClickListener { showMultiHistory() }
@@ -180,9 +218,9 @@ class MyVideoSitesActivity : AppCompatActivity() {
             LinearLayout.LayoutParams(0, -2, 1f))
         savedNavigation.addView(savedFoldersButton,
             LinearLayout.LayoutParams(0, -2, 1f))
-        normalPanel.addView(savedNavigation)
+        normalHeader.addView(savedNavigation)
 
-        normalPanel.addView(TextView(this).apply {
+        normalHeader.addView(TextView(this).apply {
             text = "Witryny pozostają na liście nawet po błędzie konfiguracji. " +
                 "Przytrzymaj i przeciągnij wiersz, aby zmienić kolejność."
             textSize = 13f
@@ -201,25 +239,45 @@ class MyVideoSitesActivity : AppCompatActivity() {
             onSearch = ::searchSite,
             onDelete = ::confirmRemoval,
         )
-        val list = RecyclerView(this).apply {
+        sitesList = RecyclerView(this).apply {
             layoutManager = LinearLayoutManager(this@MyVideoSitesActivity)
-            adapter = this@MyVideoSitesActivity.adapter
+            adapter = ConcatAdapter(VideoSitesViewAdapter(normalHeader), this@MyVideoSitesActivity.adapter)
+            isSaveEnabled = false // Explicit, profile-bound restoration below.
         }
-        normalPanel.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
+        normalPanel.addView(sitesList, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(normalPanel, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(privatePanel, LinearLayout.LayoutParams(-1, 0, 1f))
         setupPrivatePanel()
         setContentView(root)
+        setSupportActionBar(toolbar)
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        ViewCompat.requestApplyInsets(root)
+        val manager = ProfileManager.getInstance(applicationContext)
+        if (!manager.isPrivateMode()) {
+            draftOwnerId = manager.getActiveProfile().id
+            if (savedInstanceState != null &&
+                savedInstanceState.getString(STATE_DRAFT_OWNER) == draftOwnerId) {
+                input.setText(savedInstanceState.getString(STATE_ADDRESS).orEmpty())
+                @Suppress("DEPRECATION")
+                normalListState = savedInstanceState.getParcelable(STATE_LIST)
+            }
+        }
 
         ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
             ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0,
         ) {
+            override fun getMovementFlags(recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder): Int =
+                if (viewHolder.bindingAdapter === adapter)
+                    super.getMovementFlags(recyclerView, viewHolder) else 0
+
             override fun isLongPressDragEnabled() = !reorderPending && ownerIfCurrent() != null
             override fun onMove(
                 recyclerView: RecyclerView, source: RecyclerView.ViewHolder,
                 target: RecyclerView.ViewHolder,
             ): Boolean {
-                if (reorderPending || ownerIfCurrent() == null) return false
+                if (reorderPending || ownerIfCurrent() == null ||
+                    source.bindingAdapter !== adapter || target.bindingAdapter !== adapter) return false
                 val from = source.bindingAdapterPosition
                 val to = target.bindingAdapterPosition
                 return adapter.move(from, to)
@@ -230,7 +288,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
             override fun onSelectedChanged(viewHolder: RecyclerView.ViewHolder?, actionState: Int) {
                 super.onSelectedChanged(viewHolder, actionState)
                 if (actionState == ItemTouchHelper.ACTION_STATE_DRAG &&
-                    !reorderPending && ownerIfCurrent() != null) adapter.beginDrag()
+                    !reorderPending && ownerIfCurrent() != null &&
+                    viewHolder?.bindingAdapter === adapter) adapter.beginDrag()
             }
 
             override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
@@ -244,7 +303,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
                     if (current != null && !reorderPending) lifecycleScope.launch { refresh(current) }
                 }
             }
-        }).attachToRecyclerView(list)
+        }).attachToRecyclerView(sitesList)
     }
 
 
@@ -253,12 +312,19 @@ class MyVideoSitesActivity : AppCompatActivity() {
      * history, no network submission, and no persistent thumbnails.
      */
     private fun setupPrivatePanel() {
+        val header = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        privateInfo = TextView(this).apply { textSize = 14f }
+        header.addView(privateInfo)
         privateStatus = TextView(this).apply {
             textSize = 13f
             text = "Tylko RAM. Po zamknięciu ostatniej karty prywatnej lista znika."
         }
-        privatePanel.addView(privateStatus)
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        header.addView(privateStatus)
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            isBaselineAligned = false
+            gravity = Gravity.CENTER_VERTICAL
+        }
         privateSiteInput = EditText(this).apply {
             hint = "Adres prywatnej witryny"
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
@@ -291,7 +357,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             }
         }
         row.addView(privateAddButton)
-        privatePanel.addView(row)
+        header.addView(row)
         val selection = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         fun updateAll(selected: Boolean) {
             selectedPrivateTab()?.let { (tab, profileId) ->
@@ -307,15 +373,15 @@ class MyVideoSitesActivity : AppCompatActivity() {
             text = "Odznacz wszystkie"
             setOnClickListener { updateAll(false) }
         }, LinearLayout.LayoutParams(0, -2, 1f))
-        privatePanel.addView(selection)
+        header.addView(selection)
         privateQueryInput = EditText(this).apply {
             hint = "Fraza wyszukiwania (prywatnie)"
             setSingleLine(true)
             imeOptions = imeOptions or EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
             isSaveEnabled = false
         }
-        privatePanel.addView(privateQueryInput)
-        privatePanel.addView(Button(this).apply {
+        header.addView(privateQueryInput)
+        header.addView(Button(this).apply {
             text = "Wyszukaj na bieżącej prywatnej witrynie"
             setOnClickListener {
                 val target = selectedPrivateTab() ?: return@setOnClickListener
@@ -346,7 +412,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 } else message("Most Gecko nie jest gotowy na tej prywatnej karcie.")
             }
         })
-        privatePanel.addView(Button(this).apply {
+        header.addView(Button(this).apply {
             text = "Wyszukaj na zaznaczonych witrynach prywatnych"
             setOnClickListener {
                 val owner = selectedPrivateTab() ?: return@setOnClickListener
@@ -368,14 +434,14 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 } else message("Nie udało się uruchomić prywatnej kolejki.")
             }
         })
-        privatePanel.addView(TextView(this).apply {
+        header.addView(TextView(this).apply {
             text = "Witryny są przeszukiwane po kolei. Gdy brak ich otwartej " +
                 "karty prywatnej, Zavro spróbuje utworzyć tymczasową kartę " +
                 "roboczą w tle; karta zostanie usunięta po zakończeniu, " +
                 "chyba że ją otworzysz. Wszystkie wyniki pozostają w RAM."
             textSize = 12f
         })
-        privatePanel.addView(Button(this).apply {
+        header.addView(Button(this).apply {
             text = "Zatrzymaj prywatne wyszukiwanie"
             setOnClickListener {
                 val owner = selectedPrivateTab() ?: return@setOnClickListener
@@ -385,7 +451,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 } else message("Brak aktywnego wyszukiwania w tej sesji.")
             }
         })
-        privatePanel.addView(Button(this).apply {
+        header.addView(Button(this).apply {
             text = "Odśwież prywatne wyniki"
             setOnClickListener { refreshPrivatePanel() }
         })
@@ -393,7 +459,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             textSize = 13f
             text = "Brak poprzednich wyników prywatnych w tej sesji."
         }
-        privatePanel.addView(privateResultsLabel)
+        header.addView(privateResultsLabel)
         privateRunPickerAdapter = ArrayAdapter(this,
             android.R.layout.simple_spinner_item, mutableListOf<String>()).apply {
             setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
@@ -413,50 +479,46 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 }
             }
         }
-        privatePanel.addView(privateRunPicker)
-        // Adapter-backed ListView keeps 200 possible results virtualized and
-        // never loads thumbnail bytes into the persistent normal Coil cache.
-        privateResultsAdapter = ArrayAdapter(this,
-            android.R.layout.simple_list_item_1, mutableListOf<String>())
-        privateResultsList = ListView(this).apply {
-            adapter = privateResultsAdapter
-            isSaveEnabled = false
-            setOnItemClickListener { _, _, position, _ ->
-                val selected = selectedPrivateTab() ?: return@setOnItemClickListener
-                val film = privateResultsItems.getOrNull(position)
-                    ?: return@setOnItemClickListener
-                val chosenRun = selectedPrivateRunId
-                    ?: return@setOnItemClickListener
-                if (film.runId != chosenRun) return@setOnItemClickListener
-                val url = privateResultNavigation.resolveFilmUrl(
-                    selected.first, selected.second, chosenRun, film.id
-                ) ?: run {
-                    refreshPrivatePanel()
-                    return@setOnItemClickListener
-                }
-                // Recheck the selected private BrowserStore owner immediately
-                // before routing into the existing private browser tab path.
-                if (selectedPrivateTab() != selected) return@setOnItemClickListener
-                try {
-                    applicationContext.components.tabsUseCases.addTab.invoke(
-                        url, selectTab = true, private = true,
-                        contextId = "private",
-                    )
-                    startActivity(Intent(this@MyVideoSitesActivity,
-                        BrowserActivity::class.java)
-                        .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
-                    finish()
-                } catch (_: Exception) {
-                    message("Nie udało się otworzyć prywatnego filmu.")
-                }
+        header.addView(privateRunPicker)
+        // Result positions stay relative to this adapter, independent of the header.
+        privateResultsAdapter = VideoSitesTextAdapter privateResult@{ position ->
+            val selected = selectedPrivateTab() ?: return@privateResult
+            val film = privateResultsItems.getOrNull(position)
+                ?: return@privateResult
+            val chosenRun = selectedPrivateRunId
+                ?: return@privateResult
+            if (film.runId != chosenRun) return@privateResult
+            val url = privateResultNavigation.resolveFilmUrl(
+                selected.first, selected.second, chosenRun, film.id
+            ) ?: run {
+                refreshPrivatePanel()
+                return@privateResult
+            }
+            // Recheck the selected private BrowserStore owner immediately
+            // before routing into the existing private browser tab path.
+            if (selectedPrivateTab() != selected) return@privateResult
+            try {
+                applicationContext.components.tabsUseCases.addTab.invoke(
+                    url, selectTab = true, private = true,
+                    contextId = "private",
+                )
+                startActivity(Intent(this@MyVideoSitesActivity,
+                    BrowserActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+                finish()
+            } catch (_: Exception) {
+                message("Nie udało się otworzyć prywatnego filmu.")
             }
         }
-        privatePanel.addView(privateResultsList, LinearLayout.LayoutParams(-1, 0, 2f))
         privateSitesContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
-        val scroll = ScrollView(this).apply { addView(privateSitesContainer) }
-        privatePanel.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        privatePanel.addView(RecyclerView(this).apply {
+            layoutManager = LinearLayoutManager(this@MyVideoSitesActivity)
+            adapter = ConcatAdapter(VideoSitesViewAdapter(header), privateResultsAdapter,
+                VideoSitesViewAdapter(privateSitesContainer))
+            isSaveEnabled = false
+        }, LinearLayout.LayoutParams(-1, 0, 1f))
     }
 
     /**
@@ -575,6 +637,9 @@ class MyVideoSitesActivity : AppCompatActivity() {
         super.onResume()
         val manager = ProfileManager.getInstance(applicationContext)
         if (manager.isPrivateMode()) {
+            input.text.clear()
+            draftOwnerId = null
+            normalListState = null
             historyRetentionJob?.cancel()
             historyRetentionJob = null
             deletedDefaultObserver?.cancel()
@@ -598,7 +663,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             savedFoldersButton.isEnabled = false
             normalPanel.visibility = View.GONE
             privatePanel.visibility = View.VISIBLE
-            info.text = "Witryny prywatne · tylko RAM"
+            privateInfo.text = "Witryny prywatne · tylko RAM"
             refreshPrivatePanel()
             return
         }
@@ -606,6 +671,11 @@ class MyVideoSitesActivity : AppCompatActivity() {
         privatePanel.visibility = View.GONE
         normalPanel.visibility = View.VISIBLE
         val current = VideoSearchScope.Normal(manager.getActiveProfile().id)
+        if (draftOwnerId != current.profileId) {
+            input.text.clear()
+            normalListState = null
+        }
+        draftOwnerId = current.profileId
         // On user entry, not a background timer: Room transaction on IO,
         // cancelled if this Activity leaves before completion.
         historyRetentionJob?.cancel()
@@ -672,6 +742,10 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 .collectLatest { (sites, prefs) ->
                     if (ownerIfCurrent() == current && !reorderPending && !adapter.isDragging) {
                         adapter.replace(sites, prefs.selectedSiteIds)
+                        normalListState?.let { state ->
+                            sitesList.layoutManager?.onRestoreInstanceState(state)
+                            normalListState = null
+                        }
                         updateSelectionControls(sites, prefs.selectedSiteIds)
                         parallelismButton.text = "Równoległość: " +
                             (if (prefs.parallelism == VideoSearchParallelism.ALL)
@@ -714,6 +788,9 @@ class MyVideoSitesActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
+        if (ownerIfCurrent() != null) {
+            normalListState = sitesList.layoutManager?.onSaveInstanceState()
+        }
         clearPrivatePresentation()
         historyRetentionJob?.cancel()
         historyRetentionJob = null
@@ -723,6 +800,16 @@ class MyVideoSitesActivity : AppCompatActivity() {
         observer = null
         adapter.cancelDrag()
         super.onPause()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        val owner = ownerIfCurrent() ?: return
+        if (owner.profileId != draftOwnerId) return
+        outState.putString(STATE_DRAFT_OWNER, owner.profileId)
+        outState.putString(STATE_ADDRESS, input.text.toString())
+        outState.putParcelable(STATE_LIST,
+            normalListState ?: sitesList.layoutManager?.onSaveInstanceState())
     }
 
     override fun onSupportNavigateUp(): Boolean {
