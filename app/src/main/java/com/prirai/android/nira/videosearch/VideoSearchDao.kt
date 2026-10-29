@@ -25,6 +25,12 @@ internal data class VideoSearchHistoryRows(
     val sites: List<VideoSearchSiteRow>,
 )
 
+/** Read-only Room query projection, not a new entity or migration. */
+internal data class VideoSavedFolderCountRow(
+    val folderId: String,
+    val savedCount: Long,
+)
+
 @Dao
 internal interface VideoSearchDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -428,6 +434,18 @@ internal interface VideoSearchDao {
 
     @Query("SELECT * FROM video_saved_folders WHERE profileId = :profileId ORDER BY createdAtMs")
     suspend fun getFolders(profileId: String): List<VideoSavedFolderRow>
+
+    /** Room invalidation automatically refreshes saved folder names and order. */
+    @Query("SELECT * FROM video_saved_folders WHERE profileId = :profileId ORDER BY createdAtMs, id")
+    fun observeSavedFolders(profileId: String): Flow<List<VideoSavedFolderRow>>
+
+    /** A single grouped SQL query counts each folder, avoiding N+1 lookups. */
+    @Query("SELECT folderId, COUNT(*) AS savedCount FROM video_saved_links WHERE profileId = :profileId GROUP BY folderId")
+    fun observeSavedFolderCounts(profileId: String): Flow<List<VideoSavedFolderCountRow>>
+
+    /** Only retrieve link rows in the opened folder, never every profile's URLs. */
+    @Query("SELECT * FROM video_saved_links WHERE profileId = :profileId AND folderId = :folderId ORDER BY createdAtMs DESC, id DESC")
+    fun observeSavedFolderLinks(profileId: String, folderId: String): Flow<List<VideoSavedLinkRow>>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertSavedLink(row: VideoSavedLinkRow): Long

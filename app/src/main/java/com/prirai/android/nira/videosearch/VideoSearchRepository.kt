@@ -404,6 +404,41 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
         }
 
     /**
+     * A live, read-only saved-film library for exactly one normal profile.
+     * Folder summary uses two indexed queries, with no per-folder N+1.
+     * Only the currently opened folder's links are materialized.
+     */
+    fun observeSavedLibrary(
+        scope: VideoSearchScope.Normal,
+        selectedFolderId: String?,
+    ): Flow<VideoSavedLibrarySnapshot> {
+        val links = if (selectedFolderId == null)
+            kotlinx.coroutines.flow.flowOf(emptyList<VideoSavedLinkRow>())
+        else dao.observeSavedFolderLinks(scope.profileId, selectedFolderId)
+        return kotlinx.coroutines.flow.combine(
+            dao.observeSavedFolders(scope.profileId),
+            dao.observeSavedFolderCounts(scope.profileId),
+            links,
+        ) { folders, counts, linkRows ->
+            val counted = counts.associate { it.folderId to it.savedCount }
+            val summaries = folders.map { row ->
+                VideoSavedFolderSummary(
+                    with(VideoSearchRowCodec) { row.toModel() },
+                    counted[row.id] ?: 0L
+                )
+            }
+            val opened = summaries.firstOrNull { it.folder.id == selectedFolderId }?.folder
+            VideoSavedLibrarySnapshot(
+                folders = summaries,
+                openedFolder = opened,
+                links = if (opened != null) linkRows.map {
+                    with(VideoSearchRowCodec) { it.toModel() }
+                } else emptyList(),
+            )
+        }
+    }
+
+    /**
      * Returns false when this exact URL already exists in the folder.
      * Never strip URL parameters: they can identify a different film.
      */

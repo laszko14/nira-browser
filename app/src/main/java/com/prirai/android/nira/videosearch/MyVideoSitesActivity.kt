@@ -49,6 +49,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private lateinit var multiStatusButton: Button
     private lateinit var stopMultiButton: Button
     private lateinit var multiHistoryButton: Button
+    private lateinit var savedFoldersButton: Button
     private lateinit var adapter: SitesAdapter
     private var scope: VideoSearchScope.Normal? = null
     private var observer: Job? = null
@@ -133,7 +134,19 @@ class MyVideoSitesActivity : AppCompatActivity() {
             text = "Historia znalezionych filmów"
             setOnClickListener { showMultiHistory() }
         }
-        root.addView(multiHistoryButton)
+        savedFoldersButton = Button(this).apply {
+            text = "Zapisane filmy — foldery"
+            setOnClickListener { showSavedFilmFolders() }
+        }
+        // Reuse one existing row; keep the site list's vertical space.
+        val savedNavigation = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        savedNavigation.addView(multiHistoryButton,
+            LinearLayout.LayoutParams(0, -2, 1f))
+        savedNavigation.addView(savedFoldersButton,
+            LinearLayout.LayoutParams(0, -2, 1f))
+        root.addView(savedNavigation)
 
         root.addView(TextView(this).apply {
             text = "Witryny pozostają na liście nawet po błędzie konfiguracji. " +
@@ -219,6 +232,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             multiStatusButton.isEnabled = false
             stopMultiButton.isEnabled = false
             multiHistoryButton.isEnabled = false
+            savedFoldersButton.isEnabled = false
             info.text = "Tryb prywatny: zapis do zwykłego profilu jest wyłączony. " +
                 "Lista prywatna będzie dostępna po integracji sesji prywatnej."
             return
@@ -232,6 +246,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
         multiStatusButton.isEnabled = true
         stopMultiButton.isEnabled = true
         multiHistoryButton.isEnabled = true
+        savedFoldersButton.isEnabled = true
         info.text = "Profil: ${manager.getActiveProfile().name}"
         // Group deletion may occur while this screen is open, independent of
         // a settings change. Reconcile only after manager initialization.
@@ -541,6 +556,24 @@ class MyVideoSitesActivity : AppCompatActivity() {
             finish()
         } catch (_: Exception) {
             message("Nie udało się otworzyć karty wyników")
+        }
+    }
+
+    /** First entry for saved folders. The second shared entry is stage 8C. */
+    private fun showSavedFilmFolders() {
+        val scope = ownerIfCurrent() ?: return
+        try {
+            applicationContext.components.tabsUseCases.addTab.invoke(
+                VIDEO_SAVED_FOLDERS_TAB_URL,
+                selectTab = true,
+                private = false,
+                contextId = scope.contextId,
+            )
+            startActivity(Intent(this, BrowserActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+            finish()
+        } catch (_: Exception) {
+            message("Nie udało się otworzyć zapisanych folderów")
         }
     }
 

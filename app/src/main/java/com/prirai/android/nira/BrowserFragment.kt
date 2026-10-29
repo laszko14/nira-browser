@@ -28,6 +28,9 @@ import com.prirai.android.nira.ext.nav
 import com.prirai.android.nira.preferences.UserPreferences
 import com.prirai.android.nira.media.MediaDetectorController
 import com.prirai.android.nira.videosearch.VIDEO_SEARCH_RESULTS_TAB_URL
+import com.prirai.android.nira.videosearch.VIDEO_SAVED_FOLDERS_TAB_URL
+import com.prirai.android.nira.videosearch.VideoSavedFoldersTabRoute
+import com.prirai.android.nira.videosearch.VideoSavedFoldersTabContent
 import com.prirai.android.nira.videosearch.VideoSearchResultsTabContent
 import com.prirai.android.nira.videosearch.VideoSearchResultsTabRoute
 import com.prirai.android.nira.media.MediaFloatingUi
@@ -1571,7 +1574,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         if (sidePanelInfrastructure?.closeOnBack() == true) return true
         val store = requireContext().components.store
         val selected = store.state.tabs.find { it.id == store.state.selectedTabId }
-        if (selected != null && selected.content.url == VIDEO_SEARCH_RESULTS_TAB_URL) {
+        if (selected != null && (selected.content.url == VIDEO_SEARCH_RESULTS_TAB_URL ||
+                selected.content.url == VIDEO_SAVED_FOLDERS_TAB_URL)) {
             requireContext().components.tabsUseCases.removeTab(selected.id)
             return true
         }
@@ -1807,7 +1811,9 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             // Also observe explicit normal-profile switches that do not
             // replace the selected SessionState object in BrowserStore.
             val profileRevision = resultsProfileRevision
-            if (selected?.content?.url == VIDEO_SEARCH_RESULTS_TAB_URL) {
+            val selectedUrl = selected?.content?.url
+            if (selectedUrl == VIDEO_SEARCH_RESULTS_TAB_URL ||
+                selectedUrl == VIDEO_SAVED_FOLDERS_TAB_URL) {
                 val current = selected
                 val activeProfileId = androidx.compose.runtime.remember(
                     selected?.id, profileRevision
@@ -1815,23 +1821,38 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                     com.prirai.android.nira.browser.profile.ProfileManager
                         .getInstance(requireContext()).getActiveProfile().id
                 }
-                val profileId = VideoSearchResultsTabRoute.normalOwner(
+                val profileId = if (selectedUrl == VIDEO_SEARCH_RESULTS_TAB_URL)
+                    VideoSearchResultsTabRoute.normalOwner(
+                        current?.content?.url, current?.contextId,
+                        current?.content?.private ?: true, activeProfileId
+                    )
+                else VideoSavedFoldersTabRoute.normalOwner(
                     current?.content?.url, current?.contextId,
                     current?.content?.private ?: true, activeProfileId
                 )
                 if (current != null) {
-                    VideoSearchResultsTabContent(
-                        tabId = current.id,
-                        profileId = profileId,
-                        onClose = {
-                            val active = components.store.state
-                            if (active.selectedTabId == current.id &&
-                                active.tabs.any { it.id == current.id &&
-                                    it.content.url == VIDEO_SEARCH_RESULTS_TAB_URL }) {
-                                components.tabsUseCases.removeTab(current.id)
-                            }
-                        },
-                    )
+                    val closeThisInternalTab = {
+                        val active = components.store.state
+                        if (active.selectedTabId == current.id &&
+                            active.tabs.any { it.id == current.id &&
+                                it.content.url == selectedUrl }) {
+                            components.tabsUseCases.removeTab(current.id)
+                        }
+                        Unit
+                    }
+                    if (selectedUrl == VIDEO_SEARCH_RESULTS_TAB_URL) {
+                        VideoSearchResultsTabContent(
+                            tabId = current.id,
+                            profileId = profileId,
+                            onClose = closeThisInternalTab,
+                        )
+                    } else {
+                        VideoSavedFoldersTabContent(
+                            tabId = current.id,
+                            profileId = profileId,
+                            onClose = closeThisInternalTab,
+                        )
+                    }
                 }
             }
         }
@@ -1844,7 +1865,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     private fun updateContentVisibility(url: String) {
         val binding = bindingOrNull ?: return
         val isHomepage = url == "about:homepage"
-        val isVideoSearch = url == VIDEO_SEARCH_RESULTS_TAB_URL
+        val isVideoSearch = url == VIDEO_SEARCH_RESULTS_TAB_URL ||
+            url == VIDEO_SAVED_FOLDERS_TAB_URL
         // Only this internal tab needs protection from nested LazyRow disallow.
         // The established SidePanelInfrastructure continues to own the gesture.
         val edgePrefs = UserPreferences(requireContext())
