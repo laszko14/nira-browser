@@ -1,3 +1,16 @@
+# Checkpoint — Wyszukiwarka filmów / ETAP 1A / 2026-10-29
+
+- **Status:** DONE — wykonano tylko 1A: modele domenowe i bezpieczny scope profilu / prywatnej sesji. Nie rozpoczęto 1B, nie budowano APK, nie uruchamiano CI ani PR.
+- **Repo i gałąź:** `laszko14/nira-browser`, `feat/zavro-clean-video-search-20261029`, baza Clean v1190 / PR #112 `b7d62f79f285ac81c29a79b326529d42e9b9fde4`. Przed zmianami HEAD gałęzi `10a48f3eddbae131c9ef5677dde29fa0900a1c24`.
+- **Zmienione / dodane pliki:** `app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchScope.kt`, `VideoSearchModels.kt` oraz `app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchModelsTest.kt`. Ten zapis w `docs/AI_HANDOFF.md` jest jedyną pozostałą zmianą. Bez edycji istniejących klas, Gradle, wersji i detektora mediów.
+- **Modele:** `VideoSearchScope.Normal` używa kanonicznego `BrowserProfile.contextIdFor()` oraz trwałego `profileId`; `VideoSearchScope.Private` ma wymagany identyfikator prywatnego lifetime, `persistentProfileId=null`, a kontrola ownership wymaga pasującego lifetime ID, nie tylko geckowego `private`. Potrzebna jest w przyszłości RAM-only mapa private lifetime -> karty oraz pewne czyszczenie po jej końcu. Nie używać globalnego bieżącego profilu do własności istniejących zadań.
+- **Dane domenowe:** witryna zachowana nawet przy braku konfiguracji, konfiguracja automatyczna/ręczna (selektory jako dane), limit 200 domyślny oraz indywidualny, wybór witryn niezależny od równoległości `1..5/ALL`, zadania i rzeczywiste przyczyny ukończenia, wynik jako dokładny URL strony filmu + oryginalny pełny tytuł / obraz / długość lub wartości nieznane, porządek i provenance, zapisane foldery/linki wyłącznie dla `Normal`, niezależne od historii. Nie utożsamiać filmów ze strumieniami HLS/MP4. Deduplikacja, ekstrakcja, cache, storage, UI i wykonanie zadań pozostają na następne etapy.
+- **Weryfikacja:** 12/12 kontroli statycznych wymaganych kontraktów i zakresu plików — **PASS** (sprawdzone przez porównanie zawartości z GitHub). Dodano 8 testów Kotlin/JUnit, **NOT_TESTED** — nie uruchomiono Gradle ani kompilatora Kotlin na rzeczywistych plikach. CI / APK / urządzenie — **NOT_TESTED**. Brak zgody na build.
+- **Ryzyka do kolejnych kroków:** dopasowywać `scope` wszystkich rekordów w DAO przed zapisem; `Private` nigdy do Room ani trwałego cache; rozróżnić semantyczne query URL przy deduplikacji; wymagany owner lokalnej karty DOM; obsługa rozdzielenia po profilu mimo wspólnego `private` Gecko contextId; izolacja folderów i historii.
+- **Następne pojedyncze `Dalej`:** **ETAP 1B — osobna Room DB + DAO + repozytorium i bezstratny upgrade**, tylko dla profili zwykłych, z przygotowaniem ścieżki tymczasowej private; bez APK / pełnego CI. Wtedy ponownie przeczytaj to miejsce oraz aktualny HEAD i dopiero rozpocznij 1B. Po jego zakończeniu raport i STOP.
+
+---
+
 # Checkpoint — Wyszukiwarka filmów / ETAP 0 / 2026-10-29
 
 - **Status:** DONE (audyt kodu zdalnego, bez modyfikacji aplikacji i bez kompilacji). Bramka: następne pojedyncze `Dalej` = tylko **ETAP 1A**.
