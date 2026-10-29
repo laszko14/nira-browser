@@ -1094,11 +1094,9 @@ class MyVideoSitesActivity : AppCompatActivity() {
                         message("Nie można rozpocząć. Sprawdź profil, konfigurację i zasoby.")
                         return@setPositiveButton
                     }
-                    startActivity(Intent(this@MyVideoSitesActivity,
-                        BrowserActivity::class.java).addFlags(
-                            Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
-                        ))
-                    finish()
+                    // After Search, show the results page rather than a random browser tab.
+                    // Search jobs may continue to append verified results asynchronously.
+                    showMultiHistory()
                 }
                 .show()
             } finally {
