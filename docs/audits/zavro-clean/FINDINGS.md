@@ -40,6 +40,9 @@ Odniesienia do kodu dotyczą bazy `b7d62f79f285ac81c29a79b326529d42e9b9fde4`. Be
 | ZC-AUD-034 | 11A | P2 MEDIUM | CONFIRMED | Późny open shadowRoot na już przeskanowanym hoście nie jest odkrywany przez skaner DOM |
 | ZC-AUD-035 | 11B | P2 MEDIUM | CONFIRMED | Deduplikacja sieci pomija sukces przywracający dostęp po błędzie tego samego URL |
 | ZC-AUD-036 | 11B | P2 MEDIUM | CONFIRMED | Detekcja ochrony DASH myli komentarze XML i pomija elementy z prefiksem namespace |
+| ZC-AUD-037 | 12A | P2 MEDIUM | CONFIRMED | Późniejszy właściciel DOM nie uzgadnia wcześniejszej grupy manifestu, rozdzielając warianty filmu |
+| ZC-AUD-038 | 12A | P2 MEDIUM | CONFIRMED | Kafelek pomija znaną miniaturę innego wariantu tej samej grupy |
+| ZC-AUD-039 | 12A | P2 MEDIUM | CONFIRMED | Ponowny odczyt niezmienionej konfiguracji data-* tworzy nowe identyfikatory grup i omija deduplikację |
 
 ## ZC-AUD-001 — niespójny kontrakt wersji joba release
 
@@ -512,4 +515,40 @@ Uzupełnienie 024 z 10B: ten sam kontrakt menu występuje również w `browser/h
 - **Kierunek naprawy:** wyznaczać ochronę ze zweryfikowanej struktury XML, respektując namespace i zakres ContentProtection, pomijając komentarze; zachować ograniczenia parsera, odrzucanie DTD/encji oraz ochronę DRM.
 - **Wymagane regresje:** komentarz zawierający tag, rzeczywisty element domyślny/prefiksowany w MPD/Period/AdaptationSet/Representation, niepowiązana przestrzeń nazw, wadliwy XML, DTD/encje; integracja flaga→verification→repozytorium→dostępność akcji. Bez pobierania kluczy i omijania ochrony; bez nowych testów aplikacji.
 
-Stan po etapie 11: CONFIRMED=30 (P0=0,P1=3,P2=27,P3=0); LIKELY=3 (010,016,019); SUSPECTED=3 (002,025 potencjalne P2;030 potencjalny P1). Nowe 11B:035/036 CONFIRMED P2. Etap11 COMPLETE (11A i11B); nierozstrzygnięte002 pozostaje SUSPECTED, bez testu restartu Gecko.
+## ZC-AUD-037 — grupowanie wariantów zależy od kolejności DOM i sieci
+
+- **Etap:** 12A — przypisanie metadanych i wariantów do filmu.
+- **Miejsce:** [`MediaRepository.kt:429`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/media/MediaRepository.kt#L429), add:429–433,489–500,514; [`MediaFloatingUi.kt:364`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/media/MediaFloatingUi.kt#L364), mediaTileItems:365–374; producent content.inspect:659–690.
+- **Problem/mechanizm:** przy wcześniejszym sieciowym HLS U z group=manifest-1-1 istniejący rekord ma już niepustą grupę. Późniejszy PAGE/DOM U z lokalną grupą t1-g1 i indywidualnym tytułem tego samego filmu znajduje rekord po dokładnym URL, ale warunek zmiany grupy dopuszcza tylko pustą grupę lub wejście NETWORK. Lokalna grupa nie zostaje przyjęta, tytuł natomiast tak. Alternatywny V z tego samego inspect dostaje t1-g1, więc mediaTileItems tworzy dwa filmy. Gdy PAGE U/V wyprzedza NETWORK U, oba zachowują t1-g1 i powstaje jeden film.
+- **Dowód statyczny:** dokument/ramka stałe, U=syntetyczny master.m3u8, V=backup.mp4. Kolejność N(U,X)→P(U,G,tytuł)→P(V,G,tytuł) daje grupy [X,G]; P(U,G,tytuł)→P(V,G,tytuł)→N(U,X) daje [G,G]. To ręczne prześledzenie warunków add, bez uruchomienia Kotlin i bez modelowania ich drugim algorytmem. Nie wymaga niepewnego przypisania po samym tytule: to samo U jest punktem styku lokalnego właściciela i sieci. Opcjonalny fetch nie musi odkryć V, np. alternatywy MP4; nie jest warunkiem naprawy korelacji.
+- **Pewność:** CONFIRMED statycznie; Kotlin, rzeczywista kolejność Gecko i UI NOT_TESTED. Istniejące MediaFrameGroupCorrelationStage5Test:110–139 opisują kierunek DOM→sieć, nie jego odwrotność; nie uruchamiano ich ponownie ani nie przypisano PASS.
+- **Ważność:** P2 MEDIUM — niepoprawny podział jednego filmu, licznik i warianty zależne od kolejności zdarzeń.
+- **Wpływ:** grupowy tytuł, miniatury, liczba filmów i dostępne źródła; to nie dowód pomieszania profili. Odrębne od039: nawet stabilna grupa DOM nie usuwa tego warunku native.
+- **Kierunek:** uzgadniać dokładnie powiązaną grupę lokalnego właściciela i linię manifestu także przy późnym DOM, z aktualizacją już znanych członków i zachowaniem konfliktów/ramki/dokumentu. Nie scalać po tytule ani samym hoście.
+- **Regresje:** oba porządki U/V/NETWORK oraz derived przed/po DOM; jeden film i te same warianty, ale niezależne filmy o równych tytułach pozostają oddzielne. Dwie ramki, sprzeczni właściciele, zmiana źródła, prywatność i nawigacja; kontrola liczników i wyboru źródła. Specyfikacja do przyszłego wdrożenia, bez nowych testów w app.
+
+## ZC-AUD-038 — miniatura dostępna w grupie ginie przy wyborze reprezentanta
+
+- **Etap:** 12A — miniatury i fallback grupy wariantów.
+- **Miejsce:** [`MediaFloatingUi.kt:368`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/media/MediaFloatingUi.kt#L368), mediaTileItems:368–374; [`VideoTilesPanel.kt:244`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/media/VideoTilesPanel.kt#L244), VideoTile:244,257–265; producent content.scanPlayerConfigs:938–964.
+- **Problem/mechanizm:** tytuł jest wybierany z całej grupy, ale item.entry to bezwarunkowo pierwszy wariant po sortowaniu NETWORK/DOM. Miniatura jest pobierana wyłącznie z tego entry. Dla jednej prawidłowej grupy [U bez poster, V z jedynym znanym poster P] pierwszy U daje kafelek bez obrazu mimo dostępnego P. Sam MediaPosterResolver pracuje na rekordzie URL, nie jest wywoływany dla grupy.
+- **Dowód:** kontrolowany JS rzeczywistego producenta emituje dwa warianty jednej konfiguracji: wspólny tytuł i groupId, tylko drugi wariant ma posterUrl. Kod próby w STAGE_12. Statyczny ciąg add zachowuje oba rekordy w kolejności, a mediaTileItems przy równych źródłach wybiera pierwszy; VideoTile odczytuje wyłącznie jego pusty poster. Wariant sieciowy bez obrazu może też mieć pierwszeństwo przed lokalnym wariantem z obrazem. Bez wykonania Kotlin/Compose/UI.
+- **Pewność:** CONFIRMED statycznie; próba JS potwierdza osiągalne dane wejściowe, nie odtworzenie UI. Nie zakłada się, że wszystkie miniatury różnych wariantów są zgodne.
+- **Ważność:** P2 MEDIUM — brak miniatury filmu mimo dostępnego jednoznacznego dowodu w tej samej grupie.
+- **Wpływ:** prezentacja filmu; nie zmienia URL odtwarzania. Odrębne od037: występuje również przy już poprawnie uzgodnionej jednej grupie.
+- **Kierunek:** oddzielić bezpieczny grupowy fallback miniatury od wyboru URL/reprezentanta; respektować pochodzenie i konflikty z MediaPosterResolver oraz granice grupy/ramki. Nie przenosić obrazu z sąsiedniego filmu ani arbitralnie wybierać przy sprzecznych posterach.
+- **Regresje:** tylko pierwszy/drugi wariant z posterem, zamiana kolejności i flag NETWORK/DOM, jeden wspólny poster kontra dwa sprzeczne, wyłączone miniatury, brak obrazu, dwie grupy/ramki. Tytuł, liczba wariantów i URL akcji muszą zachować tożsamość. Specyfikacja, bez nowych testów aplikacji.
+
+## ZC-AUD-039 — niestabilna tożsamość konfiguracji odczytywanej z atrybutu
+
+- **Etap:** 12A — aktualizacje metadanych i tożsamość wariantów.
+- **Miejsce:** [`content.js:939`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/assets/extensions/nira-media-detector/content.js#L939), scanPlayerConfigs.walk:939–941,967–972; groupFor:239–249; submit:573–576; nativeQueue:499–550. Native: MediaDetectorController:184–195 i MediaRepository:475–495.
+- **Problem/mechanizm:** każdy scan elementu z data-setup/data-config/data-player-config robi JSON.parse i grupuje sources/renditions przez WeakMap kluczowany świeżym obiektem node. Ten sam element, tekst i zestaw URL po kolejnym skanie dostają inne groupId. Ponieważ groupId należy do klucza seen, niezmienione kandydatury ponownie przechodzą walidację/IPC. Wywołanie może spowodować np. ponowny skan karty po zmianie jej podpisu; nie potrzeba zmiany samej konfiguracji. Ochrona scriptVersions obejmuje osobne script, nie te atrybuty.
+- **Dowód:** wykonany prawdziwy content.js/background.js w istniejącym fixture: dwukrotny pełny skan tego samego elementu z identycznym JSON dwóch wariantów daje native candidates2→4 oraz nowy wspólny groupId przy drugim skanie. Kod+SHA i wynik w [STAGE_12](STAGE_12.md#minimalna-próba-12a); bez odtwarzania rzeczywistego DOM/Gecko.
+- **Pewność:** CONFIRMED — wykonany błąd stabilności grup i deduplikacji. Nie zmierzono kosztu klatek ani GC i nie wykazano w tej próbie utraty wiadomości.
+- **Ważność:** P2 MEDIUM — zbędne IPC i konkurencja z nowymi metadanymi o ograniczoną kolejkę/quota; zmienne grupy generują też konflikty przy późniejszej korelacji. Skala strat przy przeciążeniu wymaga pomiaru, nie jest dowodem z tej próby.
+- **Wpływ:** długowieczne listingi/SPA z konfiguracją w atrybutach, aktualizacje tytułu/postera, diagnostyczny VARIANT_GROUP_MISMATCH przy włączonym TestLab. Repozytorium nadal deduplikuje dokładny URL, więc nie zgłoszono automatycznego powstawania nowego rekordu przy każdym takim skanie.
+- **Kierunek:** stabilna, ograniczona tożsamość właściciela/opcji konfiguracji oparta na elemencie i lokalnej strukturze źródeł, niezależna od nowego obiektu JSON.parse; metadane mogą się zmieniać bez przypadkowej zmiany grupy. Nie używać tytułu jako identyfikatora i nie tłumić rzeczywistych zmian konfiguracji.
+- **Regresje:** niezmieniony ponowny skan nie emituje duplikatów; tytuł/poster aktualizują ten sam film; dwa różne elementy lub pozycje playlisty pozostają oddzielne mimo jednakowych tytułów; zmienione źródła, nowa jakość, SPA i nowe dokumenty. Porównać atrybuty z cache script, kolejki i diagnostykę; bez obietnic 120 Hz.
+
+Stan po 12A: CONFIRMED=33 (P0=0,P1=3,P2=30,P3=0); LIKELY=3 (010,016,019); SUSPECTED=3 (002,025 potencjalne P2;030 potencjalny P1). Nowe 037/038/039 CONFIRMED P2. Etap 12 PARTIAL:12A COMPLETE,12B NOT_STARTED.
