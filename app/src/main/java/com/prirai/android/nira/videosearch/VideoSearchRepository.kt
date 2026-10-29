@@ -350,6 +350,15 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
         return dao.pruneExpiredRunHistory(scope.profileId, cutoff)
     }
 
+    /** Atomic, explicitly scoped recovery without replaying search requests. */
+    suspend fun reconcileOrphanedRuns(
+        scope: VideoSearchScope.Normal, nowMs: Long = System.currentTimeMillis(),
+    ): Int = dao.reconcileOrphanedRuns(scope.profileId, nowMs)
+
+    /** Guard recovery so an active worker in this process remains untouched. */
+    suspend fun recoverOrphanedRunsOnce(scope: VideoSearchScope.Normal): Int =
+        VideoSearchRunRecovery.once(this, scope)
+
     suspend fun run(scope: VideoSearchScope.Normal, id: String): VideoSearchRun? =
         dao.getRun(scope.profileId, id)?.let { with(VideoSearchRowCodec) { it.toModel() } }
 

@@ -227,4 +227,69 @@ class VideoSearchPrivateGroupAccessTest {
         assertFalse(f.groups.finish(f.tab, "default", id))
     }
 
+
+    @Test fun progressivePrivateWindowsSurviveStopWithoutDuplicatingCards() {
+        val f = Fixture()
+        val id = f.start()
+        val site = f.sites.first()
+        assertTrue(f.groups.checkpoint(f.tab, "default", id, site,
+            f.snapshot(site, 3, VideoSearchPaginationStop.RESOURCE_LIMIT),
+            terminal = false))
+        assertEquals(VideoSearchSiteState.ACTIVE,
+            f.store.tasks(f.owner, id).single { it.siteId == site.id }.status)
+        assertTrue(f.groups.checkpoint(f.tab, "default", id, site,
+            f.snapshot(site, 8, VideoSearchPaginationStop.RESOURCE_LIMIT),
+            terminal = false))
+        assertTrue(f.groups.finish(f.tab, "default", id))
+        assertEquals(8, f.store.films(f.owner, id, site.id).size)
+        assertEquals(8, f.store.tasks(f.owner, id).single { it.siteId == site.id }.uniqueResults)
+        assertEquals(VideoSearchSiteState.STOPPED,
+            f.store.tasks(f.owner, id).single { it.siteId == site.id }.status)
+        assertNull(f.store.tasks(f.owner, id).single { it.siteId == site.id }.completionReason)
+    }
+
+    @Test fun terminalPrivateCheckpointAfterProgressDoesNotSpendQuotaTwice() {
+        val f = Fixture()
+        val id = f.start()
+        val site = f.sites.first()
+        val partial = f.snapshot(site, 5, VideoSearchPaginationStop.RESOURCE_LIMIT)
+        assertTrue(f.groups.checkpoint(f.tab, "default", id, site, partial,
+            terminal = false))
+        assertTrue(f.groups.checkpoint(f.tab, "default", id, site,
+            f.snapshot(site, 7), terminal = true))
+        assertEquals(7, f.store.films(f.owner, id, site.id).size)
+        val task = f.store.tasks(f.owner, id).single { it.siteId == site.id }
+        assertEquals(7, task.uniqueResults)
+        assertEquals(VideoSearchSiteState.COMPLETED, task.status)
+        assertEquals(VideoSearchCompletionReason.NO_MORE_RESULTS, task.completionReason)
+        assertFalse(f.groups.checkpoint(f.tab, "default", id, site,
+            f.snapshot(site), terminal = true))
+    }
+
+    @Test fun revokedPrivateEpochRejectsLateProgressAndWipesSavedPartials() {
+        val f = Fixture()
+        val id = f.start()
+        val site = f.sites.first()
+        assertTrue(f.groups.checkpoint(f.tab, "default", id, site,
+            f.snapshot(site, 6), terminal = false))
+        f.registry.reconcile(emptyList(), "default")
+        assertFalse(f.groups.checkpoint(f.tab, "default", id, site,
+            f.snapshot(site, 7), terminal = false))
+        assertFalse(f.groups.finish(f.tab, "default", id))
+        assertNull(f.reader.history(f.tab, "default"))
+    }
+
+    @Test fun aggregatePrivateProgressStopsAtExistingTwoThousandLimit() {
+        val f = Fixture(11)
+        val id = f.start()
+        f.sites.take(10).forEach { site ->
+            assertTrue(f.groups.checkpoint(f.tab, "default", id, site,
+                f.snapshot(site, 200, VideoSearchPaginationStop.RESOURCE_LIMIT),
+                terminal = false))
+        }
+        assertFalse(f.groups.hasCapacity(f.tab, "default", id))
+        assertEquals(2_000, f.reader.history(f.tab, "default")!!.single().films.size)
+        assertTrue(f.groups.finish(f.tab, "default", id))
+        assertEquals(VideoSearchRunState.STOPPED, f.store.runs(f.owner).single().status)
+    }
 }

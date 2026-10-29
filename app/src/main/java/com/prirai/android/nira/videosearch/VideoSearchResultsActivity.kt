@@ -122,6 +122,7 @@ internal class VideoSearchResultsActivity : AppCompatActivity() {
                 val result = withContext(Dispatchers.IO) {
                     if (!retentionChecked) {
                         try {
+                            repository.recoverOrphanedRunsOnce(scope)
                             repository.pruneExpiredHistory(scope)
                             retentionChecked = true
                         } catch (cancelled: kotlinx.coroutines.CancellationException) {

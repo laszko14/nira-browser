@@ -409,6 +409,8 @@ internal class VideoSearchBridgeController(
         site: VideoSearchSite, tabId: String, profileId: String,
         query: String, requireSelected: Boolean,
         deadlineMs: Long = Long.MAX_VALUE,
+        hasAggregateCapacity: () -> Boolean = { true },
+        onProgress: suspend (VideoSearchPaginationSnapshot) -> Unit = {},
     ): VideoSearchPaginationSnapshot? {
         if (SystemClock.elapsedRealtime() >= deadlineMs) return null
         val tab = VideoSearchPrivateTab(tabId, "private", true)
@@ -449,7 +451,8 @@ internal class VideoSearchBridgeController(
             }
         }
         val snapshot = config?.let {
-            executePrivatePagination(site, tabId, it, requireSelected, deadlineMs)
+            executePrivatePagination(site, tabId, it, requireSelected, deadlineMs,
+                hasAggregateCapacity, onProgress)
         } ?: VideoSearchPaginationSnapshot(
             films = emptyList(), scannedCards = 0, visitedPages = 1,
             pageActions = 0, reason = VideoSearchPaginationStop.UNSUPPORTED,
@@ -474,14 +477,21 @@ internal class VideoSearchBridgeController(
         val site = privateResults.selectedSite(tab, activeProfileId, siteId)
             ?: return false
         if (privateSiteTab(site, tab.id, exactPage = true) == null) return false
+        val privateRunId = privateResults.beginSingle(
+            tab, activeProfileId, siteId, query
+        ) ?: return false
         privateJob = manualScope.launch {
             try {
                 val snapshot = executePrivateSiteSearch(
-                    site, tab.id, activeProfileId, query, requireSelected = true
+                    site, tab.id, activeProfileId, query, requireSelected = true,
+                    onProgress = { partial ->
+                        privateResults.checkpointSingle(
+                            tab, activeProfileId, privateRunId, site.id, partial
+                        )
+                    },
                 )
-                val saved = snapshot != null && privateResults.record(
-                    tab, activeProfileId, site.id, query, snapshot.films,
-                    reason = snapshot.reason, visitedPages = snapshot.visitedPages,
+                val saved = snapshot != null && privateResults.checkpointSingle(
+                    tab, activeProfileId, privateRunId, site.id, snapshot, terminal = true
                 )
                 if (saved) Toast.makeText(applicationContext,
                     "Prywatne wyniki zapisano w RAM. Otwórz Moje witryny.",
@@ -495,8 +505,12 @@ internal class VideoSearchBridgeController(
                 Toast.makeText(applicationContext,
                     "Prywatne wyszukiwanie przerwane.", Toast.LENGTH_LONG).show()
             } finally {
+                privateResults.finishSingle(tab, activeProfileId, privateRunId)
                 if (privateJob === coroutineContext[Job]) privateJob = null
             }
+        }
+        privateJob?.invokeOnCompletion {
+            privateResults.finishSingle(tab, activeProfileId, privateRunId)
         }
         return true
     }
@@ -525,6 +539,7 @@ internal class VideoSearchBridgeController(
             val deadline = SystemClock.elapsedRealtime() + 180_000L
             try {
                 for (site in plan.sites) {
+                    if (!privateGroup.hasCapacity(anchor, activeProfileId, groupRunId)) break
                     if (SystemClock.elapsedRealtime() >= deadline) break
                     val liveManager = ProfileManager.getInstance(applicationContext)
                     if (!liveManager.isPrivateMode() ||
@@ -619,7 +634,23 @@ internal class VideoSearchBridgeController(
                         visited++
                         val snapshot = executePrivateSiteSearch(
                             site, tabId, activeProfileId, query,
-                            requireSelected = false, deadlineMs = deadline
+                            requireSelected = false, deadlineMs = deadline,
+                            hasAggregateCapacity = {
+                                privateGroup.hasCapacity(anchor, activeProfileId, groupRunId)
+                            },
+                            onProgress = { partial ->
+                                val activeLease = lease
+                                if (activeLease == null || (
+                                    activeLease.canUse(store.state.selectedTabId) &&
+                                    activeLease.acceptsSession(store.state.tabs.singleOrNull {
+                                        it.id == tabId
+                                    }?.engineState?.engineSession))) {
+                                    privateGroup.checkpoint(
+                                        anchor, activeProfileId, groupRunId, site, partial,
+                                        terminal = false
+                                    )
+                                }
+                            },
                         )
                         // A worker selected/adopted while crawling cannot
                         // checkpoint its possibly outdated private payload.
@@ -733,6 +764,8 @@ internal class VideoSearchBridgeController(
         site: VideoSearchSite, tabId: String, config: VideoSiteConfiguration,
         requireSelected: Boolean = true,
         deadlineMs: Long = Long.MAX_VALUE,
+        hasAggregateCapacity: () -> Boolean = { true },
+        onProgress: suspend (VideoSearchPaginationSnapshot) -> Unit = {},
     ): VideoSearchPaginationSnapshot? {
         val first = privateSiteTab(
             site, tabId, exactPage = false, requireSelected = requireSelected
@@ -757,12 +790,16 @@ internal class VideoSearchBridgeController(
 
         fun stop(reason: VideoSearchPaginationStop) = collector.snapshot(reason)
         while (true) {
+            if (!hasAggregateCapacity())
+                return stop(VideoSearchPaginationStop.RESOURCE_LIMIT)
             if (SystemClock.elapsedRealtime() >= deadline)
                 return stop(VideoSearchPaginationStop.RESOURCE_LIMIT)
             if (!authorized()) return stop(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
 
             var newInDocument = 0
             while (collector.shouldReadCardWindow) {
+                if (!hasAggregateCapacity())
+                    return stop(VideoSearchPaginationStop.RESOURCE_LIMIT)
                 if (SystemClock.elapsedRealtime() >= deadline)
                     return stop(VideoSearchPaginationStop.RESOURCE_LIMIT)
                 if (!authorized()) return stop(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
@@ -772,7 +809,10 @@ internal class VideoSearchBridgeController(
                 } as? VideoSearchBridgeMessage.Results
                     ?: return stop(VideoSearchPaginationStop.ERROR)
                 try {
-                    newInDocument += collector.appendWindow(cursor, result.page)
+                    val added = collector.appendWindow(cursor, result.page)
+                    newInDocument += added
+                    if (added > 0 && authorized())
+                        onProgress(stop(VideoSearchPaginationStop.RESOURCE_LIMIT))
                 } catch (_: IllegalArgumentException) {
                     return stop(VideoSearchPaginationStop.ERROR)
                 }
@@ -851,7 +891,9 @@ internal class VideoSearchBridgeController(
                         return stop(VideoSearchPaginationStop.ERROR)
                     if (result.page.inspectedCards == 0) continue
                     try {
-                        collector.appendWindow(cursor, result.page)
+                        val added = collector.appendWindow(cursor, result.page)
+                        if (added > 0 && authorized())
+                            onProgress(stop(VideoSearchPaginationStop.RESOURCE_LIMIT))
                     } catch (_: IllegalArgumentException) {
                         return stop(VideoSearchPaginationStop.ERROR)
                     }
@@ -1116,6 +1158,7 @@ internal class VideoSearchBridgeController(
         site: VideoSearchSite, repository: VideoSearchRepository,
         workerTabId: String? = null,
         hasAggregateCapacity: () -> Boolean = { true },
+        onProgress: suspend (VideoSearchPaginationSnapshot) -> Unit = {},
     ): VideoSearchPaginationSnapshot? {
         val config = site.configuration ?: return null
         val scope = site.scope as? VideoSearchScope.Normal ?: return null
@@ -1164,7 +1207,10 @@ internal class VideoSearchBridgeController(
                 } as? VideoSearchBridgeMessage.Results
                     ?: return collector.snapshot(VideoSearchPaginationStop.ERROR)
                 try {
-                    newInDocument += collector.appendWindow(offset, reply.page)
+                    val added = collector.appendWindow(offset, reply.page)
+                    newInDocument += added
+                    if (added > 0 && stillAuthorized())
+                        onProgress(collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT))
                 } catch (_: IllegalArgumentException) {
                     return collector.snapshot(VideoSearchPaginationStop.ERROR)
                 }
@@ -1253,7 +1299,9 @@ internal class VideoSearchBridgeController(
                         return collector.snapshot(VideoSearchPaginationStop.ERROR)
                     if (reply.page.inspectedCards == 0) continue
                     try {
-                        collector.appendWindow(offset, reply.page)
+                        val added = collector.appendWindow(offset, reply.page)
+                        if (added > 0 && stillAuthorized())
+                            onProgress(collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT))
                     } catch (_: IllegalArgumentException) {
                         return collector.snapshot(VideoSearchPaginationStop.ERROR)
                     }
@@ -1496,7 +1544,10 @@ internal class VideoSearchBridgeController(
         // LAZY guarantees that the job is registered before executing any body.
         val job = manualScope.launch(start = CoroutineStart.LAZY) {
             try {
-                withContext(Dispatchers.IO) { journal.initialize() }
+                withContext(Dispatchers.IO) {
+                    repository.recoverOrphanedRunsOnce(plan.scope)
+                    journal.initialize()
+                }
                 lastMultiRunIds[plan.scope.profileId] = journal.runId
                 if (lastMultiRunIds.size > 4)
                     lastMultiRunIds.remove(lastMultiRunIds.keys.first())
@@ -1570,6 +1621,16 @@ internal class VideoSearchBridgeController(
                                                 snapshot = executePagination(
                                                     current, repository, workerTabId = tabId,
                                                     hasAggregateCapacity = journal::hasCapacity,
+                                                    onProgress = { partial ->
+                                                        withContext(NonCancellable + Dispatchers.IO) {
+                                                            val manager = ProfileManager.getInstance(applicationContext)
+                                                            if (!manager.isPrivateMode() &&
+                                                                manager.getActiveProfile().id == plan.scope.profileId &&
+                                                                workerOwnedTab(current, tabId) != null &&
+                                                                repository.site(plan.scope, site.id) == current)
+                                                                journal.progress(site, partial)
+                                                        }
+                                                    },
                                                 )
                                                 outcome = VideoSearchWorkerVerification
                                                     .finalQueueStatus(snapshot)

@@ -17,6 +17,15 @@ internal class VideoSearchPrivateGroupAccess(
         const val MAX_AGGREGATE_FILMS = 2_000
     }
 
+    /** Private per-run remaining budget, checked only in this session RAM. */
+    fun hasCapacity(anchor: VideoSearchPrivateTab, profileId: String, runId: String): Boolean =
+        registry.withAuthorizedTab(anchor, profileId) { store, scope ->
+            val run = store.runs(scope).singleOrNull {
+                it.id == runId && it.status == VideoSearchRunState.RUNNING
+            } ?: return@withAuthorizedTab false
+            run.siteIds.sumOf { store.films(scope, runId, it).size } < MAX_AGGREGATE_FILMS
+        } ?: false
+
     fun start(
         anchor: VideoSearchPrivateTab, profileId: String,
         plan: VideoSearchPrivateMultiPlan,
@@ -55,6 +64,7 @@ internal class VideoSearchPrivateGroupAccess(
         runId: String, site: VideoSearchSite,
         snapshot: VideoSearchPaginationSnapshot?,
         issue: VideoSearchSiteIssue = VideoSearchSiteIssue.OTHER,
+        terminal: Boolean = true,
     ): Boolean = registry.withAuthorizedTab(anchor, profileId) { store, scope ->
         val run = store.runs(scope).singleOrNull {
             it.id == runId && it.status == VideoSearchRunState.RUNNING
@@ -62,7 +72,8 @@ internal class VideoSearchPrivateGroupAccess(
         if (run.scope != scope || site.scope != scope ||
             site.id !in run.siteIds) return@withAuthorizedTab false
         val old = store.tasks(scope, runId).singleOrNull {
-            it.siteId == site.id && it.status == VideoSearchSiteState.QUEUED
+            it.siteId == site.id && it.status in setOf(
+                VideoSearchSiteState.QUEUED, VideoSearchSiteState.ACTIVE)
         } ?: return@withAuthorizedTab false
 
         // Invalidated selections cannot write their stale search payload.
@@ -78,13 +89,18 @@ internal class VideoSearchPrivateGroupAccess(
         val consumed = run.siteIds.sumOf { id ->
             store.films(scope, runId, id).size
         }
-        val space = (MAX_AGGREGATE_FILMS - consumed).coerceAtLeast(0)
-        val unique = snapshot?.films?.distinctBy { it.filmPageUrl }.orEmpty()
-        val truncated = unique.size > space
-        val retained = unique.take(space)
-        val complete = !truncated && when (snapshot?.reason) {
+        val already = store.films(scope, runId, site.id)
+        val previousUrls = already.mapTo(HashSet()) { it.filmPageUrl }
+        val space = minOf((MAX_AGGREGATE_FILMS - consumed).coerceAtLeast(0),
+            (200 - already.size).coerceAtLeast(0))
+        val unseen = snapshot?.films?.distinctBy { it.filmPageUrl }
+            ?.filterNot { it.filmPageUrl in previousUrls }.orEmpty()
+        val truncated = unseen.size > space
+        val retained = unseen.take(space)
+        val newCount = already.size + retained.size
+        val complete = terminal && !truncated && when (snapshot?.reason) {
             VideoSearchPaginationStop.NO_MORE_RESULTS -> true
-            VideoSearchPaginationStop.LIMIT_REACHED -> retained.size == 200
+            VideoSearchPaginationStop.LIMIT_REACHED -> newCount == 200
             else -> false
         }
         val reason = when (snapshot?.reason) {
@@ -96,25 +112,29 @@ internal class VideoSearchPrivateGroupAccess(
         }
         val status = when {
             complete -> VideoSearchSiteState.COMPLETED
-            snapshot == null -> VideoSearchSiteState.NEEDS_ATTENTION
+            truncated -> VideoSearchSiteState.STOPPED
+            !terminal -> VideoSearchSiteState.ACTIVE
+            snapshot == null && newCount == 0 -> VideoSearchSiteState.NEEDS_ATTENTION
             else -> VideoSearchSiteState.STOPPED
         }
         val stamp = maxOf(now(), run.updatedAtMs + 1)
         retained.forEachIndexed { index, film ->
             store.putFilm(VideoSearchFilm(
-                id = UUID.randomUUID().toString(),
+                id = UUID.nameUUIDFromBytes(
+                    (runId + "|" + site.id + "|" + film.filmPageUrl).toByteArray(Charsets.UTF_8)
+                ).toString(),
                 runId = runId, siteId = site.id, scope = scope,
                 siteName = site.displayName, filmPageUrl = film.filmPageUrl,
                 originalTitle = film.originalTitle, thumbnailUrl = film.thumbnailUrl,
                 durationSeconds = film.durationSeconds, titleSource = film.titleSource,
-                imageSource = film.imageSource, originalIndex = index,
+                imageSource = film.imageSource, originalIndex = already.size + index,
                 foundAtMs = stamp,
             ))
         }
         store.putTask(old.copy(
-            status = status, uniqueResults = retained.size,
-            visitedPages = snapshot?.visitedPages ?: 0,
-            issue = if (complete) null else issue,
+            status = status, uniqueResults = newCount,
+            visitedPages = maxOf(old.visitedPages, snapshot?.visitedPages ?: 0),
+            issue = if (complete || status == VideoSearchSiteState.ACTIVE) null else issue,
             completionReason = reason,
         ))
         store.putRun(run.copy(updatedAtMs = stamp))

@@ -1,3 +1,11 @@
+# P8/16 — SR-04/LC-04 — checkpoint i plan walidacji
+
+- P7 **PASS** w CI dla `edfedcf2`: [40931442648](https://github.com/laszko14/nira-browser/actions/runs/40931442648). P8 zapisuje inkrementalny postęp normalnego crawla do Room i prywatnego do RAM oraz uzgadnia osierocone runy na pierwszym dostępie po starcie nowego procesu.
+- Główne ryzyka: anulowanie po odczycie, wycofana epoka, przejęcie karty, historyczna baza z RUNNING, wspólny limit 2000, brak dublowania tych samych URL, wydajność checkpointów. Zabezpieczenia: autoryzacja przed zapisem, transakcja Room, procesowy gate, jednostkowe/idempotentne RAM checkpointy. Gecko real device/kill/relaunch **NOT_TESTED**.
+- Testy P8 dodano do workflow `video-search-p3-regression.yml`, **CI_PENDING** dla nowego commitu. Brak APK/assemble, migracji, merge. P9 wymaga następnego „Dalej”.
+
+---
+
 # P7/16 — SR-03 — implementacja i weryfikacja CI
 
 - P6/16 **PASS** w CI: https://github.com/laszko14/nira-browser/actions/runs/40929392607 (`e9e1a9ff`, completed/success).

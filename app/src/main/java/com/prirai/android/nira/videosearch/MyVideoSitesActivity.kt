@@ -683,6 +683,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             if (!isActiveNormalProfile(applicationContext, current.profileId)) return@launch
             try {
                 withContext(Dispatchers.IO) {
+                    repository.recoverOrphanedRunsOnce(current)
                     repository.pruneExpiredHistory(current)
                 }
             } catch (cancelled: kotlinx.coroutines.CancellationException) {

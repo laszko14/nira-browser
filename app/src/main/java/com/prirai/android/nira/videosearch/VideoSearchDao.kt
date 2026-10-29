@@ -350,6 +350,26 @@ internal interface VideoSearchDao {
         return deleteExpiredRuns(profileId, cutoffMs)
     }
 
+    /** Previous-process work has no executor; reconcile only on cold-start. */
+    @Query("SELECT * FROM video_search_runs WHERE profileId = :profileId AND status IN ('QUEUED', 'RUNNING', 'PAUSED')")
+    suspend fun getOrphanedRuns(profileId: String): List<VideoSearchRunRow>
+
+    @Query("UPDATE video_search_tasks SET status = 'STOPPED', issue = 'OTHER', completionReason = NULL, uniqueResults = (SELECT COUNT(*) FROM video_search_films WHERE video_search_films.profileId = video_search_tasks.profileId AND video_search_films.runId = video_search_tasks.runId AND video_search_films.siteId = video_search_tasks.siteId) WHERE profileId = :profileId AND runId = :runId AND status IN ('QUEUED', 'ACTIVE', 'PAUSED')")
+    suspend fun stopOrphanedTasks(profileId: String, runId: String): Int
+
+    @Query("UPDATE video_search_runs SET status = 'STOPPED', completedAtMs = :stamp, updatedAtMs = :stamp WHERE profileId = :profileId AND id = :runId AND status IN ('QUEUED', 'RUNNING', 'PAUSED')")
+    suspend fun stopOrphanedRun(profileId: String, runId: String, stamp: Long): Int
+
+    @Transaction
+    suspend fun reconcileOrphanedRuns(profileId: String, nowMs: Long): Int {
+        val orphaned = getOrphanedRuns(profileId)
+        orphaned.forEach { old ->
+            stopOrphanedTasks(profileId, old.id)
+            stopOrphanedRun(profileId, old.id, maxOf(nowMs, old.updatedAtMs + 1))
+        }
+        return orphaned.size
+    }
+
     @Query("SELECT * FROM video_search_runs WHERE profileId = :profileId AND id = :id LIMIT 1")
     suspend fun getRun(profileId: String, id: String): VideoSearchRunRow?
 

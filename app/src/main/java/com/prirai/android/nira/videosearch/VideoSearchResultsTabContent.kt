@@ -126,6 +126,7 @@ private fun VideoSearchResultsTabBound(
         if (!isActiveNormalProfile(context, profileId)) return@LaunchedEffect
         try {
             withContext(Dispatchers.IO) {
+                repository.recoverOrphanedRunsOnce(scope)
                 repository.pruneExpiredHistory(scope)
             }
         } catch (cancelled: CancellationException) {

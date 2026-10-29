@@ -59,7 +59,8 @@ internal class VideoSearchMultiRunJournal(
         val old = tasks[site.id] ?: throw IllegalArgumentException("Unknown site")
         require(site.scope == plan.scope)
         require(outcome !in setOf(VideoSearchQueueStatus.LEASED, VideoSearchQueueStatus.QUEUED))
-        val completion = when (snapshot?.reason) {
+        val wasBudgetStopped = old.issue == VideoSearchSiteIssue.RESULT_BUDGET_REACHED
+        val completion = if (wasBudgetStopped) null else when (snapshot?.reason) {
             VideoSearchPaginationStop.LIMIT_REACHED ->
                 if (snapshot.films.isNotEmpty()) VideoSearchCompletionReason.LIMIT_REACHED else null
             VideoSearchPaginationStop.NO_MORE_RESULTS ->
@@ -67,6 +68,7 @@ internal class VideoSearchMultiRunJournal(
             else -> null
         }
         val status = when {
+            wasBudgetStopped -> VideoSearchSiteState.STOPPED
             completion != null && outcome == VideoSearchQueueStatus.DONE ->
                 VideoSearchSiteState.COMPLETED
             outcome == VideoSearchQueueStatus.FAILED -> VideoSearchSiteState.FAILED
@@ -76,11 +78,12 @@ internal class VideoSearchMultiRunJournal(
         }
         val task = old.copy(
             status = status,
-            uniqueResults = snapshot?.films?.size ?: 0,
-            visitedPages = snapshot?.visitedPages ?: 0,
+            uniqueResults = maxOf(old.uniqueResults, snapshot?.films?.size ?: 0),
+            visitedPages = maxOf(old.visitedPages, snapshot?.visitedPages ?: 0),
             completionReason = if (status == VideoSearchSiteState.COMPLETED) completion else null,
             issue = when {
                 status == VideoSearchSiteState.COMPLETED -> null
+                wasBudgetStopped -> VideoSearchSiteIssue.RESULT_BUDGET_REACHED
                 status == VideoSearchSiteState.STOPPED && !hasCapacity() ->
                     VideoSearchSiteIssue.RESULT_BUDGET_REACHED
                 snapshot?.reason == VideoSearchPaginationStop.CONFIGURATION_CHANGED ->
@@ -95,18 +98,7 @@ internal class VideoSearchMultiRunJournal(
             },
         )
         val stamp = maxOf(now(), run.updatedAtMs + 1)
-        val films = snapshot?.films?.take(site.resultLimit)?.mapIndexed { index, film ->
-            VideoSearchFilm(
-                id = UUID.nameUUIDFromBytes(
-                    "$id|${site.id}|${film.filmPageUrl}".toByteArray(Charsets.UTF_8)
-                ).toString(),
-                runId = id, siteId = site.id, scope = plan.scope,
-                siteName = site.displayName, filmPageUrl = film.filmPageUrl,
-                originalTitle = film.originalTitle, thumbnailUrl = film.thumbnailUrl,
-                durationSeconds = film.durationSeconds, titleSource = film.titleSource,
-                imageSource = film.imageSource, originalIndex = index, foundAtMs = stamp,
-            )
-        } ?: emptyList()
+        val films = toFilms(site, snapshot, stamp)
         val nextRun = run.copy(updatedAtMs = stamp)
         // Commit in Room first; never update the journal after a failed DB transaction.
         val saved = repository.putJournalCheckpoint(nextRun, task, films)
@@ -118,6 +110,51 @@ internal class VideoSearchMultiRunJournal(
         )
         remainingResults = (2_000 - saved.totalResults).coerceAtLeast(0)
         run = nextRun
+    }
+
+    /** Persist verified windows before the next network action. */
+    suspend fun progress(
+        site: VideoSearchLaunchSite, snapshot: VideoSearchPaginationSnapshot,
+    ) = mutex.withLock {
+        check(initialized && !closed)
+        require(site.scope == plan.scope && site.id in tasks)
+        val prior = tasks.getValue(site.id)
+        if (prior.status !in setOf(VideoSearchSiteState.QUEUED,
+                VideoSearchSiteState.ACTIVE) || snapshot.films.isEmpty()) return@withLock
+        val stamp = maxOf(now(), run.updatedAtMs + 1)
+        val next = run.copy(updatedAtMs = stamp)
+        val task = prior.copy(
+            status = VideoSearchSiteState.ACTIVE,
+            uniqueResults = maxOf(prior.uniqueResults, snapshot.films.size),
+            visitedPages = maxOf(prior.visitedPages, snapshot.visitedPages),
+            issue = null, completionReason = null,
+        )
+        val saved = repository.putJournalCheckpoint(next, task, toFilms(site, snapshot, stamp))
+        tasks[site.id] = task.copy(
+            uniqueResults = saved.siteResults,
+            status = if (saved.truncated) VideoSearchSiteState.STOPPED else VideoSearchSiteState.ACTIVE,
+            issue = if (saved.truncated) VideoSearchSiteIssue.RESULT_BUDGET_REACHED else null,
+        )
+        remainingResults = (2_000 - saved.totalResults).coerceAtLeast(0)
+        run = next
+    }
+
+    private fun toFilms(
+        site: VideoSearchLaunchSite, snapshot: VideoSearchPaginationSnapshot?, stamp: Long,
+    ): List<VideoSearchFilm> {
+        return snapshot?.films?.take(site.resultLimit)?.mapIndexed { index, film ->
+            VideoSearchFilm(
+                id = UUID.nameUUIDFromBytes(
+                    "$id|${site.id}|${film.filmPageUrl}".toByteArray(Charsets.UTF_8)
+                ).toString(),
+                runId = id, siteId = site.id, scope = plan.scope,
+                siteName = site.displayName, filmPageUrl = film.filmPageUrl,
+                originalTitle = film.originalTitle, thumbnailUrl = film.thumbnailUrl,
+                durationSeconds = film.durationSeconds, titleSource = film.titleSource,
+                imageSource = film.imageSource, originalIndex = index, foundAtMs = stamp,
+            )
+        } ?: emptyList()
+
     }
 
     suspend fun finish(queue: VideoSearchDispatchQueue) = mutex.withLock {
