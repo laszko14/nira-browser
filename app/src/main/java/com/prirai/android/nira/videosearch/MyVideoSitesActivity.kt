@@ -44,6 +44,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private lateinit var clearButton: Button
     private lateinit var parallelismButton: Button
     private lateinit var queuePreviewButton: Button
+    private lateinit var multiStatusButton: Button
+    private lateinit var stopMultiButton: Button
     private lateinit var adapter: SitesAdapter
     private var scope: VideoSearchScope.Normal? = null
     private var observer: Job? = null
@@ -99,12 +101,25 @@ class MyVideoSitesActivity : AppCompatActivity() {
             setOnClickListener { chooseParallelism() }
         }
         queuePreviewButton = Button(this).apply {
-            text = "Podgląd kolejki"
+            text = "Wyszukaj na witrynach"
             setOnClickListener { previewQueue() }
         }
         dispatchControls.addView(parallelismButton, LinearLayout.LayoutParams(0, -2, 1f))
         dispatchControls.addView(queuePreviewButton, LinearLayout.LayoutParams(0, -2, 1f))
         root.addView(dispatchControls)
+
+        val multiActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        multiStatusButton = Button(this).apply {
+            text = "Status wyszukiwań"
+            setOnClickListener { showMultiStatus() }
+        }
+        stopMultiButton = Button(this).apply {
+            text = "Zatrzymaj wyszukiwania"
+            setOnClickListener { stopMultiSearch() }
+        }
+        multiActions.addView(multiStatusButton, LinearLayout.LayoutParams(0, -2, 1f))
+        multiActions.addView(stopMultiButton, LinearLayout.LayoutParams(0, -2, 1f))
+        root.addView(multiActions)
 
         root.addView(TextView(this).apply {
             text = "Witryny pozostają na liście nawet po błędzie konfiguracji. " +
@@ -184,6 +199,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
             clearButton.isEnabled = false
             parallelismButton.isEnabled = false
             queuePreviewButton.isEnabled = false
+            multiStatusButton.isEnabled = false
+            stopMultiButton.isEnabled = false
             info.text = "Tryb prywatny: zapis do zwykłego profilu jest wyłączony. " +
                 "Lista prywatna będzie dostępna po integracji sesji prywatnej."
             return
@@ -193,6 +210,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
         addButton.isEnabled = true
         parallelismButton.isEnabled = true
         queuePreviewButton.isEnabled = true
+        multiStatusButton.isEnabled = true
+        stopMultiButton.isEnabled = true
         info.text = "Profil: ${manager.getActiveProfile().name}"
         if (scope == current && observer?.isActive == true) return
         observer?.cancel()
@@ -321,7 +340,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private fun previewQueue() {
         val owner = ownerIfCurrent() ?: return
         val field = EditText(this).apply {
-            hint = "Fraza do wyszukania (tylko podgląd)"
+            hint = "Fraza do wyszukania na wybranych witrynach"
             setSingleLine(true)
             inputType = InputType.TYPE_CLASS_TEXT
         }
@@ -329,6 +348,14 @@ class MyVideoSitesActivity : AppCompatActivity() {
             .setTitle("Podgląd kolejki witryn")
             .setView(field)
             .setNegativeButton("Anuluj", null)
+            .setNeutralButton("Uruchom wyszukiwanie") { _, _ ->
+                val phrase = field.text.toString().trim()
+                if (!VideoSearchBridgeProtocol.validQuery(phrase)) {
+                    message("Podaj poprawną frazę (1–250 znaków)")
+                } else {
+                    prepareAndConfirmMultiSite(owner, phrase)
+                }
+            }
             .setPositiveButton("Pokaż plan") { _, _ ->
                 val phrase = field.text.toString().trim()
                 if (!VideoSearchBridgeProtocol.validQuery(phrase)) {
@@ -361,14 +388,101 @@ class MyVideoSitesActivity : AppCompatActivity() {
                             "\nGotowe do kolejki: $ready" +
                             "\nWymagają konfiguracji: $waiting" +
                             "\nRównoległość: $parallel" +
-                            "\n\nKolejka jest tylko przygotowana. " +
-                            "Praca na wielu kartach zostanie wdrożona w następnym etapie.")
+                            "\n\nTo wyłącznie podgląd. Aby wysłać zapytania, " +
+                            "użyj przycisku „Uruchom wyszukiwanie”.")
                         .setPositiveButton("OK", null)
                         .show()
                 }
             }
             .create()
         dialog.show()
+    }
+
+    /** Always re-read the current normal profile's sites before starting. */
+    private fun prepareAndConfirmMultiSite(
+        owner: VideoSearchScope.Normal, phrase: String,
+    ) {
+        lifecycleScope.launch {
+            val plan = try {
+                withContext(Dispatchers.IO) {
+                    repository.prepareDispatch(owner, phrase)
+                }
+            } catch (_: Exception) {
+                if (ownerIfCurrent() == owner)
+                    message("Zaznacz co najmniej jedną aktywną witrynę")
+                return@launch
+            }
+            if (ownerIfCurrent() != owner) return@launch
+            if (plan.runnableSites.isEmpty()) {
+                message("Wybrane witryny wymagają konfiguracji wyszukiwania")
+                return@launch
+            }
+            MaterialAlertDialogBuilder(this@MyVideoSitesActivity)
+                .setTitle("Uruchomić wyszukiwanie na witrynach?")
+                .setMessage("Gotowe witryny: ${plan.runnableSites.size}; " +
+                    "wymagają konfiguracji: ${plan.needsAttention.size}. " +
+                    "Zavro utworzy oddzielne zwykłe karty robocze i wyśle " +
+                    "frazy WYŁĄCZNIE przez wyszukiwarki tych witryn, bez Google. " +
+                    "Równoległość będzie ograniczona dostępnością pamięci. " +
+                    "Na tym etapie potwierdzane jest tylko przyjęcie polecenia wyszukania; " +
+                    "wyniki wielu witryn nie są jeszcze zbierane ani zapisywane.")
+                .setNegativeButton("Anuluj", null)
+                .setPositiveButton("Uruchom") { _, _ ->
+                    if (ownerIfCurrent() != owner) return@setPositiveButton
+                    val bridge = VideoSearchBridgeHost.instance()
+                    if (bridge?.startMultiSite(plan, repository) != true) {
+                        message("Nie można rozpocząć. Sprawdź profil, konfigurację i zasoby.")
+                        return@setPositiveButton
+                    }
+                    startActivity(Intent(this@MyVideoSitesActivity,
+                        BrowserActivity::class.java).addFlags(
+                            Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                        ))
+                    finish()
+                }
+                .show()
+        }
+    }
+
+    private fun showMultiStatus() {
+        val owner = ownerIfCurrent() ?: return
+        val bridge = VideoSearchBridgeHost.instance()
+        val result = bridge?.multiSiteStatus(owner)
+        if (result == null) {
+            message("Brak uruchomionych wyszukiwań wielowitrynowych")
+            return
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(if (bridge.isMultiSiteActive())
+                "Wysyłanie zapytań" else "Ostatnia próba wyszukiwania")
+            .setMessage("Wybrano: ${result.selected}\n" +
+                "Oczekujące: ${result.queued}\n" +
+                "Aktywne: ${result.active}\n" +
+                "Potwierdzone polecenia: ${result.submitted}\n" +
+                "Wymagają uwagi: ${result.needsAttention}\n" +
+                "Błędy: ${result.failed}\n" +
+                "Zatrzymane: ${result.stopped}\n\n" +
+                "Potwierdzenie polecenia nie dowodzi wyników ani zakończenia wyszukiwania.")
+            .setPositiveButton("OK", null)
+            .show()
+    }
+
+    private fun stopMultiSearch() {
+        val owner = ownerIfCurrent() ?: return
+        if (VideoSearchBridgeHost.instance()?.isMultiSiteActive() != true) {
+            message("Brak aktywnej kolejki")
+            return
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Zatrzymać wyszukiwania?")
+            .setMessage("Nie zostaną wysłane kolejne zapytania. " +
+                "Formularzy już wysłanych do witryn nie można cofnąć.")
+            .setNegativeButton("Anuluj", null)
+            .setPositiveButton("Zatrzymaj") { _, _ ->
+                if (ownerIfCurrent() == owner) {
+                    VideoSearchBridgeHost.instance()?.stopMultiSite(owner)
+                }
+            }.show()
     }
 
     private fun setSiteSelected(site: VideoSearchSite, selected: Boolean) {

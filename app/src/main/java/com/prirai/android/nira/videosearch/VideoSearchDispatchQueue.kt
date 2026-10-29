@@ -27,7 +27,7 @@ internal data class VideoSearchLaunchSite(
 }
 
 internal enum class VideoSearchQueueStatus {
-    QUEUED, LEASED, NEEDS_ATTENTION, DONE, FAILED, STOPPED
+    QUEUED, LEASED, SUBMITTED, NEEDS_ATTENTION, DONE, FAILED, STOPPED
 }
 
 /** A queue never changes the selection snapshot or the configured worker mode. */
@@ -110,6 +110,7 @@ internal data class VideoSearchQueueSnapshot(
     val selected: Int,
     val queued: Int,
     val active: Int,
+    val submitted: Int,
     val needsAttention: Int,
     val finished: Int,
     val failed: Int,
@@ -118,7 +119,8 @@ internal data class VideoSearchQueueSnapshot(
     val stopping: Boolean,
 ) {
     init {
-        require(selected == queued + active + needsAttention + finished + failed + stopped)
+        require(selected == queued + active + submitted +
+            needsAttention + finished + failed + stopped)
     }
     override fun toString() = "VideoSearchQueueSnapshot(redacted)"
 }
@@ -160,7 +162,8 @@ internal class VideoSearchDispatchQueue internal constructor(
     /** Only a leased task can be resolved, and it can be resolved only once. */
     fun resolve(siteId: String, outcome: VideoSearchQueueStatus): Boolean = synchronized(gate) {
         require(outcome in setOf(
-            VideoSearchQueueStatus.DONE, VideoSearchQueueStatus.FAILED,
+            VideoSearchQueueStatus.SUBMITTED, VideoSearchQueueStatus.DONE,
+            VideoSearchQueueStatus.FAILED,
             VideoSearchQueueStatus.NEEDS_ATTENTION, VideoSearchQueueStatus.STOPPED))
         if (states[siteId] != VideoSearchQueueStatus.LEASED) return@synchronized false
         states[siteId] = outcome
@@ -190,6 +193,7 @@ internal class VideoSearchDispatchQueue internal constructor(
             selected = ordered.size,
             queued = count(VideoSearchQueueStatus.QUEUED),
             active = count(VideoSearchQueueStatus.LEASED),
+            submitted = count(VideoSearchQueueStatus.SUBMITTED),
             needsAttention = count(VideoSearchQueueStatus.NEEDS_ATTENTION),
             finished = count(VideoSearchQueueStatus.DONE),
             failed = count(VideoSearchQueueStatus.FAILED),
