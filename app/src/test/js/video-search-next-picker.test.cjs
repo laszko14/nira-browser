@@ -181,8 +181,8 @@ test('non-native role=button next control is accepted only when explicitly named
 test('never accept cross-origin, script links or unlabeled same-page anchors',()=>{
   for (const href of ['https://other.example/results','javascript:void(0)','#']) {
     const h=fixture();
-    const next=h.node('a',{classes:['unique-next'],attributes:{href}});
-    h.map('a.unique-next',next);
+    const next=h.node('a',{classes:['unique-pager'],attributes:{href}});
+    h.map('a.unique-pager',next);
     assert.equal(h.selectPage(next),null,href);
     assert.equal(h.sent.filter(p=>p.event==='picked').length,0);
   }
