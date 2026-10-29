@@ -253,6 +253,20 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
     }
 
     /**
+     * Invoke ONLY after the real group manager finished loading and confirmed
+     * the previously selected group no longer exists in this normal profile.
+     * Atomic SQL compare-and-set: never clear a newer user selection.
+     */
+    suspend fun clearDeletedDefaultVideoTabGroup(
+        scope: VideoSearchScope.Normal, expectedGroupId: String,
+    ): Boolean {
+        require(expectedGroupId.isNotBlank())
+        return dao.clearDefaultVideoGroupIfMatches(
+            scope.profileId, expectedGroupId
+        ) == 1
+    }
+
+    /**
      * Build a non-persistent, per-profile dispatch snapshot inside one read
      * transaction. Never open Gecko tabs or persist a run in stage 5A.
      * Selected, disabled sites are excluded; configured and unconfigured

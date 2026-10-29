@@ -13,6 +13,20 @@ internal object VideoSearchDefaultGroupPolicy {
     ): Boolean = groupId != null && groupId.isNotBlank() &&
         groupContextId == scope.contextId
 
+    /**
+     * Only a fully initialized manager can prove a saved group is gone.
+     * Empty lists seen during startup or a failed load are NOT such proof.
+     * Unrelated groups, even with the same displayed name, never substitute.
+     */
+    fun shouldClearDeletedDefault(
+        preferredId: String?,
+        scope: VideoSearchScope.Normal,
+        managerInitialized: Boolean,
+        activeGroups: Collection<Pair<String, String?>>,
+    ): Boolean =
+        managerInitialized && !preferredId.isNullOrBlank() &&
+            destination(preferredId, scope, activeGroups) == null
+
     /** Choosing null means opening a film in a regular tab outside groups. */
     fun destination(
         preferredId: String?,

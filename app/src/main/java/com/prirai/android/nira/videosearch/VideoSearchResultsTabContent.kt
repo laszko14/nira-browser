@@ -162,6 +162,39 @@ private fun VideoSearchResultsTabBound(
         }
     }
 
+    /**
+     * If the default tab group disappears while search results are open,
+     * forget only that old ID. No polling, group recreation, dialog or
+     * changes to saved search results and folders.
+     */
+    LaunchedEffect(tabId, profileId) {
+        try {
+            val manager = UnifiedTabGroupManager.getInstance(
+                context.applicationContext
+            )
+            if (!manager.awaitInitialized()) return@LaunchedEffect
+            combine(
+                manager.groupsState,
+                repository.observeSettings(scope),
+            ) { groups, prefs ->
+                prefs.defaultTabGroupId to groups.map { it.id to it.contextId }
+            }.distinctUntilChanged().collectLatest { (preferred, groups) ->
+                if (isActiveNormalProfile(context, profileId) &&
+                    VideoSearchDefaultGroupPolicy.shouldClearDeletedDefault(
+                        preferred, scope, managerInitialized = true, activeGroups = groups
+                    ) && preferred != null) {
+                    withContext(Dispatchers.IO) {
+                        repository.clearDeletedDefaultVideoTabGroup(scope, preferred)
+                    }
+                }
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // Never clear a default based on an unavailable group manager.
+        }
+    }
+
     fun ownsFilm(film: VideoSearchFilm): Boolean {
         val browser = context.applicationContext.components
         val current = state.snapshot?.run ?: return false
@@ -211,6 +244,18 @@ private fun VideoSearchResultsTabBound(
                         VideoSearchDefaultGroupPolicy.destination(selected, scope, groups)
                     else -> null
                 }
+                // A missing group is a confirmed deletion ONLY after the
+                // manager initialized. CAS protects concurrent user changes.
+                if (action == null && preferred != null &&
+                    VideoSearchDefaultGroupPolicy.shouldClearDeletedDefault(
+                        preferred, scope, loaded, groups
+                    )) {
+                    withContext(Dispatchers.IO) {
+                        repository.clearDeletedDefaultVideoTabGroup(scope, preferred)
+                    }
+                    // Do not steal focus if profile/tab changed during IO.
+                    if (!ownsFilm(film)) return@launch
+                }
                 if (action == VideoSearchFilmMenuAction.OPEN_EXISTING_GROUP &&
                     destination == null) {
                     notifyUser("Wybrana grupa nie jest już dostępna")
@@ -245,14 +290,37 @@ private fun VideoSearchResultsTabBound(
                             )
                         } else if (destination != null && manager != null) {
                             if (!manager.addTabToGroup(newTabId, destination)) {
-                                notifyUser("Grupa niedostępna — otwarto bez grupy")
+                                // A group can disappear between the lookup
+                                // and the group-manager mutation itself.
+                                val stillExists = manager.getGroup(destination)
+                                    ?.contextId == scope.contextId
+                                if (action == null && preferred == destination &&
+                                    !stillExists) {
+                                    withContext(Dispatchers.IO) {
+                                        repository.clearDeletedDefaultVideoTabGroup(
+                                            scope, preferred
+                                        )
+                                    }
+                                } else {
+                                    notifyUser("Nie udało się przypisać karty do grupy")
+                                }
                             }
                         }
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (_: Exception) {
-                        notifyUser("Nie udało się przypisać karty do grupy")
-                        // The new tab remains valid even without a group.
+                        if (action == null && preferred != null &&
+                            manager?.getGroup(preferred)?.contextId != scope.contextId) {
+                            // Only a confirmed vanished group may clear prefs.
+                            withContext(Dispatchers.IO) {
+                                repository.clearDeletedDefaultVideoTabGroup(
+                                    scope, preferred
+                                )
+                            }
+                        } else {
+                            notifyUser("Nie udało się przypisać karty do grupy")
+                        }
+                        // Never remove a newly created ordinary browser tab.
                     }
                 }
                 val latest = browser.store.state

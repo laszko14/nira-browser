@@ -257,6 +257,16 @@ internal interface VideoSearchDao {
         }
     }
 
+    /**
+     * Compare-and-set cleanup of a deleted default group. If another screen
+     * chose a new group meanwhile, never overwrite that newer preference.
+     * Only the setting field changes: saved runs and folders are untouched.
+     */
+    @Query("UPDATE video_search_settings SET defaultTabGroupId = NULL WHERE profileId = :profileId AND defaultTabGroupId = :expectedGroupId")
+    suspend fun clearDefaultVideoGroupIfMatches(
+        profileId: String, expectedGroupId: String
+    ): Int
+
     /** All launch inputs are consistent even if a user edits the UI. */
     @Transaction
     suspend fun getLaunchSnapshot(profileId: String): VideoSearchLaunchSnapshotRows =

@@ -52,6 +52,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private lateinit var adapter: SitesAdapter
     private var scope: VideoSearchScope.Normal? = null
     private var observer: Job? = null
+    private var deletedDefaultObserver: Job? = null
     private var reorderPending = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -200,6 +201,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
         super.onResume()
         val manager = ProfileManager.getInstance(applicationContext)
         if (manager.isPrivateMode()) {
+            deletedDefaultObserver?.cancel()
+            deletedDefaultObserver = null
             observer?.cancel()
             observer = null
             scope = null
@@ -230,6 +233,33 @@ class MyVideoSitesActivity : AppCompatActivity() {
         stopMultiButton.isEnabled = true
         multiHistoryButton.isEnabled = true
         info.text = "Profil: ${manager.getActiveProfile().name}"
+        // Group deletion may occur while this screen is open, independent of
+        // a settings change. Reconcile only after manager initialization.
+        deletedDefaultObserver?.cancel()
+        deletedDefaultObserver = lifecycleScope.launch {
+            try {
+                val groups = UnifiedTabGroupManager.getInstance(applicationContext)
+                if (!groups.awaitInitialized()) return@launch
+                combine(groups.groupsState, repository.observeSettings(current)) {
+                    liveGroups, prefs ->
+                    prefs.defaultTabGroupId to liveGroups.map { it.id to it.contextId }
+                }.collectLatest { (preferred, groupIds) ->
+                    if (ownerIfCurrent() == current && preferred != null &&
+                        VideoSearchDefaultGroupPolicy.shouldClearDeletedDefault(
+                            preferred, current, managerInitialized = true,
+                            activeGroups = groupIds
+                        )) {
+                        withContext(Dispatchers.IO) {
+                            repository.clearDeletedDefaultVideoTabGroup(current, preferred)
+                        }
+                    }
+                }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // Incomplete manager startup is not proof of deletion.
+            }
+        }
         if (scope == current && observer?.isActive == true) return
         observer?.cancel()
         scope = current
@@ -269,6 +299,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
+        deletedDefaultObserver?.cancel()
+        deletedDefaultObserver = null
         observer?.cancel()
         observer = null
         adapter.cancelDrag()
