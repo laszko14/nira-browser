@@ -1,0 +1,52 @@
+name: Zavro Clean Picker V2 - tests only (no APK)
+
+on:
+  push:
+    branches:
+      - feat/zavro-clean-picker-v2-stage1-20261030
+    paths:
+      - '.github/workflows/zavro-picker-v2-tests-only.yml'
+      - 'app/src/main/assets/extensions/zavro-video-search/**'
+      - 'app/src/main/java/com/prirai/android/nira/videosearch/**'
+      - 'app/src/test/js/**'
+      - 'app/src/test/java/com/prirai/android/nira/videosearch/**'
+      - 'docs/AI_HANDOFF.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zavro-picker-v2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 80
+    steps:
+      - uses: actions/checkout@v4
+      - uses: gradle/actions/wrapper-validation@v5
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v5
+      - name: JavaScript and actual WebExtension contract regressions
+        run: node --test app/src/test/js/*.test.cjs
+      - name: All Kotlin JVM and Robolectric tests
+        run: ./gradlew :app:testDebugUnitTest --console=plain
+      - name: Android lint
+        run: ./gradlew :app:lintDebug --console=plain
+      - name: Upload test reports (never an APK)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: picker-v2-stage1-test-reports
+          path: |
+            app/build/test-results/testDebugUnitTest/**
+            app/build/reports/tests/testDebugUnitTest/**
+            app/build/reports/lint-results-debug*
+          if-no-files-found: warn
+          retention-days: 7
+# No assemble, keystore, signing, APK upload or release in this workflow.
