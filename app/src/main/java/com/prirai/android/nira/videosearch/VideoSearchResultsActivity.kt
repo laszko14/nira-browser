@@ -58,6 +58,7 @@ internal class VideoSearchResultsActivity : AppCompatActivity() {
     private var owner: VideoSearchScope.Normal? = null
     private var chosenRunId: String? = null
     private var readJob: Job? = null
+    private var retentionChecked = false
     private var screen by mutableStateOf(VideoSearchResultsScreenState())
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -122,6 +123,16 @@ internal class VideoSearchResultsActivity : AppCompatActivity() {
         readJob = lifecycleScope.launch {
             try {
                 val result = withContext(Dispatchers.IO) {
+                    if (!retentionChecked) {
+                        try {
+                            repository.pruneExpiredHistory(scope)
+                            retentionChecked = true
+                        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            // Reading history still works if expiry fails.
+                        }
+                    }
                     val runs = repository.runs(scope)
                     val chosen = runs.firstOrNull { it.id == chosenRunId } ?: runs.firstOrNull()
                     val snapshot = chosen?.let { repository.resultsSnapshot(scope, it.id) }

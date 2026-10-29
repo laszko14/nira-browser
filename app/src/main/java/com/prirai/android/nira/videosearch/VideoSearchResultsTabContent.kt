@@ -120,6 +120,21 @@ private fun VideoSearchResultsTabBound(
     }
     var openingFilm by remember(tabId, profileId) { mutableStateOf(false) }
 
+    // An already-open results tab may outlive the site-management screen.
+    // One cleanup attempt per tab/profile composition; no timer or polling.
+    LaunchedEffect(tabId, profileId) {
+        if (!isActiveNormalProfile(context, profileId)) return@LaunchedEffect
+        try {
+            withContext(Dispatchers.IO) {
+                repository.pruneExpiredHistory(scope)
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // Keep results accessible if cleanup is temporarily unavailable.
+        }
+    }
+
     /**
      * Room emits whenever a site worker checkpoints a run. Do not poll or
      * discard the existing snapshot while it is being updated: that would

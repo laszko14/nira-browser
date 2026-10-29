@@ -54,6 +54,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private var scope: VideoSearchScope.Normal? = null
     private var observer: Job? = null
     private var deletedDefaultObserver: Job? = null
+    private var historyRetentionJob: Job? = null
     private var reorderPending = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -214,6 +215,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
         super.onResume()
         val manager = ProfileManager.getInstance(applicationContext)
         if (manager.isPrivateMode()) {
+            historyRetentionJob?.cancel()
+            historyRetentionJob = null
             deletedDefaultObserver?.cancel()
             deletedDefaultObserver = null
             observer?.cancel()
@@ -238,6 +241,22 @@ class MyVideoSitesActivity : AppCompatActivity() {
             return
         }
         val current = VideoSearchScope.Normal(manager.getActiveProfile().id)
+        // On user entry, not a background timer: Room transaction on IO,
+        // cancelled if this Activity leaves before completion.
+        historyRetentionJob?.cancel()
+        historyRetentionJob = lifecycleScope.launch {
+            if (!isActiveNormalProfile(applicationContext, current.profileId)) return@launch
+            try {
+                withContext(Dispatchers.IO) {
+                    repository.pruneExpiredHistory(current)
+                }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // A retention failure must never block the saved sites UI.
+                // No URLs, queries or identifiers are logged.
+            }
+        }
         input.isEnabled = true
         addButton.isEnabled = true
         parallelismButton.isEnabled = true
@@ -314,6 +333,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
+        historyRetentionJob?.cancel()
+        historyRetentionJob = null
         deletedDefaultObserver?.cancel()
         deletedDefaultObserver = null
         observer?.cancel()

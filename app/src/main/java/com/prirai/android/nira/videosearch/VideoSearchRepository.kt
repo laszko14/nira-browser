@@ -8,9 +8,8 @@ import kotlinx.coroutines.flow.map
  * Persistent access ONLY for ordinary profiles. No DAO or file handle is
  * accepted for private scopes. Every write is checked before touching Room.
  *
- * This module is not yet integrated with UI, search automation or workers.
  * Cross-record checks and writes are atomic via Room DAO transactions.
- * Expiry and full lifecycle integration are scheduled for later stages.
+ * Run-history expiry is scoped to normal profiles and does not touch saved films.
  */
 internal class VideoSearchRepository(private val dao: VideoSearchDao) {
     companion object {
@@ -320,6 +319,19 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
             "Snapshot owner must match the run"
         }
         dao.putSnapshotChecked(runRow, taskRows, filmRows)
+    }
+
+    /**
+     * Stage 9A: opportunistic cleanup, called when the user opens search UI.
+     * Removes only expired terminal runs with their tasks/cards in one Room
+     * transaction. Persistent sites, settings and saved film library survive.
+     */
+    suspend fun pruneExpiredHistory(
+        scope: VideoSearchScope.Normal,
+        nowMs: Long = System.currentTimeMillis(),
+    ): Int {
+        val cutoff = VideoSearchHistoryRetention.cutoffMs(nowMs) ?: return 0
+        return dao.pruneExpiredRunHistory(scope.profileId, cutoff)
     }
 
     suspend fun run(scope: VideoSearchScope.Normal, id: String): VideoSearchRun? =

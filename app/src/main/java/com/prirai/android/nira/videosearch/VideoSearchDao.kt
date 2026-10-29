@@ -308,6 +308,34 @@ internal interface VideoSearchDao {
         putRun(row)
     }
 
+
+    /**
+     * Stage 9A: delete ONLY terminal run history older than 30 full days.
+     * Saved folders/links are independent: NEVER reference them in cleanup SQL.
+     * Checking and deleting all three run-owned tables is one Room transaction.
+     */
+    @Query("SELECT COUNT(*) FROM video_search_runs WHERE profileId = :profileId AND status IN ('COMPLETED', 'STOPPED', 'FAILED') AND completedAtMs IS NOT NULL AND completedAtMs > 0 AND completedAtMs <= :cutoffMs AND updatedAtMs <= :cutoffMs")
+    suspend fun countExpiredRuns(profileId: String, cutoffMs: Long): Int
+
+    @Query("DELETE FROM video_search_films WHERE profileId = :profileId AND runId IN (SELECT id FROM video_search_runs WHERE profileId = :profileId AND status IN ('COMPLETED', 'STOPPED', 'FAILED') AND completedAtMs IS NOT NULL AND completedAtMs > 0 AND completedAtMs <= :cutoffMs AND updatedAtMs <= :cutoffMs)")
+    suspend fun deleteExpiredFilms(profileId: String, cutoffMs: Long): Int
+
+    @Query("DELETE FROM video_search_tasks WHERE profileId = :profileId AND runId IN (SELECT id FROM video_search_runs WHERE profileId = :profileId AND status IN ('COMPLETED', 'STOPPED', 'FAILED') AND completedAtMs IS NOT NULL AND completedAtMs > 0 AND completedAtMs <= :cutoffMs AND updatedAtMs <= :cutoffMs)")
+    suspend fun deleteExpiredTasks(profileId: String, cutoffMs: Long): Int
+
+    @Query("DELETE FROM video_search_runs WHERE profileId = :profileId AND status IN ('COMPLETED', 'STOPPED', 'FAILED') AND completedAtMs IS NOT NULL AND completedAtMs > 0 AND completedAtMs <= :cutoffMs AND updatedAtMs <= :cutoffMs")
+    suspend fun deleteExpiredRuns(profileId: String, cutoffMs: Long): Int
+
+    @Transaction
+    suspend fun pruneExpiredRunHistory(profileId: String, cutoffMs: Long): Int {
+        require(profileId.isNotBlank())
+        if (cutoffMs < 0L || countExpiredRuns(profileId, cutoffMs) == 0) return 0
+        // If any statement fails Room rolls everything back, including films.
+        deleteExpiredFilms(profileId, cutoffMs)
+        deleteExpiredTasks(profileId, cutoffMs)
+        return deleteExpiredRuns(profileId, cutoffMs)
+    }
+
     @Query("SELECT * FROM video_search_runs WHERE profileId = :profileId AND id = :id LIMIT 1")
     suspend fun getRun(profileId: String, id: String): VideoSearchRunRow?
 
