@@ -101,7 +101,7 @@ class VideoSearchEnrichedMetadataProtocolTest {
 
     @Test fun oldCompactExtractionCommandRemainsSupported() {
         val compact = VideoSearchBridgeProtocol.extract(document, request, ".card")
-        assertEquals(4, compact.length())
+        assertEquals(5, compact.length())
         assertEquals(".card", compact.getString("resultsCardSelector"))
     }
 

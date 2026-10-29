@@ -16,7 +16,8 @@ class VideoSearchMultiSiteExecutorTest {
         configurationState = if (configured) VideoSiteConfigurationState.CONFIGURED
             else VideoSiteConfigurationState.NEEDS_CONFIGURATION,
         configuration = if (configured)
-            VideoSiteConfiguration("input.search", ".item") else null
+            VideoSiteConfiguration("input.search", ".item",
+                submission = VideoSearchSubmission.FORM_SUBMIT) else null
     )
 
     private fun queue(

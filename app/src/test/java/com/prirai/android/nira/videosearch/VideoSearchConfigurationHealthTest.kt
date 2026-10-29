@@ -121,7 +121,8 @@ class VideoSearchConfigurationHealthTest {
 
     @Test fun outboundPartialConfigurationUsesExplicitNull() {
         val partial = VideoSiteConfiguration(
-            "input.search", resultsCardSelector = null)
+            "input.search", resultsCardSelector = null,
+            submission = VideoSearchSubmission.FORM_SUBMIT)
         val command = VideoSearchBridgeProtocol.validate(doc, request, partial)
         assertTrue(command.isNull("resultsCardSelector"))
         assertTrue(command.isNull("nextPageSelector"))

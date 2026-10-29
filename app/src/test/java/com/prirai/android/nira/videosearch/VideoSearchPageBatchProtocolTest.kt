@@ -76,7 +76,7 @@ class VideoSearchPageBatchProtocolTest {
     @Test fun legacyExtractCommandStillHasNoStartIndex() {
         val legacy = VideoSearchBridgeProtocol.extract(doc, request, ".movie-card")
         assertEquals("extract", legacy.getString("event"))
-        assertEquals(4, legacy.length())
+        assertEquals(5, legacy.length())
         assertFalse(legacy.has("startIndex"))
     }
 

@@ -100,7 +100,7 @@ class VideoSearchResultExtractionTest {
 
     @Test fun commandContainsOnlyConfiguredCardSelectorAndIdentifiers() {
         val json = VideoSearchBridgeProtocol.extract(document, request, ".movie-card")
-        assertEquals(4, json.length())
+        assertEquals(5, json.length())
         assertEquals("extract", json.getString("event"))
         assertEquals(".movie-card", json.getString("resultsCardSelector"))
         assertFalse(json.has("query"))

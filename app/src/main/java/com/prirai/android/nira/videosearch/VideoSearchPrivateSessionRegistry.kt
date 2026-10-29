@@ -55,6 +55,9 @@ internal class VideoSearchPrivateSessionRegistry(
                 // If profile identity is unknown, fail closed. A subsequent
                 // inventory emission can retry without fabricating an owner.
                 val scope = try {
+                    // Reject invalid regular profile identity *before* minting
+                    // a private-epoch ID. A bad inventory cannot consume IDs.
+                    VideoSearchScope.Normal(activeProfileId)
                     VideoSearchScope.Private(activeProfileId, newSessionId())
                 } catch (_: IllegalArgumentException) {
                     return@synchronized
