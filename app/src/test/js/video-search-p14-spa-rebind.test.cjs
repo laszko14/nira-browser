@@ -92,6 +92,8 @@ test('the same-origin native sync can retry an unanswered SPA hello',()=>{
   const h=harness();h.bind();
   h.navigate('https://films.example/results#part');
   h.sync();
+  assert.equal(h.messages.filter(m=>m.event==='hello').length,2,
+    'one new hello per changed route, not two');
   const first=h.last('hello');
   h.sync();
   const retry=h.last('hello');

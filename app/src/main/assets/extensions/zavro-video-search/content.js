@@ -881,8 +881,12 @@
           message.schemaVersion !== 1) return;
       const keys = Object.keys(message).sort().join(",");
       if (message.event === "url_sync" && keys === "event,schemaVersion") {
+        const oldRevision = navigationRevision;
         syncLocation();
-        if (!originRevoked && !ready && location.href === startUrl) hello();
+        // A changed route already emitted its own hello. Retry only
+        // when the SAME revision is still waiting for a native bound.
+        if (navigationRevision === oldRevision && !originRevoked &&
+            !ready && location.href === startUrl) hello();
         return;
       }
       syncLocation();

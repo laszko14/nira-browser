@@ -1,3 +1,5 @@
+- **P14 CI naprawa regresji JS:** w pierwszym CI P14 (run 40949473499) Kotlin targeted i full JVM PASS; `262/263` Node PASS, test `same-origin native sync can retry an unanswered SPA hello` wykazał **podwójne hello przy jednym url_sync**, ponieważ `syncLocation` już wysyłało hello. Poprawka: `url_sync` ponawia Hello tylko gdy `navigationRevision` nie zmieniło się w trakcie obsługi; test jawnie sprawdza pojedynczy Hello na zdarzenie i retry bez nowej rewizji. Po pushu nowego SHA uruchomić ponownie CAŁE CI, nie uznawać czerwonego runu za PASS.
+
 # P14/16 — CFG-04 — bezpieczne odnowienie Gecko po SPA History API — 2026-10-29
 
 - **P13 PASS** na `f8acdf828e92e6903d5bdd6ee8621af3c6b7e077`: [CI 40946787127](https://github.com/laszko14/nira-browser/actions/runs/40946787127), `completed/success`; targeted Kotlin/Robolectric, full JVM, all Node, lint. P14 kod + testy przygotowane, **CI_PENDING** dla nowego SHA. Brak APK, merge do main.
