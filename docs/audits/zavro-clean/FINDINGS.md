@@ -63,6 +63,7 @@ Odniesienia do kodu dotyczą bazy `b7d62f79f285ac81c29a79b326529d42e9b9fde4`. Be
 | ZC-AUD-057 | 16B | P2 MEDIUM | CONFIRMED | Resume części pliku nie weryfikuje wersji zasobu i może mieszać bajty |
 | ZC-AUD-058 | 16B | P2 MEDIUM | CONFIRMED | Nowy intent PWA może zniknąć podczas asynchronicznej inicjalizacji |
 | ZC-AUD-059 | 16B | P2 MEDIUM | CONFIRMED | Równoległe mutacje listy profili mogą nadpisać zaakceptowaną zmianę |
+| ZC-AUD-060 | 17 | P2 MEDIUM | CONFIRMED | TestLabDeviceTest odwołuje się do usuniętego UI trybów i starego panelu kart |
 
 ## ZC-AUD-001 — niespójny kontrakt wersji joba release
 
@@ -828,4 +829,17 @@ Uzupełnienie 024 z 10B: ten sam kontrakt menu występuje również w `browser/h
 - **Kierunek:** wspólna serializacja wszystkich mutacji rejestru wraz z odczytem i zatwierdzeniem, z jawnie propagowanym wynikiem/błędem; nie ograniczać blokady do samego putString ani konstrukcji singletonu. Zachować ID i dane istniejących profili.
 - **Regresje:** bariera pomiędzy odczytem i zapisem dla create/create z IO+UI, import/update i import/delete; obie zaakceptowane kreacje muszą przetrwać restart. Kontrole default, anulowania i niepowodzenia zapisu, bez realnego magazynu użytkownika. Specyfikacja do przyszłej naprawy.
 
-Stan po16: CONFIRMED=52 (P0=0,P1=4,P2=46,P3=2); LIKELY=4 (010,016,019,043 — potencjalne P2); SUSPECTED=3 (002,025 potencjalne P2;030 potencjalny P1). 16A dodało053/054 i rozszerzyło031;16B dodaje055–059 (1 P1,4 P2), bez nowych hipotez. Etapy1–16 COMPLETE.
+## ZC-AUD-060 — nieaktualny scenariusz TestLabDeviceTest
+
+- **Etap:** 17 — przydatność istniejących testów regresji.
+- **Miejsce:** [`TestLabDeviceTest.kt:126`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/androidTest/java/com/prirai/android/nira/diagnostics/testlab/TestLabDeviceTest.kt#L126), runSevenModes:129–152, uiNode:235–258; `diagnostics/testlab/TestLabActivity.kt`:175–199; `browser/panels/SidePanelInfrastructure.kt`:182–201,501.
+- **Problem:** istniejący test urządzeniowy nie odpowiada normalnemu UI v1190. Jego uruchomienie nie weryfikuje zadeklarowanej ścieżki COMPLEX/VIDEO_DISCOVERY/FULL_AUDIT i nie może być traktowane jako aktualny dowód regresji panelu.
+- **Mechanizm:** test iteruje wszystkie TestType i dla każdego szuka dokładnego tekstu „labTitle — 60 s”. UI udostępnia jeden przycisk FULL_AUDIT z tekstem120s; stare tryby mają co najwyżej archiwalne raporty. uiNode wymaga równości tekstu i po20s zgłasza błąd. Nawet po zmianie wejścia test czeka na DialogFragment pod tagiem NiraSideTabs, podczas gdy gest montuje embedded content pod NiraEmbeddedSideTabs w SidePanelHost. Jedna naprawa selektora nie aktualizuje całego scenariusza.
+- **Dowód statyczny:** TestLabActivity:176–181 wybiera wyłącznie FULL_AUDIT i pokazuje „URUCHOM JEDEN TEST • 120 s”; runSevenModes:129–133 rozpoczyna od COMPLEX i oczekuje innego przycisku. Testowa pętla uwzględnia również FULL_AUDIT, lecz nadal narzuca60s; engine:337 ma dla niego120s. Osobne porównanie tagów/dialog.window z fabryką newEmbeddedSidePanel potwierdza niezgodność panelu.
+- **Pewność:** CONFIRMED sprzeczność aktualnych źródeł testu/UI. Android test nie został uruchomiony; rzeczywisty timeout/wynik instrumentacji NOT_TESTED, środowisko BLOCKED. Nie przedstawiono przewidywanej awarii jako wykonanego FAIL.
+- **Ważność:** P2 MEDIUM — blokada sensownej automatycznej weryfikacji TestLab i fałszywe przypisywanie porażki scenariusza zmianom aplikacji. Błąd jest w scenariuszu testowym, nie potwierdza awarii samego FULL_AUDIT.
+- **Wpływ:** przyszły run urządzeniowy/TestLab, weryfikacja COMPLEX/VIDEO_DISCOVERY i osadzonych paneli; nie unieważnia historycznych wyników właściwych starszym SHA ani testów JVM o innym zakresie.
+- **Kierunek naprawy:** dostosować scenariusz do bieżącej ścieżki FULL_AUDIT120s, stabilnych selektorów i hosta panelu; jeśli starsze tryby nadal mają być testowane jako API, oddzielnie wywoływać ich aktualny runtime/model, zamiast szukać usuniętych przycisków. Zachować rozróżnienie first pre-draw/settle i Window/Gecko FPS.
+- **Regresje:** start rzeczywistego UI i ukończenie FULL_AUDIT, early stop/PARTIAL, osadzony LEFT/RIGHT, obrót i powrót do nowego Window. Kontrola fixture na izolowanych danych: brak zmian ustawień/kart/grup po zakończeniu, również po błędzie. Przed użyciem wyniku przypiąć SHA aplikacji i testu. Nie poprawiano testu ani nie tworzono APK podczas audytu.
+
+Stan po17: CONFIRMED=53 (P0=0,P1=4,P2=47,P3=2); LIKELY=4 (010,016,019,043 — potencjalne P2); SUSPECTED=3 (002,025 potencjalne P2;030 potencjalny P1). Nowe060 CONFIRMED P2 ze statycznej kontroli testu, bez nowych hipotez. Etapy1–17 COMPLETE; wyniki runtime i ograniczenia w STAGE_17.

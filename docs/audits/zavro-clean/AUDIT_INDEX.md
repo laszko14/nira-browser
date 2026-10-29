@@ -22,9 +22,9 @@ Baza kodu: `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79
 | 14 | Konflikty funkcji | COMPLETE — 14A i 14B | [STAGE_14.md](STAGE_14.md) |
 | 15 | Wydajność, pamięć i 120 Hz | COMPLETE — 15A i15B | [STAGE_15.md](STAGE_15.md) |
 | 16 | Stabilność i bezpieczeństwo | COMPLETE — 16A i16B | [STAGE_16.md](STAGE_16.md) |
-| 17 | Testy regresji | NOT_STARTED | — |
+| 17 | Testy regresji | COMPLETE | [STAGE_17.md](STAGE_17.md) |
 | 18 | Raport końcowy i plan napraw | NOT_STARTED | — |
 
-Rejestr: [FINDINGS.md](FINDINGS.md). Checkpoint wznowienia: [../../AI_HANDOFF.md](../../AI_HANDOFF.md), wpis „ZC-AUD — ETAP 16/18 COMPLETE”. Obowiązuje v1.8 (zastępuje optymalizacje v1.6/v1.7). Nie utworzono raportów przyszłych etapów ani raportu końcowego.
+Rejestr: [FINDINGS.md](FINDINGS.md). Checkpoint wznowienia: [../../AI_HANDOFF.md](../../AI_HANDOFF.md), wpis „ZC-AUD — ETAP 17/18 COMPLETE”. Obowiązuje v1.8 (zastępuje optymalizacje v1.6/v1.7). Nie utworzono raportów przyszłych etapów ani raportu końcowego.
 
-Łącznie po16: CONFIRMED=52 (P0=0,P1=4,P2=46,P3=2); LIKELY=4 (010,016,019,043 — potencjalne P2), SUSPECTED=3 (002/025 potencjalne P2,030 potencjalny P1). Nowe16B:055–059 (1 P1,4 P2); cały16 dodaje7 ID (1 P1,6 P2) i rozszerza031. Bez nowych hipotez. Etapy1–16 COMPLETE. Dowody i ograniczenia w [STAGE_16](STAGE_16.md) oraz rejestrze. Następny po „Dalej”: **17 — testy regresji**. Rekomendacja GPT-6.1 Sol / High / Standard.
+Łącznie po17: CONFIRMED=53 (P0=0,P1=4,P2=47,P3=2); LIKELY=4 (010,016,019,043 — potencjalne P2), SUSPECTED=3 (002/025 potencjalne P2,030 potencjalny P1). Nowe060 CONFIRMED P2 (nieaktualny test urządzeniowy), bez nowych hipotez. W17 PASS10/10 wybranych kontroli JS/źródeł; Kotlin/Android BLOCKED, telefon NOT_TESTED. Etapy1–17 COMPLETE,18 NOT_STARTED. Macierz60 ID, specyfikacje i ograniczenia w [STAGE_17](STAGE_17.md); szczegóły usterek w rejestrze. Następny po „Dalej”: **18 — raport końcowy i plan napraw**. Rekomendacja GPT-6.1 Sol / Medium / Standard.
