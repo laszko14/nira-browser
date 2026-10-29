@@ -5,7 +5,7 @@
 - 2026-10-29: **A1–A4 / 4 zakończone, P1 / 16 wdrożony w kodzie i sprawdzony lokalnie**. Ustalenia audytu odnoszą się do bazy v1191; bieżący status napraw poniżej. Fizyczne UI/Gecko pozostają NOT_TESTED.
 - Gałąź: `fix/zavro-clean-video-search-audit-20261029`, baza `1ad05e9d12af3e060e4110880abb3fd65b313f1b` (potwierdzona przez `git ls-remote`). Bazowa gałąź `feat/zavro-clean-video-search-20261029` zachowana.
 - Źródła APK v1191: `200f17f5914b328598ddf8724db49cff2f5107ad`. Porównanie z bazą audytu: różni się wyłącznie `docs/AI_HANDOFF.md`; kod UI odpowiada zatem źródłom skompilowanego APK. Historyczne CI: https://github.com/laszko14/nira-browser/actions/runs/40894977952 — nie uruchamiano ponownie i nie przypisujemy jego wyników nowemu commitowi.
-- Implementacja: **1 / 16 wdrożony w kodzie; 64/64 lokalne testy P1 PASS**. **P2/16 LC-01 zakończony w kodzie: 11 nowych testów, CI JVM/Robolectric PASS, JS 218/218 PASS, lint task PASS (raport niekoniecznie czysty); Nothing/Gecko/dysk NOT_TESTED.** Następne „Dalej” upoważnia wyłącznie do P3 / 16 (LC-02), nie do całego backlogu. Kryteria wymagające urządzenia pozostają NOT_TESTED, dopóki nie zostaną rzeczywiście sprawdzone.
+- Implementacja: **1 / 16 wdrożony w kodzie; 64/64 lokalne testy P1 PASS**. **P2/16 LC-01 zakończony w kodzie: 11 nowych testów, CI JVM/Robolectric PASS, JS 218/218 PASS, lint task PASS (raport niekoniecznie czysty); Nothing/Gecko/dysk NOT_TESTED.** **P3/16 LC-02: kod i 10 testów zapisane, CI_PENDING.** Następne „Dalej” dotyczy weryfikacji P3/16; P4 jeszcze nie rozpoczęty. Kryteria wymagające urządzenia pozostają NOT_TESTED, dopóki nie zostaną rzeczywiście sprawdzone.
 - Jedno „Dalej” = jeden następny etap/podetap. Bez APK/workflow budującego APK do osobnego „Kompiluj”/„Już”.
 
 ## A1 / 4 — cel, zakres, dowody
@@ -341,3 +341,8 @@ Niezależny przegląd tylko zmienionego UI/adapterów nie wskazał istotnych reg
 ## P2 / 16 — zakończenie LC-01 — 2026-10-29
 
 **Kod zakończony; finalne CI SUCCESS:** [run 40920420939](https://github.com/laszko14/nira-browser/actions/runs/40920420939), commit `d2ff1f193b5439b667354834abbda8514448020c`. Przeniesiono granicę epoki do procesowego middleware BrowserStore, usunięto opóźnienie 300 ms i Activity observer, utwardzono właściciela profilu oraz kontekst prywatny. **11 nowych testów** obejmuje m.in. natychmiastowy close-last/reopen, reuse ID, przełączenia profilu, migrację, brak dostępu do starego RAM. Targeted i full Kotlin/Robolectric PASS, Node 218/218 PASS, lintDebug task PASS (raport lint nie jest gwarantowanie czysty). Nie przeprowadzono testów na Nothing Phone, prawdziwej rotacji w Gecko, stanu dysku ani pomiaru 120 Hz: NOT_TESTED. Żadnego APK/assemble. P3–P16 bez zmian.
+
+
+## P3 / 16 — LC-02 (2026-10-29)
+
+Przygotowano indywidualną dzierżawę normalnych kart roboczych z trwałą adopcją po wyborze użytkownika. Nowy procesowy middleware synchronizuje wybory nawet przy błyskawicznym powrocie na inną kartę; kontrola profilu/context/EngineSession/origin oraz niewracanie do sterowania i cleanup dla przejętych kart. 10 nowych testów `VideoSearchNormalWorkerLeaseTest` wraz z celowaną regresją prywatnego worker lease. **Stan: CI_PENDING** do końca osobnego GitHub Actions JVM/JS/lint; żadnego APK. Gecko/telefon NOT_TESTED. P4 nie rozpoczęto.

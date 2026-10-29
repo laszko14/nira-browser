@@ -1,0 +1,56 @@
+name: Zavro P3 normal worker test-only CI
+
+on:
+  push:
+    branches:
+      - fix/zavro-clean-video-search-audit-20261029
+    paths:
+      - '.github/workflows/video-search-p3-regression.yml'
+      - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchBridgeController.kt'
+      - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchNormalWorker*.kt'
+      - 'app/src/main/java/com/prirai/android/nira/components/Components.kt'
+      - 'app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchNormalWorker*.kt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: video-search-p3-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: gradle/wrapper-validation-action@v2
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: zulu
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Normal lease and private lease targeted regression
+        run: |
+          ./gradlew :app:testDebugUnitTest --console=plain \
+            --tests 'com.prirai.android.nira.videosearch.VideoSearchNormalWorkerLeaseTest' \
+            --tests 'com.prirai.android.nira.videosearch.VideoSearchPrivateWorkerLeaseTest' \
+            --tests 'com.prirai.android.nira.videosearch.VideoSearchWorkerVerificationTest'
+      - name: All JVM Robolectric regression tests
+        run: ./gradlew :app:testDebugUnitTest --console=plain
+      - name: JS WebExtension regression tests
+        run: node --test app/src/test/js/*.test.cjs
+      - name: Android lint
+        run: ./gradlew :app:lintDebug --console=plain
+      - name: Upload reports only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-search-p3-tests
+          path: |
+            app/build/test-results/testDebugUnitTest/**
+            app/build/reports/tests/testDebugUnitTest/**
+            app/build/reports/lint-results-debug*
+          if-no-files-found: warn
+          retention-days: 7

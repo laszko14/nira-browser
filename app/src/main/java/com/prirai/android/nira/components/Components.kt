@@ -427,6 +427,8 @@ open class Components(private val applicationContext: Context) {
                         com.prirai.android.nira.videosearch.VideoSearchPrivateTabLifecycleMiddleware(
                             activeProfileId = { profileManager.getActiveProfile().id },
                         ),
+                        // Immediate sticky adoption for normal search worker tabs.
+                        com.prirai.android.nira.videosearch.VideoSearchNormalWorkerSelectionMiddleware(),
                         com.prirai.android.nira.diagnostics.testlab.TestLabMiddleware(),
                         SessionPrioritizationMiddleware(),
                         TranslationsMiddleware(

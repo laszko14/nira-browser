@@ -182,6 +182,7 @@ internal class VideoSearchBridgeController(
                 }
             }.distinctUntilChanged().collect { (selectedId, live) ->
                 privateWorkerLease?.observeSelection(selectedId)
+                VideoSearchNormalWorkerSelectionHost.registry.observeSelection(selectedId)
                 val sessions = live.map { it.first }
                 val obsolete = attached.keys.filter { old -> sessions.none { it === old } }
                 obsolete.forEach { old ->
@@ -905,6 +906,9 @@ internal class VideoSearchBridgeController(
         val owner = site.scope as? VideoSearchScope.Normal ?: return null
         val tab = store.state.tabs.singleOrNull { it.id == workerTabId } ?: return null
         val session = tab.engineState.engineSession ?: return null
+        val lease = VideoSearchNormalWorkerSelectionHost.registry.forTab(workerTabId) ?: return null
+        if (lease.owner != owner || !lease.bindSession(session, store.state.selectedTabId))
+            return null
         val state = currentTab(session) ?: return null
         if (!site.enabled || state.owner != owner || state.tabId != workerTabId ||
             !VideoSearchBridgeProtocol.sameOrigin(state.pageUrl, site.siteUrl)) return null
@@ -919,6 +923,9 @@ internal class VideoSearchBridgeController(
         if (!site.enabled) return null
         val tab = store.state.tabs.singleOrNull { it.id == workerTabId } ?: return null
         val session = tab.engineState.engineSession ?: return null
+        val lease = VideoSearchNormalWorkerSelectionHost.registry.forTab(workerTabId) ?: return null
+        if (lease.owner != owner || !lease.bindSession(session, store.state.selectedTabId))
+            return null
         val state = currentTab(session) ?: return null
         if (state.owner != owner || state.tabId != workerTabId ||
             state.pageUrl.trimEnd('/') != site.siteUrl.trimEnd('/')) return null
@@ -955,7 +962,18 @@ internal class VideoSearchBridgeController(
         pending[session] = work
         try {
             entry.port.postMessage(packet(documentId, requestId))
-            return withTimeoutOrNull(timeoutMs) { result.await() }
+            val reply = withTimeoutOrNull(timeoutMs) { result.await() }
+            if (workerTabId != null) {
+                val lease = VideoSearchNormalWorkerSelectionHost.registry.forTab(workerTabId) ?: return null
+                val live = store.state.tabs.singleOrNull { it.id == workerTabId }
+                    ?: return null
+                if (lease.owner != scope || !lease.canUse(store.state.selectedTabId) ||
+                    !lease.acceptsSession(live.engineState.engineSession) ||
+                    !scope.ownsTab(live.contextId, live.content.private) ||
+                    !VideoSearchBridgeProtocol.sameOrigin(live.content.url, site.siteUrl))
+                    return null
+            }
+            return reply
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             throw cancelled
         } catch (_: Exception) {
@@ -1376,6 +1394,9 @@ internal class VideoSearchBridgeController(
         if (!ownerIsActive()) return VideoSearchQueueStatus.STOPPED
         val live = withTimeoutOrNull(10_000L) {
             while (workerSiteTab(site, tabId) == null) {
+                val lease = VideoSearchNormalWorkerSelectionHost.registry.forTab(tabId)
+                if (lease?.owner != scope || !lease.canUse(store.state.selectedTabId))
+                    return@withTimeoutOrNull false
                 if (!ownerIsActive()) return@withTimeoutOrNull false
                 // Background tabs may be lazily paused: no spoofed success.
                 if (store.state.tabs.none { it.id == tabId }) return@withTimeoutOrNull false
@@ -1419,6 +1440,8 @@ internal class VideoSearchBridgeController(
         val start = SystemClock.elapsedRealtime()
         val cfg = site.configuration ?: return false
         while (SystemClock.elapsedRealtime() - start < 13_000L) {
+            val lease = VideoSearchNormalWorkerSelectionHost.registry.forTab(tabId)
+            if (lease?.owner != scope || !lease.canUse(store.state.selectedTabId)) return false
             val manager = ProfileManager.getInstance(applicationContext)
             if (manager.isPrivateMode() ||
                 manager.getActiveProfile().id != scope.profileId) return false
@@ -1516,6 +1539,8 @@ internal class VideoSearchBridgeController(
                                     site.siteUrl, selectTab = false, private = false,
                                     contextId = plan.scope.contextId,
                                 )
+                                val lease = VideoSearchNormalWorkerLease(tabId, plan.scope)
+                                VideoSearchNormalWorkerSelectionHost.registry.register(lease, store.state.selectedTabId)
                                 try {
                                     val before = withTimeoutOrNull(10_000L) {
                                         var doc: String? = null
@@ -1547,11 +1572,43 @@ internal class VideoSearchBridgeController(
                                         }
                                     }
                                 } finally {
-                                    // Remove ONLY the tab we created, never a user's selected tab.
-                                    if (store.state.selectedTabId != tabId &&
-                                        store.state.tabs.any { it.id == tabId }) {
-                                        applicationContext.components.tabsUseCases.removeTab(tabId)
+                                    // Adopted once = user tab forever, even after focus moves away.
+                                    val live = store.state.tabs.singleOrNull { it.id == tabId }
+                                    val active = ProfileManager.getInstance(applicationContext)
+                                    val profileActive = !active.isPrivateMode() &&
+                                        active.getActiveProfile().id == plan.scope.profileId
+                                    val safeOrigin = live?.content?.url?.let {
+                                        VideoSearchBridgeProtocol.sameOrigin(it, site.siteUrl)
+                                    } == true
+                                    try {
+                                        if (profileActive && lease.mayReclaim(
+                                            live?.let {
+                                                VideoSearchNormalWorkerTab(
+                                                    it.id, it.contextId, it.content.private
+                                                )
+                                            },
+                                            store.state.selectedTabId,
+                                            if (live != null && plan.scope.ownsTab(
+                                                live.contextId, live.content.private
+                                            )) plan.scope else null,
+                                            live?.engineState?.engineSession,
+                                            safeOrigin,
+                                        )) {
+                                            applicationContext.components.tabsUseCases.removeTab(tabId)
+                                        }
+                                    } catch (_: Exception) {
+                                        // Ownership uncertain: keep the user's tab.
+                                    } finally {
+                                        VideoSearchNormalWorkerSelectionHost.registry.release(lease)
                                     }
+                                }
+                                if (!lease.canUse(store.state.selectedTabId) ||
+                                    (lease.hasBoundSession && !lease.acceptsSession(
+                                        store.state.tabs.singleOrNull { it.id == tabId }
+                                            ?.engineState?.engineSession
+                                    ))) {
+                                    outcome = VideoSearchQueueStatus.STOPPED
+                                    snapshot = null
                                 }
                             }
                             withContext(Dispatchers.IO) {

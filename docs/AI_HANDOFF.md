@@ -1,3 +1,12 @@
+# P3 / 16 — LC-02 (2026-10-29): kod i 10 testów, CI_PENDING
+
+- Normalny worker ma osobną krótkotrwałą, procesową dzierżawę po ID karty oraz owner normalnego profilu; sesja Gecko związana identycznością referencji. Procesowy BrowserStore middleware natychmiast, synchronicznie oznacza każdą kartę wybraną przez użytkownika jako przejętą bez prawa późniejszego odzyskania, także po wybraniu innej karty. Nie opieramy się na asynchronicznym Flow.
+- Ścieżki `workerSiteTab`, `workerOwnedTab` i `request` sprawdzają dzierżawę, sesję i profil; status po adopcji STOPPED, bez nieautoryzowanego snapshot. Cleanup usuwa tylko bezspornie własną kartę bez adopcji, z właściwym profilem/context/EngineSession/origin.
+- Nowe pliki `VideoSearchNormalWorkerLease.kt`, `VideoSearchNormalWorkerSelectionMiddleware.kt`, `VideoSearchNormalWorkerLeaseTest.kt` (10 testów), jeden spójny commit z `VideoSearchBridgeController.kt` / `Components.kt`; prywatna ścieżka i dane bez zmian. Dedykowany workflow `video-search-p3-regression.yml` uruchamia wyłącznie testy JVM, JS i lint, **bez APK**.
+- Przy commicie `CI_PENDING`; potwierdzić rzeczywisty run dla tego SHA. TESTY FIZYCZNE/Gecko/Nothing Phone/120 Hz: NOT_TESTED. P4 nie rozpoczęty. Następne `Dalej` kontynuuje P3 tylko gdy CI otwarte albo wymaga poprawek; po green i dokumentacji P3 DONE, kolejny etap P4 dopiero następne `Dalej`.
+
+---
+
 # Checkpoint — P2C/16 zakończony (LC-01) — 2026-10-29
 
 - **P2 / 16: DONE, CI TESTS PASS; fizyczny Nothing/Gecko/120 Hz, dysk, rotacja interfejsu i marker private snapshot NOT_TESTED.** Nie interpretować statusu JVM/JS jako wyniku testu fizycznego. Następne `Dalej` upoważnia do **P3 / 16 (LC-02)**, bez automatycznego przechodzenia do P4.
