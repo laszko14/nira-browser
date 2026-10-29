@@ -16,7 +16,7 @@ Baza kodu: `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79
 | 8 | Gesty i nawigacja | COMPLETE | [STAGE_08.md](STAGE_08.md) |
 | 9 | Pozostały UI i ustawienia | COMPLETE | [STAGE_09.md](STAGE_09.md) |
 | 10 | Sesje, profile i GeckoView | COMPLETE — 10A i 10B | [STAGE_10.md](STAGE_10.md) |
-| 11 | Wykrywanie filmów | PARTIAL — 11A COMPLETE; 11B NOT_STARTED | [STAGE_11.md](STAGE_11.md) |
+| 11 | Wykrywanie filmów | COMPLETE — 11A i 11B | [STAGE_11.md](STAGE_11.md) |
 | 12 | Metadane i warianty | NOT_STARTED | — |
 | 13 | FAB, kafelki i odtwarzanie stron | NOT_STARTED | — |
 | 14 | Konflikty funkcji | NOT_STARTED | — |
@@ -25,6 +25,6 @@ Baza kodu: `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79
 | 17 | Testy regresji | NOT_STARTED | — |
 | 18 | Raport końcowy i plan napraw | NOT_STARTED | — |
 
-Rejestr: [FINDINGS.md](FINDINGS.md). Checkpoint wznowienia: [../../AI_HANDOFF.md](../../AI_HANDOFF.md), wpis „ZC-AUD — ETAP 11/18 PARTIAL — 11A COMPLETE”. Od etapu 6 obowiązuje optymalizacja v1.6. Nie utworzono raportów przyszłych etapów ani raportu końcowego.
+Rejestr: [FINDINGS.md](FINDINGS.md). Checkpoint wznowienia: [../../AI_HANDOFF.md](../../AI_HANDOFF.md), wpis „ZC-AUD — ETAP 11/18 COMPLETE”. Obowiązuje v1.8 (zastępuje optymalizacje v1.6/v1.7). Nie utworzono raportów przyszłych etapów ani raportu końcowego.
 
-Łącznie po 11A: potwierdzone P0=0, P1=3, P2=25, P3=0; CONFIRMED=28; osobno LIKELY=3 (potencjalne P2), SUSPECTED=3 (002/025 potencjalne P2, 030 potencjalny P1). 11A dodał 3 CONFIRMED P2, bez nowych hipotez. Dowody i ograniczenia w [STAGE_11.md](STAGE_11.md) oraz rejestrze. Etapy 1–10 ukończone; etap 11 PARTIAL. Następny krok dopiero po „Dalej”: **11B — sieć, korelacja i native repository**, nie etap 12.
+Łącznie po 11: potwierdzone P0=0,P1=3,P2=27,P3=0; CONFIRMED=30; LIKELY=3 (potencjalne P2), SUSPECTED=3 (002/025 potencjalne P2,030 potencjalny P1). Nowe 11B:035/036 CONFIRMED P2; etap 11 dodał łącznie 5 P2. Dowody i ograniczenia w STAGE_11 oraz rejestrze. Etapy 1–11 COMPLETE. Następny po „Dalej”: **12 — metadane, tytuły, miniatury i warianty**. Model rekomendowany: GPT-6.1 Sol / High / Standard; bez automatycznej zmiany ustawień.

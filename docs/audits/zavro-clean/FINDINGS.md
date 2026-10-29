@@ -38,6 +38,8 @@ Odniesienia do kodu dotyczą bazy `b7d62f79f285ac81c29a79b326529d42e9b9fde4`. Be
 | ZC-AUD-032 | 11A | P2 MEDIUM | CONFIRMED | Wznowienie tego samego DOM pomija już przetworzone konfiguracje skryptowe |
 | ZC-AUD-033 | 11A | P2 MEDIUM | CONFIRMED | Dodanie source do istniejącego video nie kolejkuje ponownego inspect rodzica |
 | ZC-AUD-034 | 11A | P2 MEDIUM | CONFIRMED | Późny open shadowRoot na już przeskanowanym hoście nie jest odkrywany przez skaner DOM |
+| ZC-AUD-035 | 11B | P2 MEDIUM | CONFIRMED | Deduplikacja sieci pomija sukces przywracający dostęp po błędzie tego samego URL |
+| ZC-AUD-036 | 11B | P2 MEDIUM | CONFIRMED | Detekcja ochrony DASH myli komentarze XML i pomija elementy z prefiksem namespace |
 
 ## ZC-AUD-001 — niespójny kontrakt wersji joba release
 
@@ -486,4 +488,28 @@ Uzupełnienie 024 z 10B: ten sam kontrakt menu występuje również w `browser/h
 - **Kierunek:** zapewnić bezpieczny, ograniczony sygnał odkrywania nowych open roots i cleanup; nie zakładać, że observer light DOM wystarcza. Nie wymuszać Play, nie otwierać closed roots i nie wprowadzać kosztownego nieograniczonego pollingu.
 - **Regresje:** realny DOM: root przed/po początkowym skanie, istniejący/nowy host, nested roots, deklaracja bez requestu, video/source mutacje, pagehide/pageshow/SPA; każdy root obserwowany raz, bez pompowania całego dokumentu i bez pomiarowych deklaracji 120 Hz.
 
-Stan po 11A: CONFIRMED=28 (P1=3,P2=25); LIKELY=3 (010,016,019 — potencjalne P2); SUSPECTED=3 (002,025 — potencjalne P2; 030 — potencjalny P1). Nowe 032/033/034 CONFIRMED P2; brak nowych hipotez. Etap 11 PARTIAL: 11A COMPLETE, 11B NOT_STARTED.
+## ZC-AUD-035 — deduplikacja pomija przywrócenie dostępu
+
+- **Etap:** 11B — sieć, deduplikacja i spójność stanu native.
+- **Miejsce:** [`background.js:654`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/assets/extensions/nira-media-detector/background.js#L654), onHeaders:654–658,665–674; [`MediaRepository.kt:223`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/media/MediaRepository.kt#L223), Record.metadata:222–230; odbiorca [`BrowserFragment.kt:344`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/BrowserFragment.kt#L344), openVideo:344–348; VideoTilesPanel.kt:247.
+- **Problem i mechanizm:** w jednym dokumencie i ramce odpowiedzi tego samego URL: 200/video/mp4 → 403/text/html → 200/video/mp4, w ciągu 20 s. Pierwszy sukces i błąd mają odrębne dedupKey, więc oba dochodzą do native. Ostatni sukces trafia jednak na nadal ważny wpis pierwszego 200; onHeaders wraca przed wysłaniem. Klucz obejmuje status/MIME, lecz cache nie uwzględnia zmiany ostatniego stanu URL ani requestSequence. Repozytorium pozostaje AUTH_ERROR/httpStatus403, chociaż najnowsza odpowiedź strony jest poprawna. Analogiczny powrót po 404/410 może pozostawić EXPIRED. Same późniejsze wskazówki DOM bez verification nie usuwają tego stanu (metadata:229).
+- **Dowód:** krótka próba Node na niezmienionym background i istniejącym fixture: trzy probe 200/403/200, faktycznie routed=[200,403]. Kontrola istniejąca A→B PASS nie obejmuje A→B→A. Kod próby i wynik w [STAGE_11](STAGE_11.md#minimalna-próba-odtwarzalna-11b). Ścieżka zmiany stanu i blokady akcji potwierdzona statycznie; bez Kotlin/Gecko/UI runtime.
+- **Pewność:** CONFIRMED — wykonany błąd producenta oraz jednoznaczny mechanizm po stronie konsumenta; rzeczywiste żądania i telefon NOT_TESTED.
+- **Ważność:** P2 MEDIUM — nieaktualny błąd dostępu i zablokowana akcja wykrytego medium mimo odzyskania URL; nie zatrzymuje odtwarzacza strony.
+- **Wpływ:** MP4 i pozostałe sklasyfikowane formaty, również manifesty; panel kafelków i openVideo respektują negatywny stan. Naprawa nie może zwiększyć lawiny powtarzanych odpowiedzi ani mieszać ramek/profili.
+- **Kierunek naprawy:** deduplikować identyczne kolejne obserwacje z uwzględnieniem przejść stanu i kolejności żądań; nie tłumić odzyskania po błędzie tylko dlatego, że taki sukces wystąpił wcześniej. Zachować dokładne URL, granice dokumentu i limity.
+- **Wymagane regresje:** 200→403→200 i 200→404/410→200 przed 20 s; brak kolejnego requestu po odzyskaniu; ten sam/inny MIME i rozmiar; powtórzenia 200 bez zmiany; opóźniona starsza odpowiedź, dwie ramki, private/profile, nawigacja. Kotlin/integracja: negatywny stan zastąpiony bieżącym, akcja ponownie dostępna bez wymuszania Play. Specyfikacja, bez nowych testów w app.
+
+## ZC-AUD-036 — ochrona DASH rozpoznawana z surowego XML
+
+- **Etap:** 11B — parser manifestu i stan weryfikacji.
+- **Miejsce:** [`manifest-parser.js:238`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/assets/extensions/nira-media-detector/manifest-parser.js#L238), parseDash; mpdTree:150–174; [`background.js:863`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/assets/extensions/nira-media-detector/background.js#L863), inspectManifest:863–867; MediaRepository.kt:228 i BrowserFragment.kt:344–348.
+- **Problem i mechanizm:** mpdTree usuwa komentarze i normalizuje lokalne nazwy elementów z prefiksem (`d:Representation` itd.). Jednak flaga drm jest obliczana osobno regexem `/<ContentProtection\b/i` na oryginalnym tekście. W efekcie sam komentarz z przykładowym ContentProtection daje drm=true, natomiast rzeczywisty d:ContentProtection w przestrzeni MPD daje false. Pierwszy przypadek prowadzi do verification=unplayable, następnie UNPLAYABLE i blokady akcji; drugi błędnie opisuje ochronę. Nie wykazano obejścia DRM ani zdolności odtworzenia chronionego medium.
+- **Dowód:** bezpośrednie wykonanie prawdziwego parseDash na syntetycznym MPD: bez ochrony=false, zwykły element=true (kontrole); ten sam element w komentarzu=true (błąd), rzeczywisty prefiksowany element=false (błąd). Próba w [STAGE_11](STAGE_11.md#minimalna-próba-odtwarzalna-11b); dalszy wpływ potwierdzony statyczną ścieżką, nie na urządzeniu.
+- **Pewność:** CONFIRMED — deterministyczne dwa błędy tego samego źródła klasyfikacji. Nie łączyć ze zgłoszeniem o samym odtwarzaniu Widevine.
+- **Ważność:** P2 MEDIUM — fałszywa niedostępność zwykłego DASH lub nieprawidłowa informacja o ochronie.
+- **Wpływ:** weryfikacja manifestu, stan źródła i akcje kafelka; istniejące testy DRM obejmują zwykły nieprefiksowany element, dlatego przechodzą mimo luki.
+- **Kierunek naprawy:** wyznaczać ochronę ze zweryfikowanej struktury XML, respektując namespace i zakres ContentProtection, pomijając komentarze; zachować ograniczenia parsera, odrzucanie DTD/encji oraz ochronę DRM.
+- **Wymagane regresje:** komentarz zawierający tag, rzeczywisty element domyślny/prefiksowany w MPD/Period/AdaptationSet/Representation, niepowiązana przestrzeń nazw, wadliwy XML, DTD/encje; integracja flaga→verification→repozytorium→dostępność akcji. Bez pobierania kluczy i omijania ochrony; bez nowych testów aplikacji.
+
+Stan po etapie 11: CONFIRMED=30 (P0=0,P1=3,P2=27,P3=0); LIKELY=3 (010,016,019); SUSPECTED=3 (002,025 potencjalne P2;030 potencjalny P1). Nowe 11B:035/036 CONFIRMED P2. Etap11 COMPLETE (11A i11B); nierozstrzygnięte002 pozostaje SUSPECTED, bez testu restartu Gecko.
