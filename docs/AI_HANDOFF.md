@@ -1,4 +1,15 @@
-# Checkpoint — Zavro Clean / Wyszukiwarka filmów — autoryzowana kompilacja v1191 / 2026-10-29
+# Checkpoint — Wyszukiwarka filmów — A1 / 4 — 2026-10-29
+
+- **STATUS: PASS dla audytu A1; UI na urządzeniu NOT_TESTED przez Codex.** Dowód użytkownika v1191 potwierdza niedostępne adres/Dodaj i przycięty pierwszy rząd. Nie naprawiono jeszcze aplikacji.
+- Gałąź robocza `fix/zavro-clean-video-search-audit-20261029`; baza zweryfikowana lokalnie i zdalnie: `1ad05e9d12af3e060e4110880abb3fd65b313f1b`. Kod aplikacji identyczny ze źródłami APK `200f17f5914b328598ddf8724db49cff2f5107ad` (różnił się tylko handoff). Baza v1191 zachowana. Commit A1 identyfikuje `git log -1` na gałęzi roboczej; dokumentacja i checkpoint są w jednym commicie.
+- Zmieniono wyłącznie ten checkpoint i `docs/VIDEO_SEARCH_AUDIT.md` — tam dowody, UI-01–05, priorytety i scenariusze. Bez produkcyjnego kodu/testów/zależności/wersji/podpisu/ABI, bez merge/PR/APK/CI.
+- Najważniejsze: formularz istnieje bezwarunkowo; H1 = zakrycie góry w obszarze dekoracji/insets Android 15, **hipoteza wymagająca bounds na urządzeniu**, nie dowiedziona przyczyna. Potwierdzony brak przewijania formularza/nagłówka obu paneli, brak restoration zwykłego szkicu, domyślne zamykanie dialogu kolejki po walidacji błędu, słaby pusty stan. Pierwsza przyszła naprawa P1/N musi przywrócić formularz bez maskowania przyczyny.
+- Weryfikacja: przegląd kodu/zdjęcia i diff bazy PASS; brak podłączonego urządzenia (`adb devices`), geometria/IME/rotacja/fontScale/Gecko/JUnit/JS/lint/build **NOT_TESTED w A1**. Historyczne CI v1191 poniżej, nie jest dowodem UI ani nowego SHA.
+- **Następny krok wyłącznie po „Dalej”: A2 / 4**, audyt zarządzania witrynami i konfiguracji od UI przez Gecko/WebExtension do Room/profili. A2–A4 jeszcze niewykonane; implementacja dopiero po A4 i kolejnym „Dalej”. Liczba etapów N do ustalenia w A4. Bez APK/workflow budującego APK bez osobnego „Kompiluj”/„Już”. **STOP.**
+
+---
+
+# Poprzedni checkpoint — Zavro Clean / Wyszukiwarka filmów — autoryzowana kompilacja v1191 / 2026-10-29
 
 - **STATUS: CI SUCCESS / SIGNED ARM64 APK VERIFIED.** Źródłowy commit builda: `200f17f5914b328598ddf8724db49cff2f5107ad`; GitHub Actions run `40894977952`: https://github.com/laszko14/nira-browser/actions/runs/40894977952
 - **APK artefakt:** `zavro-video-search-v1191-arm64-update`, ID `12907196745`, pobieranie: https://github.com/laszko14/nira-browser/actions/runs/40894977952/artifacts/12907196745. APK wewnątrz ZIP, artefakt ~146.9 MB. Artefakt testów/lint `12905684080`: https://github.com/laszko14/nira-browser/actions/runs/40894977952/artifacts/12905684080
