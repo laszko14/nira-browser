@@ -87,7 +87,7 @@ class VideoSearchPaginationProtocolTest {
     }
 
     @Test fun pageActionAckAcceptsOnlyKnownStatusesAndTypes() {
-        for (status in listOf("dispatched", "unavailable", "unsafe")) {
+        for (status in listOf("dispatched", "pending", "end", "unavailable", "unsafe")) {
             val parsed = VideoSearchBridgeProtocol.decode(action(status))
                 as VideoSearchBridgeMessage.PageAction
             assertEquals(status, parsed.status)
@@ -96,6 +96,24 @@ class VideoSearchPaginationProtocolTest {
         assertNull(VideoSearchBridgeProtocol.decode(action("completed")))
         assertNull(VideoSearchBridgeProtocol.decode(action(mode = "POST")))
         assertNull(VideoSearchBridgeProtocol.decode(action(mode = "NONE")))
+    }
+
+    @Test fun explicitEmptyResultHasStrictZeroCardProtocol() {
+        val base = films(0)
+        base.put("status", "no_results")
+        base.put("films", JSONArray())
+        base.put("inspectedCards", 0)
+        val page = (VideoSearchBridgeProtocol.decode(base)
+            as VideoSearchBridgeMessage.Results).page
+        assertEquals("no_results", page.status)
+        assertTrue(page.films.isEmpty())
+        assertFalse(page.moreOnPage)
+        assertNull(VideoSearchBridgeProtocol.decode(
+            JSONObject(base.toString()).put("moreOnPage", true)))
+        assertNull(VideoSearchBridgeProtocol.decode(
+            JSONObject(base.toString()).put("inspectedCards", 1)))
+        assertNull(VideoSearchBridgeProtocol.decode(
+            JSONObject(base.toString()).put("films", films(0).getJSONArray("films"))))
     }
 
     @Test fun rejectsPageActionProfileForgeryAndExtraUrls() {

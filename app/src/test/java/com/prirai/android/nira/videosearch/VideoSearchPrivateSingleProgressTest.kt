@@ -35,6 +35,19 @@ class VideoSearchPrivateSingleProgressTest {
             )
     }
 
+    @Test fun privateSingleVerifiedZeroDoesNotInventFilms() {
+        val f = Fixture()
+        val id = f.begin()
+        assertTrue(f.access.checkpointSingle(f.tab, "default", id, "site",
+            f.snapshot(0, VideoSearchPaginationStop.NO_RESULTS), terminal = true))
+        val saved = f.access.history(f.tab, "default")!!.single()
+        assertEquals(VideoSearchRunState.COMPLETED, saved.run.status)
+        assertEquals(VideoSearchSiteState.COMPLETED, saved.tasks.single().status)
+        assertEquals(VideoSearchCompletionReason.NO_MORE_RESULTS,
+            saved.tasks.single().completionReason)
+        assertTrue(saved.films.isEmpty())
+    }
+
     @Test fun userStopKeepsPrivatePartialsOnlyInSessionRam() {
         val f = Fixture()
         val id = f.begin()

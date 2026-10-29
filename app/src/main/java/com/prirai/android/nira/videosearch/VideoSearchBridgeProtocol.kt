@@ -222,7 +222,7 @@ internal object VideoSearchBridgeProtocol {
                     else -> return null
                 }
                 val status = json.string("status")?.takeIf {
-                    it in setOf("dispatched", "unavailable", "unsafe")
+                    it in setOf("dispatched", "pending", "end", "unavailable", "unsafe")
                 } ?: return null
                 VideoSearchBridgeMessage.PageAction(id, req, pagination, status)
             }
@@ -231,13 +231,15 @@ internal object VideoSearchBridgeProtocol {
                         "status", "films", "inspectedCards", "moreOnPage")) return null
                 val request = json.string("requestId")?.takeIf(::validToken) ?: return null
                 val status = json.string("status")?.takeIf {
-                    it in setOf("ok", "empty", "stale")
+                    it in setOf("ok", "empty", "no_results", "stale")
                 } ?: return null
                 val raw = json.opt("films") as? org.json.JSONArray ?: return null
                 if (raw.length() > 16) return null
                 val count = (json.opt("inspectedCards") as? Int)
                     ?.takeIf { it in 0..80 } ?: return null
                 val more = json.opt("moreOnPage") as? Boolean ?: return null
+                if (status == "no_results" && (raw.length() != 0 || count != 0 || more))
+                    return null
                 val items = ArrayList<VideoSearchExtractedFilm>(raw.length())
                 for (i in 0 until raw.length()) {
                     val row = raw.optJSONObject(i) ?: return null

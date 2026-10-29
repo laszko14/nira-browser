@@ -102,6 +102,44 @@ class VideoSearchMultiRunJournalTest {
         } finally { db.close() }
     }
 
+    @Test fun explicitEmptyEvidenceCompletesNormalRunWithZeroFilms() = runBlocking {
+        val db = db()
+        try {
+            val repo = VideoSearchRepository(db.dao())
+            val plan = plan(sites(1))
+            val journal = VideoSearchMultiRunJournal(repo, plan, "run-empty-confirmed")
+            journal.initialize()
+            val queue = plan.createQueue()
+            queue.lease(1)
+            journal.record(plan.selectedSites.single(), VideoSearchQueueStatus.DONE,
+                snapshot(reason = VideoSearchPaginationStop.NO_RESULTS, count = 0))
+            queue.resolve("site1", VideoSearchQueueStatus.DONE)
+            journal.finish(queue)
+            val result = repo.resultsSnapshot(owner, "run-empty-confirmed")!!
+            assertTrue(result.films.isEmpty())
+            assertEquals(VideoSearchRunState.COMPLETED, result.run.status)
+            assertEquals(VideoSearchSiteState.COMPLETED, result.tasks.single().status)
+            assertEquals(0, result.tasks.single().uniqueResults)
+            assertEquals(VideoSearchCompletionReason.NO_MORE_RESULTS,
+                result.tasks.single().completionReason)
+        } finally { db.close() }
+    }
+
+    @Test fun blankOrUnverifiedEndNeverMarksNormalRunComplete() = runBlocking {
+        val db = db()
+        try {
+            val repo = VideoSearchRepository(db.dao())
+            val plan = plan(sites(1))
+            val journal = VideoSearchMultiRunJournal(repo, plan, "run-empty-uncertain")
+            journal.initialize()
+            journal.record(plan.selectedSites.single(), VideoSearchQueueStatus.NEEDS_ATTENTION,
+                snapshot(reason = VideoSearchPaginationStop.NO_MORE_RESULTS, count = 0))
+            val task = repo.tasks(owner, journal.runId).single()
+            assertEquals(VideoSearchSiteState.NEEDS_ATTENTION, task.status)
+            assertNull(task.completionReason)
+        } finally { db.close() }
+    }
+
     @Test fun limitReachedIsValidOnlyWithActualFilm() = runBlocking {
         val db = db()
         try {

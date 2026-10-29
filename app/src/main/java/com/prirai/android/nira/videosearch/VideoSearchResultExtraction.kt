@@ -35,11 +35,12 @@ internal data class VideoSearchExtractedPage(
     val moreOnPage: Boolean,
 ) {
     init {
-        require(status in setOf("ok", "empty", "stale"))
+        require(status in setOf("ok", "empty", "no_results", "stale"))
         require(inspectedCards in 0..80)
         require(films.size <= 16)
         require((status == "ok") == films.isNotEmpty())
-        require(status != "stale" || (inspectedCards == 0 && !moreOnPage))
+        require(status !in setOf("stale", "no_results") ||
+            (inspectedCards == 0 && !moreOnPage && films.isEmpty()))
         require(films.map { it.filmPageUrl }.distinct().size == films.size)
         require(films.map { it.originalIndex }.distinct().size == films.size)
     }

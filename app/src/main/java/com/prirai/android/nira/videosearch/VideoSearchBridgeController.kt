@@ -462,15 +462,18 @@ internal class VideoSearchBridgeController(
                 site, tabId, "inspect", false, requireSelected
             ) { doc, id -> VideoSearchBridgeProtocol.inspect(doc, id) }
                 as? VideoSearchBridgeMessage.Inspection
-            if (inspected?.inputSelector == null || inspected.submission == null ||
-                inspected.resultsCardSelector == null) continue
+            val selector = inspected?.resultsCardSelector
+                ?: site.configuration?.resultsCardSelector ?: detected.resultsCardSelector
+            if (selector == null) continue
             val candidate = VideoSiteConfiguration(
-                searchInputSelector = inspected.inputSelector,
-                resultsCardSelector = inspected.resultsCardSelector,
-                submission = inspected.submission,
-                submitSelector = inspected.submitSelector,
-                pagination = inspected.pagination,
-                nextPageSelector = inspected.nextPageSelector,
+                searchInputSelector = inspected?.inputSelector ?: detected.inputSelector,
+                resultsCardSelector = selector,
+                submission = inspected?.submission ?: detected.submission,
+                submitSelector = inspected?.submitSelector ?: detected.submitSelector,
+                pagination = inspected?.pagination ?: site.configuration?.pagination
+                    ?: VideoSearchPagination.NONE,
+                nextPageSelector = inspected?.nextPageSelector
+                    ?: site.configuration?.nextPageSelector,
             )
             val page = (privateRequest(site, tabId, "crawl", false, requireSelected) { doc, id ->
                 VideoSearchBridgeProtocol.extractCrawl(doc, id, candidate, 0)
@@ -841,6 +844,12 @@ internal class VideoSearchBridgeController(
                     VideoSearchBridgeProtocol.extractCrawl(doc, request, config, cursor)
                 } as? VideoSearchBridgeMessage.Results
                     ?: return stop(VideoSearchPaginationStop.ERROR)
+                if (result.page.status == "no_results") {
+                    return if (collector.uniqueCount == 0 && collector.nextCardIndex == 0 &&
+                        collector.visitedPages == 1)
+                        stop(VideoSearchPaginationStop.NO_RESULTS)
+                    else stop(VideoSearchPaginationStop.ERROR)
+                }
                 try {
                     val added = collector.appendWindow(cursor, result.page)
                     newInDocument += added
@@ -871,21 +880,36 @@ internal class VideoSearchBridgeController(
                 ?: return stop(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
             val beforeUrl = currentTab(originalSession)?.pageUrl
                 ?: return stop(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
-            if (!collector.recordAction())
-                return stop(VideoSearchPaginationStop.RESOURCE_LIMIT)
-
-            val action = privateRequest(site, tabId, "paginate", false, requireSelected) { doc, request ->
-                VideoSearchBridgeProtocol.paginate(doc, request, config)
-            } as? VideoSearchBridgeMessage.PageAction
-                ?: return stop(VideoSearchPaginationStop.ERROR)
-            if (action.pagination != config.pagination)
-                return stop(VideoSearchPaginationStop.ERROR)
-            when (action.status) {
-                "unsafe" -> return stop(VideoSearchPaginationStop.UNSAFE)
-                "unavailable" -> return stop(VideoSearchPaginationStop.NO_MORE_RESULTS)
-                "dispatched" -> Unit
-                else -> return stop(VideoSearchPaginationStop.ERROR)
+            var dispatched = false
+            // A temporarily absent or disabled pagination button must NOT
+            // turn a partially collected run into a successful terminal run.
+            for (attempt in 0 until 4) {
+                if (attempt > 0) delay(750)
+                if (SystemClock.elapsedRealtime() >= deadline)
+                    return stop(VideoSearchPaginationStop.RESOURCE_LIMIT)
+                if (!authorized()) return stop(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
+                val action = privateRequest(site, tabId, "paginate", false, requireSelected) { doc, request ->
+                    VideoSearchBridgeProtocol.paginate(doc, request, config)
+                } as? VideoSearchBridgeMessage.PageAction
+                    ?: return stop(VideoSearchPaginationStop.ERROR)
+                if (action.pagination != config.pagination)
+                    return stop(VideoSearchPaginationStop.ERROR)
+                when (action.status) {
+                    "unsafe" -> return stop(VideoSearchPaginationStop.UNSAFE)
+                    "end" -> return stop(if (collector.uniqueCount > 0)
+                        VideoSearchPaginationStop.NO_MORE_RESULTS
+                        else VideoSearchPaginationStop.STALLED)
+                    "pending", "unavailable" -> Unit
+                    "dispatched" -> {
+                        if (!collector.recordAction())
+                            return stop(VideoSearchPaginationStop.RESOURCE_LIMIT)
+                        dispatched = true
+                        break
+                    }
+                    else -> return stop(VideoSearchPaginationStop.ERROR)
+                }
             }
+            if (!dispatched) return stop(VideoSearchPaginationStop.STALLED)
 
             if (config.pagination == VideoSearchPagination.NEXT_LINK) {
                 val nextUrl = withTimeoutOrNull(7_000L) {
@@ -1161,6 +1185,7 @@ internal class VideoSearchBridgeController(
                     val label = when (result.reason) {
                         VideoSearchPaginationStop.LIMIT_REACHED -> "Osiągnięto limit"
                         VideoSearchPaginationStop.NO_MORE_RESULTS -> "Brak kolejnych stron"
+                VideoSearchPaginationStop.NO_RESULTS -> "Potwierdzony brak filmów"
                         VideoSearchPaginationStop.UNSUPPORTED -> "Brak ustawionej paginacji"
                         VideoSearchPaginationStop.STALLED -> "Brak postępu"
                         VideoSearchPaginationStop.UNSAFE -> "Niebezpieczna paginacja"
@@ -1239,6 +1264,12 @@ internal class VideoSearchBridgeController(
                     VideoSearchBridgeProtocol.extractCrawl(doc, id, config, offset)
                 } as? VideoSearchBridgeMessage.Results
                     ?: return collector.snapshot(VideoSearchPaginationStop.ERROR)
+                if (reply.page.status == "no_results") {
+                    return collector.snapshot(if (collector.uniqueCount == 0 &&
+                        collector.nextCardIndex == 0 && collector.visitedPages == 1)
+                        VideoSearchPaginationStop.NO_RESULTS
+                        else VideoSearchPaginationStop.ERROR)
+                }
                 try {
                     val added = collector.appendWindow(offset, reply.page)
                     newInDocument += added
@@ -1275,20 +1306,35 @@ internal class VideoSearchBridgeController(
             val beforeUrl = currentTab(session)?.pageUrl ?: return collector.snapshot(
                 VideoSearchPaginationStop.CONFIGURATION_CHANGED
             )
-            if (!collector.recordAction())
-                return collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT)
-            val action = request(site, "paginate", workerTabId = workerTabId) { doc, id ->
-                VideoSearchBridgeProtocol.paginate(doc, id, config)
-            } as? VideoSearchBridgeMessage.PageAction
-                ?: return collector.snapshot(VideoSearchPaginationStop.ERROR)
-            if (action.pagination != config.pagination)
-                return collector.snapshot(VideoSearchPaginationStop.ERROR)
-            when (action.status) {
-                "unsafe" -> return collector.snapshot(VideoSearchPaginationStop.UNSAFE)
-                "unavailable" -> return collector.snapshot(VideoSearchPaginationStop.NO_MORE_RESULTS)
-                "dispatched" -> Unit
-                else -> return collector.snapshot(VideoSearchPaginationStop.ERROR)
+            var dispatched = false
+            for (attempt in 0 until 4) {
+                if (attempt > 0) delay(750)
+                if (SystemClock.elapsedRealtime() >= deadline)
+                    return collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT)
+                if (!stillAuthorized())
+                    return collector.snapshot(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
+                val action = request(site, "paginate", workerTabId = workerTabId) { doc, id ->
+                    VideoSearchBridgeProtocol.paginate(doc, id, config)
+                } as? VideoSearchBridgeMessage.PageAction
+                    ?: return collector.snapshot(VideoSearchPaginationStop.ERROR)
+                if (action.pagination != config.pagination)
+                    return collector.snapshot(VideoSearchPaginationStop.ERROR)
+                when (action.status) {
+                    "unsafe" -> return collector.snapshot(VideoSearchPaginationStop.UNSAFE)
+                    "end" -> return collector.snapshot(if (collector.uniqueCount > 0)
+                        VideoSearchPaginationStop.NO_MORE_RESULTS
+                        else VideoSearchPaginationStop.STALLED)
+                    "pending", "unavailable" -> Unit
+                    "dispatched" -> {
+                        if (!collector.recordAction())
+                            return collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT)
+                        dispatched = true
+                        break
+                    }
+                    else -> return collector.snapshot(VideoSearchPaginationStop.ERROR)
+                }
             }
+            if (!dispatched) return collector.snapshot(VideoSearchPaginationStop.STALLED)
 
             if (config.pagination == VideoSearchPagination.NEXT_LINK) {
                 val next = withTimeoutOrNull(7_000L) {

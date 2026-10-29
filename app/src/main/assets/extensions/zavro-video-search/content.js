@@ -11,6 +11,8 @@
   const documentId = Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
   const startUrl = location.href;
   let ready = false, busy = false, picker = null, manuallySelectedInput = null;
+  // Consecutive trusted terminal observations are limited to this document.
+  let endProbe = null;
   const limited = 80;
   const idPattern = /^[0-9a-f]{32}$/;
   const blocked = /login|log-in|signin|sign-in|password|register|checkout|payment|purchase|captcha/i;
@@ -436,6 +438,19 @@
     let cards;
     try { cards = Array.from(document.querySelectorAll(command.resultsCardSelector)).slice(0, cardCap); }
     catch (_) { return { status: "stale", films: [], inspectedCards: 0, moreOnPage: false }; }
+    // Only an explicit, visible site-owned empty-state marker is proof
+    // of zero results. A missing card/selector or loading page is not.
+    if (cards.length === 0 && command.startIndex === 0 &&
+        !blocked.test(location.pathname) &&
+        !document.querySelector('input[type="password"]')) {
+      const marker = document.querySelector(
+        '[data-search-empty="true"],[data-no-results="true"],[data-state="no-results"]');
+      if (marker && !marker.closest('[hidden],[inert],[aria-hidden="true"]') &&
+          marker.getBoundingClientRect().width > 0 &&
+          marker.getBoundingClientRect().height > 0 &&
+          !document.querySelector('[aria-busy="true"],[data-loading="true"]'))
+        return { status: "no_results", films: [], inspectedCards: 0, moreOnPage: false };
+    }
 
     function scoped(card, selector) {
       if (!selector) return null;
@@ -717,12 +732,37 @@
     const kind = command.pagination, selector = command.nextPageSelector;
     if (!["NEXT_LINK", "LOAD_MORE", "INFINITE_SCROLL"].includes(kind))
       return "unsafe";
-    if (picker || !ready || location.href !== startUrl) return "unavailable";
-    // Never paginate a login, checkout or CAPTCHA interstitial.
+    if (picker || !ready || location.href !== startUrl) return "pending";
     if (blocked.test(location.pathname) ||
         document.querySelector('input[type="password"]')) return "unsafe";
+
+    function loading() {
+      return !!document.querySelector('[aria-busy="true"],[data-loading="true"],[role="progressbar"]');
+    }
+    // Missing/disabled next is NOT a proven end. A site must supply an
+    // explicit terminal marker, seen twice 650+ ms apart and not loading.
+    function terminal() {
+      const marker = document.querySelector(
+        '[data-pagination-end="true"],[data-last-page="true"],[data-has-next="false"]');
+      if (!marker || loading() ||
+          marker.closest('[hidden],[inert],[aria-hidden="true"]')) {
+        endProbe = null;
+        return "pending";
+      }
+      const now = Date.now(), key = kind + ":" + selector;
+      if (!endProbe || endProbe.key !== key) {
+        endProbe = { key, since: now, hits: 1 };
+        return "pending";
+      }
+      endProbe.hits++;
+      return endProbe.hits >= 2 && now - endProbe.since >= 650 ? "end" : "pending";
+    }
     if (kind === "INFINITE_SCROLL") {
       if (selector !== null) return "unsafe";
+      if (document.querySelector('[data-pagination-end="true"],[data-last-page="true"],[data-has-next="false"]'))
+        return terminal();
+      if (loading()) return "pending";
+      endProbe = null;
       setTimeout(function () {
         if (location.href === startUrl && ready)
           window.scrollBy({ top: Math.max(360, window.innerHeight), behavior: "instant" });
@@ -733,14 +773,15 @@
       return "unsafe";
     let matches;
     try { matches = document.querySelectorAll(selector); } catch (_) { return "unsafe"; }
-    if (matches.length === 0) return "unavailable";
+    if (matches.length === 0) return terminal();
     if (matches.length !== 1) return "unsafe";
     const target = matches[0];
-    if (!visible(target) ||
-        target.disabled || target.getAttribute("aria-disabled") === "true")
-      return "unavailable";
     if (blocked.test((target.id || "") + " " + (target.className || "") + " " +
           (target.getAttribute("aria-label") || ""))) return "unsafe";
+    if (!visible(target) || target.disabled ||
+        target.getAttribute("aria-disabled") === "true" || loading())
+      return terminal();
+    endProbe = null;
     if (kind === "NEXT_LINK") {
       if (!target.matches("a[href]")) return "unsafe";
       let destination;

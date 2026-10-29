@@ -24,16 +24,23 @@ internal object VideoSearchWorkerVerification {
         page: VideoSearchExtractedPage?,
         beforePage: VideoSearchExtractedPage? = null,
     ): Boolean {
-        if (currentDocumentId == null || page?.status != "ok" ||
-            page.films.isEmpty()) return false
+        if (currentDocumentId == null || page == null) return false
+        val provenEmpty = page.status == "no_results" && page.films.isEmpty() &&
+            page.inspectedCards == 0 && !page.moreOnPage
+        if (!provenEmpty && (page.status != "ok" || page.films.isEmpty())) return false
         if (originalDocumentId != currentDocumentId) return true
         if (beforePage == null || beforePage.status == "stale") return false
+        if (provenEmpty) return beforePage.status == "ok" &&
+            beforePage.films.isNotEmpty()
         val previousUrls = beforePage.films.mapTo(HashSet()) { it.filmPageUrl }
         return page.films.any { it.filmPageUrl !in previousUrls }
     }
 
     fun finalQueueStatus(snapshot: VideoSearchPaginationSnapshot?): VideoSearchQueueStatus =
         when (snapshot?.reason) {
+            VideoSearchPaginationStop.NO_RESULTS ->
+                if (snapshot.films.isEmpty()) VideoSearchQueueStatus.DONE
+                else VideoSearchQueueStatus.NEEDS_ATTENTION
             VideoSearchPaginationStop.LIMIT_REACHED,
             VideoSearchPaginationStop.NO_MORE_RESULTS ->
                 if (snapshot.films.isNotEmpty()) VideoSearchQueueStatus.DONE

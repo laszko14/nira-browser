@@ -6,7 +6,7 @@ package com.prirai.android.nira.videosearch
  * A partial stop must never be represented as COMPLETED/NO_MORE_RESULTS.
  */
 internal enum class VideoSearchPaginationStop {
-    LIMIT_REACHED, NO_MORE_RESULTS, UNSUPPORTED,
+    LIMIT_REACHED, NO_MORE_RESULTS, NO_RESULTS, UNSUPPORTED,
     STALLED, UNSAFE, RESOURCE_LIMIT, CONFIGURATION_CHANGED, ERROR,
 }
 
@@ -68,7 +68,8 @@ internal class VideoSearchPaginationCollector(
         require(startIndex == cursor && startIndex in 0..319) {
             "Non-contiguous card window"
         }
-        require(batch.status != "stale" && batch.inspectedCards in 0..16 &&
+        require(batch.status !in setOf("stale", "no_results") &&
+            batch.inspectedCards in 0..16 &&
             (batch.inspectedCards != 0 || !batch.moreOnPage)) {
             "Invalid crawl window"
         }

@@ -99,12 +99,14 @@ internal class VideoSearchPrivateGroupAccess(
         val retained = unseen.take(space)
         val newCount = already.size + retained.size
         val complete = terminal && !truncated && when (snapshot?.reason) {
-            VideoSearchPaginationStop.NO_MORE_RESULTS -> true
+            VideoSearchPaginationStop.NO_MORE_RESULTS -> newCount > 0
+            VideoSearchPaginationStop.NO_RESULTS -> newCount == 0
             VideoSearchPaginationStop.LIMIT_REACHED -> newCount == 200
             else -> false
         }
         val reason = when (snapshot?.reason) {
-            VideoSearchPaginationStop.NO_MORE_RESULTS ->
+            VideoSearchPaginationStop.NO_MORE_RESULTS,
+            VideoSearchPaginationStop.NO_RESULTS ->
                 if (complete) VideoSearchCompletionReason.NO_MORE_RESULTS else null
             VideoSearchPaginationStop.LIMIT_REACHED ->
                 if (complete) VideoSearchCompletionReason.LIMIT_REACHED else null

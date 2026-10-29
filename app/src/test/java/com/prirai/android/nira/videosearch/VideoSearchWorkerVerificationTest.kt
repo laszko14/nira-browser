@@ -68,6 +68,33 @@ class VideoSearchWorkerVerificationTest {
             page(), page("empty", 0)))
     }
 
+    @Test fun explicitNewDocumentNoResultsIsVerifiedWithoutFakeFilm() {
+        val empty = VideoSearchExtractedPage("no_results", emptyList(), 0, false)
+        assertTrue(VideoSearchWorkerVerification.confirmed(initial, newer, empty))
+        assertFalse(VideoSearchWorkerVerification.confirmed(initial, initial, empty))
+        assertFalse(VideoSearchWorkerVerification.confirmed(initial, null, empty))
+    }
+
+    @Test fun confirmedEmptySpaRequiresPreviouslyVisibleFilms() {
+        val empty = VideoSearchExtractedPage("no_results", emptyList(), 0, false)
+        assertTrue(VideoSearchWorkerVerification.confirmed(initial, initial, empty, page()))
+        assertFalse(VideoSearchWorkerVerification.confirmed(initial, initial,
+            empty, page("empty", 0)))
+        assertFalse(VideoSearchWorkerVerification.confirmed(initial, initial, empty, empty))
+    }
+
+    @Test fun confirmedEmptyCanFinishWithoutFabricatingAnyFilm() {
+        assertEquals(VideoSearchQueueStatus.DONE,
+            VideoSearchWorkerVerification.finalQueueStatus(
+                snap(VideoSearchPaginationStop.NO_RESULTS, 0)))
+        assertEquals(VideoSearchQueueStatus.NEEDS_ATTENTION,
+            VideoSearchWorkerVerification.finalQueueStatus(
+                snap(VideoSearchPaginationStop.NO_RESULTS, 1)))
+        assertEquals(VideoSearchQueueStatus.NEEDS_ATTENTION,
+            VideoSearchWorkerVerification.finalQueueStatus(
+                snap(VideoSearchPaginationStop.NO_MORE_RESULTS, 0)))
+    }
+
     @Test fun neverTreatsSameDocumentAsNewSearchResults() {
         assertFalse(VideoSearchWorkerVerification.confirmed(initial, initial, page()))
         assertFalse(VideoSearchWorkerVerification.confirmed(initial, null, page()))

@@ -1,3 +1,10 @@
+# P11/16 — SR-07 — koniec paginacji a chwilowa niedostępność
+
+- P10 **PASS**: [40938789130](https://github.com/laszko14/nira-browser/actions/runs/40938789130) na `4fec5efba28d8a742177dafedfd462fe5fd9116a`. P11: WebExtension `pending` dla niegotowego/nieobecnego next; `end` tylko przy stabilnym, jawnym markerze końcowej strony, bez loadera. Wspólne 4 próby, odmowa `NO_MORE_RESULTS` bez dowodu, zachowanie częściowych filmów.
+- Jawnym markerem braku filmów jest oddzielne `no_results` bez kart/ładowania, ściśle zweryfikowane przez protokół i P10 gate. `NO_RESULTS` w Kotlin prowadzi do prawdziwej zakończonej pustej wyszukiwarki; puste/stale po samym ACK nadal nie kończą. Normalne/Private RAM izolowane. Testy Kotlin/JS dodano. CI_PENDING dla nowego SHA; realne Gecko/Android 15/dynamiczne strony NOT_TESTED. Następne P12 po osobnym „Dalej”.
+
+---
+
 # P10/16 — SR-06 — bramka generacji po wysłaniu frazy
 
 - P9 PASS: SHA `16e73c10`, CI [40936307515](https://github.com/laszko14/nira-browser/actions/runs/40936307515). P10: proof gate odróżnia nowy Gecko dokument od niezmienionej starej listy; dla SPA porównuje pre-submit i post-submit film URL z tego samego selektora, zachowuje pełne query jako tożsamość. Brak dowodu → brak zapisu wyników nowej frazy. Private pozostaje RAM-only i związany z epoką/profilami.

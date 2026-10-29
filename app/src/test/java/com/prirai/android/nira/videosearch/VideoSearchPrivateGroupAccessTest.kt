@@ -89,6 +89,19 @@ class VideoSearchPrivateGroupAccessTest {
         })
     }
 
+    @Test fun explicitZeroResultsFinishOnlyTheVerifiedPrivateSite() {
+        val f = Fixture()
+        val id = f.start()
+        val empty = f.sites[0]
+        assertTrue(f.groups.checkpoint(f.tab, "default", id, empty,
+            f.snapshot(empty, count = 0, reason = VideoSearchPaginationStop.NO_RESULTS)))
+        val task = f.store.tasks(f.owner, id).single { it.siteId == empty.id }
+        assertEquals(VideoSearchSiteState.COMPLETED, task.status)
+        assertEquals(0, task.uniqueResults)
+        assertEquals(VideoSearchCompletionReason.NO_MORE_RESULTS, task.completionReason)
+        assertTrue(f.store.films(f.owner, id, empty.id).isEmpty())
+    }
+
     @Test fun missingWorkerMarksOnlyItsSiteNeedsAttention() {
         val f = Fixture()
         val id = f.start()

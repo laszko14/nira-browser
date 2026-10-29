@@ -1,4 +1,4 @@
-name: Zavro video search P3-P10 regressions (no APK)
+name: Zavro video search P3-P11 regressions (no APK)
 
 on:
   push:
@@ -23,6 +23,17 @@ on:
       - 'app/src/test/js/video-search-p6-batches.test.cjs'
       - 'app/src/test/js/video-search-p9-link-identity.test.cjs'
       - 'app/src/test/js/video-search-p10-search-proof.test.cjs'
+      - 'app/src/test/js/video-search-p11-pagination-evidence.test.cjs'
+      - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchPaginationCollector.kt'
+      - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultExtraction.kt'
+      - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchWorkerVerification.kt'
+      - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchPrivateGroupAccess.kt'
+      - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchPrivateRunAccess.kt'
+      - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchMultiRunJournal.kt'
+      - 'app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchPaginationProtocolTest.kt'
+      - 'app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchWorkerVerificationTest.kt'
+      - 'app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchMultiRunJournalTest.kt'
+      - 'app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchPrivateSingleProgressTest.kt'
       - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchWorkerVerification.kt'
       - 'app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchWorkerVerificationTest.kt'
       - 'app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsRepositoryTest.kt'
@@ -62,12 +73,13 @@ jobs:
           java-version: '17'
           distribution: zulu
       - uses: gradle/actions/setup-gradle@v5
-      - name: P3-P10 targeted worker configuration, pagination and search generation regression
+      - name: P3-P11 targeted worker configuration, pagination and search generation regression
         run: |
           ./gradlew :app:testDebugUnitTest --console=plain \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchNormalWorkerLeaseTest' \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchPrivateWorkerLeaseTest' \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchWorkerVerificationTest' \
+            --tests 'com.prirai.android.nira.videosearch.VideoSearchPaginationProtocolTest' \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchNormalRunGateTest' \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchConfigurationRevisionTest' \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchAutoConfigurationTest' \
@@ -98,7 +110,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: video-search-p3-p4-p5-p6-p7-p8-p9-p10-tests
+          name: video-search-p3-p4-p5-p6-p7-p8-p9-p10-p11-tests
           path: |
             app/build/test-results/testDebugUnitTest/**
             app/build/reports/tests/testDebugUnitTest/**

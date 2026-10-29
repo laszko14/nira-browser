@@ -68,11 +68,13 @@ internal class VideoSearchPrivateRunAccess(
         // Only evidence from the bounded collector permits a complete run.
         val complete = (reason == VideoSearchPaginationStop.LIMIT_REACHED &&
             films.size == DEFAULT_VIDEO_SEARCH_SITE_LIMIT) ||
-            reason == VideoSearchPaginationStop.NO_MORE_RESULTS
+            (reason == VideoSearchPaginationStop.NO_MORE_RESULTS && films.isNotEmpty()) ||
+            (reason == VideoSearchPaginationStop.NO_RESULTS && films.isEmpty())
         val completion = if (complete) when (reason) {
             VideoSearchPaginationStop.LIMIT_REACHED ->
                 VideoSearchCompletionReason.LIMIT_REACHED
-            VideoSearchPaginationStop.NO_MORE_RESULTS ->
+            VideoSearchPaginationStop.NO_MORE_RESULTS,
+            VideoSearchPaginationStop.NO_RESULTS ->
                 VideoSearchCompletionReason.NO_MORE_RESULTS
             else -> null
         } else null
@@ -159,12 +161,14 @@ internal class VideoSearchPrivateRunAccess(
         }
         val count = existing.size + fresh.size
         val complete = terminal && when (snapshot.reason) {
-            VideoSearchPaginationStop.NO_MORE_RESULTS -> true
+            VideoSearchPaginationStop.NO_MORE_RESULTS -> count > 0
+            VideoSearchPaginationStop.NO_RESULTS -> count == 0
             VideoSearchPaginationStop.LIMIT_REACHED -> count == 200
             else -> false
         }
         val completion = if (!complete) null else when (snapshot.reason) {
-            VideoSearchPaginationStop.NO_MORE_RESULTS -> VideoSearchCompletionReason.NO_MORE_RESULTS
+            VideoSearchPaginationStop.NO_MORE_RESULTS,
+            VideoSearchPaginationStop.NO_RESULTS -> VideoSearchCompletionReason.NO_MORE_RESULTS
             VideoSearchPaginationStop.LIMIT_REACHED -> VideoSearchCompletionReason.LIMIT_REACHED
             else -> null
         }

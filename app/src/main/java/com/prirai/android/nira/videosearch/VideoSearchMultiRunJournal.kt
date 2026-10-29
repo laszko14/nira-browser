@@ -65,6 +65,8 @@ internal class VideoSearchMultiRunJournal(
                 if (snapshot.films.isNotEmpty()) VideoSearchCompletionReason.LIMIT_REACHED else null
             VideoSearchPaginationStop.NO_MORE_RESULTS ->
                 if (snapshot.films.isNotEmpty()) VideoSearchCompletionReason.NO_MORE_RESULTS else null
+            VideoSearchPaginationStop.NO_RESULTS ->
+                if (snapshot.films.isEmpty()) VideoSearchCompletionReason.NO_MORE_RESULTS else null
             else -> null
         }
         val status = when {
