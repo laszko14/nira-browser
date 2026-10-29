@@ -65,8 +65,9 @@ internal class VideoSearchPaginationCollector(
     /** Returns number of newly discovered unique film URLs. */
     fun appendWindow(startIndex: Int, batch: VideoSearchExtractedPage): Int {
         require(visited.isNotEmpty() && shouldReadCardWindow)
-        require(startIndex == cursor && startIndex in 0..304 &&
-            startIndex % 16 == 0) { "Non-contiguous card window" }
+        require(startIndex == cursor && startIndex in 0..319) {
+            "Non-contiguous card window"
+        }
         require(batch.status != "stale" && batch.inspectedCards in 0..16 &&
             (batch.inspectedCards != 0 || !batch.moreOnPage)) {
             "Invalid crawl window"

@@ -46,6 +46,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private lateinit var queuePreviewButton: Button
     private lateinit var multiStatusButton: Button
     private lateinit var stopMultiButton: Button
+    private lateinit var multiHistoryButton: Button
     private lateinit var adapter: SitesAdapter
     private var scope: VideoSearchScope.Normal? = null
     private var observer: Job? = null
@@ -120,6 +121,11 @@ class MyVideoSitesActivity : AppCompatActivity() {
         multiActions.addView(multiStatusButton, LinearLayout.LayoutParams(0, -2, 1f))
         multiActions.addView(stopMultiButton, LinearLayout.LayoutParams(0, -2, 1f))
         root.addView(multiActions)
+        multiHistoryButton = Button(this).apply {
+            text = "Historia znalezionych filmów"
+            setOnClickListener { showMultiHistory() }
+        }
+        root.addView(multiHistoryButton)
 
         root.addView(TextView(this).apply {
             text = "Witryny pozostają na liście nawet po błędzie konfiguracji. " +
@@ -201,6 +207,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             queuePreviewButton.isEnabled = false
             multiStatusButton.isEnabled = false
             stopMultiButton.isEnabled = false
+            multiHistoryButton.isEnabled = false
             info.text = "Tryb prywatny: zapis do zwykłego profilu jest wyłączony. " +
                 "Lista prywatna będzie dostępna po integracji sesji prywatnej."
             return
@@ -212,6 +219,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
         queuePreviewButton.isEnabled = true
         multiStatusButton.isEnabled = true
         stopMultiButton.isEnabled = true
+        multiHistoryButton.isEnabled = true
         info.text = "Profil: ${manager.getActiveProfile().name}"
         if (scope == current && observer?.isActive == true) return
         observer?.cancel()
@@ -424,8 +432,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
                     "Zavro utworzy oddzielne zwykłe karty robocze i wyśle " +
                     "frazy WYŁĄCZNIE przez wyszukiwarki tych witryn, bez Google. " +
                     "Równoległość będzie ograniczona dostępnością pamięci. " +
-                    "Na tym etapie potwierdzane jest tylko przyjęcie polecenia wyszukania; " +
-                    "wyniki wielu witryn nie są jeszcze zbierane ani zapisywane.")
+                    "Po potwierdzeniu wyników Zavro zbierze filmy z paginacją " +
+                    "i zapisze w historii, także jeśli wyszukiwanie zatrzyma się częściowo.")
                 .setNegativeButton("Anuluj", null)
                 .setPositiveButton("Uruchom") { _, _ ->
                     if (ownerIfCurrent() != owner) return@setPositiveButton
@@ -461,10 +469,76 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 "Potwierdzone polecenia: ${result.submitted}\n" +
                 "Wymagają uwagi: ${result.needsAttention}\n" +
                 "Błędy: ${result.failed}\n" +
+                "Zakończone po wynikach: ${result.finished}\n" +
                 "Zatrzymane: ${result.stopped}\n\n" +
-                "Potwierdzenie polecenia nie dowodzi wyników ani zakończenia wyszukiwania.")
+                "O ukończeniu decydują potwierdzone wyniki i warunek końca paginacji.")
             .setPositiveButton("OK", null)
             .show()
+    }
+
+    /**
+     * Profile-scoped persisted run preview. The full film tile browser and
+     * additional grouping/sorting belong to later UI stages.
+     */
+    private fun showMultiHistory() {
+        val owner = ownerIfCurrent() ?: return
+        lifecycleScope.launch {
+            val result = try {
+                withContext(Dispatchers.IO) {
+                    val run = repository.runs(owner).firstOrNull()
+                        ?: return@withContext null
+                    val tasks = repository.tasks(owner, run.id)
+                    val preview = tasks.take(4).flatMap { task ->
+                        repository.films(owner, run.id, task.siteId)
+                            .take(3)
+                    }
+                    Triple(run, tasks, preview)
+                }
+            } catch (_: Exception) {
+                if (ownerIfCurrent() == owner)
+                    message("Nie udało się odczytać historii")
+                return@launch
+            }
+            if (ownerIfCurrent() != owner) return@launch
+            if (result == null) {
+                message("Nie ma jeszcze zapisanych wyszukiwań")
+                return@launch
+            }
+            val (run, tasks, preview) = result
+            val titles = try {
+                withContext(Dispatchers.IO) {
+                    repository.sites(owner).associate { it.id to it.displayName }
+                }
+            } catch (_: Exception) { emptyMap<String, String>() }
+            if (ownerIfCurrent() != owner) return@launch
+            val totals = tasks.sumOf { it.uniqueResults }
+            val sitesText = tasks.take(15).joinToString("\n") { task ->
+                val state = when (task.status) {
+                    VideoSearchSiteState.COMPLETED -> "Zakończono"
+                    VideoSearchSiteState.NEEDS_ATTENTION -> "Wymaga uwagi"
+                    VideoSearchSiteState.FAILED -> "Błąd"
+                    VideoSearchSiteState.STOPPED -> "Zatrzymano"
+                    else -> "W toku"
+                }
+                val siteName = titles[task.siteId] ?:
+                    preview.firstOrNull { it.siteId == task.siteId }?.siteName ?:
+                    "Witryna usunięta"
+                "• $siteName: $state — ${task.uniqueResults} filmów"
+            }
+            val sample = preview.joinToString("\n") {
+                "• ${it.originalTitle ?: "Tytuł nieznany"}"
+            }
+            MaterialAlertDialogBuilder(this@MyVideoSitesActivity)
+                .setTitle("Ostatnie wyszukiwanie")
+                .setMessage("Stan: ${run.status.name}. " +
+                    "Zapisane wyniki: $totals, witryny: ${tasks.size}.\n\n" +
+                    "Witryny:\n" + sitesText +
+                    (if (tasks.size > 15) "\n… pozostałe witryny w historii" else "") +
+                    "\n\nPrzykładowe filmy:\n" +
+                    (if (sample.isNotBlank()) sample else "Brak potwierdzonych filmów"))
+                .setPositiveButton("OK", null)
+                .show()
+        }
     }
 
     private fun stopMultiSearch() {

@@ -5,6 +5,8 @@ import android.os.SystemClock
 import android.app.ActivityManager
 import com.prirai.android.nira.ext.components
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withTimeoutOrNull
 import android.widget.Toast
@@ -13,7 +15,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 import com.prirai.android.nira.browser.profile.ProfileManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -35,9 +36,11 @@ import java.util.UUID
  * lazily when the user opens their configured-site management screen, rather
  * than injecting a content script into every tab during browser cold-start.
  *
- * In stage 3B site inspection / GET search are permitted only after explicit
- * user action on an already open exact-site tab. No automatic DOM polling,
- * pagination, result harvesting, private browsing or persistent writes here.
+ * Stage 5C adds explicit, normal-profile multi-site search workers.
+ * Each newly created worker tab is verified independently, its search-result
+ * document must actually change and expose film cards, and bounded page
+ * extraction checkpoints are stored transactionally in normal-profile Room.
+ * No private browsing persistence, passive page scanning or media playback.
  */
 internal class VideoSearchBridgeController(
     private val applicationContext: Context,
@@ -79,6 +82,7 @@ internal class VideoSearchBridgeController(
     private var multiJob: Job? = null
     private var multiQueue: VideoSearchDispatchQueue? = null
     private val lastMulti = LinkedHashMap<String, VideoSearchQueueSnapshot>()
+    private val lastMultiRunIds = LinkedHashMap<String, String>()
     // At most eight temporary result lists; never grow a hidden unlimited cache.
     private val recentCrawls =
         LinkedHashMap<Pair<String, String>, VideoSearchPaginationSnapshot>(8, 0.75f, true)
@@ -349,6 +353,20 @@ internal class VideoSearchBridgeController(
         return if (isFresh(session, entry)) session to entry else null
     }
 
+    /** Worker may visit /results and /page2, but never another origin or tab. */
+    private fun workerOwnedTab(
+        site: VideoSearchSite, workerTabId: String,
+    ): Pair<EngineSession, DocumentPort>? {
+        val owner = site.scope as? VideoSearchScope.Normal ?: return null
+        val tab = store.state.tabs.singleOrNull { it.id == workerTabId } ?: return null
+        val session = tab.engineState.engineSession ?: return null
+        val state = currentTab(session) ?: return null
+        if (!site.enabled || state.owner != owner || state.tabId != workerTabId ||
+            !VideoSearchBridgeProtocol.sameOrigin(state.pageUrl, site.siteUrl)) return null
+        val port = ports[session] ?: return null
+        return if (isFresh(session, port)) session to port else null
+    }
+
     private fun workerSiteTab(
         site: VideoSearchSite, workerTabId: String,
     ): Pair<EngineSession, DocumentPort>? {
@@ -373,7 +391,10 @@ internal class VideoSearchBridgeController(
         val scope = site.scope as? VideoSearchScope.Normal ?: return null
         // Backpressure below existing 12 messages/5s per-session rate cap.
         if (kind == "crawl" || kind == "paginate") delay(540)
-        val target = if (workerTabId != null) workerSiteTab(site, workerTabId)
+        val target = if (workerTabId != null) {
+            if (kind == "search") workerSiteTab(site, workerTabId)
+            else workerOwnedTab(site, workerTabId)
+        }
             else if (kind.startsWith("pick:") ||
                 kind == "validate" || kind == "extract" ||
                 kind == "extract_batch" || kind == "crawl" ||
@@ -390,6 +411,8 @@ internal class VideoSearchBridgeController(
         try {
             entry.port.postMessage(packet(documentId, requestId))
             return withTimeoutOrNull(timeoutMs) { result.await() }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
             return null
         } finally {
@@ -528,10 +551,13 @@ internal class VideoSearchBridgeController(
 
     private suspend fun executePagination(
         site: VideoSearchSite, repository: VideoSearchRepository,
+        workerTabId: String? = null,
     ): VideoSearchPaginationSnapshot? {
         val config = site.configuration ?: return null
         val scope = site.scope as? VideoSearchScope.Normal ?: return null
-        val first = manualSiteTab(site) ?: return null
+        fun matchingTab() = if (workerTabId == null) manualSiteTab(site)
+            else workerOwnedTab(site, workerTabId)
+        val first = matchingTab() ?: return null
         val session = first.first
         val startingUrl = currentTab(session)?.pageUrl ?: return null
         val collector = VideoSearchPaginationCollector(site.siteUrl, site.resultLimit)
@@ -540,7 +566,12 @@ internal class VideoSearchBridgeController(
         var noNewPages = 0
 
         suspend fun stillAuthorized(): Boolean {
-            val live = manualSiteTab(site) ?: return false
+            val live = matchingTab() ?: return false
+            if (workerTabId != null) {
+                val manager = ProfileManager.getInstance(applicationContext)
+                if (manager.isPrivateMode() ||
+                    manager.getActiveProfile().id != scope.profileId) return false
+            }
             if (live.first !== session) return false
             val stored = withContext(Dispatchers.IO) {
                 repository.site(scope, site.id)
@@ -560,9 +591,9 @@ internal class VideoSearchBridgeController(
                 if (!stillAuthorized())
                     return collector.snapshot(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
                 val offset = collector.nextCardIndex
-                val reply = request(site, "crawl") { doc, id ->
+                val reply = request(site, "crawl", { doc, id ->
                     VideoSearchBridgeProtocol.extractCrawl(doc, id, config, offset)
-                } as? VideoSearchBridgeMessage.Results
+                }, workerTabId = workerTabId) as? VideoSearchBridgeMessage.Results
                     ?: return collector.snapshot(VideoSearchPaginationStop.ERROR)
                 try {
                     newInDocument += collector.appendWindow(offset, reply.page)
@@ -588,7 +619,7 @@ internal class VideoSearchBridgeController(
 
             // NEXT_LINK must actually produce a new document on the SAME
             // EngineSession and origin. LOAD_MORE/SCROLL must append new cards.
-            val before = manualSiteTab(site) ?: return collector.snapshot(
+            val before = matchingTab() ?: return collector.snapshot(
                 VideoSearchPaginationStop.CONFIGURATION_CHANGED
             )
             val beforeDoc = before.second.documentId ?: return collector.snapshot(
@@ -599,9 +630,9 @@ internal class VideoSearchBridgeController(
             )
             if (!collector.recordAction())
                 return collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT)
-            val action = request(site, "paginate") { doc, id ->
+            val action = request(site, "paginate", { doc, id ->
                 VideoSearchBridgeProtocol.paginate(doc, id, config)
-            } as? VideoSearchBridgeMessage.PageAction
+            }, workerTabId = workerTabId) as? VideoSearchBridgeMessage.PageAction
                 ?: return collector.snapshot(VideoSearchPaginationStop.ERROR)
             if (action.pagination != config.pagination)
                 return collector.snapshot(VideoSearchPaginationStop.ERROR)
@@ -617,7 +648,7 @@ internal class VideoSearchBridgeController(
                     var destination: String? = null
                     while (destination == null) {
                         delay(160)
-                        val live = manualSiteTab(site)
+                        val live = matchingTab()
                         if (live?.first !== session) continue
                         val current = currentTab(session)?.pageUrl ?: continue
                         if (current != beforeUrl &&
@@ -646,9 +677,9 @@ internal class VideoSearchBridgeController(
                     if (!stillAuthorized())
                         return collector.snapshot(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
                     val offset = collector.nextCardIndex
-                    val reply = request(site, "crawl") { doc, id ->
+                    val reply = request(site, "crawl", { doc, id ->
                         VideoSearchBridgeProtocol.extractCrawl(doc, id, config, offset)
-                    } as? VideoSearchBridgeMessage.Results
+                    }, workerTabId = workerTabId) as? VideoSearchBridgeMessage.Results
                         ?: return collector.snapshot(VideoSearchPaginationStop.ERROR)
                     if (reply.page.status == "stale")
                         return collector.snapshot(VideoSearchPaginationStop.ERROR)
@@ -830,6 +861,40 @@ internal class VideoSearchBridgeController(
         }
     }
 
+    /**
+     * An ACK is not enough. Confirm that the original document has been
+     * replaced AND the worker's actual results document contains a film card.
+     * SPA-only same-document responses are conservatively NEEDS_ATTENTION,
+     * never misreported as a completed search.
+     */
+    private suspend fun awaitWorkerResults(
+        site: VideoSearchSite, tabId: String, beforeDocument: String,
+    ): Boolean {
+        val scope = site.scope as? VideoSearchScope.Normal ?: return false
+        val start = SystemClock.elapsedRealtime()
+        val cfg = site.configuration ?: return false
+        while (SystemClock.elapsedRealtime() - start < 13_000L) {
+            val manager = ProfileManager.getInstance(applicationContext)
+            if (manager.isPrivateMode() ||
+                manager.getActiveProfile().id != scope.profileId) return false
+            val live = workerOwnedTab(site, tabId)
+            if (live != null && live.second.documentId != beforeDocument) {
+                val answer = request(site, "crawl", { doc, req ->
+                    VideoSearchBridgeProtocol.extractCrawl(doc, req, cfg, 0)
+                }, workerTabId = tabId) as? VideoSearchBridgeMessage.Results
+                if (VideoSearchWorkerVerification.confirmed(
+                        beforeDocument, live.second.documentId, answer?.page
+                    )) return true
+                if (answer?.page?.status == "stale") return false
+            }
+            delay(380)
+        }
+        return false
+    }
+
+    fun lastMultiRunId(scope: VideoSearchScope.Normal): String? =
+        lastMultiRunIds[scope.profileId]
+
     fun multiSiteStatus(scope: VideoSearchScope.Normal): VideoSearchQueueSnapshot? =
         if (multiQueue?.plan?.scope == scope) multiQueue?.snapshot()
         else lastMulti[scope.profileId]
@@ -845,10 +910,10 @@ internal class VideoSearchBridgeController(
     }
 
     /**
-     * One explicitly authorized multi-site run, kept in RAM until proper
-     * run/task persistence and film collection are implemented in later stages.
-     * Each lease owns its *new* normal-profile background tab. Never adopt an
-     * existing user's tab or change the selected tab.
+     * User-authorized normal-profile multi-site run. One transactional Room
+     * journal stores the run, site tasks and validated film-page metadata.
+     * Worker tabs are new, background and never adopt the selected user tab.
+     * Never declare success from the search form ACK alone.
      */
     fun startMultiSite(
         plan: VideoSearchDispatchPlan, repository: VideoSearchRepository,
@@ -859,54 +924,100 @@ internal class VideoSearchBridgeController(
             manager.getActiveProfile().id != plan.scope.profileId ||
             plan.runnableSites.isEmpty()) return false
         val queue = plan.createQueue()
+        val journal = VideoSearchMultiRunJournal(repository, plan)
         multiQueue = queue
         multiJob = manualScope.launch {
             try {
+                withContext(Dispatchers.IO) { journal.initialize() }
+                lastMultiRunIds[plan.scope.profileId] = journal.runId
+                if (lastMultiRunIds.size > 4)
+                    lastMultiRunIds.remove(lastMultiRunIds.keys.first())
                 withTimeoutOrNull(180_000L) {
                     VideoSearchMultiSiteExecutor.dispatch(
-                    queue,
-                    permittedWorkers = {
-                        val am = applicationContext.getSystemService(
-                            Context.ACTIVITY_SERVICE
-                        ) as? ActivityManager
-                        val mem = ActivityManager.MemoryInfo()
-                        try { am?.getMemoryInfo(mem) } catch (_: Exception) {
-                            mem.lowMemory = true
-                        }
-                        if (am == null) 0 else VideoSearchWorkerBudget.permits(
-                            mem.availMem, mem.lowMemory
-                        )
-                    },
-                    authorized = {
-                        val active = ProfileManager.getInstance(applicationContext)
-                        !active.isPrivateMode() &&
-                            active.getActiveProfile().id == plan.scope.profileId
-                    },
-                    submit = { site ->
-                        val current = withContext(Dispatchers.IO) {
-                            repository.site(plan.scope, site.id)
-                        }
-                        val activeOwner = ProfileManager.getInstance(applicationContext)
-                        if (activeOwner.isPrivateMode() ||
-                            activeOwner.getActiveProfile().id != plan.scope.profileId) {
-                            VideoSearchQueueStatus.STOPPED
-                        } else if (current == null || !current.enabled ||
-                            current.siteUrl != site.siteUrl ||
-                            current.updatedAtMs != site.updatedAtMs ||
-                            current.configuration != site.configuration) {
-                            VideoSearchQueueStatus.NEEDS_ATTENTION
-                        } else {
-                            val tabId = applicationContext.components.tabsUseCases.addTab.invoke(
-                                site.siteUrl,
-                                selectTab = false,
-                                private = false,
-                                contextId = plan.scope.contextId,
+                        queue,
+                        permittedWorkers = {
+                            val am = applicationContext.getSystemService(
+                                Context.ACTIVITY_SERVICE
+                            ) as? ActivityManager
+                            val mem = ActivityManager.MemoryInfo()
+                            try { am?.getMemoryInfo(mem) }
+                            catch (_: Exception) { mem.lowMemory = true }
+                            if (am == null) 0 else VideoSearchWorkerBudget.permits(
+                                mem.availMem, mem.lowMemory
                             )
-                            submitWorker(current, tabId, plan.query, repository)
-                        }
-                    },
+                        },
+                        authorized = {
+                            val active = ProfileManager.getInstance(applicationContext)
+                            !active.isPrivateMode() &&
+                                active.getActiveProfile().id == plan.scope.profileId
+                        },
+                        submit = { site ->
+                            var outcome = VideoSearchQueueStatus.FAILED
+                            var snapshot: VideoSearchPaginationSnapshot? = null
+                            val current = withContext(Dispatchers.IO) {
+                                repository.site(plan.scope, site.id)
+                            }
+                            val managerNow = ProfileManager.getInstance(applicationContext)
+                            if (managerNow.isPrivateMode() ||
+                                managerNow.getActiveProfile().id != plan.scope.profileId) {
+                                outcome = VideoSearchQueueStatus.STOPPED
+                            } else if (current == null || !current.enabled ||
+                                current.siteUrl != site.siteUrl ||
+                                current.updatedAtMs != site.updatedAtMs ||
+                                current.configuration != site.configuration) {
+                                outcome = VideoSearchQueueStatus.NEEDS_ATTENTION
+                            } else {
+                                val tabId = applicationContext.components.tabsUseCases.addTab.invoke(
+                                    site.siteUrl, selectTab = false, private = false,
+                                    contextId = plan.scope.contextId,
+                                )
+                                try {
+                                    val before = withTimeoutOrNull(10_000L) {
+                                        var doc: String? = null
+                                        while (doc == null) {
+                                            val manager = ProfileManager.getInstance(applicationContext)
+                                            if (manager.isPrivateMode() ||
+                                                manager.getActiveProfile().id != plan.scope.profileId)
+                                                break
+                                            doc = workerSiteTab(current, tabId)?.second?.documentId
+                                            if (doc == null) delay(160)
+                                        }
+                                        doc
+                                    }
+                                    if (before == null) {
+                                        outcome = VideoSearchQueueStatus.NEEDS_ATTENTION
+                                    } else {
+                                        outcome = submitWorker(current, tabId, plan.query, repository)
+                                        if (outcome == VideoSearchQueueStatus.SUBMITTED) {
+                                            val confirmed = awaitWorkerResults(current, tabId, before)
+                                            if (!confirmed) {
+                                                outcome = VideoSearchQueueStatus.NEEDS_ATTENTION
+                                            } else {
+                                                snapshot = executePagination(
+                                                    current, repository, workerTabId = tabId
+                                                )
+                                                outcome = VideoSearchWorkerVerification
+                                                    .finalQueueStatus(snapshot)
+                                            }
+                                        }
+                                    }
+                                } finally {
+                                    // Remove ONLY the tab we created, never a user's selected tab.
+                                    if (store.state.selectedTabId != tabId &&
+                                        store.state.tabs.any { it.id == tabId }) {
+                                        applicationContext.components.tabsUseCases.removeTab(tabId)
+                                    }
+                                }
+                            }
+                            withContext(Dispatchers.IO) {
+                                journal.record(site, outcome, snapshot)
+                            }
+                            outcome
+                        },
                     )
                 }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
             } catch (_: Exception) {
                 queue.stopPending()
             } finally {
@@ -915,12 +1026,18 @@ internal class VideoSearchBridgeController(
                     if (queue.statusOf(site.id) == VideoSearchQueueStatus.LEASED)
                         queue.resolve(site.id, VideoSearchQueueStatus.STOPPED)
                 }
+                try {
+                    withContext(NonCancellable + Dispatchers.IO) {
+                        journal.finish(queue)
+                    }
+                } catch (_: Exception) {
+                    // Do not claim a completed run if the transaction failed.
+                }
                 lastMulti[plan.scope.profileId] = queue.snapshot()
                 if (lastMulti.size > 4) lastMulti.remove(lastMulti.keys.first())
                 multiQueue = null
                 Toast.makeText(applicationContext,
-                    "Zavro: próba uruchomienia wyszukiwań zakończona. " +
-                        "Sprawdź status witryn w Moich witrynach.",
+                    "Zavro: wyszukiwanie zakończone lub zatrzymane. Sprawdź historię wyników.",
                     Toast.LENGTH_LONG).show()
             }
         }
