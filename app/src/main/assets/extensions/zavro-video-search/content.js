@@ -491,7 +491,7 @@
       } else if (kind === "cards") {
         selector = manualCard(node);
         if (selector) {
-          try { element = document.querySelector(selector); }
+          try { element = document.querySelectorAll(selector)[0] || null; }
           catch (_) { selector = null; }
         }
       } else if (kind === "next") {
