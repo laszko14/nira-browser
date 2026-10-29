@@ -20,6 +20,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.prirai.android.nira.browser.profile.ProfileManager
+import com.prirai.android.nira.browser.tabgroups.UnifiedTabGroupManager
 import com.prirai.android.nira.ext.components
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -43,6 +44,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private lateinit var selectAllButton: Button
     private lateinit var clearButton: Button
     private lateinit var parallelismButton: Button
+    private lateinit var defaultGroupButton: Button
     private lateinit var queuePreviewButton: Button
     private lateinit var multiStatusButton: Button
     private lateinit var stopMultiButton: Button
@@ -108,6 +110,11 @@ class MyVideoSitesActivity : AppCompatActivity() {
         dispatchControls.addView(parallelismButton, LinearLayout.LayoutParams(0, -2, 1f))
         dispatchControls.addView(queuePreviewButton, LinearLayout.LayoutParams(0, -2, 1f))
         root.addView(dispatchControls)
+        defaultGroupButton = Button(this).apply {
+            text = "Filmy otwieraj: Bez grupy"
+            setOnClickListener { chooseDefaultVideoGroup() }
+        }
+        root.addView(defaultGroupButton)
 
         val multiActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         multiStatusButton = Button(this).apply {
@@ -204,6 +211,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             selectAllButton.isEnabled = false
             clearButton.isEnabled = false
             parallelismButton.isEnabled = false
+            defaultGroupButton.isEnabled = false
             queuePreviewButton.isEnabled = false
             multiStatusButton.isEnabled = false
             stopMultiButton.isEnabled = false
@@ -216,6 +224,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
         input.isEnabled = true
         addButton.isEnabled = true
         parallelismButton.isEnabled = true
+        defaultGroupButton.isEnabled = true
         queuePreviewButton.isEnabled = true
         multiStatusButton.isEnabled = true
         stopMultiButton.isEnabled = true
@@ -239,6 +248,13 @@ class MyVideoSitesActivity : AppCompatActivity() {
                             (if (prefs.parallelism == VideoSearchParallelism.ALL)
                                 "Wszystkie" else
                                 prefs.parallelism.maximumSites.toString())
+                        val group = prefs.defaultTabGroupId?.let {
+                            UnifiedTabGroupManager.getInstance(applicationContext).getGroup(it)
+                        }?.takeIf { it.contextId == current.contextId }
+                        defaultGroupButton.text = "Filmy otwieraj: " +
+                            (if (prefs.defaultTabGroupId == null) "Bez grupy"
+                             else group?.name?.ifBlank { "Grupa bez nazwy" }
+                                ?: "Grupa niedostępna")
                         // Opt-in extension install only after user has added a site
                         // and opened this screen. No Gecko cold-start injection.
                         if (sites.isNotEmpty()) {
@@ -512,6 +528,79 @@ class MyVideoSitesActivity : AppCompatActivity() {
                     VideoSearchBridgeHost.instance()?.stopMultiSite(owner)
                 }
             }.show()
+    }
+
+    /**
+     * Stage 7A: select one existing group in the ACTIVE normal profile.
+     * The group manager is allowed to finish its async load before the menu
+     * is built. No new group is created or silently picked for the user.
+     */
+    private fun chooseDefaultVideoGroup() {
+        val owner = ownerIfCurrent() ?: return
+        lifecycleScope.launch {
+            defaultGroupButton.isEnabled = false
+            try {
+                val manager = UnifiedTabGroupManager.getInstance(applicationContext)
+                if (!manager.awaitInitialized()) {
+                    if (ownerIfCurrent() == owner) message("Nie można odczytać grup kart")
+                    return@launch
+                }
+                if (ownerIfCurrent() != owner) return@launch
+                val groups = manager.getAllGroups()
+                    .filter { it.contextId == owner.contextId }
+                    .sortedWith(compareBy({ it.name.lowercase() }, { it.id }))
+                val saved = withContext(Dispatchers.IO) {
+                    repository.settings(owner).defaultTabGroupId
+                }
+                if (ownerIfCurrent() != owner) return@launch
+                val names = arrayOf("Bez grupy") + groups.map {
+                    it.name.ifBlank { "Grupa bez nazwy" }
+                }.toTypedArray()
+                val selected = groups.indexOfFirst { it.id == saved } + 1
+                MaterialAlertDialogBuilder(this@MyVideoSitesActivity)
+                    .setTitle("Domyślna grupa dla otwieranych filmów")
+                    .setSingleChoiceItems(names, selected) { dialog, index ->
+                        dialog.dismiss()
+                        if (ownerIfCurrent() != owner) return@setSingleChoiceItems
+                        val id: String? = if (index == 0) null else {
+                            groups.getOrNull(index - 1)?.id
+                                ?: return@setSingleChoiceItems
+                        }
+                        lifecycleScope.launch {
+                            try {
+                                // Recheck scope and real group *at commit time*.
+                                val now = UnifiedTabGroupManager.getInstance(applicationContext)
+                                if (ownerIfCurrent() != owner) return@launch
+                                val group = id?.let(now::getGroup)
+                                if (id != null && (group == null ||
+                                    group.contextId != owner.contextId)) {
+                                    message("Ta grupa nie jest już dostępna w tym profilu")
+                                    return@launch
+                                }
+                                withContext(Dispatchers.IO) {
+                                    repository.setDefaultVideoTabGroup(owner, id)
+                                }
+                                if (ownerIfCurrent() == owner) {
+                                    defaultGroupButton.text = "Filmy otwieraj: " +
+                                        (if (id == null) "Bez grupy"
+                                        else now.getGroup(id)?.name
+                                            ?.ifBlank { "Grupa bez nazwy" }
+                                            ?: "Grupa niedostępna")
+                                }
+                            } catch (_: Exception) {
+                                if (ownerIfCurrent() == owner)
+                                    message("Nie udało się zapisać domyślnej grupy")
+                            }
+                        }
+                    }
+                    .setNegativeButton("Anuluj", null)
+                    .show()
+            } catch (_: Exception) {
+                if (ownerIfCurrent() == owner) message("Nie udało się odczytać grup kart")
+            } finally {
+                if (ownerIfCurrent() == owner) defaultGroupButton.isEnabled = true
+            }
+        }
     }
 
     private fun setSiteSelected(site: VideoSearchSite, selected: Boolean) {

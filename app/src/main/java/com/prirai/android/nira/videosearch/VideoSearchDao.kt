@@ -235,6 +235,28 @@ internal interface VideoSearchDao {
             putSettings(settings.copy(parallelism = mode.name))
     }
 
+    /**
+     * Only the per-profile default destination changes. Never rewrite the
+     * selected sites, parallelism, view or history with a stale UI snapshot.
+     */
+    @Query("UPDATE video_search_settings SET defaultTabGroupId = :groupId WHERE profileId = :profileId")
+    suspend fun setDefaultVideoGroupField(profileId: String, groupId: String?): Int
+
+    @Transaction
+    suspend fun updateDefaultVideoGroup(profileId: String, groupId: String?) {
+        val existing = getSettings(profileId)
+        if (existing == null) {
+            putSettings(VideoSearchSettingsRow(
+                profileId = profileId, selectedSitesJson = "[]",
+                parallelism = VideoSearchParallelism.ONE.name,
+                defaultTabGroupId = groupId, view = VideoSearchView.TILES.name,
+                sortBySiteIdJson = "{}"
+            ))
+        } else if (existing.defaultTabGroupId != groupId) {
+            setDefaultVideoGroupField(profileId, groupId)
+        }
+    }
+
     /** All launch inputs are consistent even if a user edits the UI. */
     @Transaction
     suspend fun getLaunchSnapshot(profileId: String): VideoSearchLaunchSnapshotRows =

@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.prirai.android.nira.browser.profile.ProfileManager
 import com.prirai.android.nira.ext.components
+import com.prirai.android.nira.browser.tabgroups.UnifiedTabGroupManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
@@ -177,23 +178,70 @@ private fun VideoSearchResultsTabBound(
             }
         },
         onOpen = { film ->
-            val current = state.snapshot?.run
-            val store = context.applicationContext.components.store.state
-            if (isActiveNormalProfile(context, profileId) &&
-                store.selectedTabId == tabId &&
-                current?.id == film.runId && film.scope == scope &&
-                film.siteId in current.siteIds &&
-                store.tabs.any { it.id == tabId && !it.content.private &&
-                    it.contextId == scope.contextId &&
-                    it.content.url == VIDEO_SEARCH_RESULTS_TAB_URL }) {
+            uiScope.launch {
                 try {
+                    // Preferences are scoped to the *owner* of the results
+                    // tab, not whichever profile is currently in the UI.
+                    val preferred = withContext(Dispatchers.IO) {
+                        repository.settings(scope).defaultTabGroupId
+                    }
+                    val manager = preferred?.let {
+                        UnifiedTabGroupManager.getInstance(context.applicationContext)
+                    }
+                    val loaded = manager?.awaitInitialized() == true
+                    val current = state.snapshot?.run
+                    val browser = context.applicationContext.components
+                    val store = browser.store.state
+                    if (!isActiveNormalProfile(context, profileId) ||
+                        store.selectedTabId != tabId ||
+                        current?.id != film.runId || film.scope != scope ||
+                        film.siteId !in current.siteIds ||
+                        store.tabs.none { it.id == tabId && !it.content.private &&
+                            it.contextId == scope.contextId &&
+                            it.content.url == VIDEO_SEARCH_RESULTS_TAB_URL }) {
+                        return@launch
+                    }
                     VideoSearchIntegrity.requirePageUrl(film.filmPageUrl)
-                    context.applicationContext.components.tabsUseCases.addTab.invoke(
-                        film.filmPageUrl, selectTab = true,
+                    val destination = if (loaded && manager != null)
+                        VideoSearchDefaultGroupPolicy.destination(
+                            preferred, scope,
+                            manager.getAllGroups().map { it.id to it.contextId }
+                        ) else null
+                    // Create UNSELECTED first. Selecting now would dispose
+                    // this Compose scope and cancel the suspend grouping step.
+                    val newTabId = browser.tabsUseCases.addTab.invoke(
+                        film.filmPageUrl, selectTab = false,
                         private = false, contextId = scope.contextId,
                     )
+                    if (destination != null &&
+                        isActiveNormalProfile(context, profileId) &&
+                        browser.store.state.tabs.any { it.id == newTabId &&
+                            !it.content.private && it.contextId == scope.contextId }) {
+                        // A deleted group or a failed Room mutation must NOT
+                        // prevent opening the film; the fallback is ungrouped.
+                        try {
+                            manager?.addTabToGroup(newTabId, destination)
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            // Stage 7C will expose a dedicated deleted-group
+                            // fallback UI. Never move to a foreign group.
+                        }
+                    }
+                    // Select only after grouping has finished. If the user
+                    // switched tabs/profiles in the meantime, do not steal focus.
+                    val latest = browser.store.state
+                    if (isActiveNormalProfile(context, profileId) &&
+                        latest.selectedTabId == tabId &&
+                        latest.tabs.any { it.id == newTabId &&
+                            !it.content.private && it.contextId == scope.contextId }) {
+                        browser.tabsUseCases.selectTab(newTabId)
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
                 } catch (_: Exception) {
-                    // Do not silently route an invalid URL to an external app.
+                    // Grouping failure must not close, lose or reroute an
+                    // already opened user's film tab. Fallback UI is stage 7C.
                 }
             }
         },

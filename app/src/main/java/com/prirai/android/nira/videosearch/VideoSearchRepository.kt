@@ -244,6 +244,14 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
         scope: VideoSearchScope.Normal, parallelism: VideoSearchParallelism,
     ) = dao.updateParallelism(scope.profileId, parallelism)
 
+    /** Per-profile selected destination for film PAGE tabs; null means outside groups. */
+    suspend fun setDefaultVideoTabGroup(
+        scope: VideoSearchScope.Normal, groupId: String?,
+    ) {
+        require(groupId == null || groupId.isNotBlank())
+        dao.updateDefaultVideoGroup(scope.profileId, groupId)
+    }
+
     /**
      * Build a non-persistent, per-profile dispatch snapshot inside one read
      * transaction. Never open Gecko tabs or persist a run in stage 5A.
