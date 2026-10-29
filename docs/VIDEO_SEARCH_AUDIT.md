@@ -2,10 +2,10 @@
 
 ## Stan i zasady wznowienia
 
-- 2026-10-29: **A1 / 4 zakończony (audyt statyczny + dowód użytkownika)**; żadnej naprawy aplikacji jeszcze nie wdrożono.
+- 2026-10-29: **A1 i A2 / 4 zakończone** (A1: kod + zdjęcie; A2: kod + celowany eksperyment SQL). Żadnej naprawy aplikacji jeszcze nie wdrożono.
 - Gałąź: `fix/zavro-clean-video-search-audit-20261029`, baza `1ad05e9d12af3e060e4110880abb3fd65b313f1b` (potwierdzona przez `git ls-remote`). Bazowa gałąź `feat/zavro-clean-video-search-20261029` zachowana.
 - Źródła APK v1191: `200f17f5914b328598ddf8724db49cff2f5107ad`. Porównanie z bazą audytu: różni się wyłącznie `docs/AI_HANDOFF.md`; kod UI odpowiada zatem źródłom skompilowanego APK. Historyczne CI: https://github.com/laszko14/nira-browser/actions/runs/40894977952 — nie uruchamiano ponownie i nie przypisujemy jego wyników nowemu commitowi.
-- A2, A3, A4: **NOT_TESTED / niewykonane**. Implementacja dopiero po A4 i kolejnym „Dalej”; liczba etapów N dopiero na podstawie końcowego backlogu A4.
+- A3, A4: **NOT_TESTED / niewykonane**. Implementacja dopiero po A4 i kolejnym „Dalej”; liczba etapów N dopiero na podstawie końcowego backlogu A4.
 - Jedno „Dalej” = jeden następny etap/podetap. Bez APK/workflow budującego APK do osobnego „Kompiluj”/„Już”.
 
 ## A1 / 4 — cel, zakres, dowody
@@ -72,7 +72,7 @@ Odnośniki do kodu dotyczą bazy audytu; `MVS` poniżej = `app/src/main/java/com
 | Analiza zdjęcia i ścieżek kodu UI | PASS | Prześledzono wejście, formularze, listenery, warunki dostępności, powroty, oba panele, motyw, manifest i insets. Objaw braku formularza na zdjęciu pozostaje błędem wersji v1191. |
 | Kontrola geometrii/klawiatury/obrotu na Androidzie | NOT_TESTED | `adb devices`: brak podłączonych urządzeń; brak uruchomionego emulatora. Nie ustalono definitywnie H1. |
 | JUnit/JS/lint/Gradle/APK/nowe CI | NOT_TESTED | Dokumentacyjny etap, bez uruchamiania buildów; wcześniejszy sukces nie jest testem tego UI. |
-| Istniejące pokrycie UI | PASS (przegląd) | `MyVideoSitesRepositoryTest`, `ManagementTest`, `SelectionTest` badają dane/Room; wyszukiwanie odwołań MVS w testach nie wykazało testu uruchamiającego tę Activity i jej geometrię. Testy nawigacji prywatnych wyników nie sprawdzają layoutu. |
+| Istniejące pokrycie UI | PASS (przegląd) | `MyVideoSitesRepositoryTest`, `MyVideoSitesManagementTest`, `MyVideoSitesSelectionTest` badają dane/Room; wyszukiwanie odwołań MVS w testach nie wykazało testu uruchamiającego tę Activity i jej geometrię. Testy nawigacji prywatnych wyników nie sprawdzają layoutu. |
 
 Scenariusze dla P1/N i późniejszej weryfikacji (obecnie wszystkie runtime **NOT_TESTED**):
 
@@ -84,9 +84,77 @@ Scenariusze dla P1/N i późniejszej weryfikacji (obecnie wszystkie runtime **NO
 
 Ryzyko przyszłej poprawki: podwójne insets ActionBar/status, zmniejszenie pola listy przez IME, konflikty przewijania i drag, pomylenie stanu dwóch profili, regresje innych Activity przy zmianie wspólnego motywu. Proporcjonalne testy: rzeczywisty pomiar/layout w Robolectric tam, gdzie wiarygodny; instrumentacja i ręczne próby Android 15 do końcowej geometrii, IME i Gecko. Same regexy źródeł ani kompilacja nie zaliczają kryteriów wizualnych. Pomiar 120 Hz w A4; bez zmian częstotliwości.
 
+## A2 / 4 — zarządzanie witrynami i konfiguracja
+
+Audyt na czystym HEAD `674bd5c929959a617e9db063315b8a823f9892a6`, zgodnym z origin; wznowiono tę samą gałąź. Cel: prześledzić dziesięć operacji zarządzania i granice UI–Gecko–WebExtension–repozytorium–Room–profile, bez powtarzania A1. Kryterium ukończenia: dowody zapisu i ochrony konfiguracji, konkretne usterki/ograniczenia oraz luki testów. **PASS dla wykonania audytu, nie dla działania całej funkcji.**
+
+Skróty: `Repo` = VideoSearchRepository.kt, `DAO` = VideoSearchDao.kt, `Bridge` = VideoSearchBridgeController.kt, `JS` = assets/extensions/zavro-video-search/content.js. Pliki Kotlin w tym samym pakiecie videosearch co MVS.
+
+### Przepływ i pokrycie wymagań
+
+| Operacja | Rzeczywista implementacja i wynik przeglądu |
+| --- | --- |
+| 1. Dodanie | MVS:741–764 → Repo:30–47 → DAO:60–65. `siteInputUrl` dodaje HTTPS do domeny, przycina zewnętrzne białe znaki, zachowuje ścieżkę/query; odrzuca credentials i inne schematy. Zapis nie wymaga sieci ani konfiguracji. Nie uruchamia automatu bezpośrednio po dodaniu; automat DOM jest jawnie wywoływany przyciskiem „Rozpoznaj”. Nie dodawać samowolnie skanowania/sieci w tle. |
+| 2. Trwałość mimo błędu | Nowy rekord ma NEEDS_CONFIGURATION, własny ID i pozycję. Transakcja `createSiteIfAbsent` zwraca istniejący rekord dla identycznego URL bez nadpisania konfiguracji. `markAutoConfigurationIncomplete` nie usuwa witryny ani konfiguracji. `VideoSearchDatabase` to osobna trwała baza v1 bez destrukcyjnego fallbacku. Ponowne otwarcie bazy objęte istniejącymi testami, nie wykonano ich ponownie. |
+| 3. Automat | MVS:1106–1150 → Bridge:969–973 → request/port → JS:124–145. Skan na żądanie, najwyżej pierwsze 80 inputów, konserwatywna punktacja, wymagany jednoznaczny selektor i bezpieczny mechanizm wysłania. READY wymaga też rozpoznanych kart. Częściowy wynik jest propozycją RAM ważną 120 s dla danego session/document, nie kompletną trwałą konfiguracją (Bridge:309–316,1346–1357). Ograniczenia CFG-01/02/04 poniżej. |
+| 4. Ręczny wybór | MVS:1273–1307 → Bridge:1253–1334, kreator input/submit/cards/next. JS:149–307: przechwytuje zaufane dotknięcia, opcjonalne kroki można pominąć; brak zapisu przy przerwaniu kreatora. Zakończony kreator zapisuje pełny lub częściowy JSON przez `applyManualConfiguration`; brak kart daje REPAIR_REQUIRED. Nie jest to edytor osobnych selektorów, zawsze zaczyna od input. |
+| 5. Ponawianie i edycja | Nazwa i limit zmieniane jednym UPDATE bez zmiany URL/selektorów. Przy istniejącej konfiguracji „Rozpoznaj” odmawia nadpisania; „Sprawdź” diagnozuje, a `offerRepair` wymaga jawnej zgody na zastąpienie, maksymalnie dwie próby. Automat nie zastępuje również częściowej konfiguracji ręcznej bez `confirmedReplace`. Ręczne ponowne wskazanie tworzy nowy cały JSON; pominięte kroki nie są scalane ze starymi. |
+| 6. Włączanie | MVS:1545–1560 → Repo → DAO:107–108, pojedynczy UPDATE pola enabled i daty, bez utraty listy/selektorów. Wyłączona witryna nie jest wykonywana; pamięta wcześniejszy wybór. |
+| 7–8. Wybór i pamięć | DAO:170–229: transakcje dla pojedynczego/zbiorowego wyboru, oddzielny JSON ustawień per profileId. „Wszystkie” dodaje wszystkie aktywne, zachowując dawne wyłączone; „Odznacz wszystkie” usuwa także zapamiętane wyłączone. Wybór nie jest ograniczony równoległością. Snapshot wykonania filtruje enabled i zachowuje kolejność. Repo/MVS odtwarzają dane przez Flow, nie przez stan CheckBox. |
+| 9. Przeciąganie | MVS:214–248,1562–1595,1640–1690: lokalny porządek podczas drag, blokowanie nadpisania przez Flow, zapis końcowy. DAO:121–137: transakcyjne porównanie pełnej oryginalnej kolejności, kontrola permutacji, gęste pozycje; stare żądanie odrzucane. Po błędzie odświeżenie danych. Realny gest i wyścigi pauzy/Flow pozostają NOT_TESTED. |
+| 10. Usunięcie | MVS:1599–1621: dialog z Anuluj/Usuń, dopiero `confirmed=true` trafia do Repo. DAO:144–159 usuwa rekord i jego wybór w jednej transakcji. Wyszukanie call-site'ów nie wykazało automatycznego usuwania witryn po błędzie konfiguracji. Prywatny przycisk „Usuń” jest jawnym żądaniem usunięcia RAM, bez dodatkowego dialogu. |
+
+### Granice danych i autoryzacji
+
+- Room: klucze witryn/ustawień zawierają profileId (`VideoSearchDbRows:12–38`); zapytania są filtrowane po profilu. `VideoSearchRowCodec:66–84` odrzuca prywatny scope przed konwersją do rekordu. Operacje selekcji/kolejności są transakcyjne. Baza nie ma unikalnego indeksu po URL, ale produkcyjna ścieżka dodawania serializuje sprawdzenie i insert w transakcji. Nie uznano tego za samodzielną usterkę.
+- UI sprawdza bieżący owner i ponownie czyta witrynę przed konfiguracją. Repo nie czyta ProfileManager; traktuje przekazany scope jako właściciela operacji. Nie oznacza to automatycznie autoryzacji aktualnego foreground podczas każdego asynchronicznego zapisu; wyścigi przełączenia profilu/Activity są do analizy A4.
+- Gecko: właściciel pochodzi z BrowserStore/contextId i hosta, nigdy z JS. `currentTab/isFresh` (Bridge:131–159) wiążą EngineSession, URL, documentId i profil; odpowiedzi muszą pasować do requestId, rodzaju zadania i dokumentu (238–320). Jedno pending na session, timeout i odrzucanie nieaktualnych odpowiedzi. Dwie identyczne otwarte witryny powodują odmowę `singleOrNull`, zamiast zgadywania karty.
+- WebExtension: wyłącznie główny dokument HTTP(S), `document_idle`, bez iframe (`manifest.json`, JS:7). POST, obce origin i formularze hasła są celowo odrzucane (JS:20–30). Brak wsparcia niektórych stron nie uprawnia do osłabienia tych ograniczeń.
+- Prywatne witryny: `VideoSearchPrivateSitesAccess` → `withAuthorizedTab` → `VideoSearchPrivateStore`, wyłącznie RAM, maksymalnie 200 witryn; dodana witryna jest od razu zaznaczona. UI udostępnia dodanie/wybór/usunięcie, nie udostępnia odpowiedników edycji/enable/drag/ręcznego kreatora zwykłego profilu. To **potwierdzona różnica zakresu**, nie dowód parytetu funkcji. Przed rozszerzeniem ustalić wymagany zakres w A4; nie przenosić tych danych do Room. Pełna kontrola końca sesji/prywatnego Gecko należy do A4.
+
+### Usterki, ograniczenia i brakujące scenariusze
+
+**CFG-01 · P1 · przekierowany zapisany URL może uniemożliwić konfigurację i późniejsze szukanie. Potwierdzony warunek w kodzie; witryny/urządzenie NOT_TESTED.**
+
+`Bridge:865–882` dopasowuje automat i zwykłe pojedyncze wyszukiwanie do dokładnego zapisanego URL (pomija tylko końcowe `/`). Przykładowy syntetyczny scenariusz: zapis `http://example.invalid` → przekierowanie na `https://example.invalid`, albo dodane HTTPS → `www`/inna ścieżka językowa. Aktualna karta nie pasuje do rekordu; automat odmawia, a ręczny kreator też odmówi przy zmianie origin. Edycja MVS pozwala zmienić nazwę/limit, nie URL. Witryna pozostaje zapisana, ale użytkownik musi ustalić końcowy adres i dodać osobny rekord. Nie stwierdzono utraty danych.
+
+Naprawa do rozważenia: jawna, kontrolowana aktualizacja adresu/zaakceptowanie kanonicznego celu z zachowaniem ID i danych oraz unieważnieniem niepasującej konfiguracji za zgodą. Nie luzować globalnie dopasowania URL ani obcinać query/tokenów. PASS: kontrolowane przekierowanie i korekta URL umożliwiają konfigurację bez obcej karty/profilu oraz bez zniknięcia starej listy/wyboru. Testy: fixture redirect w Gecko + Room dla korekty/konfliktów i zachowania parametrów.
+
+**CFG-02 · P1 · brak płynnej konfiguracji między stroną formularza a wynikami. Potwierdzona luka przepływu; realne serwisy NOT_TESTED.**
+
+Automat działa tylko na zapisanym dokładnym adresie i rozpoznaje karty wyłącznie tam. Jeśli homepage zawiera pole, ale nie wyniki, otrzymuje PARTIAL; propozycja RAM pozwala spróbować pojedynczego szukania, lecz na `/results` nie ma ścieżki automatycznego uzupełnienia konfiguracji tego rekordu. Ręczny kreator może zacząć na dowolnej stronie tego samego origin (`manualSiteTab`), ale wymaga input i wszystkich dalszych kroków w tym samym dokumencie (Bridge:1270–1300). Nie wysyła zapytania między krokami; picker blokuje normalne kliknięcia (JS:256–307). Gdy wyników nie ma na stronie formularza, można pominąć cards i zapisać częściową konfigurację, lecz nie ma osobnego „uzupełnij karty” bez ponownego wskazywania input. Jeżeli strona wyników ma inny input/submit niż homepage lub nie ma go wcale, pełna konfiguracja jest zablokowana albo zapisane selektory nie pasują do strony startowej.
+
+Naprawa wymaga osobnego, kontrolowanego przepływu uzupełniania konfiguracji na wynikach (zachowanie potwierdzonych selektorów formularza i weryfikacja owner/dokumentu na każdym kroku), nie wyłączenia obecnych zabezpieczeń dokumentu. PASS: fixture z formularzem tylko na homepage i kartami tylko na `/results` można skonfigurować i ponownie użyć po restarcie. Testy: rzeczywisty wielostronicowy kreator Gecko, anulowanie, zmiana profilu/karty, Room z częściowym scalaniem. W A4 ocenić potrzebny oddzielny etap.
+
+**CFG-03 · P1 · ochrona przed starym zapisem ma kolizję znacznika czasu. ODTWORZONE na rzeczywistych zapytaniach DAO w SQLite.**
+
+Repo:51–80 sprawdza konfigurację na przekazanym snapshocie; SQL DAO:72–87 weryfikuje ID/URL/enabled/`updatedAtMs`, bez porównania obecnego JSON. `updatedAtMs` jest czasem ściennym w ms, nie gwarantowaną rewizją. Dwa zapisy z tym samym timestampem pozostawiają stary snapshot nadal ważny. Stary automat, rozpoczęty przed ręczną konfiguracją, może ją zastąpić bez `confirmedReplace`, mimo ochrony poprawnej dla różnych dat.
+
+Eksperyment A2: Python sqlite3 `:memory:`, zapytania wydobyte bez zmian z adnotacji `acceptManualConfiguration` i `acceptAutoConfiguration`; syntetyczny rekord NEEDS_CONFIGURATION, enabled=1, updatedAtMs=1000. Ręczny UPDATE z expected=1000/now=1000 zapisał JSON manual; następnie stary auto UPDATE z expected=1000/now=1001 zapisał JSON auto. **Oba zwróciły rowcount=1; końcowa konfiguracja była auto. FAIL oczekiwanej ochrony.** Nie jest to uruchomienie Repo/Room ani pomiar częstości na Androidzie.
+
+Naprawa: odporna na kolizje kontrola wersji rekordu/porównanie oczekiwanej konfiguracji przy atomowym zapisie; nie opierać wyłącznie na upływie ms. PASS: stary automat i stary kreator nie zmieniają nowszej konfiguracji przy identycznym czasie i przy cofnięciu zegara, także po enable/edycji. Testy: celowane JUnit/Room dla tych kolizji, zachowanie zaakceptowanej naprawy i izolacji profili. Zakres bez konieczności migracji rozstrzygnąć w implementacji, nie zakładać nowej zależności.
+
+**CFG-04 · P2 · SPA ze zmianą URL w tym samym dokumencie traci gotowość mostu. Potwierdzona blokada kodu; zachowanie Gecko NOT_TESTED.**
+
+JS:12,719–720 zapamiętuje startUrl i odrzuca dalsze komendy przy `location.href !== startUrl`; Hello zawiera startUrl. `isFresh` porównuje aktualny URL BrowserStore do portu. Brak ponownego handshake na pushState/popstate. Po client-side zmianie ścieżki/query/hash dokument może pozostać żywy, ale komendy nie będą obsługiwane do ponownego załadowania. Dokładne zachowanie BrowserStore/Gecko po history API wymaga instrumentacji. Kierunek: jawne odnowienie powiązania dokumentu i unieważnienie pending/propozycji przy nawigacji SPA, bez akceptowania starych wiadomości. PASS: konfiguracja/walidacja wracają do gotowości po kontrolowanej same-origin zmianie, obcy origin i stare odpowiedzi nadal odrzucane. Wspólny problem z A3; tam nie dublować zadania.
+
+**CFG-05 · P2 · rozpoznanie kart jest wąską heurystyką, READY nie dowodzi działania wyszukiwarki. Ryzyko jakości, bez dowodu błędu konkretnej witryny.**
+
+JS:103–113 używa siedmiu ustalonych selektorów, wymaga co najmniej dwóch elementów z linkami i dokładnie jednego pasującego selektora. Jedna karta, dwie pasujące rodziny klas lub inne nazwy dają brak pełnego automatu. Nie wykonuje próbnego wyszukiwania; karty polecanych filmów na homepage mogą wystarczyć do READY i trwałego CONFIGURED. Ręczny picker kart dopuszcza jedną kartę, ale wybiera pierwszy pasujący selektor klasy przodka, nie dowodzi semantyki wyników. Przed zmianą heurystyk potrzebne fixture i realne przypadki; nie oznaczać CONFIGURED jako zweryfikowanego end-to-end. Kryteria/testy korelacji i ekstrakcji rozszerzyć w A3.
+
+Nie potwierdzono: utraty witryn po błędzie, zwykłego nadpisywania manual przez automat przy poprawnie różniących się rewizjach, utraty zapamiętanego wyboru, nieatomowej kolejności ani automatycznego usuwania po nieudanym rozpoznaniu. Nie dopisywać takich usterek na podstawie samej hipotezy.
+
+### Testy i ryzyka A2
+
+- **PASS — przegląd:** `MyVideoSitesRepositoryTest` (natychmiastowy zapis, duplikat, reopen, błędy, równoczesne add); `MyVideoSitesManagementTest` (edycja/enable/reorder, rollback, profile); `MyVideoSitesSelectionTest` (pojedynczy/all/disabled, współbieżność, reopen); `VideoSearchAutoConfigurationTest`, `VideoSearchManualConfigurationTest`, `VideoSearchConfigurationHealthTest`; `VideoSearchPrivateSitesAccessTest` i granica codec. To istniejące testy danych/protokołu, nie potwierdzenie uruchomienia kreatora w Gecko.
+- **FAIL — celowany eksperyment SQLite:** CFG-03, inwariant odrzucenia starego auto-zapisu. Powtórzenie w prawdziwym Room/JUnit jeszcze **NOT_TESTED**. Testy stale scan/wizard używają różnych `nowMs`; nie zaliczają kolizji czasu.
+- **NOT_TESTED:** JUnit/JS/Gradle/lint/CI/APK w A2, realne strony i telefon. Wyszukanie odwołań `zavro-video-search`, `detectResults`, `manualCard` w istniejącym `app/src/test/js` nie znalazło testu tej funkcji; historyczne 218 JS PASS nie dowodzi działania jej DOM/pickera.
+- Brakujące scenariusze: pełne add → błąd konfiguracji → zamknięcie procesu → reopen; przekierowania; jeden film/brak wyników; formularz GET na innej stronie niż wyniki; SPA i opóźniony DOM; wygenerowane/zmienione selektory; 2 identyczne karty; anulowanie i timeout każdego kroku; edycja/disable/delete/reorder podczas kreatora; kolizja/rewers czasu; szybkie przeciwne checkbox/toggle z opóźnionymi zapisami; przełączenie profilu podczas odpowiedzi/synchronizacji UI; prywatna lista po ostatniej karcie. Nie zakładać, że zachowanie jest błędne, zanim dany scenariusz zostanie wykonany.
+- Ryzyka przyszłych napraw: złagodzenie dopasowania może objąć niewłaściwą kartę/origin; scalenie częściowej konfiguracji może zachować nieaktualne selektory; zmiana CAS może odrzucać prawidłowe zapisy; zmiana URL może uszkodzić powiązanie historii/wyboru; zmiana RAM nie może wprowadzić trwałych danych prywatnych. Dalsze analizy A3/A4, następnie dopiero końcowy backlog i implementacja.
+
 ## Mapa dalszych etapów
 
-- **A2 / 4 — następny, dopiero po „Dalej”**: dodawanie, trwałość mimo błędu, automat/ręczna konfiguracja, ponawianie/edycja, enable/selection/order/removal; granice UI–Gecko–WebExtension–Room–profile. Wykorzystać ustalenia A1, nie powtarzać audytu niezmienionego UI.
-- A3 / 4: silnik wyszukiwania, wyniki i metadane.
+- A2 / 4: zakończony; dowody i CFG-01–05 powyżej, bez napraw.
+- **A3 / 4 — następny, dopiero po „Dalej”**: silnik wyszukiwania, wyniki i metadane. Prześledzić wykonanie normalne/prywatne, kolejkę/limity/paginację, URL/tytuły/miniatury, historię i foldery. Wykorzystać CFG-02/04/05 bez powtórnego audytu zapisu/konfiguracji.
 - A4 / 4: prywatność, cykl życia, wydajność, testy i końcowy backlog P0–P3 z kryteriami PASS oraz liczbą etapów implementacyjnych N.
-- P1 / N: najpierw UI-01 i konieczne powiązane warunki dostępności formularza. Inne naprawy dopiero według końcowego backlogu. **STOP po A1.**
+- P1 / N: najpierw UI-01 i konieczne powiązane warunki dostępności formularza. Inne naprawy dopiero według końcowego backlogu. **STOP po A2.**

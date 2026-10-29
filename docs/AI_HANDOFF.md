@@ -1,4 +1,15 @@
-# Checkpoint — Wyszukiwarka filmów — A1 / 4 — 2026-10-29
+# Checkpoint — Wyszukiwarka filmów — A2 / 4 — 2026-10-29
+
+- **STATUS: PASS dla ukończenia audytu A2; znaleziony inwariant zapisu FAIL w eksperymencie SQLite.** Bez zmian aplikacji i bez uruchamiania JUnit/JS/Gradle/CI/APK. Telefon/Gecko NOT_TESTED.
+- Gałąź `fix/zavro-clean-video-search-audit-20261029`; rodzic A2 `674bd5c929959a617e9db063315b8a823f9892a6`, potwierdzony z origin i czystym drzewem przed pracą. Baza v1191 pozostaje `1ad05e9d12af3e060e4110880abb3fd65b313f1b`. Commit tego checkpointu ustala `git log -1`; dwa pliki dokumentacji w jednym logicznym commicie.
+- `docs/VIDEO_SEARCH_AUDIT.md`: dodano A2, mapę dziesięciu operacji, granice UI/Gecko/WebExtension/Room/profili, CFG-01–05 i luki testów. Zapis przed konfiguracją, zachowanie rekordów po błędach, selekcja/drag/delete są obecne w kodzie; nie oznacza to PASS realnych stron.
+- **CFG-03 P1, odtworzone:** SQL DAO używa updatedAtMs jako rewizji. Syntetyczny ręczny zapis expected=1000/now=1000, potem stary automat expected=1000/now=1001: oba UPDATE zwracają 1, automat nadpisuje manual. Użyto niezmienionych zapytań z adnotacji DAO w Python sqlite3 `:memory:`; Repo/Room i częstość na Androidzie NOT_TESTED. Potrzebny celowany test Room przy przyszłej naprawie.
+- Pozostałe: CFG-01 dokładny URL blokuje przekierowania i brak jego edycji; CFG-02 kreator wymaga jednego dokumentu, brak osobnego uzupełnienia kart na wynikach; CFG-04 SPA zmieniająca URL unieważnia most do reload; CFG-05 heurystyka READY nie dowodzi end-to-end. Warunki kodu potwierdzone, realne witryny NOT_TESTED. Prywatny UI ma mniejszy zakres zarządzania; nie rozszerzać polityki ani trwałości bez podstawy w końcowym planie.
+- **Następny krok wyłącznie po „Dalej”: A3 / 4** — przepływ wyszukiwania, kolejki/równoległość, paginacja i limity 200/2000, wyniki/URL/metadane, historia, foldery/cache i otwieranie filmu. Oprzeć się na A1/A2, nie powtarzać audytu niezmienionej konfiguracji. A4 i cała implementacja jeszcze niewykonane; P1/N nadal najpierw formularz UI-01. Bez APK/workflow do osobnego „Kompiluj”/„Już”. **STOP.**
+
+---
+
+# Poprzedni checkpoint — Wyszukiwarka filmów — A1 / 4 — 2026-10-29
 
 - **STATUS: PASS dla audytu A1; UI na urządzeniu NOT_TESTED przez Codex.** Dowód użytkownika v1191 potwierdza niedostępne adres/Dodaj i przycięty pierwszy rząd. Nie naprawiono jeszcze aplikacji.
 - Gałąź robocza `fix/zavro-clean-video-search-audit-20261029`; baza zweryfikowana lokalnie i zdalnie: `1ad05e9d12af3e060e4110880abb3fd65b313f1b`. Kod aplikacji identyczny ze źródłami APK `200f17f5914b328598ddf8724db49cff2f5107ad` (różnił się tylko handoff). Baza v1191 zachowana. Commit A1 identyfikuje `git log -1` na gałęzi roboczej; dokumentacja i checkpoint są w jednym commicie.
