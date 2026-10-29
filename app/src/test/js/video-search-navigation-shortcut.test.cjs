@@ -74,7 +74,7 @@ test('auto-opened picker is bound to exact selected normal tab and bounded ready
   const launch = between(bridge, 'fun canOpenManual(site:', 'val original = manualSiteTab(site) ?: return@launch');
   assert.match(launch, /!manager\.isPrivateMode\(\)/);
   assert.match(launch, /manager\.getActiveProfile\(\)\.id == owner\.profileId/);
-  assert.match(launch, /manualBusy \|\| crawlBusy \|\| isMultiSiteActive\(\)/);
+  assert.match(launch, /!manualBusy && !crawlBusy && !isMultiSiteActive\(\)/);
   assert.match(launch, /it\.id == store\.state\.selectedTabId/);
   assert.match(launch, /withTimeoutOrNull<Boolean>\(20_000L\)/);
   assert.match(launch, /owner\.ownsTab\(/);
