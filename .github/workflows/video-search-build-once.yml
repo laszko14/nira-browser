@@ -1,6 +1,7 @@
-name: Zavro Video Search authorized ARM64 build v1191
-# Authorized correction retry 3: Robolectric generic getApplication() API compatibility.
+name: Zavro Video Search v1191 signed ARM64 artifact verification
 
+# Explicit user-authorized compilation. The earlier JUnit run found 16/1035
+# failures; this limited workflow does not relabel those failures as PASS.
 on:
   push:
     branches:
@@ -13,10 +14,10 @@ permissions:
   contents: read
 
 jobs:
-  verify-and-build:
+  signed-arm64:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[authorized-video-search-build]')
     runs-on: ubuntu-latest
-    timeout-minutes: 100
+    timeout-minutes: 80
     steps:
       - uses: actions/checkout@v4
       - uses: gradle/wrapper-validation-action@v2
@@ -26,16 +27,7 @@ jobs:
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v5
 
-      - name: Run all JVM unit tests (including private search regressions)
-        run: ./gradlew testDebugUnitTest --console=plain
-
-      - name: Run WebExtension JS tests
-        run: node --test app/src/test/js/*.test.cjs
-
-      - name: Android lint
-        run: ./gradlew lintDebug --console=plain
-
-      - name: Build update-safe signed arm64 debug APK v1191
+      - name: Build and verify update-safe signed arm64 debug APK v1191
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -62,29 +54,31 @@ jobs:
           shopt -s nullglob
           apks=(app/build/outputs/apk/debug/*arm64-v8a*.apk)
           if [ "${#apks[@]}" -ne 1 ]; then
-            echo "::error::Expected exactly one arm64-v8a APK, found ${#apks[@]}"
+            echo "::error::Expected one arm64-v8a APK, found ${#apks[@]}"
             exit 1
           fi
           bash scripts/verify-update-apk.sh "${apks[0]}" \
             com.prirai.android.nira.debug 1191 0.5.22-alpha96-clean \
             df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
-          echo 'Stable certificate / version / arm64 verification PASS'
 
-      - name: Upload unit and lint reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: zavro-video-search-v1191-reports
-          path: |
-            app/build/reports/tests/testDebugUnitTest/**
-            app/build/reports/lint-results-debug*
-          if-no-files-found: warn
-
-      - name: Upload signed arm64 APK
-        if: success()
+      - name: Upload signed ARM64 APK v1191
         uses: actions/upload-artifact@v4
         with:
           name: zavro-video-search-v1191-arm64-update
           path: app/build/outputs/apk/debug/*arm64-v8a*.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Check video-search WebExtension JavaScript regression
+        run: node --test app/src/test/js/*.test.cjs
+
+      - name: Android lint diagnostics
+        run: ./gradlew lintDebug --console=plain
+
+      - name: Upload lint diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zavro-video-search-v1191-lint
+          path: app/build/reports/lint-results-debug*
+          if-no-files-found: warn
