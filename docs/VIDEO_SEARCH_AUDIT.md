@@ -5,7 +5,7 @@
 - 2026-10-29: **A1–A4 / 4 zakończone, P1 / 16 wdrożony w kodzie i sprawdzony lokalnie**. Ustalenia audytu odnoszą się do bazy v1191; bieżący status napraw poniżej. Fizyczne UI/Gecko pozostają NOT_TESTED.
 - Gałąź: `fix/zavro-clean-video-search-audit-20261029`, baza `1ad05e9d12af3e060e4110880abb3fd65b313f1b` (potwierdzona przez `git ls-remote`). Bazowa gałąź `feat/zavro-clean-video-search-20261029` zachowana.
 - Źródła APK v1191: `200f17f5914b328598ddf8724db49cff2f5107ad`. Porównanie z bazą audytu: różni się wyłącznie `docs/AI_HANDOFF.md`; kod UI odpowiada zatem źródłom skompilowanego APK. Historyczne CI: https://github.com/laszko14/nira-browser/actions/runs/40894977952 — nie uruchamiano ponownie i nie przypisujemy jego wyników nowemu commitowi.
-- Implementacja: **1 / 16 wdrożony w kodzie; 64/64 lokalne testy P1 PASS**. **P2A/16 ma zapisane zmiany źródeł i 8 nowych testów, lecz JUnit/Robolectric pozostają NOT_TESTED; P2 nadal PARTIAL.** Następne „Dalej” upoważnia wyłącznie do P2 / 16 (granica prywatnej epoki), nie do całego backlogu. Kryteria wymagające urządzenia pozostają NOT_TESTED, dopóki nie zostaną rzeczywiście sprawdzone.
+- Implementacja: **1 / 16 wdrożony w kodzie; 64/64 lokalne testy P1 PASS**. **P2A/16 plus izolacja profili w P2B: kod i 11 nowych testów zapisane; uruchomienie CI w toku, P2 nadal PARTIAL do potwierdzenia wyników.** Następne „Dalej” upoważnia wyłącznie do P2 / 16 (granica prywatnej epoki), nie do całego backlogu. Kryteria wymagające urządzenia pozostają NOT_TESTED, dopóki nie zostaną rzeczywiście sprawdzone.
 - Jedno „Dalej” = jeden następny etap/podetap. Bez APK/workflow budującego APK do osobnego „Kompiluj”/„Już”.
 
 ## A1 / 4 — cel, zakres, dowody

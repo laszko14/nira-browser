@@ -139,4 +139,49 @@ class VideoSearchPrivateTabLifecycleMiddlewareTest {
         try { f.ram.settings(old); fail("Malformed tab kept RAM active") }
         catch (_: IllegalStateException) {}
     }
+    @Test fun foreignPrivateTabDoesNotJoinOldEpochAfterSwitchingBack() {
+        val f = F()
+        f.add("a-private")
+        val a = f.registry.ownerForTab(f.descriptor("a-private"), "default")!!
+        f.profile = "work"
+        f.add("b-private")
+        assertNull(f.registry.ownerForTab(f.descriptor("b-private"), "work"))
+        f.profile = "default"
+        f.add("ordinary", private = false)
+        assertEquals(a, f.registry.ownerForTab(f.descriptor("a-private"), "default"))
+        assertNull("Profile B tab must never adopt profile A RAM",
+            f.registry.ownerForTab(f.descriptor("b-private"), "default"))
+        assertEquals(1, f.minted)
+    }
+
+    @Test fun survivingForeignTabGetsFreshRamWhenItsProfileBecomesActive() {
+        val f = F()
+        f.add("a-private")
+        val old = f.registry.ownerForTab(f.descriptor("a-private"), "default")!!
+        assertEquals(true, f.sites.addSite(f.descriptor("a-private"), "default", "secret.example.org"))
+        f.profile = "work"
+        f.add("b-private")
+        f.profile = "default"
+        f.remove("a-private")
+        assertNull(f.registry.activeScope())
+        f.profile = "work"
+        val fresh = f.registry.ownerForTab(f.descriptor("b-private"), "work")!!
+        assertNotEquals(old, fresh)
+        assertTrue(f.sites.snapshot(f.descriptor("b-private"), "work")!!.sites.isEmpty())
+        try { f.ram.settings(old); fail("Old private profile data is still readable") }
+        catch (_: IllegalStateException) {}
+    }
+
+    @Test fun removingForeignTabDoesNotPoisonFutureSameIdUnderOwnerProfile() {
+        val f = F()
+        f.add("a")
+        val old = f.registry.ownerForTab(f.descriptor("a"), "default")!!
+        f.profile = "work"
+        f.add("shared-id")
+        f.remove("shared-id")
+        f.profile = "default"
+        f.add("shared-id")
+        assertEquals(old, f.registry.ownerForTab(f.descriptor("shared-id"), "default"))
+    }
+
 }

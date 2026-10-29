@@ -1,3 +1,11 @@
+# P2B/16 — dodatkowa poprawka izolacji profili (2026-10-29)
+
+- Analiza ujawniła wtórny przypadek LC-01: prywatna karta otwarta pod profilem B podczas żywej epoki A mogła później dołączyć do A po powrocie profilu. `VideoSearchPrivateSessionRegistry` zapamiętuje w RAM właściciela każdego obserwowanego żywego ID karty i nie przenosi własności między A/B. Po zamknięciu A możliwe jest utworzenie świeżej pustej epoki B przy legalnym dostępie; dawny RAM A pozostaje wycofany.
+- Dodano 3 testy `VideoSearchPrivateTabLifecycleMiddlewareTest` pokrywające foreign-private, przełączenie z powrotem, świeżą epokę i ponowne użycie ID. Razem nowych testów P2: 11 (8 w P2A + 3 tutaj).
+- Uruchomienie testów jest weryfikowane przez osobny workflow `.github/workflows/video-search-p2-regression.yml`, zawierający WYŁĄCZNIE JUnit/Robolectric, pełną regresję JVM, JS i lint, bez `assemble`/APK. Status wyników należy sprawdzić na rzeczywistym run SHA; nie uznawać ich za PASS przed zakończeniem CI. P3 nie rozpoczęte.
+
+---
+
 # Checkpoint — Wyszukiwarka filmów — P2A/16 (LC-01) — 2026-10-29
 
 - **STATUS: PARTIAL** — poprawka kodu i 8 testów regresyjnych są zapisane, ale nowe JUnit/Robolectric, integracyjne Gecko i telefon **NOT_TESTED** w tym środowisku. P2 nie oznaczać jako zakończone. P1 pozostaje ukończone i niezmienione.

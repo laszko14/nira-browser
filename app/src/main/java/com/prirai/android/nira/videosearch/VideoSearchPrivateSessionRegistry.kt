@@ -38,35 +38,65 @@ internal class VideoSearchPrivateSessionRegistry(
     )
     private var lifetime: Lifetime? = null
 
+    // IDs are accepted only for the normal profile that was active at their
+    // first observation. Gecko's shared private context carries no profile ID.
+    // Without this map, a tab opened under B while A still has a live private
+    // epoch could silently join A when the user switches back to A.
+    private val tabProfileOwners = LinkedHashMap<String, String>()
+
+    private fun startLifetime(profileId: String, ids: Set<String>) {
+        if (ids.isEmpty()) return
+        val scope = VideoSearchScope.Private(profileId, newSessionId())
+        privateStore.start(scope)
+        lifetime = Lifetime(scope, ids)
+    }
+
     fun reconcile(tabs: List<VideoSearchPrivateTab>, activeProfileId: String) =
         synchronized(lock) {
-            // Only real Gecko-private tabs sustain this lifetime.
+            // Require both the private flag and the real Gecko private context.
             val privateTabs = tabs.filter { it.isPrivate && it.contextId == "private" }
             val ids = privateTabs.mapTo(LinkedHashSet()) { it.id }
             if (ids.isEmpty()) {
                 lifetime?.let { privateStore.finish(it.scope) }
                 lifetime = null
+                tabProfileOwners.clear()
                 return@synchronized
             }
-            // Never accept a malformed / duplicated BrowserStore inventory
-            // as an independent source of ownership.
-            if (ids.size != privateTabs.size ||
-                ids.any { it.isBlank() }) return@synchronized
-            if (lifetime == null) {
-                // If profile identity is unknown, fail closed. A subsequent
-                // inventory emission can retry without fabricating an owner.
-                val scope = try {
-                    // Reject invalid regular profile identity *before* minting
-                    // a private-epoch ID. A bad inventory cannot consume IDs.
-                    VideoSearchScope.Normal(activeProfileId)
-                    VideoSearchScope.Private(activeProfileId, newSessionId())
-                } catch (_: IllegalArgumentException) {
-                    return@synchronized
+            // Malformed inventories must not keep an old owner alive.
+            if (ids.size != privateTabs.size || ids.any { it.isBlank() }) {
+                lifetime?.let { privateStore.finish(it.scope) }
+                lifetime = null
+                tabProfileOwners.clear()
+                return@synchronized
+            }
+            val validProfile = try {
+                VideoSearchScope.Normal(activeProfileId)
+                true
+            } catch (_: IllegalArgumentException) {
+                false
+            }
+            // A closed ID never retains its old owner if the ID is reused later.
+            tabProfileOwners.keys.retainAll(ids)
+            if (validProfile) {
+                ids.forEach { id -> tabProfileOwners.putIfAbsent(id, activeProfileId) }
+            }
+
+            lifetime?.let { current ->
+                val surviving = ids.filterTo(LinkedHashSet()) { id ->
+                    tabProfileOwners[id] == current.scope.profileId
                 }
-                privateStore.start(scope)
-                lifetime = Lifetime(scope, ids)
-            } else {
-                lifetime?.tabIds = ids
+                if (surviving.isEmpty()) {
+                    privateStore.finish(current.scope)
+                    lifetime = null
+                } else {
+                    current.tabIds = surviving
+                }
+            }
+            if (lifetime == null && validProfile) {
+                val newlyOwned = ids.filterTo(LinkedHashSet()) { id ->
+                    tabProfileOwners[id] == activeProfileId
+                }
+                startLifetime(activeProfileId, newlyOwned)
             }
         }
 
@@ -74,11 +104,19 @@ internal class VideoSearchPrivateSessionRegistry(
     fun ownerForTab(
         tab: VideoSearchPrivateTab, activeProfileId: String,
     ): VideoSearchScope.Private? = synchronized(lock) {
-        val session = lifetime ?: return@synchronized null
         if (!tab.isPrivate || tab.contextId != "private" ||
-            tab.id !in session.tabIds ||
-            session.scope.profileId != activeProfileId) null
-        else session.scope
+            tabProfileOwners[tab.id] != activeProfileId) return@synchronized null
+
+        // A private B tab may remain alive after A's last private tab closes,
+        // while A is still the foreground profile. When B returns, allow a
+        // fresh, empty B lifetime without requiring an unrelated tab action.
+        if (lifetime == null) {
+            val ids = tabProfileOwners.filterValues { it == activeProfileId }.keys.toSet()
+            startLifetime(activeProfileId, ids)
+        }
+        val current = lifetime ?: return@synchronized null
+        if (current.scope.profileId != activeProfileId ||
+            tab.id !in current.tabIds) null else current.scope
     }
 
     /**
