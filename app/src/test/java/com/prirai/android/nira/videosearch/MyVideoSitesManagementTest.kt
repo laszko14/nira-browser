@@ -51,7 +51,9 @@ class MyVideoSitesManagementTest {
             assertEquals(withConfig.configurationState, saved.configurationState)
             assertEquals(withConfig.siteUrl, saved.siteUrl)
             assertFalse(saved.enabled)
-            assertEquals(10L, saved.updatedAtMs)
+            // updatedAtMs also serves as a monotonic CAS revision: when the
+            // caller clock is behind, the atomic update must advance the token.
+            assertEquals(withConfig.updatedAtMs + 1, saved.updatedAtMs)
         } finally { database.close() }
     }
 
