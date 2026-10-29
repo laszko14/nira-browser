@@ -1,10 +1,10 @@
-## ZC-AUD — ETAP 6/18 COMPLETE — 2026-10-29 UTC
+## ZC-AUD — ETAP 7/18 COMPLETE — 2026-10-29 UTC
 
-- Baza nadal `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79b326529d42e9b9fde4` (v1190). Gałąź dokumentacji `audit/zavro-clean-20261028`; wejściowy HEAD etapu 6 `f2562069f81eab0bbaddd32c315062de74f9cdf3`, drzewo czyste, bez zmian app/AGENTS/workflow.
-- **Etapy 1–6 COMPLETE; brak otwartego podetapu. Etapu 7 nie rozpoczęto.** Mapa i wynik: [STAGE_06.md](audits/zavro-clean/STAGE_06.md); nowe ZC-AUD-013 i pełne szczegóły wyłącznie w [FINDINGS](audits/zavro-clean/FINDINGS.md), stan w [indeksie](audits/zavro-clean/AUDIT_INDEX.md). 11/11 strukturalnych kontroli JS PASS; wykonanie Android/benchmark/telefon NOT_TESTED.
-- **Obowiązuje v1.6:** używać map etapów 1–6, czytać selektywnie, nie powtarzać inwentaryzacji/niezmienionych testów/workflow. Jeden zwięzły raport na etap; szczegóły błędu w jednym miejscu. Harness tylko przy wartościowym nowym dowodzie, bez automatycznego tworzenia atrap. Zachować wszystkie wcześniejsze wyniki i bazę.
-- Wznowienie **wyłącznie po „Dalej”: ETAP 7 — pasek adresu i personalizacja przycisków**. Potwierdzić branch/HEAD/working tree, odczytać tylko ten checkpoint i potrzebne mapy. Nie powtarzać zakończonych etapów; po etapie raport/checkpoint i STOP. Bez napraw, zmian app/wersji, APK, zbędnego Gradle/lint/CI i merge.
-- Punkt zapisu: ostatni commit dokumentacyjny tej gałęzi (`git log -1 --format=%H`), SHA/push w końcowym raporcie rozmowy; bez dodatkowego commitu tylko dla własnego SHA. Audyt nadal trwa (6/18 ukończone).
+- Baza nadal `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79b326529d42e9b9fde4` (v1190). Gałąź dokumentacji `audit/zavro-clean-20261028`; wejściowy HEAD etapu7 `257efac5fd95de62ff2ac790d887b6347c18382f`, drzewo czyste, bez zmian app/AGENTS/workflow.
+- **Etapy 1–7 COMPLETE; brak otwartego podetapu. Etapu8 nie rozpoczęto.** Mapa i wynik: [STAGE_07.md](audits/zavro-clean/STAGE_07.md); nowe014/015 CONFIRMED statycznie i016 LIKELY, szczegóły wyłącznie w [FINDINGS](audits/zavro-clean/FINDINGS.md), stan w [indeksie](audits/zavro-clean/AUDIT_INDEX.md). 5/5 kontroli źródeł JS PASS; realny drag/resize/IME/telefon NOT_TESTED. Bez nowych atrap.
+- **Obowiązuje v1.6:** używać map etapów 1–7, czytać selektywnie, nie powtarzać inwentaryzacji/niezmienionych testów/workflow. Jeden zwięzły raport na etap; szczegóły błędu w jednym miejscu. Harness tylko przy wartościowym nowym dowodzie, bez automatycznego tworzenia atrap. Zachować wszystkie wcześniejsze wyniki i bazę.
+- Wznowienie **wyłącznie po „Dalej”: ETAP 8 — gesty i nawigacja**. Potwierdzić branch/HEAD/working tree, odczytać tylko ten checkpoint i potrzebne mapy4–7. Zbadać arbitraż SwipeGestureLayout/SidePanelInfrastructure/toolbar/Compose/Gecko/systemowy Back, wykorzystując istniejące wyniki zamiast ponownej analizy lokalnych funkcji. Po etapie raport/checkpoint i STOP. Bez napraw, zmian app/wersji, APK, zbędnego Gradle/lint/CI i merge.
+- Punkt zapisu: ostatni commit dokumentacyjny tej gałęzi (`git log -1 --format=%H`), SHA/push w końcowym raporcie rozmowy; bez dodatkowego commitu tylko dla własnego SHA. Audyt nadal trwa (7/18 ukończone).
 
 
 ## 2026-10-27 — Zavro Clean v1180, metadata engine (prace w toku)

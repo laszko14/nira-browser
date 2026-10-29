@@ -17,6 +17,9 @@ Odniesienia do kodu dotyczą bazy `b7d62f79f285ac81c29a79b326529d42e9b9fde4`. Be
 | ZC-AUD-011 | 5 | P1 HIGH | CONFIRMED | Callback okna nad prawym panelem odwołuje się do zwolnionego widoku lub odłączonego fragmentu |
 | ZC-AUD-012 | 5 | P2 MEDIUM | CONFIRMED | Opcje sortowania zakładek według URL i daty wykonują sortowanie po tytule |
 | ZC-AUD-013 | 6 | P2 MEDIUM | CONFIRMED | Budowa modelu paska Compose wielokrotnie skanuje całą listę kart |
+| ZC-AUD-014 | 7 | P2 MEDIUM | CONFIRMED | Dialog kolejności przycisków nie obsługuje upuszczenia za celem ani na koniec |
+| ZC-AUD-015 | 7 | P2 MEDIUM | CONFIRMED | Zmiana orientacji przy stałej szerokości nie odświeża konfiguracji przycisków |
+| ZC-AUD-016 | 7 | P2 MEDIUM (potencjalny) | LIKELY | Zamykanie wyszukiwania przełącza IME zamiast jednoznacznie go ukryć |
 
 ## ZC-AUD-001 — niespójny kontrakt wersji joba release
 
@@ -189,4 +192,43 @@ Odniesienia do kodu dotyczą bazy `b7d62f79f285ac81c29a79b326529d42e9b9fde4`. Be
 - **Kierunek naprawy:** zbudować tabsById raz i korzystać z mapy w obu gałęziach, zachowując kolejność order, żywe członkostwo, uzupełnianie nowych kart i filtrowanie profilu. Istniejący UnifiedItemBuilder stosuje podobny indeks; nie kopiować całej implementacji ani łączyć modułów bez potrzeby.
 - **Wymagane regresje:** identyczna projekcja dla SingleTab/przeplatanych grup, brakujących ID i świeżo dodanych kart; zmiany tytułu/ikony bez zmiany kolejności; profile i private. Kontrola skali przez liczbę operacji lub benchmark dla rosnącej liczby kart oraz pomiar UI na urządzeniu, bez utożsamiania czasu JVM z płynnością120 Hz. Nowych testów nie dodano.
 
-Stan po etapie 6: CONFIRMED=11 (P1=1, P2=10); LIKELY=1 (ZC-AUD-010, potencjalny P2); SUSPECTED=1 (ZC-AUD-002, potencjalny P2). Etap 6 dodał 1 potwierdzone P2, bez nowych hipotez. Nie doliczać hipotez ani inwentaryzacji nieużywanych komponentów do potwierdzonych błędów.
+## ZC-AUD-014 — dialog kolejności nie rozróżnia upuszczenia przed i za wierszem
+
+- **Etap:**7 — personalizacja kolejności przycisków.
+- **Miejsce:** [`CustomizationSettingsFragment.kt:588`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/settings/fragment/CustomizationSettingsFragment.kt#L588), showToolbarActionDialog/redrawRows, ACTION_DROP:591–597; wiersze tworzone:565–618. Kotlin względem app/src/main/java/com/prirai/android/nira/.
+- **Problem:** bezpośrednie przeciągnięcie przycisku na koniec nie ma obsługiwanej granicy AFTER; przeciągnięcie w dół na bezpośredniego sąsiada może nie zmienić kolejności. Ustawienie dowolnej permutacji przez dodatkowe ruchy jest możliwe — nie zgłoszono całkowitego braku edycji kolejności.
+- **Mechanizm:** każdy wiersz obsługuje drop identycznie, niezależnie od event.y: najpierw remove(moved), potem add(order.indexOf(id),moved). Element zawsze trafia przed cel. Nie ma końcowej strefy drop za ostatnim wierszem. Bezpośredni toolbar ma inną implementację z granicą przed usunięciem i połową celu (UnifiedToolbar:833–840).
+- **Dowód statyczny:** dla [A,B,C], przeniesienie A na dolną część C daje po remove [B,C], następnie indexOf(C)=1 i wynik [B,A,C], zamiast pozycji końcowej [B,C,A]. Na B daje ponownie [A,B,C]. Ani połówka wiersza, ani wolny obszar za listą nie wybierają AFTER. Gestu Androida nie wykonywano.
+- **Pewność:**CONFIRMED — brak granicy i wynik transformacji listy wynikają z kodu; realny hit-test/drag NOT_TESTED.
+- **Ważność:**P2 MEDIUM — ograniczona poprawność udostępnionej edycji kolejności, wymagająca dodatkowych ruchów.
+- **Wpływ:** ustawienia obu orientacji i spójność dialogu z bezpośrednim przeciąganiem toolbaru; zapisuje się poprawna składniowo, lecz inna od oczekiwanej pozycja.
+- **Kierunek naprawy:** wyznaczać granicę docelową przed usunięciem źródła, obsłużyć obie połówki/pozycję za ostatnim wierszem i ujednolicić semantykę z toolbarowym DragPlacement. Zachować7 ID, normalizację i rozdzielenie orientacji.
+- **Regresje:** pojedynczy ruch pierwszy→ostatni i ostatni→pierwszy, sąsiedzi w obu kierunkach, górna/dolna połowa, koniec listy, reload preferencji i niezależność pion/poziom. Bez nowych testów aplikacji.
+
+## ZC-AUD-015 — konfiguracja przycisków zależy od zmiany szerokości zamiast orientacji
+
+- **Etap:**7 — osobne ustawienia pion/poziom i resize okna.
+- **Miejsce:** [`UnifiedToolbar.kt:866`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/components/toolbar/unified/UnifiedToolbar.kt#L866), listener layoutu:866–872 i prefs:874–886; landscape/applyActionPreferences:752–758. Kotlin względem app/src/main/java/com/prirai/android/nira/.
+- **Problem:** jeżeli orientacja konfiguracji zmienia się bez zmiany szerokości toolbaru, pozostaje poprzedni zestaw order/hidden/size, mimo różnych zapisanych ustawień dla nowej orientacji.
+- **Mechanizm:** landscape jest odczytywane dopiero wewnątrz applyActionPreferences. Wyzwalacz layoutu sprawdza tylko width względem lastWidth/oldWidth; listener prefs dotyczy zmian kluczy, nie Configuration. Pozostałe wywołania to inicjalizacja oraz drop. Nie ma osobnego wywołania na ConfigurationChanged. Zmiana samej wysokości okna przekraczająca próg portrait/landscape może zachować szerokość oraz granice górnego toolbaru, więc żaden z tych wyzwalaczy nie musi wystąpić.
+- **Dowód statyczny:** komplet odwołań do lokalnego applyActionPreferences w pliku: po drop:848, po zmianie szerokości:871, po zmianie prefs:877, początkowo:886. Przy tej samej szerokości po inicjalizacji i bez zapisu prefs warunek :869 jest false; nowa wartość orientation sama nie jest kluczem odświeżenia. Nie testowano realnego multi-window ani Androidowych callbacków.
+- **Pewność:**CONFIRMED — brak wymaganej inwalidacji i warunkowa droga do starego stanu z kodu. Dostarczenie konkretnej konfiguracji okna na Nothing Phone(1):NOT_TESTED. Nie zgłasza się, że każdy zwykły obrót telefonu jest zepsuty — zmiana szerokości uruchamia poprawną ścieżkę.
+- **Ważność:**P2 MEDIUM — nieprawidłowy dobór zapisanej personalizacji w obsługiwanym przypadku zmiany rozmiaru okna.
+- **Wpływ:** kolejność, rozmiar i widoczność wszystkich7 akcji oraz wybór przycisków ukrywanych z powodu przepełnienia; trwałe wartości nie są nadpisywane.
+- **Kierunek naprawy:** uwzględnić orientację w sygnaturze inwalidacji albo jawnie przeliczać ustawienia po ConfigurationChanged, niezależnie od zmiany width. Zachować dotychczasowe przeliczenie overflow przy zmianie szerokości.
+- **Regresje:** różne konfiguracje pion/poziom; zmiana wysokości przy stałej szerokości przez obie orientacje, zwykły obrót ze zmianą szerokości, zmiana samej szerokości, restart i ponowny powrót do ustawień. Sprawdzić widok, nie wyłącznie getters prefs.
+
+## ZC-AUD-016 — nieidempotentna obsługa klawiatury przy dismiss
+
+- **Etap:**7 — edycja adresu, Back i IME.
+- **Miejsce:** [`SearchDialogFragment.kt:359`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/search/SearchDialogFragment.kt#L359), hideDeviceKeyboard:359–365; onDismiss:368–370; onBackPressed:373–376; dialogHandledAction początkowo false:60.
+- **Podejrzenie:** zamknięcie wyszukiwania może ponownie otworzyć/przełączyć IME, jeżeli klawiatura jest już ukryta i istnieje odpowiedni fokus, zamiast zapewnić jej zamknięcie.
+- **Mechanizm:** przy !dialogHandledAction metoda nazwana hideDeviceKeyboard wywołuje toggleSoftInput(SHOW_IMPLICIT,0), a nie operację hide. Back wcześniej wywołuje view.hideKeyboard i nie ustawia tego znacznika, więc dismiss może wejść w drugą ścieżkę. Toggle nie gwarantuje idempotentnego stanu hidden; rezultat zależy od chwili obsługi, fokusu i wersji Androida.
+- **Dowód:** odczyt wskazanych metod i wszystkich przypisań znacznika. Nie uruchomiono IME, timingu ani testu urządzenia; nie twierdzi się, że samo wywołanie toggle zawsze pokaże klawiaturę po dismiss.
+- **Pewność:**LIKELY — silna niespójność semantyki hide/toggle, ale wpływ na rzeczywisty IME pozostaje NOT_TESTED.
+- **Ważność:**potencjalny P2 MEDIUM — niewłaściwy stan klawiatury po zakończeniu edycji adresu.
+- **Wpływ:** Back, anulowanie wyszukiwania, powrót do strony z polem tekstowym i zmiana rozmiaru viewportu; nie potwierdzono utraty wpisanego tekstu.
+- **Kierunek naprawy:** po reprodukcji stosować jawne ukrycie z aktualnym właścicielem okna/widoku i spójną politykę zakończenia akcji, zamiast przełączania nieznanego stanu. Nie zmieniać zachowania wyszukiwania ani historii przy tej poprawce.
+- **Regresje:** IME początkowo widoczne/ukryte, Back systemowy i aplikacyjny, dismiss bez wyszukania, zatwierdzenie, dotknięcie strony i powrót do uprzednio aktywnego inputu; fizyczny Android15 i kontrola faktycznego fokusu/viewportu. Bez nowego harnessu.
+
+Stan po etapie 7: CONFIRMED=13 (P1=1,P2=12); LIKELY=2 (010 i016, potencjalne P2); SUSPECTED=1 (002, potencjalny P2). Etap7 dodał2 potwierdzone P2 i1 LIKELY. Nie doliczać hipotez do potwierdzonych błędów.
