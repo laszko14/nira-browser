@@ -1,3 +1,17 @@
+# Checkpoint — Wyszukiwarka filmów / ETAP 1B / 2026-10-29
+
+- **Status:** DONE — wdrożono wyłącznie 1B (nowa Room DB, DAO, repozytorium i pamięć prywatna), bez APK/Gradle/pełnego CI, bez PR/merge. Rozpoczęcie kolejnego podetapu wyłącznie po `Dalej`.
+- **Gałąź:** `feat/zavro-clean-video-search-20261029`; HEAD przed 1B: `d09e0ec9e59890ff5df7f819d74b4c1ba807d312`, baza Clean v1190 / PR #112 (bez zmian). Ten checkpoint zapisano w tym samym commicie co kod 1B.
+- **Nowe pliki:** `app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchDbRows.kt`, `VideoSearchDao.kt`, `VideoSearchDatabase.kt`, `VideoSearchRowCodec.kt`, `VideoSearchRepository.kt`, `VideoSearchPrivateStore.kt`, oraz `app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchPersistenceTest.kt`. `docs/AI_HANDOFF.md` zaktualizowano. Nie edytowano istniejących baz/kart/profili/detektora.
+- **Schemat:** osobny plik `zavro_video_search.db`, Room version=1 (nowa baza, brak migracji wcześniejszych danych; przyszłe zmiany wymagają jawnych migracji), `fallbackToDestructiveMigration` ZABRONIONE. 7 tabel: sites, settings, runs, tasks, films, saved_folders, saved_links. Wszystkie mają złożony klucz zawierający `profileId`; wszystkie odczyty/zapisy DAO filtrują/kluczują `profileId`. Nie ma FK historii→folderów: 30-dniowe czyszczenie historii nie może skasować zapisanych filmów. Linki w folderze mają indeks unique `(profileId,folderId,filmPageUrl)`; semantyczne query pozostaje.
+- **Konwersja i API:** maper domena↔wiersz zapisuje konfigurację selektorów, wybór witryn, sortowanie, równoległość, całe linki, pełne tytuły, provenance, statusy, zadania. `VideoSearchRepository` odrzuca scope `Private` przed Room, czyta dane tylko właściwego profilu, sprawdza przynależność zadań/wyników do run.siteIds, potwierdzenie usuwania witryny i istnienie folderu przy dodawaniu linku.
+- **Prywatność:** `VideoSearchPrivateStore` jest oddzielnym magazynem tylko RAM; w jawnie zarejestrowanym lifetime przechowuje witryny, ustawienia, runy, zadania i filmy; `finish` czyści wszystkie i trwale blokuje stare ID sesji w pamięci procesu. Żadnej operacji prywatny→trwały folder. Integracja z faktycznym lifecycle Gecko/Android jest nadal zadaniem ETAPU 10, nie ogłaszać jej jako wykonaną.
+- **Walidacja:** statyczne sprawdzenia kontraktów 14/14 **PASS** (schemat, klucze, profile, brak destrukcyjnego fallbacku, oddzielność folderów, RAM-only, brak logów, pokrycie testami); dodano 5 testów Room/Robolectric/prywatność, **NOT_TESTED** (nie uruchamiano kompilatora, Gradle ani runtime). APK, Android CI i telefon **NOT_TESTED**. Nie traktować statycznego PASS jako runtime PASS.
+- **Do ETAPU 1C:** testy wykonane w dopuszczonym lokalnym zakresie bez APK, sprawdzenie transakcyjności zapisu run/task/film, integralności folder/link oraz schematu Room, rozszerzenie testów migracji/profile/private. Przy braku narzędzi nie udawać wyników; nie uruchamiać pełnego CI/assemble bez osobnego `Kompiluj`. Status bezpieczeństwa funkcji na realnym Gecko/telefonie **NOT_TESTED**.
+- **Następne pojedyncze `Dalej`:** ETAP 1C (integralność transakcji i walidacja magazynu), potem raport i STOP; nie przeskakiwać do ETAPU 2.
+
+---
+
 # Checkpoint — Wyszukiwarka filmów / ETAP 1A / 2026-10-29
 
 - **Status:** DONE — wykonano tylko 1A: modele domenowe i bezpieczny scope profilu / prywatnej sesji. Nie rozpoczęto 1B, nie budowano APK, nie uruchamiano CI ani PR.
