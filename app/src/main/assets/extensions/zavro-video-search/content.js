@@ -346,6 +346,74 @@
     }, 50);
     return "submitted";
   }
+  // An explicit, read-only health check. No clicks, network, or DOM edits.
+  // Limited to three short observations so SPA hydration has a fair chance.
+  function checkConfiguration(command) {
+    function bySelector(selector) {
+      if (typeof selector !== "string" || !selector || selector.length > 160)
+        return null;
+      try { return Array.from(document.querySelectorAll(selector)).slice(0, 31); }
+      catch (_) { return null; }
+    }
+    function result(status, reason, cards) {
+      return { status, reason, matchedCards: Math.min(30, cards || 0) };
+    }
+    const inputs = bySelector(command.inputSelector);
+    if (!inputs) return result("stale", "invalid_selector", 0);
+    if (inputs.length === 0) return result("stale", "input_missing", 0);
+    if (inputs.length !== 1) return result("stale", "input_ambiguous", 0);
+    const input = inputs[0];
+    if (!input || !input.matches("input") ||
+        !["search", "text"].includes((input.type || "").toLowerCase()))
+      return result("stale", "invalid_selector", 0);
+    if (input.form && !safeForm(input.form))
+      return result("unsafe", "unsafe_form", 0);
+    if (!validInput(input) && !manualInput(input))
+      return result("stale", "input_missing", 0);
+
+    if (command.submission === "FORM_SUBMIT") {
+      if (!safeForm(input.form)) return result("unsafe", "unsafe_form", 0);
+    } else if (command.submission === "CLICK_SUBMIT") {
+      const buttons = bySelector(command.submitSelector);
+      if (!buttons) return result("stale", "invalid_selector", 0);
+      if (buttons.length !== 1 || !manualSubmit(buttons[0], input))
+        return result("stale", "submit_missing", 0);
+    } else return result("unsafe", "unsafe_form", 0);
+
+    // Home/search form pages often have ZERO results before searching.
+    // Never mark them broken just because their result cards are absent.
+    if (command.resultsCardSelector === null)
+      return result("unverified", "no_results", 0);
+    const cards = bySelector(command.resultsCardSelector);
+    if (!cards) return result("stale", "cards_invalid", 0);
+    const linked = cards.filter(node => node.querySelector &&
+        node.querySelector("a[href]")).length;
+    if (!linked) return result("unverified", "no_results", 0);
+    if (command.pagination !== "NONE") {
+      const pagination = bySelector(command.nextPageSelector);
+      if (!pagination) return result("stale", "invalid_selector", linked);
+      if (pagination.length === 0)
+        return result("unverified", "pagination_unknown", linked);
+    }
+    return result("valid", "ok", linked);
+  }
+  async function validateStored(command) {
+    const timings = [0, 350, 800]; // 3 attempts, <= 1.2 seconds total
+    let last, attempts = 0;
+    for (let i = 0; i < timings.length; i++) {
+      if (!ready || location.href !== startUrl || picker) return;
+      if (timings[i]) await new Promise(resolve => setTimeout(resolve, timings[i]));
+      if (!ready || location.href !== startUrl || picker) return;
+      last = checkConfiguration(command);
+      attempts++;
+      // Do not retry on valid, unsafe, malformed, or ambiguous selectors.
+      if (last.status === "valid" || last.status === "unsafe" ||
+          ["invalid_selector", "input_ambiguous", "cards_invalid"].includes(last.reason))
+        break;
+    }
+    if (last) post("validation", command.requestId,
+      Object.assign({ attempts }, last));
+  }
   try {
     port = browser.runtime.connectNative("zavro.video.search");
     if (!port) return;
@@ -369,6 +437,13 @@
         } else if (message.event === "pick" &&
             keys === "documentId,event,pickKind,requestId,schemaVersion") {
           pick(message);
+        } else if (message.event === "validate" &&
+            keys === "documentId,event,inputSelector,nextPageSelector,pagination,requestId," +
+                    "resultsCardSelector,schemaVersion,submission,submitSelector" && !picker) {
+          busy = true;
+          validateStored(message).catch(function () {
+            // Invalid DOM or page unload: no success/repair claim.
+          }).finally(function () { busy = false; });
         } else if (message.event === "search" &&
             keys === "documentId,event,inputSelector,query,requestId,schemaVersion,submission,submitSelector") {
           busy = true;

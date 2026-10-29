@@ -53,12 +53,22 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
         site: VideoSearchSite,
         inspection: VideoSearchBridgeMessage.Inspection,
         nowMs: Long = System.currentTimeMillis(),
+        confirmedReplace: Boolean = false,
     ): Boolean {
         val scope = site.scope as? VideoSearchScope.Normal ?: return false
+        // Never discard previously selected/confirmed selectors based solely
+        // on automatic inspection, even after a partial manual configuration.
+        if (site.configuration != null && !confirmedReplace) return false
         if (inspection.status != "ready") return false
         val input = inspection.inputSelector ?: return false
         val cards = inspection.resultsCardSelector ?: return false
         val submit = inspection.submission ?: return false
+        require(VideoSearchBridgeProtocol.validSelector(input) &&
+            VideoSearchBridgeProtocol.validSelector(cards))
+        require(inspection.submitSelector == null ||
+            VideoSearchBridgeProtocol.validSelector(inspection.submitSelector))
+        require(inspection.nextPageSelector == null ||
+            VideoSearchBridgeProtocol.validSelector(inspection.nextPageSelector))
         val config = VideoSiteConfiguration(
             searchInputSelector = input,
             resultsCardSelector = cards,
@@ -69,6 +79,26 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
         )
         return dao.acceptAutoConfiguration(scope.profileId, site.id, site.siteUrl,
             site.updatedAtMs, VideoSearchRowCodec.configurationJson(config)!!, nowMs) == 1
+    }
+
+    /**
+     * Caller must first observe STALE/UNSAFE from a bound, current document,
+     * and obtain explicit user consent. No change for missing results alone.
+     * The existing selectors remain stored to support manual recovery.
+     */
+    suspend fun flagValidatedBrokenConfiguration(
+        site: VideoSearchSite,
+        result: VideoSearchBridgeMessage.Validation,
+        userConfirmed: Boolean,
+        nowMs: Long = System.currentTimeMillis(),
+    ): Boolean {
+        if (!userConfirmed || result.status !in setOf("stale", "unsafe")) return false
+        val scope = site.scope as? VideoSearchScope.Normal ?: return false
+        if (site.configurationState != VideoSiteConfigurationState.CONFIGURED ||
+            site.configuration == null) return false
+        return dao.flagValidatedBrokenConfiguration(
+            scope.profileId, site.id, site.siteUrl, site.updatedAtMs, nowMs
+        ) == 1
     }
 
     /** Persist manual selection only after all wizard steps finish normally. */

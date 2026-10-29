@@ -235,7 +235,8 @@ internal class VideoSearchBridgeController(
                 is VideoSearchBridgeMessage.SearchFailed,
                 is VideoSearchBridgeMessage.Picked,
                 is VideoSearchBridgeMessage.PickSkipped,
-                is VideoSearchBridgeMessage.PickCancelled -> {
+                is VideoSearchBridgeMessage.PickCancelled,
+                is VideoSearchBridgeMessage.Validation -> {
                     val job = pending[session] ?: return
                     val req = when (parsed) {
                         is VideoSearchBridgeMessage.Inspection -> parsed.requestId
@@ -244,12 +245,14 @@ internal class VideoSearchBridgeController(
                         is VideoSearchBridgeMessage.Picked -> parsed.requestId
                         is VideoSearchBridgeMessage.PickSkipped -> parsed.requestId
                         is VideoSearchBridgeMessage.PickCancelled -> parsed.requestId
+                        is VideoSearchBridgeMessage.Validation -> parsed.requestId
                         else -> return
                     }
                     if (job.requestId != req || job.documentId != parsed.documentId ||
                         !isFresh(session, entry) || job.pageUrl != tab.pageUrl ||
                         tab.owner != job.owner || job.kind != when (parsed) {
                             is VideoSearchBridgeMessage.Inspection -> "inspect"
+                            is VideoSearchBridgeMessage.Validation -> "validate"
                             is VideoSearchBridgeMessage.Submitted,
                             is VideoSearchBridgeMessage.SearchFailed -> "search"
                             is VideoSearchBridgeMessage.Picked -> "pick:" + parsed.pickKind
@@ -322,7 +325,7 @@ internal class VideoSearchBridgeController(
         timeoutMs: Long = 8_000L,
     ): VideoSearchBridgeMessage? {
         val scope = site.scope as? VideoSearchScope.Normal ?: return null
-        val (session, entry) = (if (kind.startsWith("pick:"))
+        val (session, entry) = (if (kind.startsWith("pick:") || kind == "validate")
             manualSiteTab(site) else existingSiteTab(site)) ?: return null
         val documentId = entry.documentId ?: return null
         if (pending.containsKey(session)) return null
@@ -346,6 +349,18 @@ internal class VideoSearchBridgeController(
         request(site, "inspect") { document, request ->
             VideoSearchBridgeProtocol.inspect(document, request)
         } as? VideoSearchBridgeMessage.Inspection
+
+    /**
+     * Explicit read-only integrity check. It can inspect the selected normal
+     * tab on the saved site's origin (including /results), but never a private
+     * tab or any other site/profile. No automatic polling from the host.
+     */
+    suspend fun validateSite(site: VideoSearchSite): VideoSearchBridgeMessage.Validation? {
+        val configuration = site.configuration ?: return null
+        return request(site, "validate") { document, request ->
+            VideoSearchBridgeProtocol.validate(document, request, configuration)
+        } as? VideoSearchBridgeMessage.Validation
+    }
 
     private suspend fun pickSite(site: VideoSearchSite, kind: String): VideoSearchBridgeMessage? =
         request(site, "pick:$kind", { document, req ->

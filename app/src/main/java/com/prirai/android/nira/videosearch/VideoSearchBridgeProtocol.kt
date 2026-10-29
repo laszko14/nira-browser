@@ -52,6 +52,18 @@ internal sealed interface VideoSearchBridgeMessage {
         val requestId: String,
         val pickKind: String,
     ) : VideoSearchBridgeMessage
+
+    /** Redacted, bounded assessment of the currently open site's selectors. */
+    class Validation(
+        override val documentId: String,
+        val requestId: String,
+        val status: String,
+        val reason: String,
+        val attempts: Int,
+        val matchedCards: Int,
+    ) : VideoSearchBridgeMessage {
+        override fun toString() = "VideoSearchBridgeMessage.Validation(redacted)"
+    }
 }
 
 internal object VideoSearchBridgeProtocol {
@@ -158,6 +170,29 @@ internal object VideoSearchBridgeProtocol {
                     VideoSearchBridgeMessage.PickSkipped(id, request, kind)
                 } else VideoSearchBridgeMessage.PickCancelled(id, request, kind)
             }
+            "validation" -> {
+                if (!json.strict("schemaVersion", "event", "documentId", "requestId",
+                        "status", "reason", "attempts", "matchedCards")) return null
+                val request = json.string("requestId")?.takeIf(::validToken) ?: return null
+                val status = json.string("status")?.takeIf {
+                    it in setOf("valid", "unverified", "stale", "unsafe")
+                } ?: return null
+                val reason = json.string("reason")?.takeIf {
+                    it in setOf("ok", "no_results", "pagination_unknown", "input_missing",
+                        "input_ambiguous", "invalid_selector", "unsafe_form",
+                        "submit_missing", "cards_invalid")
+                } ?: return null
+                val attempts = (json.opt("attempts") as? Int)?.takeIf { it in 1..3 }
+                    ?: return null
+                val cards = (json.opt("matchedCards") as? Int)?.takeIf { it in 0..30 }
+                    ?: return null
+                if ((status == "valid" && (reason != "ok" || cards == 0)) ||
+                    (status == "unverified" && reason !in setOf("no_results", "pagination_unknown")) ||
+                    (status == "stale" && reason !in setOf("input_missing", "input_ambiguous",
+                            "submit_missing", "invalid_selector", "cards_invalid")) ||
+                    (status == "unsafe" && reason != "unsafe_form")) return null
+                VideoSearchBridgeMessage.Validation(id, request, status, reason, attempts, cards)
+            }
             "inspection" -> {
                 val request = json.string("requestId")?.takeIf(::validToken) ?: return null
                 val status = json.string("status")?.takeIf { it in setOf("ready", "partial", "missing") }
@@ -222,6 +257,28 @@ internal object VideoSearchBridgeProtocol {
     fun pick(documentId: String, requestId: String, kind: String): JSONObject {
         require(kind in pickKinds)
         return base("pick", documentId, requestId).apply { put("pickKind", kind) }
+    }
+
+    /** Read-only inspection; values are selectors, never executable source. */
+    fun validate(documentId: String, requestId: String,
+                 config: VideoSiteConfiguration): JSONObject {
+        require(validSelector(config.searchInputSelector))
+        require(config.resultsCardSelector == null ||
+            validSelector(config.resultsCardSelector))
+        require(config.submission in setOf(
+            VideoSearchSubmission.CLICK_SUBMIT, VideoSearchSubmission.FORM_SUBMIT))
+        if (config.submission == VideoSearchSubmission.CLICK_SUBMIT)
+            require(validSelector(config.submitSelector))
+        if (config.pagination != VideoSearchPagination.NONE)
+            require(validSelector(config.nextPageSelector))
+        return base("validate", documentId, requestId).apply {
+            put("inputSelector", config.searchInputSelector)
+            put("resultsCardSelector", config.resultsCardSelector ?: JSONObject.NULL)
+            put("submission", config.submission.name)
+            put("submitSelector", config.submitSelector ?: JSONObject.NULL)
+            put("pagination", config.pagination.name)
+            put("nextPageSelector", config.nextPageSelector ?: JSONObject.NULL)
+        }
     }
 
     /** Query is sent ONLY to the bound content script, never to site APIs directly. */

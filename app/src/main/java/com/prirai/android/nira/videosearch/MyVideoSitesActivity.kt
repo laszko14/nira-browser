@@ -26,6 +26,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /**
@@ -99,6 +100,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             onToggle = ::toggleSite,
             onSelect = ::setSiteSelected,
             onInspect = ::inspectSite,
+            onCheck = ::checkConfiguration,
             onManual = ::configureManually,
             onSearch = ::searchSite,
             onDelete = ::confirmRemoval,
@@ -297,6 +299,10 @@ class MyVideoSitesActivity : AppCompatActivity() {
             } catch (_: Exception) { null }
             if (ownerIfCurrent() != owner || current == null ||
                 !current.enabled || current.siteUrl != site.siteUrl) return@launch
+            if (current.configuration != null) {
+                message("Zapisana konfiguracja jest chroniona. Użyj „Sprawdź”.")
+                return@launch
+            }
             val bridge = VideoSearchBridgeHost.instance()
             if (bridge == null) {
                 message("Most nie jest gotowy. Otwórz witrynę i wróć do listy.")
@@ -327,6 +333,124 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 message("Nie udało się zapisać konfiguracji. Witryna pozostaje na liście.")
             }
         }
+    }
+
+    /** Diagnose only when the user taps Sprawdź. No background polling. */
+    private fun checkConfiguration(site: VideoSearchSite) {
+        val owner = ownerIfCurrent() ?: return
+        if (site.scope != owner || !site.enabled) return
+        lifecycleScope.launch {
+            val current = try {
+                withContext(Dispatchers.IO) { repository.site(owner, site.id) }
+            } catch (_: Exception) { null }
+            if (ownerIfCurrent() != owner || current == null || !current.enabled ||
+                current.siteUrl != site.siteUrl) return@launch
+            if (current.configuration == null) {
+                message("Brak zapisanych selektorów. Użyj „Rozpoznaj” lub „Wskaż”.")
+                return@launch
+            }
+            val bridge = VideoSearchBridgeHost.instance()
+            val report = try { bridge?.validateSite(current) } catch (_: Exception) { null }
+            if (ownerIfCurrent() != owner) return@launch
+            if (report == null) {
+                message("Nie udało się sprawdzić. Otwórz witrynę w aktywnej karcie.")
+                return@launch
+            }
+            when (report.status) {
+                "valid" -> message("Selektory działają. Znaleziono ${report.matchedCards} kart " +
+                    "(${report.attempts} próby).")
+                "unverified" -> message("Pole działa, ale wyniki/paginacja są niepotwierdzone. " +
+                    "Otwórz stronę wyników i ponów sprawdzenie.")
+                "stale", "unsafe" -> offerRepair(owner, current, report, bridge)
+            }
+        }
+    }
+
+    private fun offerRepair(
+        owner: VideoSearchScope.Normal, original: VideoSearchSite,
+        diagnosis: VideoSearchBridgeMessage.Validation,
+        bridge: VideoSearchBridgeController?,
+    ) {
+        if (ownerIfCurrent() != owner) return
+        val reason = when (diagnosis.reason) {
+            "input_missing" -> "Nie znaleziono zapisanego pola wyszukiwania."
+            "input_ambiguous" -> "Selektor pola wskazuje kilka elementów."
+            "submit_missing" -> "Nie znaleziono zapisanego przycisku wyszukiwania."
+            "invalid_selector", "cards_invalid" -> "Nie udało się dopasować selektora."
+            "unsafe_form" -> "Formularz nie spełnia zasad bezpiecznego wyszukiwania."
+            else -> "Konfiguracja może być nieaktualna."
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Sprawdzenie konfiguracji")
+            .setMessage("$reason\nPróby: ${diagnosis.attempts}. " +
+                "Zapisane elementy nie zostaną usunięte. " +
+                "Automatyczna naprawa może je zastąpić wyłącznie za Twoją zgodą.")
+            .setNegativeButton("Zachowaj", null)
+            .setNeutralButton("Oznacz do naprawy") { _, _ ->
+                lifecycleScope.launch {
+                    try {
+                        val marked = withContext(Dispatchers.IO) {
+                            repository.flagValidatedBrokenConfiguration(
+                                original, diagnosis, userConfirmed = true
+                            )
+                        }
+                        if (ownerIfCurrent() == owner) message(if (marked)
+                            "Oznaczono do naprawy, zachowano stare selektory."
+                            else "Witryna zmieniła się. Ponów sprawdzenie.")
+                    } catch (_: Exception) {
+                        if (ownerIfCurrent() == owner) message("Nie udało się zapisać statusu.")
+                    }
+                }
+            }
+            .setPositiveButton("Spróbuj naprawić") { _, _ ->
+                lifecycleScope.launch {
+                    if (ownerIfCurrent() != owner) return@launch
+                    val updated = try {
+                        withContext(Dispatchers.IO) { repository.site(owner, original.id) }
+                    } catch (_: Exception) { null }
+                    // No silent overwrite when user changed the site during
+                    // the dialog or the old validation became stale.
+                    if (updated == null || updated != original || !updated.enabled) {
+                        message("Konfiguracja zmieniła się. Sprawdź ponownie.")
+                        return@launch
+                    }
+                    var matched: VideoSearchBridgeMessage.Inspection? = null
+                    // Two bounded, user-initiated retries. No periodic task.
+                    for (attempt in 1..2) {
+                        if (ownerIfCurrent() != owner) return@launch
+                        val next = try { bridge?.inspectSite(original) } catch (_: Exception) { null }
+                        if (next?.status == "ready") {
+                            matched = next
+                            break
+                        }
+                        if (attempt == 1) delay(350)
+                    }
+                    try {
+                        if (ownerIfCurrent() != owner) return@launch
+                        val confirmedInspection = matched
+                        if (confirmedInspection != null) {
+                            val replaced = withContext(Dispatchers.IO) {
+                                repository.applyAutoConfiguration(
+                                    original, confirmedInspection, confirmedReplace = true
+                                )
+                            }
+                            message(if (replaced) "Wykryto i zapisano naprawione selektory."
+                                else "Zapis został odrzucony — witryna mogła się zmienić.")
+                        } else {
+                            withContext(Dispatchers.IO) {
+                                repository.flagValidatedBrokenConfiguration(
+                                    original, diagnosis, userConfirmed = true
+                                )
+                            }
+                            message("Automatyczna naprawa nie powiodła się. " +
+                                "Zachowano selektory. Możesz użyć „Wskaż”.")
+                        }
+                    } catch (_: Exception) {
+                        message("Nie zapisano zmian. Dotychczasowe selektory zachowano.")
+                    }
+                }
+            }
+            .show()
     }
 
     /**
@@ -570,6 +694,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
         private val onToggle: (VideoSearchSite, Boolean) -> Unit,
         private val onSelect: (VideoSearchSite, Boolean) -> Unit,
         private val onInspect: (VideoSearchSite) -> Unit,
+        private val onCheck: (VideoSearchSite) -> Unit,
         private val onManual: (VideoSearchSite) -> Unit,
         private val onSearch: (VideoSearchSite) -> Unit,
         private val onDelete: (VideoSearchSite) -> Unit,
@@ -631,6 +756,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             val select: CheckBox,
             val edit: Button,
             val inspect: Button,
+            val check: Button,
             val manual: Button,
             val search: Button,
             val delete: Button,
@@ -658,12 +784,14 @@ class MyVideoSitesActivity : AppCompatActivity() {
             val secondActions = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
             val edit = Button(ctx).apply { text = "Edytuj" }
             val inspect = Button(ctx).apply { text = "Rozpoznaj" }
+            val check = Button(ctx).apply { text = "Sprawdź" }
             val manual = Button(ctx).apply { text = "Wskaż" }
             val search = Button(ctx).apply { text = "Szukaj" }
             val delete = Button(ctx).apply { text = "Usuń" }
             firstActions.addView(inspect, LinearLayout.LayoutParams(0, -2, 1f))
+            firstActions.addView(check, LinearLayout.LayoutParams(0, -2, 1f))
             firstActions.addView(manual, LinearLayout.LayoutParams(0, -2, 1f))
-            firstActions.addView(search, LinearLayout.LayoutParams(0, -2, 1f))
+            secondActions.addView(search, LinearLayout.LayoutParams(0, -2, 1f))
             secondActions.addView(edit, LinearLayout.LayoutParams(0, -2, 1f))
             secondActions.addView(delete, LinearLayout.LayoutParams(0, -2, 1f))
             actions.addView(firstActions)
@@ -672,7 +800,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             root.addView(detail)
             root.addView(select)
             root.addView(actions)
-            return Holder(root, heading, detail, toggle, select, edit, inspect, manual, search, delete)
+            return Holder(root, heading, detail, toggle, select, edit, inspect, check, manual, search, delete)
         }
 
         override fun onBindViewHolder(holder: Holder, position: Int) {
@@ -694,9 +822,11 @@ class MyVideoSitesActivity : AppCompatActivity() {
             holder.select.setOnCheckedChangeListener { _, checked -> onSelect(site, checked) }
             holder.edit.setOnClickListener { onEdit(site) }
             holder.inspect.isEnabled = site.enabled
+            holder.check.isEnabled = site.enabled && site.configuration != null
             holder.manual.isEnabled = site.enabled
             holder.search.isEnabled = site.enabled
             holder.inspect.setOnClickListener { onInspect(site) }
+            holder.check.setOnClickListener { onCheck(site) }
             holder.manual.setOnClickListener { onManual(site) }
             holder.search.setOnClickListener { onSearch(site) }
             holder.delete.setOnClickListener { onDelete(site) }

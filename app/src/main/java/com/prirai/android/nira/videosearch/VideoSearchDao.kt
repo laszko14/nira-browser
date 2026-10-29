@@ -68,6 +68,16 @@ internal interface VideoSearchDao {
         state: String, json: String, nowMs: Long
     ): Int
 
+    /**
+     * Only an explicitly confirmed, definitively invalid selector check
+     * may mark a configured record as needing repair. Never erase JSON.
+     */
+    @Query("UPDATE video_search_sites SET configurationState = 'REPAIR_REQUIRED', updatedAtMs = :nowMs WHERE profileId = :profileId AND id = :id AND siteUrl = :url AND updatedAtMs = :expectedUpdatedMs AND enabled = 1 AND configurationState = 'CONFIGURED'")
+    suspend fun flagValidatedBrokenConfiguration(
+        profileId: String, id: String, url: String,
+        expectedUpdatedMs: Long, nowMs: Long
+    ): Int
+
     @Query("UPDATE video_search_sites SET displayName = :name, updatedAtMs = :nowMs WHERE profileId = :profileId AND id = :id")
     suspend fun renameSite(profileId: String, id: String, name: String, nowMs: Long): Int
 
