@@ -1580,6 +1580,15 @@ internal class VideoSearchBridgeController(
                                     val safeOrigin = live?.content?.url?.let {
                                         VideoSearchBridgeProtocol.sameOrigin(it, site.siteUrl)
                                     } == true
+                                    // Capture revocation BEFORE removeTab(), which
+                                    // deliberately destroys the bound EngineSession.
+                                    // Cleanup of an unadopted worker is not STOPPED.
+                                    if (!lease.canUse(store.state.selectedTabId) ||
+                                        (lease.hasBoundSession &&
+                                            !lease.acceptsSession(live?.engineState?.engineSession))) {
+                                        outcome = VideoSearchQueueStatus.STOPPED
+                                        snapshot = null
+                                    }
                                     try {
                                         if (profileActive && lease.mayReclaim(
                                             live?.let {
@@ -1601,14 +1610,6 @@ internal class VideoSearchBridgeController(
                                     } finally {
                                         VideoSearchNormalWorkerSelectionHost.registry.release(lease)
                                     }
-                                }
-                                if (!lease.canUse(store.state.selectedTabId) ||
-                                    (lease.hasBoundSession && !lease.acceptsSession(
-                                        store.state.tabs.singleOrNull { it.id == tabId }
-                                            ?.engineState?.engineSession
-                                    ))) {
-                                    outcome = VideoSearchQueueStatus.STOPPED
-                                    snapshot = null
                                 }
                             }
                             withContext(Dispatchers.IO) {
