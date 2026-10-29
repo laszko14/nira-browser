@@ -183,7 +183,7 @@ internal data class VideoSearchResultsScreenState(
 )
 
 @Composable
-private fun VideoSearchResultsScreen(
+internal fun VideoSearchResultsScreen(
     state: VideoSearchResultsScreenState,
     onBack: () -> Unit,
     onRefresh: () -> Unit,

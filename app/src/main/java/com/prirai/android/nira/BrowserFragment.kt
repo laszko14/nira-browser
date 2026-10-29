@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,6 +27,9 @@ import com.prirai.android.nira.ext.components
 import com.prirai.android.nira.ext.nav
 import com.prirai.android.nira.preferences.UserPreferences
 import com.prirai.android.nira.media.MediaDetectorController
+import com.prirai.android.nira.videosearch.VIDEO_SEARCH_RESULTS_TAB_URL
+import com.prirai.android.nira.videosearch.VideoSearchResultsTabContent
+import com.prirai.android.nira.videosearch.VideoSearchResultsTabRoute
 import com.prirai.android.nira.media.MediaFloatingUi
 import com.prirai.android.nira.media.MediaUiSnapshot
 import com.prirai.android.nira.media.MediaTabState
@@ -62,6 +66,9 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     private val windowFeature = ViewBoundFeatureWrapper<WindowFeature>()
     private var mediaFloatingUi: MediaFloatingUi? = null
     private var sidePanelInfrastructure: SidePanelInfrastructure? = null
+    // ProfileManager is SharedPreferences-backed, not a Compose StateFlow.
+    // Recompose the internal results tab only when a selected tab switches owner.
+    private var resultsProfileRevision by androidx.compose.runtime.mutableIntStateOf(0)
 
     /** Mount only when a qualified left-edge gesture needs a real panel. */
     private fun mountEmbeddedSideTabs(): Boolean {
@@ -145,9 +152,10 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         // Initialize homepage ViewModel
         initializeHomeViewModel()
         
-        // Setup homepage ComposeView
+        // Homepage and search results are first-class BrowserStore tabs.
         setupHomePageComposeView()
-        
+        setupVideoSearchResultsTabView()
+
         // Update visibility based on current tab URL
         updateContentVisibility(tab.content.url)
 
@@ -629,6 +637,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                             if (profile != null && currentProfile.id != profileId) {
                                 // Switch to this profile context in the toolbar
                                 profileManager.setActiveProfile(profile)
+                                resultsProfileRevision++
                                 unifiedToolbar?.getTabGroupBar()?.updateProfileIcon(profile)
                             }
                         }
@@ -1560,6 +1569,12 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
 
     override fun onBackPressed(): Boolean {
         if (sidePanelInfrastructure?.closeOnBack() == true) return true
+        val store = requireContext().components.store
+        val selected = store.state.tabs.find { it.id == store.state.selectedTabId }
+        if (selected != null && selected.content.url == VIDEO_SEARCH_RESULTS_TAB_URL) {
+            requireContext().components.tabsUseCases.removeTab(selected.id)
+            return true
+        }
         // First, try the default back handling (reader mode, find in page, fullscreen, etc.)
         val handled = super.onBackPressed()
         
@@ -1773,12 +1788,66 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     }
     
     /**
+     * Mount the same saved results UI inside the selected BrowserStore tab.
+     * The existing engine surface stays attached behind this Compose overlay,
+     * just like about:homepage. No Activity, external page or JS bridge.
+     */
+    private fun setupVideoSearchResultsTabView() {
+        val results = binding.root.findViewById<androidx.compose.ui.platform.ComposeView>(
+            R.id.videoSearchResultsComposeView
+        ) ?: return
+        results.setViewCompositionStrategy(
+            androidx.compose.ui.platform.ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
+        )
+        results.setContent {
+            val components = requireContext().components
+            val selected by components.store.observeAsComposableState { state ->
+                state.tabs.find { it.id == state.selectedTabId }
+            }
+            // Also observe explicit normal-profile switches that do not
+            // replace the selected SessionState object in BrowserStore.
+            val profileRevision = resultsProfileRevision
+            if (selected?.content?.url == VIDEO_SEARCH_RESULTS_TAB_URL) {
+                val current = selected
+                val activeProfileId = androidx.compose.runtime.remember(
+                    selected?.id, profileRevision
+                ) {
+                    com.prirai.android.nira.browser.profile.ProfileManager
+                        .getInstance(requireContext()).getActiveProfile().id
+                }
+                val profileId = VideoSearchResultsTabRoute.normalOwner(
+                    current?.content?.url, current?.contextId,
+                    current?.content?.private ?: true, activeProfileId
+                )
+                if (current != null) {
+                    VideoSearchResultsTabContent(
+                        tabId = current.id,
+                        profileId = profileId,
+                        onClose = {
+                            val active = components.store.state
+                            if (active.selectedTabId == current.id &&
+                                active.tabs.any { it.id == current.id &&
+                                    it.content.url == VIDEO_SEARCH_RESULTS_TAB_URL }) {
+                                components.tabsUseCases.removeTab(current.id)
+                            }
+                        },
+                    )
+                }
+            }
+        }
+    }
+
+    /**
      * Update content visibility based on current URL
      * Shows homepage ComposeView for "about:homepage", otherwise shows engineView
      */
     private fun updateContentVisibility(url: String) {
         val binding = bindingOrNull ?: return
         val isHomepage = url == "about:homepage"
+        val isVideoSearch = url == VIDEO_SEARCH_RESULTS_TAB_URL
+        val resultsView = binding.root.findViewById<androidx.compose.ui.platform.ComposeView>(
+            R.id.videoSearchResultsComposeView
+        )
 
         val homePageView = binding.root.findViewById<androidx.compose.ui.platform.ComposeView>(
             R.id.homePageComposeView
@@ -1792,6 +1861,11 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             visibility = if (isHomepage) View.VISIBLE else View.GONE
             isClickable = isHomepage
             isFocusable = isHomepage
+        }
+        resultsView?.apply {
+            visibility = if (isVideoSearch) View.VISIBLE else View.GONE
+            isClickable = isVideoSearch
+            isFocusable = isVideoSearch
         }
     }
 }

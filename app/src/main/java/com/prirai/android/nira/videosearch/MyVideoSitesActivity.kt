@@ -478,8 +478,22 @@ class MyVideoSitesActivity : AppCompatActivity() {
 
     /** Open full saved results for the current normal profile. */
     private fun showMultiHistory() {
-        if (ownerIfCurrent() == null) return
-        startActivity(Intent(this, VideoSearchResultsActivity::class.java))
+        val scope = ownerIfCurrent() ?: return
+        try {
+            // An ordinary selected browser tab, not a separate Activity.
+            // Exact same internal-page pattern as about:homepage.
+            applicationContext.components.tabsUseCases.addTab.invoke(
+                VIDEO_SEARCH_RESULTS_TAB_URL,
+                selectTab = true,
+                private = false,
+                contextId = scope.contextId,
+            )
+            startActivity(Intent(this, BrowserActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+            finish()
+        } catch (_: Exception) {
+            message("Nie udało się otworzyć karty wyników")
+        }
     }
 
     private fun stopMultiSearch() {

@@ -46,6 +46,15 @@
                 android:visibility="gone"
             />
 
+            <!-- First-class about:zavro-video-search tab: overlays Gecko
+                 without detaching its engine surface or browser toolbar. -->
+            <androidx.compose.ui.platform.ComposeView
+                android:id="@+id/videoSearchResultsComposeView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone"
+            />
+
             <ViewStub
                 android:id="@+id/stubFindInPage"
                 android:layout_width="match_parent"
