@@ -11,6 +11,12 @@ import kotlinx.coroutines.flow.Flow
  * Every query is explicitly scoped to profileId. Never expose this DAO to
  * UI code; the repository validates Normal scope and references first.
  */
+/** Consistent user selection + parallelism + site order from one Room transaction. */
+internal data class VideoSearchLaunchSnapshotRows(
+    val settings: VideoSearchSettingsRow?,
+    val sites: List<VideoSearchSiteRow>,
+)
+
 @Dao
 internal interface VideoSearchDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -201,6 +207,30 @@ internal interface VideoSearchDao {
     suspend fun clearSelectedSites(profileId: String) {
         writeSelected(profileId, emptySet())
     }
+
+    /**
+     * Change ONLY parallelism. Preserve selected sites and every other
+     * preference atomically, including when settings do not yet exist.
+     */
+    @Transaction
+    suspend fun updateParallelism(profileId: String, mode: VideoSearchParallelism) {
+        val current = getSettings(profileId)
+        val settings = current ?: VideoSearchSettingsRow(
+            profileId = profileId,
+            selectedSitesJson = "[]",
+            parallelism = VideoSearchParallelism.ONE.name,
+            defaultTabGroupId = null,
+            view = VideoSearchView.TILES.name,
+            sortBySiteIdJson = "{}",
+        )
+        if (settings.parallelism != mode.name || current == null)
+            putSettings(settings.copy(parallelism = mode.name))
+    }
+
+    /** All launch inputs are consistent even if a user edits the UI. */
+    @Transaction
+    suspend fun getLaunchSnapshot(profileId: String): VideoSearchLaunchSnapshotRows =
+        VideoSearchLaunchSnapshotRows(getSettings(profileId), getSites(profileId))
 
     /** Stable, profile-scoped snapshot for a future search launch. */
     @Transaction

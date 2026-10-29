@@ -233,6 +233,36 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
             with(VideoSearchRowCodec) { it.toModel() }
         }
 
+    /** Stage 5A: settings are scoped and reactive for the launch preview. */
+    fun observeSettings(scope: VideoSearchScope.Normal): Flow<VideoSearchSettings> =
+        dao.observeSettings(scope.profileId).map { row ->
+            row?.let { with(VideoSearchRowCodec) { it.toModel() } }
+                ?: VideoSearchSettings(scope)
+        }
+
+    suspend fun setParallelism(
+        scope: VideoSearchScope.Normal, parallelism: VideoSearchParallelism,
+    ) = dao.updateParallelism(scope.profileId, parallelism)
+
+    /**
+     * Build a non-persistent, per-profile dispatch snapshot inside one read
+     * transaction. Never open Gecko tabs or persist a run in stage 5A.
+     * Selected, disabled sites are excluded; configured and unconfigured
+     * selected sites remain distinguishable in the plan.
+     */
+    suspend fun prepareDispatch(
+        scope: VideoSearchScope.Normal, phrase: String,
+    ): VideoSearchDispatchPlan {
+        val rows = dao.getLaunchSnapshot(scope.profileId)
+        val prefs = rows.settings?.let {
+            with(VideoSearchRowCodec) { it.toModel() }
+        } ?: VideoSearchSettings(scope)
+        val sites = rows.sites.map {
+            with(VideoSearchRowCodec) { it.toModel() }
+        }
+        return VideoSearchDispatchPlan.create(scope, phrase, prefs, sites)
+    }
+
     suspend fun putSettings(settings: VideoSearchSettings) {
         dao.putSettings(with(VideoSearchRowCodec) { settings.toRow() })
     }

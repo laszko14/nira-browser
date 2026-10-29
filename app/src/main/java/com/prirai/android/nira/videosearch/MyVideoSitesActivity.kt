@@ -42,6 +42,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private lateinit var selectionInfo: TextView
     private lateinit var selectAllButton: Button
     private lateinit var clearButton: Button
+    private lateinit var parallelismButton: Button
+    private lateinit var queuePreviewButton: Button
     private lateinit var adapter: SitesAdapter
     private var scope: VideoSearchScope.Normal? = null
     private var observer: Job? = null
@@ -88,6 +90,21 @@ class MyVideoSitesActivity : AppCompatActivity() {
         selectionActions.addView(selectAllButton, LinearLayout.LayoutParams(0, -2, 1f))
         selectionActions.addView(clearButton, LinearLayout.LayoutParams(0, -2, 1f))
         root.addView(selectionActions)
+
+        val dispatchControls = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        parallelismButton = Button(this).apply {
+            text = "Równoległość: 1"
+            setOnClickListener { chooseParallelism() }
+        }
+        queuePreviewButton = Button(this).apply {
+            text = "Podgląd kolejki"
+            setOnClickListener { previewQueue() }
+        }
+        dispatchControls.addView(parallelismButton, LinearLayout.LayoutParams(0, -2, 1f))
+        dispatchControls.addView(queuePreviewButton, LinearLayout.LayoutParams(0, -2, 1f))
+        root.addView(dispatchControls)
 
         root.addView(TextView(this).apply {
             text = "Witryny pozostają na liście nawet po błędzie konfiguracji. " +
@@ -165,6 +182,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
             selectionInfo.text = "Wybór niedostępny w trybie prywatnym"
             selectAllButton.isEnabled = false
             clearButton.isEnabled = false
+            parallelismButton.isEnabled = false
+            queuePreviewButton.isEnabled = false
             info.text = "Tryb prywatny: zapis do zwykłego profilu jest wyłączony. " +
                 "Lista prywatna będzie dostępna po integracji sesji prywatnej."
             return
@@ -172,6 +191,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
         val current = VideoSearchScope.Normal(manager.getActiveProfile().id)
         input.isEnabled = true
         addButton.isEnabled = true
+        parallelismButton.isEnabled = true
+        queuePreviewButton.isEnabled = true
         info.text = "Profil: ${manager.getActiveProfile().name}"
         if (scope == current && observer?.isActive == true) return
         observer?.cancel()
@@ -180,13 +201,17 @@ class MyVideoSitesActivity : AppCompatActivity() {
         adapter.replace(emptyList(), emptySet())
         observer = lifecycleScope.launch {
             repository.observeSites(current)
-                .combine(repository.observeSelectedSiteIds(current)) { sites, selected ->
-                    sites to selected
+                .combine(repository.observeSettings(current)) { sites, prefs ->
+                    sites to prefs
                 }
-                .collectLatest { (sites, selected) ->
+                .collectLatest { (sites, prefs) ->
                     if (ownerIfCurrent() == current && !reorderPending && !adapter.isDragging) {
-                        adapter.replace(sites, selected)
-                        updateSelectionControls(sites, selected)
+                        adapter.replace(sites, prefs.selectedSiteIds)
+                        updateSelectionControls(sites, prefs.selectedSiteIds)
+                        parallelismButton.text = "Równoległość: " +
+                            (if (prefs.parallelism == VideoSearchParallelism.ALL)
+                                "Wszystkie" else
+                                prefs.parallelism.maximumSites.toString())
                         // Opt-in extension install only after user has added a site
                         // and opened this screen. No Gecko cold-start injection.
                         if (sites.isNotEmpty()) {
@@ -254,6 +279,96 @@ class MyVideoSitesActivity : AppCompatActivity() {
         selectAllButton.isEnabled = ownerIfCurrent() != null &&
             enabledSites.any { it.id !in selectedIds }
         clearButton.isEnabled = ownerIfCurrent() != null && selectedIds.isNotEmpty()
+    }
+
+    private fun chooseParallelism() {
+        val owner = ownerIfCurrent() ?: return
+        lifecycleScope.launch {
+            val prefs = try { withContext(Dispatchers.IO) { repository.settings(owner) } }
+                catch (_: Exception) { return@launch }
+            if (ownerIfCurrent() != owner) return@launch
+            val modes = VideoSearchParallelism.values()
+            val labels: Array<CharSequence> = modes.map { mode ->
+                if (mode == VideoSearchParallelism.ALL)
+                    "Wszystkie (z kontrolą zasobów)" as CharSequence
+                else "${mode.maximumSites} jednocześnie" as CharSequence
+            }.toTypedArray()
+            MaterialAlertDialogBuilder(this@MyVideoSitesActivity)
+                .setTitle("Liczba równoległych wyszukiwań")
+                .setSingleChoiceItems(labels, modes.indexOf(prefs.parallelism)) { dialog, index ->
+                    dialog.dismiss()
+                    if (ownerIfCurrent() != owner) return@setSingleChoiceItems
+                    lifecycleScope.launch {
+                        try {
+                            withContext(Dispatchers.IO) {
+                                repository.setParallelism(owner, modes[index])
+                            }
+                        } catch (_: Exception) {
+                            if (ownerIfCurrent() == owner)
+                                message("Nie udało się zapisać równoległości")
+                        }
+                    }
+                }
+                .setNegativeButton("Anuluj", null)
+                .show()
+        }
+    }
+
+    /**
+     * Explicitly a preview, not execution: no search run, browser tab or
+     * network operation is created by this dialog.
+     */
+    private fun previewQueue() {
+        val owner = ownerIfCurrent() ?: return
+        val field = EditText(this).apply {
+            hint = "Fraza do wyszukania (tylko podgląd)"
+            setSingleLine(true)
+            inputType = InputType.TYPE_CLASS_TEXT
+        }
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("Podgląd kolejki witryn")
+            .setView(field)
+            .setNegativeButton("Anuluj", null)
+            .setPositiveButton("Pokaż plan") { _, _ ->
+                val phrase = field.text.toString().trim()
+                if (!VideoSearchBridgeProtocol.validQuery(phrase)) {
+                    message("Podaj frazę o długości 1–250 znaków")
+                    return@setPositiveButton
+                }
+                lifecycleScope.launch {
+                    val plan = try {
+                        withContext(Dispatchers.IO) {
+                            repository.prepareDispatch(owner, phrase)
+                        }
+                    } catch (_: IllegalArgumentException) {
+                        if (ownerIfCurrent() == owner)
+                            message("Zaznacz co najmniej jedną aktywną witrynę")
+                        return@launch
+                    } catch (_: Exception) {
+                        if (ownerIfCurrent() == owner)
+                            message("Nie udało się przygotować planu")
+                        return@launch
+                    }
+                    if (ownerIfCurrent() != owner) return@launch
+                    val ready = plan.runnableSites.size
+                    val waiting = plan.needsAttention.size
+                    val parallel = if (plan.parallelism == VideoSearchParallelism.ALL)
+                        "Wszystkie — według dostępnych zasobów"
+                    else "${plan.parallelism.maximumSites} jednocześnie"
+                    MaterialAlertDialogBuilder(this@MyVideoSitesActivity)
+                        .setTitle("Plan — bez uruchamiania")
+                        .setMessage("Wybrane aktywne witryny: ${plan.selectedCount}" +
+                            "\nGotowe do kolejki: $ready" +
+                            "\nWymagają konfiguracji: $waiting" +
+                            "\nRównoległość: $parallel" +
+                            "\n\nKolejka jest tylko przygotowana. " +
+                            "Praca na wielu kartach zostanie wdrożona w następnym etapie.")
+                        .setPositiveButton("OK", null)
+                        .show()
+                }
+            }
+            .create()
+        dialog.show()
     }
 
     private fun setSiteSelected(site: VideoSearchSite, selected: Boolean) {
