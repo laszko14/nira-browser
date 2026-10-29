@@ -41,13 +41,15 @@ Odniesienia do kodu dotyczą bazy `b7d62f79f285ac81c29a79b326529d42e9b9fde4`. Be
 | ZC-AUD-035 | 11B | P2 MEDIUM | CONFIRMED | Deduplikacja sieci pomija sukces przywracający dostęp po błędzie tego samego URL |
 | ZC-AUD-036 | 11B | P2 MEDIUM | CONFIRMED | Detekcja ochrony DASH myli komentarze XML i pomija elementy z prefiksem namespace |
 | ZC-AUD-037 | 12A | P2 MEDIUM | CONFIRMED | Późniejszy właściciel DOM nie uzgadnia wcześniejszej grupy manifestu, rozdzielając warianty filmu |
-| ZC-AUD-038 | 12A,12B | P2 MEDIUM | CONFIRMED | Wybór reprezentanta kafelka pomija dostępne metadane innych wariantów tej samej grupy |
+| ZC-AUD-038 | 12A,12B,13 | P2 MEDIUM | CONFIRMED | Wybór reprezentanta grupy pomija dostępne metadane i odtwarzalne alternatywy |
 | ZC-AUD-039 | 12A | P2 MEDIUM | CONFIRMED | Ponowny odczyt niezmienionej konfiguracji data-* tworzy nowe identyfikatory grup i omija deduplikację |
 | ZC-AUD-040 | 12B | P2 MEDIUM | CONFIRMED | Parser DASH odrzuca typowe ułamkowe FPS z pięciocyfrowym licznikiem |
 | ZC-AUD-041 | 12B | P3 LOW | CONFIRMED | Potwierdzenie segmentu zmienia pochodzenie czasu HLS na HTML5 |
 | ZC-AUD-042 | 12B | P2 MEDIUM | CONFIRMED | Zmiana average bitrate na peak pozostawia nieaktualny szacunek rozmiaru |
 | ZC-AUD-043 | 12B | P2 MEDIUM (potencjalny) | LIKELY | Okno src/currentSrc może przypisać parametry poprzedniego filmu do nowego URL |
 | ZC-AUD-044 | 12B | P3 LOW | CONFIRMED | Suma czasów DASH zaokrągla każdy Period osobno, zawyżając wynik |
+| ZC-AUD-045 | 13 | P2 MEDIUM | CONFIRMED | Preview-assist przejmuje i wycisza zwykłe video playsinline bez deklaracji podglądu |
+| ZC-AUD-046 | 13 | P2 MEDIUM | CONFIRMED | Po błędzie tworzonego podglądu każde kolejne kliknięcie ponownie blokuje nawigację |
 
 ## ZC-AUD-001 — niespójny kontrakt wersji joba release
 
@@ -532,7 +534,7 @@ Uzupełnienie 024 z 10B: ten sam kontrakt menu występuje również w `browser/h
 - **Kierunek:** uzgadniać dokładnie powiązaną grupę lokalnego właściciela i linię manifestu także przy późnym DOM, z aktualizacją już znanych członków i zachowaniem konfliktów/ramki/dokumentu. Nie scalać po tytule ani samym hoście.
 - **Regresje:** oba porządki U/V/NETWORK oraz derived przed/po DOM; jeden film i te same warianty, ale niezależne filmy o równych tytułach pozostają oddzielne. Dwie ramki, sprzeczni właściciele, zmiana źródła, prywatność i nawigacja; kontrola liczników i wyboru źródła. Specyfikacja do przyszłego wdrożenia, bez nowych testów w app.
 
-## ZC-AUD-038 — metadane grupy giną przy wyborze reprezentanta
+## ZC-AUD-038 — wybór reprezentanta pomija metadane i dostępne alternatywy
 
 - **Etap:** 12A — miniatury i fallback grupy wariantów; uzupełnienie 12B — parametry techniczne.
 - **Miejsce:** [`MediaFloatingUi.kt:368`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/media/MediaFloatingUi.kt#L368), mediaTileItems:368–374; [`VideoTilesPanel.kt:244`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/media/VideoTilesPanel.kt#L244), VideoTile:244,257–265; producent content.scanPlayerConfigs:938–964.
@@ -540,11 +542,13 @@ Uzupełnienie 024 z 10B: ten sam kontrakt menu występuje również w `browser/h
 - **Dowód:** kontrolowany JS rzeczywistego producenta emituje dwa warianty jednej konfiguracji: wspólny tytuł i groupId, tylko drugi wariant ma posterUrl. Kod próby w STAGE_12. Statyczny ciąg add zachowuje oba rekordy w kolejności, a mediaTileItems przy równych źródłach wybiera pierwszy; VideoTile odczytuje wyłącznie jego pusty poster. Wariant sieciowy bez obrazu może też mieć pierwszeństwo przed lokalnym wariantem z obrazem. Bez wykonania Kotlin/Compose/UI.
 - **Pewność:** CONFIRMED statycznie; próba JS potwierdza osiągalne dane wejściowe, nie odtworzenie UI. Nie zakłada się, że wszystkie miniatury różnych wariantów są zgodne.
 - **Ważność:** P2 MEDIUM — brak miniatury filmu mimo dostępnego jednoznacznego dowodu w tej samej grupie.
-- **Wpływ:** prezentacja filmu; nie zmienia URL odtwarzania. Odrębne od037: występuje również przy już poprawnie uzgodnionej jednej grupie.
+- **Wpływ:** pierwotny dowód 12A dotyczy prezentacji filmu; uzupełnienie 13 poniżej obejmuje także dostępność akcji/alternatyw. Odrębne od037: występuje również przy już poprawnie uzgodnionej jednej grupie.
 - **Kierunek:** oddzielić bezpieczny grupowy fallback miniatury od wyboru URL/reprezentanta; respektować pochodzenie i konflikty z MediaPosterResolver oraz granice grupy/ramki. Nie przenosić obrazu z sąsiedniego filmu ani arbitralnie wybierać przy sprzecznych posterach.
 - **Regresje:** tylko pierwszy/drugi wariant z posterem, zamiana kolejności i flag NETWORK/DOM, jeden wspólny poster kontra dwa sprzeczne, wyłączone miniatury, brak obrazu, dwie grupy/ramki. Tytuł, liczba wariantów i URL akcji muszą zachować tożsamość. Specyfikacja, bez nowych testów aplikacji.
 
 - **Uzupełnienie 12B (ten sam mechanizm, bez nowego ID):** utrata fallbacku dotyczy też czasu/rozmiaru/LIVE i parametrów dostępnych tylko w innym wariancie. Zwykły HLS master U pojawia się przed child V. Po sieciowej obserwacji V oba mają NETWORK i wspólną grupę; przy braku DOM pierwszeństwo zachowuje starszy U. Parsed master nie ma czasu i ma live=false (`manifest-parser.js:119–123`); child media może mieć zweryfikowany czas lub live=true. `VideoTilesPanel.kt:330–345` czyta wyłącznie wybrany U, więc kafelek nadal pokazuje nieznany czas zamiast znanego VOD/LIVE. Dowód statyczny, UI/Gecko NOT_TESTED. Naprawa potrzebuje jawnej polityki danych grupowych; nie wolno kopiować rozmiaru lub bitrate innej jakości jako parametrów wybranego URL. Rozszerzyć regresje o master→child VOD/LIVE, alternatywy o różnych rozmiarach i sprzeczne dane.
+
+- **Uzupełnienie 13 (ta sama przyczyna, bez nowego ID):** MediaFloatingUi.mediaTileItems:368–374 wybiera reprezentanta tylko według NETWORK/DOM, bez playbackStatus i bez udostępnienia pozostałych źródeł jako opcji. Dla jednej grupy [starszy NETWORK U z AUTH_ERROR/UNPLAYABLE, późniejszy NETWORK V z CONFIRMED], bez DOM, reprezentantem pozostaje U. VideoTilesPanel:247,288–305 wyłącza obie akcje Play, a BrowserFragment:344–348 odrzuca U również przy bezpośrednim wywołaniu. Wykryty odtwarzalny V nie ma kontrolki wyboru. Dowód statyczny, Kotlin/UI NOT_TESTED. Może to wystąpić np. po utracie ważności mastera przy nadal dostępnym child. Rozszerzyć kierunek naprawy o bezpieczny wybór konkretnego wariantu/alternatywy i kontrolę jego aktualności; nie przypisywać statusu V do URL U. Regresje: różne kolejności i statusy dwóch wariantów, jawny wybór V, obie opcje niedostępne, odnowienie podpisanego URL, zmiana dokumentu i ramki. Priorytet pozostaje P2.
 
 ## ZC-AUD-039 — niestabilna tożsamość konfiguracji odczytywanej z atrybutu
 
@@ -618,4 +622,28 @@ Uzupełnienie 024 z 10B: ten sam kontrakt menu występuje również w `browser/h
 - **Kierunek:** zachować precyzję czasów do zsumowania i zaokrąglić na granicy transportu sekund, z ograniczeniami zakresu/finite.
 - **Regresje:** okresy ułamkowe i całkowite, wiele krótkich okresów, kontrola równoważnym jednym okresem, globalny czas, brakujące/niepoprawne duration i dynamic MPD; brak fabrykowania czasu LIVE. Bez nowych testów app.
 
-Stan po etapie 12: CONFIRMED=37 (P0=0,P1=3,P2=32,P3=2); LIKELY=4 (010,016,019,043 — potencjalne P2); SUSPECTED=3 (002,025 potencjalne P2;030 potencjalny P1). Nowe 12B:040/042 CONFIRMED P2,041/044 CONFIRMED P3,043 LIKELY P2;038 rozszerzono bez nowego ID. Etap 12 COMPLETE (12A i12B).
+## ZC-AUD-045 — zwykłe video zostaje uznane za podgląd i wyciszone
+
+- **Etap:** 13 — zgodność odtwarzania stron i przechwytywanie kliknięć.
+- **Miejsce:** [`preview-assist.js:58`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/assets/extensions/nira-media-detector/preview-assist.js#L58), playPreview:58–94, szczególnie link fallback:77, kwalifikacja:86–87 i mutacja:88–94; findPreviewVideo:32–34; manifest.json:26–38 uruchamia skrypt także w ramkach.
+- **Problem/mechanizm:** kontener pasujący np. do article, zwykłe paused video z playsinline i dowolny link w tym kontenerze spełniają heurystykę mimo braku data-preview i niewyciszonego głównego filmu. Kliknięcie video znajduje je jako clickedThumb; fallback wybiera link karty, a samo playsinline jest wystarczającym sygnałem „podglądu”. Skrypt ustawia muted=true, wywołuje play(), potem preventDefault i stopImmediatePropagation. Playsinline nie oznacza, że medium jest miniaturą; link nie musi być klikniętym linkiem podglądu.
+- **Dowód:** wykonany niezmieniony skrypt w krótkim fixture kontraktów DOM dla zwykłego video controls/playsinline w article z linkiem pobierania: bez deklaracji podglądu uzyskano muted=true, jedno play i obie blokady zdarzenia. Kontrola już odtwarzanego, niewyciszonego video nie została przejęta. Próba+SHA w [STAGE_13](STAGE_13.md#minimalna-próba-13).
+- **Pewność:** CONFIRMED — odtworzona błędna kwalifikacja i skutki JS. Nie wykonano prawdziwego DOM, natywnych kontrolek Gecko ani testu dźwięku na telefonie; nie twierdzi się, że każdy odtwarzacz jest dotknięty.
+- **Ważność:** P2 MEDIUM — niezamierzone wyciszenie i konsumpcja kliknięcia podstawowego filmu; zatrzymuje też późniejsze handlery strony w tym strumieniu click.
+- **Wpływ:** kwalifikujące się zwykłe HTML5/iframe, także istniejący blob/MSE, jeśli spełnia te same warunki. Nie jest to automatyczne przejęcie przez MPV ani patchowanie globalnego play/pause. Wymuszone muted/playsInline istniejącego video nie ma rollbacku w catch, więc błąd play sam nie odwraca mutacji.
+- **Kierunek:** wymagać jednoznacznego, lokalnego właściciela rzeczywistego podglądu; nie traktować playsinline ani przypadkowego linku jako dowodu. Zachować domyślne sterowanie i dźwięk zwykłego odtwarzacza, nie przejmować jego kontrolek. Odtwarzanie podglądu może pozostać odrębną świadomą akcją; brak napraw podczas audytu.
+- **Regresje:** zwykły video controls/playsinline z linkiem i bez, własny przycisk strony i kliknięcie powierzchni, faktycznie zadeklarowany podgląd, paused/playing, rejection play i zachowanie wcześniejszego muted; iframe, fullscreen, blob/MSE oraz klawiatura/modifier click. Na Gecko sprawdzić propagację i dźwięk, bez DRM bypass i bez zmian danych użytkownika. Nie powtórzono istniejących PASS podglądu z etapu3.
+
+## ZC-AUD-046 — odtwarzanie błędnego podglądu blokuje każdy kolejny tap
+
+- **Etap:** 13 — nawigacja i obsługa nieudanego podglądu.
+- **Miejsce:** [`preview-assist.js:32`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/assets/extensions/nira-media-detector/preview-assist.js#L32), findPreviewVideo:32–55; playPreview:79–101; failed WeakSet:10.
+- **Problem/mechanizm:** dla karty z linkowaną miniaturą i data-preview-src, bez własnego video, każdy tap tworzy nowy video. Po odrzuceniu play skrypt dopisuje ten obiekt do failed i usuwa go z DOM. Następny tap nie znajduje starego video i tworzy nowy, nieobecny w WeakSet; ponownie uruchamia play i blokuje link. Zapowiedziany w komentarzu fallback „next tap original link works” działa dla pozostawionego istniejącego video, ale nie dla usuwanych utworzonych podglądów.
+- **Dowód:** wykonany skrypt, stała karta/URL i dwie następujące po sobie odrzucone próby play: created=2, removed=2, plays=2; oba zdarzenia miały preventDefault i stopImmediatePropagation. Doprecyzowano fixture, aby miniatura była wewnątrz linku; wynik pozostał taki sam. Bez rzeczywistego HTTP i nawigacji przeglądarki. Kod+SHA w STAGE_13.
+- **Pewność:** CONFIRMED — deterministyczna utrata informacji o błędzie wraz z obiektem video; rzeczywisty DOM/Gecko i konkretne przyczyny rejection NOT_TESTED.
+- **Ważność:** P2 MEDIUM — użytkownik nie może otworzyć strony filmu zwykłym kolejnym kliknięciem; powtarzane próby tworzą i usuwają podgląd zamiast oddać nawigację.
+- **Wpływ:** deklarowane podglądy generowane przez rozszerzenie, np. niedostępne/nieobsługiwane medium lub rejection play. Odrębne od045: nawet poprawnie rozpoznany podgląd z jawnym URL ma ten błąd odzyskiwania.
+- **Kierunek:** zachować ograniczoną informację o nieudanym podglądzie przy właścicielu i jego źródle lub inną poprawną tożsamość po usunięciu video; następny tap ma zachować nawigację. Prawdziwa zmiana źródła/karty powinna umożliwiać świadomą nową próbę; nie utrwalać URL ani błędów w nieskończonym globalnym cache.
+- **Regresje:** pierwszy rejection→drugi tap na linku, istniejący versus tworzony video, wiele niezależnych kart, usunięcie/recykling karty i zmiana preview URL, udany podgląd, synchroniczny wyjątek play oraz błędy sieci/formatu. W realnym Gecko potwierdzić faktyczną nawigację, nie tylko flagi eventu. Specyfikacja, bez nowych testów w app.
+
+Stan po etapie 13: CONFIRMED=39 (P0=0,P1=3,P2=34,P3=2); LIKELY=4 (010,016,019,043 — potencjalne P2); SUSPECTED=3 (002,025 potencjalne P2;030 potencjalny P1). Nowe 045/046 CONFIRMED P2;038 rozszerzono bez duplikatu. Etap 13 COMPLETE;14 NOT_STARTED.

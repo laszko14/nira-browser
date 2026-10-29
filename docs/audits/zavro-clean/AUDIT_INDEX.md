@@ -18,13 +18,13 @@ Baza kodu: `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79
 | 10 | Sesje, profile i GeckoView | COMPLETE — 10A i 10B | [STAGE_10.md](STAGE_10.md) |
 | 11 | Wykrywanie filmów | COMPLETE — 11A i 11B | [STAGE_11.md](STAGE_11.md) |
 | 12 | Metadane i warianty | COMPLETE — 12A i 12B | [STAGE_12.md](STAGE_12.md) |
-| 13 | FAB, kafelki i odtwarzanie stron | NOT_STARTED | — |
+| 13 | FAB, kafelki i odtwarzanie stron | COMPLETE | [STAGE_13.md](STAGE_13.md) |
 | 14 | Konflikty funkcji | NOT_STARTED | — |
 | 15 | Wydajność, pamięć i 120 Hz | NOT_STARTED | — |
 | 16 | Stabilność i bezpieczeństwo | NOT_STARTED | — |
 | 17 | Testy regresji | NOT_STARTED | — |
 | 18 | Raport końcowy i plan napraw | NOT_STARTED | — |
 
-Rejestr: [FINDINGS.md](FINDINGS.md). Checkpoint wznowienia: [../../AI_HANDOFF.md](../../AI_HANDOFF.md), wpis „ZC-AUD — ETAP 12/18 COMPLETE”. Obowiązuje v1.8 (zastępuje optymalizacje v1.6/v1.7). Nie utworzono raportów przyszłych etapów ani raportu końcowego.
+Rejestr: [FINDINGS.md](FINDINGS.md). Checkpoint wznowienia: [../../AI_HANDOFF.md](../../AI_HANDOFF.md), wpis „ZC-AUD — ETAP 13/18 COMPLETE”. Obowiązuje v1.8 (zastępuje optymalizacje v1.6/v1.7). Nie utworzono raportów przyszłych etapów ani raportu końcowego.
 
-Łącznie po 12: CONFIRMED=37 (P0=0,P1=3,P2=32,P3=2); LIKELY=4 (010,016,019,043 — potencjalne P2), SUSPECTED=3 (002/025 potencjalne P2,030 potencjalny P1). Nowe 12B:040/042 CONFIRMED P2,041/044 CONFIRMED P3,043 LIKELY;038 rozszerzono bez duplikatu. Etapy 1–12 COMPLETE. Dowody/ograniczenia w [STAGE_12](STAGE_12.md) oraz rejestrze. Następny po „Dalej”: **13 — FAB, kafelki i kompatybilność odtwarzania stron**. Rekomendacja GPT-6.1 Sol / High / Standard.
+Łącznie po 13: CONFIRMED=39 (P0=0,P1=3,P2=34,P3=2); LIKELY=4 (010,016,019,043 — potencjalne P2), SUSPECTED=3 (002/025 potencjalne P2,030 potencjalny P1). Nowe 045/046 CONFIRMED P2;038 rozszerzono o akcje/alternatywy bez duplikatu. Etapy 1–13 COMPLETE. Dowody/ograniczenia w [STAGE_13](STAGE_13.md) oraz rejestrze. Następny po „Dalej”: **14 — konflikty między wdrożonymi funkcjami**. Rekomendacja GPT-6.1 Sol / High / Standard.
