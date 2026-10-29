@@ -5,6 +5,7 @@ import java.util.UUID
 internal data class VideoSearchPrivateRunSnapshot(
     val run: VideoSearchRun,
     val films: List<VideoSearchFilm>,
+    val tasks: List<VideoSearchSiteTask> = emptyList(),
 )
 
 /** All private results and queries stay in the session-owned RAM store. */
@@ -103,7 +104,8 @@ internal class VideoSearchPrivateRunAccess(
             store.runs(scope).asReversed().take(12).map { run ->
                 VideoSearchPrivateRunSnapshot(run, run.siteIds.flatMap { siteId ->
                     store.films(scope, run.id, siteId).sortedBy { it.originalIndex }
-                }.take(VideoSearchPrivateGroupAccess.MAX_AGGREGATE_FILMS))
+                }.take(VideoSearchPrivateGroupAccess.MAX_AGGREGATE_FILMS),
+                    store.tasks(scope, run.id))
             }
         }
 
@@ -114,6 +116,7 @@ internal class VideoSearchPrivateRunAccess(
             ) ?: return@withAuthorizedTab null
             VideoSearchPrivateRunSnapshot(run, run.siteIds.flatMap { siteId ->
                 store.films(scope, run.id, siteId).sortedBy { it.originalIndex }
-            }.take(VideoSearchPrivateGroupAccess.MAX_AGGREGATE_FILMS))
+            }.take(VideoSearchPrivateGroupAccess.MAX_AGGREGATE_FILMS),
+                store.tasks(scope, run.id))
         }
 }

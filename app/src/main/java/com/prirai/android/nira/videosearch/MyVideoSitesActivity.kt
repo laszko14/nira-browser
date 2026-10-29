@@ -80,6 +80,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private var privateResultsItems: List<VideoSearchFilm> = emptyList()
     private val privateRunAccess = VideoSearchPrivateRunAccess()
     private val privateSitesAccess = VideoSearchPrivateSitesAccess()
+    private val privateResultNavigation = VideoSearchPrivateResultNavigation()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -384,6 +385,10 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 } else message("Brak aktywnego wyszukiwania w tej sesji.")
             }
         })
+        privatePanel.addView(Button(this).apply {
+            text = "Odśwież prywatne wyniki"
+            setOnClickListener { refreshPrivatePanel() }
+        })
         privateResultsLabel = TextView(this).apply {
             textSize = 13f
             text = "Brak poprzednich wyników prywatnych w tej sesji."
@@ -420,16 +425,21 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 val selected = selectedPrivateTab() ?: return@setOnItemClickListener
                 val film = privateResultsItems.getOrNull(position)
                     ?: return@setOnItemClickListener
-                val current = privateRunAccess.history(selected.first, selected.second)
-                    ?.singleOrNull { it.run.id == selectedPrivateRunId }
+                val chosenRun = selectedPrivateRunId
                     ?: return@setOnItemClickListener
-                if (film.scope !is VideoSearchScope.Private ||
-                    film.runId != current.run.id ||
-                    current.films.none { it.id == film.id }) return@setOnItemClickListener
+                if (film.runId != chosenRun) return@setOnItemClickListener
+                val url = privateResultNavigation.resolveFilmUrl(
+                    selected.first, selected.second, chosenRun, film.id
+                ) ?: run {
+                    refreshPrivatePanel()
+                    return@setOnItemClickListener
+                }
+                // Recheck the selected private BrowserStore owner immediately
+                // before routing into the existing private browser tab path.
+                if (selectedPrivateTab() != selected) return@setOnItemClickListener
                 try {
-                    VideoSearchIntegrity.requirePageUrl(film.filmPageUrl)
                     applicationContext.components.tabsUseCases.addTab.invoke(
-                        film.filmPageUrl, selectTab = true, private = true,
+                        url, selectTab = true, private = true,
                         contextId = "private",
                     )
                     startActivity(Intent(this@MyVideoSitesActivity,
@@ -477,8 +487,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
                     ?.let { " · $it" }.orEmpty()
         })
         privateResultsLabel.text = "Prywatne wyniki: ${snapshot.films.size} · " +
-            (if (snapshot.run.status == VideoSearchRunState.COMPLETED)
-                "zakończone" else "częściowe") +
+            VideoSearchPrivateRunPresentation.summary(snapshot) +
             ". Otwórz film w nowej karcie prywatnej."
     }
 
@@ -518,7 +527,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
             }?.displayName ?: item.films.firstOrNull()?.siteName ?: "Witryna"
             val label = if (item.run.siteIds.size > 1)
                 "${item.run.siteIds.size} witryn" else siteName
-            "${index + 1}. $label · ${item.films.size} wyników"
+            "${index + 1}. $label · ${item.films.size} wyników · " +
+                VideoSearchPrivateRunPresentation.summary(item)
         })
         val chosen = runs.indexOfFirst { it.run.id == previous }
             .takeIf { it >= 0 } ?: 0
@@ -592,6 +602,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             refreshPrivatePanel()
             return
         }
+        clearPrivatePresentation()
         privatePanel.visibility = View.GONE
         normalPanel.visibility = View.VISIBLE
         val current = VideoSearchScope.Normal(manager.getActiveProfile().id)
@@ -686,7 +697,24 @@ class MyVideoSitesActivity : AppCompatActivity() {
         }
     }
 
+    /** No stale private title, URL or query remains on a paused screen. */
+    private fun clearPrivatePresentation() {
+        if (!::privateQueryInput.isInitialized) return
+        privateQueryInput.text.clear()
+        privateSiteInput.text.clear()
+        privateResultsItems = emptyList()
+        privateRunHistory = emptyList()
+        selectedPrivateRunId = null
+        privateRunPickerAdapter.clear()
+        privateResultsAdapter.clear()
+        privateSitesContainer.removeAllViews()
+        privateResultsLabel.text = ""
+        privateStatus.text = ""
+        privateAddButton.isEnabled = false
+    }
+
     override fun onPause() {
+        clearPrivatePresentation()
         historyRetentionJob?.cancel()
         historyRetentionJob = null
         deletedDefaultObserver?.cancel()
