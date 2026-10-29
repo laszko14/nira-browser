@@ -29,6 +29,12 @@ Odniesienia do kodu dotyczą bazy `b7d62f79f285ac81c29a79b326529d42e9b9fde4`. Be
 | ZC-AUD-023 | 10A | P2 MEDIUM | CONFIRMED | Wybór karty domyślnego profilu pomija uzgodnienie aktywnego profilu |
 | ZC-AUD-024 | 10A | P2 MEDIUM | CONFIRMED | Prywatność nowej karty z menu zależy od tego, czy profil jest domyślny czy nazwany |
 | ZC-AUD-025 | 10A | P2 MEDIUM (potencjalny) | SUSPECTED | Sugestie kart i akcje wyboru/zamknięcia obejmują inne normalne profile |
+| ZC-AUD-026 | 10B | P1 HIGH | CONFIRMED | Zakończenie głównego Activity zabija proces bez oczekiwania na zapis sesji |
+| ZC-AUD-027 | 10B | P2 MEDIUM | CONFIRMED | Observer pustej listy tworzy kartę przed zakończeniem restore i przesłania zapisany wybór |
+| ZC-AUD-028 | 10B | P2 MEDIUM | CONFIRMED | PWA profilu default używa innej partycji Gecko niż główna przeglądarka |
+| ZC-AUD-029 | 10B | P2 MEDIUM | CONFIRMED | Menu kontekstowe PWA obserwuje wybraną kartę BrowserStore zamiast sesji PWA |
+| ZC-AUD-030 | 10B | P1 HIGH (potencjalny) | SUSPECTED | Przy window.open kontekst przygotowanej sesji Gecko może różnić się od kontekstu karty |
+| ZC-AUD-031 | 10B | P2 MEDIUM | CONFIRMED | Usunięcie profilu pozostawia jego karty w BrowserStore i trwałym snapshot |
 
 ## ZC-AUD-001 — niespójny kontrakt wersji joba release
 
@@ -345,6 +351,8 @@ Odniesienia do kodu dotyczą bazy `b7d62f79f285ac81c29a79b326529d42e9b9fde4`. Be
 - **Kierunek naprawy:** ustalić jedną semantykę NewTab i przekazywać jawny private oraz profil. Jeżeli to akcja nowej normalnej karty, wyłączyć private i jednoznacznie zażądać default również przy null (bez nadpisania przez tryb globalny); jeżeli ma zachować bieżący tryb, obliczać oba pola z tego samego trybu dla każdego profilu. Zachować odrębną akcję NewPrivateTab.
 - **Regresje:** macierz default/named × normal/private × NewTab/NewPrivateTab/plus; sprawdzić content.private, contextId, wybraną kartę, oba menedżery i stan po powrocie do strony. Kontrola negatywna: normalny background link z jawnego obcego kontekstu w czasie private nadal respektuje źródło, nie globalny tryb. Istniejący ProfileTabPrivacyTest nie testuje wejścia kontrolera menu.
 
+Uzupełnienie 024 z 10B: ten sam kontrakt menu występuje również w `browser/home/ComposeHomeFragment.kt:748–756` (private=false, contextId default=null). Dodatkowy callsite tej samej przyczyny, bez nowego naliczenia.
+
 ## ZC-AUD-025 — zakres sugestii kart nie jest ograniczony do bieżącego profilu
 
 - **Etap:** 10A — wyszukiwanie istniejących kart i izolacja prezentacji profili.
@@ -358,4 +366,82 @@ Odniesienia do kodu dotyczą bazy `b7d62f79f285ac81c29a79b326529d42e9b9fde4`. Be
 - **Kierunek naprawy po potwierdzeniu:** filtrować do uzgodnionego scope i sprawdzać go ponownie w callbacku; jeśli wyszukiwanie ma być globalne, jawnie oznaczać profil i atomowo uzgadniać jego wybór. Nie usuwać funkcji globalnej bez ustalenia jej przeznaczenia.
 - **Regresje:** default+co najmniej2 named, te same tytuły/różne grupy, input pusty i dopasowany, zmiana profilu pomiędzy wyświetleniem a kliknięciem, select/close oraz zachowanie wykluczenia private. Uzgodnić oczekiwany wynik lokalny/globalny przed uznaniem próby za PASS/FAIL.
 
-Stan po 10A: CONFIRMED=20 (P1=2,P2=18); LIKELY=3 (010,016,019 — potencjalne P2); SUSPECTED=2 (002, 025 — potencjalne P2). Nowe 023/024 potwierdzone statycznie, 025 podejrzane. Cały etap 10 pozostaje PARTIAL; 10B nie rozpoczęto.
+## ZC-AUD-026 — killProcess wyprzedza trwały zapis sesji
+
+- **Etap:** 10B — AutoSave, zakończenie procesu i restore.
+- **Miejsce:** [`BrowserActivity.kt:327`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/BrowserActivity.kt#L327), onDestroy:327–346; BrowserApp.restoreBrowserState:396–402. Biblioteki: AutoSave.triggerSave:103–135/AutoSaveBackground:178–182, ProcessLifecycleOwner.activityPaused/dispatchStopIfNeeded:109–130; [wersje, URL/SHA](STAGE_10.md#źródła-10b).
+- **Problem:** zakończenie root Activity może utracić ostatnie zmiany sesji mimo poprawnego działania UI.
+- **Mechanizm:** isFinishing&&isTaskRoot&&!isChangingConfigurations prowadzi do killProcess bez końcowego flush/ack. AutoSave zleca zapis IO, może czekać na minimalny interwał 2 s lub być w trakcie zapisu. Background save zależy od ProcessLifecycleOwner, którego pauza jest odroczona 700 ms. onDestroy nie czeka na żaden z tych mechanizmów.
+- **Dowód:** stan S0 zapisany; po nowej normalnej karcie zapis S1 czeka na interwał; root kończy się wcześniej i zabija wykonawcę, więc restore nadal czyta S0. Niezależnie sprawdzono launch/delay AutoSave oraz opóźniony lifecycle procesu 2.11.0. Nie zakładano, że każdy swipe recents wywołuje ten warunek — wystarcza zakończenie root Activity.
+- **Pewność:** CONFIRMED statycznie: brak porządku zapis→zakończenie i osiągalny harmonogram utraty zmian. Kill/restore na Androidzie NOT_TESTED; nie wyznaczono stałego okna utraty.
+- **Ważność:** P1 HIGH — zniknięcie nowej karty lub powrót zamkniętej po restarcie. Bez dowodu utraty całej historii/zakładek albo uszkodzenia pliku.
+- **Wpływ:** wybór/liczba kart, URL, ostatni stan engine, zmiany profilu pozostające tylko w RAM; odrębne od 004/005.
+- **Kierunek:** skoordynować końcowy zapis/flush i zakończenie; usunąć bezwarunkową terminację lub uzależnić ją od potwierdzenia zapisu. Nie blokować Main kosztownym IO ani kasować danych.
+- **Regresje:** izolowane dane S0→add/close/nawigacja→pending save→finish root→restart, różne momenty/opóźnienia IO. Sprawdzić kolejność zatwierdzenia i terminacji, nie tylko wywołanie save. Recreate/tło/PiP nie mogą zabijać procesu. Nie wykonywano na danych użytkownika.
+
+## ZC-AUD-027 — pusty stan startowy jest traktowany jak zamknięcie wszystkich kart
+
+- **Etap:** 10B — start/restore/wybór.
+- **Miejsce:** [`BaseBrowserFragment.kt:828`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/BaseBrowserFragment.kt#L828), observeTabSelection:828–861, onViewCreated:190–200, observeRestoreComplete:758–808; BrowserApp:396–399; nav_graph.xml:6. AC TabListReducer.RestoreAction:173–215, TabsUseCases.RestoreUseCase:320–338 (źródła przy023/024).
+- **Problem:** wolniejszy restore powoduje dodatkową kartę startową i pominięcie zapisanego wyboru.
+- **Mechanizm:** graph startuje BrowserFragment. Observer liczby kart reaguje na początkowe 0 bez warunku restoreComplete i robi navigate(home)+addTab(select=true). Równoległy restore dopisuje odzyskane karty, lecz reduktor zachowuje istniejący selected ID, chroniąc normalnie pierwszeństwo nowych intentów.
+- **Dowód:** snapshot A → pusty Store/restoreComplete=false → observer tworzy H/selected H → RestoreAction(A,selected A,BEGINNING) daje[A,H],selected H (:206–213). W zwykłym starcie bez zewnętrznego intentu H nie pochodzi z nowej decyzji użytkownika.
+- **Pewność:** CONFIRMED statycznie dla wskazanej kolejności. Realny dysk/Fragmenty NOT_TESTED; nie twierdzono, że każde uruchomienie trafia w ten harmonogram.
+- **Ważność:** P2 MEDIUM — dodatkowa karta i niewłaściwy aktywny widok; odzyskane karty nie są przez to usuwane.
+- **Wpływ:** restart, licznik/kolejność, bootstrap normal/private, późniejszy AutoSave;023/024 nie liczone ponownie.
+- **Kierunek:** rozróżnić ładowanie restore od ukończonego pustego stanu, wyznaczyć jednego właściciela bootstrap. Zachować pierwszeństwo prawdziwych intentów i obsługę świadomego close ostatniej karty.
+- **Regresje:** opóźniony/poprawny/pusty/uszkodzony/brak snapshotu, oba observery, zewnętrzny intent on/off, normal/private i profile. Sprawdzić brak H i odzyskany selected ID w zwykłym starcie.
+
+## ZC-AUD-028 — default PWA nie używa canonical kontekstu default
+
+- **Etap:** 10B — profile natywnych sesji PWA/custom tabs.
+- **Miejsce:** [`WebAppFragment.kt:79`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/webapp/WebAppFragment.kt#L79), onViewCreated:75–81/openInCustomTab:212–218; WebAppActivity:92–97,112–115; BrowserProfile.contextIdFor:76–84; ExternalAppBrowserActivity:62–70. Biblioteki GeckoEngineSession:98–105 i GeckoSessionSettings.Builder.contextId:84–98 ([źródła](STAGE_10.md#źródła-10b)).
+- **Problem:** PWA przypisana do default otwiera inną partycję niż main/custom tab przypisane do tego samego profilu.
+- **Mechanizm:** WebAppFragment konkatenacją buduje profile_default i tworzy engine bez pośrednictwa ProfileMiddleware. Canonical mapper używany przez main/custom zwraca dla default null. Różne ID docierają bezpośrednio do GeckoSessionSettings.
+- **Dowód:** aktywna fabryka WebAppActivity tworzy ten Fragment z profileId; default daje profile_default w PWA i null w main/custom. Oficjalny kontrakt GeckoSessionSettings:84–93 określa partycjonowanie cookies/localStorage według ID. Dla named mapowania są zgodne; nie jest to szczególna ścieżka opener 030.
+- **Pewność:** CONFIRMED statycznie z kontraktem engine; rzeczywiste logowanie/przejścia NOT_TESTED. Bez deklaracji usunięcia/ujawnienia cookies.
+- **Ważność:** P2 MEDIUM — rozdzielony stan strony/logowania mimo tego samego profilu.
+- **Wpływ:** PWA↔main/custom, linki zewnętrzne; migracja odzyskanych kart nie naprawia bezpośrednio tworzonej sesji PWA.
+- **Kierunek:** wspólny canonical mapper i plan zachowania danych starej partycji; bez automatycznego scalania/usuwania cookie jars lub naruszania izolacji innych profili.
+- **Regresje:** kontrolowana strona/izolowane dane w main/PWA/custom, default i named, storage przed/po przejściu oraz istniejąca instalacja profile_default. Bez danych logowania użytkownika.
+
+## ZC-AUD-029 — ContextMenuFeature PWA jest podłączony do obcej sesji
+
+- **Etap:** 10B — powiązanie widoku i zdarzeń engine.
+- **Miejsce:** [`WebAppFragment.kt:169`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/webapp/WebAppFragment.kt#L169), setupContextMenu:166–182/onViewCreated:75–104; ContextMenuIntegration:103–110; AC ContextMenuFeature.start:66–79/onMenuItemSelected:131–138, EngineObserver.onLongPress:192–193 ([źródła](STAGE_10.md#źródła-10b)).
+- **Problem:** appowe menu linków nie ma źródła HitResult z silnika PWA; może nie reagować albo użyć zdarzenia głównej karty.
+- **Mechanizm:** PWA ma osobny engine poza BrowserStore, rejestruje WebAppFragment bez bridge onLongPress→UpdateHitResultAction. ContextMenuIntegration dostaje jej engineView, ale globalny store i sessionId=null. Feature obserwuje przez to Store.selectedTab.content.hitResult. Sam engineView nie zmienia obserwowanej sesji ani ID akcji.
+- **Dowód:** start feature czyta findTabOrCustomTabOrSelectedTab(null), a wybór akcji ponownie szuka ID w Store. Osobny engine PWA nie jest tam wpisany i nie publikuje HitResult. WebAppFragment implementuje window/navigation observer, bez wymaganego bridge.
+- **Pewność:** CONFIRMED statycznie: niewłaściwy graf sesji/zdarzeń. Konkretny wariant UI NOT_TESTED; nie zgłoszono niesprawności systemowej selekcji tekstu lub wszystkich gestów.
+- **Ważność:** P2 MEDIUM — appowe akcje linków/obrazów są nieaktywne lub błędnie przypisane.
+- **Wpływ:** open/copy/share, parentId/profile nowej karty; przyczyna odrębna od mappera 028.
+- **Kierunek:** właściwy wpis/obserwator sesji i jawny tabId lub osobna integracja menu tego engine; bez zastępowania rodzica PWA przypadkowym selected main.
+- **Regresje:** PWA z/brak selected main, inny profil w main, long press link/obraz, kontrola URL/rodzica/profilu akcji, obrót/destroy i brak starego menu głównej karty.
+
+## ZC-AUD-030 — opener ma rozbieżne konteksty karty i przygotowanego engine
+
+- **Etap:** 10B — window.open/target blank i izolacja.
+- **Miejsce:** [`BrowserFragment.kt:174`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/BrowserFragment.kt#L174), inicjalizacja WindowFeature; ProfileMiddleware:48–55; AC WindowFeature:48–56, LinkingMiddleware:34–41, GeckoEngineSession.onNewSession:1058–1072/konstruktor:98–105, GeckoWindowRequest.prepare:18–19; GeckoSession.java:827–845 ([źródła](STAGE_10.md#źródła-10b)).
+- **Podejrzenie:** nowe okno named profilu może używać innej partycji niż wskazana etykietą Store.
+- **Mechanizm:** onNewSession tworzy dziecko z privateMode rodzica, ale bez contextId, więc Java settings dostaje null. WindowFeature przekazuje gotowy engine oraz parentId/private. ProfileMiddleware dopisuje profil rodzica do TabSessionState, bez zmiany ustawień już istniejącego engine; nie zachodzi zwykłe createSession(private,tab.contextId).
+- **Dowód:** dla rodzica profile_A wynik Java settings dziecka=null, Store.contextId=profile_A. Dodatkowo sprawdzony GeckoSession.java otwiera zwróconą sesję z native newSessionId; nie rozstrzygnięto przenoszenia OriginAttributes przez istniejące okno/C++. Samo Java settings nie dowodzi użycia cudzego cookie jar.
+- **Pewność:** SUSPECTED jako naruszenie izolacji; rozbieżność metadanych jest pewna, końcowa partycja NOT_TESTED. PrivateMode jest przekazywany, więc nie zgłoszono automatycznej zmiany private→normal.
+- **Ważność:** potencjalny P1 HIGH, jeżeli native nie dziedziczy właściwej partycji. Bez deklaracji potwierdzonego wycieku.
+- **Wpływ:** window.open, target blank, popup/logowanie, zachowanie przed/po suspend/restart, gdy engine zostanie utworzony już z etykiety Store. Nie dotyczy zwykłego appowego linku z 10A.
+- **Kierunek po potwierdzeniu:** spójny kontekst w natywnym tworzeniu okna, weryfikacja API/upstream; nie naprawiać samą etykietą ani podmianą engine zrywającą opener.
+- **Regresje:** izolowana strona i różny storage w default/2 named, window.open/target blank/opener/noopener/private, nawigacja, suspend/recreate/restart. Porównać native/storage ze Store i rozstrzygnąć dziedziczenie OriginAttributes przed oceną PASS/FAIL izolacji.
+
+## ZC-AUD-031 — usunięcie profilu pozostawia osierocone karty
+
+- **Etap:** 10B — cleanup profilu i restore.
+- **Miejsce:** [`ProfileManager.kt:197`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/browser/profile/ProfileManager.kt#L197), deleteProfile:197–212/cleanupProfileStorage:236–239; TabsBottomSheetFragment.onDelete:795–807; AC BrowserStateWriter:49–52,81–82/Reader:206,242 ([źródła](STAGE_10.md#źródła-10b)).
+- **Problem:** profil znika z rejestru, ale jego karty/EngineSession pozostają i mogą wrócić pod nieistniejącym profilem po restore.
+- **Mechanizm:** UI przełącza currentProfile na default i usuwa metadane. Menedżer kasuje tylko appowy katalog; brak remove/migrate kart i uzgodnienia grup. AutoSave kwalifikuje normalne karty według content.private, nie istnienia profilu, i zachowuje contextId; reader go odtwarza.
+- **Dowód:** karta B/profile_B istnieje; deleteProfile(B) nie zmienia Store ani selected ID. Po ukończonym zapisie snapshot zawiera tę kartę/profile_B; po restore nie ma profilu na liście, ale karta nadal jest osiągalna przez sugestie 025/fallback. Nie wykonywano usuwania danych użytkownika.
+- **Pewność:** CONFIRMED statycznie: brak domknięcia referencji i odtworzenie osieroconego kontekstu. Telefon/cleanup cookies NOT_TESTED; pełna polityka erasure do 16.
+- **Ważność:** P2 MEDIUM — osierocone karty, aktywny engine i niespójne wybieranie/odtwarzanie. Bez potwierdzenia bezpowrotnej utraty lub naruszenia partycji.
+- **Wpływ:** UI profili, grupy, pamięć, restore, liczniki/filtrowanie i wyszukiwanie. W 023 profil nadal istnieje; tutaj został usunięty, więc przyczyna jest odrębna.
+- **Kierunek:** jawna polityka kart/grup przed usunięciem profilu: bezpieczne zamknięcie lub świadoma migracja, spójny selected i zapis. Nie przenosić cookies ani nie kasować całej sesji jako skrótu; cleanup Gecko zaplanować osobno.
+- **Regresje:** usunięcie active/inactive named z live/sleeping kartami i grupami; Store/engine/snapshot/restart bez referencji do nieistniejącego profilu. Pusty/default jako kontrole; wyłącznie izolowane dane, z ochroną pozostałych profili.
+
+Stan po 10B: CONFIRMED=25 (P1=3,P2=22); LIKELY=3 (010,016,019 — potencjalne P2); SUSPECTED=3 (002,025 — potencjalne P2; 030 — potencjalny P1). Etap 10 COMPLETE: łącznie 7 nowych CONFIRMED (P1=1/P2=6), 2 SUSPECTED; 10B dodał 5 CONFIRMED i 1 SUSPECTED. Etap 11 nie rozpoczęty.

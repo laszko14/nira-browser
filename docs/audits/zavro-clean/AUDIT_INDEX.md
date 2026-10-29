@@ -15,7 +15,7 @@ Baza kodu: `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79
 | 7 | Pasek adresu i personalizacja | COMPLETE | [STAGE_07.md](STAGE_07.md) |
 | 8 | Gesty i nawigacja | COMPLETE | [STAGE_08.md](STAGE_08.md) |
 | 9 | Pozostały UI i ustawienia | COMPLETE | [STAGE_09.md](STAGE_09.md) |
-| 10 | Sesje, profile i GeckoView | PARTIAL — 10A COMPLETE; 10B NOT_STARTED | [STAGE_10.md](STAGE_10.md) |
+| 10 | Sesje, profile i GeckoView | COMPLETE — 10A i 10B | [STAGE_10.md](STAGE_10.md) |
 | 11 | Wykrywanie filmów | NOT_STARTED | — |
 | 12 | Metadane i warianty | NOT_STARTED | — |
 | 13 | FAB, kafelki i odtwarzanie stron | NOT_STARTED | — |
@@ -25,6 +25,6 @@ Baza kodu: `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79
 | 17 | Testy regresji | NOT_STARTED | — |
 | 18 | Raport końcowy i plan napraw | NOT_STARTED | — |
 
-Rejestr: [FINDINGS.md](FINDINGS.md). Checkpoint wznowienia: [../../AI_HANDOFF.md](../../AI_HANDOFF.md), wpis „ZC-AUD — ETAP 10/18 PARTIAL — 10A COMPLETE”. Od etapu 6 obowiązuje optymalizacja v1.6. Nie utworzono raportów przyszłych etapów ani raportu końcowego.
+Rejestr: [FINDINGS.md](FINDINGS.md). Checkpoint wznowienia: [../../AI_HANDOFF.md](../../AI_HANDOFF.md), wpis „ZC-AUD — ETAP 10/18 COMPLETE”. Od etapu 6 obowiązuje optymalizacja v1.6. Nie utworzono raportów przyszłych etapów ani raportu końcowego.
 
-Łącznie po 10A: potwierdzone P0=0, P1=2, P2=18, P3=0; CONFIRMED=20; osobno LIKELY=3 i SUSPECTED=2 (potencjalne P2). Podetap 10A dodał 2 potwierdzone statycznie P2 i 1 SUSPECTED; dowody i ograniczenia w [STAGE_10.md](STAGE_10.md) oraz rejestrze. Etapy 1–9 ukończone; etap 10 pozostaje PARTIAL. Następny krok dopiero po „Dalej”: **10B — przywracanie sesji i cykl życia GeckoView**, nie etap 11.
+Łącznie po etapie 10: potwierdzone P0=0, P1=3, P2=22, P3=0; CONFIRMED=25; osobno LIKELY=3 (potencjalne P2), SUSPECTED=3 (002/025 potencjalne P2, 030 potencjalny P1). Etap 10 łącznie dodał 7 CONFIRMED (P1=1/P2=6) i 2 SUSPECTED; w 10B dodano 5 CONFIRMED i 1 SUSPECTED. Dowody i ograniczenia w [STAGE_10.md](STAGE_10.md) oraz rejestrze. Etapy 1–10 ukończone. Następny krok dopiero po „Dalej”: **etap 11 — silnik wykrywania filmów**.
