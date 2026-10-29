@@ -16,6 +16,7 @@ Odniesienia do kodu dotyczą bazy `b7d62f79f285ac81c29a79b326529d42e9b9fde4`. Be
 | ZC-AUD-010 | 4B | P2 MEDIUM (potencjalny) | LIKELY | Hover i automatyczne rozwijanie grupy mogą używać starego celu podczas autoscroll |
 | ZC-AUD-011 | 5 | P1 HIGH | CONFIRMED | Callback okna nad prawym panelem odwołuje się do zwolnionego widoku lub odłączonego fragmentu |
 | ZC-AUD-012 | 5 | P2 MEDIUM | CONFIRMED | Opcje sortowania zakładek według URL i daty wykonują sortowanie po tytule |
+| ZC-AUD-013 | 6 | P2 MEDIUM | CONFIRMED | Budowa modelu paska Compose wielokrotnie skanuje całą listę kart |
 
 ## ZC-AUD-001 — niespójny kontrakt wersji joba release
 
@@ -175,4 +176,17 @@ Odniesienia do kodu dotyczą bazy `b7d62f79f285ac81c29a79b326529d42e9b9fde4`. Be
 - **Kierunek naprawy:** udostępniać wyłącznie rzeczywiście obsługiwane kryteria albo przekazać odrębne kryteria URL/daty z poprawnymi komparatorami i uzgodnioną polityką folderów, brakujących metadanych oraz trwałości kolejności. Najpierw potwierdzić dostępność źródła daty dodania zamiast zastępować ją niezweryfikowanym polem.
 - **Wymagane regresje:** lista, dla której nazwy, URL i daty mają różne porządki; sprawdzić każdy wybór menu, foldery i puste wartości, obie orientacje i warianty panelu oraz kolejność po jego ponownym otwarciu. Nie dodano nowych testów aplikacji.
 
-Stan po etapie 5: CONFIRMED=10 (P1=1, P2=9); LIKELY=1 (ZC-AUD-010, potencjalny P2); SUSPECTED=1 (ZC-AUD-002, potencjalny P2). Etap 5 dodał 1 potwierdzone P1 i 1 potwierdzone P2, bez nowych hipotez. Nie doliczać hipotez ani inwentaryzacji nieużywanych komponentów do potwierdzonych błędów.
+## ZC-AUD-013 — kwadratowy koszt budowy modelu paska Compose
+
+- **Etap:** 6 — duża liczba kart i koszt aktualizacji modelu renderowania.
+- **Miejsce:** [`TabBarCompose.kt:505`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/browser/tabs/compose/TabBarCompose.kt#L505), `buildBarItems`, wyszukiwania tabs.find w liniach518 i523; wywołanie w remember(order,tabs,groups):135–136. Kotlin względem app/src/main/java/com/prirai/android/nira/.
+- **Problem:** projekcja wspólnej kolejności na model widocznego paska ma koszt O(n²) dla n żywych kart, mimo że potrzebne jest tylko powiązanie ID→karta. LazyRow nie eliminuje kosztu budowy całego wejściowego modelu.
+- **Mechanizm:** dla każdego SingleTab funkcja zaczyna tabs.find od początku listy. Dla grup powtarza to dla każdego ID członka. Obliczenie odbywa się bezpośrednio w kompozycji, przed przekazaniem modelu do LazyRow. Zmiana tabs (także tytułu/ikony/innych metadanych obiektu) unieważnia remember; nie jest to koszt wyłącznie pierwszego otwarcia paska. Nie twierdzi się, że sama zmiana selectedId zawsze unieważnia ten remember.
+- **Dowód statyczny:** dla n niezgrupowanych kart, z order zawierającym te same ID w tej samej kolejności co tabs, kolejne find sprawdzają1,2,…,n pozycji: n(n+1)/2. Dla1000 daje to500500 sprawdzeń ID zamiast jednego indeksowania i n odczytów. To wyliczenie z pętli, nie wynik uruchomienia ani benchmark. Fallback i pozostałe operacje liniowe nie usuwają tej składowej.
+- **Pewność:** CONFIRMED — kwadratowy mechanizm na ścieżce kompozycji wynika bezpośrednio z kodu. Czas, próg odczuwalnego opóźnienia, dropped frames i zachowanie telefonu: NOT_TESTED. Nie podano zmyślonej liczby milisekund ani FPS.
+- **Ważność:** P2 MEDIUM — koszt aktualizacji UI rosnący kwadratowo z liczbą kart; znaczenie praktyczne wymaga pomiaru przy reprezentatywnej dużej sesji. Dla małej listy może być nieodczuwalny.
+- **Wpływ:** wariant Compose dolnego paska, przede wszystkim poziom i tryb All; aktualizacje metadanych mogą ponawiać pracę, choć nie zmieniają kolejności. Nie jest to ta sama przyczyna co retencja zamkniętych ID z004 ani dowód błędnego porządku kart.
+- **Kierunek naprawy:** zbudować tabsById raz i korzystać z mapy w obu gałęziach, zachowując kolejność order, żywe członkostwo, uzupełnianie nowych kart i filtrowanie profilu. Istniejący UnifiedItemBuilder stosuje podobny indeks; nie kopiować całej implementacji ani łączyć modułów bez potrzeby.
+- **Wymagane regresje:** identyczna projekcja dla SingleTab/przeplatanych grup, brakujących ID i świeżo dodanych kart; zmiany tytułu/ikony bez zmiany kolejności; profile i private. Kontrola skali przez liczbę operacji lub benchmark dla rosnącej liczby kart oraz pomiar UI na urządzeniu, bez utożsamiania czasu JVM z płynnością120 Hz. Nowych testów nie dodano.
+
+Stan po etapie 6: CONFIRMED=11 (P1=1, P2=10); LIKELY=1 (ZC-AUD-010, potencjalny P2); SUSPECTED=1 (ZC-AUD-002, potencjalny P2). Etap 6 dodał 1 potwierdzone P2, bez nowych hipotez. Nie doliczać hipotez ani inwentaryzacji nieużywanych komponentów do potwierdzonych błędów.
