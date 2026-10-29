@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - fix/zavro-clean-video-search-audit-20261029
+      - fix/zavro-clean-video-search-ux-20261029
     paths:
       - '.github/workflows/video-search-p3-regression.yml'
       - '.github/workflows/apk-release.yml'
@@ -60,6 +61,8 @@ on:
       - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchPrivateRunAccess.kt'
       - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchPrivateGroupAccess.kt'
       - 'app/src/main/java/com/prirai/android/nira/videosearch/MyVideoSitesActivity.kt'
+      - 'app/src/main/java/com/prirai/android/nira/browser/tabs/TabsBottomSheetFragment.kt'
+      - 'app/src/test/js/video-search-navigation-shortcut.test.cjs'
       - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchSitesListState.kt'
       - 'app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchSitesEmptyStateTest.kt'
       - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsTabContent.kt'
@@ -127,6 +130,7 @@ jobs:
       # Only after targeted, all JVM, all WebExtension tests and Android lint
       # have passed. Fail-closed on missing stable secrets or any mismatch.
       - name: Build and verify signed Zavro Clean v1192 ARM64 update APK
+        if: github.ref_name == 'fix/zavro-clean-video-search-audit-20261029'
         shell: bash
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -162,7 +166,7 @@ jobs:
           echo "Zavro Clean v1192: stable certificate, package, version and ARM64 verified."
 
       - name: Upload signed ARM64 APK
-        if: success()
+        if: success() && github.ref_name == 'fix/zavro-clean-video-search-audit-20261029'
         uses: actions/upload-artifact@v4
         with:
           name: zavro-clean-p16-v1192-arm64-update
