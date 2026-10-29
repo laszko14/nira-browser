@@ -7,6 +7,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import com.prirai.android.nira.browser.profile.ProfileManager
@@ -70,6 +71,10 @@ internal class VideoSearchBridgeController(
     )
     private val manualScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var manualBusy = false
+    private var crawlBusy = false
+    // At most eight temporary result lists; never grow a hidden unlimited cache.
+    private val recentCrawls =
+        LinkedHashMap<Pair<String, String>, VideoSearchPaginationSnapshot>(8, 0.75f, true)
     private val pending = IdentityHashMap<EngineSession, Pending>()
     private val proposals = mutableMapOf<Pair<String, String>, Proposal>()
     private val attached = IdentityHashMap<EngineSession, Unit>()
@@ -237,7 +242,8 @@ internal class VideoSearchBridgeController(
                 is VideoSearchBridgeMessage.PickSkipped,
                 is VideoSearchBridgeMessage.PickCancelled,
                 is VideoSearchBridgeMessage.Validation,
-                is VideoSearchBridgeMessage.Results -> {
+                is VideoSearchBridgeMessage.Results,
+                is VideoSearchBridgeMessage.PageAction -> {
                     val job = pending[session] ?: return
                     val req = when (parsed) {
                         is VideoSearchBridgeMessage.Inspection -> parsed.requestId
@@ -248,6 +254,7 @@ internal class VideoSearchBridgeController(
                         is VideoSearchBridgeMessage.PickCancelled -> parsed.requestId
                         is VideoSearchBridgeMessage.Validation -> parsed.requestId
                         is VideoSearchBridgeMessage.Results -> parsed.requestId
+                        is VideoSearchBridgeMessage.PageAction -> parsed.requestId
                         else -> return
                     }
                     if (job.requestId != req || job.documentId != parsed.documentId ||
@@ -255,8 +262,16 @@ internal class VideoSearchBridgeController(
                         tab.owner != job.owner || job.kind != when (parsed) {
                             is VideoSearchBridgeMessage.Inspection -> "inspect"
                             is VideoSearchBridgeMessage.Validation -> "validate"
-                            is VideoSearchBridgeMessage.Results ->
-                                if (job.kind == "extract_batch") "extract_batch" else "extract"
+                            is VideoSearchBridgeMessage.Results -> when {
+                                job.kind == "crawl" &&
+                                    parsed.sourceEvent == "crawl_results" -> "crawl"
+                                job.kind == "extract_batch" &&
+                                    parsed.sourceEvent == "results" -> "extract_batch"
+                                job.kind == "extract" &&
+                                    parsed.sourceEvent == "results" -> "extract"
+                                else -> "invalid"
+                            }
+                            is VideoSearchBridgeMessage.PageAction -> "paginate"
                             is VideoSearchBridgeMessage.Submitted,
                             is VideoSearchBridgeMessage.SearchFailed -> "search"
                             is VideoSearchBridgeMessage.Picked -> "pick:" + parsed.pickKind
@@ -329,9 +344,12 @@ internal class VideoSearchBridgeController(
         timeoutMs: Long = 8_000L,
     ): VideoSearchBridgeMessage? {
         val scope = site.scope as? VideoSearchScope.Normal ?: return null
+        // Backpressure below existing 12 messages/5s per-session rate cap.
+        if (kind == "crawl" || kind == "paginate") delay(540)
         val (session, entry) = (if (kind.startsWith("pick:") ||
             kind == "validate" || kind == "extract" ||
-            kind == "extract_batch")
+            kind == "extract_batch" || kind == "crawl" ||
+            kind == "paginate")
             manualSiteTab(site) else existingSiteTab(site)) ?: return null
         val documentId = entry.documentId ?: return null
         if (pending.containsKey(session)) return null
@@ -427,6 +445,199 @@ internal class VideoSearchBridgeController(
         return accumulator.snapshot()
     }
 
+    /** Most recent completed *attempt*, RAM-only and profile-scoped. */
+    fun lastPagination(scope: VideoSearchScope.Normal, siteId: String)
+        : VideoSearchPaginationSnapshot? = recentCrawls[scope.profileId to siteId]
+
+    fun canStartPagination(site: VideoSearchSite): Boolean =
+        !crawlBusy && !manualBusy && site.enabled &&
+            site.scope is VideoSearchScope.Normal &&
+            site.configuration?.resultsCardSelector?.let(
+                VideoSearchBridgeProtocol::validSelector
+            ) == true && manualSiteTab(site) != null
+
+    /** User action only; continues after MyVideoSitesActivity returns to Gecko. */
+    fun startPagination(site: VideoSearchSite, repository: VideoSearchRepository): Boolean {
+        if (!canStartPagination(site)) return false
+        crawlBusy = true
+        manualScope.launch {
+            try {
+                val result = executePagination(site, repository)
+                if (result != null) {
+                    val scope = site.scope as VideoSearchScope.Normal
+                    recentCrawls[scope.profileId to site.id] = result
+                    if (recentCrawls.size > 8)
+                        recentCrawls.remove(recentCrawls.keys.first())
+                    val label = when (result.reason) {
+                        VideoSearchPaginationStop.LIMIT_REACHED -> "Osiągnięto limit"
+                        VideoSearchPaginationStop.NO_MORE_RESULTS -> "Brak kolejnych stron"
+                        VideoSearchPaginationStop.UNSUPPORTED -> "Brak ustawionej paginacji"
+                        VideoSearchPaginationStop.STALLED -> "Brak postępu"
+                        VideoSearchPaginationStop.UNSAFE -> "Niebezpieczna paginacja"
+                        VideoSearchPaginationStop.RESOURCE_LIMIT -> "Limit zasobów"
+                        VideoSearchPaginationStop.CONFIGURATION_CHANGED -> "Zmiana sesji/witryny"
+                        VideoSearchPaginationStop.ERROR -> "Błąd komunikacji"
+                    }
+                    Toast.makeText(applicationContext,
+                        "Zavro: ${result.films.size} unikalnych filmów. $label.",
+                        Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(applicationContext,
+                        "Zavro: nie można rozpocząć paginacji na tej karcie.",
+                        Toast.LENGTH_LONG).show()
+                }
+            } catch (_: Exception) {
+                Toast.makeText(applicationContext,
+                    "Zavro: paginacja przerwana. Sprawdź konfigurację.",
+                    Toast.LENGTH_LONG).show()
+            } finally {
+                crawlBusy = false
+            }
+        }
+        return true
+    }
+
+    private suspend fun executePagination(
+        site: VideoSearchSite, repository: VideoSearchRepository,
+    ): VideoSearchPaginationSnapshot? {
+        val config = site.configuration ?: return null
+        val scope = site.scope as? VideoSearchScope.Normal ?: return null
+        val first = manualSiteTab(site) ?: return null
+        val session = first.first
+        val startingUrl = currentTab(session)?.pageUrl ?: return null
+        val collector = VideoSearchPaginationCollector(site.siteUrl, site.resultLimit)
+        if (!collector.beginDocument(startingUrl)) return null
+        val deadline = SystemClock.elapsedRealtime() + 120_000L
+        var noNewPages = 0
+
+        suspend fun stillAuthorized(): Boolean {
+            val live = manualSiteTab(site) ?: return false
+            if (live.first !== session) return false
+            val stored = withContext(Dispatchers.IO) {
+                repository.site(scope, site.id)
+            }
+            return stored == site
+        }
+
+        while (true) {
+            if (SystemClock.elapsedRealtime() >= deadline)
+                return collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT)
+            if (!stillAuthorized())
+                return collector.snapshot(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
+            var newInDocument = 0
+            while (collector.shouldReadCardWindow) {
+                if (SystemClock.elapsedRealtime() >= deadline)
+                    return collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT)
+                if (!stillAuthorized())
+                    return collector.snapshot(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
+                val offset = collector.nextCardIndex
+                val reply = request(site, "crawl") { doc, id ->
+                    VideoSearchBridgeProtocol.extractCrawl(doc, id, config, offset)
+                } as? VideoSearchBridgeMessage.Results
+                    ?: return collector.snapshot(VideoSearchPaginationStop.ERROR)
+                try {
+                    newInDocument += collector.appendWindow(offset, reply.page)
+                } catch (_: IllegalArgumentException) {
+                    return collector.snapshot(VideoSearchPaginationStop.ERROR)
+                }
+                if (collector.reachedLimit)
+                    return collector.snapshot(VideoSearchPaginationStop.LIMIT_REACHED)
+                delay(24) // Yield across bounded, at-most-16-card DOM reads.
+            }
+
+            if (collector.reachedLimit)
+                return collector.snapshot(VideoSearchPaginationStop.LIMIT_REACHED)
+            if (collector.exhaustedCardBudget)
+                return collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT)
+
+            if (config.pagination == VideoSearchPagination.NONE)
+                return collector.snapshot(VideoSearchPaginationStop.UNSUPPORTED)
+            if ((collector.isAtDocumentLimit &&
+                    config.pagination == VideoSearchPagination.NEXT_LINK) ||
+                collector.isAtActionLimit)
+                return collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT)
+
+            // NEXT_LINK must actually produce a new document on the SAME
+            // EngineSession and origin. LOAD_MORE/SCROLL must append new cards.
+            val before = manualSiteTab(site) ?: return collector.snapshot(
+                VideoSearchPaginationStop.CONFIGURATION_CHANGED
+            )
+            val beforeDoc = before.second.documentId ?: return collector.snapshot(
+                VideoSearchPaginationStop.CONFIGURATION_CHANGED
+            )
+            val beforeUrl = currentTab(session)?.pageUrl ?: return collector.snapshot(
+                VideoSearchPaginationStop.CONFIGURATION_CHANGED
+            )
+            if (!collector.recordAction())
+                return collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT)
+            val action = request(site, "paginate") { doc, id ->
+                VideoSearchBridgeProtocol.paginate(doc, id, config)
+            } as? VideoSearchBridgeMessage.PageAction
+                ?: return collector.snapshot(VideoSearchPaginationStop.ERROR)
+            if (action.pagination != config.pagination)
+                return collector.snapshot(VideoSearchPaginationStop.ERROR)
+            when (action.status) {
+                "unsafe" -> return collector.snapshot(VideoSearchPaginationStop.UNSAFE)
+                "unavailable" -> return collector.snapshot(VideoSearchPaginationStop.NO_MORE_RESULTS)
+                "dispatched" -> Unit
+                else -> return collector.snapshot(VideoSearchPaginationStop.ERROR)
+            }
+
+            if (config.pagination == VideoSearchPagination.NEXT_LINK) {
+                val next = withTimeoutOrNull(7_000L) {
+                    var destination: String? = null
+                    while (destination == null) {
+                        delay(160)
+                        val live = manualSiteTab(site)
+                        if (live?.first !== session) continue
+                        val current = currentTab(session)?.pageUrl ?: continue
+                        if (current != beforeUrl &&
+                            live.second.documentId != beforeDoc &&
+                            VideoSearchBridgeProtocol.sameOrigin(current, site.siteUrl))
+                            destination = current
+                    }
+                    destination
+                } ?: return collector.snapshot(VideoSearchPaginationStop.STALLED)
+                if (!collector.beginDocument(next))
+                    return collector.snapshot(VideoSearchPaginationStop.STALLED)
+                if (newInDocument == 0) noNewPages++ else noNewPages = 0
+                if (noNewPages >= 2)
+                    return collector.snapshot(VideoSearchPaginationStop.STALLED)
+            } else {
+                // Same document; allow *only appended* positions. Do not
+                // re-read the first cards or click repeatedly on no progress.
+                if (!stillAuthorized())
+                    return collector.snapshot(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
+                collector.armSameDocumentContinuation()
+                var grew = false
+                for (attempt in 0..2) {
+                    if (SystemClock.elapsedRealtime() >= deadline)
+                        return collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT)
+                    delay(if (attempt == 0) 400L else 650L)
+                    if (!stillAuthorized())
+                        return collector.snapshot(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
+                    val offset = collector.nextCardIndex
+                    val reply = request(site, "crawl") { doc, id ->
+                        VideoSearchBridgeProtocol.extractCrawl(doc, id, config, offset)
+                    } as? VideoSearchBridgeMessage.Results
+                        ?: return collector.snapshot(VideoSearchPaginationStop.ERROR)
+                    if (reply.page.status == "stale")
+                        return collector.snapshot(VideoSearchPaginationStop.ERROR)
+                    if (reply.page.inspectedCards == 0) continue
+                    try {
+                        collector.appendWindow(offset, reply.page)
+                    } catch (_: IllegalArgumentException) {
+                        return collector.snapshot(VideoSearchPaginationStop.ERROR)
+                    }
+                    grew = true
+                    break
+                }
+                if (!grew)
+                    return collector.snapshot(VideoSearchPaginationStop.STALLED)
+            }
+        }
+    }
+
     private suspend fun pickSite(site: VideoSearchSite, kind: String): VideoSearchBridgeMessage? =
         request(site, "pick:$kind", { document, req ->
             VideoSearchBridgeProtocol.pick(document, req, kind)
@@ -434,7 +645,7 @@ internal class VideoSearchBridgeController(
 
     /** The picker must target the page currently visible behind My Sites. */
     fun canStartManual(site: VideoSearchSite): Boolean {
-        if (manualBusy) return false
+        if (manualBusy || crawlBusy) return false
         val pair = manualSiteTab(site) ?: return false
         val matched = currentTab(pair.first) ?: return false
         return store.state.selectedTabId == matched.tabId && pair.second.documentId != null

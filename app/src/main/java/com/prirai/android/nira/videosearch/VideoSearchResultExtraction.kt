@@ -20,7 +20,7 @@ internal data class VideoSearchExtractedFilm(
         require(thumbnailUrl == null || thumbnailUrl.isNotBlank())
         if (thumbnailUrl != null) VideoSearchIntegrity.requirePageUrl(thumbnailUrl)
         require(durationSeconds == null || durationSeconds in 0L..86_400L)
-        require(originalIndex in 0..200)
+        require(originalIndex in 0..319) // 4D: bounded 320-card visible document
         require(originalTitle != null || titleSource == VideoResultTitleSource.UNKNOWN)
         require(thumbnailUrl != null || imageSource == VideoResultImageSource.UNKNOWN)
     }

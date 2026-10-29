@@ -431,8 +431,10 @@
           (typeof value !== "string" || !value || value.length > 160))
         return { status: "stale", films: [], inspectedCards: 0, moreOnPage: false };
     }
+    const crawl = command.event === "extract_crawl";
+    const cardCap = crawl ? 320 : 80;
     let cards;
-    try { cards = Array.from(document.querySelectorAll(command.resultsCardSelector)).slice(0, 80); }
+    try { cards = Array.from(document.querySelectorAll(command.resultsCardSelector)).slice(0, cardCap); }
     catch (_) { return { status: "stale", films: [], inspectedCards: 0, moreOnPage: false }; }
 
     function scoped(card, selector) {
@@ -647,10 +649,65 @@
       usedBytes += nextCost - oldCost;
       found.set(filmUrl, next);
     }
-    if (end < cards.length || cards.length === 80) more = true;
+    if (end < cards.length || cards.length === cardCap) more = true;
     const films = Array.from(found.values());
     return { status: films.length ? "ok" : "empty",
       films, inspectedCards: Math.max(0, end - start), moreOnPage: more };
+  }
+
+  // Only an explicit user request can trigger pagination. Never follow a
+  // cross-origin link, submit a form, execute a JS URL or open a new window.
+  // "dispatched" does NOT mean that new results actually appeared.
+  function pageAction(command) {
+    const kind = command.pagination, selector = command.nextPageSelector;
+    if (!["NEXT_LINK", "LOAD_MORE", "INFINITE_SCROLL"].includes(kind))
+      return "unsafe";
+    if (picker || !ready || location.href !== startUrl) return "unavailable";
+    // Never paginate a login, checkout or CAPTCHA interstitial.
+    if (blocked.test(location.pathname) ||
+        document.querySelector('input[type="password"]')) return "unsafe";
+    if (kind === "INFINITE_SCROLL") {
+      if (selector !== null) return "unsafe";
+      setTimeout(function () {
+        if (location.href === startUrl && ready)
+          window.scrollBy({ top: Math.max(360, window.innerHeight), behavior: "instant" });
+      }, 70);
+      return "dispatched";
+    }
+    if (typeof selector !== "string" || !selector || selector.length > 160)
+      return "unsafe";
+    let matches;
+    try { matches = document.querySelectorAll(selector); } catch (_) { return "unsafe"; }
+    if (matches.length === 0) return "unavailable";
+    if (matches.length !== 1) return "unsafe";
+    const target = matches[0];
+    if (!visible(target) ||
+        target.disabled || target.getAttribute("aria-disabled") === "true")
+      return "unavailable";
+    if (blocked.test((target.id || "") + " " + (target.className || "") + " " +
+          (target.getAttribute("aria-label") || ""))) return "unsafe";
+    if (kind === "NEXT_LINK") {
+      if (!target.matches("a[href]")) return "unsafe";
+      let destination;
+      try { destination = new URL(target.getAttribute("href"), location.href); }
+      catch (_) { return "unsafe"; }
+      if (destination.origin !== location.origin ||
+          destination.username || destination.password ||
+          blocked.test(destination.pathname) ||
+          !["http:", "https:"].includes(destination.protocol) ||
+          destination.href === location.href || destination.href.length > 2048)
+        return "unsafe";
+      if (target.hasAttribute("download") ||
+          (target.target && !["_self", ""].includes(target.target))) return "unsafe";
+    } else {
+      if (!target.matches("button") || target.disabled ||
+          target.closest("form") || target.type === "submit") return "unsafe";
+    }
+    setTimeout(function () {
+      if (ready && location.href === startUrl && document.contains(target))
+        target.click();
+    }, 70);
+    return "dispatched";
   }
 
   try {
@@ -707,6 +764,25 @@
             post("results", message.requestId,
               { status: "stale", films: [], inspectedCards: 0, moreOnPage: false });
           } finally { busy = false; }
+        } else if (message.event === "extract_crawl" && !picker &&
+            keys === "documentId,durationSelector,event,linkSelector,requestId," +
+                    "resultsCardSelector,schemaVersion,startIndex,thumbnailSelector,titleSelector" &&
+            Number.isInteger(message.startIndex) &&
+            message.startIndex >= 0 && message.startIndex <= 319) {
+          busy = true;
+          try {
+            post("crawl_results", message.requestId, extractResults(message));
+          } catch (_) {
+            post("crawl_results", message.requestId,
+              { status: "stale", films: [], inspectedCards: 0, moreOnPage: false });
+          } finally { busy = false; }
+        } else if (message.event === "paginate" && !picker &&
+            keys === "documentId,event,nextPageSelector,pagination,requestId,schemaVersion") {
+          busy = true;
+          const status = pageAction(message);
+          post("page_action", message.requestId,
+            { pagination: message.pagination, status: status });
+          busy = false;
         } else if (message.event === "search" &&
             keys === "documentId,event,inputSelector,query,requestId,schemaVersion,submission,submitSelector") {
           busy = true;

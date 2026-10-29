@@ -103,6 +103,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
             onCheck = ::checkConfiguration,
             onManual = ::configureManually,
             onPreview = ::previewResults,
+            onCrawl = ::startPagination,
+            onShowCrawl = ::showPagination,
             onSearch = ::searchSite,
             onDelete = ::confirmRemoval,
         )
@@ -547,6 +549,77 @@ class MyVideoSitesActivity : AppCompatActivity() {
         }
     }
 
+    /** Explicit, single-site pagination: never starts merely from selection. */
+    private fun startPagination(site: VideoSearchSite) {
+        val owner = ownerIfCurrent() ?: return
+        if (site.scope != owner || !site.enabled) return
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Zbierz filmy z kolejnych stron")
+            .setMessage("Zavro użyje przycisku następnej strony, „Załaduj więcej” " +
+                "lub przewijania tej witryny. Maksymalnie " +
+                "${minOf(site.resultLimit, 200)} unikalnych filmów, 12 stron, " +
+                "20 akcji i 2 minuty. Zebrane dane będą tymczasowe; " +
+                "nie zostaną jeszcze zapisane w historii. " +
+                "Otwórz witrynę w aktywnej karcie i odśwież ją.")
+            .setNegativeButton("Anuluj", null)
+            .setPositiveButton("Rozpocznij") { _, _ ->
+                lifecycleScope.launch {
+                    val latest = try {
+                        withContext(Dispatchers.IO) { repository.site(owner, site.id) }
+                    } catch (_: Exception) { null }
+                    if (ownerIfCurrent() != owner || latest == null ||
+                        latest != site || !latest.enabled) {
+                        message("Witryna została zmieniona. Spróbuj ponownie.")
+                        return@launch
+                    }
+                    val controller = VideoSearchBridgeHost.instance()
+                    if (controller?.startPagination(latest, repository) != true) {
+                        message("Otwórz aktywną zwykłą kartę tej witryny i odśwież ją.")
+                        return@launch
+                    }
+                    startActivity(Intent(this@MyVideoSitesActivity,
+                        BrowserActivity::class.java).addFlags(
+                            Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                        ))
+                    finish()
+                }
+            }
+            .show()
+    }
+
+    /** Results are a per-profile RAM snapshot, not a completed search run. */
+    private fun showPagination(site: VideoSearchSite) {
+        val owner = ownerIfCurrent() ?: return
+        if (site.scope != owner) return
+        val snapshot = VideoSearchBridgeHost.instance()
+            ?.lastPagination(owner, site.id)
+        if (snapshot == null) {
+            message("Brak zebranych filmów. Użyj „Zbierz”.")
+            return
+        }
+        val list = snapshot.films.take(15).mapIndexed { index, film ->
+            "${index + 1}. ${film.originalTitle ?: "Tytuł nieznany"}"
+        }.joinToString("\n")
+        val suffix = when (snapshot.reason) {
+            VideoSearchPaginationStop.LIMIT_REACHED -> "Osiągnięto limit"
+            VideoSearchPaginationStop.NO_MORE_RESULTS -> "Brak kolejnych wyników"
+            VideoSearchPaginationStop.UNSUPPORTED -> "Nieustawiona paginacja"
+            VideoSearchPaginationStop.STALLED -> "Zatrzymano: brak postępu"
+            VideoSearchPaginationStop.UNSAFE -> "Zatrzymano: ryzyko niebezpiecznej nawigacji"
+            VideoSearchPaginationStop.RESOURCE_LIMIT -> "Zatrzymano: limit zasobów"
+            VideoSearchPaginationStop.CONFIGURATION_CHANGED -> "Zmieniona karta/konfiguracja"
+            VideoSearchPaginationStop.ERROR -> "Zatrzymano: błąd komunikacji"
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Zebrane filmy: ${site.displayName}")
+            .setMessage("${snapshot.films.size} unikalnych filmów, " +
+                "${snapshot.visitedPages} stron, ${snapshot.scannedCards} kart, " +
+                "${snapshot.pageActions} akcji. $suffix.\n\n" + list +
+                (if (snapshot.films.size > 15) "\n… kolejne wyniki w pamięci" else ""))
+            .setPositiveButton("OK", null)
+            .show()
+    }
+
     private fun searchSite(site: VideoSearchSite) {
         val owner = ownerIfCurrent() ?: return
         if (site.scope != owner || !site.enabled) return
@@ -751,6 +824,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
         private val onCheck: (VideoSearchSite) -> Unit,
         private val onManual: (VideoSearchSite) -> Unit,
         private val onPreview: (VideoSearchSite) -> Unit,
+        private val onCrawl: (VideoSearchSite) -> Unit,
+        private val onShowCrawl: (VideoSearchSite) -> Unit,
         private val onSearch: (VideoSearchSite) -> Unit,
         private val onDelete: (VideoSearchSite) -> Unit,
     ) : RecyclerView.Adapter<SitesAdapter.Holder>() {
@@ -814,6 +889,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
             val check: Button,
             val manual: Button,
             val preview: Button,
+            val crawl: Button,
+            val showCrawl: Button,
             val search: Button,
             val delete: Button,
         ) : RecyclerView.ViewHolder(root)
@@ -838,11 +915,14 @@ class MyVideoSitesActivity : AppCompatActivity() {
             val actions = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
             val firstActions = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
             val secondActions = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+            val crawlActions = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
             val edit = Button(ctx).apply { text = "Edytuj" }
             val inspect = Button(ctx).apply { text = "Rozpoznaj" }
             val check = Button(ctx).apply { text = "Sprawdź" }
             val manual = Button(ctx).apply { text = "Wskaż" }
             val preview = Button(ctx).apply { text = "Wyniki" }
+            val crawl = Button(ctx).apply { text = "Zbierz" }
+            val showCrawl = Button(ctx).apply { text = "Zebrane" }
             val search = Button(ctx).apply { text = "Szukaj" }
             val delete = Button(ctx).apply { text = "Usuń" }
             firstActions.addView(inspect, LinearLayout.LayoutParams(0, -2, 1f))
@@ -852,13 +932,16 @@ class MyVideoSitesActivity : AppCompatActivity() {
             secondActions.addView(preview, LinearLayout.LayoutParams(0, -2, 1f))
             secondActions.addView(edit, LinearLayout.LayoutParams(0, -2, 1f))
             secondActions.addView(delete, LinearLayout.LayoutParams(0, -2, 1f))
+            crawlActions.addView(crawl, LinearLayout.LayoutParams(0, -2, 1f))
+            crawlActions.addView(showCrawl, LinearLayout.LayoutParams(0, -2, 1f))
             actions.addView(firstActions)
             actions.addView(secondActions)
+            actions.addView(crawlActions)
             root.addView(first)
             root.addView(detail)
             root.addView(select)
             root.addView(actions)
-            return Holder(root, heading, detail, toggle, select, edit, inspect, check, manual, preview, search, delete)
+            return Holder(root, heading, detail, toggle, select, edit, inspect, check, manual, preview, crawl, showCrawl, search, delete)
         }
 
         override fun onBindViewHolder(holder: Holder, position: Int) {
@@ -885,10 +968,15 @@ class MyVideoSitesActivity : AppCompatActivity() {
             holder.preview.isEnabled = site.enabled &&
                 !site.configuration?.resultsCardSelector.isNullOrBlank()
             holder.search.isEnabled = site.enabled
+            holder.crawl.isEnabled = site.enabled &&
+                !site.configuration?.resultsCardSelector.isNullOrBlank()
+            holder.showCrawl.isEnabled = true
             holder.inspect.setOnClickListener { onInspect(site) }
             holder.check.setOnClickListener { onCheck(site) }
             holder.manual.setOnClickListener { onManual(site) }
             holder.preview.setOnClickListener { onPreview(site) }
+            holder.crawl.setOnClickListener { onCrawl(site) }
+            holder.showCrawl.setOnClickListener { onShowCrawl(site) }
             holder.search.setOnClickListener { onSearch(site) }
             holder.delete.setOnClickListener { onDelete(site) }
         }

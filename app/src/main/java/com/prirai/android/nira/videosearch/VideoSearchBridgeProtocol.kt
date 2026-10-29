@@ -57,8 +57,18 @@ internal sealed interface VideoSearchBridgeMessage {
         override val documentId: String,
         val requestId: String,
         val page: VideoSearchExtractedPage,
+        val sourceEvent: String = "results",
     ) : VideoSearchBridgeMessage {
         override fun toString() = "VideoSearchBridgeMessage.Results(redacted)"
+    }
+
+    class PageAction(
+        override val documentId: String,
+        val requestId: String,
+        val pagination: VideoSearchPagination,
+        val status: String,
+    ) : VideoSearchBridgeMessage {
+        override fun toString() = "VideoSearchBridgeMessage.PageAction(redacted)"
     }
 
     /** Redacted, bounded assessment of the currently open site's selectors. */
@@ -201,7 +211,22 @@ internal object VideoSearchBridgeProtocol {
                     (status == "unsafe" && reason != "unsafe_form")) return null
                 VideoSearchBridgeMessage.Validation(id, request, status, reason, attempts, cards)
             }
-            "results" -> {
+            "page_action" -> {
+                if (!json.strict("schemaVersion", "event", "documentId", "requestId",
+                        "pagination", "status")) return null
+                val req = json.string("requestId")?.takeIf(::validToken) ?: return null
+                val pagination = when (json.string("pagination")) {
+                    "NEXT_LINK" -> VideoSearchPagination.NEXT_LINK
+                    "LOAD_MORE" -> VideoSearchPagination.LOAD_MORE
+                    "INFINITE_SCROLL" -> VideoSearchPagination.INFINITE_SCROLL
+                    else -> return null
+                }
+                val status = json.string("status")?.takeIf {
+                    it in setOf("dispatched", "unavailable", "unsafe")
+                } ?: return null
+                VideoSearchBridgeMessage.PageAction(id, req, pagination, status)
+            }
+            "results", "crawl_results" -> {
                 if (!json.strict("schemaVersion", "event", "documentId", "requestId",
                         "status", "films", "inspectedCards", "moreOnPage")) return null
                 val request = json.string("requestId")?.takeIf(::validToken) ?: return null
@@ -254,7 +279,8 @@ internal object VideoSearchBridgeProtocol {
                         else -> return null
                     }
                     val index = (row.opt("originalIndex") as? Int)
-                        ?.takeIf { it in 0..200 } ?: return null
+                        ?.takeIf { it in 0..(if (event == "crawl_results") 319 else 200) }
+                        ?: return null
                     val film = try {
                         VideoSearchExtractedFilm(pageUrl, title, thumbnail, duration,
                             titleSource, imageSource, index)
@@ -264,7 +290,7 @@ internal object VideoSearchBridgeProtocol {
                 val page = try {
                     VideoSearchExtractedPage(status, items, count, more)
                 } catch (_: IllegalArgumentException) { return null }
-                VideoSearchBridgeMessage.Results(id, request, page)
+                VideoSearchBridgeMessage.Results(id, request, page, event)
             }
             "inspection" -> {
                 val request = json.string("requestId")?.takeIf(::validToken) ?: return null
@@ -392,6 +418,31 @@ internal object VideoSearchBridgeProtocol {
         return extract(documentId, requestId, config).apply {
             put("event", "extract_batch")
             put("startIndex", startIndex)
+        }
+    }
+
+    /** A 16-card window in the same DOM, max 320 card positions. */
+    fun extractCrawl(documentId: String, requestId: String,
+                     config: VideoSiteConfiguration, startIndex: Int): JSONObject {
+        require(startIndex in 0..319)
+        return extract(documentId, requestId, config).apply {
+            put("event", "extract_crawl")
+            put("startIndex", startIndex)
+        }
+    }
+
+    /** User explicitly requested one safe next-page action. */
+    fun paginate(documentId: String, requestId: String,
+                 config: VideoSiteConfiguration): JSONObject {
+        require(config.pagination != VideoSearchPagination.NONE)
+        if (config.pagination == VideoSearchPagination.INFINITE_SCROLL) {
+            require(config.nextPageSelector == null)
+        } else {
+            require(validSelector(config.nextPageSelector))
+        }
+        return base("paginate", documentId, requestId).apply {
+            put("pagination", config.pagination.name)
+            put("nextPageSelector", config.nextPageSelector ?: JSONObject.NULL)
         }
     }
 
