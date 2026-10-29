@@ -4,8 +4,9 @@ package com.prirai.android.nira.videosearch
  * Temporary RAM-only storage for one private browsing lifetime. No Context,
  * Room, disk cache or Android savedInstanceState is referenced here.
  *
- * The host must call start() after assigning a fresh private session ID and
- * finish() when that lifetime actually ends (stage 10 lifecycle integration).
+ * The stage 10A host registry starts a fresh ID when BrowserStore first
+ * observes a private tab and finishes it after the final private tab closes.
+ * This store is not yet wired to private search UI or Gecko workers.
  * A closed ID cannot be resurrected by stale asynchronous callbacks.
  * Private mode deliberately has no SavedFilmFolder/Link operations.
  */
