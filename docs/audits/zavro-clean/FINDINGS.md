@@ -41,8 +41,13 @@ Odniesienia do kodu dotyczą bazy `b7d62f79f285ac81c29a79b326529d42e9b9fde4`. Be
 | ZC-AUD-035 | 11B | P2 MEDIUM | CONFIRMED | Deduplikacja sieci pomija sukces przywracający dostęp po błędzie tego samego URL |
 | ZC-AUD-036 | 11B | P2 MEDIUM | CONFIRMED | Detekcja ochrony DASH myli komentarze XML i pomija elementy z prefiksem namespace |
 | ZC-AUD-037 | 12A | P2 MEDIUM | CONFIRMED | Późniejszy właściciel DOM nie uzgadnia wcześniejszej grupy manifestu, rozdzielając warianty filmu |
-| ZC-AUD-038 | 12A | P2 MEDIUM | CONFIRMED | Kafelek pomija znaną miniaturę innego wariantu tej samej grupy |
+| ZC-AUD-038 | 12A,12B | P2 MEDIUM | CONFIRMED | Wybór reprezentanta kafelka pomija dostępne metadane innych wariantów tej samej grupy |
 | ZC-AUD-039 | 12A | P2 MEDIUM | CONFIRMED | Ponowny odczyt niezmienionej konfiguracji data-* tworzy nowe identyfikatory grup i omija deduplikację |
+| ZC-AUD-040 | 12B | P2 MEDIUM | CONFIRMED | Parser DASH odrzuca typowe ułamkowe FPS z pięciocyfrowym licznikiem |
+| ZC-AUD-041 | 12B | P3 LOW | CONFIRMED | Potwierdzenie segmentu zmienia pochodzenie czasu HLS na HTML5 |
+| ZC-AUD-042 | 12B | P2 MEDIUM | CONFIRMED | Zmiana average bitrate na peak pozostawia nieaktualny szacunek rozmiaru |
+| ZC-AUD-043 | 12B | P2 MEDIUM (potencjalny) | LIKELY | Okno src/currentSrc może przypisać parametry poprzedniego filmu do nowego URL |
+| ZC-AUD-044 | 12B | P3 LOW | CONFIRMED | Suma czasów DASH zaokrągla każdy Period osobno, zawyżając wynik |
 
 ## ZC-AUD-001 — niespójny kontrakt wersji joba release
 
@@ -527,9 +532,9 @@ Uzupełnienie 024 z 10B: ten sam kontrakt menu występuje również w `browser/h
 - **Kierunek:** uzgadniać dokładnie powiązaną grupę lokalnego właściciela i linię manifestu także przy późnym DOM, z aktualizacją już znanych członków i zachowaniem konfliktów/ramki/dokumentu. Nie scalać po tytule ani samym hoście.
 - **Regresje:** oba porządki U/V/NETWORK oraz derived przed/po DOM; jeden film i te same warianty, ale niezależne filmy o równych tytułach pozostają oddzielne. Dwie ramki, sprzeczni właściciele, zmiana źródła, prywatność i nawigacja; kontrola liczników i wyboru źródła. Specyfikacja do przyszłego wdrożenia, bez nowych testów w app.
 
-## ZC-AUD-038 — miniatura dostępna w grupie ginie przy wyborze reprezentanta
+## ZC-AUD-038 — metadane grupy giną przy wyborze reprezentanta
 
-- **Etap:** 12A — miniatury i fallback grupy wariantów.
+- **Etap:** 12A — miniatury i fallback grupy wariantów; uzupełnienie 12B — parametry techniczne.
 - **Miejsce:** [`MediaFloatingUi.kt:368`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/media/MediaFloatingUi.kt#L368), mediaTileItems:368–374; [`VideoTilesPanel.kt:244`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/media/VideoTilesPanel.kt#L244), VideoTile:244,257–265; producent content.scanPlayerConfigs:938–964.
 - **Problem/mechanizm:** tytuł jest wybierany z całej grupy, ale item.entry to bezwarunkowo pierwszy wariant po sortowaniu NETWORK/DOM. Miniatura jest pobierana wyłącznie z tego entry. Dla jednej prawidłowej grupy [U bez poster, V z jedynym znanym poster P] pierwszy U daje kafelek bez obrazu mimo dostępnego P. Sam MediaPosterResolver pracuje na rekordzie URL, nie jest wywoływany dla grupy.
 - **Dowód:** kontrolowany JS rzeczywistego producenta emituje dwa warianty jednej konfiguracji: wspólny tytuł i groupId, tylko drugi wariant ma posterUrl. Kod próby w STAGE_12. Statyczny ciąg add zachowuje oba rekordy w kolejności, a mediaTileItems przy równych źródłach wybiera pierwszy; VideoTile odczytuje wyłącznie jego pusty poster. Wariant sieciowy bez obrazu może też mieć pierwszeństwo przed lokalnym wariantem z obrazem. Bez wykonania Kotlin/Compose/UI.
@@ -538,6 +543,8 @@ Uzupełnienie 024 z 10B: ten sam kontrakt menu występuje również w `browser/h
 - **Wpływ:** prezentacja filmu; nie zmienia URL odtwarzania. Odrębne od037: występuje również przy już poprawnie uzgodnionej jednej grupie.
 - **Kierunek:** oddzielić bezpieczny grupowy fallback miniatury od wyboru URL/reprezentanta; respektować pochodzenie i konflikty z MediaPosterResolver oraz granice grupy/ramki. Nie przenosić obrazu z sąsiedniego filmu ani arbitralnie wybierać przy sprzecznych posterach.
 - **Regresje:** tylko pierwszy/drugi wariant z posterem, zamiana kolejności i flag NETWORK/DOM, jeden wspólny poster kontra dwa sprzeczne, wyłączone miniatury, brak obrazu, dwie grupy/ramki. Tytuł, liczba wariantów i URL akcji muszą zachować tożsamość. Specyfikacja, bez nowych testów aplikacji.
+
+- **Uzupełnienie 12B (ten sam mechanizm, bez nowego ID):** utrata fallbacku dotyczy też czasu/rozmiaru/LIVE i parametrów dostępnych tylko w innym wariancie. Zwykły HLS master U pojawia się przed child V. Po sieciowej obserwacji V oba mają NETWORK i wspólną grupę; przy braku DOM pierwszeństwo zachowuje starszy U. Parsed master nie ma czasu i ma live=false (`manifest-parser.js:119–123`); child media może mieć zweryfikowany czas lub live=true. `VideoTilesPanel.kt:330–345` czyta wyłącznie wybrany U, więc kafelek nadal pokazuje nieznany czas zamiast znanego VOD/LIVE. Dowód statyczny, UI/Gecko NOT_TESTED. Naprawa potrzebuje jawnej polityki danych grupowych; nie wolno kopiować rozmiaru lub bitrate innej jakości jako parametrów wybranego URL. Rozszerzyć regresje o master→child VOD/LIVE, alternatywy o różnych rozmiarach i sprzeczne dane.
 
 ## ZC-AUD-039 — niestabilna tożsamość konfiguracji odczytywanej z atrybutu
 
@@ -551,4 +558,64 @@ Uzupełnienie 024 z 10B: ten sam kontrakt menu występuje również w `browser/h
 - **Kierunek:** stabilna, ograniczona tożsamość właściciela/opcji konfiguracji oparta na elemencie i lokalnej strukturze źródeł, niezależna od nowego obiektu JSON.parse; metadane mogą się zmieniać bez przypadkowej zmiany grupy. Nie używać tytułu jako identyfikatora i nie tłumić rzeczywistych zmian konfiguracji.
 - **Regresje:** niezmieniony ponowny skan nie emituje duplikatów; tytuł/poster aktualizują ten sam film; dwa różne elementy lub pozycje playlisty pozostają oddzielne mimo jednakowych tytułów; zmienione źródła, nowa jakość, SPA i nowe dokumenty. Porównać atrybuty z cache script, kolejki i diagnostykę; bez obietnic 120 Hz.
 
-Stan po 12A: CONFIRMED=33 (P0=0,P1=3,P2=30,P3=0); LIKELY=3 (010,016,019); SUSPECTED=3 (002,025 potencjalne P2;030 potencjalny P1). Nowe 037/038/039 CONFIRMED P2. Etap 12 PARTIAL:12A COMPLETE,12B NOT_STARTED.
+## ZC-AUD-040 — odrzucane typowe ułamkowe FPS DASH
+
+- **Etap:** 12B — odczyt FPS i transport metadanych.
+- **Miejsce:** [`manifest-parser.js:185`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/assets/extensions/nira-media-detector/manifest-parser.js#L185), fps:185–189, parseDash:218–223; background.inspectManifest:832–839; VideoTilesPanel:322–323.
+- **Problem/mechanizm:** regex dopuszcza do czterech cyfr licznika/mianownika, więc standardowe 24000/1001,30000/1001 i 60000/1001 nie przechodzą mimo wyników około24/30/60fps. Parser zachowuje frameRateRaw, lecz frameRate=null; background przenosi tylko skończone dodatnie frameRate, a UI nie ma pola raw jako fallback.
+- **Dowód:** wykonany rzeczywisty parseDash: wszystkie trzy wartości dają null, kontrola 25/1 daje 25. Istniejący test „DASH hierarchical...fractional FPS” PASS sprawdza tylko frameRateRaw, nie obliczony frameRate. Próba i SHA w [STAGE_12](STAGE_12.md#minimalna-próba-12b).
+- **Pewność:** CONFIRMED — wykonany błąd parsera; dalsza utrata pola w wiadomości i UI wynika statycznie. Telefon NOT_TESTED.
+- **Ważność:** P2 MEDIUM — pominięte powszechnie spotykane metadane FPS, bez wpływu na samo odtwarzanie Gecko.
+- **Wpływ:** single-representation DASH i diagnostyka fpsKnown. Nie jest to wynik pomiaru faktycznie renderowanych klatek.
+- **Kierunek:** ograniczać bezpieczny zakres liczb i skończonego wyniku, zamiast odrzucać poprawne ułamki przez zbyt krótki zapis licznika; zachować kontrolę mianownika0 i maksymalnie240fps.
+- **Regresje:** 24000/1001,30000/1001,60000/1001, wartości całkowite i25/1;0/0, denominator0, overflow oraz wynik>240. Sprawdzić frameRate, a potem pole wiadomości i wyświetlenie; nie tylko raw. Bez nowych testów w app.
+
+## ZC-AUD-041 — pochodzenie czasu HLS zmienia się na HTML5
+
+- **Etap:** 12B — pochodzenie metadanych i diagnostyka.
+- **Miejsce:** [`MediaRepository.kt:170`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/media/MediaRepository.kt#L170), Record.metadata:170–175; background.inspectManifest:814–849,874–894; VideoMetadataLedger.observe:62–67.
+- **Problem/mechanizm:** HLS media wysyła NETWORK/manifest_verified z durationSeconds z EXTINF, następnie ten sam obiekt z tym samym czasem jako stream_verified po udanej próbie segmentu. Repository przypisuje HLS_EXTINF tylko przy dokładnym verification=manifest_verified; drugie przyjęcie przechodzi do else HTML5. Równa requestSequence nie jest odrzucana dla aktualnego dokładnego URL (add:468–469), więc zmiana zachodzi normalnie bez zdarzenia video.
+- **Dowód statyczny:** dla tego samego zarejestrowanego URL HLS i czasu11: N(manifest_verified,isLive=false,duration=11)→durationOrigin=HLS_EXTINF; N(stream_verified,isLive=false,duration=11)→HTML5. Ledger później raportuje HTML5. To ręczne prześledzenie aktywnych gałęzi, nie wykonanie Kotlin ani nowego harnessu.
+- **Pewność:** CONFIRMED statycznie; Kotlin/Gecko NOT_TESTED. Nie zmienia się sama liczba sekund w tym scenariuszu.
+- **Ważność:** P3 LOW — fałszywe pochodzenie i liczniki diagnostyczne.
+- **Wpływ:** VIDEO_METADATA/TestLab i interpretacja skuteczności HTML5 versus manifest; UI nie pokazuje tej etykiety źródła czasu.
+- **Kierunek:** rozdzielić pochodzenie czasu od stopnia weryfikacji odtwarzalności; stream_verified nie stanowi dowodu HTML5. Zachować rzeczywiste aktualizacje czasu z video.
+- **Regresje:** manifest→stream_verified bez video, osobny prawdziwy pomiar HTML5, LIVE→VOD, DRM/unplayable bez błędnej etykiety HTML5; sprawdzić durationOrigin i podsumowanie ledger. Bez dodawania testów aplikacji.
+
+## ZC-AUD-042 — stary szacunek rozmiaru przeżywa utratę average bitrate
+
+- **Etap:** 12B — aktualizacje bitrate i rozmiaru.
+- **Miejsce:** [`MediaRepository.kt:205`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/media/MediaRepository.kt#L205), Record.metadata:205–218, reset LIVE:161–166; background.inspectManifest:921–934; VideoTilesPanel.sizeText:376–386.
+- **Problem/mechanizm:** po wyliczeniu sizeEstimated z average bitrate kolejne dane mogą ustawić bitrateKind=peak/declared. Kod nadpisuje bitrate/kind, ale przy niespełnionym warunku average nie usuwa starego oszacowania. sizeText uznaje stare sizeOrigin=MANIFEST_BITRATE i sizeEstimated=true za nadal wystarczające i pokazuje ~rozmiar niezwiązany z aktualnym rodzajem bitrate.
+- **Dowód statyczny:** ten sam rekord HLS z duration100s i average800000bps daje10000000B; późniejsza przyjęta kandydatura derived tego samego URL z peak1200000bps nadpisuje bitrate, pozostawiając10000000B. Taki derived może pochodzić z odświeżonego mastera, który usunął AVERAGE-BANDWIDTH i ma samo BANDWIDTH; background transportuje zmianę. Brak requestSequence przy derived nie blokuje jej w add. Native nie został uruchomiony.
+- **Pewność:** CONFIRMED statycznie; kosztownego harnessu Kotlin/Android nie tworzono. Runtime/telefon NOT_TESTED.
+- **Ważność:** P2 MEDIUM — nieaktualny rozmiar wyświetlany jako aktualne oszacowanie.
+- **Wpływ:** kafelki, diagnostyka rozmiaru i aktualizacje długowiecznych HLS. Dokładny HLS_BYTERANGE/HTTP_LENGTH nie powinien zostać skasowany przez naprawę tego przypadku.
+- **Kierunek:** utrzymywać zależności szacunku od bieżącego duration/średniego bitrate i unieważniać go po utracie przesłanek; zachować odrębną ścieżkę rozmiarów dokładnych.
+- **Regresje:** average→peak/declared/brak aktualnego średniego pomiaru, zmiana czasu/średniego bitrate, VOD→LIVE→VOD, odświeżony master i child; dokładny byterange nie znika. Sprawdzić pole sizeEstimated/origin i wynik sizeText. Specyfikacja, bez nowych testów app.
+
+## ZC-AUD-043 — możliwe przeniesienie parametrów starego źródła na nowe src
+
+- **Etap:** 12B — zmiana źródła i powiązanie parametrów z konkretnym filmem.
+- **Miejsce:** [`content.js:647`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/assets/extensions/nira-media-detector/content.js#L647), inspect:650–681 i durationOf:489–492; repository.Record.metadata:170–175,185–197.
+- **Problem/warunek:** jeśli inspect uruchomi się, gdy video.src wskazuje już B, currentSrc nadal A i zachowane są odczyty duration/videoWidth/videoHeight z A, preferred wybiera B, ale parametry czyta bez sprawdzenia ich związku z B. Grupa nowego źródła nie zapobiega przeniesieniu danych. Wywołanie po emptied bez czasu nie usuwa już zapisanej wartości; po późniejszej poprawnej innej rozdzielczości B native może ustawić trwały dimensionConflict dla tego rekordu.
+- **Dowód:** kontrolowany fixture prawdziwego JS: srcB/currentSrcA,duration19,width1280,height720 emituje dla B te parametry. Sama reakcja JS na taki stan jest odtworzona. **Nie potwierdzono**, czy i przez jaki czas realny Gecko udostępnia równocześnie te odczyty podczas callbacków detektora; nie odtworzono rzeczywistego event loop/algorytmu ładowania HTMLMediaElement. Nie raportować tej próby jako reprodukcji na telefonie.
+- **Pewność:** LIKELY — silny warunkowy mechanizm, realna osiągalność okna pozostaje do weryfikacji. Nie jest to potwierdzona usterka Gecko.
+- **Ważność:** potencjalny P2 MEDIUM — przejściowo błędny czas/wymiary B, możliwe pozostawienie złego czasu przy błędzie ładowania lub trwała utrata rozdzielczości po konflikcie.
+- **Wpływ:** ponowne użycie video w SPA/playlistach i metadane kafelków; brak dowodu ingerencji w odtwarzanie.
+- **Kierunek warunkowej naprawy:** po weryfikacji okna powiązać techniczne odczyty z faktycznie załadowanym currentSrc/generacją; odkrywanie deklarowanego B przed Play ma nadal działać, lecz bez bezpodstawnego kopiowania parametrów A.
+- **Regresje/weryfikacja:** na Gecko: szybkie srcA→B, loadedmetadata/emptied/MutationObserver, sukces i błąd ładowania B, różne wymiary, source elements, blob/MSE. Zapisać wyłącznie zanonimizowane identyfikatory i kolejność zdarzeń; kontrola bez zmiany źródła. Najpierw ustalić dostępność odczytów, potem wykonać native/UI regresję. Próba w STAGE_12.
+
+## ZC-AUD-044 — czas DASH sumuje osobno zaokrąglone okresy
+
+- **Etap:** 12B — czas wielookresowego DASH.
+- **Miejsce:** [`manifest-parser.js:22`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/assets/extensions/nira-media-detector/manifest-parser.js#L22), duration:22–27, parseDash:197–202,239–240; background:847–849, VideoTilesPanel.durationText:370–373.
+- **Problem/mechanizm:** duration() robi ceil przed zwrotem. Gdy brak mediaPresentationDuration, parseDash sumuje już zaokrąglone Period.duration zamiast sumować dokładne czasy i zaokrąglić wynik raz. Przy ułamkowych okresach błąd narasta.
+- **Dowód:** wykonany rzeczywisty parser: trzy Period po PT0.4S dają 3s; równoważny pojedynczy PT1.2S daje 2s. Łączny czas to 1.2s, więc przy stosowanej polityce ceil oczekiwane 2s. Ten sam wynik trafia przez pole durationSeconds do native; brak zależności od telefonu. Kod+SHA w STAGE_12.
+- **Pewność:** CONFIRMED — wykonany błąd arytmetyki parsera; prezentacja Android NOT_TESTED.
+- **Ważność:** P3 LOW — zawyżenie czasu, potencjalnie większe przy wielu krótkich okresach.
+- **Wpływ:** wielookresowy VOD bez globalnego czasu, także połączenie z reklamami; globalny mediaPresentationDuration ma pierwszeństwo i nie korzysta z tej sumy. Nie stwierdzono błędu samego odtwarzania.
+- **Kierunek:** zachować precyzję czasów do zsumowania i zaokrąglić na granicy transportu sekund, z ograniczeniami zakresu/finite.
+- **Regresje:** okresy ułamkowe i całkowite, wiele krótkich okresów, kontrola równoważnym jednym okresem, globalny czas, brakujące/niepoprawne duration i dynamic MPD; brak fabrykowania czasu LIVE. Bez nowych testów app.
+
+Stan po etapie 12: CONFIRMED=37 (P0=0,P1=3,P2=32,P3=2); LIKELY=4 (010,016,019,043 — potencjalne P2); SUSPECTED=3 (002,025 potencjalne P2;030 potencjalny P1). Nowe 12B:040/042 CONFIRMED P2,041/044 CONFIRMED P3,043 LIKELY P2;038 rozszerzono bez nowego ID. Etap 12 COMPLETE (12A i12B).

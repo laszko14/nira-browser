@@ -1,8 +1,8 @@
 # Zavro Clean — etap 12/18: metadane i warianty
 
-**PARTIAL — 12A COMPLETE, 12B NOT_STARTED**, 2026-10-29. Zasady v1.8, jeden agent, bez napraw. Baza `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79b326529d42e9b9fde4` (v1190). Dokumentacja `audit/zavro-clean-20261028`; wejściowy HEAD `1cbafeed16916dfc9f1bc6045457f22c3eda7c4e`, working tree czysty; app/config/AGENTS/workflow bez zmian. Wykorzystano checkpoint i mapę 11, bez inwentaryzacji repo/PR ani powtarzania PASS.
+**COMPLETE — 12A i 12B**, 2026-10-29. Zasady v1.8, jeden agent, bez napraw. Baza `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79b326529d42e9b9fde4` (v1190). Dokumentacja `audit/zavro-clean-20261028`; wejściowy HEAD `1cbafeed16916dfc9f1bc6045457f22c3eda7c4e`, working tree czysty; app/config/AGENTS/workflow bez zmian. Wykorzystano checkpoint i mapę 11, bez inwentaryzacji repo/PR ani powtarzania PASS.
 
-Podział wynika z odrębnych polityk i producentów: **12A — tytuły, miniatury i właściciel grupy wariantów**; **12B — parametry techniczne, ich pochodzenie i aktualizacje, jakość/audio/napisy**. W tej turze wykonano tylko 12A; odczyt technicznych pól Record.metadata służył granicy zakresu, nie oznacza ich zakończonego audytu.
+Podział wynika z odrębnych polityk i producentów: **12A — tytuły, miniatury i właściciel grupy wariantów**; **12B — parametry techniczne, ich pochodzenie i aktualizacje, jakość/audio/napisy**. Pierwsza tura zakończyła 12A. Po kolejnym „Dalej” wykonano 12B (wejściowy HEAD `3d81471e19eacf524d82a21b0212187d34c26272`, czysty working tree); wyniki poniżej. Nie rozpoczęto13.
 
 ## 12A — zakres i mapa dowodów
 
@@ -35,11 +35,7 @@ node --test app/src/test/js/full-titles-v1110.test.cjs
 
 **NOT_TESTED:** Kotlin/resolvery/native UI, rzeczywisty Gecko DOM/SPA/frame i kolejność callbacków, ładowanie miniatur na telefonie, wydajność120Hz. Dowody037/038 są statyczne; parametry techniczne12B pozostają nieukończone. Bez Gradle/lint/CI/APK, zależności i zmian testów aplikacji. Przed zapisem potwierdzono niezmienione workflow oraz brak PR audytowego; zwykły push tej dokumentacji bez PR/taga jest zgodny z wcześniejszą kontrolą wyzwalaczy.
 
-## Wznowienie
-
-Etap 12 pozostaje PARTIAL; 12A COMPLETE, **12B NOT_STARTED**. Po „Dalej” prześledzić pola quality/width/height/FPS/bitrate/duration/size/live oraz audio/subtitle od JS/parsera przez protokół i Record.metadata do wyświetlania. Rozróżnić jakość deklarowaną od aktywnej i parserowe ścieżki od faktycznie transportowanych/obsługiwanych. Pytania do sprawdzenia (jeszcze nie nowe zgłoszenia): src wobec currentSrc przy zmianie filmu; durationOrigin przy stream_verified; unieważnianie oszacowania po zmianie rodzaju bitrate. Wykorzystać mapę 11 i12A, nie powtarzać ich PASS i nie wracać do inwentaryzacji. Potem uzupełnić ten raport i checkpoint; nie rozpoczynać13.
-
-Checkpoint: STAGE_12, FINDINGS, AUDIT_INDEX i pierwszy ZC-AUD w docs/AI_HANDOFF.md; końcowy commit/push/SHA w odpowiedzi, bez dodatkowego commitu dla własnego SHA. Następne zadanie ma złożone zależności parser→native i kolejność aktualizacji: rekomendacja **GPT-6.1 Sol / High / Standard**, bez zmiany ustawień lub deklarowania dostępności na koncie.
+Historyczny checkpoint 12A został zrealizowany przez 12B opisany niżej. Powyższe testy i ograniczenia dotyczą wyłącznie 12A.
 
 ## Minimalna próba 12A
 
@@ -72,4 +68,86 @@ vm.runInNewContext(source.slice(0, source.indexOf('test("v1181:')) + '\nglobalTh
 })().catch(e => { console.error(e); process.exitCode = 1; });
 ```
 
-**ETAP 12/18 NIEUKOŃCZONY — STOP. Zapisano punkt wznowienia. Polecenie „Dalej” kontynuuje bieżący etap.**
+
+## 12B — parametry techniczne i aktualizacje — COMPLETE
+
+Pytania: co jest faktycznie odczytywane/transportowane/wyświetlane, czy parametr dotyczy załadowanego źródła czy deklaracji wariantu, czy czas/rozmiar/pochodzenie pozostają spójne po aktualizacji? Kryteria: prześledzone JS/parser→protokół→Record.metadata→UI, kontrola zależności i uzasadnione nowe dowody, usterki z pewnością/ważnością, jawne NOT_TESTED i checkpoint. Bez ponownego audytu tytułów/posterów, branch/PR history i PASS wcześniejszych etapów.
+
+| Parametr | Rzeczywisty stan implementacji i granice |
+| --- | --- |
+| HTML5 czas/wymiary | content.durationOf:489–492 odczytuje skończony dodatni czas do7dni, ceil sekund. inspect:647–690 przypisuje go do preferred i deklaracji źródeł; parę videoWidth/Height wysyła przy preferred. loadedmetadata/durationchange/resize/emptied mają wejścia z11. Ryzyko src/currentSrc043 jest LIKELY, realne okno Gecko niezweryfikowane. Nie ma pomiaru FPS z odtwarzacza. |
+| Czas manifestu | manifest-parser:22–27,60–78,119–131: HLS sumaEXTINF, VOD po ENDLIST; live bez końcowego czasu. DASH:197–240: dynamic bez czasu, globalny mediaPresentationDuration albo kompletne Period.duration; zaokrąglanie okresów daje044. JSON-LD i config wykorzystywane w12A nie przekazują ich własnych duration do native — brak tego fallbacku, nie dowód błędu już wdrożonego parsera tych pól. |
+| Rozmiar dokładny | background.contentSize:121–144 tylko direct media; 200 Content-Length,206 poprawny całkowity Content-Range, bez gzip/br i niepełnego/niepewnego zakresu, do10^12B. Nie traktuje wielkości manifestu jako rozmiaru filmu. HLS exactSizeBytes wymaga kompletnych zakresów wszystkich segmentów VOD, bez inicjalizacji/nieznanych bajtów i szyfrowania (parser:124–130). Transport sizeBytes i source/origin rozdzielone od szacunku. |
+| Bitrate i szacunek | HLS rozdziela average/peak, task dziedziczy hint wyłącznie z powiązanego child; background:850–856,921–936. DASH sumuje jedyną reprezentację video i najwyżej jedną audio, nie sumuje wszystkich jakości; bitrateKind=declared. Repository:205–218 szacuje tylko average×duration/8, z prefiksem~ w UI. Utrata average nie kasuje starego szacunku042. DASH declared nie udaje średniego bitrate, więc nie daje takiej estymacji. |
+| Wymiary/FPS/kodeki | HLS warianty wysyłają parametry deklarowane, DASH tylko jedna reprezentacja może wzbogacić master o wymiary/FPS/kodeki (background:832–842,914–926). FPS DASH traci typowe ułamki040. Record.metadata:185–204 przyjmuje parę wymiarów atomowo i przy sprzeczności utrzymuje brak rozdzielczości; FPS/kodeki przyjmuje, gdy obecne. Nie jest to potwierdzenie aktualnie renderowanej jakości. |
+| Jakość i warianty | Zamknięty protokół waliduje quality/availableQualities/variantCount i zakresy liczb (:265–288). Aktywny JS nie ustawia pola quality; UI qualityText pokazuje je tylko przy CONFIRMED, zatem brak wdrożonego pewnego odczytu aktywnej jakości. Wdrożone: deklarowane wysokości/lista availableQualities oraz liczba ograniczonych parserem wariantów, rozdzielczość/FPS/kodek jako dostępne dane; limity parsera oznaczają, że licznik nie gwarantuje pełnej oferty strony. |
+| Audio/napisy | Parser HLS EXT-X-MEDIA i DASH Representation zwraca osobne audioTracks/subtitleTracks, języki/grupy; trickplay jest oddzielne. background nie serializuje tych list, Candidate/MediaEntry nie mają pól ścieżek, kafelki nie mają selektora audio/napisów. To parser-only, nie ukończona funkcja wyboru ścieżek. Nie oceniano tu natywnej obsługi ścieżek odtwarzacza witryny. |
+| Aktualizacje i pochodzenie | Record.metadata:161–183 czyści czas/rozmiar po LIVE i respektuje aktualizacje VOD.  Native nie ma hierarchii wszystkich źródeł czasu/bitrate analogicznej do title/poster; zapisuje obecne pola, zachowuje brakujące. stream_verified zmienia źródło HLS_EXTINF naHTML5 (041), a VideoMetadataLedger:62–67 utrwala błędną klasyfikację. |
+| Odbiorca i grupy | VideoTilesPanel:318–355,367–386 pokazuje LIVE/czas/rozmiar i jawny~szacunek; nie eksportuje manifestowego HTTP_LENGTH jako rozmiaru strumienia. Wyświetla jednak dane tylko reprezentanta, nie pozostałych wariantów — rozszerzenie038 z12A obejmuje też znany czas/LIVE/rozmiar innego wariantu. Nie dodano nowego ID dla tej samej przyczyny. Pełny wybór źródeł i akcje należą do13. |
+
+Nowe 12B: **040/042 CONFIRMED P2,041/044 CONFIRMED P3;043 LIKELY, potencjalny P2**. Dowody i propozycje regresji wyłącznie w [FINDINGS](FINDINGS.md);038 uzupełniono. Bilans 12B potwierdzone P0=0/P1=0/P2=2/P3=2; jedna nowa hipoteza. Cały etap 12: **7 CONFIRMED (P2=5,P3=2),1 LIKELY**. Łącznie 37 CONFIRMED (P1=3,P2=32,P3=2),4 LIKELY,3 SUSPECTED.
+
+### Weryfikacja 12B
+
+**PASS 10/10** istniejących testów JS (3+2+4+1; około71/64/76/79ms), wcześniej niewykonanych w audycie. Kontrole obejmują VOD/LIVE, bitrate, zakresy bajtów/kompresję, rozdzielenie ścieżek i późne loadedmetadata. Nie powtarzano poprawnych testów12A/11/innych etapów:
+
+```sh
+node --test --test-name-pattern='^VOD HLS|^DASH static period|^DASH dynamic' app/src/test/js/video-metadata-v1174.test.cjs
+node --test --test-name-pattern='^DASH hierarchical|^HLS records bitrate' app/src/test/js/video-metadata-v1180.test.cjs
+node --test --test-name-pattern='^v1186 HTTP 206|^v1186 HLS rendition|^v1185 DASH dynamic|^v1186 HLS exact byte ranges' app/src/test/js/mme-nextgen-v1185.test.cjs
+node --test --test-name-pattern='^stage 4\.0\.2: loadedmetadata' app/src/test/js/media-detector.test.cjs
+```
+
+**FAIL inwariantów040/044** w bezpośrednim wykonaniu rzeczywistego parsera: poprawne ułamki FPS→null; trzy0.4s Period→3s zamiast2s po wspólnym ceil. **043:** kontrolowany stan srcB/currentSrcA emituje dla B parametry A, lecz osiągalność okna w realnym Gecko pozostaje NOT_TESTED, więc LIKELY. Exit0 próby oznacza odtworzenie błędów/warunku, nie poprawność aplikacji. **041/042 i uzupełnienie038:** dowody statyczne, bez nowych atrap Android/Kotlin. PASS testu „fractional FPS” nie przeczy040: test sprawdza tylko frameRateRaw.
+
+**NOT_TESTED:** Kotlin, rzeczywisty Store/Gecko/currentSrc/event loop, Compose/UI/telefon, pomiary120Hz i pełne odtwarzanie/audio/subtitle strony. Nie uruchamiano Gradle/lint/CI/APK, nie instalowano zależności, nie dodawano testów do app. Te ograniczenia nie zostały przedstawione jako PASS.
+
+### Zakończenie i następny zakres
+
+**Etap 12 COMPLETE (12A+12B).** Dane tytułów/posterów i technicznych parametrów prześledzone; funkcje niewdrożone odróżnione od błędów i ograniczeń testów. Dokumenty audytu oraz pierwszy ZC-AUD w AI_HANDOFF stanowią checkpoint. App/.github/AGENTS zgodne z bazą; brak PR audytowego potwierdzony jednorazowo. Wykorzystano wcześniejszą kontrolę niezmienionych wyzwalaczy workflow; nie dispatchowano CI. Commit/push/SHA w końcowej odpowiedzi, bez dodatkowego commitu dla własnego SHA.
+
+Następny po „Dalej”: **13 — FAB, kafelki i kompatybilność odtwarzania stron**. Prześledzić licznik/listę, filtrowanie i wybór źródeł/wariantów, aktualizacje, fullscreen/iframe, zdarzenia play/pause/src, preview-assist i aktywne pozostałości przekazywania odtwarzania oraz konflikty gestów/nakładek. Wykorzystać mapy11/12 i zgłoszenia035–044; nie powtarzać ich testów. Złożone zależności GeckoView/JS/UI i cyklu życia uzasadniają **GPT-6.1 Sol / High / Standard**. Nie zmieniano modelu/ustawień i nie deklaruje się ich dostępności na koncie. Etapu13 nie rozpoczęto.
+
+## Minimalna próba 12B
+
+Uruchomić Node na poniższym bloku wyodrębnionym do tymczasowego pliku z katalogu repo. Bez HTTP; syntetyczne identyfikatory, rzeczywisty JS i istniejący fixture. SHA256: `85dd102774aad60b71658cd393eaaddd157c056c90bcd593eda7f781c13bcf7c`.
+
+```js
+const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm');
+const assert = require('node:assert/strict');
+const root = process.cwd(), parser = { URL };
+vm.runInNewContext(fs.readFileSync(path.join(root,
+  'app/src/main/assets/extensions/nira-media-detector/manifest-parser.js'), 'utf8'), parser);
+const mpd = body => '<MPD xmlns="urn:mpeg:dash:schema:mpd:2011">' + body + '</MPD>';
+const rep = rate => '<AdaptationSet contentType="video" frameRate="' + rate + '">' +
+  '<Representation id="v" bandwidth="1000"><BaseURL>movie.mp4</BaseURL></Representation></AdaptationSet>';
+const parse = text => parser.NiraManifestParser.parseDash(text, 'https://media.example.invalid/master.mpd', 8);
+assert.equal(parse(mpd('<Period>' + rep('25/1') + '</Period>')).variants[0].frameRate, 25);
+for (const rate of ['24000/1001', '30000/1001', '60000/1001']) {
+  const v = parse(mpd('<Period>' + rep(rate) + '</Period>')).variants[0];
+  assert.equal(v.frameRateRaw, rate); assert.equal(v.frameRate, null);
+}
+console.log('040 FAIL invariant: standard rational DASH FPS retained only as raw text, numeric frameRate=null.');
+const duration = parse(mpd(Array.from({length: 3}, () =>
+  '<Period duration="PT0.4S">' + rep('25') + '</Period>').join(''))).durationSeconds;
+assert.equal(duration, 3);
+assert.equal(parse(mpd('<Period duration="PT1.2S">' + rep('25') + '</Period>')).durationSeconds, 2);
+console.log('044 FAIL invariant: three 0.4s Periods -> 3s; equal single 1.2s Period -> 2s.');
+const tests = path.join(root, 'app/src/test/js');
+const source = fs.readFileSync(path.join(tests, 'media-detector.test.cjs'), 'utf8');
+const ctx = { require, __dirname: tests, TextEncoder, TextDecoder, URL, AbortController, Date, setImmediate };
+vm.runInNewContext(source.slice(0, source.indexOf('test("v1181:')) + '\nglobalThis.auditPage = page;', ctx);
+(async () => {
+  const p = ctx.auditPage(), video = new p.HTMLVideoElement('https://media.example.invalid/a.mp4');
+  video.duration = 19; video.videoWidth = 1280; video.videoHeight = 720;
+  p.videos.push(video); await p.mutate();
+  video.src = 'https://media.example.invalid/b.mp4'; // Controlled stale currentSrc/metadata window.
+  await p.mutate();
+  const b = p.native.map(x => x[1]).find(x => x.url === video.src);
+  assert.equal(video.currentSrc, 'https://media.example.invalid/a.mp4');
+  assert.equal(b.durationSeconds, 19); assert.equal(b.width, 1280); assert.equal(b.height, 720);
+  console.log('043 conditional JS fixture: B URL receives A metadata; real Gecko timing NOT_TESTED, finding LIKELY.');
+})().catch(e => { console.error(e); process.exitCode = 1; });
+```
+
+**ETAP 12/18 ZAKOŃCZONY — STOP. Następny etap wymaga polecenia „Dalej”.**
