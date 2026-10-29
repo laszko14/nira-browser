@@ -5,6 +5,7 @@ import android.os.SystemClock
 import android.app.ActivityManager
 import com.prirai.android.nira.ext.components
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.cancel
@@ -79,14 +80,13 @@ internal class VideoSearchBridgeController(
     private val manualScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var manualBusy = false
     private var crawlBusy = false
-    private var multiJob: Job? = null
+    private val normalRunGate = VideoSearchNormalRunGate()
     private var privateJob: Job? = null
     private val privateResults = VideoSearchPrivateRunAccess()
     private val privateGroup = VideoSearchPrivateGroupAccess()
     // Only the current background-created private tab can hold a worker lease.
     // A user selecting it latches permanent adoption (even after switching away).
     private var privateWorkerLease: VideoSearchPrivateWorkerLease? = null
-    private var multiQueue: VideoSearchDispatchQueue? = null
     private val lastMulti = LinkedHashMap<String, VideoSearchQueueSnapshot>()
     private val lastMultiRunIds = LinkedHashMap<String, String>()
     // At most eight temporary result lists; never grow a hidden unlimited cache.
@@ -1464,18 +1464,13 @@ internal class VideoSearchBridgeController(
         lastMultiRunIds[scope.profileId]
 
     fun multiSiteStatus(scope: VideoSearchScope.Normal): VideoSearchQueueSnapshot? =
-        if (multiQueue?.plan?.scope == scope) multiQueue?.snapshot()
-        else lastMulti[scope.profileId]
+        normalRunGate.liveQueue(scope)?.snapshot() ?: lastMulti[scope.profileId]
 
-    fun isMultiSiteActive(): Boolean = multiJob?.isActive == true
+    // Cancellation and NonCancellable journal cleanup still occupy the slot.
+    fun isMultiSiteActive(): Boolean = !normalRunGate.canStart()
 
-    fun stopMultiSite(scope: VideoSearchScope.Normal): Boolean {
-        val queue = multiQueue ?: return false
-        if (queue.plan.scope != scope) return false
-        queue.stopPending()
-        multiJob?.cancel()
-        return true
-    }
+    fun stopMultiSite(scope: VideoSearchScope.Normal): Boolean =
+        normalRunGate.stop(scope)
 
     /**
      * User-authorized normal-profile multi-site run. One transactional Room
@@ -1493,8 +1488,8 @@ internal class VideoSearchBridgeController(
             plan.runnableSites.isEmpty()) return false
         val queue = plan.createQueue()
         val journal = VideoSearchMultiRunJournal(repository, plan)
-        multiQueue = queue
-        multiJob = manualScope.launch {
+        // LAZY guarantees that the job is registered before executing any body.
+        val job = manualScope.launch(start = CoroutineStart.LAZY) {
             try {
                 withContext(Dispatchers.IO) { journal.initialize() }
                 lastMultiRunIds[plan.scope.profileId] = journal.runId
@@ -1636,14 +1631,21 @@ internal class VideoSearchBridgeController(
                 } catch (_: Exception) {
                     // Do not claim a completed run if the transaction failed.
                 }
-                lastMulti[plan.scope.profileId] = queue.snapshot()
-                if (lastMulti.size > 4) lastMulti.remove(lastMulti.keys.first())
-                multiQueue = null
-                Toast.makeText(applicationContext,
-                    "Zavro: wyszukiwanie zakończone lub zatrzymane. Sprawdź historię wyników.",
-                    Toast.LENGTH_LONG).show()
+                // An older generation must never reset the new run's state.
+                if (normalRunGate.owns(coroutineContext[Job], queue)) {
+                    lastMulti[plan.scope.profileId] = queue.snapshot()
+                    if (lastMulti.size > 4) lastMulti.remove(lastMulti.keys.first())
+                    Toast.makeText(applicationContext,
+                        "Zavro: wyszukiwanie zakończone lub zatrzymane. Sprawdź historię wyników.",
+                        Toast.LENGTH_LONG).show()
+                }
             }
         }
+        if (!normalRunGate.begin(job, queue)) {
+            job.cancel()
+            return false
+        }
+        job.start()
         return true
     }
 

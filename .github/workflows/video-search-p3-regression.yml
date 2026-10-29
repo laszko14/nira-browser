@@ -1,4 +1,4 @@
-name: Zavro P3 normal worker test-only CI
+name: Zavro normal worker P3-P4 regressions (no APK)
 
 on:
   push:
@@ -10,6 +10,8 @@ on:
       - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchNormalWorker*.kt'
       - 'app/src/main/java/com/prirai/android/nira/components/Components.kt'
       - 'app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchNormalWorker*.kt'
+      - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchNormalRunGate.kt'
+      - 'app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchNormalRunGateTest.kt'
   workflow_dispatch:
 
 permissions:
@@ -31,12 +33,13 @@ jobs:
           java-version: '17'
           distribution: zulu
       - uses: gradle/actions/setup-gradle@v5
-      - name: Normal lease and private lease targeted regression
+      - name: P3 ownership and P4 Stop Start targeted regression
         run: |
           ./gradlew :app:testDebugUnitTest --console=plain \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchNormalWorkerLeaseTest' \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchPrivateWorkerLeaseTest' \
-            --tests 'com.prirai.android.nira.videosearch.VideoSearchWorkerVerificationTest'
+            --tests 'com.prirai.android.nira.videosearch.VideoSearchWorkerVerificationTest' \
+            --tests 'com.prirai.android.nira.videosearch.VideoSearchNormalRunGateTest'
       - name: All JVM Robolectric regression tests
         run: ./gradlew :app:testDebugUnitTest --console=plain
       - name: JS WebExtension regression tests
@@ -47,7 +50,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: video-search-p3-tests
+          name: video-search-p3-p4-tests
           path: |
             app/build/test-results/testDebugUnitTest/**
             app/build/reports/tests/testDebugUnitTest/**

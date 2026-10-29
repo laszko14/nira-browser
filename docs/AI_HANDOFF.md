@@ -1,3 +1,12 @@
+# P4 / 16 — LC-03 (2026-10-29) — bramka Stop → Start, CI_PENDING
+
+- **Etap implementacji P4:** dodano `VideoSearchNormalRunGate` wiążący tożsamością `Job` i `VideoSearchDispatchQueue`. Dopuszcza nowy start dopiero gdy `previousJob.isCompleted`, nie gdy `!isActive`; wcześniej anulowany Job w `finally` / `NonCancellable` nadal blokuje nowy start. Dzierżawa poprzedniej kolejki przechowywana do nowego rozpoczęcia, a publikacja `lastMulti` i komunikatu po cleanup sprawdza tożsamość bieżącego Job i kolejki.
+- `VideoSearchBridgeController`: usunięto luźne zmienne `multiJob`/`multiQueue`, `stopMultiSite` i `multiSiteStatus` przechodzą przez bramkę; `launch(start = CoroutineStart.LAZY)` pozwala zarejestrować Job przed jego wykonaniem. Nie przerywa to private workflow, nie usuwa historycznych wyników ani nie zmienia modelu kolejki i limitów. Wcześniejsze P2/P3 zachowane.
+- Nowe `VideoSearchNormalRunGateTest`: 7 testów, w tym prawdziwa coroutine z **zawieszonym NonCancellable finally**, odmowa restartu podczas cleanup i dopuszczenie po ukończeniu, właściciel profilu, poprzednia generacja, anulowany Job, status kolejki. Używany istniejący workflow testów P3 rozszerzono na P4: targeted, full Kotlin/Robolectric, Node/JS, lint. **Nie budować APK ani uruchamiać assemble**.
+- **STATUS: CI_PENDING** w chwili commitu; nie deklarować PASS przed zakończeniem run dla tego SHA. Fizyczny Gecko, Nothing Phone (1)/Android 15/120 Hz, rzeczywiste stop/start użytkownika: **NOT_TESTED**. Następne `Dalej` przeznaczone wyłącznie dla P5, jeśli P4 CI potwierdzone PASS; przy FAIL/PENDING najpierw dokończyć P4. Bez merge/release.
+
+---
+
 # Checkpoint — P3/16 (LC-02) zakończony — 2026-10-29
 
 - **Stan: DONE — testy CI PASS.** Wdrożona ochrona normalnych kart roboczych przed kontynuacją sterowania i automatycznym usunięciem po przejęciu przez użytkownika. Selekcja w BrowserStore jest obserwowana synchronicznie; po jednorazowym wybraniu karty prawo workera do niej nie wraca. Każda dzierżawa ma odrębne ID karty, właściciela profilu i tożsamość EngineSession; cleanup sprawdza ponadto context, origin i aktualną sesję. Udana praca nie staje się fałszywie STOPPED tylko dlatego, że worker prawidłowo usunął swoją nieprzejętą kartę.
