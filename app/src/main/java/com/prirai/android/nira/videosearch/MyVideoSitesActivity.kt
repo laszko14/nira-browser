@@ -751,9 +751,10 @@ class MyVideoSitesActivity : AppCompatActivity() {
                     VideoSearchNormalDialogKind.QUEUE -> previewQueue(draft.primary)
                     VideoSearchNormalDialogKind.SEARCH,
                     VideoSearchNormalDialogKind.EDIT -> lifecycleScope.launch {
+                        val siteId = draft.siteId ?: return@launch
                         val currentSite = try {
                             withContext(Dispatchers.IO) {
-                                repository.site(current, draft.siteId ?: return@launch)
+                                repository.site(current, siteId)
                             }
                         } catch (_: Exception) { null }
                         if (ownerIfCurrent() != current || currentSite == null ||
