@@ -156,6 +156,26 @@ test('shared button class can use stable data-testid for LOAD_MORE',()=>{
   assert.equal(next.clicks,1);
 });
 
+test('default submit-type button outside a form is a valid pagination control',()=>{
+  const h=fixture();
+  const next=h.node('button',{type:'submit',classes:['next-page']});
+  h.map('button.next-page',next);
+  const picked=h.selectPage(next);
+  assert.equal(picked?.pagination,'LOAD_MORE');
+  const outcome=h.command('paginate',{pagination:picked.pagination,nextPageSelector:picked.selector});
+  assert.equal(outcome.at(-1)?.status,'dispatched');
+  h.timers.at(-1)();
+  assert.equal(next.clicks,1);
+});
+
+test('form-associated submit buttons cannot be mistaken for pagination',()=>{
+  const h=fixture();
+  const next=h.node('button',{type:'submit',classes:['next-page']});
+  next.form={};
+  h.map('button.next-page',next);
+  assert.equal(h.selectPage(next),null);
+});
+
 test('same-document hash SPA next links are accepted only with next-page semantics',()=>{
   const h=fixture();
   const next=h.node('a',{classes:['pagination-next'],attributes:{href:'#','aria-label':'Next page'}});
