@@ -55,6 +55,7 @@ Odniesienia do kodu dotyczą bazy `b7d62f79f285ac81c29a79b326529d42e9b9fde4`. Be
 | ZC-AUD-049 | 14A | P2 MEDIUM | CONFIRMED | Handler WWW ma odwrócony znak prędkości flingu i zachowuje się inaczej niż Home |
 | ZC-AUD-050 | 14B | P2 MEDIUM | CONFIRMED | Migracja profilu zachowuje MediaSessionState i kontroler starego silnika |
 | ZC-AUD-051 | 14B | P2 MEDIUM | CONFIRMED | Hash-router zmieniający film zachowuje klucz dokumentu i media poprzedniej trasy |
+| ZC-AUD-052 | 15B | P2 MEDIUM | CONFIRMED | Arkusz filmów otwarty podczas odliczania nie trafia do pomiaru JankStats |
 
 ## ZC-AUD-001 — niespójny kontrakt wersji joba release
 
@@ -715,4 +716,17 @@ Uzupełnienie 024 z 10B: ten sam kontrakt menu występuje również w `browser/h
 - **Kierunek:** uzgodnić aktualność materiału między routingiem content, generacją background i retencją native; obsłużyć hash-routery oraz zwykłe kotwice bez przypisywania starego rekordu do nowego materiału. Nie usuwać ochrony przed opóźnionymi wiadomościami i nie modyfikować podpisanych URL mediów.
 - **Regresje:** hash A→B z usunięciem A, B→A, kotwica w tym samym filmie, hash+query/path, różne źródła/literal config/iframe, brak lub wzrost loading. Potwierdzić rejestrację i retencję wpisów/ID, licznik oraz odrzucenie starych akcji po zmianie materiału; osobno realny Gecko hashchange/History API i Store. Specyfikacja, bez nowych testów app.
 
-Stan po15A: CONFIRMED=44 (P0=0,P1=3,P2=39,P3=2); LIKELY=4 (010,016,019,043 — potencjalne P2); SUSPECTED=3 (002,025 potencjalne P2;030 potencjalny P1). 15A rozszerza013 o natywny pasek; nowych ID i hipotez0. Etapy1–14 COMPLETE;15 PARTIAL (15A COMPLETE,15B NOT_STARTED).
+## ZC-AUD-052 — brak rejestracji okna filmów otwartego w PREPARING
+
+- **Etap:** 15B — wiarygodność pomiaru płynności i pokrycie okien.
+- **Miejsce:** [`MediaFloatingUi.kt:179`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/media/MediaFloatingUi.kt#L179), `showSheet`:179–185,299–308; `diagnostics/testlab/TestLabRuntime.kt`, `tick`:133–148, `attachWindow`:279–305, `attachJank`:255–273; `TestLabEngine.kt`:276–280,307–310. Kotlin względem app/src/main/java/com/prirai/android/nira/.
+- **Problem:** okno arkusza wyświetlone podczas trzysekundowego odliczania może pozostać całkowicie poza pomiarem JankStats przez resztę testu, mimo trwającej interakcji użytkownika z arkuszem.
+- **Mechanizm:** w PREPARING runtime.capture jest null; powstaje dopiero po engine.begin. showSheet zapamiętuje ten null, więc measurement FAB_OPEN jest null. Dialog się otwiera, ale attachWindow jest wyłącznie wewnątrz if(measurement != null). Przy begin runtime podpina JankStats tylko do okien już obecnych w windows; callback Activity rejestruje okno Activity, nie okno BottomSheetDialog. Nie ma późniejszej ponownej rejestracji widocznego sheet po przejściu do RUNNING.
+- **Dowód statyczny:** prepare → powrót do BrowserActivity → otwarcie FAB przed upływem3s, z wcześniej wykrytymi filmami → measurement=null, okno dialogu nie dodane do windows → tick.begin → pętla attachJank obejmuje tylko zarejestrowane okna. BrowserActivity z modalnym dialogiem może pozostać RESUMED, więc odliczanie dobiega końca. Kontrkontrola: otwarcie po begin zwykle daje token i rejestrację; FAB_OPEN ma domenę UI, uwzględnianą przez wszystkie typy testu — sam wybór RESOURCES nie powoduje tej luki. Odmowa tokenu wskutek limitu128 operacji również przechodzi przez ten sam warunek, lecz nie jest wymagana do powyższego scenariusza.
+- **Pewność:** CONFIRMED mechanizm brakującej rejestracji w kodzie. Pełna reprodukcja Android/JankStats oraz liczba pominiętych klatek: NOT_TESTED. Nie twierdzi się, że każda sesja traci wszystkie klatki.
+- **Ważność:** P2 MEDIUM — niepełny pomiar UI może zaniżać widoczne problemy przewijania/animacji arkusza. Dostępność ANDROID_UI_FRAMES może być MEASURED na podstawie okna Activity; brak rejestracji sheet nie zgłasza COLLECTOR_FAILED ani osobnej luki. Ogólne ograniczenie MULTIPLE_WINDOW_FRAMES nie identyfikuje pominiętego okna.
+- **Wpływ:** TestLab COMPLEX/RESOURCES/VIDEO_DISCOVERY i inne tryby z UI, ocena FAB/kafelków i porównania wydajności. Nie zmienia samych filmów, źródeł ani odtwarzania; nie dowodzi spadku FPS ani wycieku pamięci.
+- **Kierunek naprawy:** oddzielić rejestrację okna od uzyskania tokenu opóźnienia FAB_OPEN; dopuścić rejestrację podczas PREPARING i rozpoczęcie trackingu po begin. Zachować detach przy dismiss/teardown/końcu testu i pasywność po wyłączeniu TestLab. Nie zastępować braku próbek zerowym jankiem.
+- **Wymagane regresje:** przygotować test otwarcia arkusza w PREPARING, przejścia do RUNNING i obecności jego okna/trackingu; kontrolne otwarcie po begin, odmowa tokenu przy limicie operacji, dismiss przed begin, obrót/pause/resume i zakończenie testu bez zatrzymanego Window. Realny Android: przewijanie sheet i niezależne potwierdzenie próbek jego Window; Robolectric bez generowania klatek nie potwierdza płynności. Specyfikacja do przyszłej naprawy, bez nowych testów app.
+
+Stan po15: CONFIRMED=45 (P0=0,P1=3,P2=40,P3=2); LIKELY=4 (010,016,019,043 — potencjalne P2); SUSPECTED=3 (002,025 potencjalne P2;030 potencjalny P1). 15A rozszerza013,15B dodaje052 CONFIRMED P2. Etapy1–15 COMPLETE, bez nowych hipotez.
