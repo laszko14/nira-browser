@@ -1,3 +1,10 @@
+# P16/16 — UI-05 — obserwowany pusty stan i końcowa kompilacja
+
+- P15 PASS: `55657170` / [40954291896](https://github.com/laszko14/nira-browser/actions/runs/40954291896). P16: `Loading / Empty / HasSites / Error`, tylko po zweryfikowanym, pustym snapshotcie Room pojawia się wskazówka "Dodaj → Rozpoznaj / Wskaż". Nie mylić początkowego pustego adaptera, błędu Room ani prywatnej prezentacji z brakiem witryn. Testy 6 Kotlin/Robolectric i pełna dotychczasowa regresja.
+- Po **zielonych** testach workflow automatycznie podpisuje jeden APK ARM64 aktualizacyjny v1192 `0.5.22-alpha97-clean` dla `com.prirai.android.nira.debug` dotychczasowym certyfikatem SHA-256 `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00`; weryfikator odrzuca inny pakiet, wersję, signer lub ABI. Artefakt `zavro-clean-p16-v1192-arm64-update`. Status **CI_AND_APK_PENDING** do weryfikacji SHA i pliku, potem domknięcie P1–P16; brak APK z efemerycznym podpisem, brak merge. Fizyczny Android 15 / Gecko **NOT_TESTED**.
+
+---
+
 # P15/16 — UI-04/UI-03 — zachowanie dialogów przy błędach i rekreacji
 
 - P14 PASS w [CI 40950375215](https://github.com/laszko14/nira-browser/actions/runs/40950375215) na `88f6311a1ecaff966f848ff3de52ddba6417575f`. P15 koryguje dialog kolejki z automatycznie dismissującymi przyciskami; nowa walidacja po show zachowuje pole i blokuje podwójne dispatch. Szkice `QUEUE/SEARCH/EDIT` są normal-only, związane z profilem, ograniczone długością, zapisywane i odtwarzane wyłącznie jako tekst — bez automatycznego wykonania. Przy zmianie owner/private lub nieaktualnym site odtworzenie jest odrzucane. Testy Robolectric 6. Status **CI_PENDING** dla nowego SHA, realny IME/obrót NOT_TESTED. CFG-05 to ryzyko jakości w P13, nie zmiana harmonogramu; P16 UI-05 po kolejnym „Dalej”.

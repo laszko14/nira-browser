@@ -39,6 +39,7 @@ import com.prirai.android.nira.ext.components
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
@@ -62,6 +63,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private lateinit var info: TextView
     private lateinit var privateInfo: TextView
     private lateinit var selectionInfo: TextView
+    private lateinit var normalEmptyState: TextView
     private lateinit var selectAllButton: Button
     private lateinit var clearButton: Button
     private lateinit var parallelismButton: Button
@@ -229,6 +231,12 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 "Przytrzymaj i przeciągnij wiersz, aby zmienić kolejność."
             textSize = 13f
         })
+        normalEmptyState = TextView(this).apply {
+            visibility = View.GONE
+            textSize = 14f
+            setPadding(0, dp(12), 0, dp(12))
+        }
+        normalHeader.addView(normalEmptyState)
 
         adapter = SitesAdapter(
             onEdit = { editSite(it) },
@@ -658,6 +666,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             scope = null
             reorderPending = false
             adapter.replace(emptyList(), emptySet())
+            normalEmptyState.visibility = View.GONE
             input.isEnabled = false
             addButton.isEnabled = false
             selectionInfo.text = "Wybór niedostępny w trybie prywatnym"
@@ -744,6 +753,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
         if (scope == current && observer?.isActive == true) return
         observer?.cancel()
         scope = current
+        showNormalSitesState(VideoSearchSitesListState.Loading)
         pendingDialogRestore?.let { draft ->
             pendingDialogRestore = null // one-shot; never auto-submit or auto-save.
             if (VideoSearchNormalDialogDraft.belongsTo(draft, current.profileId)) {
@@ -773,9 +783,14 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 .combine(repository.observeSettings(current)) { sites, prefs ->
                     sites to prefs
                 }
+                .catch {
+                    if (ownerIfCurrent() == current)
+                        showNormalSitesState(VideoSearchSitesListState.Error)
+                }
                 .collectLatest { (sites, prefs) ->
                     if (ownerIfCurrent() == current && !reorderPending && !adapter.isDragging) {
                         adapter.replace(sites, prefs.selectedSiteIds)
+                        showNormalSitesState(VideoSearchSitesListState.loaded(sites.size))
                         normalListState?.let { state ->
                             sitesList.layoutManager?.onRestoreInstanceState(state)
                             normalListState = null
@@ -1850,11 +1865,22 @@ class MyVideoSitesActivity : AppCompatActivity() {
             }
             if (ownerIfCurrent() == owner && !adapter.isDragging) {
                 adapter.replace(rows, selected)
+                showNormalSitesState(VideoSearchSitesListState.loaded(rows.size))
                 updateSelectionControls(rows, selected)
             }
         } catch (_: Exception) {
-            if (ownerIfCurrent() == owner) message("Nie udało się odświeżyć listy")
+            if (ownerIfCurrent() == owner) {
+                showNormalSitesState(VideoSearchSitesListState.Error)
+                message("Nie udało się odświeżyć listy")
+            }
         }
+    }
+
+    /** UI-05: never infer an empty database from an empty adapter while loading. */
+    private fun showNormalSitesState(state: VideoSearchSitesListState) {
+        val message = state.message
+        normalEmptyState.visibility = if (message == null) View.GONE else View.VISIBLE
+        normalEmptyState.text = message.orEmpty()
     }
 
     private fun confirmRemoval(site: VideoSearchSite) {

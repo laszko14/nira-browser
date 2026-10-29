@@ -1,4 +1,4 @@
-name: Zavro video search P3-P15 regressions (no APK)
+name: Zavro video search P3-P16 regressions and signed ARM64 update APK
 
 on:
   push:
@@ -58,6 +58,8 @@ on:
       - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchPrivateRunAccess.kt'
       - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchPrivateGroupAccess.kt'
       - 'app/src/main/java/com/prirai/android/nira/videosearch/MyVideoSitesActivity.kt'
+      - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchSitesListState.kt'
+      - 'app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchSitesEmptyStateTest.kt'
       - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsTabContent.kt'
       - 'app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchRecoveryAndProgressTest.kt'
       - 'app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchPrivateSingleProgressTest.kt'
@@ -74,7 +76,7 @@ concurrency:
 jobs:
   tests-only:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 80
     steps:
       - uses: actions/checkout@v4
       - uses: gradle/wrapper-validation-action@v2
@@ -83,7 +85,7 @@ jobs:
           java-version: '17'
           distribution: zulu
       - uses: gradle/actions/setup-gradle@v5
-      - name: P3-P15 targeted dialog recreation, profile isolation and SPA regression
+      - name: P3-P16 targeted empty-list, dialog and Gecko regression
         run: |
           ./gradlew :app:testDebugUnitTest --console=plain \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchNormalWorkerLeaseTest' \
@@ -96,6 +98,7 @@ jobs:
             --tests 'com.prirai.android.nira.videosearch.VideoSearchManualConfigurationTest' \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchSpaBindingTest' \
             --tests 'com.prirai.android.nira.videosearch.MyVideoSitesDialogRegressionTest' \
+            --tests 'com.prirai.android.nira.videosearch.VideoSearchSitesEmptyStateTest' \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchConfigurationHealthTest' \
             --tests 'com.prirai.android.nira.videosearch.MyVideoSitesManagementTest' \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchAddressCorrectionTest' \
@@ -119,11 +122,57 @@ jobs:
         run: node --test app/src/test/js/*.test.cjs
       - name: Android lint
         run: ./gradlew :app:lintDebug --console=plain
+      # Only after targeted, all JVM, all WebExtension tests and Android lint
+      # have passed. Fail-closed on missing stable secrets or any mismatch.
+      - name: Build and verify signed Zavro Clean v1192 ARM64 update APK
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for key in ANDROID_KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Stable update signing secret ${key} is missing. No APK will be published."
+              exit 1
+            fi
+          done
+          keystore_path="$RUNNER_TEMP/zavro-clean-p16-update.p12"
+          trap 'rm -f "$keystore_path"' EXIT
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
+          chmod 600 "$keystore_path"
+          export NIRA_SIGNING_STORE_FILE="$keystore_path"
+          export NIRA_SIGNING_STORE_PASSWORD="$KEYSTORE_PASSWORD"
+          export NIRA_SIGNING_KEY_ALIAS="$KEY_ALIAS"
+          export NIRA_SIGNING_KEY_PASSWORD="$KEY_PASSWORD"
+          ./gradlew :app:assembleDebug --console=plain
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/debug/*arm64-v8a*.apk)
+          if [ "${#apks[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one ARM64 update APK, found ${#apks[@]}"
+            exit 1
+          fi
+          bash scripts/verify-update-apk.sh "${apks[0]}" \
+            com.prirai.android.nira.debug 1192 0.5.22-alpha97-clean \
+            df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
+          echo "Zavro Clean v1192: stable certificate, package, version and ARM64 verified."
+
+      - name: Upload signed ARM64 APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zavro-clean-p16-v1192-arm64-update
+          path: app/build/outputs/apk/debug/*arm64-v8a*.apk
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Upload reports only
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: video-search-p3-p4-p5-p6-p7-p8-p9-p10-p11-p12-p13-p14-p15-tests
+          name: video-search-p3-p4-p5-p6-p7-p8-p9-p10-p11-p12-p13-p14-p15-p16-tests
           path: |
             app/build/test-results/testDebugUnitTest/**
             app/build/reports/tests/testDebugUnitTest/**
