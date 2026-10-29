@@ -24,7 +24,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.prirai.android.nira.ext.components
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collectLatest
@@ -377,10 +376,10 @@ internal fun VideoSavedFoldersScreen(
                                     Icon(Icons.Default.Movie, contentDescription = null,
                                         tint = Color(0xff778b9d))
                                     link.thumbnailUrl?.let { image ->
-                                        AsyncImage(
-                                            model = image, contentDescription = null,
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize()
+                                        VideoSearchThumbnail(
+                                            exactImageUrl = image,
+                                            owner = link.scope,
+                                            modifier = Modifier.fillMaxSize(),
                                         )
                                     }
                                     VideoSearchResultsPresenter.durationLabel(

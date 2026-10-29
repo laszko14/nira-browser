@@ -36,7 +36,6 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.prirai.android.nira.BrowserActivity
 import com.prirai.android.nira.browser.profile.ProfileManager
 import com.prirai.android.nira.ext.components
@@ -606,10 +605,8 @@ private fun FilmPoster(film: VideoSearchFilm, modifier: Modifier = Modifier) {
             tint = Color(0xff778b9d), modifier = Modifier.size(34.dp))
         val url = film.thumbnailUrl
         if (url != null) {
-            // Coil uses its existing bounded cache and cancels offscreen requests.
-            AsyncImage(
-                model = url, contentDescription = null,
-                contentScale = ContentScale.Crop,
+            VideoSearchThumbnail(
+                exactImageUrl = url, owner = film.scope as? VideoSearchScope.Normal,
                 modifier = Modifier.fillMaxSize(),
             )
         }
