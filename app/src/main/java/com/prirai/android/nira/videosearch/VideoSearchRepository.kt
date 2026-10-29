@@ -448,6 +448,68 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
         return dao.insertSavedLinkChecked(with(VideoSearchRowCodec) { link.toRow() })
     }
 
+    /**
+     * All mutating library operations run in profile-scoped Room transactions.
+     * A collision is a false/no-op; NEVER overwrite another saved film.
+     * UI must confirm destructive actions before invoking this method.
+     */
+    suspend fun editSavedLibrary(
+        scope: VideoSearchScope.Normal, edit: VideoSavedLibraryEdit,
+    ): Boolean {
+        val owner = scope.profileId
+        fun nonblank(value: String) = value.isNotBlank() && value.length <= 128
+        return when (edit) {
+            is VideoSavedLibraryEdit.CreateFolder -> {
+                val name = VideoSavedLibraryEditPolicy.folderName(edit.name)
+                dao.createUserFolder(VideoSavedFolderRow(
+                    owner, java.util.UUID.randomUUID().toString(), name,
+                    System.currentTimeMillis(), System.currentTimeMillis()
+                ))
+            }
+            is VideoSavedLibraryEdit.RenameFolder -> {
+                require(nonblank(edit.folderId))
+                dao.renameUserFolder(owner, edit.folderId, edit.name,
+                    System.currentTimeMillis())
+            }
+            is VideoSavedLibraryEdit.CopyFolder -> {
+                require(nonblank(edit.folderId))
+                val name = VideoSavedLibraryEditPolicy.folderName(edit.name)
+                val stamp = System.currentTimeMillis()
+                dao.duplicateUserFolder(owner, edit.folderId,
+                    VideoSavedFolderRow(owner, java.util.UUID.randomUUID().toString(),
+                        name, stamp, stamp))
+            }
+            is VideoSavedLibraryEdit.MoveFolder -> {
+                require(nonblank(edit.folderId) && nonblank(edit.destinationId))
+                dao.mergeUserFolder(owner, edit.folderId, edit.destinationId)
+            }
+            is VideoSavedLibraryEdit.DeleteFolder -> {
+                require(nonblank(edit.folderId))
+                dao.deleteUserFolder(owner, edit.folderId)
+            }
+            is VideoSavedLibraryEdit.RenameFilm -> {
+                require(nonblank(edit.folderId) && nonblank(edit.linkId))
+                dao.renameUserLink(owner, edit.folderId, edit.linkId, edit.title)
+            }
+            is VideoSavedLibraryEdit.CopyFilm -> {
+                require(nonblank(edit.folderId) && nonblank(edit.linkId) &&
+                    nonblank(edit.destinationId))
+                dao.copyOrMoveUserLink(owner, edit.folderId, edit.linkId,
+                    edit.destinationId, java.util.UUID.randomUUID().toString(), false)
+            }
+            is VideoSavedLibraryEdit.MoveFilm -> {
+                require(nonblank(edit.folderId) && nonblank(edit.linkId) &&
+                    nonblank(edit.destinationId))
+                dao.copyOrMoveUserLink(owner, edit.folderId, edit.linkId,
+                    edit.destinationId, java.util.UUID.randomUUID().toString(), true)
+            }
+            is VideoSavedLibraryEdit.DeleteFilm -> {
+                require(nonblank(edit.folderId) && nonblank(edit.linkId))
+                dao.deleteUserLink(owner, edit.folderId, edit.linkId)
+            }
+        }
+    }
+
     suspend fun savedLinks(scope: VideoSearchScope.Normal, folderId: String): List<VideoSavedFilmLink> =
         dao.getSavedLinks(scope.profileId, folderId).map {
             with(VideoSearchRowCodec) { it.toModel() }

@@ -491,6 +491,126 @@ internal interface VideoSearchDao {
         ))
     }
 
+    // ETAP 8B: guarded, profile-scoped, transactional management.
+    // Do not use REPLACE for user actions: it could silently discard a row.
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertManagedFolder(row: VideoSavedFolderRow): Long
+
+    @Query("UPDATE video_saved_folders SET name = :name, updatedAtMs = :now WHERE profileId = :owner AND id = :id")
+    suspend fun updateManagedFolderName(owner: String, id: String, name: String, now: Long): Int
+
+    @Query("DELETE FROM video_saved_folders WHERE profileId = :owner AND id = :id")
+    suspend fun deleteManagedFolderRow(owner: String, id: String): Int
+
+    @Query("DELETE FROM video_saved_links WHERE profileId = :owner AND folderId = :folderId")
+    suspend fun deleteManagedLinksInFolder(owner: String, folderId: String): Int
+
+    @Query("SELECT * FROM video_saved_links WHERE profileId = :owner AND folderId = :folderId AND id = :id LIMIT 1")
+    suspend fun getManagedLink(owner: String, folderId: String, id: String): VideoSavedLinkRow?
+
+    @Query("DELETE FROM video_saved_links WHERE profileId = :owner AND folderId = :folderId AND id = :id")
+    suspend fun deleteManagedLinkRow(owner: String, folderId: String, id: String): Int
+
+    @Query("UPDATE video_saved_links SET title = :title WHERE profileId = :owner AND folderId = :folderId AND id = :id")
+    suspend fun updateManagedLinkTitle(owner: String, folderId: String, id: String, title: String?): Int
+
+    private fun nameAvailable(
+        existing: List<VideoSavedFolderRow>, name: String, ignoredId: String? = null,
+    ): Boolean = existing.none { it.id != ignoredId && it.name.equals(name, ignoreCase = true) }
+
+    @Transaction
+    suspend fun createUserFolder(row: VideoSavedFolderRow): Boolean {
+        val name = VideoSavedLibraryEditPolicy.folderName(row.name)
+        if (!nameAvailable(getFolders(row.profileId), name)) return false
+        return insertManagedFolder(row.copy(name = name)) != -1L
+    }
+
+    @Transaction
+    suspend fun renameUserFolder(
+        owner: String, id: String, name: String, now: Long,
+    ): Boolean {
+        val normalized = VideoSavedLibraryEditPolicy.folderName(name)
+        val current = getFolder(owner, id) ?: return false
+        if (!nameAvailable(getFolders(owner), normalized, id)) return false
+        if (current.name == normalized) return true
+        return updateManagedFolderName(owner, id, normalized,
+            maxOf(now, current.updatedAtMs + 1)) == 1
+    }
+
+    /** Explicitly confirmed by UI. Remove links first: schema has no FK cascade. */
+    @Transaction
+    suspend fun deleteUserFolder(owner: String, id: String): Boolean {
+        if (getFolder(owner, id) == null) return false
+        deleteManagedLinksInFolder(owner, id)
+        return deleteManagedFolderRow(owner, id) == 1
+    }
+
+    /** Clone a folder and its exact URL/metadata. New folder/link IDs only. */
+    @Transaction
+    suspend fun duplicateUserFolder(
+        owner: String, sourceId: String, newFolder: VideoSavedFolderRow,
+    ): Boolean {
+        val source = getFolder(owner, sourceId) ?: return false
+        if (source.id == newFolder.id || newFolder.profileId != owner) return false
+        val name = VideoSavedLibraryEditPolicy.folderName(newFolder.name)
+        if (!nameAvailable(getFolders(owner), name)) return false
+        if (insertManagedFolder(newFolder.copy(name = name)) == -1L) return false
+        for (old in getSavedLinks(owner, sourceId)) {
+            val copied = old.copy(folderId = newFolder.id,
+                id = java.util.UUID.randomUUID().toString())
+            check(insertSavedLink(copied) != -1L) { "Folder copy failed" }
+        }
+        return true
+    }
+
+    /** Move/merge a whole folder into another. Never lose colliding URLs. */
+    @Transaction
+    suspend fun mergeUserFolder(owner: String, sourceId: String, targetId: String): Boolean {
+        if (sourceId == targetId || getFolder(owner, sourceId) == null ||
+            getFolder(owner, targetId) == null) return false
+        val from = getSavedLinks(owner, sourceId)
+        val taken = getSavedLinks(owner, targetId).mapTo(HashSet()) { it.filmPageUrl }
+        if (from.any { it.filmPageUrl in taken }) return false
+        for (old in from) {
+            val moved = old.copy(folderId = targetId,
+                id = java.util.UUID.randomUUID().toString())
+            check(insertSavedLink(moved) != -1L) { "Folder move failed" }
+        }
+        deleteManagedLinksInFolder(owner, sourceId)
+        check(deleteManagedFolderRow(owner, sourceId) == 1)
+        return true
+    }
+
+    @Transaction
+    suspend fun copyOrMoveUserLink(
+        owner: String, folderId: String, id: String, targetFolderId: String,
+        newLinkId: String, move: Boolean,
+    ): Boolean {
+        if (folderId == targetFolderId || getFolder(owner, folderId) == null ||
+            getFolder(owner, targetFolderId) == null) return false
+        val link = getManagedLink(owner, folderId, id) ?: return false
+        // Unique index is a final defense. Precheck gives a clear no-op.
+        if (getSavedLinks(owner, targetFolderId).any {
+                it.filmPageUrl == link.filmPageUrl }) return false
+        if (insertSavedLink(link.copy(folderId = targetFolderId, id = newLinkId)) == -1L)
+            return false
+        if (move) check(deleteManagedLinkRow(owner, folderId, id) == 1)
+        return true
+    }
+
+    @Transaction
+    suspend fun renameUserLink(
+        owner: String, folderId: String, id: String, title: String?,
+    ): Boolean {
+        if (getManagedLink(owner, folderId, id) == null) return false
+        return updateManagedLinkTitle(owner, folderId, id,
+            VideoSavedLibraryEditPolicy.optionalTitle(title)) == 1
+    }
+
+    @Transaction
+    suspend fun deleteUserLink(owner: String, folderId: String, id: String): Boolean =
+        deleteManagedLinkRow(owner, folderId, id) == 1
+
     @Query("SELECT * FROM video_saved_links WHERE profileId = :profileId AND folderId = :folderId ORDER BY createdAtMs")
     suspend fun getSavedLinks(profileId: String, folderId: String): List<VideoSavedLinkRow>
 }
