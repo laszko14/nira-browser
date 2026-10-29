@@ -33,10 +33,12 @@ class VideoSearchNormalRunGateTest {
     @Test fun cancelledJobWithSuspendedNonCancellableFinallyStillBlocksStart() = runBlocking {
         val gate = VideoSearchNormalRunGate()
         val q = queue()
+        val startedBody = CompletableDeferred<Unit>()
         val enteredFinally = CompletableDeferred<Unit>()
         val releaseCleanup = CompletableDeferred<Unit>()
         val work = launch(start = CoroutineStart.LAZY) {
             try {
+                startedBody.complete(Unit)
                 CompletableDeferred<Unit>().await()
             } finally {
                 withContext(NonCancellable) {
@@ -47,6 +49,7 @@ class VideoSearchNormalRunGateTest {
         }
         assertTrue(gate.begin(work, q))
         work.start()
+        startedBody.await()
         assertTrue(gate.stop(owner))
         enteredFinally.await()
         assertFalse(work.isActive)
@@ -114,19 +117,19 @@ class VideoSearchNormalRunGateTest {
         assertFalse(gate.stop(owner))
     }
 
-    @Test fun completionIsRequiredEvenIfJobIsNotActive() {
+    @Test fun activeJobCannotBeReplacedUntilItsCompletion() {
         val gate = VideoSearchNormalRunGate()
-        val waiting = Job()
-        val unfinishedChild = Job(waiting)
+        val running = Job()
         val q = queue()
-        assertTrue(gate.begin(waiting, q))
-        waiting.cancel()
-        assertFalse(waiting.isActive)
-        assertFalse(waiting.isCompleted)
+        assertTrue(gate.begin(running, q))
+        assertTrue(running.isActive)
         assertFalse(gate.canStart())
-        assertFalse(gate.begin(Job(), queue()))
-        unfinishedChild.complete()
-        assertTrue(waiting.isCompleted)
+        val refused = Job()
+        assertFalse(gate.begin(refused, queue()))
+        assertTrue(gate.owns(running, q))
+        refused.cancel()
+        running.complete()
+        assertTrue(running.isCompleted)
         assertTrue(gate.canStart())
     }
 
