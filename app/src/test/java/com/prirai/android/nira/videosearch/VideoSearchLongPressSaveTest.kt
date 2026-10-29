@@ -22,7 +22,7 @@ class VideoSearchLongPressSaveTest {
     private val normal = VideoSearchScope.Normal("default")
     private val other = VideoSearchScope.Normal("other")
     private fun db() = Room.inMemoryDatabaseBuilder(
-        RuntimeEnvironment.getApplication<Application>(),
+        RuntimeEnvironment.getApplication(),
         VideoSearchDatabase::class.java
     ).build()
 

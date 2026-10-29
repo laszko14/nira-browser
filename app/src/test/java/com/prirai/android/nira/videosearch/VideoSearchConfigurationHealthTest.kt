@@ -21,7 +21,7 @@ class VideoSearchConfigurationHealthTest {
     private val request = "fedcba9876543210fedcba9876543210"
 
     private fun database() = Room.inMemoryDatabaseBuilder(
-        RuntimeEnvironment.getApplication<Application>(), VideoSearchDatabase::class.java
+        RuntimeEnvironment.getApplication(), VideoSearchDatabase::class.java
     ).build()
 
     private fun validation(

@@ -17,7 +17,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class, manifest = Config.NONE)
 class VideoSearchTransactionalTest {
-    private val context get() = RuntimeEnvironment.getApplication<Application>()
+    private val context get() = RuntimeEnvironment.getApplication()
     private fun memoryDb() =
         Room.inMemoryDatabaseBuilder(context, VideoSearchDatabase::class.java).build()
     private val owner get() = VideoSearchScope.Normal("default")

@@ -18,7 +18,7 @@ import org.robolectric.annotation.Config
 class VideoSearchMultiRunJournalTest {
     private val owner = VideoSearchScope.Normal("default")
     private fun db() = Room.inMemoryDatabaseBuilder(
-        RuntimeEnvironment.getApplication<Application>(),
+        RuntimeEnvironment.getApplication(),
         VideoSearchDatabase::class.java
     ).build()
 

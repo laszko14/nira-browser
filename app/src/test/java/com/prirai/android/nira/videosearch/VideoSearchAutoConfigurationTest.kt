@@ -113,7 +113,7 @@ class VideoSearchAutoConfigurationTest {
 
     @Test fun autoConfigurationDoesNotRemoveSiteAndPersistsOnlyCompleteResult() = runBlocking {
         val db = Room.inMemoryDatabaseBuilder(
-            RuntimeEnvironment.getApplication<Application>(), VideoSearchDatabase::class.java
+            RuntimeEnvironment.getApplication(), VideoSearchDatabase::class.java
         ).build()
         try {
             val repo = VideoSearchRepository(db.dao())
@@ -136,7 +136,7 @@ class VideoSearchAutoConfigurationTest {
 
     @Test fun staleScanCannotOverwriteNewSettingsOrDifferentProfiles() = runBlocking {
         val db = Room.inMemoryDatabaseBuilder(
-            RuntimeEnvironment.getApplication<Application>(), VideoSearchDatabase::class.java
+            RuntimeEnvironment.getApplication(), VideoSearchDatabase::class.java
         ).build()
         try {
             val repo = VideoSearchRepository(db.dao())
@@ -155,7 +155,7 @@ class VideoSearchAutoConfigurationTest {
 
     @Test fun successfulConfigNotOverwrittenOnLaterFailedAutoInspection() = runBlocking {
         val db = Room.inMemoryDatabaseBuilder(
-            RuntimeEnvironment.getApplication<Application>(), VideoSearchDatabase::class.java
+            RuntimeEnvironment.getApplication(), VideoSearchDatabase::class.java
         ).build()
         try {
             val repo = VideoSearchRepository(db.dao())

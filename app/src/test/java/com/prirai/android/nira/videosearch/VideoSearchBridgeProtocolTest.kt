@@ -107,7 +107,7 @@ class VideoSearchBridgeProtocolTest {
 
     @Test fun assetManifestGrantsOnlyNativeTransportPermissions() {
         // Robolectric manifest disabled but raw APK assets remain available.
-        val context = org.robolectric.RuntimeEnvironment.getApplication<Application>()
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
         val manifest = context.assets.open(
             "extensions/zavro-video-search/manifest.json"
         ).bufferedReader().use { it.readText() }

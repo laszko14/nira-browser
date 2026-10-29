@@ -17,7 +17,7 @@ class VideoSearchResultsRepositoryTest {
     private val normal = VideoSearchScope.Normal("default")
     private val foreign = VideoSearchScope.Normal("work")
     private fun database() = Room.inMemoryDatabaseBuilder(
-        RuntimeEnvironment.getApplication<Application>(), VideoSearchDatabase::class.java
+        RuntimeEnvironment.getApplication(), VideoSearchDatabase::class.java
     ).build()
 
     private fun run(owner: VideoSearchScope.Normal = normal, id: String = "r") =

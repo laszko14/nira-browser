@@ -24,7 +24,7 @@ class VideoSearchResultsLiveUpdatesTest {
     private val normal = VideoSearchScope.Normal("default")
     private val foreign = VideoSearchScope.Normal("work")
     private fun db() = Room.inMemoryDatabaseBuilder(
-        RuntimeEnvironment.getApplication<Application>(),
+        RuntimeEnvironment.getApplication(),
         VideoSearchDatabase::class.java
     ).build()
 

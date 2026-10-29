@@ -21,7 +21,7 @@ class VideoSavedLibraryRepositoryTest {
     private val normal = VideoSearchScope.Normal("default")
     private val other = VideoSearchScope.Normal("work")
     private fun database() = Room.inMemoryDatabaseBuilder(
-        RuntimeEnvironment.getApplication<Application>(),
+        RuntimeEnvironment.getApplication(),
         VideoSearchDatabase::class.java,
     ).build()
     private fun folder(

@@ -20,7 +20,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class, manifest = Config.NONE)
 class MyVideoSitesRepositoryTest {
-    private val context get() = RuntimeEnvironment.getApplication<Application>()
+    private val context get() = RuntimeEnvironment.getApplication()
     private fun database() =
         Room.inMemoryDatabaseBuilder(context, VideoSearchDatabase::class.java).build()
 

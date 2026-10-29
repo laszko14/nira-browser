@@ -39,7 +39,7 @@ class VideoSearchManualConfigurationTest {
     }
 
     private fun db() = Room.inMemoryDatabaseBuilder(
-        RuntimeEnvironment.getApplication<Application>(), VideoSearchDatabase::class.java
+        RuntimeEnvironment.getApplication(), VideoSearchDatabase::class.java
     ).build()
 
     @Test fun validInputPickContainsOnlySelectorAndSafeFormFlag() {

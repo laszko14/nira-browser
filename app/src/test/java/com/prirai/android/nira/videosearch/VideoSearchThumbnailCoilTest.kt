@@ -16,7 +16,7 @@ class VideoSearchThumbnailCoilTest {
     private val url = "https://example.org/poster?film=1&signed=yes"
 
     @Test fun requestPreservesExactUrlAndExplicitProfileKeys() {
-        val context = RuntimeEnvironment.getApplication<Application>()
+        val context = RuntimeEnvironment.getApplication()
         val request = VideoSearchThumbnailCache.request(context, owner, url)
         assertEquals(url, request.data)
         assertEquals(VideoSearchThumbnailCache.key(owner, url), request.diskCacheKey)
@@ -25,7 +25,7 @@ class VideoSearchThumbnailCoilTest {
     }
 
     @Test fun oneSharedImageLoaderUsesOneDiskCache() {
-        val context = RuntimeEnvironment.getApplication<Application>()
+        val context = RuntimeEnvironment.getApplication()
         val first = VideoSearchThumbnailCache.loader(context)
         val second = VideoSearchThumbnailCache.loader(context)
         assertSame(first, second)
