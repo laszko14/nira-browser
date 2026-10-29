@@ -73,43 +73,93 @@
     if (!form) n -= 3;
     return n;
   }
+  // Locator V2 is compatible with existing CSS-only Room configuration.
+  // Prefer stable semantic hints; no invented nth-child or unsafe CSS programs.
   function selectorFor(element) {
-    if (element.id) {
-      const s = "#" + CSS.escape(element.id);
-      if (document.querySelectorAll(s).length === 1) return s;
-    }
+    if (!element || !element.tagName) return null;
     const tag = element.tagName.toLowerCase();
-    const name = element.getAttribute("name");
-    if (name && name.length < 90) {
-      const s = tag + '[name="' + CSS.escape(name) + '"]';
-      if (document.querySelectorAll(s).length === 1) return s;
-    }
-    if (tag === "input" && element.type === "search" &&
-        document.querySelectorAll('input[type="search"]').length === 1)
-      return 'input[type="search"]';
-    // Stable unique class, but never build an nth-child/positional selector.
-    for (const cls of Array.from(element.classList || []).slice(0, 6)) {
-      if (cls.length > 60) continue;
-      const candidate = tag + "." + CSS.escape(cls);
+    function unique(candidate) {
+      if (typeof candidate !== "string" || candidate.length > 160 ||
+          !/^[\p{L}\p{N}#_.\[\]=\\"' >:*+-]+$/u.test(candidate)) return false;
       try {
-        if (document.querySelectorAll(candidate).length === 1) return candidate;
-      } catch (_) { /* invalid selector */ }
+        const found = document.querySelectorAll(candidate);
+        return found.length === 1 && found[0] === element;
+      } catch (_) { return false; }
     }
-    return null; // Ambiguous nodes are never mapped with nth-child.
+    function attributes(node) {
+      const tagName = node.tagName.toLowerCase(), choices = [];
+      for (const key of ["name", "data-testid", "data-test", "data-qa",
+                         "data-action", "aria-label", "title", "placeholder"]) {
+        const value = node.getAttribute?.(key);
+        if (typeof value !== "string" || value.length < 1 || value.length > 64 ||
+            !/^[\p{L}\p{N} ._-]+$/u.test(value)) continue;
+        choices.push(tagName + "[" + key + '="' + value + '"]');
+      }
+      if (node.getAttribute?.("role") === "button")
+        choices.push(tagName + '[role="button"]');
+      if (tagName === "input" && node.type === "search")
+        choices.push('input[type="search"]');
+      return choices;
+    }
+    function classes(node) {
+      const tagName = node.tagName.toLowerCase();
+      const names = Array.from(node.classList || []).filter(x => x.length > 0 &&
+        x.length <= 45 && /^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(x)).slice(0, 6);
+      const options = names.map(x => tagName + "." + x);
+      for (let i = 0; i < names.length; i++)
+        for (let j = i + 1; j < names.length; j++)
+          options.push(tagName + "." + names[i] + "." + names[j]);
+      return options;
+    }
+    if (element.id) {
+      const byId = "#" + CSS.escape(element.id);
+      if (unique(byId)) return byId;
+    }
+    for (const candidate of [...attributes(element), ...classes(element)])
+      if (unique(candidate)) return candidate;
+    let ancestor = element.parentElement;
+    for (let depth = 0; ancestor && depth < 4; depth++, ancestor = ancestor.parentElement) {
+      const bases = [];
+      if (ancestor.id) bases.push("#" + CSS.escape(ancestor.id));
+      bases.push(...attributes(ancestor), ...classes(ancestor));
+      for (const base of bases) {
+        let found;
+        try { found = document.querySelectorAll(base); } catch (_) { continue; }
+        if (found.length !== 1 || found[0] !== ancestor) continue;
+        for (const suffix of [tag, ...attributes(element), ...classes(element)])
+          if (unique(base + " " + suffix)) return base + " " + suffix;
+      }
+    }
+    return null; // Ambiguous controls must never be saved as the wrong button.
+  }
+  function searchContext(input) {
+    if (!input || input.form && !safeForm(input.form)) return null;
+    if (input.form) return input.form;
+    const role = input.closest?.('[role="search"]');
+    if (role && !role.querySelector?.('input[type="password"]')) return role;
+    let node = input.parentElement;
+    for (let depth = 0; node && depth < 4; depth++, node = node.parentElement) {
+      const hint = [node.id, typeof node.className === "string" ? node.className : "",
+        node.getAttribute?.("data-testid"), node.getAttribute?.("aria-label")]
+        .filter(x => typeof x === "string").join(" ");
+      if (blocked.test(hint) || node.querySelector?.('input[type="password"]')) return null;
+      if (searchTerms.test(hint)) return node;
+      if (input.type === "search" && depth <= 1 &&
+          node.querySelector?.('button,input[type="submit"],[role="button"]'))
+        return node;
+    }
+    return null;
   }
   function searchButton(input) {
-    const form = input.form;
-    const area = form || input.closest('[role="search"]');
+    const area = searchContext(input);
     if (!area) return null;
-    const candidates = Array.from(area.querySelectorAll('button,input[type="submit"]')).slice(0, 15);
-    const valid = candidates.filter(b => !b.disabled && !blocked.test(
-      (b.innerText || b.value || "") + " " + (b.getAttribute("aria-label") || "")));
+    const candidates = Array.from(
+      area.querySelectorAll('button,input[type="submit"],[role="button"]')).slice(0, 15);
+    const valid = candidates.filter(b => manualSubmit(b, input));
     const known = valid.filter(b => searchTerms.test(
       (b.innerText || b.value || "") + " " + (b.getAttribute("aria-label") || "")));
-    const chosen = known.length === 1 ? known[0] : (valid.length === 1 ? valid[0] : null);
-    if (!chosen) return null;
-    const selector = selectorFor(chosen);
-    return selector && (!form || chosen.form === form) ? selector : null;
+    const chosen = known.length === 1 ? known[0] : valid.length === 1 ? valid[0] : null;
+    return chosen ? selectorFor(chosen) : null;
   }
   function detectResults() {
     // Only propose a selector if two or more card-like elements contain page links.
@@ -160,27 +210,24 @@
   function manualInput(input) {
     if (!input || input.tagName !== "INPUT" || !visible(input)) return false;
     if (!["text", "search"].includes((input.type || "").toLowerCase())) return false;
-    const form = input.form;
-    if (form && !safeForm(form)) return false;
-    if (blocked.test((input.name || "") + " " +
-        (input.id || "") + " " + (input.placeholder || ""))) return false;
-    // Explicitly chosen SPA search fields are allowed only inside a
-    // role=search container or when their input type is search.
-    return !!form || input.type === "search" || !!input.closest('[role="search"]');
+    if (blocked.test((input.name || "") + " " + (input.id || "") +
+        " " + (input.placeholder || ""))) return false;
+    return !!searchContext(input);
   }
   function manualSubmit(button, input) {
-    if (!input || !manualInput(input) || !button || !button.matches(
-      'button,input[type="submit"]')) return false;
-    if (button.disabled) return false;
+    if (!input || !manualInput(input) || !button ||
+        !button.matches?.('button,input[type="submit"],[role="button"]') ||
+        !visible(button) || button.disabled ||
+        button.getAttribute?.("aria-disabled") === "true") return false;
+    const area = searchContext(input);
+    if (!area || !area.contains(button)) return false;
     if (input.form) {
       if (!safeForm(input.form) || button.form !== input.form) return false;
-    } else {
-      const searchArea = input.closest('[role="search"]');
-      if (!searchArea || !searchArea.contains(button) || button.form) return false;
-    }
-    if (blocked.test((button.innerText || button.value || "") + " " +
-        (button.getAttribute("aria-label") || ""))) return false;
-    return !!selectorFor(button);
+    } else if (button.form || button.closest?.("form")) return false;
+    const hint = [button.innerText, button.value, button.id, button.className,
+                  button.getAttribute?.("aria-label"), button.getAttribute?.("title")]
+      .filter(x => typeof x === "string").join(" ");
+    return !blocked.test(hint) && !!selectorFor(button);
   }
   function manualCard(node) {
     let element = node;
@@ -519,7 +566,7 @@
         /[\u0000-\u001f\u007f]/.test(query)) return "rejected";
     const field = document.querySelector(command.inputSelector);
     if ((!validInput(field) && !manualInput(field)) ||
-        selectorFor(field) !== command.inputSelector) return "stale";
+        document.querySelectorAll(command.inputSelector).length !== 1) return "stale";
     const form = field.form;
     if (!safeForm(form) && command.submission !== "CLICK_SUBMIT") return "unsafe";
     let button = null;
