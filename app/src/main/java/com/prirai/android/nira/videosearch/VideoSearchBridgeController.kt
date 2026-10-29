@@ -2,7 +2,12 @@ package com.prirai.android.nira.videosearch
 
 import android.content.Context
 import android.os.SystemClock
+import android.widget.Toast
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import com.prirai.android.nira.browser.profile.ProfileManager
 import kotlinx.coroutines.Dispatchers
@@ -63,6 +68,8 @@ internal class VideoSearchBridgeController(
         val createdMs: Long,
         val inspection: VideoSearchBridgeMessage.Inspection,
     )
+    private val manualScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var manualBusy = false
     private val pending = IdentityHashMap<EngineSession, Pending>()
     private val proposals = mutableMapOf<Pair<String, String>, Proposal>()
     private val attached = IdentityHashMap<EngineSession, Unit>()
@@ -225,19 +232,30 @@ internal class VideoSearchBridgeController(
                 }
                 is VideoSearchBridgeMessage.Inspection,
                 is VideoSearchBridgeMessage.Submitted,
-                is VideoSearchBridgeMessage.SearchFailed -> {
+                is VideoSearchBridgeMessage.SearchFailed,
+                is VideoSearchBridgeMessage.Picked,
+                is VideoSearchBridgeMessage.PickSkipped,
+                is VideoSearchBridgeMessage.PickCancelled -> {
                     val job = pending[session] ?: return
                     val req = when (parsed) {
                         is VideoSearchBridgeMessage.Inspection -> parsed.requestId
                         is VideoSearchBridgeMessage.Submitted -> parsed.requestId
                         is VideoSearchBridgeMessage.SearchFailed -> parsed.requestId
+                        is VideoSearchBridgeMessage.Picked -> parsed.requestId
+                        is VideoSearchBridgeMessage.PickSkipped -> parsed.requestId
+                        is VideoSearchBridgeMessage.PickCancelled -> parsed.requestId
                         else -> return
                     }
                     if (job.requestId != req || job.documentId != parsed.documentId ||
                         !isFresh(session, entry) || job.pageUrl != tab.pageUrl ||
                         tab.owner != job.owner || job.kind != when (parsed) {
                             is VideoSearchBridgeMessage.Inspection -> "inspect"
-                            else -> "search"
+                            is VideoSearchBridgeMessage.Submitted,
+                            is VideoSearchBridgeMessage.SearchFailed -> "search"
+                            is VideoSearchBridgeMessage.Picked -> "pick:" + parsed.pickKind
+                            is VideoSearchBridgeMessage.PickSkipped -> "pick:" + parsed.pickKind
+                            is VideoSearchBridgeMessage.PickCancelled -> "pick:" + parsed.pickKind
+                            else -> return
                         }) return
                     pending.remove(session)
                     if (parsed is VideoSearchBridgeMessage.Inspection &&
@@ -278,13 +296,34 @@ internal class VideoSearchBridgeController(
         return matching.singleOrNull() // no guessing among duplicate tabs
     }
 
+    /**
+     * Only the currently displayed normal tab on the saved site's exact
+     * origin is eligible. Unlike searching, manual identification may need
+     * the /results path of that origin, not just site.siteUrl.
+     */
+    private fun manualSiteTab(site: VideoSearchSite): Pair<EngineSession, DocumentPort>? {
+        val scope = site.scope as? VideoSearchScope.Normal ?: return null
+        if (!site.enabled) return null
+        val selected = store.state.tabs.singleOrNull {
+            it.id == store.state.selectedTabId
+        } ?: return null
+        val session = selected.engineState.engineSession ?: return null
+        val state = currentTab(session) ?: return null
+        if (state.owner != scope ||
+            !VideoSearchBridgeProtocol.sameOrigin(state.pageUrl, site.siteUrl)) return null
+        val entry = ports[session] ?: return null
+        return if (isFresh(session, entry)) session to entry else null
+    }
+
     private suspend fun request(
         site: VideoSearchSite,
         kind: String,
         packet: (String, String) -> org.json.JSONObject,
+        timeoutMs: Long = 8_000L,
     ): VideoSearchBridgeMessage? {
         val scope = site.scope as? VideoSearchScope.Normal ?: return null
-        val (session, entry) = existingSiteTab(site) ?: return null
+        val (session, entry) = (if (kind.startsWith("pick:"))
+            manualSiteTab(site) else existingSiteTab(site)) ?: return null
         val documentId = entry.documentId ?: return null
         if (pending.containsKey(session)) return null
         val requestId = UUID.randomUUID().toString().replace("-", "")
@@ -294,7 +333,7 @@ internal class VideoSearchBridgeController(
         pending[session] = work
         try {
             entry.port.postMessage(packet(documentId, requestId))
-            return withTimeoutOrNull(8_000L) { result.await() }
+            return withTimeoutOrNull(timeoutMs) { result.await() }
         } catch (_: Exception) {
             return null
         } finally {
@@ -307,6 +346,97 @@ internal class VideoSearchBridgeController(
         request(site, "inspect") { document, request ->
             VideoSearchBridgeProtocol.inspect(document, request)
         } as? VideoSearchBridgeMessage.Inspection
+
+    private suspend fun pickSite(site: VideoSearchSite, kind: String): VideoSearchBridgeMessage? =
+        request(site, "pick:$kind", { document, req ->
+            VideoSearchBridgeProtocol.pick(document, req, kind)
+        }, timeoutMs = 101_000L)
+
+    /** The picker must target the page currently visible behind My Sites. */
+    fun canStartManual(site: VideoSearchSite): Boolean {
+        if (manualBusy) return false
+        val pair = manualSiteTab(site) ?: return false
+        val matched = currentTab(pair.first) ?: return false
+        return store.state.selectedTabId == matched.tabId && pair.second.documentId != null
+    }
+
+    /**
+     * Start a user-directed wizard and return to Gecko. Its coroutine is owned
+     * by the bridge, not by MyVideoSitesActivity (which finishes immediately).
+     * Nothing is saved until the wizard ends without cancellation.
+     */
+    fun startManual(site: VideoSearchSite, repository: VideoSearchRepository): Boolean {
+        if (!canStartManual(site)) return false
+        manualBusy = true
+        manualScope.launch {
+            var feedbackSent = false
+            try {
+                val original = manualSiteTab(site) ?: return@launch
+                val originalDocument = original.second.documentId ?: return@launch
+                val input = pickSite(site, "input") as? VideoSearchBridgeMessage.Picked
+                    ?: return@launch
+                if (input.pickKind != "input") return@launch
+                if (manualSiteTab(site)?.let {
+                        it.first === original.first && it.second.documentId == originalDocument
+                    } != true) return@launch
+
+                val submit = pickSite(site, "submit")
+                if (submit is VideoSearchBridgeMessage.PickCancelled || submit == null)
+                    return@launch
+                val submitSelector = (submit as? VideoSearchBridgeMessage.Picked)?.selector
+                // Skipping a button is legal only for an actual same-origin GET
+                // form. For an SPA field the user must choose a safe button.
+                if (submitSelector == null && !input.formSafe) return@launch
+                val submission = if (submitSelector != null)
+                    VideoSearchSubmission.CLICK_SUBMIT else VideoSearchSubmission.FORM_SUBMIT
+
+                val cards = pickSite(site, "cards")
+                if (cards is VideoSearchBridgeMessage.PickCancelled || cards == null)
+                    return@launch
+                val cardSelector = (cards as? VideoSearchBridgeMessage.Picked)?.selector
+
+                val next = pickSite(site, "next")
+                if (next is VideoSearchBridgeMessage.PickCancelled || next == null)
+                    return@launch
+                if (manualSiteTab(site)?.let {
+                        it.first === original.first && it.second.documentId == originalDocument
+                    } != true) return@launch
+
+                val nextPicked = next as? VideoSearchBridgeMessage.Picked
+                val configuration = VideoSiteConfiguration(
+                    searchInputSelector = input.selector,
+                    resultsCardSelector = cardSelector,
+                    submission = submission,
+                    submitSelector = submitSelector,
+                    pagination = nextPicked?.pagination ?: VideoSearchPagination.NONE,
+                    nextPageSelector = nextPicked?.selector,
+                )
+                // Optimistic CAS: a deleted/renamed/reconfigured site cannot
+                // be resurrected or overwritten by an old picker session.
+                val saved = withContext(Dispatchers.IO) {
+                    repository.applyManualConfiguration(site, configuration)
+                }
+                val message = when {
+                    !saved -> "Nie zapisano: witryna zmieniła się. Ponów konfigurację."
+                    cardSelector != null -> "Ręczna konfiguracja wyszukiwarki zapisana."
+                    else -> "Zapisano pole wyszukiwania. Karty filmów wymagają wskazania."
+                }
+                Toast.makeText(applicationContext, message, Toast.LENGTH_LONG).show()
+                feedbackSent = true
+            } catch (_: Exception) {
+                Toast.makeText(applicationContext,
+                    "Nie zapisano konfiguracji. Witryna pozostała na liście.",
+                    Toast.LENGTH_LONG).show()
+                feedbackSent = true
+            } finally {
+                if (!feedbackSent) Toast.makeText(applicationContext,
+                    "Wskazywanie przerwane. Poprzednia konfiguracja pozostaje bez zmian.",
+                    Toast.LENGTH_LONG).show()
+                manualBusy = false
+            }
+        }
+        return true
+    }
 
     /**
      * Search stays on the site's own page: no Google, no navigation of
@@ -323,9 +453,11 @@ internal class VideoSearchBridgeController(
             SystemClock.elapsedRealtime() - previous.createdMs <= 120_000L) {
             previous.inspection
         } else null
-        val input = setup?.inputSelector ?: site.configuration?.searchInputSelector ?: return false
-        val method = setup?.submission ?: site.configuration?.submission ?: return false
-        val button = setup?.submitSelector ?: site.configuration?.submitSelector
+        // Persisted user-selected controls take precedence over transient
+        // automatic hints; failed auto-detection must not shadow manual picks.
+        val input = site.configuration?.searchInputSelector ?: setup?.inputSelector ?: return false
+        val method = site.configuration?.submission ?: setup?.submission ?: return false
+        val button = site.configuration?.submitSelector ?: setup?.submitSelector
         return request(site, "search") { document, request ->
             VideoSearchBridgeProtocol.search(document, request, query, input, method, button)
         } is VideoSearchBridgeMessage.Submitted

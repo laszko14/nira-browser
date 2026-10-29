@@ -1,6 +1,8 @@
 package com.prirai.android.nira.videosearch
 
 import android.os.Bundle
+import android.content.Intent
+import com.prirai.android.nira.BrowserActivity
 import android.text.InputType
 import android.view.ViewGroup
 import android.widget.Button
@@ -97,6 +99,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             onToggle = ::toggleSite,
             onSelect = ::setSiteSelected,
             onInspect = ::inspectSite,
+            onManual = ::configureManually,
             onSearch = ::searchSite,
             onDelete = ::confirmRemoval,
         )
@@ -318,12 +321,52 @@ class MyVideoSitesActivity : AppCompatActivity() {
                     }
                     message(if (inspected.inputSelector != null)
                         "Rozpoznano pole. Możesz spróbować „Szukaj”. Wyniki wymagają konfiguracji."
-                        else "Nie rozpoznano wyszukiwarki. Potrzebne wskazanie ręczne (etap 3C).")
+                        else "Nie rozpoznano wyszukiwarki. Wybierz „Wskaż” przy witrynie.")
                 }
             } catch (_: Exception) {
                 message("Nie udało się zapisać konfiguracji. Witryna pozostaje na liście.")
             }
         }
+    }
+
+    /**
+     * The picker must be used in the visible Gecko page. Returning to the
+     * existing singleTask BrowserActivity does not open a new tab or URL.
+     */
+    private fun configureManually(site: VideoSearchSite) {
+        val owner = ownerIfCurrent() ?: return
+        if (site.scope != owner || !site.enabled) return
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Wskaż elementy witryny")
+            .setMessage("Otwórz dokładny adres tej witryny w aktywnej karcie Zavro " +
+                "i odśwież stronę. Po rozpoczęciu wrócisz na stronę, aby dotknąć: " +
+                "pola wyszukiwania, opcjonalnego przycisku, karty filmu oraz " +
+                "opcjonalnego przycisku następnej strony. " +
+                "Możesz pominąć opcjonalne kroki lub anulować całość.")
+            .setNegativeButton("Anuluj", null)
+            .setPositiveButton("Rozpocznij") { _, _ ->
+                lifecycleScope.launch {
+                    val current = try {
+                        withContext(Dispatchers.IO) { repository.site(owner, site.id) }
+                    } catch (_: Exception) { null }
+                    if (ownerIfCurrent() != owner || current == null ||
+                        !current.enabled || current.siteUrl != site.siteUrl) {
+                        message("Witryna zmieniła się. Otwórz listę ponownie.")
+                        return@launch
+                    }
+                    val bridge = VideoSearchBridgeHost.instance()
+                    if (bridge == null || !bridge.startManual(current, repository)) {
+                        message("Otwórz witrynę w aktywnej, zwykłej karcie i odśwież ją.")
+                        return@launch
+                    }
+                    // BrowserActivity is singleTask; focus its existing tab,
+                    // never create a new tab or navigate to a search engine.
+                    startActivity(Intent(this@MyVideoSitesActivity, BrowserActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+                    finish()
+                }
+            }
+            .show()
     }
 
     private fun searchSite(site: VideoSearchSite) {
@@ -527,6 +570,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
         private val onToggle: (VideoSearchSite, Boolean) -> Unit,
         private val onSelect: (VideoSearchSite, Boolean) -> Unit,
         private val onInspect: (VideoSearchSite) -> Unit,
+        private val onManual: (VideoSearchSite) -> Unit,
         private val onSearch: (VideoSearchSite) -> Unit,
         private val onDelete: (VideoSearchSite) -> Unit,
     ) : RecyclerView.Adapter<SitesAdapter.Holder>() {
@@ -587,6 +631,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             val select: CheckBox,
             val edit: Button,
             val inspect: Button,
+            val manual: Button,
             val search: Button,
             val delete: Button,
         ) : RecyclerView.ViewHolder(root)
@@ -613,9 +658,11 @@ class MyVideoSitesActivity : AppCompatActivity() {
             val secondActions = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
             val edit = Button(ctx).apply { text = "Edytuj" }
             val inspect = Button(ctx).apply { text = "Rozpoznaj" }
+            val manual = Button(ctx).apply { text = "Wskaż" }
             val search = Button(ctx).apply { text = "Szukaj" }
             val delete = Button(ctx).apply { text = "Usuń" }
             firstActions.addView(inspect, LinearLayout.LayoutParams(0, -2, 1f))
+            firstActions.addView(manual, LinearLayout.LayoutParams(0, -2, 1f))
             firstActions.addView(search, LinearLayout.LayoutParams(0, -2, 1f))
             secondActions.addView(edit, LinearLayout.LayoutParams(0, -2, 1f))
             secondActions.addView(delete, LinearLayout.LayoutParams(0, -2, 1f))
@@ -625,7 +672,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             root.addView(detail)
             root.addView(select)
             root.addView(actions)
-            return Holder(root, heading, detail, toggle, select, edit, inspect, search, delete)
+            return Holder(root, heading, detail, toggle, select, edit, inspect, manual, search, delete)
         }
 
         override fun onBindViewHolder(holder: Holder, position: Int) {
@@ -647,8 +694,10 @@ class MyVideoSitesActivity : AppCompatActivity() {
             holder.select.setOnCheckedChangeListener { _, checked -> onSelect(site, checked) }
             holder.edit.setOnClickListener { onEdit(site) }
             holder.inspect.isEnabled = site.enabled
+            holder.manual.isEnabled = site.enabled
             holder.search.isEnabled = site.enabled
             holder.inspect.setOnClickListener { onInspect(site) }
+            holder.manual.setOnClickListener { onManual(site) }
             holder.search.setOnClickListener { onSearch(site) }
             holder.delete.setOnClickListener { onDelete(site) }
         }

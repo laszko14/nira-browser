@@ -57,6 +57,17 @@ internal interface VideoSearchDao {
     suspend fun markAutoConfigurationIncomplete(profileId: String, id: String, url: String,
                                                expectedUpdatedMs: Long, nowMs: Long): Int
 
+    /**
+     * Manual selectors are saved even if the result-card selector is not yet
+     * known. Only a complete, validated configuration gets CONFIGURED.
+     * Compare-and-set prevents stale picker sessions overwriting newer edits.
+     */
+    @Query("UPDATE video_search_sites SET configurationState = :state, configurationJson = :json, updatedAtMs = :nowMs WHERE profileId = :profileId AND id = :id AND siteUrl = :url AND updatedAtMs = :expectedUpdatedMs AND enabled = 1")
+    suspend fun acceptManualConfiguration(
+        profileId: String, id: String, url: String, expectedUpdatedMs: Long,
+        state: String, json: String, nowMs: Long
+    ): Int
+
     @Query("UPDATE video_search_sites SET displayName = :name, updatedAtMs = :nowMs WHERE profileId = :profileId AND id = :id")
     suspend fun renameSite(profileId: String, id: String, name: String, nowMs: Long): Int
 

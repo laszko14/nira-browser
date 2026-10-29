@@ -37,7 +37,7 @@ internal object VideoSearchRowCodec {
             val j = JSONObject(it)
             VideoSiteConfiguration(
                 searchInputSelector = j.getString("input"),
-                resultsCardSelector = j.getString("cards"),
+                resultsCardSelector = (j.opt("cards") as? String)?.takeIf { it.isNotBlank() },
                 submission = enumValueOf(j.getString("submission")),
                 submitSelector = j.optional("submit"),
                 titleSelector = j.optional("title"),

@@ -71,6 +71,29 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
             site.updatedAtMs, VideoSearchRowCodec.configurationJson(config)!!, nowMs) == 1
     }
 
+    /** Persist manual selection only after all wizard steps finish normally. */
+    suspend fun applyManualConfiguration(
+        site: VideoSearchSite,
+        configuration: VideoSiteConfiguration,
+        nowMs: Long = System.currentTimeMillis(),
+    ): Boolean {
+        val scope = site.scope as? VideoSearchScope.Normal ?: return false
+        require(VideoSearchBridgeProtocol.validSelector(configuration.searchInputSelector))
+        require(configuration.resultsCardSelector == null ||
+            VideoSearchBridgeProtocol.validSelector(configuration.resultsCardSelector))
+        require(configuration.submitSelector == null ||
+            VideoSearchBridgeProtocol.validSelector(configuration.submitSelector))
+        require(configuration.nextPageSelector == null ||
+            VideoSearchBridgeProtocol.validSelector(configuration.nextPageSelector))
+        val complete = !configuration.resultsCardSelector.isNullOrBlank()
+        val state = if (complete) VideoSiteConfigurationState.CONFIGURED
+            else VideoSiteConfigurationState.REPAIR_REQUIRED
+        return dao.acceptManualConfiguration(
+            scope.profileId, site.id, site.siteUrl, site.updatedAtMs,
+            state.name, VideoSearchRowCodec.configurationJson(configuration)!!, nowMs
+        ) == 1
+    }
+
     /** Incomplete detection must not delete/disable a site or erase good selectors. */
     suspend fun markAutoConfigurationIncomplete(
         site: VideoSearchSite, nowMs: Long = System.currentTimeMillis(),

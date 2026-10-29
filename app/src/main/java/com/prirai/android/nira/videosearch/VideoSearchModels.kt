@@ -17,7 +17,7 @@ internal enum class VideoSearchPagination { NONE, NEXT_LINK, LOAD_MORE, INFINITE
  */
 internal data class VideoSiteConfiguration(
     val searchInputSelector: String,
-    val resultsCardSelector: String,
+    val resultsCardSelector: String?,
     val submission: VideoSearchSubmission = VideoSearchSubmission.ENTER,
     val submitSelector: String? = null,
     val titleSelector: String? = null,
@@ -28,7 +28,8 @@ internal data class VideoSiteConfiguration(
     val nextPageSelector: String? = null,
 ) {
     init {
-        require(searchInputSelector.isNotBlank() && resultsCardSelector.isNotBlank())
+        require(searchInputSelector.isNotBlank())
+        require(resultsCardSelector == null || resultsCardSelector.isNotBlank())
         require(submission != VideoSearchSubmission.CLICK_SUBMIT || !submitSelector.isNullOrBlank())
         require(pagination !in setOf(VideoSearchPagination.NEXT_LINK, VideoSearchPagination.LOAD_MORE) ||
             !nextPageSelector.isNullOrBlank())
@@ -54,7 +55,8 @@ internal data class VideoSearchSite(
     init {
         require(id.isNotBlank() && siteUrl.isNotBlank() && displayName.isNotBlank())
         require(position >= 0 && resultLimit > 0)
-        require(configurationState != VideoSiteConfigurationState.CONFIGURED || configuration != null)
+        require(configurationState != VideoSiteConfigurationState.CONFIGURED ||
+            (configuration != null && !configuration.resultsCardSelector.isNullOrBlank()))
     }
 
     override fun toString(): String = "VideoSearchSite(redacted)"

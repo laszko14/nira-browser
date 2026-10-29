@@ -10,7 +10,7 @@
   try { crypto.getRandomValues(bytes); } catch (_) { return; }
   const documentId = Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
   const startUrl = location.href;
-  let ready = false, busy = false;
+  let ready = false, busy = false, picker = null, manuallySelectedInput = null;
   const limited = 80;
   const idPattern = /^[0-9a-f]{32}$/;
   const blocked = /login|log-in|signin|sign-in|password|register|checkout|payment|purchase|captcha/i;
@@ -76,6 +76,14 @@
     if (tag === "input" && element.type === "search" &&
         document.querySelectorAll('input[type="search"]').length === 1)
       return 'input[type="search"]';
+    // Stable unique class, but never build an nth-child/positional selector.
+    for (const cls of Array.from(element.classList || []).slice(0, 6)) {
+      if (cls.length > 60) continue;
+      const candidate = tag + "." + CSS.escape(cls);
+      try {
+        if (document.querySelectorAll(candidate).length === 1) return candidate;
+      } catch (_) { /* invalid selector */ }
+    }
     return null; // Ambiguous nodes are never mapped with nth-child.
   }
   function searchButton(input) {
@@ -136,6 +144,169 @@
       pagination: page.pagination, nextPageSelector: page.nextPageSelector
     };
   }
+  // The optional, user-operated selector picker is active only while a
+  // specific native "pick" request is pending. No global DOM listeners idle.
+  function manualInput(input) {
+    if (!input || input.tagName !== "INPUT" || !visible(input)) return false;
+    if (!["text", "search"].includes((input.type || "").toLowerCase())) return false;
+    const form = input.form;
+    if (form && !safeForm(form)) return false;
+    if (blocked.test((input.name || "") + " " +
+        (input.id || "") + " " + (input.placeholder || ""))) return false;
+    // Explicitly chosen SPA search fields are allowed only inside a
+    // role=search container or when their input type is search.
+    return !!form || input.type === "search" || !!input.closest('[role="search"]');
+  }
+  function manualSubmit(button, input) {
+    if (!input || !manualInput(input) || !button || !button.matches(
+      'button,input[type="submit"]')) return false;
+    if (button.disabled) return false;
+    if (input.form) {
+      if (!safeForm(input.form) || button.form !== input.form) return false;
+    } else {
+      const searchArea = input.closest('[role="search"]');
+      if (!searchArea || !searchArea.contains(button) || button.form) return false;
+    }
+    if (blocked.test((button.innerText || button.value || "") + " " +
+        (button.getAttribute("aria-label") || ""))) return false;
+    return !!selectorFor(button);
+  }
+  function manualCard(node) {
+    let element = node;
+    for (let level = 0; element && level < 6; level++, element = element.parentElement) {
+      if (!element.querySelector || !element.querySelector("a[href]")) continue;
+      const tag = element.tagName.toLowerCase();
+      for (const cls of Array.from(element.classList || []).slice(0, 5)) {
+        if (cls.length > 60) continue;
+        const selector = tag + "." + CSS.escape(cls);
+        try {
+          const matches = Array.from(document.querySelectorAll(selector)).slice(0, 25);
+          // Manual choice may legitimately point to the only film card
+          // visible on a sparsely populated results page.
+          if (matches.length >= 1 && matches.filter(e => e.querySelector("a[href]")).length >= 1)
+            return selector;
+        } catch (_) {}
+      }
+    }
+    return null;
+  }
+  function manualNext(node) {
+    const el = node.closest('a[href],button');
+    if (!el || !visible(el) || el.disabled) return null;
+    const selector = selectorFor(el);
+    if (!selector) return null;
+    if (el.tagName === "A") {
+      try {
+        const url = new URL(el.href);
+        return url.origin === location.origin && !url.username && !url.password ?
+          { selector, pagination: "NEXT_LINK" } : null;
+      } catch (_) { return null; }
+    }
+    if (el.tagName === "BUTTON" && el.type !== "submit")
+      return { selector, pagination: "LOAD_MORE" };
+    return null;
+  }
+  function cancelPicker() {
+    const state = picker;
+    if (!state) return;
+    picker = null;
+    clearTimeout(state.timeout);
+    document.removeEventListener("click", state.choose, true);
+    document.removeEventListener("pointerdown", state.blockPageHandlers, true);
+    document.removeEventListener("touchstart", state.blockPageHandlers, true);
+    document.removeEventListener("keydown", state.key, true);
+    state.banner.remove();
+  }
+  function pick(command) {
+    if (picker || busy || !ready || location.href !== startUrl) return;
+    const kind = command.pickKind;
+    const titles = {
+      input: "Wskaż pole wyszukiwania",
+      submit: "Wskaż przycisk Szukaj",
+      cards: "Wskaż kartę filmu w wynikach",
+      next: "Wskaż przycisk następnej strony"
+    };
+    if (!Object.prototype.hasOwnProperty.call(titles, kind)) return;
+    const banner = document.createElement("div");
+    banner.setAttribute("data-zavro-picker", "true");
+    banner.style.cssText = "position:fixed;z-index:2147483647;top:8px;left:8px;right:8px;" +
+      "background:#16242d;color:white;padding:12px;font:14px sans-serif;" +
+      "border:2px solid #33c9bd;border-radius:10px;box-shadow:0 3px 15px #0008;";
+    const title = document.createElement("div");
+    title.textContent = "Zavro — " + titles[kind] + ". Dotknij elementu na stronie.";
+    banner.appendChild(title);
+    const controls = document.createElement("div");
+    controls.style.cssText = "display:flex;gap:8px;margin-top:8px";
+    function action(label, event) {
+      const button = document.createElement("button");
+      button.textContent = label;
+      button.style.cssText = "font:14px sans-serif;padding:7px 12px;min-height:36px;";
+      button.addEventListener("click", e => {
+        e.preventDefault(); e.stopPropagation();
+        post(event, command.requestId, { pickKind: kind });
+        cancelPicker();
+      });
+      controls.appendChild(button);
+    }
+    if (kind !== "input") action("Pomiń", "pick_skipped");
+    action("Anuluj", "pick_cancelled");
+    banner.appendChild(controls);
+    document.documentElement.appendChild(banner);
+
+    const choose = function (event) {
+      if (!picker || location.href !== startUrl || !event.isTrusted) return;
+      if (event.target.closest("[data-zavro-picker]")) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const element = event.target;
+      let selector = null, formSafe = false, pagination = "NONE";
+      if (kind === "input") {
+        const input = element.closest("input");
+        if (manualInput(input)) {
+          selector = selectorFor(input);
+          formSafe = safeForm(input.form);
+          if (selector) manuallySelectedInput = input;
+        }
+      } else if (kind === "submit") {
+        const button = element.closest('button,input[type="submit"]');
+        if (manualSubmit(button, manuallySelectedInput)) selector = selectorFor(button);
+      } else if (kind === "cards") {
+        selector = manualCard(element);
+      } else if (kind === "next") {
+        const next = manualNext(element);
+        if (next) { selector = next.selector; pagination = next.pagination; }
+      }
+      if (!selector || selector.length > 160) {
+        title.textContent = "Nie można jednoznacznie wskazać elementu. Wybierz inny.";
+        return;
+      }
+      post("picked", command.requestId, { pickKind: kind, selector, formSafe, pagination });
+      cancelPicker();
+    };
+    const key = function (event) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        post("pick_cancelled", command.requestId, { pickKind: kind });
+        cancelPicker();
+      }
+    };
+    const timeout = setTimeout(function () {
+      post("pick_cancelled", command.requestId, { pickKind: kind });
+      cancelPicker();
+    }, 90_000);
+    const blockPageHandlers = function (event) {
+      if (picker && !event.target.closest("[data-zavro-picker]"))
+        event.stopImmediatePropagation();
+    };
+    picker = { banner, choose, key, timeout, blockPageHandlers };
+    // Prevent sites' pointerdown listeners from acting before our click
+    // capture, without preventing the browser from generating the click.
+    document.addEventListener("pointerdown", blockPageHandlers, true);
+    document.addEventListener("touchstart", blockPageHandlers, true);
+    document.addEventListener("click", choose, true);
+    document.addEventListener("keydown", key, true);
+  }
+
   function post(event, requestId, extra) {
     if (!ready || location.href !== startUrl) return;
     try { port.postMessage(Object.assign({
@@ -147,14 +318,16 @@
     if (typeof query !== "string" || !query.trim() || query.length > 250 ||
         /[\u0000-\u001f\u007f]/.test(query)) return "rejected";
     const field = document.querySelector(command.inputSelector);
-    if (!validInput(field) || selectorFor(field) !== command.inputSelector) return "stale";
+    if ((!validInput(field) && !manualInput(field)) ||
+        selectorFor(field) !== command.inputSelector) return "stale";
     const form = field.form;
     if (!safeForm(form) && command.submission !== "CLICK_SUBMIT") return "unsafe";
     let button = null;
     if (command.submission === "CLICK_SUBMIT") {
       button = document.querySelector(command.submitSelector);
-      if (!button || button.disabled || searchButton(field) !== command.submitSelector)
-        return "stale";
+      if (!button || button.disabled ||
+          (searchButton(field) !== command.submitSelector &&
+           !manualSubmit(button, field))) return "stale";
     } else if (command.submission !== "FORM_SUBMIT" || !safeForm(form)) return "unsafe";
     // Use native setter for sites with controlled JS input state.
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
@@ -193,6 +366,9 @@
           const found = detect();
           post("inspection", message.requestId, found);
           busy = false;
+        } else if (message.event === "pick" &&
+            keys === "documentId,event,pickKind,requestId,schemaVersion") {
+          pick(message);
         } else if (message.event === "search" &&
             keys === "documentId,event,inputSelector,query,requestId,schemaVersion,submission,submitSelector") {
           busy = true;
@@ -202,7 +378,8 @@
         }
       }
     });
-    port.onDisconnect.addListener(function () { ready = false; });
+    port.onDisconnect.addListener(function () { ready = false; cancelPicker(); });
+    window.addEventListener("pagehide", cancelPicker, { once: true });
     port.postMessage({ schemaVersion: 1, event: "hello", documentId, pageUrl: startUrl });
   } catch (_) { ready = false; }
 })();

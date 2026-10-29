@@ -31,6 +31,27 @@ internal sealed interface VideoSearchBridgeMessage {
         val requestId: String,
         val reason: String,
     ) : VideoSearchBridgeMessage
+
+    class Picked(
+        override val documentId: String,
+        val requestId: String,
+        val pickKind: String,
+        val selector: String,
+        val formSafe: Boolean,
+        val pagination: VideoSearchPagination,
+    ) : VideoSearchBridgeMessage {
+        override fun toString() = "VideoSearchBridgeMessage.Picked(redacted)"
+    }
+    class PickSkipped(
+        override val documentId: String,
+        val requestId: String,
+        val pickKind: String,
+    ) : VideoSearchBridgeMessage
+    class PickCancelled(
+        override val documentId: String,
+        val requestId: String,
+        val pickKind: String,
+    ) : VideoSearchBridgeMessage
 }
 
 internal object VideoSearchBridgeProtocol {
@@ -40,7 +61,20 @@ internal object VideoSearchBridgeProtocol {
     const val EXTENSION_URL = "resource://android/assets/extensions/zavro-video-search/"
     private const val MAX_MESSAGE_CHARS = 9_000
     private val token = Regex("[0-9a-f]{32}")
+    val pickKinds = setOf("input", "submit", "cards", "next")
     private val selectorChars = "#-_.[]=\\\"' >:*+\\\\"
+
+    /** Manual picking may happen on the same site's search-results path. */
+    fun sameOrigin(a: String, b: String): Boolean = try {
+        VideoSearchIntegrity.requirePageUrl(a)
+        VideoSearchIntegrity.requirePageUrl(b)
+        val x = java.net.URI(a)
+        val y = java.net.URI(b)
+        fun port(value: java.net.URI): Int = if (value.port != -1) value.port
+            else if (value.scheme.equals("https", true)) 443 else 80
+        x.scheme.equals(y.scheme, true) &&
+            x.host.equals(y.host, true) && port(x) == port(y)
+    } catch (_: IllegalArgumentException) { false } catch (_: java.net.URISyntaxException) { false }
 
     fun validToken(value: String) = token.matches(value)
     fun validQuery(value: String) =
@@ -95,6 +129,34 @@ internal object VideoSearchBridgeProtocol {
                     it in setOf("stale", "unsafe", "rejected")
                 } ?: return null
                 VideoSearchBridgeMessage.SearchFailed(id, request, reason)
+            }
+            "picked" -> {
+                if (!json.strict("schemaVersion", "event", "documentId", "requestId",
+                        "pickKind", "selector", "formSafe", "pagination")) return null
+                val request = json.string("requestId")?.takeIf(::validToken) ?: return null
+                val kind = json.string("pickKind")?.takeIf { it in pickKinds } ?: return null
+                val selector = json.string("selector")?.takeIf(::validSelector) ?: return null
+                val formSafe = json.opt("formSafe") as? Boolean ?: return null
+                val pagination = when (json.string("pagination")) {
+                    "NONE" -> VideoSearchPagination.NONE
+                    "NEXT_LINK" -> VideoSearchPagination.NEXT_LINK
+                    "LOAD_MORE" -> VideoSearchPagination.LOAD_MORE
+                    else -> return null
+                }
+                if (kind != "input" && formSafe) return null
+                if (kind != "next" && pagination != VideoSearchPagination.NONE) return null
+                if (kind == "next" && pagination == VideoSearchPagination.NONE) return null
+                VideoSearchBridgeMessage.Picked(id, request, kind, selector, formSafe, pagination)
+            }
+            "pick_skipped", "pick_cancelled" -> {
+                if (!json.strict("schemaVersion", "event", "documentId", "requestId",
+                        "pickKind")) return null
+                val request = json.string("requestId")?.takeIf(::validToken) ?: return null
+                val kind = json.string("pickKind")?.takeIf { it in pickKinds } ?: return null
+                if (event == "pick_skipped") {
+                    if (kind == "input") return null
+                    VideoSearchBridgeMessage.PickSkipped(id, request, kind)
+                } else VideoSearchBridgeMessage.PickCancelled(id, request, kind)
             }
             "inspection" -> {
                 val request = json.string("requestId")?.takeIf(::validToken) ?: return null
@@ -156,6 +218,11 @@ internal object VideoSearchBridgeProtocol {
     fun ping(documentId: String): JSONObject = base("ping", documentId)
     fun inspect(documentId: String, requestId: String): JSONObject =
         base("inspect", documentId, requestId)
+
+    fun pick(documentId: String, requestId: String, kind: String): JSONObject {
+        require(kind in pickKinds)
+        return base("pick", documentId, requestId).apply { put("pickKind", kind) }
+    }
 
     /** Query is sent ONLY to the bound content script, never to site APIs directly. */
     fun search(documentId: String, requestId: String, query: String,
