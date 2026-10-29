@@ -15,7 +15,7 @@ function fixture() {
   let receiver;
   const document = {
     documentElement: {
-      appendChild(child) { this.banner = child; },
+      appendChild(child) { if (child.children?.length >= 2) this.picker = child; },
       clientWidth: 360, clientHeight: 720
     },
     createElement(tag) {
@@ -65,6 +65,11 @@ function fixture() {
     assert.equal(typeof click, 'function');
     click({isTrusted:true,target:node,preventDefault(){},
       stopImmediatePropagation(){}});
+    // Selection is read-only. A separate deliberate confirmation emits "picked".
+    assert.equal(sent.some(p => p.event === 'picked'), false);
+    const approve = document.documentElement.picker?.children[1]?.children
+      .find(x => x.textContent === 'Zatwierdź');
+    if (approve) approve.on_click({preventDefault(){},stopPropagation(){}});
     const last = sent.at(-1);
     return last.event==='picked' ? last : null;
   }
