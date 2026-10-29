@@ -1476,51 +1476,53 @@ class MyVideoSitesActivity : AppCompatActivity() {
     }
 
     /**
-     * The picker must be used in the visible Gecko page. Returning to the
-     * existing singleTask BrowserActivity does not open a new tab or URL.
+     * One tap on "Wskaż" opens the saved site's page automatically.
+     * A ready selected tab of the SAME site (including a /results page)
+     * is reused; otherwise a NEW normal tab is created without replacing
+     * any existing user tab. The bridge waits for that tab's Gecko port.
      */
     private fun configureManually(site: VideoSearchSite) {
         val owner = ownerIfCurrent() ?: return
         if (site.scope != owner || !site.enabled) return
-        val completing = VideoSearchManualStages.pendingResults(site) != null
-        MaterialAlertDialogBuilder(this)
-            .setTitle(if (completing) "Uzupełnij karty wyników" else "Wskaż elementy witryny")
-            .setMessage(if (completing)
-                "Pole wyszukiwania zostało już zapisane. Otwórz stronę WYNIKÓW " +
-                    "tej samej witryny w zwykłej karcie Zavro i dotknij „Rozpocznij”. " +
-                    "Wskaż kartę filmu i opcjonalnie następną stronę. " +
-                    "Nie trzeba ponownie wybierać pola ani przycisku Szukaj. " +
-                    "Anulowanie zachowa poprzednie ustawienia."
-            else "Otwórz stronę z formularzem tej witryny w zwykłej karcie Zavro " +
-                "i odśwież stronę. Wskaż pole wyszukiwania i opcjonalny przycisk. " +
-                "Jeśli karty filmów są dopiero na osobnej stronie wyników, " +
-                "przy kroku kart naciśnij „Pomiń”. Zapiszemy formularz — " +
-                "potem otwórz stronę wyników i wybierz „Wskaż” jeszcze raz. " +
-                "Jeżeli karty są tutaj, wskaż je od razu. Anulowanie nic nie zapisuje.")
-            .setNegativeButton("Anuluj", null)
-            .setPositiveButton("Rozpocznij") { _, _ ->
-                lifecycleScope.launch {
-                    val current = try {
-                        withContext(Dispatchers.IO) { repository.site(owner, site.id) }
-                    } catch (_: Exception) { null }
-                    if (ownerIfCurrent() != owner || current == null ||
-                        !current.enabled || current.siteUrl != site.siteUrl) {
-                        message("Witryna zmieniła się. Otwórz listę ponownie.")
-                        return@launch
-                    }
-                    val bridge = VideoSearchBridgeHost.instance()
-                    if (bridge == null || !bridge.startManual(current, repository)) {
-                        message("Otwórz witrynę w aktywnej, zwykłej karcie i odśwież ją.")
-                        return@launch
-                    }
-                    // BrowserActivity is singleTask; focus its existing tab,
-                    // never create a new tab or navigate to a search engine.
-                    startActivity(Intent(this@MyVideoSitesActivity, BrowserActivity::class.java)
-                        .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
-                    finish()
-                }
+        lifecycleScope.launch {
+            val current = try {
+                withContext(Dispatchers.IO) { repository.site(owner, site.id) }
+            } catch (_: Exception) { null }
+            if (ownerIfCurrent() != owner || current == null || !current.enabled ||
+                current.siteUrl != site.siteUrl) {
+                message("Witryna została zmieniona lub usunięta. Odśwież listę.")
+                return@launch
             }
-            .show()
+            val bridge = VideoSearchBridgeHost.instance()
+            if (bridge == null || !bridge.canOpenManual(current)) {
+                message("Wskazywanie jest teraz zajęte lub most Gecko nie jest gotowy.")
+                return@launch
+            }
+            try {
+                val targetId = if (bridge.canStartManual(current)) null else {
+                    // Never navigate or overwrite an existing tab. Preserve the
+                    // saved full address, including path/query, without guessing
+                    // a results URL that may require a real site search.
+                    VideoSearchIntegrity.requirePageUrl(current.siteUrl)
+                    applicationContext.components.tabsUseCases.addTab.invoke(
+                        current.siteUrl,
+                        selectTab = true,
+                        private = false,
+                        contextId = owner.contextId,
+                    )
+                }
+                if (!bridge.startManual(current, repository, expectedTabId = targetId)) {
+                    message("Nie udało się uruchomić wskazywania. Spróbuj ponownie.")
+                    return@launch
+                }
+                startActivity(Intent(this@MyVideoSitesActivity, BrowserActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+                finish()
+            } catch (_: Exception) {
+                if (ownerIfCurrent() == owner)
+                    message("Nie udało się otworzyć zapisanej witryny.")
+            }
+        }
     }
 
     /** Temporary read-only preview: no run, no tabs opened, no DB writes. */
