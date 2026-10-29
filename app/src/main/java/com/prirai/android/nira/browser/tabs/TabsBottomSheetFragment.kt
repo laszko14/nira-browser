@@ -4,6 +4,7 @@ import com.prirai.android.nira.diagnostics.testlab.*
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import android.graphics.Color
 import android.os.Bundle
+import android.content.Intent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -65,6 +66,7 @@ import android.transition.ChangeBounds
 import android.widget.LinearLayout
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.prirai.android.nira.BrowserActivity
+import com.prirai.android.nira.videosearch.MyVideoSitesActivity
 import com.prirai.android.nira.R
 import com.prirai.android.nira.theme.TabGroupTones
 import com.prirai.android.nira.browser.BrowsingMode
@@ -680,6 +682,16 @@ class TabsBottomSheetFragment : DialogFragment() {
             .show()
     }
 
+    /** The left drawer's shortcut opens the same normal/private video-search manager.
+     * The embedded panel must close through its host, not remove its fragment. */
+    private fun openVideoSearchFromPanel() {
+        startActivity(Intent(requireContext(), MyVideoSitesActivity::class.java))
+        view?.post {
+            if (isEmbeddedSidePanel) embeddedDismissRequested?.invoke()
+            else dismiss()
+        }
+    }
+
     private fun addNewTab() {
         lifecycleScope.launch {
             val isPrivate = browsingModeManager.mode.isPrivate
@@ -1218,32 +1230,49 @@ class TabsBottomSheetFragment : DialogFragment() {
                             ComposeColor(0xFFC52351), ComposeColor(0xFF7F284A)
                         ))
                     }
-                    Box(
-                        // Scaffold's content padding already includes the dialog's
-                        // navigation-bar inset; don't reserve it twice.
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 11.dp, end = 8.dp, top = 9.dp, bottom = 12.dp)
+                    Row(
+                        // Scaffold already accounts for the navigation-bar inset.
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(start = 11.dp, end = 8.dp, top = 9.dp, bottom = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
                     ) {
+                        val footerHeight = if (landscape) 42.dp else 48.dp
+                        val footerShape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(if (landscape) 42.dp else 48.dp)
-                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
-                                .background(footerBrush)
+                            modifier = Modifier.weight(1f).height(footerHeight)
+                                .clip(footerShape).background(footerBrush)
                                 .clickable {
                                     addNewTab()
                                     view?.post { dismiss() }
-                                },
+                                }
+                                .semantics { contentDescription = "Nowa karta" },
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center
                         ) {
                             Icon(Icons.Default.Add, contentDescription = null,
-                                tint = ComposeColor.White, modifier = Modifier.size(23.dp))
+                                tint = ComposeColor.White, modifier = Modifier.size(20.dp))
                             Text("Nowa karta", color = ComposeColor.White,
-                                fontSize = if (landscape) 12.sp else 14.sp,
-                                lineHeight = if (landscape) 16.sp else 18.sp,
-                                modifier = Modifier.padding(start = 8.dp))
+                                fontSize = if (landscape) 11.sp else 12.sp,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(start = 4.dp))
+                        }
+                        Row(
+                            modifier = Modifier.weight(1f).height(footerHeight)
+                                .clip(footerShape)
+                                .background(Brush.horizontalGradient(listOf(
+                                    ComposeColor(0xFF226C93), ComposeColor(0xFF274976)
+                                )))
+                                .clickable { openVideoSearchFromPanel() }
+                                .semantics { contentDescription = "Wyszukiwarka filmów" },
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(Icons.Default.Search, contentDescription = null,
+                                tint = ComposeColor.White, modifier = Modifier.size(19.dp))
+                            Text("Wyszukiwarka", color = ComposeColor.White,
+                                fontSize = if (landscape) 10.sp else 11.sp,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(start = 4.dp))
                         }
                     }
                 }
