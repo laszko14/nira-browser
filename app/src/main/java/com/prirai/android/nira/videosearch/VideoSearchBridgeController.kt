@@ -1425,25 +1425,71 @@ internal class VideoSearchBridgeController(
             VideoSearchBridgeProtocol.pick(document, req, kind)
         }
 
-    /** The picker must target the page currently visible behind My Sites. */
+    /** Selection is user-directed, normal-profile only and mutually exclusive
+     * with workers, crawling and another picker. No tab is opened by this gate. */
+    fun canOpenManual(site: VideoSearchSite): Boolean {
+        val owner = site.scope as? VideoSearchScope.Normal ?: return false
+        val manager = ProfileManager.getInstance(applicationContext)
+        return site.enabled && !manualBusy && !crawlBusy && !isMultiSiteActive() &&
+            !manager.isPrivateMode() && manager.getActiveProfile().id == owner.profileId
+    }
+
+    /** Reuse the already selected same-origin page, including /results. */
     fun canStartManual(site: VideoSearchSite): Boolean {
-        if (manualBusy || crawlBusy || isMultiSiteActive()) return false
+        if (!canOpenManual(site)) return false
         val pair = manualSiteTab(site) ?: return false
         val matched = currentTab(pair.first) ?: return false
         return store.state.selectedTabId == matched.tabId && pair.second.documentId != null
     }
 
     /**
-     * Start a user-directed wizard and return to Gecko. Its coroutine is owned
-     * by the bridge, not by MyVideoSitesActivity (which finishes immediately).
-     * Nothing is saved until the wizard ends without cancellation.
+     * Explicitly requested "Wskaż". If a tab was just opened by the caller,
+     * wait a bounded time for its exact selected Gecko document/extension port.
+     * The bridge owns the coroutine even after MyVideoSitesActivity finishes.
+     * Never pick on another tab, a switched profile, or another origin.
      */
-    fun startManual(site: VideoSearchSite, repository: VideoSearchRepository): Boolean {
-        if (!canStartManual(site)) return false
+    fun startManual(
+        site: VideoSearchSite, repository: VideoSearchRepository,
+        expectedTabId: String? = null,
+    ): Boolean {
+        if (!canOpenManual(site)) return false
+        if (expectedTabId == null && !canStartManual(site)) return false
+        if (expectedTabId != null && store.state.selectedTabId != expectedTabId) return false
         manualBusy = true
         manualScope.launch {
             var feedbackSent = false
             try {
+                if (expectedTabId != null) {
+                    val ready = withTimeoutOrNull<Boolean>(20_000L) {
+                        var accepted = false
+                        while (!accepted) {
+                            val owner = site.scope as VideoSearchScope.Normal
+                            val manager = ProfileManager.getInstance(applicationContext)
+                            val selected = store.state.tabs.singleOrNull {
+                                it.id == expectedTabId &&
+                                    it.id == store.state.selectedTabId
+                            }
+                            if (manager.isPrivateMode() ||
+                                manager.getActiveProfile().id != owner.profileId ||
+                                selected == null || !owner.ownsTab(
+                                    selected.contextId, selected.content.private
+                                )) return@withTimeoutOrNull false
+                            val target = manualSiteTab(site)
+                            accepted = target != null &&
+                                currentTab(target.first)?.tabId == expectedTabId
+                            if (!accepted) delay(200)
+                        }
+                        true
+                    } == true
+                    if (!ready) {
+                        Toast.makeText(applicationContext,
+                            "Nie udało się otworzyć witryny do wskazywania. " +
+                                "Sprawdź połączenie i spróbuj ponownie.",
+                            Toast.LENGTH_LONG).show()
+                        feedbackSent = true
+                        return@launch
+                    }
+                }
                 val original = manualSiteTab(site) ?: return@launch
                 val originalDocument = original.second.documentId ?: return@launch
                 // A persisted partial configuration is a durable checkpoint:
