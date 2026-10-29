@@ -364,6 +364,22 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
     suspend fun setResultsView(scope: VideoSearchScope.Normal, view: VideoSearchView) =
         dao.updateResultsView(scope.profileId, view)
 
+    /**
+     * Single-transaction long-press save. This is the minimal Stage 7B action;
+     * folder browsing/editing and the rest of Stage 8 remain separate.
+     */
+    suspend fun saveFoundFilmToPhraseFolder(
+        scope: VideoSearchScope.Normal, runId: String, filmId: String,
+    ): Boolean {
+        require(runId.isNotBlank() && filmId.isNotBlank())
+        return dao.saveRunFilmToPhraseFolder(
+            profileId = scope.profileId, runId = runId, filmId = filmId,
+            folderId = java.util.UUID.randomUUID().toString(),
+            linkId = java.util.UUID.randomUUID().toString(),
+            now = System.currentTimeMillis()
+        )
+    }
+
     suspend fun putFolder(folder: VideoSavedFilmFolder) {
         dao.putFolder(with(VideoSearchRowCodec) { folder.toRow() })
     }

@@ -6,6 +6,8 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -193,6 +195,7 @@ internal fun VideoSearchResultsScreen(
     onSelectRun: (String) -> Unit,
     onViewChange: (VideoSearchView) -> Unit,
     onOpen: (VideoSearchFilm) -> Unit,
+    onLongPress: (VideoSearchFilm) -> Unit = {},
 ) {
     val snapshot = state.snapshot
     val run = snapshot?.run
@@ -458,7 +461,7 @@ internal fun VideoSearchResultsScreen(
                                     val film = group.films[index]
                                     "film:${film.siteId}:${film.id}"
                                 }) { index ->
-                                    VideoSearchFilmTile(group.films[index], onOpen)
+                                    VideoSearchFilmTile(group.films[index], onOpen, onLongPress)
                                 }
                             }
                         }
@@ -467,7 +470,7 @@ internal fun VideoSearchResultsScreen(
                             val film = results.visibleFilms[index]
                             "film:${film.siteId}:${film.id}"
                         }) { index ->
-                            VideoSearchFilmTile(results.visibleFilms[index], onOpen)
+                            VideoSearchFilmTile(results.visibleFilms[index], onOpen, onLongPress)
                         }
                     }
                 }
@@ -500,7 +503,7 @@ internal fun VideoSearchResultsScreen(
                                     val film = group.films[index]
                                     "film:${film.siteId}:${film.id}"
                                 }) { index ->
-                                    VideoSearchFilmRow(group.films[index], onOpen)
+                                    VideoSearchFilmRow(group.films[index], onOpen, onLongPress)
                                 }
                             }
                         }
@@ -509,7 +512,7 @@ internal fun VideoSearchResultsScreen(
                             val film = results.visibleFilms[index]
                             "film:${film.siteId}:${film.id}"
                         }) { index ->
-                            VideoSearchFilmRow(results.visibleFilms[index], onOpen)
+                            VideoSearchFilmRow(results.visibleFilms[index], onOpen, onLongPress)
                         }
                     }
                 }
@@ -587,11 +590,15 @@ private fun FilmPoster(film: VideoSearchFilm, modifier: Modifier = Modifier) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun VideoSearchFilmTile(
     film: VideoSearchFilm, onOpen: (VideoSearchFilm) -> Unit,
+    onLongPress: (VideoSearchFilm) -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth().clickable { onOpen(film) },
+    Card(modifier = Modifier.fillMaxWidth().combinedClickable(
+        onClick = { onOpen(film) }, onLongClick = { onLongPress(film) }
+    ),
         colors = CardDefaults.cardColors(containerColor = Color(0xff1a232c))) {
         Column(Modifier.padding(6.dp)) {
             FilmPoster(film, Modifier.fillMaxWidth().height(104.dp))
@@ -608,11 +615,15 @@ private fun VideoSearchFilmTile(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun VideoSearchFilmRow(
     film: VideoSearchFilm, onOpen: (VideoSearchFilm) -> Unit,
+    onLongPress: (VideoSearchFilm) -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth().clickable { onOpen(film) },
+    Card(modifier = Modifier.fillMaxWidth().combinedClickable(
+        onClick = { onOpen(film) }, onLongClick = { onLongPress(film) }
+    ),
         colors = CardDefaults.cardColors(containerColor = Color(0xff1a232c))) {
         Row(Modifier.fillMaxWidth().padding(8.dp),
             verticalAlignment = Alignment.CenterVertically) {

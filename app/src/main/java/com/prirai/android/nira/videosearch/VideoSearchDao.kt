@@ -430,6 +430,39 @@ internal interface VideoSearchDao {
         return insertSavedLink(row) != -1L
     }
 
+    /**
+     * Save the EXACT recorded film metadata to the matching phrase folder in
+     * one transaction. Concurrent taps cannot create duplicate phrase folders,
+     * and a removed/foreign run or film cannot be saved via a stale UI card.
+     */
+    @Transaction
+    suspend fun saveRunFilmToPhraseFolder(
+        profileId: String, runId: String, filmId: String,
+        folderId: String, linkId: String, now: Long,
+    ): Boolean {
+        val run = getRun(profileId, runId)
+            ?: throw IllegalArgumentException("Run is not in this profile")
+        val film = getFilmById(profileId, filmId)
+            ?: throw IllegalArgumentException("Film is missing from this profile")
+        require(film.runId == runId)
+        require(film.siteId in VideoSearchRowCodec.readStrings(run.siteIdsJson))
+        // Only previously validated page URLs reach saved folders. Never
+        // persist unsafe schemes/credentials as an accidental by-product.
+        VideoSearchIntegrity.requirePageUrl(film.filmPageUrl)
+        film.thumbnailUrl?.let(VideoSearchIntegrity::requirePageUrl)
+        val chosenFolder = getFolders(profileId).firstOrNull { it.name == run.query }
+            ?: VideoSavedFolderRow(
+                profileId = profileId, id = folderId, name = run.query,
+                createdAtMs = now, updatedAtMs = now
+            ).also { putFolder(it) }
+        return insertSavedLinkChecked(VideoSavedLinkRow(
+            profileId = profileId, folderId = chosenFolder.id, id = linkId,
+            filmPageUrl = film.filmPageUrl, title = film.originalTitle,
+            thumbnailUrl = film.thumbnailUrl, durationSeconds = film.durationSeconds,
+            createdAtMs = now
+        ))
+    }
+
     @Query("SELECT * FROM video_saved_links WHERE profileId = :profileId AND folderId = :folderId ORDER BY createdAtMs")
     suspend fun getSavedLinks(profileId: String, folderId: String): List<VideoSavedLinkRow>
 }

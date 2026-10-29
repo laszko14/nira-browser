@@ -1,6 +1,9 @@
 package com.prirai.android.nira.videosearch
 
 import android.content.Context
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -111,6 +114,11 @@ private fun VideoSearchResultsTabBound(
     var state by remember(tabId, profileId) {
         mutableStateOf(VideoSearchResultsScreenState())
     }
+    var heldFilm by remember(tabId, profileId) { mutableStateOf<VideoSearchFilm?>(null) }
+    var availableGroups by remember(tabId, profileId) {
+        mutableStateOf<List<VideoSearchGroupMenuChoice>?>(null)
+    }
+    var openingFilm by remember(tabId, profileId) { mutableStateOf(false) }
 
     /**
      * Room emits whenever a site worker checkpoints a run. Do not poll or
@@ -154,96 +162,209 @@ private fun VideoSearchResultsTabBound(
         }
     }
 
+    fun ownsFilm(film: VideoSearchFilm): Boolean {
+        val browser = context.applicationContext.components
+        val current = state.snapshot?.run ?: return false
+        val tab = browser.store.state
+        return isActiveNormalProfile(context, profileId) &&
+            tab.selectedTabId == tabId &&
+            current.id == film.runId && film.scope == scope &&
+            film.siteId in current.siteIds &&
+            tab.tabs.any { it.id == tabId && !it.content.private &&
+                it.contextId == scope.contextId &&
+                it.content.url == VIDEO_SEARCH_RESULTS_TAB_URL }
+    }
+
+    fun notifyUser(label: String) {
+        if (isActiveNormalProfile(context, profileId)) {
+            Toast.makeText(context, label, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun launchOpening(
+        film: VideoSearchFilm,
+        action: VideoSearchFilmMenuAction? = null,
+        selected: String? = null,
+    ) {
+        if (!ownsFilm(film) || openingFilm) return
+        openingFilm = true
+        uiScope.launch {
+            try {
+                val preferred = if (action == null) {
+                    withContext(Dispatchers.IO) {
+                        repository.settings(scope).defaultTabGroupId
+                    }
+                } else null
+                val needsManager = action == VideoSearchFilmMenuAction.OPEN_EXISTING_GROUP ||
+                    action == VideoSearchFilmMenuAction.CREATE_GROUP_AND_OPEN ||
+                    preferred != null
+                val manager = if (needsManager)
+                    UnifiedTabGroupManager.getInstance(context.applicationContext) else null
+                val loaded = manager?.awaitInitialized() == true
+                if (!ownsFilm(film)) return@launch
+                VideoSearchIntegrity.requirePageUrl(film.filmPageUrl)
+                val groups = if (loaded && manager != null) manager.getAllGroups()
+                    .map { it.id to it.contextId } else emptyList()
+                val destination = when (action) {
+                    null -> VideoSearchDefaultGroupPolicy.destination(preferred, scope, groups)
+                    VideoSearchFilmMenuAction.OPEN_EXISTING_GROUP ->
+                        VideoSearchDefaultGroupPolicy.destination(selected, scope, groups)
+                    else -> null
+                }
+                if (action == VideoSearchFilmMenuAction.OPEN_EXISTING_GROUP &&
+                    destination == null) {
+                    notifyUser("Wybrana grupa nie jest już dostępna")
+                    return@launch
+                }
+                val newGroupName = if (action ==
+                    VideoSearchFilmMenuAction.CREATE_GROUP_AND_OPEN)
+                    VideoSearchFilmMenuPolicy.groupName(selected)
+                else null
+                if (action == VideoSearchFilmMenuAction.CREATE_GROUP_AND_OPEN &&
+                    (newGroupName == null || !loaded)) {
+                    notifyUser("Nie można utworzyć tej grupy")
+                    return@launch
+                }
+
+                val browser = context.applicationContext.components
+                // Never select before suspend group operations: switching away
+                // from this Compose tab cancels its coroutine.
+                val newTabId = browser.tabsUseCases.addTab.invoke(
+                    film.filmPageUrl, selectTab = false, private = false,
+                    contextId = scope.contextId,
+                )
+                if (isActiveNormalProfile(context, profileId) &&
+                    browser.store.state.tabs.any { it.id == newTabId &&
+                        !it.content.private && it.contextId == scope.contextId }) {
+                    try {
+                        if (newGroupName != null && manager != null) {
+                            manager.createGroup(
+                                tabIds = listOf(newTabId),
+                                name = newGroupName,
+                                contextId = scope.contextId,
+                            )
+                        } else if (destination != null && manager != null) {
+                            if (!manager.addTabToGroup(newTabId, destination)) {
+                                notifyUser("Grupa niedostępna — otwarto bez grupy")
+                            }
+                        }
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        notifyUser("Nie udało się przypisać karty do grupy")
+                        // The new tab remains valid even without a group.
+                    }
+                }
+                val latest = browser.store.state
+                if (isActiveNormalProfile(context, profileId) &&
+                    latest.selectedTabId == tabId &&
+                    latest.tabs.any { it.id == newTabId &&
+                        !it.content.private && it.contextId == scope.contextId }) {
+                    browser.tabsUseCases.selectTab(newTabId)
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                notifyUser("Nie udało się otworzyć strony filmu")
+            } finally {
+                openingFilm = false
+            }
+        }
+    }
+
     VideoSearchResultsScreen(
         state = state,
         onBack = onClose,
         onRefresh = { refreshVersion++ },
-        onSelectRun = { selected ->
-            chosenRunId = selected
-        },
+        onSelectRun = { selected -> chosenRunId = selected },
         onViewChange = { next ->
             if (isActiveNormalProfile(context, profileId)) {
                 state = state.copy(view = next)
-                // View-only SQL update preserves selected sites and parallelism.
                 uiScope.launch {
                     try {
                         withContext(Dispatchers.IO) {
                             repository.setResultsView(scope, next)
                         }
                     } catch (_: Exception) {
-                        if (isActiveNormalProfile(context, profileId))
-                            state = state.copy(error = "Nie zapisano widoku.")
+                        notifyUser("Nie zapisano ustawienia widoku")
                     }
                 }
             }
         },
-        onOpen = { film ->
-            uiScope.launch {
-                try {
-                    // Preferences are scoped to the *owner* of the results
-                    // tab, not whichever profile is currently in the UI.
-                    val preferred = withContext(Dispatchers.IO) {
-                        repository.settings(scope).defaultTabGroupId
-                    }
-                    val manager = preferred?.let {
-                        UnifiedTabGroupManager.getInstance(context.applicationContext)
-                    }
-                    val loaded = manager?.awaitInitialized() == true
-                    val current = state.snapshot?.run
-                    val browser = context.applicationContext.components
-                    val store = browser.store.state
-                    if (!isActiveNormalProfile(context, profileId) ||
-                        store.selectedTabId != tabId ||
-                        current?.id != film.runId || film.scope != scope ||
-                        film.siteId !in current.siteIds ||
-                        store.tabs.none { it.id == tabId && !it.content.private &&
-                            it.contextId == scope.contextId &&
-                            it.content.url == VIDEO_SEARCH_RESULTS_TAB_URL }) {
-                        return@launch
-                    }
-                    VideoSearchIntegrity.requirePageUrl(film.filmPageUrl)
-                    val destination = if (loaded && manager != null)
-                        VideoSearchDefaultGroupPolicy.destination(
-                            preferred, scope,
-                            manager.getAllGroups().map { it.id to it.contextId }
-                        ) else null
-                    // Create UNSELECTED first. Selecting now would dispose
-                    // this Compose scope and cancel the suspend grouping step.
-                    val newTabId = browser.tabsUseCases.addTab.invoke(
-                        film.filmPageUrl, selectTab = false,
-                        private = false, contextId = scope.contextId,
-                    )
-                    if (destination != null &&
-                        isActiveNormalProfile(context, profileId) &&
-                        browser.store.state.tabs.any { it.id == newTabId &&
-                            !it.content.private && it.contextId == scope.contextId }) {
-                        // A deleted group or a failed Room mutation must NOT
-                        // prevent opening the film; the fallback is ungrouped.
-                        try {
-                            manager?.addTabToGroup(newTabId, destination)
-                        } catch (cancelled: CancellationException) {
-                            throw cancelled
-                        } catch (_: Exception) {
-                            // Stage 7C will expose a dedicated deleted-group
-                            // fallback UI. Never move to a foreign group.
+        onOpen = { film -> launchOpening(film) },
+        onLongPress = { film ->
+            if (ownsFilm(film)) {
+                heldFilm = film
+                availableGroups = null
+                uiScope.launch {
+                    try {
+                        val manager = UnifiedTabGroupManager.getInstance(
+                            context.applicationContext
+                        )
+                        val loaded = manager.awaitInitialized()
+                        val choices = if (loaded) manager.getAllGroups()
+                            .filter { it.contextId == scope.contextId }
+                            .sortedWith(compareBy({ it.name.lowercase() }, { it.id }))
+                            .map { VideoSearchGroupMenuChoice(it.id, it.name) }
+                        else emptyList()
+                        if (heldFilm?.id == film.id && ownsFilm(film)) {
+                            availableGroups = choices
                         }
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        if (heldFilm?.id == film.id) availableGroups = emptyList()
                     }
-                    // Select only after grouping has finished. If the user
-                    // switched tabs/profiles in the meantime, do not steal focus.
-                    val latest = browser.store.state
-                    if (isActiveNormalProfile(context, profileId) &&
-                        latest.selectedTabId == tabId &&
-                        latest.tabs.any { it.id == newTabId &&
-                            !it.content.private && it.contextId == scope.contextId }) {
-                        browser.tabsUseCases.selectTab(newTabId)
-                    }
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    // Grouping failure must not close, lose or reroute an
-                    // already opened user's film tab. Fallback UI is stage 7C.
                 }
             }
         },
     )
+
+    heldFilm?.let { film ->
+        VideoSearchFilmLongPressMenu(
+            film = film, groups = availableGroups,
+            onDismiss = { heldFilm = null },
+            onAction = { action, argument ->
+                heldFilm = null
+                if (ownsFilm(film)) when (action) {
+                    VideoSearchFilmMenuAction.OPEN_UNGROUPED,
+                    VideoSearchFilmMenuAction.OPEN_EXISTING_GROUP,
+                    VideoSearchFilmMenuAction.CREATE_GROUP_AND_OPEN ->
+                        launchOpening(film, action, argument)
+                    VideoSearchFilmMenuAction.COPY_LINK -> {
+                        try {
+                            VideoSearchIntegrity.requirePageUrl(film.filmPageUrl)
+                            val clipboard = context.getSystemService(
+                                Context.CLIPBOARD_SERVICE
+                            ) as ClipboardManager
+                            clipboard.setPrimaryClip(ClipData.newPlainText(
+                                "Link do strony filmu", film.filmPageUrl
+                            ))
+                            notifyUser("Skopiowano link")
+                        } catch (_: Exception) {
+                            notifyUser("Nie udało się skopiować linku")
+                        }
+                    }
+                    VideoSearchFilmMenuAction.SAVE_TO_FOLDER -> {
+                        uiScope.launch {
+                            try {
+                                if (!ownsFilm(film)) return@launch
+                                val added = withContext(Dispatchers.IO) {
+                                    repository.saveFoundFilmToPhraseFolder(
+                                        scope, film.runId, film.id
+                                    )
+                                }
+                                notifyUser(if (added) "Dodano film do folderu frazy"
+                                    else "Ten film jest już zapisany w folderze")
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (_: Exception) {
+                                notifyUser("Nie udało się zapisać filmu")
+                            }
+                        }
+                    }
+                }
+            }
+        )
+    }
 }
