@@ -102,6 +102,13 @@
             android:exported="false"
             android:theme="@style/AppThemeSettings" />
 
+    <!-- Normal-profile aggregate film search results, never exported. -->
+    <activity
+            android:name=".videosearch.VideoSearchResultsActivity"
+            android:exported="false"
+            android:parentActivityName=".videosearch.MyVideoSitesActivity"
+            android:theme="@style/AppThemeSettings" />
+
     <activity
             android:name=".settings.activity.SettingsActivity"
             android:label="@string/settings"

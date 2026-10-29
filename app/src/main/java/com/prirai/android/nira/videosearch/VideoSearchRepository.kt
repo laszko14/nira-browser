@@ -328,6 +328,28 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
             with(VideoSearchRowCodec) { it.toModel() }
         }
 
+    /**
+     * Atomic read of history for one normal profile. No cross-profile rows.
+     * All film cards in a run are fetched in one SQL query.
+     */
+    suspend fun resultsSnapshot(
+        scope: VideoSearchScope.Normal, runId: String,
+    ): VideoSearchSavedResults? {
+        val rows = dao.getHistorySnapshot(scope.profileId, runId) ?: return null
+        return with(VideoSearchRowCodec) {
+            VideoSearchSavedResults(
+                run = rows.run.toModel(),
+                tasks = rows.tasks.map { it.toModel() },
+                films = rows.films.map { it.toModel() },
+                siteNames = rows.sites.associate { it.id to it.displayName },
+            )
+        }
+    }
+
+    /** Update only the view field, preserving selection and other settings. */
+    suspend fun setResultsView(scope: VideoSearchScope.Normal, view: VideoSearchView) =
+        dao.updateResultsView(scope.profileId, view)
+
     suspend fun putFolder(folder: VideoSavedFilmFolder) {
         dao.putFolder(with(VideoSearchRowCodec) { folder.toRow() })
     }

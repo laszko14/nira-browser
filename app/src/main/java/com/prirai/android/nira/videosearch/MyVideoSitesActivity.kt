@@ -476,69 +476,10 @@ class MyVideoSitesActivity : AppCompatActivity() {
             .show()
     }
 
-    /**
-     * Profile-scoped persisted run preview. The full film tile browser and
-     * additional grouping/sorting belong to later UI stages.
-     */
+    /** Open full saved results for the current normal profile. */
     private fun showMultiHistory() {
-        val owner = ownerIfCurrent() ?: return
-        lifecycleScope.launch {
-            val result = try {
-                withContext(Dispatchers.IO) {
-                    val run = repository.runs(owner).firstOrNull()
-                        ?: return@withContext null
-                    val tasks = repository.tasks(owner, run.id)
-                    val preview = tasks.take(4).flatMap { task ->
-                        repository.films(owner, run.id, task.siteId)
-                            .take(3)
-                    }
-                    Triple(run, tasks, preview)
-                }
-            } catch (_: Exception) {
-                if (ownerIfCurrent() == owner)
-                    message("Nie udało się odczytać historii")
-                return@launch
-            }
-            if (ownerIfCurrent() != owner) return@launch
-            if (result == null) {
-                message("Nie ma jeszcze zapisanych wyszukiwań")
-                return@launch
-            }
-            val (run, tasks, preview) = result
-            val titles = try {
-                withContext(Dispatchers.IO) {
-                    repository.sites(owner).associate { it.id to it.displayName }
-                }
-            } catch (_: Exception) { emptyMap<String, String>() }
-            if (ownerIfCurrent() != owner) return@launch
-            val totals = tasks.sumOf { it.uniqueResults }
-            val sitesText = tasks.take(15).joinToString("\n") { task ->
-                val state = when (task.status) {
-                    VideoSearchSiteState.COMPLETED -> "Zakończono"
-                    VideoSearchSiteState.NEEDS_ATTENTION -> "Wymaga uwagi"
-                    VideoSearchSiteState.FAILED -> "Błąd"
-                    VideoSearchSiteState.STOPPED -> "Zatrzymano"
-                    else -> "W toku"
-                }
-                val siteName = titles[task.siteId] ?:
-                    preview.firstOrNull { it.siteId == task.siteId }?.siteName ?:
-                    "Witryna usunięta"
-                "• $siteName: $state — ${task.uniqueResults} filmów"
-            }
-            val sample = preview.joinToString("\n") {
-                "• ${it.originalTitle ?: "Tytuł nieznany"}"
-            }
-            MaterialAlertDialogBuilder(this@MyVideoSitesActivity)
-                .setTitle("Ostatnie wyszukiwanie")
-                .setMessage("Stan: ${run.status.name}. " +
-                    "Zapisane wyniki: $totals, witryny: ${tasks.size}.\n\n" +
-                    "Witryny:\n" + sitesText +
-                    (if (tasks.size > 15) "\n… pozostałe witryny w historii" else "") +
-                    "\n\nPrzykładowe filmy:\n" +
-                    (if (sample.isNotBlank()) sample else "Brak potwierdzonych filmów"))
-                .setPositiveButton("OK", null)
-                .show()
-        }
+        if (ownerIfCurrent() == null) return
+        startActivity(Intent(this, VideoSearchResultsActivity::class.java))
     }
 
     private fun stopMultiSearch() {

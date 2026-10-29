@@ -17,6 +17,14 @@ internal data class VideoSearchLaunchSnapshotRows(
     val sites: List<VideoSearchSiteRow>,
 )
 
+/** Coherent read of one run, task statuses, saved film cards and site labels. */
+internal data class VideoSearchHistoryRows(
+    val run: VideoSearchRunRow,
+    val tasks: List<VideoSearchTaskRow>,
+    val films: List<VideoSearchFilmRow>,
+    val sites: List<VideoSearchSiteRow>,
+)
+
 @Dao
 internal interface VideoSearchDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -344,6 +352,34 @@ internal interface VideoSearchDao {
 
     @Query("SELECT * FROM video_search_films WHERE profileId = :profileId AND runId = :runId AND siteId = :siteId ORDER BY originalIndex")
     suspend fun getFilms(profileId: String, runId: String, siteId: String): List<VideoSearchFilmRow>
+
+    /** Bulk, read-only history view. No per-site N+1 SQL queries. */
+    @Query("SELECT * FROM video_search_films WHERE profileId = :profileId AND runId = :runId ORDER BY siteId, originalIndex, id")
+    suspend fun getRunFilms(profileId: String, runId: String): List<VideoSearchFilmRow>
+
+    @Transaction
+    suspend fun getHistorySnapshot(profileId: String, runId: String): VideoSearchHistoryRows? {
+        val run = getRun(profileId, runId) ?: return null
+        return VideoSearchHistoryRows(run, getTasks(profileId, runId),
+            getRunFilms(profileId, runId), getSites(profileId))
+    }
+
+    /** Update view only; never overwrite selected sites or parallelism. */
+    @Query("UPDATE video_search_settings SET view = :view WHERE profileId = :profileId")
+    suspend fun setResultsViewField(profileId: String, view: String): Int
+
+    @Transaction
+    suspend fun updateResultsView(profileId: String, view: VideoSearchView) {
+        if (getSettings(profileId) == null) {
+            putSettings(VideoSearchSettingsRow(
+                profileId = profileId, selectedSitesJson = "[]",
+                parallelism = VideoSearchParallelism.ONE.name,
+                defaultTabGroupId = null, view = view.name, sortBySiteIdJson = "{}"
+            ))
+        } else {
+            setResultsViewField(profileId, view.name)
+        }
+    }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun putFolder(row: VideoSavedFolderRow)
