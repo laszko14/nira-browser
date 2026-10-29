@@ -1,3 +1,18 @@
+# Checkpoint — Wyszukiwarka filmów / ETAP 2C / 2026-10-29
+
+- **Status:** DONE (SOURCE CODE COMMITTED), implementowano WYŁĄCZNIE 2C. Testy wykonaniowe/Gradle/APK/CI/telefon **NOT_TESTED**. Kolejne pojedyncze `Dalej` = tylko **ETAP 3A**, potem STOP. Bez merge i PR.
+- **Repo/gałąź:** `laszko14/nira-browser`, `feat/zavro-clean-video-search-20261029`, Clean v1190 baza PR #112. HEAD sprzed 2C `1ecab06b1d48d6a9d92cc63fc02658ed04790b7c`. Checkpoint i pliki zapisane w JEDNYM commicie, bez zmiany numeru wersji.
+- **Kod:** `VideoSearchDao.kt` — profilowo izolowany, transakcyjny zapis wyboru `setSiteSelected`; `selectAllEnabledSites` wybiera wszystkie aktywne bez limitu 5; `clearSelectedSites` czyści zapamiętany wybór. `observeSettings` daje Flow do UI; `getSelectedActiveSites` daje spójny transakcyjny snapshot tylko witryn aktywnych, w zapisanej kolejności. Wszystko w istniejącym `video_search_settings.selectedSitesJson`, bez zmiany schematu Room v1/migracji.
+- **Integralność:** istniejąca konfiguracja, równoległość 1–5/ALL, widok, sortowanie i grupa domyślna NIE są nadpisywane przy zaznaczaniu (zapis modyfikuje wyłącznie pole `selectedSitesJson`). Ręcznie usunięta witryna jest usuwana ze zbioru wybranych w tej samej transakcji; inne profile nienaruszone. Wyłączona witryna zachowuje wcześniejszy wybór, ale nie trafia do aktywnych stron wyszukiwania; nowo wyłączonej nie można zaznaczyć. Nowy profil ma początkowo pusty wybór: bez samowolnego uruchamiania wyszukiwania.
+- **Repozytorium:** `VideoSearchRepository.kt` exposes `observeSelectedSiteIds`, `selectedSiteIds`, `setSiteSelected`, `selectAllEnabledSites`, `clearSelectedSites`, `selectedActiveSites` tylko dla `VideoSearchScope.Normal`. Istniejące `removeSite` używa transakcyjnego `deleteSiteAndSelection`.
+- **UI:** `MyVideoSitesActivity.kt` posiada osobne Checkbox „Uwzględnij w wyszukiwaniu” przy witrynie, guziki „Zaznacz wszystkie” i „Odznacz wszystkie”, licznik wybranych z aktywnych; połączone Flow witryn+ustawień aktualizują listę bez naruszania drag-and-drop, przywracają zaznaczenie przy powrocie/profilu. Checkbox nieaktywny dla wyłączonej witryny (może pokazywać zapamiętany wybór). Tryb prywatny nadal zablokowany w UI do rzeczywistej integracji z cyklem życia Gecko w ETAPIE 10; nie zapisuje prywatnych wyborów do normalnej bazy.
+- **Testy:** `MyVideoSitesSelectionTest.kt` — 10 testów Robolectric: początkowo pusty wybór, >5 wybranych przy ONE parallel, pojedyncze wybory, disabled/reenable, select-all/clear, izolacja profili, ochrona pozostałych ustawień, usuwanie, konkurencyjne zmiany, reopen DB. Statyczne kontrole kontraktu 21/21 **PASS**. Uruchomienie Kotlin/Room/Robolectric, build, APK, Android CI i urządzenie **NOT_TESTED**. Nie ogłaszaj działania runtime bez testów.
+- **Zmodyfikowane pliki:** `app/src/main/java/com/prirai/android/nira/videosearch/{VideoSearchDao.kt,VideoSearchRepository.kt,MyVideoSitesActivity.kt}`; nowy `app/src/test/java/com/prirai/android/nira/videosearch/MyVideoSitesSelectionTest.kt`; `docs/AI_HANDOFF.md`.
+- **Granice:** 2C nie uruchamia faktycznego wyszukiwania; selekcja to konfiguracja zadań na przyszłe ETAPY 3–5. Nie myl witryny wybranej z witryną skonfigurowaną i zweryfikowaną. Silnik DOM/Gecko/IPC, prywatne lifetime, wyniki i kopie filmów nie wdrożone.
+- **Wznowienie:** Zweryfikuj HEAD i ten checkpoint. Następne `Dalej` -> **ETAP 3A**, wyłącznie dedykowana WebExtension i walidowany most Gecko/JS↔Kotlin, bez pełnego skanowania/detekcji i bez APK. Osobne `Kompiluj`/`Już` uruchamia budowę.
+
+---
+
 # Checkpoint — Wyszukiwarka filmów / ETAP 2B / 2026-10-29
 
 - **Status:** kod ETAP 2B wdrożony (SOURCE ONLY), testy wykonaniowe **NOT_TESTED**. Nie rozpoczynaj 2C bez nowego `Dalej`. Bez Gradle, APK, CI, PR, merge i zmiany wersji.

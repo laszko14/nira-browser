@@ -87,11 +87,97 @@ internal interface VideoSearchDao {
     @Query("DELETE FROM video_search_sites WHERE profileId = :profileId AND id = :id")
     suspend fun deleteSite(profileId: String, id: String): Int
 
+    /** Deleted IDs must not remain in the remembered search selection. */
+    @Transaction
+    suspend fun deleteSiteAndSelection(profileId: String, id: String): Int {
+        val removed = deleteSite(profileId, id)
+        if (removed != 0) {
+            val current = getSettings(profileId)
+            if (current != null) {
+                val selected = VideoSearchRowCodec.readStrings(current.selectedSitesJson).toMutableSet()
+                if (selected.remove(id)) {
+                    putSettings(current.copy(
+                        selectedSitesJson = VideoSearchRowCodec.stringsJson(selected.sorted())
+                    ))
+                }
+            }
+        }
+        return removed
+    }
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun putSettings(row: VideoSearchSettingsRow)
 
     @Query("SELECT * FROM video_search_settings WHERE profileId = :profileId LIMIT 1")
     suspend fun getSettings(profileId: String): VideoSearchSettingsRow?
+
+    @Query("SELECT * FROM video_search_settings WHERE profileId = :profileId LIMIT 1")
+    fun observeSettings(profileId: String): Flow<VideoSearchSettingsRow?>
+
+    private suspend fun writeSelected(profileId: String, selectedIds: Set<String>) {
+        val previous = getSettings(profileId)
+        val row = previous ?: VideoSearchSettingsRow(
+            profileId = profileId,
+            selectedSitesJson = "[]",
+            parallelism = VideoSearchParallelism.ONE.name,
+            defaultTabGroupId = null,
+            view = VideoSearchView.TILES.name,
+            sortBySiteIdJson = "{}",
+        )
+        putSettings(row.copy(
+            selectedSitesJson = VideoSearchRowCodec.stringsJson(selectedIds.sorted())
+        ))
+    }
+
+    /**
+     * Update selection only for an existing, enabled site in this profile.
+     * A disabled site keeps its old selection, ready if re-enabled later.
+     * The setting write is atomic and does not change parallelism/view/group.
+     */
+    @Transaction
+    suspend fun setSiteSelected(profileId: String, id: String, selected: Boolean): Boolean {
+        val site = getSite(profileId, id) ?: return false
+        if (!site.enabled) return false
+        val current = getSettings(profileId)
+        val ids = current?.let {
+            VideoSearchRowCodec.readStrings(it.selectedSitesJson).toMutableSet()
+        } ?: mutableSetOf()
+        val changed = if (selected) ids.add(id) else ids.remove(id)
+        if (changed) writeSelected(profileId, ids)
+        return true
+    }
+
+    /**
+     * Select every ACTIVE site; disabled selections are preserved but do not
+     * become runnable until enabled. ALL is not capped by parallelism.
+     */
+    @Transaction
+    suspend fun selectAllEnabledSites(profileId: String): Int {
+        val all = getSites(profileId)
+        val ids = getSettings(profileId)?.let {
+            VideoSearchRowCodec.readStrings(it.selectedSitesJson).toMutableSet()
+        } ?: mutableSetOf()
+        val active = all.filter { it.enabled }.mapTo(mutableSetOf()) { it.id }
+        ids.addAll(active)
+        writeSelected(profileId, ids)
+        return active.size
+    }
+
+    /** Clear the remembered selection (active and currently disabled). */
+    @Transaction
+    suspend fun clearSelectedSites(profileId: String) {
+        writeSelected(profileId, emptySet())
+    }
+
+    /** Stable, profile-scoped snapshot for a future search launch. */
+    @Transaction
+    suspend fun getSelectedActiveSites(profileId: String): List<VideoSearchSiteRow> {
+        val selected = getSettings(profileId)?.let {
+            VideoSearchRowCodec.readStrings(it.selectedSitesJson).toSet()
+        } ?: emptySet()
+        return getSites(profileId).filter { it.enabled && it.id in selected }
+    }
+
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun putRun(row: VideoSearchRunRow)

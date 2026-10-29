@@ -62,7 +62,7 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
     /** Only call after the UI has received an explicit delete confirmation. */
     suspend fun removeSite(scope: VideoSearchScope.Normal, id: String, confirmed: Boolean): Boolean {
         require(confirmed) { "Site removal requires user confirmation" }
-        return dao.deleteSite(scope.profileId, id) > 0
+        return dao.deleteSiteAndSelection(scope.profileId, id) > 0
     }
 
     /** Rename without touching URL, configuration, enabled flag or limit. */
@@ -112,6 +112,40 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
         orderedIds: List<String>,
         nowMs: Long = System.currentTimeMillis(),
     ): Boolean = dao.reorderSites(scope.profileId, originalIds, orderedIds, nowMs)
+
+    /**
+     * Selection is persisted per *normal* profile and independent of the
+     * 1..5/ALL parallel-worker setting. Missing/disabled sites cannot be
+     * selected now; a disabled previously-selected site retains its choice.
+     */
+    fun observeSelectedSiteIds(scope: VideoSearchScope.Normal): Flow<Set<String>> =
+        dao.observeSettings(scope.profileId).map {
+            it?.let { row -> VideoSearchRowCodec.readStrings(row.selectedSitesJson).toSet() }
+                ?: emptySet()
+        }
+
+    suspend fun selectedSiteIds(scope: VideoSearchScope.Normal): Set<String> =
+        dao.getSettings(scope.profileId)?.let {
+            VideoSearchRowCodec.readStrings(it.selectedSitesJson).toSet()
+        } ?: emptySet()
+
+    suspend fun setSiteSelected(
+        scope: VideoSearchScope.Normal, id: String, selected: Boolean,
+    ): Boolean = dao.setSiteSelected(scope.profileId, id, selected)
+
+    /** No artificial cap; all enabled sites can be selected. */
+    suspend fun selectAllEnabledSites(scope: VideoSearchScope.Normal): Int =
+        dao.selectAllEnabledSites(scope.profileId)
+
+    suspend fun clearSelectedSites(scope: VideoSearchScope.Normal) {
+        dao.clearSelectedSites(scope.profileId)
+    }
+
+    /** Snapshot contains only enabled sites, retaining user-defined order. */
+    suspend fun selectedActiveSites(scope: VideoSearchScope.Normal): List<VideoSearchSite> =
+        dao.getSelectedActiveSites(scope.profileId).map {
+            with(VideoSearchRowCodec) { it.toModel() }
+        }
 
     suspend fun putSettings(settings: VideoSearchSettings) {
         dao.putSettings(with(VideoSearchRowCodec) { settings.toRow() })

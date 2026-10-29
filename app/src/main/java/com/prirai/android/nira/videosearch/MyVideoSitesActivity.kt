@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.text.InputType
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -20,6 +21,7 @@ import com.prirai.android.nira.browser.profile.ProfileManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -33,6 +35,9 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private lateinit var input: EditText
     private lateinit var addButton: Button
     private lateinit var info: TextView
+    private lateinit var selectionInfo: TextView
+    private lateinit var selectAllButton: Button
+    private lateinit var clearButton: Button
     private lateinit var adapter: SitesAdapter
     private var scope: VideoSearchScope.Normal? = null
     private var observer: Job? = null
@@ -65,6 +70,21 @@ class MyVideoSitesActivity : AppCompatActivity() {
         inputRow.addView(addButton)
         root.addView(inputRow)
 
+        selectionInfo = TextView(this).apply { text = "Wybrano 0 witryn"; textSize = 14f }
+        root.addView(selectionInfo)
+        val selectionActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        selectAllButton = Button(this).apply {
+            text = "Zaznacz wszystkie"
+            setOnClickListener { bulkSelection(selectAll = true) }
+        }
+        clearButton = Button(this).apply {
+            text = "Odznacz wszystkie"
+            setOnClickListener { bulkSelection(selectAll = false) }
+        }
+        selectionActions.addView(selectAllButton, LinearLayout.LayoutParams(0, -2, 1f))
+        selectionActions.addView(clearButton, LinearLayout.LayoutParams(0, -2, 1f))
+        root.addView(selectionActions)
+
         root.addView(TextView(this).apply {
             text = "Witryny pozostają na liście nawet po błędzie konfiguracji. " +
                 "Przytrzymaj i przeciągnij wiersz, aby zmienić kolejność."
@@ -74,6 +94,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
         adapter = SitesAdapter(
             onEdit = ::editSite,
             onToggle = ::toggleSite,
+            onSelect = ::setSiteSelected,
             onDelete = ::confirmRemoval,
         )
         val list = RecyclerView(this).apply {
@@ -127,9 +148,12 @@ class MyVideoSitesActivity : AppCompatActivity() {
             observer = null
             scope = null
             reorderPending = false
-            adapter.replace(emptyList())
+            adapter.replace(emptyList(), emptySet())
             input.isEnabled = false
             addButton.isEnabled = false
+            selectionInfo.text = "Wybór niedostępny w trybie prywatnym"
+            selectAllButton.isEnabled = false
+            clearButton.isEnabled = false
             info.text = "Tryb prywatny: zapis do zwykłego profilu jest wyłączony. " +
                 "Lista prywatna będzie dostępna po integracji sesji prywatnej."
             return
@@ -142,13 +166,18 @@ class MyVideoSitesActivity : AppCompatActivity() {
         observer?.cancel()
         scope = current
         reorderPending = false
-        adapter.replace(emptyList())
+        adapter.replace(emptyList(), emptySet())
         observer = lifecycleScope.launch {
-            repository.observeSites(current).collectLatest { sites ->
-                if (ownerIfCurrent() == current && !reorderPending && !adapter.isDragging) {
-                    adapter.replace(sites)
+            repository.observeSites(current)
+                .combine(repository.observeSelectedSiteIds(current)) { sites, selected ->
+                    sites to selected
                 }
-            }
+                .collectLatest { (sites, selected) ->
+                    if (ownerIfCurrent() == current && !reorderPending && !adapter.isDragging) {
+                        adapter.replace(sites, selected)
+                        updateSelectionControls(sites, selected)
+                    }
+                }
         }
     }
 
@@ -193,6 +222,54 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 if (ownerIfCurrent() == owner) message("Nie udało się zapisać witryny")
             } finally {
                 addButton.isEnabled = ownerIfCurrent() != null
+            }
+        }
+    }
+
+    private fun updateSelectionControls(
+        sites: List<VideoSearchSite>, selectedIds: Set<String>,
+    ) {
+        val enabledSites = sites.filter { it.enabled }
+        val effectiveCount = enabledSites.count { it.id in selectedIds }
+        selectionInfo.text = "Wybrano $effectiveCount z ${enabledSites.size} aktywnych witryn"
+        selectAllButton.isEnabled = ownerIfCurrent() != null &&
+            enabledSites.any { it.id !in selectedIds }
+        clearButton.isEnabled = ownerIfCurrent() != null && selectedIds.isNotEmpty()
+    }
+
+    private fun setSiteSelected(site: VideoSearchSite, selected: Boolean) {
+        val owner = ownerIfCurrent() ?: return
+        if (site.scope != owner || !site.enabled) return
+        lifecycleScope.launch {
+            try {
+                val saved = withContext(Dispatchers.IO) {
+                    repository.setSiteSelected(owner, site.id, selected)
+                }
+                if (!saved && ownerIfCurrent() == owner) {
+                    message("Witryna została wyłączona lub usunięta")
+                }
+            } catch (_: Exception) {
+                if (ownerIfCurrent() == owner) message("Nie udało się zapisać wyboru")
+            } finally {
+                refresh(owner)
+            }
+        }
+    }
+
+    private fun bulkSelection(selectAll: Boolean) {
+        val owner = ownerIfCurrent() ?: return
+        selectAllButton.isEnabled = false
+        clearButton.isEnabled = false
+        lifecycleScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    if (selectAll) repository.selectAllEnabledSites(owner)
+                    else repository.clearSelectedSites(owner)
+                }
+            } catch (_: Exception) {
+                if (ownerIfCurrent() == owner) message("Nie udało się zapisać wyboru witryn")
+            } finally {
+                refresh(owner)
             }
         }
     }
@@ -303,8 +380,13 @@ class MyVideoSitesActivity : AppCompatActivity() {
 
     private suspend fun refresh(owner: VideoSearchScope.Normal) {
         try {
-            val rows = withContext(Dispatchers.IO) { repository.sites(owner) }
-            if (ownerIfCurrent() == owner && !adapter.isDragging) adapter.replace(rows)
+            val (rows, selected) = withContext(Dispatchers.IO) {
+                repository.sites(owner) to repository.selectedSiteIds(owner)
+            }
+            if (ownerIfCurrent() == owner && !adapter.isDragging) {
+                adapter.replace(rows, selected)
+                updateSelectionControls(rows, selected)
+            }
         } catch (_: Exception) {
             if (ownerIfCurrent() == owner) message("Nie udało się odświeżyć listy")
         }
@@ -344,24 +426,30 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private class SitesAdapter(
         private val onEdit: (VideoSearchSite) -> Unit,
         private val onToggle: (VideoSearchSite, Boolean) -> Unit,
+        private val onSelect: (VideoSearchSite, Boolean) -> Unit,
         private val onDelete: (VideoSearchSite) -> Unit,
     ) : RecyclerView.Adapter<SitesAdapter.Holder>() {
         private val rows = mutableListOf<VideoSearchSite>()
+        private var selectedIds: Set<String> = emptySet()
         private var initialDragOrder: List<String>? = null
         val isDragging: Boolean get() = initialDragOrder != null
 
-        fun replace(newRows: List<VideoSearchSite>) {
+        fun replace(newRows: List<VideoSearchSite>, selected: Set<String>) {
             if (isDragging) return
             val old = rows.toList()
+            val oldSelected = selectedIds
             val update = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
                 override fun getOldListSize() = old.size
                 override fun getNewListSize() = newRows.size
                 override fun areItemsTheSame(a: Int, b: Int) =
                     old[a].scope == newRows[b].scope && old[a].id == newRows[b].id
-                override fun areContentsTheSame(a: Int, b: Int) = old[a] == newRows[b]
+                override fun areContentsTheSame(a: Int, b: Int) =
+                    old[a] == newRows[b] &&
+                    (old[a].id in oldSelected) == (newRows[b].id in selected)
             })
             rows.clear()
             rows.addAll(newRows)
+            selectedIds = selected.toSet()
             update.dispatchUpdatesTo(this)
         }
 
@@ -395,6 +483,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             val heading: TextView,
             val detail: TextView,
             val toggle: SwitchCompat,
+            val select: CheckBox,
             val edit: Button,
             val delete: Button,
         ) : RecyclerView.ViewHolder(root)
@@ -415,6 +504,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             first.addView(heading, LinearLayout.LayoutParams(0, -2, 1f))
             first.addView(toggle)
             val detail = TextView(ctx).apply { textSize = 13f; maxLines = 3 }
+            val select = CheckBox(ctx).apply { text = "Uwzględnij w wyszukiwaniu" }
             val buttons = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
             val edit = Button(ctx).apply { text = "Edytuj" }
             val delete = Button(ctx).apply { text = "Usuń" }
@@ -422,8 +512,9 @@ class MyVideoSitesActivity : AppCompatActivity() {
             buttons.addView(delete, LinearLayout.LayoutParams(0, -2, 1f))
             root.addView(first)
             root.addView(detail)
+            root.addView(select)
             root.addView(buttons)
-            return Holder(root, heading, detail, toggle, edit, delete)
+            return Holder(root, heading, detail, toggle, select, edit, delete)
         }
 
         override fun onBindViewHolder(holder: Holder, position: Int) {
@@ -439,6 +530,10 @@ class MyVideoSitesActivity : AppCompatActivity() {
             holder.toggle.setOnCheckedChangeListener(null)
             holder.toggle.isChecked = site.enabled
             holder.toggle.setOnCheckedChangeListener { _, checked -> onToggle(site, checked) }
+            holder.select.setOnCheckedChangeListener(null)
+            holder.select.isChecked = site.id in selectedIds
+            holder.select.isEnabled = site.enabled
+            holder.select.setOnCheckedChangeListener { _, checked -> onSelect(site, checked) }
             holder.edit.setOnClickListener { onEdit(site) }
             holder.delete.setOnClickListener { onDelete(site) }
         }
