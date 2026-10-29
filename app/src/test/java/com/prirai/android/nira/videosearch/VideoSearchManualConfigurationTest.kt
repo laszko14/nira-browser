@@ -256,6 +256,45 @@ class VideoSearchManualConfigurationTest {
         } finally { database.close() }
     }
 
+
+    @Test fun uniquelyScopedNextAndLoadMoreSelectorsPersistAfterManualPicking() = runBlocking {
+        val database = db()
+        try {
+            val repo = VideoSearchRepository(database.dao())
+            val controls = VideoSiteConfiguration("input.search", null)
+            val pagers = listOf(
+                Triple("li.next a", "NEXT_LINK", VideoSearchPagination.NEXT_LINK),
+                Triple("a[aria-label=\\"Następna strona\\"]", "NEXT_LINK",
+                    VideoSearchPagination.NEXT_LINK),
+                Triple("button[data-testid=\\"load-next\\"]", "LOAD_MORE",
+                    VideoSearchPagination.LOAD_MORE),
+                Triple("nav.pages button:last-of-type", "LOAD_MORE",
+                    VideoSearchPagination.LOAD_MORE),
+            )
+            for ((index, candidate) in pagers.withIndex()) {
+                val (selector, protocolKind, expectedKind) = candidate
+                val site = repo.addSite(owner, "https://example.org/search-$index",
+                    nowMs = 100L + index, newId = "pager-$index")
+                val picked = VideoSearchBridgeProtocol.decode(
+                    picked("next", selector, formSafe = false, pagination = protocolKind)
+                ) as? VideoSearchBridgeMessage.Picked
+                assertNotNull("Rejected unique pagination selector: $index", picked)
+                val configuration = VideoSearchManualStages.withResults(
+                    controls, "article.movie-card", picked
+                )!!
+                assertEquals(expectedKind, configuration.pagination)
+                assertEquals(selector, configuration.nextPageSelector)
+                assertTrue(repo.applyManualConfiguration(site, configuration,
+                    nowMs = 200L + index))
+                val restored = repo.site(owner, site.id)!!
+                assertEquals(VideoSiteConfigurationState.CONFIGURED,
+                    restored.configurationState)
+                assertEquals(selector, restored.configuration?.nextPageSelector)
+                assertEquals(expectedKind, restored.configuration?.pagination)
+            }
+        } finally { database.close() }
+    }
+
     @Test fun cancelledResultsWizardCannotLosePersistedHomepageSelectors() = runBlocking {
         val database = db()
         try {
