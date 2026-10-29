@@ -445,7 +445,9 @@ class MyVideoSitesActivity : AppCompatActivity() {
                         owner.first, owner.second, phrase
                     ) == true) {
                     privateQueryInput.text.clear()
-                    finish()
+                    // Private results live here in RAM; never open the ordinary
+                    // persistent results tab or leave the private manager.
+                    refreshPrivatePanel()
                 } else message("Nie udało się uruchomić prywatnej kolejki.")
             }
         })
