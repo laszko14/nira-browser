@@ -1,3 +1,9 @@
+# P15/16 — UI-04/UI-03 — zachowanie dialogów przy błędach i rekreacji
+
+- P14 PASS w [CI 40950375215](https://github.com/laszko14/nira-browser/actions/runs/40950375215) na `88f6311a1ecaff966f848ff3de52ddba6417575f`. P15 koryguje dialog kolejki z automatycznie dismissującymi przyciskami; nowa walidacja po show zachowuje pole i blokuje podwójne dispatch. Szkice `QUEUE/SEARCH/EDIT` są normal-only, związane z profilem, ograniczone długością, zapisywane i odtwarzane wyłącznie jako tekst — bez automatycznego wykonania. Przy zmianie owner/private lub nieaktualnym site odtworzenie jest odrzucane. Testy Robolectric 6. Status **CI_PENDING** dla nowego SHA, realny IME/obrót NOT_TESTED. CFG-05 to ryzyko jakości w P13, nie zmiana harmonogramu; P16 UI-05 po kolejnym „Dalej”.
+
+---
+
 # P14/16 — CFG-04 — sesja portu po zmianie URL w SPA
 
 - P13 PASS: `f8acdf82` CI [40946787127](https://github.com/laszko14/nira-browser/actions/runs/40946787127). CFG-04: usunięta bezterminowa blokada `startUrl` przy zmianie History API w tym samym dokumencie. Przy zmianie URL same-origin następuje reset pending/picker i nowy nonce/rewizja Hello na **tym samym** Gecko port; natywny `url_sync` wysyłany przez obserwator BrowserStore po same-origin change, bez polling i bez naruszania prywatnego profilu. `isFresh` nadal wymaga dokładnego URL, a `VideoSearchSpaBinding` odrzuca obce origin/owner, stary Hello i niedopasowanie Store URL. Odroczone działania JS są związane z rewizją. Testy Kotlin (9) i real content.js Node (8), raport **CI_PENDING** dla nowego SHA. Urządzenie/realna kolejność Gecko History API **NOT_TESTED**. Następne P15 CFG-05 po kolejnym „Dalej”.

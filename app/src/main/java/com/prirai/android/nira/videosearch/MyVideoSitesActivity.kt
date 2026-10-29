@@ -54,6 +54,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
         const val STATE_DRAFT_OWNER = "videoSites.normalOwner"
         const val STATE_ADDRESS = "videoSites.normalAddress"
         const val STATE_LIST = "videoSites.normalList"
+        const val STATE_DIALOG = "videoSites.normalDialog"
     }
     private lateinit var repository: VideoSearchRepository
     private lateinit var input: EditText
@@ -74,6 +75,9 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private lateinit var sitesList: RecyclerView
     private var draftOwnerId: String? = null
     private var normalListState: Parcelable? = null
+    private var dialogSnapshot: (() -> VideoSearchNormalDialogDraft)? = null
+    private var trackedDialog: androidx.appcompat.app.AlertDialog? = null
+    private var pendingDialogRestore: VideoSearchNormalDialogDraft? = null
     private var scope: VideoSearchScope.Normal? = null
     private var observer: Job? = null
     private var deletedDefaultObserver: Job? = null
@@ -227,7 +231,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
         })
 
         adapter = SitesAdapter(
-            onEdit = ::editSite,
+            onEdit = { editSite(it) },
             onToggle = ::toggleSite,
             onSelect = ::setSiteSelected,
             onInspect = ::inspectSite,
@@ -236,7 +240,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             onPreview = ::previewResults,
             onCrawl = ::startPagination,
             onShowCrawl = ::showPagination,
-            onSearch = ::searchSite,
+            onSearch = { searchSite(it) },
             onDelete = ::confirmRemoval,
         )
         sitesList = RecyclerView(this).apply {
@@ -260,6 +264,9 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 input.setText(savedInstanceState.getString(STATE_ADDRESS).orEmpty())
                 @Suppress("DEPRECATION")
                 normalListState = savedInstanceState.getParcelable(STATE_LIST)
+                pendingDialogRestore = VideoSearchNormalDialogDraft.fromBundle(
+                    savedInstanceState.getBundle(STATE_DIALOG), draftOwnerId!!
+                )
             }
         }
 
@@ -637,6 +644,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
         super.onResume()
         val manager = ProfileManager.getInstance(applicationContext)
         if (manager.isPrivateMode()) {
+            dismissTrackedNormalDialog()
+            pendingDialogRestore = null
             input.text.clear()
             draftOwnerId = null
             normalListState = null
@@ -672,6 +681,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
         normalPanel.visibility = View.VISIBLE
         val current = VideoSearchScope.Normal(manager.getActiveProfile().id)
         if (draftOwnerId != current.profileId) {
+            dismissTrackedNormalDialog()
+            pendingDialogRestore = null
             input.text.clear()
             normalListState = null
         }
@@ -733,6 +744,27 @@ class MyVideoSitesActivity : AppCompatActivity() {
         if (scope == current && observer?.isActive == true) return
         observer?.cancel()
         scope = current
+        pendingDialogRestore?.let { draft ->
+            pendingDialogRestore = null // one-shot; never auto-submit or auto-save.
+            if (VideoSearchNormalDialogDraft.belongsTo(draft, current.profileId)) {
+                when (draft.kind) {
+                    VideoSearchNormalDialogKind.QUEUE -> previewQueue(draft.primary)
+                    VideoSearchNormalDialogKind.SEARCH,
+                    VideoSearchNormalDialogKind.EDIT -> lifecycleScope.launch {
+                        val currentSite = try {
+                            withContext(Dispatchers.IO) {
+                                repository.site(current, draft.siteId ?: return@launch)
+                            }
+                        } catch (_: Exception) { null }
+                        if (ownerIfCurrent() != current || currentSite == null ||
+                            !currentSite.enabled) return@launch
+                        if (draft.kind == VideoSearchNormalDialogKind.SEARCH)
+                            searchSite(currentSite, draft.primary)
+                        else editSite(currentSite, draft)
+                    }
+                }
+            }
+        }
         reorderPending = false
         adapter.replace(emptyList(), emptySet())
         observer = lifecycleScope.launch {
@@ -811,6 +843,30 @@ class MyVideoSitesActivity : AppCompatActivity() {
         outState.putString(STATE_ADDRESS, input.text.toString())
         outState.putParcelable(STATE_LIST,
             normalListState ?: sitesList.layoutManager?.onSaveInstanceState())
+        val draft = dialogSnapshot?.invoke()
+        if (draft != null && VideoSearchNormalDialogDraft.belongsTo(draft, owner.profileId))
+            outState.putBundle(STATE_DIALOG, draft.toBundle())
+    }
+
+    /** Only one ordinary dialog draft. No private text or session state here. */
+    private fun trackNormalDialog(
+        dialog: androidx.appcompat.app.AlertDialog,
+        state: () -> VideoSearchNormalDialogDraft,
+    ) {
+        trackedDialog = dialog
+        dialogSnapshot = state
+        dialog.setOnDismissListener {
+            if (trackedDialog === dialog) {
+                trackedDialog = null
+                dialogSnapshot = null
+            }
+        }
+    }
+
+    private fun dismissTrackedNormalDialog() {
+        trackedDialog?.dismiss()
+        trackedDialog = null
+        dialogSnapshot = null
     }
 
     override fun onSupportNavigateUp(): Boolean {
@@ -899,87 +955,113 @@ class MyVideoSitesActivity : AppCompatActivity() {
      * Explicitly a preview, not execution: no search run, browser tab or
      * network operation is created by this dialog.
      */
-    private fun previewQueue() {
+    private fun previewQueue(initialPhrase: String = "") {
         val owner = ownerIfCurrent() ?: return
         val field = EditText(this).apply {
             hint = "Fraza do wyszukania na wybranych witrynach"
             setSingleLine(true)
             inputType = InputType.TYPE_CLASS_TEXT
+            setText(initialPhrase)
+            isSaveEnabled = false
         }
         val dialog = MaterialAlertDialogBuilder(this)
             .setTitle("Podgląd kolejki witryn")
             .setView(field)
             .setNegativeButton("Anuluj", null)
-            .setNeutralButton("Uruchom wyszukiwanie") { _, _ ->
+            .setNeutralButton("Uruchom wyszukiwanie", null)
+            .setPositiveButton("Pokaż plan", null)
+            .create()
+        trackNormalDialog(dialog) {
+            VideoSearchNormalDialogDraft(owner.profileId,
+                VideoSearchNormalDialogKind.QUEUE, primary = field.text.toString())
+        }
+        dialog.setOnShowListener {
+            val preview = dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)
+            val execute = dialog.getButton(android.app.AlertDialog.BUTTON_NEUTRAL)
+            var busy = false
+            fun lock(value: Boolean) {
+                busy = value
+                preview.isEnabled = !value
+                execute.isEnabled = !value
+            }
+            fun validPhrase(): String? {
                 val phrase = field.text.toString().trim()
                 if (!VideoSearchBridgeProtocol.validQuery(phrase)) {
-                    message("Podaj poprawną frazę (1–250 znaków)")
-                } else {
-                    prepareAndConfirmMultiSite(owner, phrase)
+                    field.error = "Wpisz poprawną frazę (1–250 znaków)"
+                    return null
+                }
+                if (ownerIfCurrent() != owner) return null
+                return phrase
+            }
+            execute.setOnClickListener {
+                if (busy) return@setOnClickListener
+                val phrase = validPhrase() ?: return@setOnClickListener
+                lock(true)
+                prepareAndConfirmMultiSite(owner, phrase) {
+                    if (dialog.isShowing) lock(false)
                 }
             }
-            .setPositiveButton("Pokaż plan") { _, _ ->
-                val phrase = field.text.toString().trim()
-                if (!VideoSearchBridgeProtocol.validQuery(phrase)) {
-                    message("Podaj frazę o długości 1–250 znaków")
-                    return@setPositiveButton
-                }
+            preview.setOnClickListener {
+                if (busy) return@setOnClickListener
+                val phrase = validPhrase() ?: return@setOnClickListener
+                lock(true)
                 lifecycleScope.launch {
-                    val plan = try {
-                        withContext(Dispatchers.IO) {
+                    try {
+                        val plan = withContext(Dispatchers.IO) {
                             repository.prepareDispatch(owner, phrase)
                         }
+                        if (ownerIfCurrent() != owner || !dialog.isShowing) return@launch
+                        val ready = plan.runnableSites.size
+                        val waiting = plan.needsAttention.size
+                        val parallel = if (plan.parallelism == VideoSearchParallelism.ALL)
+                            "Wszystkie — według dostępnych zasobów"
+                        else "${plan.parallelism.maximumSites} jednocześnie"
+                        MaterialAlertDialogBuilder(this@MyVideoSitesActivity)
+                            .setTitle("Plan — bez uruchamiania")
+                            .setMessage("Wybrane aktywne witryny: ${plan.selectedCount}" +
+                                "\nGotowe do kolejki: $ready" +
+                                "\nWymagają konfiguracji: $waiting" +
+                                "\nRównoległość: $parallel" +
+                                "\n\nTo wyłącznie podgląd. Aby wysłać zapytania, " +
+                                "użyj przycisku „Uruchom wyszukiwanie”.")
+                            .setPositiveButton("OK", null)
+                            .show()
                     } catch (_: IllegalArgumentException) {
                         if (ownerIfCurrent() == owner)
-                            message("Zaznacz co najmniej jedną aktywną witrynę")
-                        return@launch
+                            field.error = "Zaznacz aktywną witrynę"
                     } catch (_: Exception) {
                         if (ownerIfCurrent() == owner)
                             message("Nie udało się przygotować planu")
-                        return@launch
+                    } finally {
+                        if (dialog.isShowing) lock(false)
                     }
-                    if (ownerIfCurrent() != owner) return@launch
-                    val ready = plan.runnableSites.size
-                    val waiting = plan.needsAttention.size
-                    val parallel = if (plan.parallelism == VideoSearchParallelism.ALL)
-                        "Wszystkie — według dostępnych zasobów"
-                    else "${plan.parallelism.maximumSites} jednocześnie"
-                    MaterialAlertDialogBuilder(this@MyVideoSitesActivity)
-                        .setTitle("Plan — bez uruchamiania")
-                        .setMessage("Wybrane aktywne witryny: ${plan.selectedCount}" +
-                            "\nGotowe do kolejki: $ready" +
-                            "\nWymagają konfiguracji: $waiting" +
-                            "\nRównoległość: $parallel" +
-                            "\n\nTo wyłącznie podgląd. Aby wysłać zapytania, " +
-                            "użyj przycisku „Uruchom wyszukiwanie”.")
-                        .setPositiveButton("OK", null)
-                        .show()
                 }
             }
-            .create()
+        }
         dialog.show()
     }
 
     /** Always re-read the current normal profile's sites before starting. */
     private fun prepareAndConfirmMultiSite(
-        owner: VideoSearchScope.Normal, phrase: String,
+        owner: VideoSearchScope.Normal, phrase: String, onReady: () -> Unit = {},
     ) {
         lifecycleScope.launch {
-            val plan = try {
-                withContext(Dispatchers.IO) {
-                    repository.prepareDispatch(owner, phrase)
+            try {
+                val plan = try {
+                    withContext(Dispatchers.IO) {
+                        repository.prepareDispatch(owner, phrase)
+                    }
+                } catch (_: Exception) {
+                    if (ownerIfCurrent() == owner)
+                        message("Zaznacz co najmniej jedną aktywną witrynę")
+                    return@launch
                 }
-            } catch (_: Exception) {
-                if (ownerIfCurrent() == owner)
-                    message("Zaznacz co najmniej jedną aktywną witrynę")
-                return@launch
-            }
-            if (ownerIfCurrent() != owner) return@launch
-            if (plan.runnableSites.isEmpty()) {
-                message("Wybrane witryny wymagają konfiguracji wyszukiwania")
-                return@launch
-            }
-            MaterialAlertDialogBuilder(this@MyVideoSitesActivity)
+                if (ownerIfCurrent() != owner) return@launch
+                if (plan.runnableSites.isEmpty()) {
+                    message("Wybrane witryny wymagają konfiguracji wyszukiwania")
+                    return@launch
+                }
+                MaterialAlertDialogBuilder(this@MyVideoSitesActivity)
                 .setTitle("Uruchomić wyszukiwanie na witrynach?")
                 .setMessage("Gotowe witryny: ${plan.runnableSites.size}; " +
                     "wymagają konfiguracji: ${plan.needsAttention.size}. " +
@@ -1003,6 +1085,9 @@ class MyVideoSitesActivity : AppCompatActivity() {
                     finish()
                 }
                 .show()
+            } finally {
+                onReady()
+            }
         }
     }
 
@@ -1547,12 +1632,14 @@ class MyVideoSitesActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun searchSite(site: VideoSearchSite) {
+    private fun searchSite(site: VideoSearchSite, initialPhrase: String = "") {
         val owner = ownerIfCurrent() ?: return
         if (site.scope != owner || !site.enabled) return
         val field = EditText(this).apply {
             hint = "Fraza do wyszukania na tej witrynie"
             setSingleLine(true)
+            setText(initialPhrase)
+            isSaveEnabled = false
             inputType = InputType.TYPE_CLASS_TEXT
             setPadding(dp(20), dp(12), dp(20), dp(12))
         }
@@ -1564,6 +1651,10 @@ class MyVideoSitesActivity : AppCompatActivity() {
             .setNegativeButton("Anuluj", null)
             .setPositiveButton("Szukaj", null)
             .create()
+        trackNormalDialog(dialog) {
+            VideoSearchNormalDialogDraft(owner.profileId,
+                VideoSearchNormalDialogKind.SEARCH, site.id, field.text.toString())
+        }
         dialog.setOnShowListener {
             dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val query = field.text.toString().trim()
@@ -1594,7 +1685,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    private fun editSite(site: VideoSearchSite) {
+    private fun editSite(site: VideoSearchSite,
+                         restore: VideoSearchNormalDialogDraft? = null) {
         val owner = ownerIfCurrent() ?: return
         if (site.scope != owner) return
         val form = LinearLayout(this).apply {
@@ -1602,19 +1694,19 @@ class MyVideoSitesActivity : AppCompatActivity() {
             setPadding(dp(20), dp(8), dp(20), 0)
         }
         val name = EditText(this).apply {
-            setText(site.displayName)
+            setText(restore?.primary ?: site.displayName)
             hint = "Nazwa witryny"
             setSingleLine(true)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
         }
         val limit = EditText(this).apply {
-            setText(site.resultLimit.toString())
+            setText(restore?.secondary ?: site.resultLimit.toString())
             hint = "Limit wyników (1–10000)"
             inputType = InputType.TYPE_CLASS_NUMBER
             setSingleLine(true)
         }
         val address = EditText(this).apply {
-            setText(site.siteUrl)
+            setText(restore?.tertiary ?: site.siteUrl)
             hint = "Pełny adres witryny po przekierowaniu (HTTP/HTTPS)"
             setSingleLine(true)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
@@ -1635,6 +1727,11 @@ class MyVideoSitesActivity : AppCompatActivity() {
             .setNegativeButton("Anuluj", null)
             .setPositiveButton("Zapisz", null)
             .create()
+        trackNormalDialog(dialog) {
+            VideoSearchNormalDialogDraft(owner.profileId,
+                VideoSearchNormalDialogKind.EDIT, site.id,
+                name.text.toString(), limit.text.toString(), address.text.toString())
+        }
         dialog.setOnShowListener {
             dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val cleaned = name.text.toString().trim()
