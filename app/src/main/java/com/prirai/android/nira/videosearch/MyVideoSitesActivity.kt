@@ -7,10 +7,12 @@ import android.text.InputType
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ListView
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
@@ -67,6 +69,9 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private lateinit var privateAddButton: Button
     private lateinit var privateQueryInput: EditText
     private lateinit var privateResultsLabel: TextView
+    private lateinit var privateResultsList: ListView
+    private lateinit var privateResultsAdapter: ArrayAdapter<String>
+    private var privateResultsItems: List<VideoSearchFilm> = emptyList()
     private val privateRunAccess = VideoSearchPrivateRunAccess()
     private val privateSitesAccess = VideoSearchPrivateSitesAccess()
 
@@ -251,6 +256,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             hint = "Adres prywatnej witryny"
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
             imeOptions = imeOptions or EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+            isSaveEnabled = false
             setSingleLine(true)
         }
         row.addView(privateSiteInput, LinearLayout.LayoutParams(0, -2, 1f))
@@ -299,6 +305,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             hint = "Fraza wyszukiwania (prywatnie)"
             setSingleLine(true)
             imeOptions = imeOptions or EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+            isSaveEnabled = false
         }
         privatePanel.addView(privateQueryInput)
         privatePanel.addView(Button(this).apply {
@@ -337,6 +344,38 @@ class MyVideoSitesActivity : AppCompatActivity() {
             text = "Brak poprzednich wyników prywatnych w tej sesji."
         }
         privatePanel.addView(privateResultsLabel)
+        // Adapter-backed ListView keeps 200 possible results virtualized and
+        // never loads thumbnail bytes into the persistent normal Coil cache.
+        privateResultsAdapter = ArrayAdapter(this,
+            android.R.layout.simple_list_item_1, mutableListOf<String>())
+        privateResultsList = ListView(this).apply {
+            adapter = privateResultsAdapter
+            isSaveEnabled = false
+            setOnItemClickListener { _, _, position, _ ->
+                val selected = selectedPrivateTab() ?: return@setOnItemClickListener
+                val film = privateResultsItems.getOrNull(position)
+                    ?: return@setOnItemClickListener
+                val current = privateRunAccess.latest(selected.first, selected.second)
+                    ?: return@setOnItemClickListener
+                if (film.scope !is VideoSearchScope.Private ||
+                    film.runId != current.run.id ||
+                    current.films.none { it.id == film.id }) return@setOnItemClickListener
+                try {
+                    VideoSearchIntegrity.requirePageUrl(film.filmPageUrl)
+                    applicationContext.components.tabsUseCases.addTab.invoke(
+                        film.filmPageUrl, selectTab = true, private = true,
+                        contextId = "private",
+                    )
+                    startActivity(Intent(this@MyVideoSitesActivity,
+                        BrowserActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+                    finish()
+                } catch (_: Exception) {
+                    message("Nie udało się otworzyć prywatnego filmu.")
+                }
+            }
+        }
+        privatePanel.addView(privateResultsList, LinearLayout.LayoutParams(-1, 0, 2f))
         privateSitesContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
@@ -369,6 +408,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
         if (snapshot == null) {
             privateAddButton.isEnabled = false
             privateResultsLabel.text = ""
+            privateResultsItems = emptyList()
+            privateResultsAdapter.clear()
             privateStatus.text = "Brak aktywnej prywatnej karty wyszukiwarki. " +
                 "Wróć do prywatnej karty i otwórz Moje witryny ponownie."
             return
@@ -381,15 +422,20 @@ class MyVideoSitesActivity : AppCompatActivity() {
             )
         }
         val latest = target?.let { privateRunAccess.latest(it.first, it.second) }
+        privateResultsItems = latest?.films ?: emptyList()
+        privateResultsAdapter.clear()
+        privateResultsAdapter.addAll(privateResultsItems.mapIndexed { index, film ->
+            "${index + 1}. " + (film.originalTitle ?: "Tytuł nieznany") +
+                VideoSearchResultsPresenter.durationLabel(film.durationSeconds)
+                    ?.let { " · $it" }.orEmpty()
+        })
         privateResultsLabel.text = if (latest == null) {
             "Brak poprzednich wyników prywatnych w tej sesji."
         } else {
-            val titles = latest.films.take(20).mapIndexed { i, film ->
-                "${i + 1}. " + (film.originalTitle ?: "Tytuł nieznany")
-            }
-            "Ostatnie wyszukiwanie (RAM): ${latest.films.size} pozycji. " +
-                "Tylko widoczna strona, bez paginacji.\n" +
-                titles.joinToString("\n")
+            val status = if (latest.run.status == VideoSearchRunState.COMPLETED)
+                "zakończone" else "częściowe"
+            "Wyniki prywatne w RAM: ${privateResultsItems.size} · $status. " +
+                "Dotknij tytułu, aby otworzyć go w nowej karcie prywatnej."
         }
         privateStatus.text = "Witryny tylko w RAM: ${snapshot.sites.size}, " +
             "wybrane: ${snapshot.selectedIds.size}. " +

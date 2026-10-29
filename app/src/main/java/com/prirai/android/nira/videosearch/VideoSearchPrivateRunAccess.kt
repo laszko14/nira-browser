@@ -22,8 +22,11 @@ internal class VideoSearchPrivateRunAccess(
         tab: VideoSearchPrivateTab, profileId: String, siteId: String,
         query: String, cards: List<VideoSearchExtractedFilm>,
         now: Long = System.currentTimeMillis(),
+        reason: VideoSearchPaginationStop? = null,
+        visitedPages: Int = 1,
     ): Boolean = registry.withAuthorizedTab(tab, profileId) { store, scope ->
-        if (!VideoSearchBridgeProtocol.validQuery(query) || cards.size > 80)
+        if (!VideoSearchBridgeProtocol.validQuery(query) ||
+            cards.size > 200 || visitedPages !in 1..12)
             return@withAuthorizedTab false
         val site = store.sites(scope).singleOrNull {
             it.id == siteId && it.enabled && it.id in store.settings(scope).selectedSiteIds
@@ -41,16 +44,32 @@ internal class VideoSearchPrivateRunAccess(
                 originalIndex = index, foundAtMs = now,
             )
         }
-        // One DOM page cannot prove NO_MORE_RESULTS. Never fake COMPLETED.
+        // Only evidence from the bounded collector permits a complete run.
+        val complete = (reason == VideoSearchPaginationStop.LIMIT_REACHED &&
+            films.size == DEFAULT_VIDEO_SEARCH_SITE_LIMIT) ||
+            reason == VideoSearchPaginationStop.NO_MORE_RESULTS
+        val completion = if (complete) when (reason) {
+            VideoSearchPaginationStop.LIMIT_REACHED ->
+                VideoSearchCompletionReason.LIMIT_REACHED
+            VideoSearchPaginationStop.NO_MORE_RESULTS ->
+                VideoSearchCompletionReason.NO_MORE_RESULTS
+            else -> null
+        } else null
         store.putRun(VideoSearchRun(
             id = id, scope = scope, query = query, siteIds = listOf(site.id),
-            parallelism = VideoSearchParallelism.ONE, status = VideoSearchRunState.STOPPED,
+            parallelism = VideoSearchParallelism.ONE,
+            status = if (complete) VideoSearchRunState.COMPLETED else VideoSearchRunState.STOPPED,
             startedAtMs = now, updatedAtMs = now, completedAtMs = now,
         ))
         store.putTask(VideoSearchSiteTask(
             runId = id, siteId = site.id, scope = scope,
-            status = VideoSearchSiteState.STOPPED,
-            uniqueResults = films.size, visitedPages = 1, issue = VideoSearchSiteIssue.OTHER,
+            status = if (complete) VideoSearchSiteState.COMPLETED
+                else VideoSearchSiteState.STOPPED,
+            uniqueResults = films.size,
+            resultLimit = DEFAULT_VIDEO_SEARCH_SITE_LIMIT,
+            visitedPages = visitedPages,
+            issue = if (complete) null else VideoSearchSiteIssue.OTHER,
+            completionReason = completion,
         ))
         films.forEach { store.putFilm(it) }
         store.trimOldRuns(scope)
@@ -64,6 +83,6 @@ internal class VideoSearchPrivateRunAccess(
             ) ?: return@withAuthorizedTab null
             VideoSearchPrivateRunSnapshot(run, run.siteIds.flatMap { siteId ->
                 store.films(scope, run.id, siteId)
-            }.sortedBy { it.originalIndex }.take(80))
+            }.sortedBy { it.originalIndex }.take(200))
         }
 }

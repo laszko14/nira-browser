@@ -118,10 +118,68 @@ class VideoSearchPrivateRunAccessTest {
         assertEquals(1, f.access.latest(f.tab, "default")!!.films.size)
     }
 
-    @Test fun moreThanEightyCardsCannotBeSaved() {
+    @Test fun moreThanTwoHundredCardsCannotBeSaved() {
         val f = Fixture()
         assertFalse(f.access.record(f.tab, "default", "site", "q",
-            List(81) { f.card("https://example.org/film?id=$it") }))
+            List(201) { f.card("https://example.org/film?id=$it") }))
+        assertTrue(f.store.runs(f.owner).isEmpty())
+    }
+
+    @Test fun twoHundredUniqueFilmsAreKeptInPrivateRamOnly() {
+        val f = Fixture()
+        assertTrue(f.access.record(f.tab, "default", "site", "q",
+            List(200) { f.card("https://example.org/film?id=$it") }))
+        assertEquals(200, f.access.latest(f.tab, "default")!!.films.size)
+        assertEquals(200, f.store.films(
+            f.owner, f.store.runs(f.owner).single().id, "site"
+        ).size)
+    }
+
+    @Test fun explicitNoMoreResultsMarksRealCompletion() {
+        val f = Fixture()
+        assertTrue(f.access.record(f.tab, "default", "site", "q",
+            listOf(f.card()), reason = VideoSearchPaginationStop.NO_MORE_RESULTS,
+            visitedPages = 3))
+        val run = f.access.latest(f.tab, "default")!!.run
+        assertEquals(VideoSearchRunState.COMPLETED, run.status)
+        val task = f.store.tasks(f.owner, run.id).single()
+        assertEquals(3, task.visitedPages)
+        assertEquals(VideoSearchSiteState.COMPLETED, task.status)
+        assertEquals(VideoSearchCompletionReason.NO_MORE_RESULTS, task.completionReason)
+    }
+
+    @Test fun explicitlyReachedLimitMarksTrueCompletion() {
+        val f = Fixture()
+        assertTrue(f.access.record(f.tab, "default", "site", "q",
+            List(200) { f.card("https://example.org/film?id=$it") },
+            reason = VideoSearchPaginationStop.LIMIT_REACHED))
+        val run = f.access.latest(f.tab, "default")!!.run
+        assertEquals(VideoSearchRunState.COMPLETED, run.status)
+        assertEquals(VideoSearchCompletionReason.LIMIT_REACHED,
+            f.store.tasks(f.owner, run.id).single().completionReason)
+    }
+
+    @Test fun forgedLimitReasonWithOnlyOneResultIsPartial() {
+        val f = Fixture()
+        assertTrue(f.access.record(f.tab, "default", "site", "q",
+            listOf(f.card()), reason = VideoSearchPaginationStop.LIMIT_REACHED))
+        val run = f.access.latest(f.tab, "default")!!.run
+        assertEquals(VideoSearchRunState.STOPPED, run.status)
+        assertNull(f.store.tasks(f.owner, run.id).single().completionReason)
+    }
+
+    @Test fun unsafePaginationNeverClaimsCompletion() {
+        val f = Fixture()
+        assertTrue(f.access.record(f.tab, "default", "site", "q",
+            listOf(f.card()), reason = VideoSearchPaginationStop.UNSAFE))
+        assertEquals(VideoSearchRunState.STOPPED,
+            f.access.latest(f.tab, "default")!!.run.status)
+    }
+
+    @Test fun pageBudgetExceedingTwelveIsRejectedBeforeWrites() {
+        val f = Fixture()
+        assertFalse(f.access.record(f.tab, "default", "site", "q",
+            listOf(f.card()), visitedPages = 13))
         assertTrue(f.store.runs(f.owner).isEmpty())
     }
 
