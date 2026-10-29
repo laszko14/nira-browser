@@ -226,7 +226,7 @@
     document.removeEventListener("pointerdown", state.blockPageHandlers, true);
     document.removeEventListener("touchstart", state.blockPageHandlers, true);
     document.removeEventListener("keydown", state.key, true);
-    window.removeEventListener("resize", state.clamp, false);
+    window.removeEventListener?.("resize", state.clamp, false);
     state.banner.remove();
   }
   function pick(command) {
