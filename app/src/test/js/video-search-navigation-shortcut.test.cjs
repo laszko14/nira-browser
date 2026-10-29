@@ -75,7 +75,7 @@ test('auto-opened picker is bound to exact selected normal tab and bounded ready
   assert.match(launch, /!manager\.isPrivateMode\(\)/);
   assert.match(launch, /manager\.getActiveProfile\(\)\.id == owner\.profileId/);
   assert.match(launch, /manualBusy \|\| crawlBusy \|\| isMultiSiteActive\(\)/);
-  assert.match(launch, /store\.state\.selectedTabId != expectedTabId/);
+  assert.match(launch, /it\.id == store\.state\.selectedTabId/);
   assert.match(launch, /withTimeoutOrNull<Boolean>\(20_000L\)/);
   assert.match(launch, /owner\.ownsTab\(/);
   assert.match(launch, /manualSiteTab\(site\)/);
