@@ -288,7 +288,9 @@
         else return null;
       } catch (_) { return null; }
     } else if (el.tagName === "BUTTON") {
-      if (el.type === "submit" || el.closest("form")) return null;
+      // HTML buttons default to type=submit even outside all forms.
+      // Clicking one is safe only if there is NO associated form.
+      if (el.form || el.closest("form")) return null;
       pagination = "LOAD_MORE";
     } else if (el.getAttribute("role") === "button" &&
         !el.closest("form") && safeSamePageAction(el)) {
@@ -1000,7 +1002,7 @@
       if (target.hasAttribute("download") ||
           (target.target && !["_self", ""].includes(target.target))) return "unsafe";
     } else {
-      const button = target.matches("button") && target.type !== "submit";
+      const button = target.matches("button") && !target.form;
       const roleButton = target.getAttribute("role") === "button" &&
         safeSamePageAction(target);
       const hashLink = target.matches("a[href]") &&
