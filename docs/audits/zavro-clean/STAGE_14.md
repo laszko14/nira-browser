@@ -1,0 +1,40 @@
+# Zavro Clean — etap 14/18: konflikty między funkcjami
+
+**PARTIAL — 14A COMPLETE, 14B NOT_STARTED**, 2026-10-29; v1.8, jeden agent, bez napraw. Baza `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79b326529d42e9b9fde4` (v1190). Dokumentacja `audit/zavro-clean-20261028`; wejściowy HEAD `3a184aea0f81976f316fd85a15ab504e6f17d839`, working tree czysty. Wykorzystano najnowszy checkpoint i potrzebne mapy4–6/8–13; app/config/AGENTS/workflow bez zmian, bez ponownej inwentaryzacji repo/PR.
+
+Podział według współdzielonej odpowiedzialności: **14A — panele, paski, gesty, viewport i fullscreen/zmiana rozmiaru**; **14B — stan kart/profili/sesji oraz multimedia/SPA/źródła i ich przecięcia z UI**. W tej turze wyłącznie 14A. Wspólne dane tab/group/order są granicą obu zakresów: warstwy i gesty poniżej, mutacje/restore/izolacja do 14B.
+
+## 14A — zakres, pytania i macierz konfliktów
+
+Pytania: który moduł otrzymuje gest/Back nad otwartą warstwą, kto może później zmienić viewport/chrome, jakie resety obowiązują przy fullscreen/obrocie i czy ścieżki Home/WWW zachowują ten sam kontrakt? Kryteria: prześledzone nowe przecięcia i kolejność callbacków, rozróżnienie istniejących ID od nowych przyczyn, określone granice dowodu/testów i checkpoint do 14B. Ścieżki względem app/src/main/java/com/prirai/android/nira.
+
+| Kombinacja | Wynik kontroli statycznej / ograniczenie |
+| --- | --- |
+| LEFT+RIGHT i szybkie zamknięcie | browser/panels/SidePanelInfrastructure:135–175,182–185,228–231,333–340: pojedynczy właściciel kontrolera, childCount obejmuje pending unmount, więc drugi panel nie montuje się pomiędzy CLOSED a odroczonym usunięciem. Post-unmount ponownie sprawdza CLOSED/disposed/stateSaved. To ochrona odczytana, nie nowy test kolejności Androida. Lokalne algorytmy i PASS4/5 zachowano bez powtarzania. |
+| Panel+dolny pasek i dane grup | Host dołączony bezpośrednio do root SwipeGestureLayout (Infrastructure:317–324), footer/FAB/toolbar są w browserWindow/browserLayout (fragment_browser.xml:1–25). Panel zasłania stronę/chrome; FAB.bringToFront działa tylko w jego rodzicu, nie podnosi całego browserWindow ponad hosta. Źródła porządku panelu i paska pozostają wspólne (mapy4B/6); sama asynchroniczna projekcja nie jest dowodem utraty kolejności. Mutacje, profile i restore do 14B. |
+| Panel+toolbar gesture | BrowserFragment:155–166,186 i SwipeGestureLayout:97–106: pierwszy akceptujący listener to toolbar, niezależnie od zasłaniającego go panelu. ToolbarGestureHandler:71–90,277–286 sprawdza tylko prostokąt/IME, nie zaangażowanie panelu. Nowe048, błędny właściciel jednego streamu. To nie stwierdzenie, że dispatcher przydziela równocześnie kilku właścicieli. |
+| Panel+strona/odtwarzacz i Back | Panelowy scrim/pozioma reguła/start-edge oraz root disallow współpracują z jednym dispatcherem; DnD/resize mają własne blokady (TabsBottomSheetFragment:213–217). closeOnBack:446–458 daje panelowi pierwszeństwo przed historią. Rozpoznane011 (dialog nad prawym panelem),017 (już przejęty stream) i019 (Compose DnD/swipe) pozostają aktualne; nie ponawiano ich dowodów. APZ, systemowe gesty, iframe i OEM wymagają telefonu. |
+| Panel+fullscreen+obrót | Infrastructure:86–118,462–468 resetuje drag, motion/controller i odkłada prune z walidacją stanu. BrowserFragment:120–131 oraz1035–1038 łączą config/fullscreen z infrastrukturą i FAB. Przed Back w fullscreen panel jest CLOSED. Istniejący SidePanelGestureExclusionPolicyTest:65–89 opisuje reset samej infrastruktury, nie pełny toolbar/post workflow; nie uruchamiano go i nie nadano nowego PASS. |
+| Fullscreen+przywrócenie chrome | BrowserFragment:1052–1084 odkłada restore przez post; stary callback może wykonać się po nowym enter. UnifiedToolbar/ModernToolbarSystem wyemitują wtedy niezerową rezerwację ukrytego chrome, a adjustWebContentMargins... nie sprawdza fullscreen. Nowe 047, odrębne od konfliktu IME020 i animacji przełączania018. |
+| Toolbar scroll/minimal+viewport/IME | UnifiedToolbar:1184–1295 animuje wyłącznie własne auxiliaries, osobny footer pozostaje poza tą animacją. ModernToolbarSystem:200–243 ma cancel/koniec i rozdzielenie offsetu animowanego od finalnego marginesu; WCP.requestUpdate:126–128 czyści wyłącznie padding EngineView. Konflikt IME versus rezerwacja chrome020 nadal obowiązuje. Koszt per-frame relayout nie został zmierzony — do15, bez nowego hipotetycznego zgłoszenia wydajności. |
+| Home+WWW i wspólny fling | SwipeGestureLayout:110–116 przekazuje surowe velocityX; oba handlery identycznie określają kierunek po dx. ToolbarGestureHandler:203–213 ma jednak przeciwny znak dopasowania niż HomeToolbarGestureHandler:176–189. Nowe049; nie wymaga nakładania animatorów018 ani otwartego panelu. Zależność ujawniona przy porównaniu arbitrażu, bez powtarzania całego etapu8. |
+| Obrót/resize+personalizacja | Infrastructure zamyka panele, a BrowserFragment postuje pomiar footer/viewport. Geometria paneli i preferencje pion/poziom z4/5 nie były ponownie lokalnie audytowane. Istniejące015 (klucz odświeżania ustawień),007/008 (resize) i020 wyznaczają ograniczenia kombinacji. Prawdziwy resize/IME/obrót wymaga Androida; nie przypisano temu PASS z analizy pojedynczej funkcji. |
+| FAB/player+warstwy | MediaFloatingUi.setFullscreen/render zamyka arkusz i ukrywa FAB, a jego detach i teardown paneli mają oddzielne obowiązki (mapa13). Modalny arkusz ma osobne okno; nie jest przezroczystą nakładką przekazującą dotyk do filmu. Interakcje preview/detektor i źródła pozostają do 14B;045/046 nie są nowymi zgłoszeniami14A. |
+
+Nowe **047/048/049 CONFIRMED P2**, bez nowych hipotez. Szczegóły i scenariusze regresji tylko w [FINDINGS](FINDINGS.md). Wszystkie trzy potwierdzenia dotyczą deterministycznego mechanizmu w kodzie pod opisanymi warunkami, nie reprodukcji na Nothing Phone (1). Bilans14A P0=0/P1=0/P2=3/P3=0. Łącznie 42 CONFIRMED (P1=3/P2=37/P3=2),4 LIKELY,3 SUSPECTED.
+
+## Weryfikacja i ograniczenia
+
+**Analiza statyczna:** ręcznie prześledzono ścieżki i kontrprzykłady047 (exit→enter→stary restore),048 (pierwszeństwo zasłoniętego hitboxu),049 (znak v dla tego samego dx). Dokładne wartości/przesłanki i linie w rejestrze. Nie tworzono drugich implementacji badanych algorytmów ani atrap Androida tylko do powtórzenia prostego warunku.
+
+**Testy aplikacji: NOT_TESTED w 14A.** Nie uruchamiano Node/Kotlin/Gradle/lint/CI/APK ani nowych harnessów. Wcześniejsze PASS nie zostały ponowione ani przedstawione jako test nowych kombinacji. Specyfikacje regresji zapisano do przyszłego wdrożenia; nie dodano testów w app.
+
+**NOT_TESTED — runtime:** harmonogram View.post/StateFlow/native fullscreen i animatorów, pełny dispatch View/Compose/RecyclerView/APZ, systemowy/predictive Back, LTR/RTL na urządzeniu, iframe/video, rozmiary/insety/obrót/PiP, fizyczne 120Hz i telefon. Przykładowe współrzędne/liczby są dowodem logicznym, nie wynikiem pomiaru. Nie uznano wszystkich kombinacji z macierzy za bezkolizyjne.
+
+## Checkpoint i wznowienie
+
+Etap 14 PARTIAL: **14A COMPLETE,14B NOT_STARTED**. Zapis: ten raport, rejestr, indeks i pierwszy ZC-AUD w docs/AI_HANDOFF.md. App/.github/AGENTS zgodne z bazą; brak PR audytowego potwierdzony jednorazowo. Reguły workflow niezmienione, wykorzystano wcześniejszą kontrolę wyzwalaczy; bez dispatch CI. Commit/push/SHA w odpowiedzi, bez dodatkowego commitu dla własnego SHA.
+
+Po „Dalej” wykonać **14B — konflikty stanu kart/profili/sesji i multimediów**: przełączenie/zamknięcie karty z aktywną sesją/odtwarzaniem, grupy/order/DnD versus profil i zapis, restore versus ustawienia UI, detektor/SPA/wielokrotne źródła/FAB/iframe oraz preview tworzący nowe video. Bazować na mapach4B/6/10–13 i aktualnych ID; nie powtarzać 14A ani lokalnych PASS. Rozstrzygnąć konkretne nowe przepływy, nie scalać tytułów jako tożsamości ani nie duplikować usterek. Dopiero po wymaganym zakresie14B zamknąć14; nie rozpoczynać15 w tej samej turze. Złożone zależności Gecko/stan/asynchronia: rekomendacja **GPT-6.1 Sol / High / Standard**, bez zmiany ustawień i bez deklarowania dostępności na koncie.
+
+**ETAP 14/18 NIEUKOŃCZONY — STOP. Zapisano punkt wznowienia. Polecenie „Dalej” kontynuuje bieżący etap.**
