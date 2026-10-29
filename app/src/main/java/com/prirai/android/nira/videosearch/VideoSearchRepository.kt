@@ -173,6 +173,42 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
         return dao.updateSiteDetails(scope.profileId, id, cleaned, limit, nowMs) == 1
     }
 
+    /** Correct a redirect's final full URL only after explicit UI approval.
+     * A second tab, another profile, or a stale editor cannot rewrite it. */
+    suspend fun correctSiteAddress(
+        original: VideoSearchSite, newAddress: String,
+        name: String, limit: Int, confirmed: Boolean,
+        nowMs: Long = System.currentTimeMillis(),
+    ): VideoSearchSiteAddressEdit {
+        val owner = original.scope as? VideoSearchScope.Normal
+            ?: return VideoSearchSiteAddressEdit.STALE
+        val url = VideoSearchIntegrity.siteInputUrl(newAddress)
+        val cleaned = name.trim()
+        require(cleaned.isNotEmpty() && cleaned.length <= 120 &&
+            cleaned.none { it.isISOControl() })
+        require(limit in 1..10_000)
+        require(confirmed || url == original.siteUrl) {
+            "Zmiana adresu wymaga wyraźnego potwierdzenia"
+        }
+        return dao.correctSiteAddress(owner.profileId, original.id,
+            original.siteUrl, original.updatedAtMs, url, cleaned, limit, nowMs)
+    }
+
+    /** A user-requested successful selector check may restore old selectors.
+     * Invalid/empty inspection never promotes a site to CONFIGURED. */
+    suspend fun confirmRepairedConfiguration(
+        site: VideoSearchSite, validation: VideoSearchBridgeMessage.Validation,
+        nowMs: Long = System.currentTimeMillis(),
+    ): Boolean {
+        val owner = site.scope as? VideoSearchScope.Normal ?: return false
+        if (site.configurationState != VideoSiteConfigurationState.REPAIR_REQUIRED ||
+            site.configuration?.resultsCardSelector.isNullOrBlank() ||
+            validation.status != "valid" || validation.reason != "ok" ||
+            validation.matchedCards <= 0) return false
+        return dao.confirmRepairedConfiguration(owner.profileId, site.id,
+            site.siteUrl, site.updatedAtMs, nowMs) == 1
+    }
+
     suspend fun setSiteEnabled(
         scope: VideoSearchScope.Normal, id: String, enabled: Boolean,
         nowMs: Long = System.currentTimeMillis(),

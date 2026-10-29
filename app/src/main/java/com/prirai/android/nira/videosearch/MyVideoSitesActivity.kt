@@ -1258,8 +1258,19 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 return@launch
             }
             when (report.status) {
-                "valid" -> message("Selektory działają. Znaleziono ${report.matchedCards} kart " +
-                    "(${report.attempts} próby).")
+                "valid" -> {
+                    if (current.configurationState == VideoSiteConfigurationState.REPAIR_REQUIRED) {
+                        val confirmed = try {
+                            withContext(Dispatchers.IO) {
+                                repository.confirmRepairedConfiguration(current, report)
+                            }
+                        } catch (_: Exception) { false }
+                        if (ownerIfCurrent() == owner) message(if (confirmed)
+                            "Sprawdzono i przywrócono konfigurację dla nowego adresu."
+                            else "Witryna zmieniła się. Sprawdź ponownie.")
+                    } else message("Selektory działają. Znaleziono ${report.matchedCards} kart " +
+                        "(${report.attempts} próby).")
+                }
                 "unverified" -> message("Pole działa, ale wyniki/paginacja są niepotwierdzone. " +
                     "Otwórz stronę wyników i ponów sprawdzenie.")
                 "stale", "unsafe" -> offerRepair(owner, current, report, bridge)
@@ -1585,10 +1596,21 @@ class MyVideoSitesActivity : AppCompatActivity() {
             inputType = InputType.TYPE_CLASS_NUMBER
             setSingleLine(true)
         }
+        val address = EditText(this).apply {
+            setText(site.siteUrl)
+            hint = "Pełny adres witryny po przekierowaniu (HTTP/HTTPS)"
+            setSingleLine(true)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+        }
         form.addView(TextView(this).apply { text = "Nazwa wyświetlana" })
         form.addView(name)
         form.addView(TextView(this).apply { text = "Limit filmów na witrynę (domyślnie 200)" })
         form.addView(limit)
+        form.addView(TextView(this).apply { text = "Adres witryny (pełny URL)" })
+        form.addView(address)
+        form.addView(TextView(this).apply {
+            text = "Po zmianie adresu zapisane elementy pozostaną, ale wymagają sprawdzenia."
+        })
 
         val dialog = MaterialAlertDialogBuilder(this)
             .setTitle("Edytuj witrynę")
@@ -1609,23 +1631,59 @@ class MyVideoSitesActivity : AppCompatActivity() {
                     limit.error = "Wpisz liczbę od 1 do 10000"
                     return@setOnClickListener
                 }
+                val newUrl = try {
+                    VideoSearchIntegrity.siteInputUrl(address.text.toString())
+                } catch (_: IllegalArgumentException) {
+                    address.error = "Podaj pełny, prawidłowy adres HTTP(S)"
+                    return@setOnClickListener
+                }
                 if (ownerIfCurrent() != owner) return@setOnClickListener
-                dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).isEnabled = false
-                lifecycleScope.launch {
-                    try {
-                        val updated = withContext(Dispatchers.IO) {
-                            repository.updateSiteDetails(owner, site.id, cleaned, number)
+                fun save(approvedAddress: Boolean) {
+                    dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).isEnabled = false
+                    lifecycleScope.launch {
+                        try {
+                            val result = withContext(Dispatchers.IO) {
+                                if (newUrl == site.siteUrl) {
+                                    if (repository.updateSiteDetails(owner, site.id, cleaned, number))
+                                        VideoSearchSiteAddressEdit.UPDATED
+                                    else VideoSearchSiteAddressEdit.STALE
+                                } else repository.correctSiteAddress(
+                                    site, newUrl, cleaned, number, approvedAddress
+                                )
+                            }
+                            if (ownerIfCurrent() != owner) {
+                                dialog.dismiss()
+                                return@launch
+                            }
+                            when (result) {
+                                VideoSearchSiteAddressEdit.UPDATED,
+                                VideoSearchSiteAddressEdit.UNCHANGED -> {
+                                    if (newUrl != site.siteUrl)
+                                        message("Adres zaktualizowany. Użyj „Sprawdź” albo „Wskaż”.")
+                                    dialog.dismiss()
+                                }
+                                VideoSearchSiteAddressEdit.DUPLICATE_URL ->
+                                    address.error = "Ten adres jest już zapisany na liście"
+                                VideoSearchSiteAddressEdit.STALE ->
+                                    message("Witryna zmieniła się lub została usunięta. Otwórz edycję ponownie.")
+                            }
+                        } catch (_: Exception) {
+                            if (ownerIfCurrent() == owner) message("Nie udało się zapisać zmian")
+                        } finally {
+                            dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)?.isEnabled = true
                         }
-                        if (ownerIfCurrent() == owner) {
-                            if (!updated) message("Witryna została już usunięta")
-                            dialog.dismiss()
-                        } else dialog.dismiss()
-                    } catch (_: Exception) {
-                        if (ownerIfCurrent() == owner) message("Nie udało się zapisać zmian")
-                    } finally {
-                        dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)?.isEnabled = true
                     }
                 }
+                if (newUrl == site.siteUrl) save(false)
+                else MaterialAlertDialogBuilder(this)
+                    .setTitle("Potwierdź zmianę adresu")
+                    .setMessage("Zapisany adres zostanie zastąpiony pełnym nowym adresem. " +
+                        "Witryna zachowa ID, wybór, historię i ustawienia. " +
+                        "Selektory zostaną zachowane, lecz przed wyszukiwaniem wymagają " +
+                        "ponownego sprawdzenia na tej witrynie. Kontynuować?")
+                    .setNegativeButton("Anuluj", null)
+                    .setPositiveButton("Zmień adres") { _, _ -> save(true) }
+                    .show()
             }
         }
         dialog.show()

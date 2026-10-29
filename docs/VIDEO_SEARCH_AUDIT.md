@@ -1,3 +1,10 @@
+# P12/16 — CFG-01 — korekta adresu po przekierowaniu
+
+- P11: zielone CI SHA `98b8ec34` / run [40942419434](https://github.com/laszko14/nira-browser/actions/runs/40942419434). P12: po przekierowaniu zapisany dokładny URL może być nieaktualny; **nie** poluzowano automatycznie dopasowania profilu, tabId ani origin w Bridge. Zamiast tego normalny profil może edytować pełny adres **za wyraźną zgodą**; Room DAO sprawdza duplicate / CAS i zachowuje cały stary rekord w miejscu, a konfigurację bez utraty selektorów oznacza do ponownego sprawdzenia. Gotowe testy Room, CI_PENDING dla nowego SHA.
+- Po potwierdzeniu poprawnego sprawdzenia przez `Sprawdź` konfiguracja może powrócić do `CONFIGURED` bez utraty selektorów. Konserwatywnie nie uznaje się redirectów automatycznie; realne HTTP/HTTPS/WWW/Gecko wymagają testu urządzenia (**NOT_TESTED**). Kontynuacja: P13/16 CFG-02 po kolejnym „Dalej”; bez APK/merge.
+
+---
+
 # P11/16 — SR-07 — koniec paginacji a chwilowa niedostępność
 
 - P10 **PASS**: [40938789130](https://github.com/laszko14/nira-browser/actions/runs/40938789130) na `4fec5efba28d8a742177dafedfd462fe5fd9116a`. P11: WebExtension `pending` dla niegotowego/nieobecnego next; `end` tylko przy stabilnym, jawnym markerze końcowej strony, bez loadera. Wspólne 4 próby, odmowa `NO_MORE_RESULTS` bez dowodu, zachowanie częściowych filmów.

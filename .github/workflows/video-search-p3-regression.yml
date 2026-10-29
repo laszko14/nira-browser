@@ -1,4 +1,4 @@
-name: Zavro video search P3-P11 regressions (no APK)
+name: Zavro video search P3-P12 regressions (no APK)
 
 on:
   push:
@@ -15,6 +15,8 @@ on:
       - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchDao.kt'
       - 'app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchConfigurationRevisionTest.kt'
       - 'app/src/test/java/com/prirai/android/nira/videosearch/MyVideoSitesManagementTest.kt'
+      - 'app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchAddressCorrectionTest.kt'
+      - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchIntegrity.kt'
       - 'app/src/main/assets/extensions/zavro-video-search/content.js'
       - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchBridgeProtocol.kt'
       - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchVisiblePageCollector.kt'
@@ -73,7 +75,7 @@ jobs:
           java-version: '17'
           distribution: zulu
       - uses: gradle/actions/setup-gradle@v5
-      - name: P3-P11 targeted worker configuration, pagination and search generation regression
+      - name: P3-P12 targeted worker, redirect correction and pagination regression
         run: |
           ./gradlew :app:testDebugUnitTest --console=plain \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchNormalWorkerLeaseTest' \
@@ -86,6 +88,7 @@ jobs:
             --tests 'com.prirai.android.nira.videosearch.VideoSearchManualConfigurationTest' \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchConfigurationHealthTest' \
             --tests 'com.prirai.android.nira.videosearch.MyVideoSitesManagementTest' \
+            --tests 'com.prirai.android.nira.videosearch.VideoSearchAddressCorrectionTest' \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchPageBatchProtocolTest' \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchVisiblePageCollectorTest' \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchPaginationCollectorTest' \
@@ -110,7 +113,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: video-search-p3-p4-p5-p6-p7-p8-p9-p10-p11-tests
+          name: video-search-p3-p4-p5-p6-p7-p8-p9-p10-p11-p12-tests
           path: |
             app/build/test-results/testDebugUnitTest/**
             app/build/reports/tests/testDebugUnitTest/**

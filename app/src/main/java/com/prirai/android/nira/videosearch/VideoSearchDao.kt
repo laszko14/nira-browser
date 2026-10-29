@@ -38,6 +38,11 @@ internal data class VideoSearchAggregateCheckpoint(
     val truncated: Boolean,
 )
 
+/** No exception-driven duplicate handling; every correction has a typed outcome. */
+internal enum class VideoSearchSiteAddressEdit {
+    UPDATED, UNCHANGED, DUPLICATE_URL, STALE
+}
+
 @Dao
 internal interface VideoSearchDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -117,6 +122,39 @@ internal interface VideoSearchDao {
 
     @Query("UPDATE video_search_sites SET displayName = :name, resultLimit = :limit, updatedAtMs = CASE WHEN updatedAtMs >= :nowMs THEN updatedAtMs + 1 ELSE :nowMs END WHERE profileId = :profileId AND id = :id")
     suspend fun updateSiteDetails(profileId: String, id: String, name: String, limit: Int, nowMs: Long): Int
+
+    /**
+     * Explicit user correction: ONE compare-and-set mutation, never replace a
+     * row by ID or unlink existing selections, historical film links or folders.
+     * Old selectors are retained but flagged for revalidation after URL change.
+     */
+    @Query("UPDATE video_search_sites SET siteUrl = :url, displayName = :name, resultLimit = :limit, configurationState = CASE WHEN configurationJson IS NULL THEN 'NEEDS_CONFIGURATION' ELSE 'REPAIR_REQUIRED' END, updatedAtMs = CASE WHEN updatedAtMs >= :nowMs THEN updatedAtMs + 1 ELSE :nowMs END WHERE profileId = :profileId AND id = :id AND siteUrl = :expectedUrl AND updatedAtMs = :expectedUpdatedMs")
+    suspend fun correctSiteAddressCas(profileId: String, id: String, expectedUrl: String,
+                                      expectedUpdatedMs: Long, url: String, name: String,
+                                      limit: Int, nowMs: Long): Int
+
+    @Transaction
+    suspend fun correctSiteAddress(
+        profileId: String, id: String, expectedUrl: String, expectedUpdatedMs: Long,
+        url: String, name: String, limit: Int, nowMs: Long,
+    ): VideoSearchSiteAddressEdit {
+        val current = getSite(profileId, id) ?: return VideoSearchSiteAddressEdit.STALE
+        if (current.siteUrl != expectedUrl || current.updatedAtMs != expectedUpdatedMs)
+            return VideoSearchSiteAddressEdit.STALE
+        if (current.siteUrl == url) return VideoSearchSiteAddressEdit.UNCHANGED
+        if (getSiteByUrl(profileId, url)?.id != null)
+            return VideoSearchSiteAddressEdit.DUPLICATE_URL
+        return if (correctSiteAddressCas(
+                profileId, id, expectedUrl, expectedUpdatedMs, url, name, limit, nowMs
+            ) == 1) VideoSearchSiteAddressEdit.UPDATED
+            else VideoSearchSiteAddressEdit.STALE
+    }
+
+    @Query("UPDATE video_search_sites SET configurationState = 'CONFIGURED', updatedAtMs = CASE WHEN updatedAtMs >= :nowMs THEN updatedAtMs + 1 ELSE :nowMs END WHERE profileId = :profileId AND id = :id AND siteUrl = :expectedUrl AND updatedAtMs = :revision AND enabled = 1 AND configurationState = 'REPAIR_REQUIRED' AND configurationJson IS NOT NULL")
+    suspend fun confirmRepairedConfiguration(
+        profileId: String, id: String, expectedUrl: String,
+        revision: Long, nowMs: Long,
+    ): Int
 
     @Query("UPDATE video_search_sites SET enabled = :enabled, updatedAtMs = CASE WHEN updatedAtMs >= :nowMs THEN updatedAtMs + 1 ELSE :nowMs END WHERE profileId = :profileId AND id = :id")
     suspend fun setSiteEnabled(profileId: String, id: String, enabled: Boolean, nowMs: Long): Int
