@@ -195,17 +195,19 @@ private fun VideoSearchResultsTabBound(
         }
     }
 
-    fun ownsFilm(film: VideoSearchFilm): Boolean {
-        val browser = context.applicationContext.components
-        val current = state.snapshot?.run ?: return false
-        val tab = browser.store.state
+    fun ownsResultsTab(): Boolean {
+        val tab = context.applicationContext.components.store.state
         return isActiveNormalProfile(context, profileId) &&
             tab.selectedTabId == tabId &&
-            current.id == film.runId && film.scope == scope &&
-            film.siteId in current.siteIds &&
             tab.tabs.any { it.id == tabId && !it.content.private &&
                 it.contextId == scope.contextId &&
                 it.content.url == VIDEO_SEARCH_RESULTS_TAB_URL }
+    }
+
+    fun ownsFilm(film: VideoSearchFilm): Boolean {
+        val current = state.snapshot?.run ?: return false
+        return ownsResultsTab() && current.id == film.runId &&
+            film.scope == scope && film.siteId in current.siteIds
     }
 
     fun notifyUser(label: String) {
@@ -343,6 +345,13 @@ private fun VideoSearchResultsTabBound(
     VideoSearchResultsScreen(
         state = state,
         onBack = onClose,
+        onOpenSavedFolders = {
+            if (ownsResultsTab()) try {
+                VideoSavedFoldersTabOpener.open(context, scope)
+            } catch (_: Exception) {
+                notifyUser("Nie udało się otworzyć zapisanych folderów")
+            }
+        },
         onRefresh = { refreshVersion++ },
         onSelectRun = { selected -> chosenRunId = selected },
         onViewChange = { next ->

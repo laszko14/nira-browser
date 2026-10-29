@@ -30,6 +30,7 @@ import com.prirai.android.nira.media.MediaDetectorController
 import com.prirai.android.nira.videosearch.VIDEO_SEARCH_RESULTS_TAB_URL
 import com.prirai.android.nira.videosearch.VIDEO_SAVED_FOLDERS_TAB_URL
 import com.prirai.android.nira.videosearch.VideoSavedFoldersTabRoute
+import com.prirai.android.nira.videosearch.VideoSavedFoldersBackDispatcher
 import com.prirai.android.nira.videosearch.VideoSavedFoldersTabContent
 import com.prirai.android.nira.videosearch.VideoSearchResultsTabContent
 import com.prirai.android.nira.videosearch.VideoSearchResultsTabRoute
@@ -69,6 +70,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     private val windowFeature = ViewBoundFeatureWrapper<WindowFeature>()
     private var mediaFloatingUi: MediaFloatingUi? = null
     private var sidePanelInfrastructure: SidePanelInfrastructure? = null
+    private val savedFoldersBackDispatcher = VideoSavedFoldersBackDispatcher()
     // ProfileManager is SharedPreferences-backed, not a Compose StateFlow.
     // Recompose the internal results tab only when a selected tab switches owner.
     private var resultsProfileRevision by androidx.compose.runtime.mutableIntStateOf(0)
@@ -434,6 +436,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     }
 
     override fun onDestroyView() {
+        savedFoldersBackDispatcher.clear()
         // During parent view teardown, let FragmentManager own child view destruction.
         sidePanelInfrastructure?.releaseLeftContentBinding(childFragmentManager)
         sidePanelInfrastructure?.releaseRightContentBinding(childFragmentManager)
@@ -1574,6 +1577,16 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         if (sidePanelInfrastructure?.closeOnBack() == true) return true
         val store = requireContext().components.store
         val selected = store.state.tabs.find { it.id == store.state.selectedTabId }
+        if (selected?.content?.url == VIDEO_SAVED_FOLDERS_TAB_URL) {
+            val activeProfileId = com.prirai.android.nira.browser.profile.ProfileManager
+                .getInstance(requireContext()).getActiveProfile().id
+            val owner = VideoSavedFoldersTabRoute.normalOwner(
+                selected.content.url, selected.contextId, selected.content.private,
+                activeProfileId,
+            )
+            // Panels have priority. A folder goes to root; root closes its tab.
+            if (savedFoldersBackDispatcher.handle(selected.id, owner)) return true
+        }
         if (selected != null && (selected.content.url == VIDEO_SEARCH_RESULTS_TAB_URL ||
                 selected.content.url == VIDEO_SAVED_FOLDERS_TAB_URL)) {
             requireContext().components.tabsUseCases.removeTab(selected.id)
@@ -1851,6 +1864,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                             tabId = current.id,
                             profileId = profileId,
                             onClose = closeThisInternalTab,
+                            backDispatcher = savedFoldersBackDispatcher,
                         )
                     }
                 }

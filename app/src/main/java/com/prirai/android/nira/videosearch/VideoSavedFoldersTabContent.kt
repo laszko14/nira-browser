@@ -33,7 +33,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * ETAP 8B. Profile-scoped saved film library and explicitly confirmed edits, INSIDE a normal BrowserStore
+ * ETAP 8C. Profile-scoped saved film library and explicitly confirmed edits, INSIDE a normal BrowserStore
  * tab. No Activity/Drawer, own tab group or private-profile persistence.
  */
 @Composable
@@ -41,6 +41,7 @@ internal fun VideoSavedFoldersTabContent(
     tabId: String,
     profileId: String?,
     onClose: () -> Unit,
+    backDispatcher: VideoSavedFoldersBackDispatcher,
 ) {
     val context = LocalContext.current
     val allowed = profileId != null && isActiveNormalProfile(context, profileId)
@@ -56,7 +57,7 @@ internal fun VideoSavedFoldersTabContent(
                     Modifier.padding(20.dp))
             }
         } else {
-            VideoSavedFoldersBound(tabId, profileId!!, onClose)
+            VideoSavedFoldersBound(tabId, profileId!!, onClose, backDispatcher)
         }
     }
 }
@@ -66,6 +67,7 @@ private fun VideoSavedFoldersBound(
     tabId: String,
     profileId: String,
     onClose: () -> Unit,
+    backDispatcher: VideoSavedFoldersBackDispatcher,
 ) {
     val context = LocalContext.current
     val scope = remember(profileId) { VideoSearchScope.Normal(profileId) }
@@ -150,12 +152,27 @@ private fun VideoSavedFoldersBound(
         }
     }
 
+    // The Android/system Back route and the header arrow share the same folder
+    // state. Registration lives only while THIS selected normal tab is composed.
+    DisposableEffect(tabId, profileId, backDispatcher) {
+        val unregister = backDispatcher.register(tabId, profileId) {
+            if (!ownsLibraryTab() || currentFolderId == null) false
+            else {
+                currentFolderId = null
+                true
+            }
+        }
+        onDispose { unregister() }
+    }
+
     VideoSavedFoldersScreen(
         snapshot = state,
         error = error,
         selectedFolderId = currentFolderId,
         onBack = {
-            if (currentFolderId != null) currentFolderId = null else onClose()
+            if (ownsLibraryTab()) {
+                if (currentFolderId != null) currentFolderId = null else onClose()
+            }
         },
         onFolder = { folder ->
             if (isActiveNormalProfile(context, profileId) &&

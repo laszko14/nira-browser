@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -81,6 +82,7 @@ internal class VideoSearchResultsActivity : AppCompatActivity() {
                     VideoSearchResultsScreen(
                         state = screen,
                         onBack = { finish() },
+                        onOpenSavedFolders = ::openSavedFolders,
                         onRefresh = { refresh() },
                         onSelectRun = { id -> chosenRunId = id; refresh() },
                         onViewChange = ::saveView,
@@ -156,6 +158,20 @@ internal class VideoSearchResultsActivity : AppCompatActivity() {
         }
     }
 
+    private fun openSavedFolders() {
+        val scope = owner ?: return
+        if (!ownsCurrentProfile()) { finish(); return }
+        try {
+            VideoSavedFoldersTabOpener.open(this, scope)
+            startActivity(Intent(this, BrowserActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+            finish()
+        } catch (_: Exception) {
+            Toast.makeText(this, "Nie udało się otworzyć zapisanych folderów",
+                Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun openFilm(film: VideoSearchFilm) {
         val scope = owner ?: return
         val run = screen.snapshot?.run ?: return
@@ -191,6 +207,7 @@ internal data class VideoSearchResultsScreenState(
 internal fun VideoSearchResultsScreen(
     state: VideoSearchResultsScreenState,
     onBack: () -> Unit,
+    onOpenSavedFolders: () -> Unit,
     onRefresh: () -> Unit,
     onSelectRun: (String) -> Unit,
     onViewChange: (VideoSearchView) -> Unit,
@@ -256,7 +273,13 @@ internal fun VideoSearchResultsScreen(
                     Icon(Icons.Default.ArrowBack, contentDescription = "Wróć")
                 }
                 Text("Wyniki wyszukiwania", modifier = Modifier.weight(1f),
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                TextButton(onClick = onOpenSavedFolders) {
+                    Icon(Icons.Default.Folder, contentDescription = null)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Foldery")
+                }
                 IconButton(onClick = onRefresh) {
                     Icon(Icons.Default.Refresh, contentDescription = "Odśwież wyniki")
                 }

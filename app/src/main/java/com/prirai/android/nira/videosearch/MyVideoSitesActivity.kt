@@ -559,16 +559,11 @@ class MyVideoSitesActivity : AppCompatActivity() {
         }
     }
 
-    /** First entry for saved folders. The second shared entry is stage 8C. */
+    /** Shared saved-film library (the same card as the results-tab shortcut). */
     private fun showSavedFilmFolders() {
         val scope = ownerIfCurrent() ?: return
         try {
-            applicationContext.components.tabsUseCases.addTab.invoke(
-                VIDEO_SAVED_FOLDERS_TAB_URL,
-                selectTab = true,
-                private = false,
-                contextId = scope.contextId,
-            )
+            VideoSavedFoldersTabOpener.open(this, scope)
             startActivity(Intent(this, BrowserActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
             finish()
