@@ -81,7 +81,7 @@ function page(pageUrl, epoch, hasResultCard) {
     return sent[sent.length-1];
   }
   function clickAction(label) {
-    const banner=body.children.at(-1);
+    const banner=body.children.find(node => node.children?.length >= 2);
     const controls=banner.children[1];
     const button=controls.children.find(child=>child.textContent===label);
     assert.ok(button, 'action '+label);
@@ -96,7 +96,8 @@ test('results-only document can select a card with no input or submit button', (
   const results = page('https://films.example/results?q=film', 2, true);
   assert.notEqual(homepage.hello.documentId, results.hello.documentId);
   assert.equal(results.pick('cards').length,0);
-  const packet=results.clickOnCard();
+  results.clickOnCard();
+  const packet=results.clickAction('Zatwierdź');
   assert.equal(packet.event,'picked');
   assert.equal(packet.pickKind,'cards');
   assert.equal(packet.selector,'article.movie-card');
@@ -110,7 +111,8 @@ test('a stale picker event from the homepage is not accepted on the result page'
   assert.equal(returned.length,0);
   assert.equal(result.listeners.has('click'),false);
   result.pick('cards');
-  assert.equal(result.clickOnCard().event,'picked');
+  result.clickOnCard();
+  assert.equal(result.clickAction('Zatwierdź').event,'picked');
 });
 
 test('cancelling on the results document does not write any card selector', () => {
