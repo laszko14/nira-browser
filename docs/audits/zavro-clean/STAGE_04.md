@@ -1,8 +1,8 @@
 # Zavro Clean — etap 4/18: lewy panel kart i grup
 
-Status etapu: **PARTIAL**. **4A COMPLETE; 4B NOT_STARTED.** Data: 2026-10-28 UTC.
+Status etapu: **COMPLETE — 4A i 4B COMPLETE.** Data 4A: 2026-10-28 UTC; zakończenie 4B i etapu: 2026-10-29 UTC.
 
-Baza kodu: feat/zavro-clean-side-panels-1dm-20261028 @ b7d62f79f285ac81c29a79b326529d42e9b9fde4, v1190. Gałąź dokumentacji audit/zavro-clean-20261028; wejściowy HEAD d2e94c48439972ff1175a8f488a77fd2581ada88, czysty working tree i zgodny ref GitHub. Odczytano aktualne AGENTS, .github/agents.md, checkpoint i mapę z etapu 3. Jeden agent; bez napraw i nowych testów w aplikacji.
+Baza kodu: feat/zavro-clean-side-panels-1dm-20261028 @ b7d62f79f285ac81c29a79b326529d42e9b9fde4, v1190. Gałąź dokumentacji audit/zavro-clean-20261028; wejściowy HEAD 4A d2e94c48439972ff1175a8f488a77fd2581ada88, 4B 6a1efa81710d336f04ac96f5afb4b1680bef1c94. Przy obu wznowieniach czysty working tree i zgodny ref GitHub; odczytano AGENTS, .github/agents.md i właściwy checkpoint. Jeden agent; bez napraw i nowych testów w aplikacji. Nie ponawiano ukończonych prób 4A.
 
 ## Podział wynikający z implementacji
 
@@ -11,7 +11,7 @@ Host i kontroler panelu są osobnym układem od zawartości listy kart: browser/
 | Podetap | Spójny zakres | Status |
 | --- | --- | --- |
 | 4A | Wejście gestu, montaż, ruch/animacja, zamknięcie, uchwyt i zapis szerokości, orientacja, granice przechwytywania dotyku | COMPLETE |
-| 4B | Rozwijanie/zwijanie grup, drag & drop kart i grup, kolejność, przenosiny między grupami/poza grupę, trwały stan zawartości i synchronizacja z pozostałymi widokami; końcowe rozliczenie etapu 4 | NOT_STARTED |
+| 4B | Rozwijanie/zwijanie grup, drag & drop kart i grup, kolejność, przenosiny między grupami/poza grupę, trwały stan zawartości i synchronizacja z pozostałymi widokami; końcowe rozliczenie etapu 4 | COMPLETE |
 
 Pytania kontrolne 4A: kto przejmuje gest i na jakich warunkach? Czy pozycja odpowiada ruchowi palca i nie przyjmie starego callbacku? Co robią Cancel/Wstecz/obrót/destroy? Czy szerokość z prawej krawędzi zapisuje się niezależnie dla orientacji? Czy kontrolka chroni własny strumień i działa spójnie z fizyczną stroną panelu?
 
@@ -34,7 +34,7 @@ Kryteria 4A: prześledzona pełna ścieżka widok→listener→kontroler→host 
 
 Pozostały zarejestrowany fallback dialogowy i współdzielone fabryki są aktywnymi ścieżkami opisanymi w etapie 3; nie usuwano ich. Dla dialogu onStart:409–431 stosuje szerokość z tego samego źródła; powyższe ustalenia o kontrolerze ruchu dotyczą wariantu osadzonego. Pełna analiza arbitrażu toolbar/Gecko/systemowy Wstecz pozostaje etapem 8; przejścia obu paneli i kombinacje — etapem 14. Odczyt wspólnego kontrolera i testy z przypadkami RIGHT nie są audytem zawartości prawego panelu z etapu 5.
 
-## Nowe zgłoszenia
+## Zgłoszenia 4A
 
 1. **ZC-AUD-007 — P2 MEDIUM, CONFIRMED (statycznie):** w RTL uchwyt Gravity.END przesuwa się na lewą krawędź, chociaż host nadal przytrzymuje panel po fizycznej lewej stronie (Gravity.LEFT). Na wymaganej prawej krawędzi nie ma uchwytu. Manifest dopuszcza RTL; w prześledzonych layoutach/źródłach nie znaleziono wymuszenia LTR. Istniejący test RTL sprawdza wyłącznie kontenery hosta, nie uchwyt.
 2. **ZC-AUD-008 — P2 MEDIUM, CONFIRMED (mechanizm handlera + izolowana reprodukcja):** resize nie zachowuje pointer ID i ignoruje POINTER_DOWN/UP. Po podmianie palca z indeksem 0 rawX odnosi się do innego palca, lecz downX pozostaje stare. Dwa palce rozpoczynające wewnątrz uchwytu, przesunięcie drugiego i podniesienie pierwszego zmieniają szerokość 400→250 bez dalszego ruchu pozostałego palca. Końcowy UP zapisuje 250 jako preferencję.
@@ -53,12 +53,51 @@ Pełne lokalizacje, mechanizmy, wpływ, kierunki przyszłych napraw i regresje: 
 
 Odtworzenie i rzeczywisty output utrwalono w [STAGE_04A_PROBES.md](STAGE_04A_PROBES.md). Użyto tylko katalogów tymczasowych; brak nowych plików app/src/test, danych użytkownika i instalacji zależności. Przypadki wymagające Androida pozostają jawnie niewykonane. Statyczny odczyt obsługi multi-touch w rodzicu nie dowodzi ochrony uchwytu: ten na DOWN używa requestDisallowInterceptTouchEvent(true), a własny listener nie rozpoznaje pointer ID.
 
-## Stan i wznowienie
+## 4B — grupy, przeciąganie, trwałość i synchronizacja
 
-Nowe zgłoszenia 4A: P0=0, P1=0, **P2=2**, P3=0; CONFIRMED=2, nowych podejrzeń=0. Łącznie audyt: CONFIRMED=7 (wszystkie P2); osobno wcześniejsze SUSPECTED=1 (potencjalny P2). Nie doliczano ponownie ZC-AUD-004/005/006 ani ich późniejszych możliwych skutków.
+Zakres 4B wykonany po osobnym „Dalej”, od HEAD 6a1efa81. Pytania: skąd panel bierze kolejność i grupy? Jakie cele upuszczenia obsługuje? Czy po zmianie członkostwa zgadzają się Room, order i renderery? Co jest walidowane na końcu gestu, a co dopiero przy mutacji? Jak przywracany jest stan rozwinięcia i jak zachowują się karty bez grupy?
 
-Kryteria 4A spełniono w zakresie analizy kodu i dostępnych prób; wymagane kontrole urządzenia oznaczono NOT_TESTED. **Etap 4 pozostaje PARTIAL**, ponieważ nie analizowano wymaganej zawartości 4B. W tej turze zmieniono tylko raport/protokół, rejestr, indeks i checkpoint. Przed pushem sprawdzono workflow i brak PR gałęzi audytu: dokumentacyjny push na nią nie spełnia warunków uruchomienia obu workflow.
+| Obszar | Przepływ i wynik odczytu źródeł |
+| --- | --- |
+| Projekcja panelu | CompactSideTabs:1340–1358 pobiera opublikowane groupsState, profil, żywe tabIds, expandedGroups i currentOrder. Filtry uwzględniają default null/profile_default, private i profile_ID. Entries:1396–1449 zachowuje kolejność kontenerów savedOrder, uzupełnia nowe grupy/karty i deduplikuje ID. Wiersze członków idą według group.tabIds (:1539–1582), nie osobnej kolejności UI. |
+| Rozwijanie | Nagłówek wywołuje TabViewModel.toggleGroupExpanded:210–221. Mutacja wiąże profil, zmienia order przez TabOrderManager.toggleGroupExpansion:375–388, odczytuje zapisany wynik i zapisuje odpowiadające isCollapsed w managerze/Room (UnifiedTabGroupManager:447–453). LoadTabsForProfile:155–176 odtwarza expandedGroups z order; powiadomienia grup odświeżają pozostałe VM. To prześledzona ścieżka zapisu, nie test restartu telefonu. |
+| Ruch karty/grupy | Różne klucze group_, group_tab_, single_tab_, ungrouped_header. Long press uruchamia drag i blokadę rodzica; pozycja w root jest przeliczana do viewportu (:1454–1460,1554–1602,1636–1646,1886–1898). Karta używa rememberUpdatedState dla aktualnych callbacków. Preview zachowuje oryginalny wiersz; zmiana profilu/orientacji resetuje identyfikatory drag, a Cancel zwalnia blokadę. Recykling źródłowego wiersza podczas długiego przewijania wymaga testu Compose. |
+| Końcowe upuszczenie | finishDrag:1480–1520 ponownie odczytuje layoutInfo, a DragPlacement.sideTarget sprawdza oba wymiary viewportu, bieżący offset/połówkę wiersza i najbliższy wiersz w przerwie. Odrzuca wyjście poza viewport, brak źródła i własny klucz; pojedyncza coroutine oczekuje wyniku commitu. Anulowanie scope i wyjątki kończą pomiar osobno; nie traktuje się tego jako dowodu poprawnej prezentacji każdego komunikatu. |
+| Karta w grupie/innej grupie | TabViewModel.commitSidePanelDrop:538–603 serializuje operację przez mutateProfile i ponownie sprawdza profil/źródło/cel. group_tab_ wybiera kotwicę w grupie, group_ dodaje do niej; UnifiedTabGroupManager.moveTabRelative:339–354 wylicza pozycję wewnątrz mutacji. Usunięcie z poprzedniej grupy i reindeksacja są w tym samym mechanizmie managera. persistPositions:392–398 zapisuje gęste pozycje; DAO.getTabIdsInGroup:42–43 odczytuje ORDER BY position. |
+| Poza grupą i kolejność grup | single_tab_/ungrouped_header → commitTabAtRoot:605–609: najpierw pending_root, potem odpięcie w Room i rebuild. commitSidePanelGroupDrop:612–630 przenosi cały kontener względem kotwicy, bez mieszania członków; moveRootRelative:195–202 i DragPlacement.destination uwzględniają przesunięcie indeksu po usunięciu źródła. Rebuild:478–513 uzgadnia order z Room i konsumuje pending_root wraz z zapisem order. Zachowanie historycznych zamkniętych ID to wcześniejsze ZC-AUD-004, nie nowy błąd tego etapu. |
+| Bez grupy | Kolejność niezgrupowanych korzysta z zapisanych SingleTab i uzupełnienia żywymi kartami; syntetyczny nagłówek umożliwia przyjęcie karty wyciąganej z grupy i utworzenie prawdziwej grupy. Jego stan rozwinięcia jest tylko remember(true), więc wraca do domyślnego po nowej kompozycji; nie ma osobnego trwałego klucza. Odnotowano tę różnicę względem prawdziwych grup, bez przypisywania jej utraty danych. Tworzenie nazwanej grupy z tego nagłówka ma potwierdzoną lukę walidacji ZC-AUD-009. |
+| Pozostałe widoki | Panel i pasek mają osobne ViewModelStore, ale wspólne singletons managerów. Panel zbiera Store i groupEvents (:935–977); TabViewModel:90–97 zbiera groupsState i uzgadnia order. ComposeTabBarWithProfileSwitcher:179–190 przekazuje groupsState/currentOrder do natywnego paska, a jego Compose :347–355 czyta te same dane. PortraitNativeTabStrip:327–329,373–403 bierze stan rozwinięcia i porządek ze wspólnego order; lista/siatka używa UnifiedItemBuilder:95–192 z członkami z Room. Ustalono wspólne dane i miejsca odświeżenia; nie założono atomowego renderowania wszystkich warstw w jednej klatce. |
 
-Punkt wznowienia: docs/AI_HANDOFF.md, gałąź audit/zavro-clean-20261028, ostatni commit dokumentacyjny (SHA i wynik push w odpowiedzi końcowej). Po **„Dalej” wykonać wyłącznie 4B**: od TabsBottomSheetFragment.CompactSideTabs:1339 przez cele upuszczenia/commity TabViewModel do kolejności i grup; wykorzystać wyniki stanu z etapu 2 oraz bramkę dotyku opisaną powyżej. Sprawdzić rozwijanie, przenosiny, niezgrupowane karty, zapis/restore i synchronizację; dopiero po tym rozliczyć cały etap 4. Etapu 5 nie rozpoczęto.
+Zapis Room i DataStore nie jest jedną transakcją. Mapa mutexów i odporności na częściowe restore z etapu 2 pozostaje podstawą; w 4B sprawdzono konkretne wywołania panelu i konsumentów. Nie powtarzano ZC-AUD-005 (scope Undo) ani 006 (stare ustawienia). Nie rozpoczęto odrębnego audytu dolnego paska ani prawego panelu.
 
-**ETAP 4/18 NIEUKOŃCZONY — STOP. Zapisano punkt wznowienia. Polecenie „Dalej” kontynuuje bieżący etap.**
+### Zgłoszenia 4B i granice pewności
+
+- **ZC-AUD-009 — P2 MEDIUM, CONFIRMED:** sprawdzenie, że karty są niezgrupowane, następuje przed wejściem w zawieszalną mutację. Inna operacja może w tym czasie przypisać kartę, a recovery następnie zabiera ją z nowej grupy i zwraca true. Izolowana próba wykorzystuje oryginalne funkcje obu warstw z kontrolowanym harmonogramem, DAO w pamięci i stubem transakcji, nie pełny Room.
+- **ZC-AUD-010 — potencjalny P2 MEDIUM, LIKELY:** autoscroll nie wylicza hoveredKey po zmianie geometrii. Model z oryginalnym moveDrag pokazał hover B przy aktualnym celu drop C. Skutek w Compose, w tym dodatkowe zdarzenia po relayout, wymaga testu wykonania; nie uznano go za CONFIRMED błędu użytkowego.
+
+Szczegóły i specyfikacje przyszłych regresji wyłącznie w [FINDINGS.md](FINDINGS.md); program i output w [STAGE_04B_PROBES.md](STAGE_04B_PROBES.md).
+
+### Kontrole wykonane w 4B
+
+| Wynik | Rzeczywisty zakres |
+| --- | --- |
+| PASS — istniejące kontrole JS | 6/6 wybranych testów z grouped-strip-and-side-drag-v1122.test.cjs. Sprawdzają strukturę źródeł i wywołania, nie prawdziwy drag/Room ani brak wyścigów. |
+| PASS — izolowana JVM | 3/3 istniejące metody DragPlacementTest z prawdziwym DragPlacement.kt i adapterem asercji/adnotacji; granice viewportu, częściowo widoczne wiersze, przeliczenie kotwicy w obu kierunkach. To nie JUnit/Gradle/Compose. |
+| PASS — kontrola recovery | Karta już należąca do grupy przed sprawdzeniem została odrzucona bez zmiany członkostwa. |
+| FAIL — reprodukcja recovery | Gdy przydział nastąpił po sprawdzeniu, recovery zabrała a z Other=[a,b] i zapisała Other=[b], Recovery=[a]; zwróciła true. Oryginalne funkcje, kontrolowane zawieszenie i pamięciowy DAO. |
+| FAIL — model hover | Stara wartość hover przy aktualnym innym celu. Nie jest to potwierdzenie zachowania schedulera Compose; zgłoszenie LIKELY. |
+| NOT_TESTED | Istniejące TabDropIntegrationTest/OrderPersistenceTest w Robolectric, rzeczywisty Room/DataStore i restart procesu, pełne Android/Compose/GeckoView, obrót w trakcie długiego drag, rzeczywisty recykling wiersza i auto-scroll, telefon Nothing Phone (1), pomiary animacji/120 Hz. Nie odtwarzano brakującego środowiska JUnit/Robolectric, nie uruchamiano Gradle/lint, APK ani CI. |
+
+Odczytano istniejące scenariusze integracyjne: transfer wewnątrz/między grupami i odpięcie, zmiana profilu, reorder grupy z reload, zapis order po ponownym otwarciu pliku, partial restore i pending_root przed/po zmianie członkostwa. Nie przypisano im PASS bez uruchomienia. Nie dodano nowych testów aplikacji.
+
+## Rozliczenie etapu 4 i wznowienie
+
+Wymagany zakres rozliczony: gesty/animacje/resize/orientacja i touch z 4A; grupy/drag & drop/przenosiny/kolejność/niezgrupowane/zapis/synchronizacja z 4B. Każda kontrola wykonania niedostępna w tym środowisku jest oznaczona NOT_TESTED. Jest to ukończenie audytu kodu tego etapu, nie certyfikat poprawności panelu na urządzeniu.
+
+Etap 4: potwierdzone **P0=0/P1=0/P2=3/P3=0** (007–009), osobno **1 LIKELY, potencjalny P2** (010). W samym 4B: 1 nowy CONFIRMED/P2 i 1 LIKELY/P2. Łącznie audyt: CONFIRMED=8 (wszystkie P2), LIKELY=1, SUSPECTED=1 (wcześniejsze 002); nie łączyć hipotez z liczbą potwierdzonych błędów.
+
+Potrzebne na urządzeniu: prawy uchwyt w RTL; dwa palce podczas resize; długi drag z auto-scroll i hover 450 ms; rozwijanie/przenoszenie/wyciąganie ostatniej karty; szybkie operacje recovery; zmiany profilu; zamknięcie/ponowne otwarcie panelu i restart z zachowaniem kolejności, grup i szerokości. Napraw nie rozpoczęto.
+
+Checkpoint: docs/AI_HANDOFF.md, gałąź audit/zavro-clean-20261028, ostatni commit dokumentacyjny (SHA i wynik push w odpowiedzi końcowej). Po **„Dalej” wykonać etap 5 — prawy panel**; nie powtarzać zakończonych 4A/4B. Przed dokumentacyjnym pushem ponownie sprawdzono oba workflow oraz brak otwartego PR gałęzi audytu. Etapu 5 nie rozpoczęto.
+
+**ETAP 4/18 ZAKOŃCZONY — STOP. Następny etap wymaga polecenia „Dalej”.**
