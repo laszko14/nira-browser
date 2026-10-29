@@ -39,6 +39,7 @@ class MyVideoSitesDialogRegressionTest {
         val button = ReflectionHelpers.getField<Button>(a, "queuePreviewButton")
         assertTrue(button.isEnabled)
         button.performClick()
+        shadowOf(Looper.getMainLooper()).idle()
         return ReflectionHelpers.getField<AlertDialog>(a, "trackedDialog")
     }
 
@@ -127,7 +128,10 @@ class MyVideoSitesDialogRegressionTest {
         }
         manager.setPrivateMode(true)
         try {
-            val c = activity(saved)
+            val c = Robolectric.buildActivity(MyVideoSitesActivity::class.java).also {
+                it.get().setTheme(R.style.AppThemeSettings)
+                it.create(saved).start()
+            }
             try {
                 assertNull(ReflectionHelpers.getField<AlertDialog?>(c.get(), "trackedDialog"))
                 val out = Bundle()
@@ -152,7 +156,9 @@ class MyVideoSitesDialogRegressionTest {
             val first = ReflectionHelpers.getField<AlertDialog>(c.get(), "trackedDialog")
             assertTrue(first.isShowing)
             first.dismiss()
+            shadowOf(Looper.getMainLooper()).idle()
             c.pause().resume()
+            shadowOf(Looper.getMainLooper()).idle()
             assertNull(ReflectionHelpers.getField<AlertDialog?>(c.get(), "trackedDialog"))
         } finally {c.pause().stop().destroy()}
     }

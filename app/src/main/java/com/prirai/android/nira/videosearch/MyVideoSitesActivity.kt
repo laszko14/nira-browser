@@ -976,7 +976,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
             VideoSearchNormalDialogDraft(owner.profileId,
                 VideoSearchNormalDialogKind.QUEUE, primary = field.text.toString())
         }
-        dialog.setOnShowListener {
+        dialog.show()
+        run {
             val preview = dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)
             val execute = dialog.getButton(android.app.AlertDialog.BUTTON_NEUTRAL)
             var busy = false
@@ -1039,7 +1040,6 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 }
             }
         }
-        dialog.show()
     }
 
     /** Always re-read the current normal profile's sites before starting. */
