@@ -346,7 +346,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             }
         })
         privatePanel.addView(Button(this).apply {
-            text = "Wyszukaj na zaznaczonych otwartych kartach prywatnych"
+            text = "Wyszukaj na zaznaczonych witrynach prywatnych"
             setOnClickListener {
                 val owner = selectedPrivateTab() ?: return@setOnClickListener
                 val phrase = privateQueryInput.text.toString().trim()
@@ -368,9 +368,10 @@ class MyVideoSitesActivity : AppCompatActivity() {
             }
         })
         privatePanel.addView(TextView(this).apply {
-            text = "Tryb wielu witryn wymaga, aby ich strony były już otwarte " +
-                "w osobnych kartach prywatnych. Praca po kolei, bez tworzenia " +
-                "ukrytych kart; niedostępne witryny zostaną pominięte."
+            text = "Witryny są przeszukiwane po kolei. Gdy brak ich otwartej " +
+                "karty prywatnej, Zavro spróbuje utworzyć tymczasową kartę " +
+                "roboczą w tle; karta zostanie usunięta po zakończeniu, " +
+                "chyba że ją otworzysz. Wszystkie wyniki pozostają w RAM."
             textSize = 12f
         })
         privatePanel.addView(Button(this).apply {
@@ -469,7 +470,9 @@ class MyVideoSitesActivity : AppCompatActivity() {
         privateResultsItems = snapshot.films
         privateResultsAdapter.clear()
         privateResultsAdapter.addAll(snapshot.films.mapIndexed { index, film ->
-            "${index + 1}. " + (film.originalTitle ?: "Tytuł nieznany") +
+            "${index + 1}. " +
+                (if (snapshot.run.siteIds.size > 1) "[${film.siteName}] " else "") +
+                (film.originalTitle ?: "Tytuł nieznany") +
                 VideoSearchResultsPresenter.durationLabel(film.durationSeconds)
                     ?.let { " · $it" }.orEmpty()
         })
@@ -513,7 +516,9 @@ class MyVideoSitesActivity : AppCompatActivity() {
             val siteName = snapshot.sites.firstOrNull {
                 it.id == item.run.siteIds.firstOrNull()
             }?.displayName ?: item.films.firstOrNull()?.siteName ?: "Witryna"
-            "${index + 1}. $siteName · ${item.films.size} wyników"
+            val label = if (item.run.siteIds.size > 1)
+                "${item.run.siteIds.size} witryn" else siteName
+            "${index + 1}. $label · ${item.films.size} wyników"
         })
         val chosen = runs.indexOfFirst { it.run.id == previous }
             .takeIf { it >= 0 } ?: 0

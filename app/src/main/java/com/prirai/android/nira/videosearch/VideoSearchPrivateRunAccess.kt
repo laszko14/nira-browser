@@ -102,8 +102,8 @@ internal class VideoSearchPrivateRunAccess(
         registry.withAuthorizedTab(tab, profileId) { store, scope ->
             store.runs(scope).asReversed().take(12).map { run ->
                 VideoSearchPrivateRunSnapshot(run, run.siteIds.flatMap { siteId ->
-                    store.films(scope, run.id, siteId)
-                }.sortedBy { it.originalIndex }.take(200))
+                    store.films(scope, run.id, siteId).sortedBy { it.originalIndex }
+                }.take(VideoSearchPrivateGroupAccess.MAX_AGGREGATE_FILMS))
             }
         }
 
@@ -113,7 +113,7 @@ internal class VideoSearchPrivateRunAccess(
                 compareBy<VideoSearchRun> { it.startedAtMs }.thenBy { it.id }
             ) ?: return@withAuthorizedTab null
             VideoSearchPrivateRunSnapshot(run, run.siteIds.flatMap { siteId ->
-                store.films(scope, run.id, siteId)
-            }.sortedBy { it.originalIndex }.take(200))
+                store.films(scope, run.id, siteId).sortedBy { it.originalIndex }
+            }.take(VideoSearchPrivateGroupAccess.MAX_AGGREGATE_FILMS))
         }
 }

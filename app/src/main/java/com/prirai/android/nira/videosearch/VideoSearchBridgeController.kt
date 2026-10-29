@@ -82,6 +82,7 @@ internal class VideoSearchBridgeController(
     private var multiJob: Job? = null
     private var privateJob: Job? = null
     private val privateResults = VideoSearchPrivateRunAccess()
+    private val privateGroup = VideoSearchPrivateGroupAccess()
     private var multiQueue: VideoSearchDispatchQueue? = null
     private val lastMulti = LinkedHashMap<String, VideoSearchQueueSnapshot>()
     private val lastMultiRunIds = LinkedHashMap<String, String>()
@@ -387,27 +388,27 @@ internal class VideoSearchBridgeController(
         site: VideoSearchSite, tabId: String, profileId: String,
         query: String, requireSelected: Boolean,
         deadlineMs: Long = Long.MAX_VALUE,
-    ): Boolean {
-        if (SystemClock.elapsedRealtime() >= deadlineMs) return false
+    ): VideoSearchPaginationSnapshot? {
+        if (SystemClock.elapsedRealtime() >= deadlineMs) return null
         val tab = VideoSearchPrivateTab(tabId, "private", true)
         if (privateResults.selectedSite(tab, profileId, site.id) != site ||
-            privateSiteTab(site, tabId, true, requireSelected) == null) return false
+            privateSiteTab(site, tabId, true, requireSelected) == null) return null
         val detected = privateRequest(
             site, tabId, "inspect", true, requireSelected
         ) { doc, id -> VideoSearchBridgeProtocol.inspect(doc, id) }
-            as? VideoSearchBridgeMessage.Inspection ?: return false
-        if (detected.inputSelector == null || detected.submission == null) return false
+            as? VideoSearchBridgeMessage.Inspection ?: return null
+        if (detected.inputSelector == null || detected.submission == null) return null
         val submitted = privateRequest(site, tabId, "search", true, requireSelected) {
             doc, id -> VideoSearchBridgeProtocol.search(
                 doc, id, query, detected.inputSelector, detected.submission,
                 detected.submitSelector
             )
         } is VideoSearchBridgeMessage.Submitted
-        if (!submitted) return false
+        if (!submitted) return null
 
         var config: VideoSiteConfiguration? = null
         for (attempt in 0 until 6) {
-            if (SystemClock.elapsedRealtime() >= deadlineMs) return false
+            if (SystemClock.elapsedRealtime() >= deadlineMs) return null
             delay(650)
             val inspected = privateRequest(
                 site, tabId, "inspect", false, requireSelected
@@ -433,10 +434,11 @@ internal class VideoSearchBridgeController(
             pageActions = 0, reason = VideoSearchPaginationStop.UNSUPPORTED,
         )
         val manager = ProfileManager.getInstance(applicationContext)
-        return manager.isPrivateMode() && manager.getActiveProfile().id == profileId &&
-            privateSiteTab(site, tabId, false, requireSelected) != null &&
-            privateResults.record(tab, profileId, site.id, query, snapshot.films,
-                reason = snapshot.reason, visitedPages = snapshot.visitedPages)
+        return snapshot.takeIf {
+            manager.isPrivateMode() && manager.getActiveProfile().id == profileId &&
+                privateSiteTab(site, tabId, false, requireSelected) != null &&
+                privateResults.selectedSite(tab, profileId, site.id) == site
+        }
     }
 
     fun startPrivateSiteSearch(
@@ -453,8 +455,12 @@ internal class VideoSearchBridgeController(
         if (privateSiteTab(site, tab.id, exactPage = true) == null) return false
         privateJob = manualScope.launch {
             try {
-                val saved = executePrivateSiteSearch(
+                val snapshot = executePrivateSiteSearch(
                     site, tab.id, activeProfileId, query, requireSelected = true
+                )
+                val saved = snapshot != null && privateResults.record(
+                    tab, activeProfileId, site.id, query, snapshot.films,
+                    reason = snapshot.reason, visitedPages = snapshot.visitedPages,
                 )
                 if (saved) Toast.makeText(applicationContext,
                     "Prywatne wyniki zapisano w RAM. Otwórz Moje witryny.",
@@ -490,6 +496,7 @@ internal class VideoSearchBridgeController(
         if (!manager.isPrivateMode() || manager.getActiveProfile().id != activeProfileId)
             return false
         val plan = privateResults.prepareMulti(anchor, activeProfileId, query) ?: return false
+        val groupRunId = privateGroup.start(anchor, activeProfileId, plan) ?: return false
         privateJob = manualScope.launch {
             var visited = 0
             var saved = 0
@@ -525,26 +532,78 @@ internal class VideoSearchBridgeController(
                             activeProfileId
                         ) == plan.owner
                     }
-                    val candidate = candidates.singleOrNull()
-                    if (candidate == null || candidate.engineState.engineSession == null) {
+                    // Do not guess which user tab to operate on. Only zero
+                    // matches may create a dedicated background private tab.
+                    if (candidates.size > 1) {
                         missing++
+                        privateGroup.checkpoint(
+                            anchor, activeProfileId, groupRunId, site, null
+                        )
                         continue
                     }
-                    visited++
-                    if (privateSiteTab(site, candidate.id, true,
-                            requireSelected = false) == null) {
-                        missing++
-                        continue
-                    }
+                    var createdTabId: String? = null
                     try {
-                        if (executePrivateSiteSearch(
-                            site, candidate.id, activeProfileId,
-                            query, requireSelected = false, deadlineMs = deadline
-                        )) saved++
+                        val tabId = if (candidates.size == 1) candidates.single().id else {
+                            val newId = applicationContext.components.tabsUseCases
+                                .addTab.invoke(
+                                    site.siteUrl, selectTab = false, private = true,
+                                    contextId = "private",
+                                )
+                            createdTabId = newId
+                            newId
+                        }
+                        // Gecko may suspend newly created background sessions.
+                        // Never interpret timeout as success, and never fall
+                        // back to a non-private tab/engine.
+                        val ready = withTimeoutOrNull(8_000L) {
+                            while (true) {
+                                if (SystemClock.elapsedRealtime() >= deadline ||
+                                    VideoSearchPrivateSessionHost.registry.ownerForTab(
+                                        anchor, activeProfileId) != plan.owner) break
+                                val managerNow = ProfileManager.getInstance(applicationContext)
+                                if (!managerNow.isPrivateMode() ||
+                                    managerNow.getActiveProfile().id != activeProfileId) break
+                                if (privateSiteTab(site, tabId, true,
+                                        requireSelected = false) != null) return@withTimeoutOrNull true
+                                if (store.state.tabs.none { it.id == tabId }) break
+                                delay(160)
+                            }
+                            false
+                        } ?: false
+                        if (!ready) {
+                            missing++
+                            privateGroup.checkpoint(
+                                anchor, activeProfileId, groupRunId, site, null
+                            )
+                            continue
+                        }
+                        visited++
+                        val snapshot = executePrivateSiteSearch(
+                            site, tabId, activeProfileId, query,
+                            requireSelected = false, deadlineMs = deadline
+                        )
+                        if (privateGroup.checkpoint(
+                                anchor, activeProfileId, groupRunId, site, snapshot
+                            ) && snapshot != null) saved++
                     } catch (cancelled: kotlinx.coroutines.CancellationException) {
                         throw cancelled
                     } catch (_: Exception) {
-                        // Do not expose a private URL/title/query in diagnostics.
+                        privateGroup.checkpoint(
+                            anchor, activeProfileId, groupRunId, site, null
+                        )
+                    } finally {
+                        // Only a tab CREATED BY THIS LOOP may be removed.
+                        // Never close a user tab or a worker the user selected.
+                        createdTabId?.let { id ->
+                            val tab = store.state.tabs.singleOrNull { it.id == id }
+                            if (tab != null && tab.content.private &&
+                                tab.contextId == "private" &&
+                                store.state.selectedTabId != id) {
+                                try {
+                                    applicationContext.components.tabsUseCases.removeTab(id)
+                                } catch (_: Exception) { }
+                            }
+                        }
                     }
                     delay(40)
                 }
@@ -559,6 +618,11 @@ internal class VideoSearchBridgeController(
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
             } finally {
+                // Even cancellation/timeout completes queued group tasks as
+                // STOPPED, never as a fabricated successful search.
+                try {
+                    privateGroup.finish(anchor, activeProfileId, groupRunId)
+                } catch (_: Exception) { }
                 if (privateJob === coroutineContext[Job]) privateJob = null
             }
         }
