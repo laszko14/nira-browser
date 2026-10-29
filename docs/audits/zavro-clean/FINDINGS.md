@@ -58,6 +58,11 @@ Odniesienia do kodu dotyczą bazy `b7d62f79f285ac81c29a79b326529d42e9b9fde4`. Be
 | ZC-AUD-052 | 15B | P2 MEDIUM | CONFIRMED | Arkusz filmów otwarty podczas odliczania nie trafia do pomiaru JankStats |
 | ZC-AUD-053 | 16A | P2 MEDIUM | CONFIRMED | Diagnostyka Sync kopiuje fragmenty parametrów OAuth do udostępnianego tekstu |
 | ZC-AUD-054 | 16A | P2 MEDIUM | CONFIRMED | Favicon prywatnej karty może trafić do wspólnego trwałego cache |
+| ZC-AUD-055 | 16B | P2 MEDIUM | CONFIRMED | Opóźniony probe może wznowić lub odtworzyć anulowane pobieranie |
+| ZC-AUD-056 | 16B | P1 HIGH | CONFIRMED | Niepoprawny import nadpisuje zakładki przed walidacją struktury |
+| ZC-AUD-057 | 16B | P2 MEDIUM | CONFIRMED | Resume części pliku nie weryfikuje wersji zasobu i może mieszać bajty |
+| ZC-AUD-058 | 16B | P2 MEDIUM | CONFIRMED | Nowy intent PWA może zniknąć podczas asynchronicznej inicjalizacji |
+| ZC-AUD-059 | 16B | P2 MEDIUM | CONFIRMED | Równoległe mutacje listy profili mogą nadpisać zaakceptowaną zmianę |
 
 ## ZC-AUD-001 — niespójny kontrakt wersji joba release
 
@@ -758,4 +763,69 @@ Uzupełnienie 024 z 10B: ten sam kontrakt menu występuje również w `browser/h
 - **Kierunek naprawy:** przekazywać tryb prywatny przez cały fallback i korzystać z pamięci o odpowiednim cyklu życia bez zapisu na dysk; propagować private do żądań biblioteki, jeśli są używane. Nie naprawiać przez czyszczenie całego cache normalnych profili przy każdym zamknięciu karty. Uwzględnić już zapisane artefakty z zachowaniem danych użytkownika.
 - **Regresje:** prywatny cold-cache tab z pustą ikoną nie tworzy pliku, normalny nadal może cache'ować; private→normal i profileA→B, zamknięcie karty przed ukończeniem async, restart aplikacji oraz pamięciowy hit. Test tylko w izolowanym katalogu/domenie syntetycznej; osobno rzeczywista ścieżka Android/Gecko. Specyfikacja, bez nowych testów app.
 
-Stan po16A: CONFIRMED=47 (P0=0,P1=3,P2=42,P3=2); LIKELY=4 (010,016,019,043 — potencjalne P2); SUSPECTED=3 (002,025 potencjalne P2;030 potencjalny P1). 16A dodaje053/054 i rozszerza031; etapy1–15 COMPLETE,16 PARTIAL (16A COMPLETE,16B NOT_STARTED), bez nowych hipotez.
+## ZC-AUD-055 — probe pobierania nie respektuje anulowania
+
+- **Etap:** 16B — współbieżność i powtarzane operacje.
+- **Miejsce:** [`DownloadController.kt:122`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/downloads/DownloadController.kt#L122), start:122–149, pause:162–176, cancel:204–222; ParallelDownloadService.onStartCommand:139–150. Kotlin względem app/src/main/java/com/prirai/android/nira/.
+- **Problem:** wolny probe Content-Length może uruchomić parallel po Pause/Cancel, nawet po usunięciu rekordu pobierania z Store.
+- **Mechanizm:** start tworzy oddzielny IO CoroutineScope, którego Job nie jest zachowywany ani anulowany przez kontrolki. Po dodatnim wyniku probe kod nie sprawdza statusu/generacji; current ?: download odzyskuje stary obiekt, wysyła UpdateDownloadAction i startuje usługę. Reduktor AC156.0.1 aktualizuje mapę przez plus(id→download), więc Update ponownie dodaje również brakujący rekord.
+- **Dowód statyczny:** start(D,null length) → probe zawieszony → cancel(D) i zakończony RemoveDownloadAction → probe zwraca rozmiar co najmniej PARALLEL_MIN_BYTES → fallback starego D → Update przywraca D → usługa dostaje ID i może rozpocząć pracę. Przy Pause rekord nadal istnieje, lecz status PAUSED nie blokuje startOrResume. Reduktor DownloadStateReducer:17–18,28–29,40–41 sprawdzono w oficjalnych źródłach, SHA w [STAGE_16](STAGE_16.md#źródło16b).
+- **Pewność:** CONFIRMED mechanizm przy wskazanym przeplocie. Pełne broadcast/Store/Service/runtime NOT_TESTED; nie twierdzi się, że każde Cancel zostanie cofnięte.
+- **Ważność:** P2 MEDIUM — niechciany transfer, odtworzenie usuniętego zadania i możliwy zapis pliku po anulowaniu.
+- **Wpływ:** router serial→parallel oraz UI/statusy/storage pobrań. DownloadTaskRegistry porządkuje właścicieli w parallel service, ale nie obejmuje zewnętrznego probe kontrolera.
+- **Kierunek:** nadać próbie właściciela/generację, anulować ją po Pause/Cancel i atomowo uzgadniać handoff ze stanem zadania. Brak rekordu ma kończyć próbę zamiast odtwarzać captured DownloadState; respektować terminalne statusy.
+- **Regresje:** wstrzymany probe, następnie pause/cancel/remove/completed i dopiero jego sukces; brak nowej usługi/rekordu/transferu. Ponowny start tego samego ID i wiele pobrań nie mogą dziedziczyć starej generacji. Specyfikacja, bez nowych testów app.
+
+## ZC-AUD-056 — import nadpisuje zakładki przed walidacją
+
+- **Etap:** 16B — niepoprawne dane i ochrona trwałego zapisu.
+- **Miejsce:** [`ImportExportSettingsFragment.kt:125`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/settings/fragment/ImportExportSettingsFragment.kt#L125), importBookmarks:129–136,227–240, callback:500–509; BookmarkManager.initialize:48–68; BookmarkFolderItem.readForRoot:76–83; BookmarkItem.read:28–31.
+- **Problem:** poprawny składniowo JSON o błędnym schemacie może zastąpić aktywny plik zakładek i wyczyścić widoczną kolekcję. Nie ma walidacji całego drzewa przed zapisem ani zachowanej kopii/atomowego zatwierdzenia.
+- **Mechanizm:** rozpoznanie JSONArray wystarcza do otwarcia bookmarks.dat przez FileOutputStream(...,false), czyli obcięcia starego pliku i zapisania wejściowych bajtów. Dopiero później initialize czyści root i próbuje czytać strukturę. Wynik Boolean readForRoot jest ignorowany; initialize może zwrócić true mimo odrzuconego schematu. Import nie przywraca starego pliku.
+- **Dowód statyczny, dwie niezależne granice:** przy istniejących zakładkach wejście `[1]` przechodzi JSONTokener jako JSONArray i jest zapisane do pliku. Następnie readForRoot widzi tablicę, lecz BookmarkItem.read widzi NUMBER zamiast BEGIN_OBJECT i zwraca null; root pozostaje pusty, createIndex czyści indeks, initialize zwraca true. Stare bajty nie są już w aktywnym pliku; restart ponownie odczytuje `[1]`. Dodatkowo ścieżka HTML usuwa plik jeszcze przed przejściem wpisów. Nie oparto ustalenia jedynie na samym braku try/catch.
+- **Pewność:** CONFIRMED deterministyczny mechanizm z kodu. Nie uruchamiano importu, Moshi/Android ani zapisu na danych użytkownika. `[1]` jest kontrprzykładem logicznym, nie wynikiem testu aplikacji.
+- **Ważność:** P1 HIGH — utrata bieżącej kolekcji zakładek po jawnym imporcie nieprawidłowego pliku, bez mechanizmu odzyskania poprzednich bajtów w tej ścieżce. Zasięg ograniczony do importu; nie zadeklarowano automatycznej utraty wszystkich danych przeglądarki ani braku zewnętrznych kopii użytkownika.
+- **Wpływ:** wspólny BookmarkManager, panel/zakładki/home, eksport i restart. To osobny magazyn i przyczyna niż zmiana typów preferences022.
+- **Kierunek:** wczytać ograniczone wejście i zwalidować całe drzewo poza aktywnym magazynem; dopiero po sukcesie atomowo zatwierdzić plik i indeks. Propagować wynik walidacji oraz błędy odczytu/zapisu; nie usuwać poprzedniej kolekcji przy błędzie lub anulowaniu.
+- **Regresje:** istniejące niepuste zakładki + `[1]`, obiekt bez pól, niepoprawne zagnieżdżenie, pusty/uszkodzony HTML/legacy, błąd źródłowego URI, disk-full/przerwanie zapisu. Po nieudanym imporcie plik i drzewo mają pozostać identyczne, również po restarcie. Kontrolny poprawny eksport→import i świadomy import pustej kolekcji. Wyłącznie izolowane dane.
+
+## ZC-AUD-057 — resume nie wiąże części z wersją zasobu
+
+- **Etap:** 16B — błędy sieci i integralność pobrania.
+- **Miejsce:** [`ParallelDownloadService.kt:193`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/downloads/ParallelDownloadService.kt#L193), runDownload:193–251, downloadChunk:261–318, verifyParts:328–343, assembleAndPublish:345–386, probeTotal:390–402.
+- **Problem:** ten sam URL i rozmiar nie identyfikują wersji pliku. Po zmianie zasobu podczas pauzy części ze starej i nowej wersji mogą utworzyć plik oznaczony COMPLETED.
+- **Mechanizm:** sidecar zachowuje bajty, downloadChunk ufa existing==expected albo pobiera tylko brakujący ogon. Probe i żądania Range nie zapisują/sprawdzają ETag, Last-Modified lub innego identyfikatora reprezentacji i nie używają If-Range. Kontrole206/Content-Range oraz długości każdej części/sumy sprawdzają granice, nie zgodność wersji.
+- **Dowód statyczny:** zasóbA o rozmiarze T co najmniej progu parallel → część/prefiksA zapisany → pause → pod tym samym URL zasóbB innej treści i tego samego T → resume, poprawne206 i Content-Range B → nowe bajty dopisane do starych. Wszystkie warunki długości mogą być spełnione; publikacja nie porównuje wersji/hasha. Zmiana serwera jest legalna, nie wymaga wadliwego Content-Range. Gdy zasób się nie zmienia, ten kontrprzykład nie zachodzi.
+- **Pewność:** CONFIRMED brak granicy wersji i dopuszczony mieszany wynik w podanym scenariuszu. HTTP/service/plik runtime NOT_TESTED; nie deklaruje się korupcji każdego downloadu.
+- **Ważność:** P2 MEDIUM — uszkodzony plik może być zgłoszony jako kompletny mimo prawidłowej liczby bajtów.
+- **Wpływ:** resume i równoległe segmenty zmiennego URL. Poprawne parsowanie zakresu i task ownership nie zabezpieczają tożsamości zawartości. Nie wykazano obejścia podpisu APK/DRM ani wykonania pobranego kodu.
+- **Kierunek:** przechowywać i weryfikować wiarygodny identyfikator reprezentacji; żądania warunkowe i spójna generacja wszystkich części. Przy braku potwierdzenia tej samej treści zrestartować cały zestaw zamiast łączyć stare/nowe części; nie ufać samej długości lub stałemu URL.
+- **Regresje:** kontrolowany serwer A→B o tym samym T podczas pauzy/pomiędzy zakresami, zmieniony/missing/weak validator, odpowiedź200 na If-Range, stabilny zasób i rotujące podpisane URL. Wynik ma być w całości jedną wersją albo jawnie odrzucony. Bez nowego serwera/harnessu podczas audytu.
+
+## ZC-AUD-058 — nowy intent PWA ginie przed utworzeniem fragmentu
+
+- **Etap:** 16B — lifecycle i szybkie powtarzane akcje.
+- **Miejsce:** [`WebAppActivity.kt:61`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/webapp/WebAppActivity.kt#L61), onCreate:61–98, getProfileIdForUrl:112–115, onNewIntent:118–137; Manifest:259–263 (singleTop).
+- **Problem:** ponowne otwarcie PWA może pozostawić poprzedni URL/profil, mimo przyjęcia nowego intentu.
+- **Mechanizm:** onCreate tworzy fragment dopiero po zawieszanych odczytach profilu i ewentualnym ładowaniu ikony. onNewIntent uruchamia niezależny job, ale tworzy nowy fragment wyłącznie wtedy, gdy findFragmentById już znalazł stary. Brak fragmentu powoduje ciche porzucenie żądania; późniejszy job onCreate nadal używa przechwyconego starego URL. Nie ma właściciela/generacji wspólnej dla kolejnych żądań.
+- **Dowód statyczny:** cold onCreate(A,savedInstanceState=null) czeka na IO → singleTop onNewIntent(B) → lookup B kończy się przed inicjalizacją A → fragment==null, gałąź niczego nie robi → A kończy IO i montuje A. setIntent(B) nie zmienia lokalnego url jobuA. Przy istniejącym fragmencie niezależne lookupy kolejnych intentów także nie mają kontroli kolejności; główny dowód dotyczy konkretnej pustej gałęzi.
+- **Pewność:** CONFIRMED mechanizm utraty żądania przy wskazanym przeplocie. Scheduler/Android/realne skróty NOT_TESTED; nie wykazano przeniesienia cookies między profilami.
+- **Ważność:** P2 MEDIUM — otwiera się poprzednia strona zamiast ostatnio wybranej PWA.
+- **Wpływ:** start/reuse WebAppActivity, wybór właściwego profilu i widok strony. Nie jest to mapa default context028 ani wyścig toolbaru018.
+- **Kierunek:** jeden właściciel asynchronicznego otwarcia z regułą ostatnie żądanie wygrywa; tworzyć fragment także przy pustym kontenerze i odrzucać wyniki starych lookupów. Powiązać ikonę/task description z tą samą generacją, respektując stan FragmentManager.
+- **Regresje:** opóźnione IO A i szybkie B przed pierwszym fragmentem, B→C z odwróconą kolejnością lookupów, profile o różnych ikonach, saved state, obrót i zniszczenie Activity. Ostateczny URL/profil/task description zgodny z ostatnim przyjętym intentem. Bez nowych testów app.
+
+## ZC-AUD-059 — nieatomowe mutacje listy profili
+
+- **Etap:** 16B — współbieżność i trwały stan.
+- **Miejsce:** [`ProfileManager.kt:162`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/browser/profile/ProfileManager.kt#L162), createProfile:170–174, updateProfile:186–190, deleteProfile:202–204, saveProfiles:229–233; ProfileExportManager.importProfile:156,178; TabsBottomSheetFragment.onConfirm:733–740.
+- **Problem:** równoległe utworzenie/import lub edycja profili może zgubić wcześniej zaakceptowaną zmianę listy profili.
+- **Mechanizm:** mutacje robią read→modyfikację lokalnej listy→zapis całego JSON bez wspólnej blokady/transakcji. Singleton jest synchronizowany tylko przy tworzeniu instancji. Import wywołuje createProfile na Dispatchers.IO, a dialog wywołuje tę samą metodę z UI; nie ma jednego wymuszonego dispatchera ani serializacji mutacji. Atomowy zapis wartości SharedPreferences nie czyni atomowym całego read-modify-write.
+- **Dowód statyczny:** import i UI odczytują tę samą listę L; import tworzy A, UI tworzy B; zapis L+A, potem L+B. Obie metody zwracają nowe profile, lecz trwały rejestr nie zawiera A. Update/delete mogą analogicznie zastosować stary snapshot; nie jest to potrzebne do głównego kontrprzykładu create/create.
+- **Pewność:** CONFIRMED dostępna równoległa ścieżka i mechanizm utraty aktualizacji. Wymuszone przeploty SharedPreferences/Android NOT_TESTED.
+- **Ważność:** P2 MEDIUM — utrata metadanych profilu może osierocić powiązany stan lub przełączyć fallback na default.
+- **Wpływ:** import, tworzenie/edycja/usuwanie, profile UI i dane powiązane ID. Nie jest to003 (kolejność polityk addon po zmianie aktywnego profilu) ani031 (brak domknięcia danych przy jawnym usunięciu).
+- **Kierunek:** wspólna serializacja wszystkich mutacji rejestru wraz z odczytem i zatwierdzeniem, z jawnie propagowanym wynikiem/błędem; nie ograniczać blokady do samego putString ani konstrukcji singletonu. Zachować ID i dane istniejących profili.
+- **Regresje:** bariera pomiędzy odczytem i zapisem dla create/create z IO+UI, import/update i import/delete; obie zaakceptowane kreacje muszą przetrwać restart. Kontrole default, anulowania i niepowodzenia zapisu, bez realnego magazynu użytkownika. Specyfikacja do przyszłej naprawy.
+
+Stan po16: CONFIRMED=52 (P0=0,P1=4,P2=46,P3=2); LIKELY=4 (010,016,019,043 — potencjalne P2); SUSPECTED=3 (002,025 potencjalne P2;030 potencjalny P1). 16A dodało053/054 i rozszerzyło031;16B dodaje055–059 (1 P1,4 P2), bez nowych hipotez. Etapy1–16 COMPLETE.
