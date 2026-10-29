@@ -1,4 +1,4 @@
-name: Zavro Clean v1193 video-search regressions and signed ARM64 update
+name: Zavro Clean v1194 pagination picker regressions and signed ARM64 update
 
 on:
   push:
@@ -132,8 +132,8 @@ jobs:
         run: ./gradlew :app:lintDebug --console=plain
       # Only after targeted, all JVM, all WebExtension tests and Android lint
       # have passed. Fail-closed on missing stable secrets or any mismatch.
-      - name: Build and verify signed Zavro Clean v1193 ARM64 update APK
-        if: github.ref_name == 'fix/zavro-clean-video-search-ux-20261029'
+      - name: Build and verify signed Zavro Clean v1194 ARM64 update APK
+        if: github.ref_name == 'fix/zavro-clean-pagination-picker-v1194-20261030'
         shell: bash
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -164,15 +164,15 @@ jobs:
             exit 1
           fi
           bash scripts/verify-update-apk.sh "${apks[0]}" \
-            com.prirai.android.nira.debug 1193 0.5.22-alpha98-clean \
+            com.prirai.android.nira.debug 1194 0.5.22-alpha99-clean \
             df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
-          echo "Zavro Clean v1193: stable certificate, package, version and ARM64 verified."
+          echo "Zavro Clean v1194: stable certificate, package, version and ARM64 verified."
 
       - name: Upload signed ARM64 APK
-        if: success() && github.ref_name == 'fix/zavro-clean-video-search-ux-20261029'
+        if: success() && github.ref_name == 'fix/zavro-clean-pagination-picker-v1194-20261030'
         uses: actions/upload-artifact@v4
         with:
-          name: zavro-clean-ux-v1193-arm64-update
+          name: zavro-clean-pagination-v1194-arm64-update
           path: app/build/outputs/apk/debug/*arm64-v8a*.apk
           if-no-files-found: error
           retention-days: 30
