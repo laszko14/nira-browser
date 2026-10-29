@@ -35,6 +35,9 @@ Odniesienia do kodu dotyczą bazy `b7d62f79f285ac81c29a79b326529d42e9b9fde4`. Be
 | ZC-AUD-029 | 10B | P2 MEDIUM | CONFIRMED | Menu kontekstowe PWA obserwuje wybraną kartę BrowserStore zamiast sesji PWA |
 | ZC-AUD-030 | 10B | P1 HIGH (potencjalny) | SUSPECTED | Przy window.open kontekst przygotowanej sesji Gecko może różnić się od kontekstu karty |
 | ZC-AUD-031 | 10B | P2 MEDIUM | CONFIRMED | Usunięcie profilu pozostawia jego karty w BrowserStore i trwałym snapshot |
+| ZC-AUD-032 | 11A | P2 MEDIUM | CONFIRMED | Wznowienie tego samego DOM pomija już przetworzone konfiguracje skryptowe |
+| ZC-AUD-033 | 11A | P2 MEDIUM | CONFIRMED | Dodanie source do istniejącego video nie kolejkuje ponownego inspect rodzica |
+| ZC-AUD-034 | 11A | P2 MEDIUM | CONFIRMED | Późny open shadowRoot na już przeskanowanym hoście nie jest odkrywany przez skaner DOM |
 
 ## ZC-AUD-001 — niespójny kontrakt wersji joba release
 
@@ -444,4 +447,43 @@ Uzupełnienie 024 z 10B: ten sam kontrakt menu występuje również w `browser/h
 - **Kierunek:** jawna polityka kart/grup przed usunięciem profilu: bezpieczne zamknięcie lub świadoma migracja, spójny selected i zapis. Nie przenosić cookies ani nie kasować całej sesji jako skrótu; cleanup Gecko zaplanować osobno.
 - **Regresje:** usunięcie active/inactive named z live/sleeping kartami i grupami; Store/engine/snapshot/restart bez referencji do nieistniejącego profilu. Pusty/default jako kontrole; wyłącznie izolowane dane, z ochroną pozostałych profili.
 
-Stan po 10B: CONFIRMED=25 (P1=3,P2=22); LIKELY=3 (010,016,019 — potencjalne P2); SUSPECTED=3 (002,025 — potencjalne P2; 030 — potencjalny P1). Etap 10 COMPLETE: łącznie 7 nowych CONFIRMED (P1=1/P2=6), 2 SUSPECTED; 10B dodał 5 CONFIRMED i 1 SUSPECTED. Etap 11 nie rozpoczęty.
+## ZC-AUD-032 — konfiguracje script nie wracają po wznowieniu tego samego DOM
+
+- **Etap:** 11A — pre-Play/cykl życia skanera.
+- **Miejsce:** [`content.js:1184`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/assets/extensions/nira-media-detector/content.js#L1184), pageshow/pagehide:1184–1198, scanPlayerConfigs:974–984, resetNavigation:51–64, listener rescan:156–167. Ścieżki JS względem assets/extensions/nira-media-detector/.
+- **Problem:** po powrocie tego samego dokumentu/obiektu script skaner nie ponawia wysyłania deklaracji application/json/player config, mimo ponownej rejestracji dokumentu i wyczyszczenia deduplikacji.
+- **Mechanizm:** pagehide zeruje context, kolejki i observer, lecz pozostawia scriptVersions. pageshow resetuje seen/structuredVersions i skanuje, ale również zachowuje scriptVersions. scanPlayerConfigs widzi ten sam obiekt w WeakSet i kończy przed parsowaniem. Przy niezmienionym URL resetNavigation nie czyści cache; root_ready na głównej ramce też go nie czyści. Inna trasa/history lub zmiana script może odblokować źródło.
+- **Dowód:** końcowa próba Node na rzeczywistym content/background, z istniejącym page fixture i dodanym eventem show: pojedyncze application/json wykryte 1 raz; hide→show(persisted)→pełny scan nie zwiększa emisji (nadal 1); reset trasy daje 2 i nowy documentKey. **FAIL inwariantu ponownej emisji**. Kod próby i SHA w [STAGE_11](STAGE_11.md#minimalna-próba-odtwarzalna-11a).
+- **Pewność:** CONFIRMED — stan cache/wywołania odtworzone w JS. Prawdziwy BFCache Gecko, zdarzenia przeglądarki i wynik native UI NOT_TESTED; obowiązuje warunek wznowienia tych samych obiektów dokumentu, nie pełnego reload.
+- **Ważność:** P2 MEDIUM — brak części pre-Play źródeł po powrocie, jeśli odbiorca musi odbudować stan dokumentu.
+- **Wpływ:** deklaracje bez widocznego video/nowego żądania sieci, historia Wstecz/Dalej, konfiguracje playerów; JSON-LD ma odrębny reset i nie został uznany za ten sam błąd. To nie restart background 002.
+- **Kierunek:** uzgodnić invalidację cache parsowania i nowej generacji dokumentu; wznowienie powinno odtworzyć źródła bez wykonywania kodu strony lub wymuszania Play. Nie usuwać ochrony przed wielokrotnym skanowaniem w zwykłym cyklu.
+- **Regresje:** rzeczywisty BFCache i pełny reload jako kontrola, main/frame, niezmienione application/json/literal player/JSON-LD, brak nowych requestów i Play; porównać zgłoszenia z nową generacją native. Powrót nie może podwajać bieżących wpisów repository.
+
+## ZC-AUD-033 — childList z source nie skanuje istniejącego video
+
+- **Etap:** 11A — dynamiczne deklaracje przed Play.
+- **Miejsce:** [`content.js:1139`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/assets/extensions/nira-media-detector/content.js#L1139), scheduleScan:1127–1156, collect:1038–1043, scanCollection:694–699, inspect:647–691, titleMutationRoot:1093–1119.
+- **Problem:** dodanie nowego source do wcześniej pustego video może nie dać kandydata aż do innego pełnego skanu lub zdarzenia media/Play.
+- **Mechanizm:** dla attributes/characterData kod kolejkuje closest(video,script), lecz dla childList kolejkuje samo addedNode. W scenariuszu zwykłego video bez rozpoznanej karty/etykiety MutationRecord.target=video nie zostaje dodany. Skan root=SOURCE nie zawiera VIDEO ani nie wywołuje inspect rodzica; zwykły src source nie należy też do ogólnych selektorów data-*.
+- **Dowód:** próba Node: ustabilizowany pusty paused video→dodać source MP4→mutate({type:childList,target:video,addedNodes:[source]}) daje 0 kandydatów. Jawny pełny scan daje 1, video nadal paused. **FAIL inwariantu wykrycia z mutacji**, nie problem rozpoznania samego URL. Reprodukcja korzysta z istniejącego fixture; kod w [STAGE_11](STAGE_11.md#minimalna-próba-odtwarzalna-11a).
+- **Pewność:** CONFIRMED — brak ścieżki rodzica i odtworzony wynik JS. Realne MutationObserver/media events w Gecko NOT_TESTED. Nie zgłoszono, że każdy nowy video lub zmiana atrybutu source jest pomijana.
+- **Ważność:** P2 MEDIUM — opóźnione/brakujące wykrycie przed Play dla leniwie dołączanych źródeł.
+- **Wpływ:** preload=none/lazy player i dynamiczny source, również z MIME HLS/DASH. Późniejsza sieć lub loadedmetadata może zamaskować lukę, ale nie naprawia obsługi tej mutacji.
+- **Kierunek:** przy childList source i zmianie zestawu dzieci kolejkuj właściwego właściciela video, z istniejącą koalescencją i budżetem. Nie wymuszać load/play ani globalnego skanu przy każdej zmianie strony.
+- **Regresje:** istniejący video, source dodany/usunięty/zastąpiony, zestaw kilku source, preload=none, bez karty i w karcie, nowe video jako kontrola, src/type attributes, przeciążenie root queue; wszystko bez Play i bez polegania na dodatkowym globalnym scan.
+
+## ZC-AUD-034 — brak wyzwalacza dla późnego open Shadow DOM
+
+- **Etap:** 11A — pokrycie Shadow DOM i wyzwalacze skanera.
+- **Miejsce:** [`content.js:1044`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/assets/extensions/nira-media-detector/content.js#L1044), collect:1044–1053, scheduleScan:1127–1156, observeRoot:1176–1187; lista zdarzeń:1158–1165. Wyszukanie attachShadow/setInterval w aktywnych content scripts nie ujawniło mechanizmu wykrywania tworzenia takich rootów.
+- **Problem:** skaner nie obejmuje open shadowRoot utworzonego po zakończeniu skanu na hoście już obecnym w stabilnym dokumencie.
+- **Mechanizm:** istniejące shadowRoot są odkrywane dopiero przez walker podczas collect i wówczas dostają własny observer. Samo attachShadow nie jest childList light DOM; subtree observer dokumentu nie przechodzi przez tę granicę. Zmiany wewnątrz nowego, jeszcze nieobserwowanego root nie kolejkują collect. Nie ma hooka/alternatywnego sygnału odkrywającego ten root; potrzebny jest późniejszy niezależny skan obejmujący hosta.
+- **Dowód statyczny:** zakończony skan hosta bez root→attachShadow(open)→wstawienie deklaracji data-hls wewnątrz root, bez innych mutacji dokumentu/Play/requestu. Żaden z obserwowanych wcześniej rootów nie dostaje wymaganej mutacji, walker nie jest planowany i observeRoot nigdy nie dostaje nowego root. Istniejący root przy pierwszym skanie jest kontrolą pozytywną. Nie wykonano nowego modelu DOM ani przeglądarki.
+- **Pewność:** CONFIRMED statycznie — brak wyzwalacza przy opisanym kontrakcie granic MutationObserver/Shadow DOM. Realny Gecko/DOM NOT_TESTED; nie deklarowano, że żadne medium z takiej strony nie może być znalezione przez sieć.
+- **Ważność:** P2 MEDIUM — niepełne pre-Play discovery dynamicznych web components.
+- **Wpływ:** późne open roots, także w już działającej SPA/ramce; closed roots są osobnym ograniczeniem platformy, nie tym zgłoszeniem. Sieć 11B może zamaskować część skutków.
+- **Kierunek:** zapewnić bezpieczny, ograniczony sygnał odkrywania nowych open roots i cleanup; nie zakładać, że observer light DOM wystarcza. Nie wymuszać Play, nie otwierać closed roots i nie wprowadzać kosztownego nieograniczonego pollingu.
+- **Regresje:** realny DOM: root przed/po początkowym skanie, istniejący/nowy host, nested roots, deklaracja bez requestu, video/source mutacje, pagehide/pageshow/SPA; każdy root obserwowany raz, bez pompowania całego dokumentu i bez pomiarowych deklaracji 120 Hz.
+
+Stan po 11A: CONFIRMED=28 (P1=3,P2=25); LIKELY=3 (010,016,019 — potencjalne P2); SUSPECTED=3 (002,025 — potencjalne P2; 030 — potencjalny P1). Nowe 032/033/034 CONFIRMED P2; brak nowych hipotez. Etap 11 PARTIAL: 11A COMPLETE, 11B NOT_STARTED.
