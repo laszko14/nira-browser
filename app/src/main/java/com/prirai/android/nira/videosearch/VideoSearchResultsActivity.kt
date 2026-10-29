@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items as listItems
-import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -379,7 +377,7 @@ internal fun VideoSearchResultsScreen(
                     FilterChip(selected = siteFilter == null,
                         onClick = { siteFilter = null }, label = { Text("Wszystkie") })
                 }
-                listItems(results.sources.size, key = { results.sources[it].siteId }) { idx ->
+                items(results.sources.size, key = { results.sources[it].siteId }) { idx ->
                     val source = results.sources[idx]
                     FilterChip(selected = siteFilter == source.siteId,
                         onClick = { siteFilter = source.siteId },
@@ -490,7 +488,7 @@ internal fun VideoSearchResultsScreen(
                             }
                             if (VideoSearchGroupExpansion.isExpanded(
                                     expandedSites, group.source.siteId)) {
-                                gridItems(group.films.size, key = { index ->
+                                items(group.films.size, key = { index ->
                                     val film = group.films[index]
                                     "film:${film.siteId}:${film.id}"
                                 }) { index ->
@@ -499,7 +497,7 @@ internal fun VideoSearchResultsScreen(
                             }
                         }
                     } else {
-                        gridItems(results.visibleFilms.size, key = { index ->
+                        items(results.visibleFilms.size, key = { index ->
                             val film = results.visibleFilms[index]
                             "film:${film.siteId}:${film.id}"
                         }) { index ->
@@ -532,7 +530,7 @@ internal fun VideoSearchResultsScreen(
                             }
                             if (VideoSearchGroupExpansion.isExpanded(
                                     expandedSites, group.source.siteId)) {
-                                listItems(group.films.size, key = { index ->
+                                items(group.films.size, key = { index ->
                                     val film = group.films[index]
                                     "film:${film.siteId}:${film.id}"
                                 }) { index ->
@@ -541,7 +539,7 @@ internal fun VideoSearchResultsScreen(
                             }
                         }
                     } else {
-                        listItems(results.visibleFilms.size, key = { index ->
+                        items(results.visibleFilms.size, key = { index ->
                             val film = results.visibleFilms[index]
                             "film:${film.siteId}:${film.id}"
                         }) { index ->

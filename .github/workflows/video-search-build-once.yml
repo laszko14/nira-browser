@@ -1,4 +1,5 @@
 name: Zavro Video Search authorized ARM64 build v1191
+# Authorized correction retry 2: Kotlin + Compose compiler errors.
 
 on:
   push:

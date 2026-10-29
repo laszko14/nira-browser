@@ -929,9 +929,9 @@ internal class VideoSearchBridgeController(
     private suspend fun request(
         site: VideoSearchSite,
         kind: String,
-        packet: (String, String) -> org.json.JSONObject,
         timeoutMs: Long = 8_000L,
         workerTabId: String? = null,
+        packet: (String, String) -> org.json.JSONObject,
     ): VideoSearchBridgeMessage? {
         val scope = site.scope as? VideoSearchScope.Normal ?: return null
         // Backpressure below existing 12 messages/5s per-session rate cap.
@@ -1136,9 +1136,9 @@ internal class VideoSearchBridgeController(
                 if (!stillAuthorized())
                     return collector.snapshot(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
                 val offset = collector.nextCardIndex
-                val reply = request(site, "crawl", { doc, id ->
+                val reply = request(site, "crawl", workerTabId = workerTabId) { doc, id ->
                     VideoSearchBridgeProtocol.extractCrawl(doc, id, config, offset)
-                }, workerTabId = workerTabId) as? VideoSearchBridgeMessage.Results
+                } as? VideoSearchBridgeMessage.Results
                     ?: return collector.snapshot(VideoSearchPaginationStop.ERROR)
                 try {
                     newInDocument += collector.appendWindow(offset, reply.page)
@@ -1175,9 +1175,9 @@ internal class VideoSearchBridgeController(
             )
             if (!collector.recordAction())
                 return collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT)
-            val action = request(site, "paginate", { doc, id ->
+            val action = request(site, "paginate", workerTabId = workerTabId) { doc, id ->
                 VideoSearchBridgeProtocol.paginate(doc, id, config)
-            }, workerTabId = workerTabId) as? VideoSearchBridgeMessage.PageAction
+            } as? VideoSearchBridgeMessage.PageAction
                 ?: return collector.snapshot(VideoSearchPaginationStop.ERROR)
             if (action.pagination != config.pagination)
                 return collector.snapshot(VideoSearchPaginationStop.ERROR)
@@ -1222,9 +1222,9 @@ internal class VideoSearchBridgeController(
                     if (!stillAuthorized())
                         return collector.snapshot(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
                     val offset = collector.nextCardIndex
-                    val reply = request(site, "crawl", { doc, id ->
+                    val reply = request(site, "crawl", workerTabId = workerTabId) { doc, id ->
                         VideoSearchBridgeProtocol.extractCrawl(doc, id, config, offset)
-                    }, workerTabId = workerTabId) as? VideoSearchBridgeMessage.Results
+                    } as? VideoSearchBridgeMessage.Results
                         ?: return collector.snapshot(VideoSearchPaginationStop.ERROR)
                     if (reply.page.status == "stale")
                         return collector.snapshot(VideoSearchPaginationStop.ERROR)
@@ -1244,9 +1244,9 @@ internal class VideoSearchBridgeController(
     }
 
     private suspend fun pickSite(site: VideoSearchSite, kind: String): VideoSearchBridgeMessage? =
-        request(site, "pick:$kind", { document, req ->
+        request(site, "pick:$kind", timeoutMs = 101_000L) { document, req ->
             VideoSearchBridgeProtocol.pick(document, req, kind)
-        }, timeoutMs = 101_000L)
+        }
 
     /** The picker must target the page currently visible behind My Sites. */
     fun canStartManual(site: VideoSearchSite): Boolean {
@@ -1393,10 +1393,10 @@ internal class VideoSearchBridgeController(
         }
         if (latest != site || !latest.enabled)
             return VideoSearchQueueStatus.NEEDS_ATTENTION
-        val response = request(site, "search", { document, request ->
+        val response = request(site, "search", workerTabId = tabId) { document, request ->
             VideoSearchBridgeProtocol.search(document, request, query,
                 cfg.searchInputSelector, cfg.submission, cfg.submitSelector)
-        }, workerTabId = tabId)
+        }
         if (!ownerIsActive()) return VideoSearchQueueStatus.STOPPED
         return when (response) {
             is VideoSearchBridgeMessage.Submitted -> VideoSearchQueueStatus.SUBMITTED
@@ -1424,9 +1424,9 @@ internal class VideoSearchBridgeController(
                 manager.getActiveProfile().id != scope.profileId) return false
             val live = workerOwnedTab(site, tabId)
             if (live != null && live.second.documentId != beforeDocument) {
-                val answer = request(site, "crawl", { doc, req ->
+                val answer = request(site, "crawl", workerTabId = tabId) { doc, req ->
                     VideoSearchBridgeProtocol.extractCrawl(doc, req, cfg, 0)
-                }, workerTabId = tabId) as? VideoSearchBridgeMessage.Results
+                } as? VideoSearchBridgeMessage.Results
                 if (VideoSearchWorkerVerification.confirmed(
                         beforeDocument, live.second.documentId, answer?.page
                     )) return true
