@@ -67,7 +67,7 @@ function harness() {
     pick(kind) {
       receive({schemaVersion: 1, event: 'pick', documentId: hello.documentId,
         requestId: (++counter).toString(16).padStart(32, '0'), pickKind: kind});
-      const banner = root.children.at(-1);
+      const banner = root.children.find(el => el.children?.length >= 2);
       return { banner, title: banner.children[0], controls: banner.children[1] };
     },
     action(ui, name) {
