@@ -414,6 +414,105 @@
     if (last) post("validation", command.requestId,
       Object.assign({ attempts }, last));
   }
+  // Stage 4A: a single read-only DOM extraction from the explicitly
+  // configured result cards. No document.title, scraping loops or navigation.
+  function extractResults(command) {
+    const selector = command.resultsCardSelector;
+    if (typeof selector !== "string" || !selector || selector.length > 160)
+      return { status: "stale", films: [], inspectedCards: 0, moreOnPage: false };
+    let nodes;
+    try { nodes = Array.from(document.querySelectorAll(selector)).slice(0, 80); }
+    catch (_) {
+      return { status: "stale", films: [], inspectedCards: 0, moreOnPage: false };
+    }
+    const films = [], seen = new Set(), limit = 16;
+    let budget = 6400, more = false;
+    function text(node, max) {
+      const str = (node?.textContent || "").replace(/\s+/g, " ").trim();
+      return str && str.length <= max ? str : null; // never silently truncate titles
+    }
+    function url(raw, pageOnly) {
+      if (!raw || typeof raw !== "string" || raw.length > 1800) return null;
+      if (/^(?:javascript|data|blob|file|mailto):/i.test(raw)) return null;
+      try {
+        const parsed = new URL(raw, location.href);
+        if (!["https:", "http:"].includes(parsed.protocol) ||
+            parsed.username || parsed.password || parsed.href.length > (pageOnly ? 2048 : 800))
+          return null;
+        // A film PAGE must be on the configured site's current origin.
+        // This avoids confusing cross-site ads with film results.
+        if (pageOnly && parsed.origin !== location.origin) return null;
+        if (pageOnly && parsed.href === location.href) return null;
+        return parsed.href; // Preserve original query and parameter order.
+      } catch (_) { return null; }
+    }
+    function duration(value) {
+      if (typeof value !== "string" || value.length > 65) return null;
+      const v = value.trim();
+      const iso = /^PT(?:(\d{1,2})H)?(?:(\d{1,2})M)?(?:(\d{1,2})S)?$/i.exec(v);
+      if (iso && (iso[1] || iso[2] || iso[3])) {
+        const seconds = Number(iso[1] || 0) * 3600 + Number(iso[2] || 0) * 60 +
+          Number(iso[3] || 0);
+        return seconds >= 0 && seconds <= 86400 ? seconds : null;
+      }
+      if (!/^(?:\d{1,2}:)?\d{1,2}:\d{2}$/.test(v)) return null;
+      const parts = v.split(":").map(Number);
+      if (parts[parts.length - 1] >= 60 ||
+          (parts.length === 3 && parts[1] >= 60)) return null;
+      const result = parts.reduce((acc, n) => acc * 60 + n, 0);
+      return result <= 86400 ? result : null;
+    }
+    for (let i = 0; i < nodes.length; i++) {
+      const card = nodes[i];
+      if (!card || !card.querySelector) continue;
+      const links = Array.from(card.querySelectorAll('a[href]')).slice(0, 12);
+      const preferred = links.filter(link => link.closest(
+        '[itemprop="name"],.title,.movie-title,.video-title,h1,h2,h3,h4'));
+      const ordered = preferred.concat(links.filter(link => !preferred.includes(link)));
+      let anchor, filmPageUrl;
+      for (const link of ordered) {
+        const valid = url(link.getAttribute("href"), true);
+        if (valid) { anchor = link; filmPageUrl = valid; break; }
+      }
+      if (!filmPageUrl || seen.has(filmPageUrl)) continue;
+      seen.add(filmPageUrl);
+      const heading = card.querySelector('[itemprop="name"],h1,h2,h3,h4,.movie-title,.video-title,.title');
+      const fromHeading = text(heading, 512);
+      const fromAnchor = text(anchor, 512) ||
+        (function () { const title = (anchor.getAttribute("title") || "").trim();
+          return title.length <= 512 ? (title || null) : null; })();
+      const img = card.querySelector("img");
+      const alt = (img?.getAttribute("alt") || "").trim();
+      const imageAlt = alt.length <= 512 ? (alt || null) : null;
+      const originalTitle = fromHeading || fromAnchor || imageAlt;
+      const titleSource = fromHeading || (!fromAnchor && imageAlt) ? "CARD" :
+        fromAnchor ? "LINK" : "UNKNOWN";
+      const thumbnailUrl = img ? url(img.getAttribute("data-src") ||
+        img.getAttribute("data-original") || img.currentSrc ||
+        img.getAttribute("src"), false) : null;
+      const durationEl = card.querySelector(
+        'time[datetime],[data-duration],.duration,.runtime,.video-duration');
+      const durationSeconds = duration(durationEl?.getAttribute("datetime") ||
+        durationEl?.getAttribute("data-duration") || text(durationEl, 65) || "");
+      const item = { filmPageUrl, originalTitle, thumbnailUrl, durationSeconds,
+        titleSource, imageSource: thumbnailUrl ? "CARD" : "UNKNOWN", originalIndex: i };
+      const cost = JSON.stringify(item).length;
+      if (films.length >= limit || budget - cost < 0) {
+        more = true;
+        break;
+      }
+      budget -= cost;
+      films.push(item);
+    }
+    if (nodes.length === 80) more = true;
+    return {
+      status: films.length ? "ok" : "empty",
+      films,
+      inspectedCards: nodes.length,
+      moreOnPage: more
+    };
+  }
+
   try {
     port = browser.runtime.connectNative("zavro.video.search");
     if (!port) return;
@@ -444,6 +543,15 @@
           validateStored(message).catch(function () {
             // Invalid DOM or page unload: no success/repair claim.
           }).finally(function () { busy = false; });
+        } else if (message.event === "extract" && !picker &&
+            keys === "documentId,event,requestId,resultsCardSelector,schemaVersion") {
+          busy = true;
+          try {
+            post("results", message.requestId, extractResults(message));
+          } catch (_) {
+            post("results", message.requestId,
+              { status: "stale", films: [], inspectedCards: 0, moreOnPage: false });
+          } finally { busy = false; }
         } else if (message.event === "search" &&
             keys === "documentId,event,inputSelector,query,requestId,schemaVersion,submission,submitSelector") {
           busy = true;

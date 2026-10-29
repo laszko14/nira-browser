@@ -53,6 +53,14 @@ internal sealed interface VideoSearchBridgeMessage {
         val pickKind: String,
     ) : VideoSearchBridgeMessage
 
+    class Results(
+        override val documentId: String,
+        val requestId: String,
+        val page: VideoSearchExtractedPage,
+    ) : VideoSearchBridgeMessage {
+        override fun toString() = "VideoSearchBridgeMessage.Results(redacted)"
+    }
+
     /** Redacted, bounded assessment of the currently open site's selectors. */
     class Validation(
         override val documentId: String,
@@ -193,6 +201,69 @@ internal object VideoSearchBridgeProtocol {
                     (status == "unsafe" && reason != "unsafe_form")) return null
                 VideoSearchBridgeMessage.Validation(id, request, status, reason, attempts, cards)
             }
+            "results" -> {
+                if (!json.strict("schemaVersion", "event", "documentId", "requestId",
+                        "status", "films", "inspectedCards", "moreOnPage")) return null
+                val request = json.string("requestId")?.takeIf(::validToken) ?: return null
+                val status = json.string("status")?.takeIf {
+                    it in setOf("ok", "empty", "stale")
+                } ?: return null
+                val raw = json.opt("films") as? org.json.JSONArray ?: return null
+                if (raw.length() > 16) return null
+                val count = (json.opt("inspectedCards") as? Int)
+                    ?.takeIf { it in 0..80 } ?: return null
+                val more = json.opt("moreOnPage") as? Boolean ?: return null
+                val items = ArrayList<VideoSearchExtractedFilm>(raw.length())
+                for (i in 0 until raw.length()) {
+                    val row = raw.optJSONObject(i) ?: return null
+                    if (!row.strict("filmPageUrl", "originalTitle", "thumbnailUrl",
+                            "durationSeconds", "titleSource", "imageSource",
+                            "originalIndex")) return null
+                    val pageUrl = row.string("filmPageUrl")
+                        ?.takeIf { it.length <= 2048 } ?: return null
+                    val title = when (val value = row.opt("originalTitle")) {
+                        JSONObject.NULL -> null
+                        is String -> value.takeIf { it.isNotBlank() && it.length <= 512 }
+                            ?: return null
+                        else -> return null
+                    }
+                    val thumbnail = when (val value = row.opt("thumbnailUrl")) {
+                        JSONObject.NULL -> null
+                        is String -> value.takeIf { it.isNotBlank() && it.length <= 800 }
+                            ?: return null
+                        else -> return null
+                    }
+                    val duration = when (val value = row.opt("durationSeconds")) {
+                        JSONObject.NULL -> null
+                        is Number -> value.toLong().takeIf {
+                            it.toDouble() == value.toDouble() && it in 0..86_400L
+                        } ?: return null
+                        else -> return null
+                    }
+                    val titleSource = when (row.string("titleSource")) {
+                        "CARD" -> VideoResultTitleSource.CARD
+                        "LINK" -> VideoResultTitleSource.LINK
+                        "UNKNOWN" -> VideoResultTitleSource.UNKNOWN
+                        else -> return null
+                    }
+                    val imageSource = when (row.string("imageSource")) {
+                        "CARD" -> VideoResultImageSource.CARD
+                        "UNKNOWN" -> VideoResultImageSource.UNKNOWN
+                        else -> return null
+                    }
+                    val index = (row.opt("originalIndex") as? Int)
+                        ?.takeIf { it in 0..200 } ?: return null
+                    val film = try {
+                        VideoSearchExtractedFilm(pageUrl, title, thumbnail, duration,
+                            titleSource, imageSource, index)
+                    } catch (_: IllegalArgumentException) { return null }
+                    items.add(film)
+                }
+                val page = try {
+                    VideoSearchExtractedPage(status, items, count, more)
+                } catch (_: IllegalArgumentException) { return null }
+                VideoSearchBridgeMessage.Results(id, request, page)
+            }
             "inspection" -> {
                 val request = json.string("requestId")?.takeIf(::validToken) ?: return null
                 val status = json.string("status")?.takeIf { it in setOf("ready", "partial", "missing") }
@@ -278,6 +349,15 @@ internal object VideoSearchBridgeProtocol {
             put("submitSelector", config.submitSelector ?: JSONObject.NULL)
             put("pagination", config.pagination.name)
             put("nextPageSelector", config.nextPageSelector ?: JSONObject.NULL)
+        }
+    }
+
+    /** No query or page URL is needed in an extraction request. */
+    fun extract(documentId: String, requestId: String,
+                cardSelector: String): JSONObject {
+        require(validSelector(cardSelector))
+        return base("extract", documentId, requestId).apply {
+            put("resultsCardSelector", cardSelector)
         }
     }
 

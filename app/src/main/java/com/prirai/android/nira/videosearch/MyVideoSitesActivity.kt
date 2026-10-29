@@ -102,6 +102,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             onInspect = ::inspectSite,
             onCheck = ::checkConfiguration,
             onManual = ::configureManually,
+            onPreview = ::previewResults,
             onSearch = ::searchSite,
             onDelete = ::confirmRemoval,
         )
@@ -493,6 +494,57 @@ class MyVideoSitesActivity : AppCompatActivity() {
             .show()
     }
 
+    /** Temporary read-only preview: no run, no tabs opened, no DB writes. */
+    private fun previewResults(site: VideoSearchSite) {
+        val owner = ownerIfCurrent() ?: return
+        if (site.scope != owner || !site.enabled) return
+        lifecycleScope.launch {
+            val current = try {
+                withContext(Dispatchers.IO) { repository.site(owner, site.id) }
+            } catch (_: Exception) { null }
+            if (ownerIfCurrent() != owner || current == null ||
+                !current.enabled || current.siteUrl != site.siteUrl) return@launch
+            if (current.configuration?.resultsCardSelector.isNullOrBlank()) {
+                message("Wskaż karty wyników przed podglądem.")
+                return@launch
+            }
+            val page = try {
+                VideoSearchBridgeHost.instance()?.extractSite(current)
+            } catch (_: Exception) { null }
+            if (ownerIfCurrent() != owner) return@launch
+            if (page == null) {
+                message("Otwórz stronę wyników tej witryny w aktywnej karcie Zavro.")
+                return@launch
+            }
+            if (page.status == "stale") {
+                message("Selektor kart nie działa. Użyj „Sprawdź” lub „Wskaż”.")
+                return@launch
+            }
+            val summary = if (page.films.isEmpty()) {
+                "Nie znaleziono kart z poprawnym linkiem do strony filmu."
+            } else {
+                page.films.take(10).mapIndexed { index, film ->
+                    val name = film.originalTitle ?: "Tytuł nieznany"
+                    val duration = film.durationSeconds?.let { seconds ->
+                        val m = seconds / 60
+                        val sec = seconds % 60
+                        " • ${m}:${sec.toString().padStart(2, '0')}"
+                    } ?: ""
+                    val image = if (film.thumbnailUrl != null) " • miniatura" else ""
+                    "${index + 1}. $name$duration$image"
+                }.joinToString("\n\n")
+            }
+            MaterialAlertDialogBuilder(this@MyVideoSitesActivity)
+                .setTitle("Podgląd: ${site.displayName}")
+                .setMessage("Odczytano ${page.films.size} unikalnych filmów z " +
+                    "${page.inspectedCards} sprawdzonych kart." +
+                    (if (page.moreOnPage) " Dalsze elementy pominięto (limit podglądu)."
+                    else "") + "\n\n" + summary)
+                .setPositiveButton("OK", null)
+                .show()
+        }
+    }
+
     private fun searchSite(site: VideoSearchSite) {
         val owner = ownerIfCurrent() ?: return
         if (site.scope != owner || !site.enabled) return
@@ -696,6 +748,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
         private val onInspect: (VideoSearchSite) -> Unit,
         private val onCheck: (VideoSearchSite) -> Unit,
         private val onManual: (VideoSearchSite) -> Unit,
+        private val onPreview: (VideoSearchSite) -> Unit,
         private val onSearch: (VideoSearchSite) -> Unit,
         private val onDelete: (VideoSearchSite) -> Unit,
     ) : RecyclerView.Adapter<SitesAdapter.Holder>() {
@@ -758,6 +811,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             val inspect: Button,
             val check: Button,
             val manual: Button,
+            val preview: Button,
             val search: Button,
             val delete: Button,
         ) : RecyclerView.ViewHolder(root)
@@ -786,12 +840,14 @@ class MyVideoSitesActivity : AppCompatActivity() {
             val inspect = Button(ctx).apply { text = "Rozpoznaj" }
             val check = Button(ctx).apply { text = "Sprawdź" }
             val manual = Button(ctx).apply { text = "Wskaż" }
+            val preview = Button(ctx).apply { text = "Wyniki" }
             val search = Button(ctx).apply { text = "Szukaj" }
             val delete = Button(ctx).apply { text = "Usuń" }
             firstActions.addView(inspect, LinearLayout.LayoutParams(0, -2, 1f))
             firstActions.addView(check, LinearLayout.LayoutParams(0, -2, 1f))
             firstActions.addView(manual, LinearLayout.LayoutParams(0, -2, 1f))
             secondActions.addView(search, LinearLayout.LayoutParams(0, -2, 1f))
+            secondActions.addView(preview, LinearLayout.LayoutParams(0, -2, 1f))
             secondActions.addView(edit, LinearLayout.LayoutParams(0, -2, 1f))
             secondActions.addView(delete, LinearLayout.LayoutParams(0, -2, 1f))
             actions.addView(firstActions)
@@ -800,7 +856,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             root.addView(detail)
             root.addView(select)
             root.addView(actions)
-            return Holder(root, heading, detail, toggle, select, edit, inspect, check, manual, search, delete)
+            return Holder(root, heading, detail, toggle, select, edit, inspect, check, manual, preview, search, delete)
         }
 
         override fun onBindViewHolder(holder: Holder, position: Int) {
@@ -824,10 +880,13 @@ class MyVideoSitesActivity : AppCompatActivity() {
             holder.inspect.isEnabled = site.enabled
             holder.check.isEnabled = site.enabled && site.configuration != null
             holder.manual.isEnabled = site.enabled
+            holder.preview.isEnabled = site.enabled &&
+                !site.configuration?.resultsCardSelector.isNullOrBlank()
             holder.search.isEnabled = site.enabled
             holder.inspect.setOnClickListener { onInspect(site) }
             holder.check.setOnClickListener { onCheck(site) }
             holder.manual.setOnClickListener { onManual(site) }
+            holder.preview.setOnClickListener { onPreview(site) }
             holder.search.setOnClickListener { onSearch(site) }
             holder.delete.setOnClickListener { onDelete(site) }
         }
