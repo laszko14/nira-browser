@@ -208,4 +208,133 @@ class VideoSearchManualConfigurationTest {
             fail("Incomplete selector must not be CONFIGURED")
         } catch (_: IllegalArgumentException) {}
     }
+
+    private fun inspectedPartial(): VideoSearchBridgeMessage.Inspection =
+        VideoSearchBridgeMessage.Inspection(
+            doc, request, "partial", "input[name=\"q\"]", null,
+            VideoSearchSubmission.FORM_SUBMIT, null,
+            VideoSearchPagination.NONE, null,
+        )
+
+    @Test fun homepagePartialThenResultsOnlyPageCanFinishWithoutAnInput() = runBlocking {
+        val database = db()
+        try {
+            val repo = VideoSearchRepository(database.dao())
+            val site = repo.addSite(owner, "https://example.org/?ref=x&ref=y",
+                nowMs = 10, newId = "s")
+            assertTrue(repo.applyAutoPartialConfiguration(site, inspectedPartial(), nowMs = 11))
+            val checkpoint = VideoSearchRepository(database.dao()).site(owner, site.id)!!
+            assertEquals(VideoSiteConfigurationState.REPAIR_REQUIRED, checkpoint.configurationState)
+            assertNull(checkpoint.configuration!!.resultsCardSelector)
+            val controls = VideoSearchManualStages.pendingResults(checkpoint)!!
+            assertEquals("input[name=\"q\"]", controls.searchInputSelector)
+            assertTrue(VideoSearchBridgeProtocol.sameOrigin(
+                checkpoint.siteUrl, "https://example.org/results?q=comedies"))
+            // Results-only document has no form, just manually picked cards/next.
+            val pickCard = VideoSearchBridgeMessage.Picked(
+                "2".repeat(32), "3".repeat(32), "cards",
+                "article.movie-card", false, VideoSearchPagination.NONE
+            )
+            val pickNext = VideoSearchBridgeMessage.Picked(
+                "2".repeat(32), "4".repeat(32), "next",
+                "a.next", false, VideoSearchPagination.NEXT_LINK
+            )
+            assertEquals("cards", pickCard.pickKind)
+            val complete = VideoSearchManualStages.withResults(
+                controls, pickCard.selector, pickNext
+            )!!
+            assertEquals(controls.searchInputSelector, complete.searchInputSelector)
+            assertEquals(controls.submission, complete.submission)
+            assertEquals("article.movie-card", complete.resultsCardSelector)
+            assertTrue(repo.applyManualConfiguration(checkpoint, complete, nowMs = 12))
+            val restored = VideoSearchRepository(database.dao()).site(owner, site.id)!!
+            assertEquals(VideoSiteConfigurationState.CONFIGURED, restored.configurationState)
+            assertEquals(complete, restored.configuration)
+            assertEquals(site.siteUrl, restored.siteUrl)
+            assertEquals(site.id, restored.id)
+            assertEquals(1, repo.sites(owner).size)
+        } finally { database.close() }
+    }
+
+    @Test fun cancelledResultsWizardCannotLosePersistedHomepageSelectors() = runBlocking {
+        val database = db()
+        try {
+            val repo = VideoSearchRepository(database.dao())
+            val site = repo.addSite(owner, "https://example.org", newId = "s")
+            assertTrue(repo.applyAutoPartialConfiguration(site, inspectedPartial()))
+            val before = repo.site(owner, site.id)!!
+            assertTrue(VideoSearchBridgeProtocol.decode(
+                reply("pick_cancelled", "cards")) is VideoSearchBridgeMessage.PickCancelled)
+            assertEquals(before, repo.site(owner, site.id))
+            assertNotNull(VideoSearchManualStages.pendingResults(before))
+        } finally { database.close() }
+    }
+
+    @Test fun concurrentRenameOrAddressCorrectionBlocksOldResultsStage() = runBlocking {
+        val database = db()
+        try {
+            val repo = VideoSearchRepository(database.dao())
+            val original = repo.addSite(owner, "https://example.org", newId = "s")
+            repo.applyAutoPartialConfiguration(original, inspectedPartial(), nowMs = 11)
+            val before = repo.site(owner, original.id)!!
+            repo.renameSite(owner, original.id, "Zmiana", nowMs = 12)
+            val complete = VideoSearchManualStages.withResults(
+                before.configuration!!, ".movie-card", null
+            )!!
+            assertFalse(repo.applyManualConfiguration(before, complete, nowMs = 13))
+            assertEquals("Zmiana", repo.site(owner, original.id)!!.displayName)
+            assertNull(repo.site(owner, original.id)!!.configuration!!.resultsCardSelector)
+            val other = VideoSearchScope.Normal("work")
+            assertNull(repo.site(other, original.id))
+        } finally { database.close() }
+    }
+
+    @Test fun invalidOrAmbiguousAutoPartialCannotReplaceExistingConfiguration() = runBlocking {
+        val database = db()
+        try {
+            val repo = VideoSearchRepository(database.dao())
+            val original = repo.addSite(owner, "https://example.org", newId = "s")
+            val bad = VideoSearchBridgeMessage.Inspection(
+                doc, request, "partial", "input[type=\"password\"]", null,
+                VideoSearchSubmission.CLICK_SUBMIT, null,
+                VideoSearchPagination.NONE, null
+            )
+            assertFalse(repo.applyAutoPartialConfiguration(original, bad))
+            assertNull(repo.site(owner, original.id)!!.configuration)
+            assertTrue(repo.applyAutoPartialConfiguration(original, inspectedPartial()))
+            assertFalse(repo.applyAutoPartialConfiguration(original, inspectedPartial()))
+            assertEquals(VideoSiteConfigurationState.REPAIR_REQUIRED,
+                repo.site(owner, original.id)!!.configurationState)
+        } finally { database.close() }
+    }
+
+    @Test fun alreadyCompleteOrForeignProfileCannotEnterResultsOnlyStage() = runBlocking {
+        val database = db()
+        try {
+            val repo = VideoSearchRepository(database.dao())
+            val original = repo.addSite(owner, "https://example.org", newId = "site")
+            val ready = VideoSiteConfiguration("input.search", "article.movie")
+            assertTrue(repo.applyManualConfiguration(original, ready))
+            val complete = repo.site(owner, original.id)!!
+            assertNull(VideoSearchManualStages.pendingResults(complete))
+            assertFalse(repo.applyAutoPartialConfiguration(complete, inspectedPartial()))
+            assertFalse(repo.applyManualConfiguration(
+                complete.copy(scope = VideoSearchScope.Private("default", "session")),
+                ready
+            ))
+            assertEquals(ready, repo.site(owner, original.id)!!.configuration)
+        } finally { database.close() }
+    }
+
+    @Test fun invalidResultsSelectorsAreNotMergedIntoSavedSearchForm() {
+        val controls = VideoSiteConfiguration("input.search", null)
+        assertNull(VideoSearchManualStages.withResults(controls, "div:has(script)", null))
+        assertNull(VideoSearchManualStages.withResults(controls, ".movie",
+            VideoSearchBridgeMessage.Picked(doc, request, "cards",
+                ".card", false, VideoSearchPagination.NONE)))
+        val valid = VideoSearchManualStages.withResults(controls, ".movie", null)!!
+        assertEquals("input.search", valid.searchInputSelector)
+        assertEquals(".movie", valid.resultsCardSelector)
+    }
+
 }

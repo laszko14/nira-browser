@@ -1,3 +1,10 @@
+# P13/16 — CFG-02 — konfiguracja dwudokumentowa
+
+- P12 PASS w [CI 40944491883](https://github.com/laszko14/nira-browser/actions/runs/40944491883), SHA `b91ce5cc`. P13: `manualSiteTab` i `pickSite` pozostają ograniczone do normalnego profilu i jednego aktualnego dokumentu; **wymagane są dwa osobne działania użytkownika**: zapisać samo pole na homepage, później samodzielnie otworzyć /results i tylko tam wskazać karty/next. Ręczne i częściowo automatyczne selektory formularza są zachowywane w Room jako `REPAIR_REQUIRED`; `VideoSearchManualStages` łączy je z poprawnymi kartami w nowym dokumencie, CAS odrzuca zmiany rekordów, anulowanie nie zapisuje. P9 sprawdza czy karta ma prawdziwy filmowy URL.
+- Testy P13: Kotlin/Robolectric dla Room + 4 Node dla rzeczywistego JS z mockowanym DOM/portem (homepage→results, brak input na /results, stale token, cancel/skip). CI_PENDING dla nowego SHA, urządzenie i prawdziwy GeckoView **NOT_TESTED**. Bez APK i merge. P14 CFG-04 po kolejnym „Dalej”.
+
+---
+
 # P12/16 — CFG-01 — korekta adresu po przekierowaniu
 
 - P11: zielone CI SHA `98b8ec34` / run [40942419434](https://github.com/laszko14/nira-browser/actions/runs/40942419434). P12: po przekierowaniu zapisany dokładny URL może być nieaktualny; **nie** poluzowano automatycznie dopasowania profilu, tabId ani origin w Bridge. Zamiast tego normalny profil może edytować pełny adres **za wyraźną zgodą**; Room DAO sprawdza duplicate / CAS i zachowuje cały stary rekord w miejscu, a konfigurację bez utraty selektorów oznacza do ponownego sprawdzenia. Gotowe testy Room, CI_PENDING dla nowego SHA.

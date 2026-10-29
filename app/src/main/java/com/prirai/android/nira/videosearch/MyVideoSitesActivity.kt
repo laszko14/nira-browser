@@ -1223,11 +1223,20 @@ class MyVideoSitesActivity : AppCompatActivity() {
                     message(if (saved) "Rozpoznano wyszukiwarkę i karty wyników"
                         else "Witryna zmieniła się — ponów rozpoznawanie")
                 } else {
-                    withContext(Dispatchers.IO) {
+                    val savedPartial = withContext(Dispatchers.IO) {
+                        if (inspected.status == "partial")
+                            repository.applyAutoPartialConfiguration(current, inspected)
+                        else false
+                    }
+                    if (!savedPartial) withContext(Dispatchers.IO) {
                         repository.markAutoConfigurationIncomplete(current)
                     }
-                    message(if (inspected.inputSelector != null)
-                        "Rozpoznano pole. Możesz spróbować „Szukaj”. Wyniki wymagają konfiguracji."
+                    message(if (savedPartial)
+                        "Zapisano pole wyszukiwania. Otwórz stronę wyników " +
+                            "tej witryny i wybierz „Wskaż”, aby dodać karty filmów."
+                        else if (inspected.inputSelector != null)
+                        "Rozpoznano pole, ale nie potwierdzono bezpiecznego wysłania. " +
+                            "Wybierz „Wskaż” dla formularza."
                         else "Nie rozpoznano wyszukiwarki. Wybierz „Wskaż” przy witrynie.")
                 }
             } catch (_: Exception) {
@@ -1372,13 +1381,21 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private fun configureManually(site: VideoSearchSite) {
         val owner = ownerIfCurrent() ?: return
         if (site.scope != owner || !site.enabled) return
+        val completing = VideoSearchManualStages.pendingResults(site) != null
         MaterialAlertDialogBuilder(this)
-            .setTitle("Wskaż elementy witryny")
-            .setMessage("Otwórz dokładny adres tej witryny w aktywnej karcie Zavro " +
-                "i odśwież stronę. Po rozpoczęciu wrócisz na stronę, aby dotknąć: " +
-                "pola wyszukiwania, opcjonalnego przycisku, karty filmu oraz " +
-                "opcjonalnego przycisku następnej strony. " +
-                "Możesz pominąć opcjonalne kroki lub anulować całość.")
+            .setTitle(if (completing) "Uzupełnij karty wyników" else "Wskaż elementy witryny")
+            .setMessage(if (completing)
+                "Pole wyszukiwania zostało już zapisane. Otwórz stronę WYNIKÓW " +
+                    "tej samej witryny w zwykłej karcie Zavro i dotknij „Rozpocznij”. " +
+                    "Wskaż kartę filmu i opcjonalnie następną stronę. " +
+                    "Nie trzeba ponownie wybierać pola ani przycisku Szukaj. " +
+                    "Anulowanie zachowa poprzednie ustawienia."
+            else "Otwórz stronę z formularzem tej witryny w zwykłej karcie Zavro " +
+                "i odśwież stronę. Wskaż pole wyszukiwania i opcjonalny przycisk. " +
+                "Jeśli karty filmów są dopiero na osobnej stronie wyników, " +
+                "przy kroku kart naciśnij „Pomiń”. Zapiszemy formularz — " +
+                "potem otwórz stronę wyników i wybierz „Wskaż” jeszcze raz. " +
+                "Jeżeli karty są tutaj, wskaż je od razu. Anulowanie nic nie zapisuje.")
             .setNegativeButton("Anuluj", null)
             .setPositiveButton("Rozpocznij") { _, _ ->
                 lifecycleScope.launch {

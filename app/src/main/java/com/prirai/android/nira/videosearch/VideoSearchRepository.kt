@@ -123,6 +123,37 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
         ) == 1
     }
 
+    /**
+     * CFG-02: auto-inspection of a homepage may find a safe input/submit
+     * while cards live on a different results document. Persist just the
+     * validated search controls so the user can finish on /results later.
+     * A previously configured/manual site is never overwritten.
+     */
+    suspend fun applyAutoPartialConfiguration(
+        site: VideoSearchSite, inspection: VideoSearchBridgeMessage.Inspection,
+        nowMs: Long = System.currentTimeMillis(),
+    ): Boolean {
+        val owner = site.scope as? VideoSearchScope.Normal ?: return false
+        if (site.configuration != null || inspection.status != "partial" ||
+            inspection.resultsCardSelector != null) return false
+        val input = inspection.inputSelector ?: return false
+        val submission = inspection.submission ?: return false
+        if (!VideoSearchBridgeProtocol.validSelector(input) ||
+            (inspection.submitSelector != null &&
+                !VideoSearchBridgeProtocol.validSelector(inspection.submitSelector)) ||
+            (submission == VideoSearchSubmission.CLICK_SUBMIT &&
+                inspection.submitSelector == null)) return false
+        val config = VideoSiteConfiguration(
+            searchInputSelector = input, resultsCardSelector = null,
+            submission = submission, submitSelector = inspection.submitSelector,
+        )
+        return dao.acceptManualConfiguration(
+            owner.profileId, site.id, site.siteUrl, site.updatedAtMs,
+            VideoSiteConfigurationState.REPAIR_REQUIRED.name,
+            VideoSearchRowCodec.configurationJson(config)!!, nowMs
+        ) == 1
+    }
+
     /** Incomplete detection must not delete/disable a site or erase good selectors. */
     suspend fun markAutoConfigurationIncomplete(
         site: VideoSearchSite, nowMs: Long = System.currentTimeMillis(),

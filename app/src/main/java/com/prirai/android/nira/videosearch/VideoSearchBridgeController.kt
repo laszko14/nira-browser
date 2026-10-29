@@ -1419,44 +1419,83 @@ internal class VideoSearchBridgeController(
             try {
                 val original = manualSiteTab(site) ?: return@launch
                 val originalDocument = original.second.documentId ?: return@launch
-                val input = pickSite(site, "input") as? VideoSearchBridgeMessage.Picked
-                    ?: return@launch
-                if (input.pickKind != "input") return@launch
-                if (manualSiteTab(site)?.let {
-                        it.first === original.first && it.second.documentId == originalDocument
-                    } != true) return@launch
+                // A persisted partial configuration is a durable checkpoint:
+                // the results page may have NO search input at all. Never
+                // repick or overwrite an already confirmed input/submit.
+                val partial = VideoSearchManualStages.pendingResults(site)
+                val searchControls = if (partial != null) partial else {
+                    val input = pickSite(site, "input") as? VideoSearchBridgeMessage.Picked
+                        ?: return@launch
+                    if (input.pickKind != "input") return@launch
+                    if (manualSiteTab(site)?.let {
+                            it.first === original.first &&
+                                it.second.documentId == originalDocument
+                        } != true) return@launch
 
-                val submit = pickSite(site, "submit")
-                if (submit is VideoSearchBridgeMessage.PickCancelled || submit == null)
-                    return@launch
-                val submitSelector = (submit as? VideoSearchBridgeMessage.Picked)?.selector
-                // Skipping a button is legal only for an actual same-origin GET
-                // form. For an SPA field the user must choose a safe button.
-                if (submitSelector == null && !input.formSafe) return@launch
-                val submission = if (submitSelector != null)
-                    VideoSearchSubmission.CLICK_SUBMIT else VideoSearchSubmission.FORM_SUBMIT
+                    val submit = pickSite(site, "submit")
+                    if (submit is VideoSearchBridgeMessage.PickCancelled || submit == null)
+                        return@launch
+                    val submitSelector = (submit as? VideoSearchBridgeMessage.Picked)?.selector
+                    // Skipping submit is legal only for a verified safe form.
+                    if (submitSelector == null && !input.formSafe) return@launch
+                    val submission = if (submitSelector != null)
+                        VideoSearchSubmission.CLICK_SUBMIT else VideoSearchSubmission.FORM_SUBMIT
+                    VideoSiteConfiguration(
+                        searchInputSelector = input.selector, resultsCardSelector = null,
+                        submission = submission, submitSelector = submitSelector,
+                    )
+                }
+                if (manualSiteTab(site)?.let {
+                        it.first === original.first &&
+                            it.second.documentId == originalDocument
+                    } != true) return@launch
 
                 val cards = pickSite(site, "cards")
                 if (cards is VideoSearchBridgeMessage.PickCancelled || cards == null)
                     return@launch
                 val cardSelector = (cards as? VideoSearchBridgeMessage.Picked)?.selector
-
-                val next = pickSite(site, "next")
-                if (next is VideoSearchBridgeMessage.PickCancelled || next == null)
+                // If there are no cards on the homepage, save the FORM
+                // phase now. On a later results page, "Wskaż" completes it.
+                if (cardSelector == null && partial != null) {
+                    Toast.makeText(applicationContext,
+                        "Wybierz kartę filmu na stronie wyników, aby dokończyć.",
+                        Toast.LENGTH_LONG).show()
+                    feedbackSent = true
                     return@launch
+                }
+
+                if (cardSelector != null) {
+                    // A clicked DOM container is not necessarily a film card.
+                    // Require at least one verified on-site film URL in the
+                    // SAME bound results document before enabling this site.
+                    val candidate = VideoSearchManualStages.withResults(
+                        searchControls, cardSelector, null
+                    ) ?: return@launch
+                    val extracted = request(site, "crawl") { document, id ->
+                        VideoSearchBridgeProtocol.extractCrawl(document, id, candidate, 0)
+                    } as? VideoSearchBridgeMessage.Results
+                    if (extracted?.page?.status != "ok" ||
+                        extracted.page.films.isEmpty()) {
+                        Toast.makeText(applicationContext,
+                            "Wskazany element nie zawiera poprawnej karty filmu. " +
+                                "Dotychczasowa konfiguracja została zachowana.",
+                            Toast.LENGTH_LONG).show()
+                        feedbackSent = true
+                        return@launch
+                    }
+                }
+                val next = if (cardSelector == null) null else pickSite(site, "next")
+                if (cardSelector != null && (next is VideoSearchBridgeMessage.PickCancelled ||
+                        next == null)) return@launch
                 if (manualSiteTab(site)?.let {
-                        it.first === original.first && it.second.documentId == originalDocument
+                        it.first === original.first &&
+                            it.second.documentId == originalDocument
                     } != true) return@launch
 
                 val nextPicked = next as? VideoSearchBridgeMessage.Picked
-                val configuration = VideoSiteConfiguration(
-                    searchInputSelector = input.selector,
-                    resultsCardSelector = cardSelector,
-                    submission = submission,
-                    submitSelector = submitSelector,
-                    pagination = nextPicked?.pagination ?: VideoSearchPagination.NONE,
-                    nextPageSelector = nextPicked?.selector,
-                )
+                val configuration = VideoSearchManualStages.withResults(
+                    searchControls, cardSelector, nextPicked
+                ) ?: return@launch
                 // Optimistic CAS: a deleted/renamed/reconfigured site cannot
                 // be resurrected or overwritten by an old picker session.
                 val saved = withContext(Dispatchers.IO) {
@@ -1464,8 +1503,9 @@ internal class VideoSearchBridgeController(
                 }
                 val message = when {
                     !saved -> "Nie zapisano: witryna zmieniła się. Ponów konfigurację."
-                    cardSelector != null -> "Ręczna konfiguracja wyszukiwarki zapisana."
-                    else -> "Zapisano pole wyszukiwania. Karty filmów wymagają wskazania."
+                    cardSelector != null -> "Zapisano karty wyników. Konfiguracja witryny jest gotowa."
+                    else -> "Zapisano formularz. Otwórz wyniki na tej witrynie, " +
+                        "wróć do „Moje witryny” i wybierz „Wskaż” ponownie."
                 }
                 Toast.makeText(applicationContext, message, Toast.LENGTH_LONG).show()
                 feedbackSent = true
