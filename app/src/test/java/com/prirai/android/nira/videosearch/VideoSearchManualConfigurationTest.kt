@@ -264,9 +264,9 @@ class VideoSearchManualConfigurationTest {
             val controls = VideoSiteConfiguration("input.search", null)
             val pagers = listOf(
                 Triple("li.next a", "NEXT_LINK", VideoSearchPagination.NEXT_LINK),
-                Triple("a[aria-label=\\"Następna strona\\"]", "NEXT_LINK",
+                Triple("a[aria-label=\"Następna strona\"]", "NEXT_LINK",
                     VideoSearchPagination.NEXT_LINK),
-                Triple("button[data-testid=\\"load-next\\"]", "LOAD_MORE",
+                Triple("button[data-testid=\"load-next\"]", "LOAD_MORE",
                     VideoSearchPagination.LOAD_MORE),
                 Triple("nav.pages button:last-of-type", "LOAD_MORE",
                     VideoSearchPagination.LOAD_MORE),
