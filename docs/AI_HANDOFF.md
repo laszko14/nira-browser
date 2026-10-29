@@ -1,3 +1,14 @@
+# Checkpoint — P2C/16 zakończony (LC-01) — 2026-10-29
+
+- **P2 / 16: DONE, CI TESTS PASS; fizyczny Nothing/Gecko/120 Hz, dysk, rotacja interfejsu i marker private snapshot NOT_TESTED.** Nie interpretować statusu JVM/JS jako wyniku testu fizycznego. Następne `Dalej` upoważnia do **P3 / 16 (LC-02)**, bez automatycznego przechodzenia do P4.
+- Kod P2A/P2B: synchroniczny `VideoSearchPrivateTabLifecycleMiddleware` przy procesowym BrowserStore zamiast Activity observer/300ms; natychmiastowe wycofanie prywatnej epoki po usunięciu ostatniej karty, kontrola Gecko private context i pochodzenia żywej karty względem profilu. Stare scope RAM są zamknięte i nie mogą zostać ponownie uruchomione. 11 dodatkowych testów w `VideoSearchPrivateTabLifecycleMiddlewareTest`.
+- **CI finalne:** run [40920420939](https://github.com/laszko14/nira-browser/actions/runs/40920420939) dla commitu `d2ff1f193b5439b667354834abbda8514448020c` — zakończony `success`. Targeted JVM/Robolectric PASS, pełne JVM/Robolectric PASS, Node JS **218/218 PASS**, zadanie `lintDebug` PASS, artefakt z raportami `private-epoch-p2-test-reports` ID `12919270624`. `lintDebug` z `abortOnError=false` może mieć zgłoszenia; **NIE oznaczać całego lint report jako clean**.
+- Nie tworzono APK, nie uruchamiano `assemble`, nie zmieniano podpisu, package, ABI, 120 Hz ani istniejących limitów; nie robiono merge/release.
+- Poprzedni run `40919593395` uzyskał PASS testy JVM/JS, ale był automatycznie anulowany w trakcie lint przez kolejne wypchnięcie — rozstrzygający jest finalny run `40920420939`. Dokumentacja/czystość repo nie stanowią dowodu testu urządzenia.
+- P3: naprawić normalny worker adoptowany przez użytkownika, którego obecny cleanup może błędnie usunąć. Bez zmian w P2, gdy brak regresji. Po P3 test/checkpoint i STOP.
+
+---
+
 # P2B/16 — dodatkowa poprawka izolacji profili (2026-10-29)
 
 - Analiza ujawniła wtórny przypadek LC-01: prywatna karta otwarta pod profilem B podczas żywej epoki A mogła później dołączyć do A po powrocie profilu. `VideoSearchPrivateSessionRegistry` zapamiętuje w RAM właściciela każdego obserwowanego żywego ID karty i nie przenosi własności między A/B. Po zamknięciu A możliwe jest utworzenie świeżej pustej epoki B przy legalnym dostępie; dawny RAM A pozostaje wycofany.
