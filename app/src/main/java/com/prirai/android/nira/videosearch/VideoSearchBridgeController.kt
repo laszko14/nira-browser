@@ -372,19 +372,23 @@ internal class VideoSearchBridgeController(
      * from the network in stage 4A. Future stages own task/run persistence.
      */
     suspend fun extractSite(site: VideoSearchSite): VideoSearchExtractedPage? {
-        val selector = site.configuration?.resultsCardSelector
-            ?.takeIf(VideoSearchBridgeProtocol::validSelector) ?: return null
+        val config = site.configuration ?: return null
+        if (!VideoSearchBridgeProtocol.validSelector(config.resultsCardSelector)) return null
         if (site.scope !is VideoSearchScope.Normal || !site.enabled) return null
         val source = manualSiteTab(site) ?: return null
         val originPage = currentTab(source.first)?.pageUrl ?: return null
         val result = request(site, "extract") { document, req ->
-            VideoSearchBridgeProtocol.extract(document, req, selector)
+            VideoSearchBridgeProtocol.extract(document, req, config)
         } as? VideoSearchBridgeMessage.Results ?: return null
         // Result links are film PAGE links, not arbitrary external adverts.
         if (result.page.films.any {
                 !VideoSearchBridgeProtocol.sameOrigin(it.filmPageUrl, originPage)
             }) return null
-        return result.page
+        // A second deterministic guard preserves one row per exact URL,
+        // never correlating on title similarity or changing URL parameters.
+        return result.page.copy(
+            films = VideoSearchResultCorrelator.correlate(result.page.films)
+        )
     }
 
     private suspend fun pickSite(site: VideoSearchSite, kind: String): VideoSearchBridgeMessage? =

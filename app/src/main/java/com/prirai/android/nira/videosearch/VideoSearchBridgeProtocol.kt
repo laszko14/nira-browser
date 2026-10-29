@@ -242,12 +242,14 @@ internal object VideoSearchBridgeProtocol {
                     }
                     val titleSource = when (row.string("titleSource")) {
                         "CARD" -> VideoResultTitleSource.CARD
+                        "STRUCTURED" -> VideoResultTitleSource.STRUCTURED
                         "LINK" -> VideoResultTitleSource.LINK
                         "UNKNOWN" -> VideoResultTitleSource.UNKNOWN
                         else -> return null
                     }
                     val imageSource = when (row.string("imageSource")) {
                         "CARD" -> VideoResultImageSource.CARD
+                        "STRUCTURED" -> VideoResultImageSource.STRUCTURED
                         "UNKNOWN" -> VideoResultImageSource.UNKNOWN
                         else -> return null
                     }
@@ -358,6 +360,22 @@ internal object VideoSearchBridgeProtocol {
         require(validSelector(cardSelector))
         return base("extract", documentId, requestId).apply {
             put("resultsCardSelector", cardSelector)
+        }
+    }
+
+    /** Stage 4B: selectors are scoped inside each individual film card. */
+    fun extract(documentId: String, requestId: String,
+                config: VideoSiteConfiguration): JSONObject {
+        require(validSelector(config.resultsCardSelector))
+        val optional = listOf(config.titleSelector, config.linkSelector,
+            config.thumbnailSelector, config.durationSelector)
+        require(optional.all { it == null || validSelector(it) })
+        return base("extract", documentId, requestId).apply {
+            put("resultsCardSelector", config.resultsCardSelector)
+            put("titleSelector", config.titleSelector ?: JSONObject.NULL)
+            put("linkSelector", config.linkSelector ?: JSONObject.NULL)
+            put("thumbnailSelector", config.thumbnailSelector ?: JSONObject.NULL)
+            put("durationSelector", config.durationSelector ?: JSONObject.NULL)
         }
     }
 

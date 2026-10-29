@@ -416,101 +416,235 @@
   }
   // Stage 4A: a single read-only DOM extraction from the explicitly
   // configured result cards. No document.title, scraping loops or navigation.
+  // Stage 4B: correlate metadata only when two cards resolve to the EXACT
+  // same film PAGE URL. Each field keeps its own local provenance.
+  // Never borrow document.title, metadata from adjacent cards, or guessed URLs.
   function extractResults(command) {
-    const selector = command.resultsCardSelector;
-    if (typeof selector !== "string" || !selector || selector.length > 160)
+    const selectors = ["resultsCardSelector", "titleSelector", "linkSelector",
+      "thumbnailSelector", "durationSelector"];
+    if (typeof command.resultsCardSelector !== "string" ||
+        !command.resultsCardSelector || command.resultsCardSelector.length > 160)
       return { status: "stale", films: [], inspectedCards: 0, moreOnPage: false };
-    let nodes;
-    try { nodes = Array.from(document.querySelectorAll(selector)).slice(0, 80); }
-    catch (_) {
-      return { status: "stale", films: [], inspectedCards: 0, moreOnPage: false };
+    for (const name of selectors.slice(1)) {
+      const value = command[name];
+      if (value !== undefined && value !== null &&
+          (typeof value !== "string" || !value || value.length > 160))
+        return { status: "stale", films: [], inspectedCards: 0, moreOnPage: false };
     }
-    const films = [], seen = new Set(), limit = 16;
-    let budget = 6400, more = false;
-    function text(node, max) {
-      const str = (node?.textContent || "").replace(/\s+/g, " ").trim();
-      return str && str.length <= max ? str : null; // never silently truncate titles
-    }
-    function url(raw, pageOnly) {
-      if (!raw || typeof raw !== "string" || raw.length > 1800) return null;
-      if (/^(?:javascript|data|blob|file|mailto):/i.test(raw)) return null;
+    let cards;
+    try { cards = Array.from(document.querySelectorAll(command.resultsCardSelector)).slice(0, 80); }
+    catch (_) { return { status: "stale", films: [], inspectedCards: 0, moreOnPage: false }; }
+
+    function scoped(card, selector) {
+      if (!selector) return null;
       try {
-        const parsed = new URL(raw, location.href);
-        if (!["https:", "http:"].includes(parsed.protocol) ||
-            parsed.username || parsed.password || parsed.href.length > (pageOnly ? 2048 : 800))
-          return null;
-        // A film PAGE must be on the configured site's current origin.
-        // This avoids confusing cross-site ads with film results.
-        if (pageOnly && parsed.origin !== location.origin) return null;
-        if (pageOnly && parsed.href === location.href) return null;
-        return parsed.href; // Preserve original query and parameter order.
+        const nodes = card.querySelectorAll(selector);
+        return nodes.length === 1 ? nodes[0] : null;
+      } catch (_) { return null; }
+    }
+    function shortText(value, max) {
+      if (typeof value !== "string") return null;
+      const clean = value.replace(/\s+/g, " ").trim();
+      return clean && clean.length <= max ? clean : null;
+    }
+    function nodeText(element, max) {
+      if (!element) return null;
+      return shortText(element.getAttribute("content") ||
+        element.getAttribute("data-title") || element.textContent, max);
+    }
+    function safeUrl(value, filmPage) {
+      if (typeof value !== "string" || !value || value.length > 1800 ||
+          /^(?:data|blob|javascript|file|mailto|magnet):/i.test(value)) return null;
+      try {
+        const parsed = new URL(value, location.href);
+        if (!["http:", "https:"].includes(parsed.protocol) ||
+            parsed.username || parsed.password ||
+            parsed.href.length > (filmPage ? 2048 : 800)) return null;
+        if (filmPage) {
+          if (parsed.origin !== location.origin || parsed.href === location.href ||
+              /\.(?:mp4|webm|m3u8|mpd|mp3|m4a|ts)(?:$)/i.test(parsed.pathname)) return null;
+        }
+        return parsed.href; // Full query is identity; never strip it.
       } catch (_) { return null; }
     }
     function duration(value) {
       if (typeof value !== "string" || value.length > 65) return null;
       const v = value.trim();
+      if (!v) return null;
       const iso = /^PT(?:(\d{1,2})H)?(?:(\d{1,2})M)?(?:(\d{1,2})S)?$/i.exec(v);
       if (iso && (iso[1] || iso[2] || iso[3])) {
-        const seconds = Number(iso[1] || 0) * 3600 + Number(iso[2] || 0) * 60 +
-          Number(iso[3] || 0);
-        return seconds >= 0 && seconds <= 86400 ? seconds : null;
+        const seconds = Number(iso[1] || 0) * 3600 +
+          Number(iso[2] || 0) * 60 + Number(iso[3] || 0);
+        return seconds <= 86400 ? seconds : null;
       }
-      if (!/^(?:\d{1,2}:)?\d{1,2}:\d{2}$/.test(v)) return null;
-      const parts = v.split(":").map(Number);
-      if (parts[parts.length - 1] >= 60 ||
-          (parts.length === 3 && parts[1] >= 60)) return null;
-      const result = parts.reduce((acc, n) => acc * 60 + n, 0);
-      return result <= 86400 ? result : null;
+      if (/^\d{1,2}:\d{2}(?::\d{2})?$/.test(v)) {
+        const pieces = v.split(":").map(Number);
+        if (pieces[pieces.length - 1] >= 60 ||
+            (pieces.length === 3 && pieces[1] >= 60)) return null;
+        const seconds = pieces.reduce((n, part) => n * 60 + part, 0);
+        return seconds <= 86400 ? seconds : null;
+      }
+      return null;
     }
-    for (let i = 0; i < nodes.length; i++) {
-      const card = nodes[i];
-      if (!card || !card.querySelector) continue;
-      const links = Array.from(card.querySelectorAll('a[href]')).slice(0, 12);
-      const preferred = links.filter(link => link.closest(
-        '[itemprop="name"],.title,.movie-title,.video-title,h1,h2,h3,h4'));
-      const ordered = preferred.concat(links.filter(link => !preferred.includes(link)));
-      let anchor, filmPageUrl;
-      for (const link of ordered) {
-        const valid = url(link.getAttribute("href"), true);
-        if (valid) { anchor = link; filmPageUrl = valid; break; }
+    function imageUrl(node) {
+      if (!node) return null;
+      const values = [
+        node.getAttribute("data-src"), node.getAttribute("data-lazy-src"),
+        node.getAttribute("data-original"), node.getAttribute("data-thumbnail"),
+        node.getAttribute("content"), node.currentSrc, node.getAttribute("src")
+      ];
+      // srcset only when the actual image does not expose a usable URL.
+      const srcset = node.getAttribute("data-srcset") || node.getAttribute("srcset");
+      if (srcset && srcset.length <= 600) {
+        const first = srcset.split(",")[0].trim().split(/\s+/)[0];
+        values.push(first);
       }
-      if (!filmPageUrl || seen.has(filmPageUrl)) continue;
-      seen.add(filmPageUrl);
-      const heading = card.querySelector('[itemprop="name"],h1,h2,h3,h4,.movie-title,.video-title,.title');
-      const fromHeading = text(heading, 512);
-      const fromAnchor = text(anchor, 512) ||
-        (function () { const title = (anchor.getAttribute("title") || "").trim();
-          return title.length <= 512 ? (title || null) : null; })();
-      const img = card.querySelector("img");
-      const alt = (img?.getAttribute("alt") || "").trim();
-      const imageAlt = alt.length <= 512 ? (alt || null) : null;
-      const originalTitle = fromHeading || fromAnchor || imageAlt;
-      const titleSource = fromHeading || (!fromAnchor && imageAlt) ? "CARD" :
-        fromAnchor ? "LINK" : "UNKNOWN";
-      const thumbnailUrl = img ? url(img.getAttribute("data-src") ||
-        img.getAttribute("data-original") || img.currentSrc ||
-        img.getAttribute("src"), false) : null;
-      const durationEl = card.querySelector(
-        'time[datetime],[data-duration],.duration,.runtime,.video-duration');
-      const durationSeconds = duration(durationEl?.getAttribute("datetime") ||
-        durationEl?.getAttribute("data-duration") || text(durationEl, 65) || "");
-      const item = { filmPageUrl, originalTitle, thumbnailUrl, durationSeconds,
-        titleSource, imageSource: thumbnailUrl ? "CARD" : "UNKNOWN", originalIndex: i };
-      const cost = JSON.stringify(item).length;
-      if (films.length >= limit || budget - cost < 0) {
+      for (const value of values) {
+        const accepted = safeUrl(value, false);
+        if (accepted) return accepted;
+      }
+      return null;
+    }
+    // An inline JSON-LD object is eligible only if embedded INSIDE this card
+    // and it explicitly identifies the EXACT same film URL.
+    function cardStructured(card, filmUrl) {
+      const scripts = Array.from(card.querySelectorAll(
+        'script[type="application/ld+json"]')).slice(0, 2);
+      for (const script of scripts) {
+        if (!script.textContent || script.textContent.length > 8192) continue;
+        let obj;
+        try { obj = JSON.parse(script.textContent); } catch (_) { continue; }
+        const entities = Array.isArray(obj) ? obj.slice(0, 8) :
+          Array.isArray(obj?.["@graph"]) ? obj["@graph"].slice(0, 8) : [obj];
+        for (const entity of entities) {
+          if (!entity || typeof entity !== "object" || Array.isArray(entity)) continue;
+          const kinds = Array.isArray(entity["@type"]) ? entity["@type"] : [entity["@type"]];
+          if (!kinds.some(k => ["Movie", "VideoObject", "CreativeWork"].includes(k))) continue;
+          if (safeUrl(entity.url || entity["@id"], true) !== filmUrl) continue;
+          const rawPoster = typeof entity.thumbnailUrl === "string" ? entity.thumbnailUrl :
+            typeof entity.image === "string" ? entity.image : entity.image?.url;
+          return {
+            title: shortText(entity.name || entity.headline, 512),
+            image: safeUrl(rawPoster, false),
+            duration: duration(entity.duration)
+          };
+        }
+      }
+      return null;
+    }
+    function selectedAnchor(card) {
+      if (command.linkSelector) {
+        const specific = scoped(card, command.linkSelector);
+        if (specific?.matches("a[href]")) {
+          const filmUrl = safeUrl(specific.getAttribute("href"), true);
+          if (filmUrl) return { anchor: specific, filmUrl };
+        }
+        return null; // never silently fall back when user specified a link
+      }
+      const anchors = Array.from(card.querySelectorAll("a[href]")).slice(0, 12);
+      const preferred = anchors.filter(a => a.matches(
+        '[itemprop="url"],.movie-link,.film-link,.video-link') ||
+        a.querySelector('[itemprop="name"],.title,.movie-title,.video-title,h2,h3,h4'));
+      for (const a of preferred.concat(anchors.filter(a => !preferred.includes(a)))) {
+        const filmUrl = safeUrl(a.getAttribute("href"), true);
+        if (filmUrl) return { anchor: a, filmUrl };
+      }
+      return null;
+    }
+    function titleCandidate(card, anchor, image) {
+      const forced = command.titleSelector ? scoped(card, command.titleSelector) : null;
+      if (command.titleSelector && !forced) return { value: null, source: "UNKNOWN" };
+      const structuredNode = forced || scoped(card, '[itemprop="name"]');
+      const structuredTitle = nodeText(structuredNode, 512);
+      if (structuredTitle) return { value: structuredTitle,
+        source: structuredNode?.hasAttribute("itemprop") ? "STRUCTURED" : "CARD" };
+      // A heading belongs to this card; never use a page-level heading.
+      const heading = scoped(card, "h1,h2,h3,h4,.movie-title,.film-title,.video-title,.title");
+      const headingText = nodeText(heading, 512);
+      if (headingText) return { value: headingText, source: "CARD" };
+      const linkName = nodeText(anchor, 512) ||
+        shortText(anchor.getAttribute("title"), 512) ||
+        shortText(anchor.getAttribute("aria-label"), 512);
+      if (linkName) return { value: linkName, source: "LINK" };
+      const alt = shortText(image?.getAttribute("alt"), 512);
+      return alt ? { value: alt, source: "CARD" } :
+        { value: null, source: "UNKNOWN" };
+    }
+    function rankTitle(value) {
+      return value === "STRUCTURED" ? 3 : value === "CARD" ? 2 :
+        value === "LINK" ? 1 : 0;
+    }
+    function rankImage(value) {
+      return value === "STRUCTURED" ? 3 : value === "CARD" ? 2 : 0;
+    }
+    function merge(before, next) {
+      const result = Object.assign({}, before);
+      if (next.originalTitle && (!result.originalTitle ||
+          rankTitle(next.titleSource) > rankTitle(result.titleSource))) {
+        result.originalTitle = next.originalTitle;
+        result.titleSource = next.titleSource;
+      }
+      if (next.thumbnailUrl && (!result.thumbnailUrl ||
+          rankImage(next.imageSource) > rankImage(result.imageSource))) {
+        result.thumbnailUrl = next.thumbnailUrl;
+        result.imageSource = next.imageSource;
+      }
+      if (result.durationSeconds === null && next.durationSeconds !== null)
+        result.durationSeconds = next.durationSeconds;
+      result.originalIndex = Math.min(before.originalIndex, next.originalIndex);
+      return result;
+    }
+
+    const found = new Map(), maximum = 16;
+    let usedBytes = 0, more = false;
+    for (let index = 0; index < cards.length; index++) {
+      const card = cards[index];
+      const match = selectedAnchor(card);
+      if (!match) continue;
+      const { anchor, filmUrl } = match;
+      const image = command.thumbnailSelector ?
+        scoped(card, command.thumbnailSelector) :
+        (anchor.querySelector("img") || scoped(card, "img"));
+      const resultImage = imageUrl(image);
+      const title = titleCandidate(card, anchor, image);
+      const inline = cardStructured(card, filmUrl);
+      const titleFromJson = inline?.title || null;
+      const posterFromJson = inline?.image || null;
+      const cardTime = command.durationSelector ?
+        scoped(card, command.durationSelector) :
+        scoped(card, 'time[datetime],[data-duration],[data-duration-seconds],.duration,.runtime,.video-duration');
+      const secondsAttr = cardTime?.getAttribute("data-duration-seconds");
+      const seconds = secondsAttr && /^\d{1,5}$/.test(secondsAttr) &&
+        Number(secondsAttr) <= 86400 ? Number(secondsAttr) : null;
+      const runtime = seconds !== null ? seconds :
+        duration(cardTime?.getAttribute("datetime") ||
+          cardTime?.getAttribute("data-duration") ||
+          nodeText(cardTime, 65) || "") ?? inline?.duration ?? null;
+      const fresh = {
+        filmPageUrl: filmUrl,
+        originalTitle: titleFromJson || title.value,
+        thumbnailUrl: posterFromJson || resultImage,
+        durationSeconds: runtime,
+        titleSource: titleFromJson ? "STRUCTURED" : title.source,
+        imageSource: posterFromJson ? "STRUCTURED" : resultImage ? "CARD" : "UNKNOWN",
+        originalIndex: index
+      };
+      const existing = found.get(filmUrl);
+      const next = existing ? merge(existing, fresh) : fresh;
+      const oldCost = existing ? JSON.stringify(existing).length : 0;
+      const nextCost = JSON.stringify(next).length;
+      if (!existing && found.size >= maximum) { more = true; continue; }
+      if (usedBytes - oldCost + nextCost > 6400) {
         more = true;
-        break;
+        continue; // retain existing data, never send a truncated field
       }
-      budget -= cost;
-      films.push(item);
+      usedBytes += nextCost - oldCost;
+      found.set(filmUrl, next);
     }
-    if (nodes.length === 80) more = true;
-    return {
-      status: films.length ? "ok" : "empty",
-      films,
-      inspectedCards: nodes.length,
-      moreOnPage: more
-    };
+    if (cards.length === 80) more = true;
+    const films = Array.from(found.values());
+    return { status: films.length ? "ok" : "empty",
+      films, inspectedCards: cards.length, moreOnPage: more };
   }
 
   try {
@@ -544,7 +678,9 @@
             // Invalid DOM or page unload: no success/repair claim.
           }).finally(function () { busy = false; });
         } else if (message.event === "extract" && !picker &&
-            keys === "documentId,event,requestId,resultsCardSelector,schemaVersion") {
+            (keys === "documentId,event,requestId,resultsCardSelector,schemaVersion" ||
+             keys === "documentId,durationSelector,event,linkSelector,requestId," +
+                     "resultsCardSelector,schemaVersion,thumbnailSelector,titleSelector")) {
           busy = true;
           try {
             post("results", message.requestId, extractResults(message));
