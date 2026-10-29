@@ -1,4 +1,15 @@
-# Checkpoint — Wyszukiwarka filmów — A2 / 4 — 2026-10-29
+# Checkpoint — Wyszukiwarka filmów — A3 / 4 — 2026-10-29
+
+- **STATUS: PASS ukończenia audytu A3; trzy reprodukcje JS potwierdziły FAIL inwariantów.** Bez napraw aplikacji, nowych zależności/testów w repo, JUnit/Gradle/lint/APK/CI. Urządzenie/Gecko NOT_TESTED.
+- Gałąź `fix/zavro-clean-video-search-audit-20261029`; rodzic A3 `4941b0ae4521a20b4e942db5a3b89eba1fe66759`, zgodny z origin i czystym drzewem przed pracą. Baza v1191 nadal `1ad05e9d12af3e060e4110880abb3fd65b313f1b`. Commit A3 identyfikuje `git log -1`; checkpoint i audyt zapisane razem.
+- `docs/VIDEO_SEARCH_AUDIT.md`: A3 obejmuje własne wyszukiwarki, kolejkę/równoległość, zwykłe i prywatne wyniki, paginację, limity, metadane, historię, nawigację, foldery i cache. **SR-01:** crawl offset >80 wraca do 0 (kontrakt Kotlin 0..319). **SR-02:** budżet pakietu pomija filmy, przesuwając kursor za nie. **SR-05:** fallback linku kategorii otrzymuje tytuł filmu. Odtworzono w Node vm na niezmienionej extractResults + syntetyczny DOM; nie jest to test pełnego WebExtension/Gecko.
+- **SR-03:** normalny run nie ma egzekwowania 2000 agregatu (prywatny ma). **SR-04:** terminalny checkpoint witryny gubi jej bieżący postęp przy cancel/timeout. **SR-06:** prywatny przepływ nie wymaga dowodu nowych wyników jak normalny worker. **SR-07:** niedostępny/disabled next może zostać uznany za pewny koniec; normalne zero wyników nie ma odrębnego potwierdzenia. To dowody kodu, scenariusze Android NOT_TESTED. Prywatność, cleanup i pełne ryzyka cyklu życia pozostają dla A4.
+- Nie potwierdzono regresji CRUD folderów ani deduplikacji pełnych URL. Trwała normalna historia jest dla kolejki; pojedyncze „Szukaj” i „Zbierz” nie archiwizują tak samo. Coil cache ma wspólny dla normalnych profili LRU 500 000 000 B i pamięć 10% heap; rzeczywiste trim/auth posters/wydajność NOT_TESTED.
+- **Następny krok wyłącznie po „Dalej”: A4 / 4** — prywatność/separacja RAM, zakończenie sesji, worker ownership/adopcja (szczególnie ścieżka normalna vs prywatna), cancel/restart, profile/karty/Activity/low memory, wycieki danych i UI/120 Hz. Ocenić testy/CI, skonsolidować końcowy backlog P0–P3 z modułami, ryzykiem, PASS/testami i liczbą etapów N. Nie ponawiać audytu A1–A3. Implementacja dopiero po A4 i kolejnym „Dalej”; P1/N nadal formularz UI-01. Bez APK/workflow do osobnego „Kompiluj”/„Już”. **STOP.**
+
+---
+
+# Poprzedni checkpoint — Wyszukiwarka filmów — A2 / 4 — 2026-10-29
 
 - **STATUS: PASS dla ukończenia audytu A2; znaleziony inwariant zapisu FAIL w eksperymencie SQLite.** Bez zmian aplikacji i bez uruchamiania JUnit/JS/Gradle/CI/APK. Telefon/Gecko NOT_TESTED.
 - Gałąź `fix/zavro-clean-video-search-audit-20261029`; rodzic A2 `674bd5c929959a617e9db063315b8a823f9892a6`, potwierdzony z origin i czystym drzewem przed pracą. Baza v1191 pozostaje `1ad05e9d12af3e060e4110880abb3fd65b313f1b`. Commit tego checkpointu ustala `git log -1`; dwa pliki dokumentacji w jednym logicznym commicie.
