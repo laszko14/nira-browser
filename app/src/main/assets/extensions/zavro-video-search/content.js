@@ -356,6 +356,7 @@
     document.removeEventListener("touchstart", state.blockPageHandlers, true);
     document.removeEventListener("keydown", state.key, true);
     window.removeEventListener?.("resize", state.clamp, false);
+    state.outline?.remove();
     state.banner.remove();
   }
   function pick(command) {
@@ -397,7 +398,20 @@
     if (kind !== "input") action("Pomiń", "pick_skipped");
     action("Anuluj", "pick_cancelled");
     banner.appendChild(controls);
+    const feedback = document.createElement("div");
+    feedback.setAttribute("role", "status");
+    feedback.setAttribute("aria-live", "polite");
+    feedback.style.cssText = "font:12px sans-serif;padding-top:3px;max-height:54px;overflow:auto;";
+    feedback.textContent = "Dotknij elementu strony, następnie zatwierdź wybór.";
+    banner.appendChild(feedback);
     document.documentElement.appendChild(banner);
+    const outline = document.createElement("div");
+    outline.setAttribute("data-zavro-picker", "true");
+    outline.setAttribute("aria-hidden", "true");
+    outline.style.cssText = "position:fixed;pointer-events:none;z-index:2147483646;" +
+      "border:2px solid #33c9bd;box-sizing:border-box;border-radius:4px;display:none;";
+    document.documentElement.appendChild(outline);
+
 
     // Move only by its header. Never make the underlying website respond to
     // a drag, and do not hijack scroll/click on the rest of the page.
@@ -459,35 +473,166 @@
     title.addEventListener("pointercancel", stopDrag);
     window.addEventListener("resize", clamp, false);
 
-    const choose = function (event) {
-      if (!picker || location.href !== startUrl || !event.isTrusted) return;
-      if (event.target.closest("[data-zavro-picker]")) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      const element = event.target;
-      let selector = null, formSafe = false, pagination = "NONE";
+    let options = [], optionIndex = 0;
+    let confirmButton = null, alternateButton = null;
+    function candidateFor(node) {
+      if (!node?.closest || node.closest("[data-zavro-picker]")) return null;
+      let element = null, selector = null, formSafe = false, pagination = "NONE";
       if (kind === "input") {
-        const input = element.closest("input");
-        if (manualInput(input)) {
-          selector = selectorFor(input);
-          formSafe = safeForm(input.form);
-          if (selector) manuallySelectedInput = input;
+        element = node.closest("input");
+        if (manualInput(element)) {
+          selector = selectorFor(element);
+          formSafe = !!element.form && safeForm(element.form);
         }
       } else if (kind === "submit") {
-        const button = element.closest('button,input[type="submit"]');
-        if (manualSubmit(button, manuallySelectedInput)) selector = selectorFor(button);
+        element = node.closest('button,input[type="submit"],[role="button"]');
+        if (manualSubmit(element, manuallySelectedInput))
+          selector = selectorFor(element);
       } else if (kind === "cards") {
-        selector = manualCard(element);
+        selector = manualCard(node);
+        if (selector) {
+          try { element = document.querySelector(selector); }
+          catch (_) { selector = null; }
+        }
       } else if (kind === "next") {
-        const next = manualNext(element);
+        element = node.closest('a[href],button,[role="button"]');
+        const next = manualNext(node);
         if (next) { selector = next.selector; pagination = next.pagination; }
       }
-      if (!selector || selector.length > 160) {
-        title.textContent = "⠿ Wybierz inny element na stronie";
+      if (!selector || selector.length > 160) return null;
+      if (kind !== "cards") {
+        let found;
+        try { found = document.querySelectorAll(selector); } catch (_) { return null; }
+        if (found.length !== 1 || found[0] !== element) return null;
+      } else if (!element) return null;
+      return { element, selector, formSafe, pagination, kind };
+    }
+    function reasonFor(node) {
+      if (kind === "input") return "Nie rozpoznano aktywnego, bezpiecznego pola wyszukiwania.";
+      if (kind === "submit" && !manuallySelectedInput)
+        return "Najpierw wskaż pole wyszukiwania.";
+      if (kind === "submit")
+        return "Nie znaleziono bezpiecznego przycisku powiązanego z polem lub stabilnego lokatora.";
+      if (kind === "cards") return "Nie rozpoznano karty z linkiem do filmu.";
+      return "Nie rozpoznano bezpiecznej paginacji lub jednoznacznego lokatora.";
+    }
+    function moveAway(element) {
+      const target = element?.getBoundingClientRect?.();
+      const panel = banner.getBoundingClientRect?.();
+      if (!target || !panel || target.width <= 0 || target.height <= 0) return;
+      outline.style.left = target.left + "px";
+      outline.style.top = target.top + "px";
+      outline.style.width = target.width + "px";
+      outline.style.height = target.height + "px";
+      outline.style.display = "block";
+      const intersects = target.left < panel.right && target.right > panel.left &&
+        target.top < panel.bottom && target.bottom > panel.top;
+      if (intersects) {
+        const above = target.top - panel.height - 12;
+        const below = target.bottom + 12;
+        applyPosition(panel.left, above >= 8 ? above : below);
+      }
+    }
+    function activeOption() {
+      const candidate = options[optionIndex];
+      if (!candidate) return;
+      feedback.textContent = "Wskazano " +
+        ({input:"pole wyszukiwania",submit:"przycisk Szukaj",
+          cards:"kartę filmu",next:"kontrolkę paginacji"})[kind] +
+        " (" + (optionIndex + 1) + "/" + options.length + "). Potwierdź wybór.";
+      moveAway(candidate.element);
+    }
+    function confirm() {
+      const candidate = options[optionIndex];
+      if (!candidate || location.href !== startUrl || !ready ||
+          (kind !== "cards" && !document.contains(candidate.element))) {
+        feedback.textContent = "Strona się zmieniła. Wskaż element ponownie.";
         return;
       }
-      post("picked", command.requestId, { pickKind: kind, selector, formSafe, pagination });
+      try {
+        const found = document.querySelectorAll(candidate.selector);
+        if (kind === "cards" ? !found.length : found.length !== 1 ||
+            found[0] !== candidate.element) {
+          feedback.textContent = "Lokator przestał pasować. Wskaż element ponownie.";
+          return;
+        }
+      } catch (_) {
+        feedback.textContent = "Nieprawidłowy lokator. Wskaż element ponownie.";
+        return;
+      }
+      if (kind === "submit" && !manualSubmit(candidate.element, manuallySelectedInput)) {
+        feedback.textContent = "Przycisk wyszukiwania jest już nieaktualny.";
+        return;
+      }
+      if (kind === "input") {
+        if (!manualInput(candidate.element)) {
+          feedback.textContent = "Pole wyszukiwania jest już nieaktywne.";
+          return;
+        }
+        manuallySelectedInput = candidate.element;
+      }
+      post("picked", command.requestId, {
+        pickKind: kind, selector: candidate.selector,
+        formSafe: candidate.formSafe, pagination: candidate.pagination
+      });
       cancelPicker();
+    }
+    const choose = function (event) {
+      if (!picker || location.href !== startUrl || !event.isTrusted) return;
+      if (event.target?.closest?.("[data-zavro-picker]")) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      // composedPath can reveal a deeply nested SVG target in an open shadow root.
+      // Persist only selectors verifiable in document scope; never guess iframe nodes.
+      const path = event.composedPath?.() || [];
+      const nodes = [], seen = new Set();
+      for (const item of [event.target, ...path.slice(0, 10)]) {
+        if (!item?.closest || seen.has(item)) continue;
+        nodes.push(item); seen.add(item);
+      }
+      let ancestor = event.target?.parentElement;
+      for (let depth = 0; ancestor && depth < 6; depth++, ancestor = ancestor.parentElement) {
+        if (!seen.has(ancestor) && ancestor.closest) { nodes.push(ancestor); seen.add(ancestor); }
+      }
+      const found = [];
+      const selectors = new Set();
+      for (const node of nodes.slice(0, 16)) {
+        const candidate = candidateFor(node);
+        if (candidate && !selectors.has(candidate.selector)) {
+          found.push(candidate);
+          selectors.add(candidate.selector);
+        }
+      }
+      if (!found.length) {
+        feedback.textContent = reasonFor(event.target);
+        outline.style.display = "none";
+        return;
+      }
+      options = found.slice(0, 4);
+      optionIndex = 0;
+      if (!confirmButton) {
+        confirmButton = document.createElement("button");
+        confirmButton.textContent = "Zatwierdź";
+        confirmButton.style.cssText =
+          "font:12px sans-serif;padding:4px 8px;min-height:36px;flex:1;";
+        confirmButton.addEventListener("click", e => {
+          e.preventDefault(); e.stopPropagation(); confirm();
+        });
+        controls.appendChild(confirmButton);
+      }
+      if (options.length > 1 && !alternateButton) {
+        alternateButton = document.createElement("button");
+        alternateButton.textContent = "Inny";
+        alternateButton.style.cssText =
+          "font:12px sans-serif;padding:4px 8px;min-height:36px;flex:1;";
+        alternateButton.addEventListener("click", e => {
+          e.preventDefault(); e.stopPropagation();
+          if (options.length > 1) { optionIndex = (optionIndex + 1) % options.length; activeOption(); }
+        });
+        controls.appendChild(alternateButton);
+      }
+      if (alternateButton) alternateButton.style.display = options.length > 1 ? "" : "none";
+      activeOption();
     };
     const key = function (event) {
       if (event.key === "Escape") {
@@ -504,7 +649,7 @@
       if (picker && !event.target.closest("[data-zavro-picker]"))
         event.stopImmediatePropagation();
     };
-    picker = { banner, choose, key, timeout, blockPageHandlers, clamp };
+    picker = { banner, outline, choose, key, timeout, blockPageHandlers, clamp };
     // Prevent sites' pointerdown listeners from acting before our click
     // capture, without preventing the browser from generating the click.
     document.addEventListener("pointerdown", blockPageHandlers, true);
