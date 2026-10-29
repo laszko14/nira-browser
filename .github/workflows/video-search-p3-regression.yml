@@ -6,6 +6,8 @@ on:
       - fix/zavro-clean-video-search-audit-20261029
     paths:
       - '.github/workflows/video-search-p3-regression.yml'
+      - '.github/workflows/apk-release.yml'
+      - 'app/build.gradle'
       - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchBridgeController.kt'
       - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchNormalWorker*.kt'
       - 'app/src/main/java/com/prirai/android/nira/components/Components.kt'

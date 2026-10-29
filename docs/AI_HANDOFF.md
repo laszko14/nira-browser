@@ -1,3 +1,5 @@
+- **P16 CI correction:** pierwszy run [40956334669](https://github.com/laszko14/nira-browser/actions/runs/40956334669) zakończył Kotlin targeted/full JVM PASS, ale 7 Node regressions wykazało, że starszy debug workflow `apk-release.yml` wciąż walidował `1191/alpha96` mimo nowego Gradle `1192/alpha97`. Zaktualizowano debug job EXPECTED_VERSION_CODE=1192, EXPECTED_VERSION_NAME=0.5.22-alpha97-clean i nazwę artefaktu `zavro-arm64-update-apk-v1192`; release tag job pozostaje bez zmian. Ponownie uruchomić pełne P16 CI + signed APK; czerwony przebieg nie zaliczony.
+
 # P16/16 — UI-05 — pusty stan witryn, pełna regresja i podpisany APK — 2026-10-29
 
 - **P15 PASS:** commit `55657170725e6eabff187d8be4657700f306f43f`, [GitHub Actions 40954291896](https://github.com/laszko14/nira-browser/actions/runs/40954291896) `completed/success`: testy celowane P3–P15, pełna JVM/Robolectric, JS/WebExtension i lint. P16: kod, testy, workflow i podpisany build przygotowane; **CI_AND_APK_PENDING dla nowego SHA**. P16 jest **ostatnim zatwierdzonym etapem**, bez automatycznego P17, bez merge do main.
