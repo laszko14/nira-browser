@@ -17,6 +17,9 @@
   let navigationRevision = 0;
   let originRevoked = false;
   let ready = false, busy = false, picker = null, manuallySelectedInput = null;
+  // User-chosen floating picker location survives its consecutive selection
+  // steps in one document, but is never persisted to a profile or website.
+  let pickerPosition = null;
   // Consecutive trusted terminal observations are limited to this document.
   let endProbe = null;
   const limited = 80;
@@ -223,6 +226,7 @@
     document.removeEventListener("pointerdown", state.blockPageHandlers, true);
     document.removeEventListener("touchstart", state.blockPageHandlers, true);
     document.removeEventListener("keydown", state.key, true);
+    window.removeEventListener("resize", state.clamp, false);
     state.banner.remove();
   }
   function pick(command) {
@@ -237,18 +241,23 @@
     if (!Object.prototype.hasOwnProperty.call(titles, kind)) return;
     const banner = document.createElement("div");
     banner.setAttribute("data-zavro-picker", "true");
-    banner.style.cssText = "position:fixed;z-index:2147483647;top:8px;left:8px;right:8px;" +
-      "background:#16242d;color:white;padding:12px;font:14px sans-serif;" +
-      "border:2px solid #33c9bd;border-radius:10px;box-shadow:0 3px 15px #0008;";
+    banner.style.cssText = "position:fixed;z-index:2147483647;top:8px;right:8px;" +
+      "width:240px;max-width:calc(100vw - 16px);box-sizing:border-box;" +
+      "background:#16242d;color:white;padding:6px 8px;font:12px sans-serif;" +
+      "border:1px solid #33c9bd;border-radius:9px;box-shadow:0 2px 9px #0008;";
     const title = document.createElement("div");
-    title.textContent = "Zavro — " + titles[kind] + ". Dotknij elementu na stronie.";
+    title.textContent = "⠿ " + titles[kind];
+    title.setAttribute("role", "button");
+    title.setAttribute("aria-label", "Przeciągnij, aby przesunąć panel wskazywania");
+    title.style.cssText = "cursor:grab;touch-action:none;user-select:none;" +
+      "font:12px sans-serif;min-height:24px;display:flex;align-items:center;";
     banner.appendChild(title);
     const controls = document.createElement("div");
-    controls.style.cssText = "display:flex;gap:8px;margin-top:8px";
+    controls.style.cssText = "display:flex;gap:6px;margin-top:3px";
     function action(label, event) {
       const button = document.createElement("button");
       button.textContent = label;
-      button.style.cssText = "font:14px sans-serif;padding:7px 12px;min-height:36px;";
+      button.style.cssText = "font:12px sans-serif;padding:4px 9px;min-height:36px;flex:1;";
       button.addEventListener("click", e => {
         e.preventDefault(); e.stopPropagation();
         post(event, command.requestId, { pickKind: kind });
@@ -260,6 +269,66 @@
     action("Anuluj", "pick_cancelled");
     banner.appendChild(controls);
     document.documentElement.appendChild(banner);
+
+    // Move only by its header. Never make the underlying website respond to
+    // a drag, and do not hijack scroll/click on the rest of the page.
+    const viewport = () => ({
+      width: Math.max(16, window.innerWidth || document.documentElement.clientWidth || 360),
+      height: Math.max(16, window.innerHeight || document.documentElement.clientHeight || 640)
+    });
+    function clampPosition(x, y) {
+      const bounds = banner.getBoundingClientRect?.();
+      const size = viewport();
+      const width = bounds?.width || 240, height = bounds?.height || 72;
+      return {
+        x: Math.max(8, Math.min(x, Math.max(8, size.width - width - 8))),
+        y: Math.max(8, Math.min(y, Math.max(8, size.height - height - 8)))
+      };
+    }
+    function applyPosition(x, y) {
+      const next = clampPosition(x, y);
+      banner.style.left = next.x + "px";
+      banner.style.top = next.y + "px";
+      banner.style.right = "auto";
+      pickerPosition = next;
+    }
+    // Default to a compact upper-right corner; remember explicit dragging.
+    if (pickerPosition) applyPosition(pickerPosition.x, pickerPosition.y);
+    const clamp = () => {
+      if (pickerPosition) applyPosition(pickerPosition.x, pickerPosition.y);
+    };
+    let dragging = null;
+    title.addEventListener("pointerdown", event => {
+      if (!event.isTrusted || (event.button != null && event.button !== 0)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = banner.getBoundingClientRect?.();
+      const screen = viewport();
+      const width = rect?.width || 240;
+      const left = rect?.left ?? (screen.width - width - 8);
+      const top = rect?.top ?? 8;
+      dragging = { pointerId: event.pointerId, x: event.clientX,
+        y: event.clientY, left, top };
+      title.setPointerCapture?.(event.pointerId);
+    });
+    title.addEventListener("pointermove", event => {
+      if (!dragging || dragging.pointerId !== event.pointerId) return;
+      event.preventDefault();
+      event.stopPropagation();
+      applyPosition(dragging.left + event.clientX - dragging.x,
+        dragging.top + event.clientY - dragging.y);
+    });
+    function stopDrag(event) {
+      if (!dragging || dragging.pointerId !== event.pointerId) return;
+      event.preventDefault();
+      event.stopPropagation();
+      dragging = null;
+      if (title.hasPointerCapture?.(event.pointerId))
+        title.releasePointerCapture?.(event.pointerId);
+    }
+    title.addEventListener("pointerup", stopDrag);
+    title.addEventListener("pointercancel", stopDrag);
+    window.addEventListener("resize", clamp, false);
 
     const choose = function (event) {
       if (!picker || location.href !== startUrl || !event.isTrusted) return;
@@ -285,7 +354,7 @@
         if (next) { selector = next.selector; pagination = next.pagination; }
       }
       if (!selector || selector.length > 160) {
-        title.textContent = "Nie można jednoznacznie wskazać elementu. Wybierz inny.";
+        title.textContent = "⠿ Wybierz inny element na stronie";
         return;
       }
       post("picked", command.requestId, { pickKind: kind, selector, formSafe, pagination });
@@ -306,7 +375,7 @@
       if (picker && !event.target.closest("[data-zavro-picker]"))
         event.stopImmediatePropagation();
     };
-    picker = { banner, choose, key, timeout, blockPageHandlers };
+    picker = { banner, choose, key, timeout, blockPageHandlers, clamp };
     // Prevent sites' pointerdown listeners from acting before our click
     // capture, without preventing the browser from generating the click.
     document.addEventListener("pointerdown", blockPageHandlers, true);
