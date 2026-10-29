@@ -595,9 +595,15 @@
       return result;
     }
 
+    // A continuation is an absolute card offset within THIS document.
+    // Each request inspects at most 16 cards, even if no valid films exist.
+    const start = Number.isInteger(command.startIndex) &&
+      command.startIndex >= 0 && command.startIndex <= 80 ?
+      command.startIndex : 0;
+    const end = Math.min(cards.length, start + 16);
     const found = new Map(), maximum = 16;
     let usedBytes = 0, more = false;
-    for (let index = 0; index < cards.length; index++) {
+    for (let index = start; index < end; index++) {
       const card = cards[index];
       const match = selectedAnchor(card);
       if (!match) continue;
@@ -641,10 +647,10 @@
       usedBytes += nextCost - oldCost;
       found.set(filmUrl, next);
     }
-    if (cards.length === 80) more = true;
+    if (end < cards.length || cards.length === 80) more = true;
     const films = Array.from(found.values());
     return { status: films.length ? "ok" : "empty",
-      films, inspectedCards: cards.length, moreOnPage: more };
+      films, inspectedCards: Math.max(0, end - start), moreOnPage: more };
   }
 
   try {
@@ -681,6 +687,19 @@
             (keys === "documentId,event,requestId,resultsCardSelector,schemaVersion" ||
              keys === "documentId,durationSelector,event,linkSelector,requestId," +
                      "resultsCardSelector,schemaVersion,thumbnailSelector,titleSelector")) {
+          busy = true;
+          try {
+            post("results", message.requestId, extractResults(message));
+          } catch (_) {
+            post("results", message.requestId,
+              { status: "stale", films: [], inspectedCards: 0, moreOnPage: false });
+          } finally { busy = false; }
+        } else if (message.event === "extract_batch" && !picker &&
+            keys === "documentId,durationSelector,event,linkSelector,requestId," +
+                    "resultsCardSelector,schemaVersion,startIndex,thumbnailSelector,titleSelector" &&
+            Number.isInteger(message.startIndex) &&
+            message.startIndex >= 0 && message.startIndex <= 64 &&
+            message.startIndex % 16 === 0) {
           busy = true;
           try {
             post("results", message.requestId, extractResults(message));

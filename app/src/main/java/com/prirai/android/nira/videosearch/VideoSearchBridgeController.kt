@@ -255,7 +255,8 @@ internal class VideoSearchBridgeController(
                         tab.owner != job.owner || job.kind != when (parsed) {
                             is VideoSearchBridgeMessage.Inspection -> "inspect"
                             is VideoSearchBridgeMessage.Validation -> "validate"
-                            is VideoSearchBridgeMessage.Results -> "extract"
+                            is VideoSearchBridgeMessage.Results ->
+                                if (job.kind == "extract_batch") "extract_batch" else "extract"
                             is VideoSearchBridgeMessage.Submitted,
                             is VideoSearchBridgeMessage.SearchFailed -> "search"
                             is VideoSearchBridgeMessage.Picked -> "pick:" + parsed.pickKind
@@ -329,7 +330,8 @@ internal class VideoSearchBridgeController(
     ): VideoSearchBridgeMessage? {
         val scope = site.scope as? VideoSearchScope.Normal ?: return null
         val (session, entry) = (if (kind.startsWith("pick:") ||
-            kind == "validate" || kind == "extract")
+            kind == "validate" || kind == "extract" ||
+            kind == "extract_batch")
             manualSiteTab(site) else existingSiteTab(site)) ?: return null
         val documentId = entry.documentId ?: return null
         if (pending.containsKey(session)) return null
@@ -389,6 +391,40 @@ internal class VideoSearchBridgeController(
         return result.page.copy(
             films = VideoSearchResultCorrelator.correlate(result.page.films)
         )
+    }
+
+    /**
+     * Read up to five short 16-card windows from the SAME current document.
+     * This is an on-demand preview, not cross-page pagination or a search run.
+     * Never persist URLs, open tabs, or invoke next-page controls here.
+     */
+    suspend fun collectVisiblePage(site: VideoSearchSite): VideoSearchVisiblePage? {
+        val config = site.configuration ?: return null
+        if (!VideoSearchBridgeProtocol.validSelector(config.resultsCardSelector) ||
+            !site.enabled || site.scope !is VideoSearchScope.Normal) return null
+        val initial = manualSiteTab(site) ?: return null
+        val document = initial.second.documentId ?: return null
+        val url = currentTab(initial.first)?.pageUrl ?: return null
+        val accumulator = VideoSearchVisiblePageCollector(
+            url, site.resultLimit, config.pagination
+        )
+        while (accumulator.shouldReadAnotherBatch) {
+            // Abort on navigation, changed profile, or replacement of the
+            // active tab between adjacent 16-card reads.
+            val live = manualSiteTab(site) ?: return null
+            if (live.first !== initial.first || live.second.documentId != document ||
+                currentTab(live.first)?.pageUrl != url) return null
+            val offset = accumulator.nextCardIndex
+            val result = request(site, "extract_batch") { d, req ->
+                VideoSearchBridgeProtocol.extractBatch(d, req, config, offset)
+            } as? VideoSearchBridgeMessage.Results ?: return null
+            try {
+                accumulator.append(offset, result.page)
+            } catch (_: IllegalArgumentException) {
+                return null
+            }
+        }
+        return accumulator.snapshot()
     }
 
     private suspend fun pickSite(site: VideoSearchSite, kind: String): VideoSearchBridgeMessage? =

@@ -509,21 +509,18 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 return@launch
             }
             val page = try {
-                VideoSearchBridgeHost.instance()?.extractSite(current)
+                VideoSearchBridgeHost.instance()?.collectVisiblePage(current)
             } catch (_: Exception) { null }
             if (ownerIfCurrent() != owner) return@launch
             if (page == null) {
                 message("Otwórz stronę wyników tej witryny w aktywnej karcie Zavro.")
                 return@launch
             }
-            if (page.status == "stale") {
-                message("Selektor kart nie działa. Użyj „Sprawdź” lub „Wskaż”.")
-                return@launch
-            }
+            // A failed / stale extraction returns null, never partial data.
             val summary = if (page.films.isEmpty()) {
                 "Nie znaleziono kart z poprawnym linkiem do strony filmu."
             } else {
-                page.films.take(10).mapIndexed { index, film ->
+                page.films.take(12).mapIndexed { index, film ->
                     val name = film.originalTitle ?: "Tytuł nieznany"
                     val duration = film.durationSeconds?.let { seconds ->
                         val m = seconds / 60
@@ -537,9 +534,14 @@ class MyVideoSitesActivity : AppCompatActivity() {
             MaterialAlertDialogBuilder(this@MyVideoSitesActivity)
                 .setTitle("Podgląd: ${site.displayName}")
                 .setMessage("Odczytano ${page.films.size} unikalnych filmów z " +
-                    "${page.inspectedCards} sprawdzonych kart." +
-                    (if (page.moreOnPage) " Dalsze elementy pominięto (limit podglądu)."
-                    else "") + "\n\n" + summary)
+                    "${page.scannedCards} kart bieżącej strony." +
+                    (if (page.moreOnPage)
+                        " Część kart może nadal czekać na odczyt (limit partii)."
+                    else "") +
+                    (if (page.paginationStrategy != VideoSearchPagination.NONE)
+                        " Paginacja: ${page.paginationStrategy.name} (jeszcze nieuruchamiana)."
+                    else " Brak skonfigurowanej paginacji.") +
+                    "\n\n" + summary)
                 .setPositiveButton("OK", null)
                 .show()
         }

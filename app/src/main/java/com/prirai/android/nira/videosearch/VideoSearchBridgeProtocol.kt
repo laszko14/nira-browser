@@ -379,6 +379,22 @@ internal object VideoSearchBridgeProtocol {
         }
     }
 
+    /**
+     * Continuation is an absolute CARD offset, not a number of films.
+     * It is scoped to the current native EngineSession/documentId by the
+     * existing pending-request validation and never navigates a page.
+     */
+    fun extractBatch(
+        documentId: String, requestId: String,
+        config: VideoSiteConfiguration, startIndex: Int,
+    ): JSONObject {
+        require(startIndex in 0..64 && startIndex % 16 == 0)
+        return extract(documentId, requestId, config).apply {
+            put("event", "extract_batch")
+            put("startIndex", startIndex)
+        }
+    }
+
     /** Query is sent ONLY to the bound content script, never to site APIs directly. */
     fun search(documentId: String, requestId: String, query: String,
                inputSelector: String, submission: VideoSearchSubmission,
