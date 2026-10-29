@@ -1,3 +1,13 @@
+# P7/16 — SR-03 — atomowy limit 2000 filmów na normalny run — 2026-10-29
+
+- **Kod i testy P7 przygotowane do commitu; CI_PENDING** do rzeczywistej weryfikacji nowego SHA. P6/16 **PASS**: [40929392607](https://github.com/laszko14/nira-browser/actions/runs/40929392607) na e9e1a9ff11ba4365be114844d2778f0eb9b0a86e, completed/success.
+- Baza: `fix/zavro-clean-video-search-audit-20261029`, bez merge do main. Room `putJournalCheckpoint` atomowo liczy już zapisane wyniki danego runu/profilu i danej witryny, deduplikuje po URL w witrynie, zapisuje nie więcej niż dostępne miejsca i w tej samej transakcji ustala prawdziwy licznik, status STOPPED i `RESULT_BUDGET_REACHED`, gdy zabrakło miejsc. `putFilmChecked` zabezpiecza też zapisy poza journalem. Bez migracji.
+- `VideoSearchMultiRunJournal` publikuje pozostały budżet dopiero po udanym commicie i zatrzymuje dalsze zadania; worker sprawdza budżet przed otwarciem karty i między pakietami/paginacją. UI pokazuje przyczynę limitu w wynikach i komunikacie końcowym. Limit 200/witryna zachowany; prywatne RAM 2000 i izolacja profili bez zmian.
+- Pliki: `VideoSearchDao.kt`, `VideoSearchRepository.kt`, `VideoSearchMultiRunJournal.kt`, `VideoSearchBridgeController.kt`, `VideoSearchModels.kt`, `VideoSearchResultsPresenter.kt`, `VideoSearchResultsActivity.kt`, `VideoSearchAggregateBudgetTest.kt`, workflow `video-search-p3-regression.yml`, ten checkpoint i `docs/VIDEO_SEARCH_AUDIT.md`.
+- Testy P7: realne Room 10×200, 11×200, równoległe checkpointy i bezpośrednie wyścigi o ostatni slot, duplikaty, częściowe okno, zachowanie danych, izolacja runów/profili i odmowa prywatnego zapisu. Workflow: targeted + pełne JVM/Robolectric, JS i lint, **bez APK/assemble**. Gecko/Android 15/Nothing Phone (1) **NOT_TESTED**. Przy FAIL napraw P7, przy CI_PENDING sprawdź run dla SHA; po PASS dopiero na następne „Dalej” P8/16. Nie rozpoczynaj P8 automatycznie.
+
+---
+
 # P6/16 — SR-01/02 — bezstratna paginacja przy dużych metadanych — 2026-10-29
 
 - **Wdrożono kod P6. CI_PENDING** do potwierdzenia wyników dla bieżącego SHA. Poprawka crawl offset 0..319 (w tym 96 i 319), brak cichego resetu do 0. Gdy pakiet osiąga 6400 B UTF-8, zwraca dokładne `inspectedCards` skonsumowane przed pierwszą niewysłaną kartą i wznawia ją następnym odczytem; nie obcina query, title, image ani duration. Samodzielnie nieserializowalny pojedynczy film = jawne STALE, nie pominięcie. Preview batch używa dowolnego absolutnego indeksu 0..79 po krótszym pakiecie.

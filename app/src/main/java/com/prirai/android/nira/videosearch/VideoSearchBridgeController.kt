@@ -1115,6 +1115,7 @@ internal class VideoSearchBridgeController(
     private suspend fun executePagination(
         site: VideoSearchSite, repository: VideoSearchRepository,
         workerTabId: String? = null,
+        hasAggregateCapacity: () -> Boolean = { true },
     ): VideoSearchPaginationSnapshot? {
         val config = site.configuration ?: return null
         val scope = site.scope as? VideoSearchScope.Normal ?: return null
@@ -1143,12 +1144,16 @@ internal class VideoSearchBridgeController(
         }
 
         while (true) {
+            if (!hasAggregateCapacity())
+                return collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT)
             if (SystemClock.elapsedRealtime() >= deadline)
                 return collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT)
             if (!stillAuthorized())
                 return collector.snapshot(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
             var newInDocument = 0
             while (collector.shouldReadCardWindow) {
+                if (!hasAggregateCapacity())
+                    return collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT)
                 if (SystemClock.elapsedRealtime() >= deadline)
                     return collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT)
                 if (!stillAuthorized())
@@ -1511,7 +1516,7 @@ internal class VideoSearchBridgeController(
                         },
                         authorized = {
                             val active = ProfileManager.getInstance(applicationContext)
-                            !active.isPrivateMode() &&
+                            journal.hasCapacity() && !active.isPrivateMode() &&
                                 active.getActiveProfile().id == plan.scope.profileId
                         },
                         submit = { site ->
@@ -1521,7 +1526,9 @@ internal class VideoSearchBridgeController(
                                 repository.site(plan.scope, site.id)
                             }
                             val managerNow = ProfileManager.getInstance(applicationContext)
-                            if (managerNow.isPrivateMode() ||
+                            if (!journal.hasCapacity()) {
+                                outcome = VideoSearchQueueStatus.STOPPED
+                            } else if (managerNow.isPrivateMode() ||
                                 managerNow.getActiveProfile().id != plan.scope.profileId) {
                                 outcome = VideoSearchQueueStatus.STOPPED
                             } else if (current == null || !current.enabled ||
@@ -1555,11 +1562,14 @@ internal class VideoSearchBridgeController(
                                         outcome = submitWorker(current, tabId, plan.query, repository)
                                         if (outcome == VideoSearchQueueStatus.SUBMITTED) {
                                             val confirmed = awaitWorkerResults(current, tabId, before)
-                                            if (!confirmed) {
+                                            if (!journal.hasCapacity()) {
+                                                outcome = VideoSearchQueueStatus.STOPPED
+                                            } else if (!confirmed) {
                                                 outcome = VideoSearchQueueStatus.NEEDS_ATTENTION
                                             } else {
                                                 snapshot = executePagination(
-                                                    current, repository, workerTabId = tabId
+                                                    current, repository, workerTabId = tabId,
+                                                    hasAggregateCapacity = journal::hasCapacity,
                                                 )
                                                 outcome = VideoSearchWorkerVerification
                                                     .finalQueueStatus(snapshot)
@@ -1636,7 +1646,9 @@ internal class VideoSearchBridgeController(
                     lastMulti[plan.scope.profileId] = queue.snapshot()
                     if (lastMulti.size > 4) lastMulti.remove(lastMulti.keys.first())
                     Toast.makeText(applicationContext,
-                        "Zavro: wyszukiwanie zakończone lub zatrzymane. Sprawdź historię wyników.",
+                        if (!journal.hasCapacity() && queue.snapshot().stopped > 0)
+                            "Zavro: osiągnięto limit 2000 filmów. Pozostałe witryny zatrzymano."
+                        else "Zavro: wyszukiwanie zakończone lub zatrzymane. Sprawdź historię wyników.",
                         Toast.LENGTH_LONG).show()
                 }
             }

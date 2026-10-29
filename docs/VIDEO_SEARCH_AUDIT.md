@@ -1,3 +1,11 @@
+# P7/16 — SR-03 — implementacja i weryfikacja CI
+
+- P6/16 **PASS** w CI: https://github.com/laszko14/nira-browser/actions/runs/40929392607 (`e9e1a9ff`, completed/success).
+- P7 kod i testy przygotowano; **CI_PENDING** dla nowego SHA. SQLite transakcyjnie egzekwuje 2000/run + 200/site, zachowuje istniejące rekordy i koryguje zadania po faktycznie zapisanych wynikach. Stop dalszej pracy z powodu limitu ma `RESULT_BUDGET_REACHED`, a nie fałszywe ukończenie stron. Ochrona obejmuje zapis poza journalem i konkurujące checkpointy. Prywatny RAM nie był zmieniany.
+- Testy P7 dodano do `VideoSearchAggregateBudgetTest` i celowanego workflow P3–P7. Full CI Kotlin/Robolectric, Node, lint **CI_PENDING**; test fizycznego Gecko/Android **NOT_TESTED**; żadnego APK, migracji ani merge. Następny etap wyłącznie P8 po potwierdzeniu P7.
+
+---
+
 # Zavro Clean — audyt Wyszukiwarki filmów
 
 ## Stan i zasady wznowienia

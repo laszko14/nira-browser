@@ -36,6 +36,10 @@ internal class VideoSearchMultiRunJournal(
     }
     private var initialized = false
     private var closed = false
+    @Volatile private var remainingResults = 2_000
+
+    /** Advisory worker stop; SQLite remains authoritative. */
+    fun hasCapacity(): Boolean = remainingResults > 0
 
     val runId: String get() = id
 
@@ -77,6 +81,8 @@ internal class VideoSearchMultiRunJournal(
             completionReason = if (status == VideoSearchSiteState.COMPLETED) completion else null,
             issue = when {
                 status == VideoSearchSiteState.COMPLETED -> null
+                status == VideoSearchSiteState.STOPPED && !hasCapacity() ->
+                    VideoSearchSiteIssue.RESULT_BUDGET_REACHED
                 snapshot?.reason == VideoSearchPaginationStop.CONFIGURATION_CHANGED ->
                     VideoSearchSiteIssue.CONFIGURATION_CHANGED
                 snapshot?.reason == VideoSearchPaginationStop.RESOURCE_LIMIT ->
@@ -103,8 +109,14 @@ internal class VideoSearchMultiRunJournal(
         } ?: emptyList()
         val nextRun = run.copy(updatedAtMs = stamp)
         // Commit in Room first; never update the journal after a failed DB transaction.
-        repository.putSnapshot(nextRun, listOf(task), films)
-        tasks[site.id] = task
+        val saved = repository.putJournalCheckpoint(nextRun, task, films)
+        tasks[site.id] = task.copy(
+            uniqueResults = saved.siteResults,
+            status = if (saved.truncated) VideoSearchSiteState.STOPPED else task.status,
+            issue = if (saved.truncated) VideoSearchSiteIssue.RESULT_BUDGET_REACHED else task.issue,
+            completionReason = if (saved.truncated) null else task.completionReason,
+        )
+        remainingResults = (2_000 - saved.totalResults).coerceAtLeast(0)
         run = nextRun
     }
 
@@ -119,7 +131,10 @@ internal class VideoSearchMultiRunJournal(
                     VideoSearchQueueStatus.FAILED -> VideoSearchSiteState.FAILED
                     else -> VideoSearchSiteState.STOPPED
                 },
-                issue = VideoSearchSiteIssue.OTHER,
+                issue = if (!hasCapacity() &&
+                    queue.statusOf(siteId) == VideoSearchQueueStatus.STOPPED)
+                    VideoSearchSiteIssue.RESULT_BUDGET_REACHED
+                else VideoSearchSiteIssue.OTHER,
             )
         }
         val complete = terminal.values.all { it.status == VideoSearchSiteState.COMPLETED }

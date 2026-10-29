@@ -23,6 +23,7 @@ internal data class VideoSearchResultsSource(
     val limit: Int,
     val pages: Int,
     val reason: VideoSearchCompletionReason?,
+    val issue: VideoSearchSiteIssue? = null,
 )
 
 internal data class VideoSearchResultsDisplay(
@@ -102,7 +103,8 @@ internal object VideoSearchResultsPresenter {
                 ?: siteNames[id] ?: "Witryna usunięta"
             VideoSearchResultsSource(
                 id, name, task.status, task.uniqueResults,
-                task.resultLimit, task.visitedPages, task.completionReason
+                task.resultLimit, task.visitedPages, task.completionReason,
+                task.issue.takeIf { it == VideoSearchSiteIssue.RESULT_BUDGET_REACHED }
             )
         }
         val visible = unique.filter {
@@ -174,6 +176,10 @@ internal object VideoSearchResultsPresenter {
         VideoSearchSiteState.FAILED -> "Błąd"
         VideoSearchSiteState.NEEDS_ATTENTION -> "Wymaga uwagi"
     }
+
+    fun budgetLabel(issue: VideoSearchSiteIssue?): String? =
+        if (issue == VideoSearchSiteIssue.RESULT_BUDGET_REACHED)
+            "Osiągnięto łączny limit 2000 filmów" else null
 
     fun completionLabel(reason: VideoSearchCompletionReason?): String? = when (reason) {
         VideoSearchCompletionReason.LIMIT_REACHED -> "Osiągnięto limit witryny"

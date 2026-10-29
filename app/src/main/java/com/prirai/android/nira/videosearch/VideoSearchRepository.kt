@@ -321,6 +321,22 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
         dao.putSnapshotChecked(runRow, taskRows, filmRows)
     }
 
+    /** SQLite decides how many unique results fit, including concurrent writers. */
+    suspend fun putJournalCheckpoint(
+        run: VideoSearchRun,
+        task: VideoSearchSiteTask,
+        films: List<VideoSearchFilm>,
+    ): VideoSearchAggregateCheckpoint {
+        val runRow = with(VideoSearchRowCodec) { run.toRow() }
+        val taskRow = with(VideoSearchRowCodec) { task.toRow() }
+        val rows = films.map {
+            VideoSearchIntegrity.requirePageUrl(it.filmPageUrl)
+            it.thumbnailUrl?.let(VideoSearchIntegrity::requirePageUrl)
+            with(VideoSearchRowCodec) { it.toRow() }
+        }
+        return dao.putJournalCheckpoint(runRow, taskRow, rows)
+    }
+
     /**
      * Stage 9A: opportunistic cleanup, called when the user opens search UI.
      * Removes only expired terminal runs with their tasks/cards in one Room

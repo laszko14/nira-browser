@@ -31,6 +31,13 @@ internal data class VideoSavedFolderCountRow(
     val savedCount: Long,
 )
 
+/** Atomic result of a normal journal checkpoint. */
+internal data class VideoSearchAggregateCheckpoint(
+    val siteResults: Int,
+    val totalResults: Int,
+    val truncated: Boolean,
+)
+
 @Dao
 internal interface VideoSearchDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -395,6 +402,12 @@ internal interface VideoSearchDao {
     @Query("SELECT * FROM video_search_films WHERE profileId = :profileId AND runId = :runId AND siteId = :siteId AND filmPageUrl = :url LIMIT 1")
     suspend fun getFilmByUrl(profileId: String, runId: String, siteId: String, url: String): VideoSearchFilmRow?
 
+    @Query("SELECT COUNT(*) FROM video_search_films WHERE profileId = :profileId AND runId = :runId")
+    suspend fun countRunFilms(profileId: String, runId: String): Int
+
+    @Query("SELECT COUNT(*) FROM video_search_films WHERE profileId = :profileId AND runId = :runId AND siteId = :siteId")
+    suspend fun countSiteFilms(profileId: String, runId: String, siteId: String): Int
+
     /** Keep original URL exact, including semantic query parameters. */
     @Transaction
     suspend fun putFilmChecked(row: VideoSearchFilmRow): Boolean {
@@ -406,6 +419,14 @@ internal interface VideoSearchDao {
         }
         val previousUrl = getFilmByUrl(row.profileId, row.runId, row.siteId, row.filmPageUrl)
         if (previousUrl != null && previousUrl.id != row.id) return false
+        if (previousId == null) {
+            // Enforce both limits even when a caller bypasses the run journal.
+            val taskLimit = getTask(row.profileId, row.runId, row.siteId)?.resultLimit ?: 200
+            require(countSiteFilms(row.profileId, row.runId, row.siteId) <
+                minOf(200, taskLimit) && countRunFilms(row.profileId, row.runId) < 2_000) {
+                "Search result budget exhausted"
+            }
+        }
         putFilm(row)
         return true
     }
@@ -428,6 +449,55 @@ internal interface VideoSearchDao {
         putRunChecked(run)
         tasks.forEach { putTaskChecked(it) }
         films.forEach { putFilmChecked(it) }
+    }
+
+    /**
+     * Check quotas and insert film rows within ONE SQLite transaction.
+     * A concurrent journal cannot reserve the last slot twice. Do not remove
+     * earlier results, and do not claim finished pages after truncation.
+     */
+    @Transaction
+    suspend fun putJournalCheckpoint(
+        run: VideoSearchRunRow,
+        task: VideoSearchTaskRow,
+        films: List<VideoSearchFilmRow>,
+    ): VideoSearchAggregateCheckpoint {
+        require(task.profileId == run.profileId && task.runId == run.id &&
+            films.all { it.profileId == run.profileId &&
+                it.runId == run.id && it.siteId == task.siteId }) {
+            "Foreign journal checkpoint"
+        }
+        putRunChecked(run)
+        requireRunSite(task.profileId, task.runId, task.siteId)
+        var total = countRunFilms(run.profileId, run.id)
+        var siteCount = countSiteFilms(run.profileId, run.id, task.siteId)
+        val siteCap = minOf(200, task.resultLimit)
+        var truncated = false
+        for (film in films) {
+            val oldId = getFilmById(film.profileId, film.id)
+            require(oldId == null || (oldId.runId == film.runId &&
+                oldId.siteId == film.siteId && oldId.filmPageUrl == film.filmPageUrl)) {
+                "Film identity cannot change"
+            }
+            val oldUrl = getFilmByUrl(film.profileId, film.runId,
+                film.siteId, film.filmPageUrl)
+            if (oldUrl != null && oldUrl.id != film.id) continue
+            if (oldId == null && (siteCount >= siteCap || total >= 2_000)) {
+                truncated = true
+                continue
+            }
+            if (putFilmChecked(film) && oldId == null) {
+                siteCount++
+                total++
+            }
+        }
+        putTaskChecked(task.copy(
+            uniqueResults = siteCount,
+            status = if (truncated) "STOPPED" else task.status,
+            issue = if (truncated) "RESULT_BUDGET_REACHED" else task.issue,
+            completionReason = if (truncated) null else task.completionReason,
+        ))
+        return VideoSearchAggregateCheckpoint(siteCount, total, truncated)
     }
 
     @Query("SELECT * FROM video_search_films WHERE profileId = :profileId AND runId = :runId AND siteId = :siteId ORDER BY originalIndex")

@@ -364,7 +364,8 @@ internal fun VideoSearchResultsScreen(
                     results.sources.forEach { source ->
                         Text("${source.name}: ${VideoSearchResultsPresenter.statusLabel(source.state)} " +
                             "· ${source.count}/${source.limit} · ${source.pages} str. " +
-                            (VideoSearchResultsPresenter.completionLabel(source.reason) ?: ""),
+                            (VideoSearchResultsPresenter.completionLabel(source.reason)
+                                ?: VideoSearchResultsPresenter.budgetLabel(source.issue) ?: ""),
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(vertical = 3.dp))
                     }
@@ -581,7 +582,8 @@ private fun VideoSearchSourceHeader(
             }
             Text(VideoSearchResultsPresenter.statusLabel(source.state) +
                 " · ${source.pages} str. · limit ${source.limit}" +
-                (VideoSearchResultsPresenter.completionLabel(source.reason)
+                ((VideoSearchResultsPresenter.completionLabel(source.reason)
+                    ?: VideoSearchResultsPresenter.budgetLabel(source.issue))
                     ?.let { " · $it" } ?: ""),
                 style = MaterialTheme.typography.bodySmall,
                 color = Color(0xffb7c5d2))
