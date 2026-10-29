@@ -7,6 +7,7 @@ import android.text.InputType
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.CheckBox
@@ -14,6 +15,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.ScrollView
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -69,6 +71,10 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private lateinit var privateAddButton: Button
     private lateinit var privateQueryInput: EditText
     private lateinit var privateResultsLabel: TextView
+    private lateinit var privateRunPicker: Spinner
+    private lateinit var privateRunPickerAdapter: ArrayAdapter<String>
+    private var privateRunHistory: List<VideoSearchPrivateRunSnapshot> = emptyList()
+    private var selectedPrivateRunId: String? = null
     private lateinit var privateResultsList: ListView
     private lateinit var privateResultsAdapter: ArrayAdapter<String>
     private var privateResultsItems: List<VideoSearchFilm> = emptyList()
@@ -339,11 +345,69 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 } else message("Most Gecko nie jest gotowy na tej prywatnej karcie.")
             }
         })
+        privatePanel.addView(Button(this).apply {
+            text = "Wyszukaj na zaznaczonych otwartych kartach prywatnych"
+            setOnClickListener {
+                val owner = selectedPrivateTab() ?: return@setOnClickListener
+                val phrase = privateQueryInput.text.toString().trim()
+                if (!VideoSearchBridgeProtocol.validQuery(phrase)) {
+                    privateQueryInput.error = "Podaj frazę (do 250 znaków)"
+                    return@setOnClickListener
+                }
+                val plan = privateRunAccess.prepareMulti(owner.first, owner.second, phrase)
+                if (plan == null) {
+                    message("Zaznacz co najmniej jedną prywatną witrynę.")
+                    return@setOnClickListener
+                }
+                if (VideoSearchBridgeHost.instance()?.startPrivateMultiSite(
+                        owner.first, owner.second, phrase
+                    ) == true) {
+                    privateQueryInput.text.clear()
+                    finish()
+                } else message("Nie udało się uruchomić prywatnej kolejki.")
+            }
+        })
+        privatePanel.addView(TextView(this).apply {
+            text = "Tryb wielu witryn wymaga, aby ich strony były już otwarte " +
+                "w osobnych kartach prywatnych. Praca po kolei, bez tworzenia " +
+                "ukrytych kart; niedostępne witryny zostaną pominięte."
+            textSize = 12f
+        })
+        privatePanel.addView(Button(this).apply {
+            text = "Zatrzymaj prywatne wyszukiwanie"
+            setOnClickListener {
+                val owner = selectedPrivateTab() ?: return@setOnClickListener
+                if (VideoSearchBridgeHost.instance()?.stopPrivateSearch(
+                        owner.first, owner.second) == true) {
+                    message("Zatrzymano prywatne wyszukiwanie.")
+                } else message("Brak aktywnego wyszukiwania w tej sesji.")
+            }
+        })
         privateResultsLabel = TextView(this).apply {
             textSize = 13f
             text = "Brak poprzednich wyników prywatnych w tej sesji."
         }
         privatePanel.addView(privateResultsLabel)
+        privateRunPickerAdapter = ArrayAdapter(this,
+            android.R.layout.simple_spinner_item, mutableListOf<String>()).apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+        privateRunPicker = Spinner(this).apply {
+            adapter = privateRunPickerAdapter
+            isSaveEnabled = false
+            onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+                override fun onItemSelected(
+                    parent: AdapterView<*>?, view: View?, position: Int, id: Long,
+                ) {
+                    val snapshot = privateRunHistory.getOrNull(position)
+                        ?: return
+                    selectedPrivateRunId = snapshot.run.id
+                    renderPrivateRun(snapshot)
+                }
+            }
+        }
+        privatePanel.addView(privateRunPicker)
         // Adapter-backed ListView keeps 200 possible results virtualized and
         // never loads thumbnail bytes into the persistent normal Coil cache.
         privateResultsAdapter = ArrayAdapter(this,
@@ -355,7 +419,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 val selected = selectedPrivateTab() ?: return@setOnItemClickListener
                 val film = privateResultsItems.getOrNull(position)
                     ?: return@setOnItemClickListener
-                val current = privateRunAccess.latest(selected.first, selected.second)
+                val current = privateRunAccess.history(selected.first, selected.second)
+                    ?.singleOrNull { it.run.id == selectedPrivateRunId }
                     ?: return@setOnItemClickListener
                 if (film.scope !is VideoSearchScope.Private ||
                     film.runId != current.run.id ||
@@ -400,6 +465,20 @@ class MyVideoSitesActivity : AppCompatActivity() {
         ) to manager.getActiveProfile().id
     }
 
+    private fun renderPrivateRun(snapshot: VideoSearchPrivateRunSnapshot) {
+        privateResultsItems = snapshot.films
+        privateResultsAdapter.clear()
+        privateResultsAdapter.addAll(snapshot.films.mapIndexed { index, film ->
+            "${index + 1}. " + (film.originalTitle ?: "Tytuł nieznany") +
+                VideoSearchResultsPresenter.durationLabel(film.durationSeconds)
+                    ?.let { " · $it" }.orEmpty()
+        })
+        privateResultsLabel.text = "Prywatne wyniki: ${snapshot.films.size} · " +
+            (if (snapshot.run.status == VideoSearchRunState.COMPLETED)
+                "zakończone" else "częściowe") +
+            ". Otwórz film w nowej karcie prywatnej."
+    }
+
     private fun refreshPrivatePanel() {
         if (privatePanel.visibility != View.VISIBLE) return
         privateSitesContainer.removeAllViews()
@@ -409,6 +488,9 @@ class MyVideoSitesActivity : AppCompatActivity() {
             privateAddButton.isEnabled = false
             privateResultsLabel.text = ""
             privateResultsItems = emptyList()
+            privateRunHistory = emptyList()
+            selectedPrivateRunId = null
+            privateRunPickerAdapter.clear()
             privateResultsAdapter.clear()
             privateStatus.text = "Brak aktywnej prywatnej karty wyszukiwarki. " +
                 "Wróć do prywatnej karty i otwórz Moje witryny ponownie."
@@ -421,21 +503,29 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 applicationContext, components.engine, components.store
             )
         }
-        val latest = target?.let { privateRunAccess.latest(it.first, it.second) }
-        privateResultsItems = latest?.films ?: emptyList()
-        privateResultsAdapter.clear()
-        privateResultsAdapter.addAll(privateResultsItems.mapIndexed { index, film ->
-            "${index + 1}. " + (film.originalTitle ?: "Tytuł nieznany") +
-                VideoSearchResultsPresenter.durationLabel(film.durationSeconds)
-                    ?.let { " · $it" }.orEmpty()
+        val runs = target?.let {
+            privateRunAccess.history(it.first, it.second)
+        }.orEmpty()
+        val previous = selectedPrivateRunId
+        privateRunHistory = runs
+        privateRunPickerAdapter.clear()
+        privateRunPickerAdapter.addAll(runs.mapIndexed { index, item ->
+            val siteName = snapshot.sites.firstOrNull {
+                it.id == item.run.siteIds.firstOrNull()
+            }?.displayName ?: item.films.firstOrNull()?.siteName ?: "Witryna"
+            "${index + 1}. $siteName · ${item.films.size} wyników"
         })
-        privateResultsLabel.text = if (latest == null) {
-            "Brak poprzednich wyników prywatnych w tej sesji."
+        val chosen = runs.indexOfFirst { it.run.id == previous }
+            .takeIf { it >= 0 } ?: 0
+        if (runs.isEmpty()) {
+            selectedPrivateRunId = null
+            privateResultsItems = emptyList()
+            privateResultsAdapter.clear()
+            privateResultsLabel.text = "Brak prywatnych wyników w tej sesji."
         } else {
-            val status = if (latest.run.status == VideoSearchRunState.COMPLETED)
-                "zakończone" else "częściowe"
-            "Wyniki prywatne w RAM: ${privateResultsItems.size} · $status. " +
-                "Dotknij tytułu, aby otworzyć go w nowej karcie prywatnej."
+            selectedPrivateRunId = runs[chosen].run.id
+            privateRunPicker.setSelection(chosen)
+            renderPrivateRun(runs[chosen])
         }
         privateStatus.text = "Witryny tylko w RAM: ${snapshot.sites.size}, " +
             "wybrane: ${snapshot.selectedIds.size}. " +

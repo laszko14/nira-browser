@@ -18,6 +18,26 @@ internal class VideoSearchPrivateRunAccess(
             }
         }
 
+    /**
+     * Preparation is atomic with respect to session closure. The returned
+     * snapshot never confers future permission: each queued site must be
+     * reauthorized immediately before visiting its already-open private tab.
+     */
+    fun prepareMulti(
+        anchor: VideoSearchPrivateTab,
+        profileId: String,
+        query: String,
+    ): VideoSearchPrivateMultiPlan? =
+        registry.withAuthorizedTab(anchor, profileId) { store, scope ->
+            try {
+                VideoSearchPrivateMultiPlan.create(
+                    scope, query, store.settings(scope), store.sites(scope)
+                )
+            } catch (_: IllegalArgumentException) {
+                null
+            }
+        }
+
     fun record(
         tab: VideoSearchPrivateTab, profileId: String, siteId: String,
         query: String, cards: List<VideoSearchExtractedFilm>,
@@ -75,6 +95,17 @@ internal class VideoSearchPrivateRunAccess(
         store.trimOldRuns(scope)
         true
     } ?: false
+
+    /** Up to twelve latest site runs: no query or result crosses a lifetime. */
+    fun history(tab: VideoSearchPrivateTab, profileId: String):
+        List<VideoSearchPrivateRunSnapshot>? =
+        registry.withAuthorizedTab(tab, profileId) { store, scope ->
+            store.runs(scope).asReversed().take(12).map { run ->
+                VideoSearchPrivateRunSnapshot(run, run.siteIds.flatMap { siteId ->
+                    store.films(scope, run.id, siteId)
+                }.sortedBy { it.originalIndex }.take(200))
+            }
+        }
 
     fun latest(tab: VideoSearchPrivateTab, profileId: String): VideoSearchPrivateRunSnapshot? =
         registry.withAuthorizedTab(tab, profileId) { store, scope ->
