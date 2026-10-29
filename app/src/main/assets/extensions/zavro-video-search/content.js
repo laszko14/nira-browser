@@ -534,22 +534,67 @@
       }
       return null;
     }
+    // A safe same-origin address is not proof that it leads to a film.
+    // Never combine a card heading with an arbitrary category/navigation URL.
+    function catalogLink(anchor, filmUrl) {
+      let pathname;
+      try { pathname = new URL(filmUrl).pathname; } catch (_) { return true; }
+      if (/(?:^|\/)(?:categor(?:y|ies)|genres?|tags?|topics?|channels?|authors?|playlists?|collections?)(?:\/|$)/i.test(pathname))
+        return true;
+      const relation = anchor.getAttribute("rel") || "";
+      if (/(?:^|\s)tag(?:\s|$)/i.test(relation)) return true;
+      const labels = [anchor.getAttribute("data-type"), anchor.getAttribute("data-role"),
+        anchor.getAttribute("data-testid"), anchor.className, anchor.id]
+        .filter(value => typeof value === "string").join(" ");
+      return /(?:^|[\s_-])(?:category|categories|genre|genres|tag|tags|topic|topics)(?:$|[\s_-])/i.test(labels);
+    }
     function selectedAnchor(card) {
       if (command.linkSelector) {
         const specific = scoped(card, command.linkSelector);
         if (specific?.matches("a[href]")) {
           const filmUrl = safeUrl(specific.getAttribute("href"), true);
-          if (filmUrl) return { anchor: specific, filmUrl };
+          if (filmUrl && !catalogLink(specific, filmUrl))
+            return { anchor: specific, filmUrl };
         }
-        return null; // never silently fall back when user specified a link
+        return null; // explicit selector: no fallback to another link
       }
       const anchors = Array.from(card.querySelectorAll("a[href]")).slice(0, 12);
-      const preferred = anchors.filter(a => a.matches(
-        '[itemprop="url"],.movie-link,.film-link,.video-link') ||
-        a.querySelector('[itemprop="name"],.title,.movie-title,.video-title,h2,h3,h4'));
-      for (const a of preferred.concat(anchors.filter(a => !preferred.includes(a)))) {
-        const filmUrl = safeUrl(a.getAttribute("href"), true);
-        if (filmUrl) return { anchor: a, filmUrl };
+      // The title must be local to this card, never document.title.
+      const titleNode = scoped(card, command.titleSelector) ||
+        scoped(card, '[itemprop="name"],h1,h2,h3,h4,.movie-title,.film-title,.video-title,.title');
+      const heading = nodeText(titleNode, 512)?.toLocaleLowerCase();
+      const candidates = new Map(); // Exact URL, including query, is identity.
+      for (const anchor of anchors) {
+        const filmUrl = safeUrl(anchor.getAttribute("href"), true);
+        if (!filmUrl || catalogLink(anchor, filmUrl)) continue;
+        const label = [nodeText(anchor, 512), anchor.getAttribute("title"),
+          anchor.getAttribute("aria-label"),
+          nodeText(anchor.querySelector('[itemprop="name"],.title,.movie-title,.film-title,.video-title,h2,h3,h4'), 512),
+          anchor.querySelector("img")?.getAttribute("alt")];
+        const named = heading && label.some(value =>
+          shortText(value, 512)?.toLocaleLowerCase() === heading);
+        const semantic = anchor.matches('[itemprop="url"],.movie-link,.film-link,.video-link') ||
+          !!anchor.querySelector('[itemprop="name"],.title,.movie-title,.film-title,.video-title,h2,h3,h4');
+        const poster = !!anchor.querySelector("img");
+        const filmPath = /(?:^|\/)(?:watch|movie|movies|film|films|video|videos|episode|episodes|title|play)(?:\/|$)/i
+          .test(new URL(filmUrl).pathname);
+        const previous = candidates.get(filmUrl);
+        candidates.set(filmUrl, {
+          anchor: previous?.anchor || anchor, filmUrl,
+          named: !!(named || previous?.named),
+          semantic: !!(semantic || previous?.semantic),
+          poster: !!(poster || previous?.poster),
+          filmPath: !!(filmPath || previous?.filmPath)
+        });
+      }
+      const choices = Array.from(candidates.values());
+      if (choices.length === 1) return choices[0];
+      // Strongest unambiguous, card-local evidence wins. A tie is
+      // ambiguous, not permission to pick the first same-origin URL.
+      for (const signal of ["named", "semantic", "poster", "filmPath"]) {
+        const matching = choices.filter(candidate => candidate[signal]);
+        if (matching.length === 1) return matching[0];
+        if (matching.length > 1) return null;
       }
       return null;
     }

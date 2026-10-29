@@ -1,4 +1,4 @@
-name: Zavro video search P3-P8 regressions (no APK)
+name: Zavro video search P3-P9 regressions (no APK)
 
 on:
   push:
@@ -21,6 +21,9 @@ on:
       - 'app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchPageBatchProtocolTest.kt'
       - 'app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchVisiblePageCollectorTest.kt'
       - 'app/src/test/js/video-search-p6-batches.test.cjs'
+      - 'app/src/test/js/video-search-p9-link-identity.test.cjs'
+      - 'app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsRepositoryTest.kt'
+      - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultCorrelator.kt'
       - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchRepository.kt'
       - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchMultiRunJournal.kt'
       - 'app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchModels.kt'
@@ -56,7 +59,7 @@ jobs:
           java-version: '17'
           distribution: zulu
       - uses: gradle/actions/setup-gradle@v5
-      - name: P3-P8 targeted worker configuration and pagination regression
+      - name: P3-P9 targeted worker configuration and pagination regression
         run: |
           ./gradlew :app:testDebugUnitTest --console=plain \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchNormalWorkerLeaseTest' \
@@ -78,7 +81,9 @@ jobs:
             --tests 'com.prirai.android.nira.videosearch.VideoSearchTransactionalTest' \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchResultsPresenterTest' \
             --tests 'com.prirai.android.nira.videosearch.VideoSearchRecoveryAndProgressTest' \
-            --tests 'com.prirai.android.nira.videosearch.VideoSearchPrivateSingleProgressTest'
+            --tests 'com.prirai.android.nira.videosearch.VideoSearchPrivateSingleProgressTest' \
+            --tests 'com.prirai.android.nira.videosearch.VideoSearchResultCorrelationTest' \
+            --tests 'com.prirai.android.nira.videosearch.VideoSearchResultsRepositoryTest'
       - name: All JVM Robolectric regression tests
         run: ./gradlew :app:testDebugUnitTest --console=plain
       - name: JS WebExtension regression tests
@@ -89,7 +94,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: video-search-p3-p4-p5-p6-p7-p8-tests
+          name: video-search-p3-p4-p5-p6-p7-p8-p9-tests
           path: |
             app/build/test-results/testDebugUnitTest/**
             app/build/reports/tests/testDebugUnitTest/**

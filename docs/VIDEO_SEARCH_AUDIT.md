@@ -1,3 +1,10 @@
+# P9/16 — SR-05 — przypisywanie prawdziwego adresu filmu
+
+- Zakres: `selectedAnchor` w content.js nie może pobierać pierwszego dowolnego same-origin URL z karty. Adres kategorii/reklamy w pobliżu tytułu jest ryzykiem fałszywych wyników; jednoznaczne lokalne powiązanie tytuł↔link i zgodna semantyka, miniatura, wzorzec ścieżki to dopuszczalne sygnały. Gdy dwie różne strony nadal są nierozróżnialne, pomiń kartę zamiast losowego przypisania.
+- P8: dwa zielone workflowy (40934091145, 40934091211), HEAD `1290dfb2`. P9: kod+12 testów rzeczywistego JS + Room przygotowane, CI_PENDING. Test fizycznego GeckoView i strony z nietypowym DOM NOT_TESTED. Nie przebudowywano kreatora ani modelu zapisanych witryn, nie wykonywano migracji/budowania APK. Następnie P10/16 SR-06.
+
+---
+
 # P8/16 — SR-04/LC-04 — checkpoint i plan walidacji
 
 - P7 **PASS** w CI dla `edfedcf2`: [40931442648](https://github.com/laszko14/nira-browser/actions/runs/40931442648). P8 zapisuje inkrementalny postęp normalnego crawla do Room i prywatnego do RAM oraz uzgadnia osierocone runy na pierwszym dostępie po starcie nowego procesu.

@@ -83,6 +83,34 @@ class VideoSearchResultsRepositoryTest {
         } finally { db.close() }
     }
 
+    @Test fun sameTitleAndDifferentQueryOrSiteRemainDistinctInRoom() = runBlocking {
+        val db = database()
+        try {
+            val repo = VideoSearchRepository(db.dao())
+            repo.putRun(run())
+            val first = film(siteId = "a").copy(
+                originalTitle = "Ten sam tytuł",
+                filmPageUrl = "https://a.example.org/watch?id=7&lang=pl"
+            )
+            val translated = film(siteId = "a", index = 1).copy(
+                originalTitle = "Ten sam tytuł",
+                filmPageUrl = "https://a.example.org/watch?id=7&lang=en"
+            )
+            val otherSite = film(siteId = "b").copy(
+                originalTitle = "Ten sam tytuł",
+                filmPageUrl = "https://b.example.org/watch?id=7&lang=pl"
+            )
+            assertTrue(repo.putFilm(first))
+            assertTrue(repo.putFilm(translated))
+            assertTrue(repo.putFilm(otherSite))
+            assertFalse(repo.putFilm(first.copy(id = "duplicate", originalIndex = 2)))
+            val actual = repo.resultsSnapshot(normal, "r")!!.films
+            assertEquals(3, actual.size)
+            assertEquals(3, actual.map { it.siteId to it.filmPageUrl }.distinct().size)
+            assertEquals(1, actual.map { it.originalTitle }.distinct().size)
+        } finally { db.close() }
+    }
+
     @Test fun changingOnlyViewDoesNotClearSelectedSitesOrParallelism() = runBlocking {
         val db = database()
         try {
