@@ -4,11 +4,14 @@ import android.os.Bundle
 import android.content.Intent
 import com.prirai.android.nira.BrowserActivity
 import android.text.InputType
+import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -56,6 +59,13 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private var deletedDefaultObserver: Job? = null
     private var historyRetentionJob: Job? = null
     private var reorderPending = false
+    private lateinit var normalPanel: LinearLayout
+    private lateinit var privatePanel: LinearLayout
+    private lateinit var privateSiteInput: EditText
+    private lateinit var privateSitesContainer: LinearLayout
+    private lateinit var privateStatus: TextView
+    private lateinit var privateAddButton: Button
+    private val privateSitesAccess = VideoSearchPrivateSitesAccess()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -70,6 +80,14 @@ class MyVideoSitesActivity : AppCompatActivity() {
         info = TextView(this).apply { textSize = 14f }
         root.addView(info, LinearLayout.LayoutParams(-1, -2))
 
+        normalPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        privatePanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+        }
+
         val inputRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         input = EditText(this).apply {
             hint = "Adres witryny (np. example.org)"
@@ -82,10 +100,10 @@ class MyVideoSitesActivity : AppCompatActivity() {
             setOnClickListener { addSite() }
         }
         inputRow.addView(addButton)
-        root.addView(inputRow)
+        normalPanel.addView(inputRow)
 
         selectionInfo = TextView(this).apply { text = "Wybrano 0 witryn"; textSize = 14f }
-        root.addView(selectionInfo)
+        normalPanel.addView(selectionInfo)
         val selectionActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         selectAllButton = Button(this).apply {
             text = "Zaznacz wszystkie"
@@ -97,7 +115,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
         }
         selectionActions.addView(selectAllButton, LinearLayout.LayoutParams(0, -2, 1f))
         selectionActions.addView(clearButton, LinearLayout.LayoutParams(0, -2, 1f))
-        root.addView(selectionActions)
+        normalPanel.addView(selectionActions)
 
         val dispatchControls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -112,12 +130,12 @@ class MyVideoSitesActivity : AppCompatActivity() {
         }
         dispatchControls.addView(parallelismButton, LinearLayout.LayoutParams(0, -2, 1f))
         dispatchControls.addView(queuePreviewButton, LinearLayout.LayoutParams(0, -2, 1f))
-        root.addView(dispatchControls)
+        normalPanel.addView(dispatchControls)
         defaultGroupButton = Button(this).apply {
             text = "Filmy otwieraj: Bez grupy"
             setOnClickListener { chooseDefaultVideoGroup() }
         }
-        root.addView(defaultGroupButton)
+        normalPanel.addView(defaultGroupButton)
 
         val multiActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         multiStatusButton = Button(this).apply {
@@ -130,7 +148,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
         }
         multiActions.addView(multiStatusButton, LinearLayout.LayoutParams(0, -2, 1f))
         multiActions.addView(stopMultiButton, LinearLayout.LayoutParams(0, -2, 1f))
-        root.addView(multiActions)
+        normalPanel.addView(multiActions)
         multiHistoryButton = Button(this).apply {
             text = "Historia znalezionych filmów"
             setOnClickListener { showMultiHistory() }
@@ -147,9 +165,9 @@ class MyVideoSitesActivity : AppCompatActivity() {
             LinearLayout.LayoutParams(0, -2, 1f))
         savedNavigation.addView(savedFoldersButton,
             LinearLayout.LayoutParams(0, -2, 1f))
-        root.addView(savedNavigation)
+        normalPanel.addView(savedNavigation)
 
-        root.addView(TextView(this).apply {
+        normalPanel.addView(TextView(this).apply {
             text = "Witryny pozostają na liście nawet po błędzie konfiguracji. " +
                 "Przytrzymaj i przeciągnij wiersz, aby zmienić kolejność."
             textSize = 13f
@@ -172,7 +190,10 @@ class MyVideoSitesActivity : AppCompatActivity() {
             layoutManager = LinearLayoutManager(this@MyVideoSitesActivity)
             adapter = this@MyVideoSitesActivity.adapter
         }
-        root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
+        normalPanel.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
+        root.addView(normalPanel, LinearLayout.LayoutParams(-1, 0, 1f))
+        root.addView(privatePanel, LinearLayout.LayoutParams(-1, 0, 1f))
+        setupPrivatePanel()
         setContentView(root)
 
         ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
@@ -211,6 +232,136 @@ class MyVideoSitesActivity : AppCompatActivity() {
         }).attachToRecyclerView(list)
     }
 
+
+    /**
+     * Temporary private site list (stage 10B). No normal Room / browsing
+     * history, no network submission, and no persistent thumbnails.
+     */
+    private fun setupPrivatePanel() {
+        privateStatus = TextView(this).apply {
+            textSize = 13f
+            text = "Tylko RAM. Po zamknięciu ostatniej karty prywatnej lista znika."
+        }
+        privatePanel.addView(privateStatus)
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        privateSiteInput = EditText(this).apply {
+            hint = "Adres prywatnej witryny"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            imeOptions = imeOptions or EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+            setSingleLine(true)
+        }
+        row.addView(privateSiteInput, LinearLayout.LayoutParams(0, -2, 1f))
+        privateAddButton = Button(this).apply {
+            text = "Dodaj"
+            setOnClickListener {
+                val target = selectedPrivateTab()
+                if (target == null) {
+                    refreshPrivatePanel()
+                    return@setOnClickListener
+                }
+                try {
+                    val saved = privateSitesAccess.addSite(
+                        target.first, target.second, privateSiteInput.text.toString()
+                    )
+                    if (saved == true) {
+                        privateSiteInput.text.clear()
+                        refreshPrivatePanel()
+                    } else if (saved == false) {
+                        privateSiteInput.error = "Już dodana lub osiągnięto limit 200 witryn"
+                    } else refreshPrivatePanel()
+                } catch (_: IllegalArgumentException) {
+                    privateSiteInput.error = "Nieprawidłowy adres HTTP(S)"
+                }
+            }
+        }
+        row.addView(privateAddButton)
+        privatePanel.addView(row)
+        val selection = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        fun updateAll(selected: Boolean) {
+            selectedPrivateTab()?.let { (tab, profileId) ->
+                privateSitesAccess.selectAll(tab, profileId, selected)
+            }
+            refreshPrivatePanel()
+        }
+        selection.addView(Button(this).apply {
+            text = "Zaznacz wszystkie"
+            setOnClickListener { updateAll(true) }
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        selection.addView(Button(this).apply {
+            text = "Odznacz wszystkie"
+            setOnClickListener { updateAll(false) }
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        privatePanel.addView(selection)
+        privatePanel.addView(TextView(this).apply {
+            text = "Wysyłanie wyszukiwań i wyniki prywatne: kolejny etap 10C. " +
+                "Ta lista służy do bezpiecznego przygotowania witryn w RAM."
+            textSize = 13f
+        })
+        privateSitesContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        val scroll = ScrollView(this).apply { addView(privateSitesContainer) }
+        privatePanel.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+    }
+
+    /**
+     * Both the selected BrowserStore tab and ProfileManager must still be
+     * private/unchanged at the precise user action, never a cached Activity
+     * owner or a page-provided profile parameter.
+     */
+    private fun selectedPrivateTab(): Pair<VideoSearchPrivateTab, String>? {
+        val manager = ProfileManager.getInstance(applicationContext)
+        if (!manager.isPrivateMode()) return null
+        val state = applicationContext.components.store.state
+        val tab = state.tabs.singleOrNull { it.id == state.selectedTabId }
+            ?: return null
+        if (!tab.content.private || tab.contextId != "private") return null
+        return VideoSearchPrivateTab(
+            tab.id, tab.contextId, tab.content.private
+        ) to manager.getActiveProfile().id
+    }
+
+    private fun refreshPrivatePanel() {
+        if (privatePanel.visibility != View.VISIBLE) return
+        privateSitesContainer.removeAllViews()
+        val target = selectedPrivateTab()
+        val snapshot = target?.let { privateSitesAccess.snapshot(it.first, it.second) }
+        if (snapshot == null) {
+            privateAddButton.isEnabled = false
+            privateStatus.text = "Brak aktywnej prywatnej karty wyszukiwarki. " +
+                "Wróć do prywatnej karty i otwórz Moje witryny ponownie."
+            return
+        }
+        privateAddButton.isEnabled = true
+        privateStatus.text = "Witryny tylko w RAM: ${snapshot.sites.size}, " +
+            "wybrane: ${snapshot.selectedIds.size}. " +
+            "Znikną po zamknięciu ostatniej prywatnej karty."
+        snapshot.sites.forEach { site ->
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            val check = CheckBox(this).apply {
+                text = site.displayName
+                isChecked = site.id in snapshot.selectedIds
+                setOnCheckedChangeListener { _, checked ->
+                    selectedPrivateTab()?.let { (tab, profile) ->
+                        privateSitesAccess.setSelected(tab, profile, site.id, checked)
+                    }
+                    refreshPrivatePanel()
+                }
+            }
+            row.addView(check, LinearLayout.LayoutParams(0, -2, 1f))
+            row.addView(Button(this).apply {
+                text = "Usuń"
+                setOnClickListener {
+                    selectedPrivateTab()?.let { (tab, profile) ->
+                        privateSitesAccess.removeSite(tab, profile, site.id)
+                    }
+                    refreshPrivatePanel()
+                }
+            })
+            privateSitesContainer.addView(row)
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         val manager = ProfileManager.getInstance(applicationContext)
@@ -236,10 +387,14 @@ class MyVideoSitesActivity : AppCompatActivity() {
             stopMultiButton.isEnabled = false
             multiHistoryButton.isEnabled = false
             savedFoldersButton.isEnabled = false
-            info.text = "Tryb prywatny: zapis do zwykłego profilu jest wyłączony. " +
-                "Lista prywatna będzie dostępna po integracji sesji prywatnej."
+            normalPanel.visibility = View.GONE
+            privatePanel.visibility = View.VISIBLE
+            info.text = "Witryny prywatne · tylko RAM"
+            refreshPrivatePanel()
             return
         }
+        privatePanel.visibility = View.GONE
+        normalPanel.visibility = View.VISIBLE
         val current = VideoSearchScope.Normal(manager.getActiveProfile().id)
         // On user entry, not a background timer: Room transaction on IO,
         // cancelled if this Activity leaves before completion.

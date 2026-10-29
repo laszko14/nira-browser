@@ -77,6 +77,20 @@ internal class VideoSearchPrivateSessionRegistry(
         else session.scope
     }
 
+    /**
+     * Complete one RAM operation under the same lock as tab retirement.
+     * Never hand a long-lived private-store handle to an Activity or worker.
+     * Null means a tab/profile is no longer authorized.
+     */
+    fun <T> withAuthorizedTab(
+        tab: VideoSearchPrivateTab,
+        activeProfileId: String,
+        block: (VideoSearchPrivateStore, VideoSearchScope.Private) -> T,
+    ): T? = synchronized(lock) {
+        val owner = ownerForTab(tab, activeProfileId) ?: return@synchronized null
+        block(privateStore, owner)
+    }
+
     fun activeScope(): VideoSearchScope.Private? = synchronized(lock) {
         lifetime?.scope
     }

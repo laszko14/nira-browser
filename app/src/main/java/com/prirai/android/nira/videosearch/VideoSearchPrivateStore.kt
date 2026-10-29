@@ -55,6 +55,47 @@ internal class VideoSearchPrivateStore {
     fun sites(scope: VideoSearchScope.Private): List<VideoSearchSite> =
         access(scope) { it.sites.values.sortedBy { site -> site.position } }
 
+    /** Removing a private site only mutates its own in-memory selection. */
+    fun removeSite(scope: VideoSearchScope.Private, siteId: String): Boolean =
+        access(scope) { state ->
+            if (state.sites.remove(siteId) == null) false else {
+                state.settings?.let { settings ->
+                    state.settings = settings.copy(
+                        selectedSiteIds = settings.selectedSiteIds - siteId
+                    )
+                }
+                true
+            }
+        }
+
+    /**
+     * Exact one-lifetime selection, no Room or SharedPreferences.
+     * Unknown/disabled IDs are not accepted, including stale UI actions.
+     */
+    fun selectSite(
+        scope: VideoSearchScope.Private,
+        siteId: String, selected: Boolean,
+    ): Boolean = access(scope) { state ->
+        val site = state.sites[siteId] ?: return@access false
+        if (selected && !site.enabled) return@access false
+        val settings = state.settings ?: VideoSearchSettings(scope)
+        state.settings = settings.copy(selectedSiteIds =
+            if (selected) settings.selectedSiteIds + siteId
+            else settings.selectedSiteIds - siteId
+        )
+        true
+    }
+
+    fun selectAll(scope: VideoSearchScope.Private, selected: Boolean) =
+        access(scope) { state ->
+            val settings = state.settings ?: VideoSearchSettings(scope)
+            state.settings = settings.copy(selectedSiteIds =
+                if (selected) state.sites.values.filter { it.enabled }
+                    .mapTo(linkedSetOf()) { it.id }
+                else emptySet()
+            )
+        }
+
     fun putSettings(settings: VideoSearchSettings) {
         val scope = settings.scope as? VideoSearchScope.Private
             ?: throw IllegalArgumentException("Expected private settings")
