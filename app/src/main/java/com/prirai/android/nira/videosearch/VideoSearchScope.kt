@@ -18,8 +18,18 @@ internal sealed interface VideoSearchScope {
     /** Null is an explicit "never persist" marker, not the default profile. */
     val persistentProfileId: String?
 
-    fun ownsTab(tabContextId: String?, tabIsPrivate: Boolean): Boolean =
-        isPrivate == tabIsPrivate && contextId == tabContextId
+    /**
+     * Private tabs must additionally carry the current private-lifetime ID
+     * from an app-owned RAM registry. Gecko contextId alone is insufficient.
+     */
+    fun ownsTab(
+        tabContextId: String?,
+        tabIsPrivate: Boolean,
+        privateSessionId: String? = null,
+    ): Boolean = when (this) {
+        is Normal -> !tabIsPrivate && contextId == tabContextId
+        is Private -> tabIsPrivate && tabContextId == "private" && sessionId == privateSessionId
+    }
 
     data class Normal(override val profileId: String) : VideoSearchScope {
         init {
