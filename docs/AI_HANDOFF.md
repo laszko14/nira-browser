@@ -1,3 +1,15 @@
+# Checkpoint — Zavro Clean / Wyszukiwarka filmów — autoryzowana kompilacja v1191 / 2026-10-29
+
+- **STATUS: CI SUCCESS / SIGNED ARM64 APK VERIFIED.** Źródłowy commit builda: `200f17f5914b328598ddf8724db49cff2f5107ad`; GitHub Actions run `40894977952`: https://github.com/laszko14/nira-browser/actions/runs/40894977952
+- **APK artefakt:** `zavro-video-search-v1191-arm64-update`, ID `12907196745`, pobieranie: https://github.com/laszko14/nira-browser/actions/runs/40894977952/artifacts/12907196745. APK wewnątrz ZIP, artefakt ~146.9 MB. Artefakt testów/lint `12905684080`: https://github.com/laszko14/nira-browser/actions/runs/40894977952/artifacts/12905684080
+- **Podpis i metadane zweryfikowane rzeczywistym `scripts/verify-update-apk.sh`:** `com.prirai.android.nira.debug`, arm64-v8a, versionCode `1191`, versionName `0.5.22-alpha96-clean`, cert SHA-256 `df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00`. Żadnego debug-keystore nie użyto do publikowanego artefaktu. Stable `Zavro` i `Zavro x MPV` nieruszone, bez merge `main`.
+- **WERYFIKACJA REALNIE WYKONANA:** `./gradlew testDebugUnitTest` SUCCESS, `node --test app/src/test/js/*.test.cjs` **218/218 PASS**, `./gradlew lintDebug` SUCCESS (projekt używa `abortOnError=false`; wynik uruchomienia nie zapewnia zera ostrzeżeń), `./gradlew assembleDebug` SUCCESS, podpis/ABI/pakiet/version/certyfikat PASS. Wcześniejszy przebieg JUnit 1035 testów wykazał 16 błędów; poprawione zostały błędne założenia `ENTER`/FORM_SUBMIT, długości pakietów i walidacja prywatnego profilu; końcowy JUnit zakończył się SUCCESS. Wcześniejszy JS 211/218 (7 starych odwołań do metadata CI v1190) poprawiono przez zgodne z v1191 oczekiwania w `.github/workflows/apk-release.yml`.
+- **Poprawki wynikające z rzeczywistej kompilacji:** import `rememberScrollState`, pozycja lambda `packet` w `VideoSearchBridgeController`, Compose lazy `items(count)`, 22 wywołania niegenerycznego API Robolectric w 19 plikach testowych, testy multi-site z prawidłową metodą FORM_SUBMIT, 3 asercje metadanych pakietu, walidacja profileId przed utworzeniem prywatnej epoki, aktualizacja oczekiwanego versionCode/name w CI.
+- **NIEURUCHOMIONE:** testy instrumentacyjne GeckoView na prawdziwym Nothing Phone (1), TestLab 60s, faktyczne strony z wieloma filmami, prywatne workery/adopcja na urządzeniu, sprawdzenie 120 Hz i jank. CI/JUnit/JS PASS nie jest jeszcze gwarancją runtime w Gecko/Android.
+- **Next step:** pobrać APK v1191 i sprawdzić urządzenie (normalne wyszukiwanie, prywatna sesja, multi-site, wyniki, foldery, paginacja, 120 Hz). Jedno zgłoszenie błędu na kolejne zadanie/commit/checkpoint. Bez automatycznego merge i bez kolejnego APK bez nowego `Kompiluj`/`Już`. STOP.
+
+---
+
 # Checkpoint — Wyszukiwarka filmów / ETAP 12 / 12 / 2026-10-29
 
 - **STATUS: FINAL SOURCE CHECKPOINT COMMITTED. BUILD/APK/CI/JUNIT/GECKO/DEVICE NOT EXECUTED.** Parent `11c51ce8485345bfae851e5f6de2e3b6c0559a33` (etap 11). Branch `feat/zavro-clean-video-search-20261029` remains separate from `main`; no PR, merge, versionCode/name, signing, Room, WebExtension, regular profiles or 120Hz changes.
