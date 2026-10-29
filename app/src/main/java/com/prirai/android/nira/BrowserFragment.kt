@@ -1845,6 +1845,13 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         val binding = bindingOrNull ?: return
         val isHomepage = url == "about:homepage"
         val isVideoSearch = url == VIDEO_SEARCH_RESULTS_TAB_URL
+        // Only this internal tab needs protection from nested LazyRow disallow.
+        // The established SidePanelInfrastructure continues to own the gesture.
+        val edgePrefs = UserPreferences(requireContext())
+        binding.gestureLayout.resultsLeftEdgeWidthPx =
+            if (isVideoSearch && edgePrefs.niraEdgePanelsEnabled)
+                edgePrefs.niraEdgeWidthDp.coerceAtLeast(1) * resources.displayMetrics.density
+            else 0f
         val resultsView = binding.root.findViewById<androidx.compose.ui.platform.ComposeView>(
             R.id.videoSearchResultsComposeView
         )

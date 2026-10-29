@@ -10,11 +10,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items as listItems
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -203,11 +205,13 @@ internal fun VideoSearchResultsScreen(
     // null = all expanded; the expansion state is local to the current run.
     var expandedSites by remember(run?.id) { mutableStateOf<Set<String>?>(null) }
 
-    // Both sorting AND grouping are computed off Main for 120 Hz responsiveness.
-    val projection by produceState<
-        Pair<VideoSearchResultsDisplay, List<VideoSearchResultsGroup>>?
-    >(null, snapshot, siteFilter, sort) {
-        value = withContext(Dispatchers.Default) {
+    // A Room revision changes snapshot without discarding the previous
+    // layout. Do not display a full-screen spinner on every new film.
+    val projectionState = remember(run?.id) {
+        mutableStateOf<Pair<VideoSearchResultsDisplay, List<VideoSearchResultsGroup>>?>(null)
+    }
+    LaunchedEffect(snapshot, siteFilter, sort) {
+        val next = withContext(Dispatchers.Default) {
             snapshot?.let {
                 val display = VideoSearchResultsPresenter.project(
                     it.run, it.tasks, it.films, it.siteNames, siteFilter, sort
@@ -215,9 +219,31 @@ internal fun VideoSearchResultsScreen(
                 display to VideoSearchResultsPresenter.groups(display, siteFilter)
             }
         }
+        if (next != projectionState.value) projectionState.value = next
     }
-    val results = projection?.first
-    val groups = projection?.second.orEmpty()
+    val results = projectionState.value?.first
+    val groups = projectionState.value?.second.orEmpty()
+
+    // One Lazy state per run and layout. Keys are shared between both modes:
+    // a view toggle resumes at the same source/film rather than scroll zero.
+    val gridState = remember(run?.id) { LazyGridState() }
+    val listState = remember(run?.id) { LazyListState() }
+    val visibleKeys = remember(results, groups, byWebsite, expandedSites) {
+        if (results == null) emptyList() else VideoSearchScrollKeys.visible(
+            results, groups, byWebsite, expandedSites
+        )
+    }
+    var pendingLayoutSwitch by remember(run?.id) {
+        mutableStateOf<Pair<VideoSearchView, String>?>(null)
+    }
+    LaunchedEffect(state.view, pendingLayoutSwitch, visibleKeys) {
+        val switch = pendingLayoutSwitch ?: return@LaunchedEffect
+        if (switch.first != state.view) return@LaunchedEffect
+        val index = VideoSearchScrollKeys.indexForKey(visibleKeys, switch.second)
+        if (state.view == VideoSearchView.TILES) gridState.scrollToItem(index)
+        else listState.scrollToItem(index)
+        pendingLayoutSwitch = null
+    }
 
     Surface(modifier = Modifier.fillMaxSize(), color = Color(0xff0c1015)) {
         Column(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
@@ -340,10 +366,16 @@ internal fun VideoSearchResultsScreen(
                         }
                     }
                 }
-                TextButton(onClick = { onViewChange(
-                    if (state.view == VideoSearchView.TILES) VideoSearchView.LIST
-                    else VideoSearchView.TILES
-                ) }) {
+                TextButton(onClick = {
+                    val target = if (state.view == VideoSearchView.TILES)
+                        VideoSearchView.LIST else VideoSearchView.TILES
+                    val currentIndex = if (state.view == VideoSearchView.TILES)
+                        gridState.firstVisibleItemIndex else listState.firstVisibleItemIndex
+                    visibleKeys.getOrNull(currentIndex)?.let { anchor ->
+                        pendingLayoutSwitch = target to anchor
+                    }
+                    onViewChange(target)
+                }) {
                     Text(if (state.view == VideoSearchView.TILES) "Lista" else "Kafelki")
                 }
                 Text("${results.visibleFilms.size} wyników",
@@ -395,6 +427,7 @@ internal fun VideoSearchResultsScreen(
             } else if (state.view == VideoSearchView.TILES) {
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(150.dp),
+                    state = gridState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(10.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -440,6 +473,7 @@ internal fun VideoSearchResultsScreen(
                 }
             } else {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(10.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),

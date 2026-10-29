@@ -306,6 +306,12 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
     suspend fun runs(scope: VideoSearchScope.Normal): List<VideoSearchRun> =
         dao.getRuns(scope.profileId).map { with(VideoSearchRowCodec) { it.toModel() } }
 
+    /** Observe transactionally checked normal-profile run revisions without a timer. */
+    fun observeRuns(scope: VideoSearchScope.Normal): Flow<List<VideoSearchRun>> =
+        dao.observeRuns(scope.profileId).map { rows ->
+            rows.map { with(VideoSearchRowCodec) { it.toModel() } }
+        }
+
     suspend fun putTask(task: VideoSearchSiteTask) {
         // Mapper rejects private scopes before the transactional read/write.
         dao.putTaskChecked(with(VideoSearchRowCodec) { task.toRow() })

@@ -276,6 +276,13 @@ internal interface VideoSearchDao {
     @Query("SELECT * FROM video_search_runs WHERE profileId = :profileId ORDER BY startedAtMs DESC")
     suspend fun getRuns(profileId: String): List<VideoSearchRunRow>
 
+    /**
+     * Room invalidates this query on every per-site run checkpoint; there is
+     * no polling. Includes RUNNING progress, not just terminal transitions.
+     */
+    @Query("SELECT * FROM video_search_runs WHERE profileId = :profileId ORDER BY startedAtMs DESC")
+    fun observeRuns(profileId: String): Flow<List<VideoSearchRunRow>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun putTask(row: VideoSearchTaskRow)
 

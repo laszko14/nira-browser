@@ -7,6 +7,7 @@ import android.view.GestureDetector
 import android.view.MotionEvent
 import android.widget.FrameLayout
 import androidx.core.view.GestureDetectorCompat
+import com.prirai.android.nira.videosearch.VideoSearchEdgeGesturePolicy
 
 interface SwipeGestureListener {
     fun onSwipeStarted(start: PointF, next: PointF): Boolean
@@ -24,6 +25,14 @@ class SwipeGestureLayout @JvmOverloads constructor(
     internal var testLabGestureOrigin: com.prirai.android.nira.diagnostics.testlab.GestureOrigin? = null
         private set
     var isSwipeEnabled = true
+
+    /**
+     * ONLY for about:zavro-video-search, set by BrowserFragment when selected.
+     * Preserve left-panel edge interception when nested Compose LazyRow asks
+     * the parent not to intercept. Vertical and multi-touch remain untouched.
+     */
+    var resultsLeftEdgeWidthPx: Float = 0f
+    private var resultsLeftEdgeStream = false
 
     /** Passive vertical scroll signal; never intercepts GeckoView's page gestures. */
     var onVerticalSwipe: ((Float) -> Unit)? = null
@@ -178,8 +187,30 @@ class SwipeGestureLayout @JvmOverloads constructor(
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         // dispatchTouchEvent sees moves even when GeckoView asks its parent
         // not to intercept; ordinary page scrolling remains uninterrupted.
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            resultsLeftEdgeStream = VideoSearchEdgeGesturePolicy.startedAtLeftEdge(
+                event.x, resultsLeftEdgeWidthPx
+            )
+        }
         observePageGesture(event)
-        return super.dispatchTouchEvent(event)
+        if (verticalDirection || event.pointerCount > 1) resultsLeftEdgeStream = false
+        val handled = super.dispatchTouchEvent(event)
+        if (event.actionMasked == MotionEvent.ACTION_UP ||
+            event.actionMasked == MotionEvent.ACTION_CANCEL) resultsLeftEdgeStream = false
+        return handled
+    }
+
+    override fun requestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {
+        // An explicit edge gesture still needs a chance to reach the existing
+        // Zavro panel handler; there is NO new gesture detector or panel.
+        if (VideoSearchEdgeGesturePolicy.keepParentEligible(
+                disallowIntercept,
+                resultsLeftEdgeWidthPx > 0f,
+                isSwipeEnabled,
+                resultsLeftEdgeStream,
+                verticalDirection || multiTouchStream
+            )) return
+        super.requestDisallowInterceptTouchEvent(disallowIntercept)
     }
 
     override fun onInterceptTouchEvent(event: MotionEvent): Boolean {

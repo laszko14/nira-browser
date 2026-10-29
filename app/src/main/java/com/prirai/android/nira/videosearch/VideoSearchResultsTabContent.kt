@@ -24,7 +24,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.prirai.android.nira.browser.profile.ProfileManager
 import com.prirai.android.nira.ext.components
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -107,31 +111,44 @@ private fun VideoSearchResultsTabBound(
         mutableStateOf(VideoSearchResultsScreenState())
     }
 
+    /**
+     * Room emits whenever a site worker checkpoints a run. Do not poll or
+     * discard the existing snapshot while it is being updated: that would
+     * remove the Lazy lists and reset the user's current scroll position.
+     */
     LaunchedEffect(tabId, profileId, chosenRunId, refreshVersion) {
         if (!isActiveNormalProfile(context, profileId)) return@LaunchedEffect
-        state = state.copy(loading = true, error = null)
+        if (state.snapshot == null || state.snapshot?.run?.id != chosenRunId &&
+            chosenRunId != null) {
+            state = state.copy(loading = true, error = null)
+        }
         try {
-            val result = withContext(Dispatchers.IO) {
-                val runs = repository.runs(scope)
-                val selected = runs.firstOrNull { it.id == chosenRunId }
-                    ?: runs.firstOrNull()
-                Triple(
-                    runs,
-                    selected?.let { repository.resultsSnapshot(scope, it.id) },
-                    repository.settings(scope).view,
-                )
-            }
-            if (!isActiveNormalProfile(context, profileId)) return@LaunchedEffect
-            state = VideoSearchResultsScreenState(
-                runs = result.first,
-                snapshot = result.second,
-                view = result.third,
-                loading = false,
-            )
+            combine(
+                repository.observeRuns(scope).distinctUntilChanged(),
+                repository.observeSettings(scope).distinctUntilChanged(),
+            ) { runs, prefs -> runs to prefs.view }
+                .collectLatest { (runs, view) ->
+                    if (!isActiveNormalProfile(context, profileId)) return@collectLatest
+                    val chosen = runs.firstOrNull { it.id == chosenRunId }
+                        ?: runs.firstOrNull()
+                    val snapshot = withContext(Dispatchers.IO) {
+                        chosen?.let { repository.resultsSnapshot(scope, it.id) }
+                    }
+                    if (!isActiveNormalProfile(context, profileId)) return@collectLatest
+                    // Preserve the current list and Lazy key/scroll anchors on
+                    // each revision; only a different run changes its identity.
+                    val next = VideoSearchResultsScreenState(
+                        runs = runs, snapshot = snapshot, view = view,
+                        loading = false, error = null,
+                    )
+                    if (state != next) state = next
+                }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
             if (isActiveNormalProfile(context, profileId)) {
                 state = state.copy(loading = false,
-                    error = "Nie udało się odczytać wyników.")
+                    error = "Nie udało się odświeżyć wyników.")
             }
         }
     }
