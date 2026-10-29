@@ -49,3 +49,9 @@ test('single-site search does not close settings on successful submission', () =
   assert.match(single, /VideoSearchBridgeHost\.instance\(\)\?\.searchSite/);
   assert.doesNotMatch(single, /finish\(\)/);
 });
+
+test('private multi-site search stays with RAM results instead of leaving settings', () => {
+  const privateMulti = between(sites, 'if (VideoSearchBridgeHost.instance()?.startPrivateMultiSite(', 'header.addView(TextView(this).apply {');
+  assert.match(privateMulti, /refreshPrivatePanel\(\)/);
+  assert.doesNotMatch(privateMulti, /finish\(\)/);
+});
