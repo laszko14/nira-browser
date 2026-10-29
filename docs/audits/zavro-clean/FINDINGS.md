@@ -20,6 +20,9 @@ Odniesienia do kodu dotyczą bazy `b7d62f79f285ac81c29a79b326529d42e9b9fde4`. Be
 | ZC-AUD-014 | 7 | P2 MEDIUM | CONFIRMED | Dialog kolejności przycisków nie obsługuje upuszczenia za celem ani na koniec |
 | ZC-AUD-015 | 7 | P2 MEDIUM | CONFIRMED | Zmiana orientacji przy stałej szerokości nie odświeża konfiguracji przycisków |
 | ZC-AUD-016 | 7 | P2 MEDIUM (potencjalny) | LIKELY | Zamykanie wyszukiwania przełącza IME zamiast jednoznacznie go ukryć |
+| ZC-AUD-017 | 8 | P2 MEDIUM | CONFIRMED | Wyłączenie gestów nie anuluje strumienia już przejętego przez rodzica |
+| ZC-AUD-018 | 8 | P2 MEDIUM | CONFIRMED | Animacje kolejnych gestów toolbaru nie mają wspólnej generacji ani anulowania |
+| ZC-AUD-019 | 8 | P2 MEDIUM (potencjalny) | LIKELY | Swipe karty może konkurować z DnD i wielodotykiem mimo konsumpcji zdarzeń |
 
 ## ZC-AUD-001 — niespójny kontrakt wersji joba release
 
@@ -231,4 +234,43 @@ Odniesienia do kodu dotyczą bazy `b7d62f79f285ac81c29a79b326529d42e9b9fde4`. Be
 - **Kierunek naprawy:** po reprodukcji stosować jawne ukrycie z aktualnym właścicielem okna/widoku i spójną politykę zakończenia akcji, zamiast przełączania nieznanego stanu. Nie zmieniać zachowania wyszukiwania ani historii przy tej poprawce.
 - **Regresje:** IME początkowo widoczne/ukryte, Back systemowy i aplikacyjny, dismiss bez wyszukania, zatwierdzenie, dotknięcie strony i powrót do uprzednio aktywnego inputu; fizyczny Android15 i kontrola faktycznego fokusu/viewportu. Bez nowego harnessu.
 
-Stan po etapie 7: CONFIRMED=13 (P1=1,P2=12); LIKELY=2 (010 i016, potencjalne P2); SUSPECTED=1 (002, potencjalny P2). Etap7 dodał2 potwierdzone P2 i1 LIKELY. Nie doliczać hipotez do potwierdzonych błędów.
+## ZC-AUD-017 — flaga gestów nie zatrzymuje już przejętego streamu
+
+- **Etap:**8 — arbitraż dotyku i przejście do fullscreen.
+- **Miejsce:** [`SwipeGestureLayout.kt:185`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/browser/SwipeGestureLayout.kt#L185), onInterceptTouchEvent:193–195 kontra onTouchEvent:214–237; isSwipeEnabled:26; BaseBrowserFragment.fullScreenChanged:1049. Kotlin względem app/src/main/java/com/prirai/android/nira/.
+- **Problem:** ustawienie isSwipeEnabled=false nie gwarantuje anulowania gestu, który SwipeGestureLayout już wcześniej przejął; jego właściciel może dostać dalsze update/finish mimo blokady.
+- **Mechanizm:** flaga jest zwykłym polem bez setterowego anulowania. Guard i cancelOwnedSwipe istnieją tylko w onInterceptTouchEvent. Po przejęciu streamu przez ViewGroup, gdy nie ma już child touch target, dalsza obsługa może trafiać bezpośrednio do onTouchEvent. Ta metoda nie sprawdza flagi i podaje MOVE/UP do GestureDetector/listenera. W fullscreen wyłączenie flagi i reset infrastruktury paneli nie anulują osobno aktywnego ToolbarGestureHandler.
+- **Dowód statyczny:** kolejność accepted MOVE→isSwipeEnabled=false→onTouchEvent(UP) przy activeListener!=null: metoda może wywołać onSwipeFinished (fling albo gałąź231–234), bez wywołania onSwipeCancelled z guardu193. Brak innego odczytu flagi na tej ścieżce. To ślad kodu/kontraktu ViewGroup, nie uruchomiony dispatch Androida.
+- **Pewność:**CONFIRMED — brak blokady i anulowania na ścieżce już przejętego dotyku. Odtworzenie konkretnego fullscreen w trakcie gestu na Androidzie/telefonie:NOT_TESTED. Nie zgłoszono, że nowe gesty przy wyłączonej fladze zawsze są akceptowane.
+- **Ważność:**P2 MEDIUM — kontynuowanie niewłaściwej interakcji podczas zmiany trybu UI.
+- **Wpływ:** pozostałe przesunięcie content/preview, możliwa zmiana karty po wejściu w fullscreen i niezgodny koniec operacji; nie jest to dowód uszkodzenia sesji ani DRM.
+- **Kierunek naprawy:** spójnie anulować właściciela i stan detektora przy wyłączeniu, uwzględniając obie ścieżki wejścia. Już przejęty stream bezpiecznie dokończyć/zużyć bez oddawania stronie zdarzeń ze środka gestu; po ponownym włączeniu czekać na nowy DOWN. Nie ograniczać poprawki do kolejnego guardu w onIntercept.
+- **Regresje:** prawdziwy dispatch: przejąć MOVE, wyłączyć flagę, wysłać MOVE/UP/CANCEL; oczekiwać jednego cancel, bez dalszego finish/update/zmiany karty. Osobno flaga wyłączona od DOWN, drugi palec, fullscreen i ponowny świeży gest po włączeniu. Nie dodano nowych testów.
+
+## ZC-AUD-018 — starsza animacja toolbaru przeżywa rozpoczęcie nowego gestu
+
+- **Etap:**8 — szybkie gesty, anulowanie i właściciel animacji.
+- **Miejsce:** [`ToolbarGestureHandler.kt:216`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/browser/toolbar/ToolbarGestureHandler.kt#L216), getAnimator:216–228, animateToNextTab:231–260, animateCanceledGesture:263–274, onSwipeStarted:71–90. Odpowiedniki HomeToolbarGestureHandler:68–85,192–252; helper TabLRUManager.canFinishSwipe:92–98.
+- **Problem:** kolejny gest lub jego anulowanie może nakładać nowy ruch/powrót na wciąż działające zakończenie poprzedniego gestu. Starszy callback nadal może przełączyć kartę lub ukryć preview używane przez nowy gest.
+- **Mechanizm:** każda ścieżka tworzy i startuje nowy ValueAnimator; handler nie zachowuje aktywnego animatora ani generacji i nie anuluje go przy begin/cancel kolejnego gestu. Update callback czyta ponadto zmienny gestureDirection. doOnEnd pierwszego udanego gestu przechwytuje source/target i sprawdza sesje/Activity, ale nie tożsamość bieżącego gestu ani życie jego widoku. Końcowa animacja alpha preview również nie ma takiego tokenu.
+- **Dowód statyczny:** po release gestu A→B rusza animator1. Zanim się skończy, nowy gest na nadal wybranej A zmienia kierunek/preview i może uruchomić animator2 powrotu. Kiedy kończy się1, store nadal może mieć selected=A oraz żywe A/B w tym samym scope; canFinishSwipe zwraca wtedy true, więc stary doOnEnd wykonuje select(B). Kod nie unieważnia go przy starcie2. Nie uruchamiano ValueAnimator ani sekwencji palców na Androidzie.
+- **Pewność:**CONFIRMED — brak właściciela/generacji i ważny stary callback przy opisanym stanie. Wizualny skutek, timing i częstość na telefonie:NOT_TESTED; guardy profilu/istnienia kart pozostają skuteczne w innych scenariuszach.
+- **Ważność:**P2 MEDIUM — niespójna nawigacja i animacja przy szybkich operacjach; nie potwierdzono utraty kart/danych.
+- **Wpływ:** Browser i ekran startowy, contentLayout.translationX, preview/alpha i LRU; przy usunięciu widoku także wymagane sprawdzenie zaległych callbacków. To odrębny mechanizm od dobrze tokenizowanego SidePanelMotionController z4A i od flagi017.
+- **Kierunek naprawy:** jeden właściciel wszystkich animacji gestu i token generacji; unieważnienie przed cancel, kontrola onFrame/onEnd oraz cleanup widoku. Sam cancel bez zabezpieczenia callbacku końca jest niewystarczający, ponieważ zakończenie może być wywołane także przy anulowaniu. Przechwycić kierunek dla konkretnej generacji.
+- **Regresje:** release→natychmiast drugi gest w tym samym/przeciwnym kierunku→Cancel/finish; wymuszone spóźnione callbacki1 nie mogą przesuwać/ukrywać aktualnego preview ani wybierać karty. Zmiana profilu/źródła, obrót i destroy widoku, oba handlery. Nie dodano harnessu udającego Android ValueAnimator.
+
+## ZC-AUD-019 — raw swipe karty nie respektuje własności gestu Compose
+
+- **Etap:**8 — konflikt zamykania karty z DnD, anulowaniem i wielodotykiem.
+- **Miejsce:** [`SwipeableTabPill.kt:127`](https://github.com/laszko14/nira-browser/blob/b7d62f79f285ac81c29a79b326529d42e9b9fde4/app/src/main/java/com/prirai/android/nira/browser/tabs/compose/SwipeableTabPill.kt#L127), pointerInput/awaitEachGesture:127–176; UnifiedDragSystem.draggableItem:647–668; wspólny callsite w TabBarCompose:783–816.
+- **Podejrzenie:** pionowy ruch po rozpoczęciu długiego DnD może zostać także potraktowany jako swipe close/menu albo przerwać DnD; wiele palców lub anulowanie może pozostawić przesunięcie lub wywołać niezamierzoną akcję.
+- **Mechanizm:** wewnętrzny loop używa awaitFirstDown(requireUnconsumed=false), event.changes.firstOrNull i surowych różnic pozycji. Nie sprawdza isConsumed, nie wiąże streamu z down.id, nie odrzuca wielu palców i nie ma finally resetującego offset. Po zakończeniu wszystkich pressed wywołuje close/menu na podstawie sum i offsetu. Zewnętrzny draggable po long press konsumuje ruch i ma własne end/cancel. Nie ma wspólnej bramki wyłączającej swipe podczas tego DnD.
+- **Dowód:** wskazane callbacki są zagnieżdżone w tej samej karcie; consume w zewnętrznym recognizerze nie jest sprawdzane przez raw observer. Nie wykonano pointer input/Pass/syntetycznego Cancel ani rzeczywistego multitouch Compose, więc nie rozstrzygnięto, która akcja wygra w konkretnym harmonogramie.
+- **Pewność:**LIKELY — silna luka arbitrażu z kodu, ale końcowy skutek użytkowy wymaga Compose/Android. Nie zadeklarowano potwierdzonego zamknięcia karty podczas DnD.
+- **Ważność:**potencjalny P2 MEDIUM — konkurujące działania karty lub zablokowany wizualny offset; bez dowodu trwałej utraty danych.
+- **Wpływ:** rozwinięte grupy i inne miejsca używające SwipeableTabPill, gest pionowy kontra długi drag, przewijanie i drugi palec. Nie jest to ponowne zgłoszenie resize008.
+- **Kierunek naprawy:** po potwierdzeniu użyć recognizera respektującego konsumpcję/anulowanie i jednoznacznego właściciela DnD versus swipe; stabilny pointer ID, jawna polityka multi-touch oraz reset w finally. Nie opierać decyzji tylko na sumie ruchu raw events.
+- **Regresje:** rzeczywisty Compose: zwykły swipe zamyka raz, long press+drag ponad próg nie zamyka; Cancel, przejęcie przez rodzica, dwa palce i wymiana ID nie wykonują close/menu i zerują offset. Test obu kierunków i kolejności Main/Final, bez zastępowania frameworka wyłącznie listą punktów JVM.
+
+Stan po etapie8: CONFIRMED=15 (P1=1,P2=14); LIKELY=3 (010,016,019 — potencjalne P2); SUSPECTED=1 (002 — potencjalny P2). Etap8 dodał2 potwierdzone statycznie P2 i1 LIKELY. Hipotezy są oddzielone od potwierdzonych błędów.

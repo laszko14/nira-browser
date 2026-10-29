@@ -13,7 +13,7 @@ Baza kodu: `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79
 | 5 | Prawy panel | COMPLETE | [STAGE_05.md](STAGE_05.md) |
 | 6 | Dolny pasek kart | COMPLETE | [STAGE_06.md](STAGE_06.md) |
 | 7 | Pasek adresu i personalizacja | COMPLETE | [STAGE_07.md](STAGE_07.md) |
-| 8 | Gesty i nawigacja | NOT_STARTED | — |
+| 8 | Gesty i nawigacja | COMPLETE | [STAGE_08.md](STAGE_08.md) |
 | 9 | Pozostały UI i ustawienia | NOT_STARTED | — |
 | 10 | Sesje, profile i GeckoView | NOT_STARTED | — |
 | 11 | Wykrywanie filmów | NOT_STARTED | — |
@@ -25,6 +25,6 @@ Baza kodu: `feat/zavro-clean-side-panels-1dm-20261028` @ `b7d62f79f285ac81c29a79
 | 17 | Testy regresji | NOT_STARTED | — |
 | 18 | Raport końcowy i plan napraw | NOT_STARTED | — |
 
-Rejestr: [FINDINGS.md](FINDINGS.md). Checkpoint wznowienia: [../../AI_HANDOFF.md](../../AI_HANDOFF.md), wpis „ZC-AUD — ETAP 7/18 COMPLETE”. Od etapu 6 obowiązuje optymalizacja v1.6. Nie utworzono raportów przyszłych etapów ani raportu końcowego.
+Rejestr: [FINDINGS.md](FINDINGS.md). Checkpoint wznowienia: [../../AI_HANDOFF.md](../../AI_HANDOFF.md), wpis „ZC-AUD — ETAP 8/18 COMPLETE”. Od etapu 6 obowiązuje optymalizacja v1.6. Nie utworzono raportów przyszłych etapów ani raportu końcowego.
 
-Łącznie po etapie 7: potwierdzone P0=0, P1=1, P2=12, P3=0; CONFIRMED=13; osobno LIKELY=2 i SUSPECTED=1 (potencjalne P2). Etap7 dodał2 potwierdzone statycznie P2 i1 LIKELY; dowody i ograniczenia w [STAGE_07.md](STAGE_07.md) oraz rejestrze. Etapy 1–7 ukończone. Następny krok dopiero po „Dalej”: **etap 8**.
+Łącznie po etapie 8: potwierdzone P0=0, P1=1, P2=14, P3=0; CONFIRMED=15; osobno LIKELY=3 i SUSPECTED=1 (potencjalne P2). Etap 8 dodał 2 potwierdzone statycznie P2 i 1 LIKELY; dowody i ograniczenia w [STAGE_08.md](STAGE_08.md) oraz rejestrze. Etapy 1–8 ukończone. Następny krok dopiero po „Dalej”: **etap 9**.
