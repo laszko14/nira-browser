@@ -1454,7 +1454,8 @@ internal class VideoSearchBridgeController(
     ): Boolean {
         if (!canOpenManual(site)) return false
         if (expectedTabId == null && !canStartManual(site)) return false
-        if (expectedTabId != null && store.state.selectedTabId != expectedTabId) return false
+        // addTab selection can reach BrowserStore asynchronously; the bounded
+        // coroutine below verifies the exact selected tab before any picker action.
         manualBusy = true
         manualScope.launch {
             var feedbackSent = false
