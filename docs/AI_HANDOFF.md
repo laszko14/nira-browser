@@ -1,4 +1,15 @@
-# Checkpoint — Wyszukiwarka filmów — A3 / 4 — 2026-10-29
+# Checkpoint — Wyszukiwarka filmów — A4 / 4 — 2026-10-29
+
+- **STATUS: PASS ukończenia audytu A1–A4, implementacja 0/16.** A4 to przegląd kodu/istniejących testów/CI i końcowy backlog, bez nowego testu runtime. Urządzenie/Gecko/dysk/logcat/120 Hz/JUnit/JS/lint/Gradle/APK/CI w A4 **NOT_TESTED**. Brak urządzeń w `adb devices`. Nie utożsamiać audytu z gotowością UI/prywatności.
+- Gałąź `fix/zavro-clean-video-search-audit-20261029`; rodzic A4 `c535ab1145a9387acf7fbac35dddc74fe1598fb2`, zweryfikowany z origin/czystym drzewem. Baza v1191 `1ad05e9d12af3e060e4110880abb3fd65b313f1b` zachowana; źródła APK/ostatnie CI poniżej. Commit A4 ustala `git log -1`, handoff i audyt razem, bez dodatkowego commitu na SHA/run ID.
+- W `docs/VIDEO_SEARCH_AUDIT.md`: pełne A1–A4, UI/CFG/SR oraz nowe **LC-01 P0** (grace 300 ms może złączyć zakończoną i nową epokę prywatną, observer zależy od Activity), **LC-02 P1** (normalny worker nie chroni sticky adoption i może usunąć przyjętą kartę), **LC-03 P1** (normalne isActive dopuszcza restart przed completion i stary cleanup zeruje queue), **LC-04 P2** (osierocony RUNNING po process death). To dowody kodu, scenariusze Android nadal NOT_TESTED; nie potwierdzono fizycznego wycieku na dysk.
+- **N=16**: P1 dostępny formularz; P2 epoka private; P3 normalne worker ownership; P4 normalny restart gate; P5 CAS konfiguracji; P6 kontynuacja offset/budżet JS; P7 agregat2000; P8 checkpointy/przerwane run; P9 właściwy link filmu; P10 dowód nowych wyników private; P11 dowód końca/empty; P12 korekta redirect URL; P13 konfiguracja między stronami; P14 SPA handshake; P15 dialogi; P16 pusty stan. Dokładne pliki, zależności, ryzyka, PASS i testy w tabeli końcowej audytu. Każdy jeden commit + checkpoint + raport + STOP; podział dużego etapu tylko na osobno autoryzowane podetapy. Jeden agent domyślnie.
+- **Następne „Dalej” = tylko P1 / 16**: potwierdzić rzeczywistą przyczynę braku adres/Dodaj (H1 insets nadal hipotezą), naprawić MVS lokalnie, dostępność/przewijanie/IME/fontScale/orientacja i zwykły szkic bez utrwalania private; dodanie bez działającej konfiguracji, stare dane/profile nienaruszone. Testy celowane bez APK dozwolone, wizualne bez telefonu jawnie NOT_TESTED. Bez równoległej realizacji P2, przebudowy stylu/globalnej architektury i bez powtarzania całego audytu.
+- Bez zmian aplikacji, zależności, wersji, podpisu, package/ABI, Hz, stable/x MPV, bez PR/merge/release/CI. **APK wyłącznie na osobne „Kompiluj”/„Już”**, z versionCode>1191, tym samym pakietem/ARM64/certyfikatem. Nie uruchamiać teraz APK workflow/PR (mogą budować APK); bez polling. **STOP po A4.**
+
+---
+
+# Poprzedni checkpoint — Wyszukiwarka filmów — A3 / 4 — 2026-10-29
 
 - **STATUS: PASS ukończenia audytu A3; trzy reprodukcje JS potwierdziły FAIL inwariantów.** Bez napraw aplikacji, nowych zależności/testów w repo, JUnit/Gradle/lint/APK/CI. Urządzenie/Gecko NOT_TESTED.
 - Gałąź `fix/zavro-clean-video-search-audit-20261029`; rodzic A3 `4941b0ae4521a20b4e942db5a3b89eba1fe66759`, zgodny z origin i czystym drzewem przed pracą. Baza v1191 nadal `1ad05e9d12af3e060e4110880abb3fd65b313f1b`. Commit A3 identyfikuje `git log -1`; checkpoint i audyt zapisane razem.
