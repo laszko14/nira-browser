@@ -599,7 +599,8 @@ internal class VideoSearchBridgeController(
             var saved = 0
             var missing = 0
             var lowMemory = false
-            val deadline = SystemClock.elapsedRealtime() + 180_000L
+            val deadline = SystemClock.elapsedRealtime() +
+                VideoSearchResultBudgets.runDurationMs(plan.sites.map { it.resultLimit })
             try {
                 for (site in plan.sites) {
                     if (!privateGroup.hasCapacity(anchor, activeProfileId, groupRunId)) break
@@ -835,10 +836,11 @@ internal class VideoSearchBridgeController(
         ) ?: return null
         val originalSession = first.first
         val firstUrl = currentTab(originalSession)?.pageUrl ?: return null
-        val collector = VideoSearchPaginationCollector(site.siteUrl, 200)
+        val collector = VideoSearchPaginationCollector(site.siteUrl, site.resultLimit)
         if (!collector.beginDocument(firstUrl)) return null
         val deadline = minOf(
-            SystemClock.elapsedRealtime() + 120_000L, deadlineMs
+            SystemClock.elapsedRealtime() +
+                VideoSearchResultBudgets.durationMs(site.resultLimit), deadlineMs
         )
 
         fun authorized(): Boolean {
@@ -868,7 +870,8 @@ internal class VideoSearchBridgeController(
                 if (!authorized()) return stop(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
                 val cursor = collector.nextCardIndex
                 val result = privateRequest(site, tabId, "crawl", false, requireSelected) { doc, request ->
-                    VideoSearchBridgeProtocol.extractCrawl(doc, request, config, cursor)
+                    VideoSearchBridgeProtocol.extractCrawl(doc, request, config, cursor,
+                        VideoSearchResultBudgets.documentCards(site.resultLimit))
                 } as? VideoSearchBridgeMessage.Results
                     ?: return stop(VideoSearchPaginationStop.ERROR)
                 if (result.page.status == "no_results") {
@@ -968,7 +971,8 @@ internal class VideoSearchBridgeController(
                     // navigation. Accept it ONLY after seeing an unseen film.
                     if (!authorized()) return stop(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
                     val result = privateRequest(site, tabId, "crawl", false, requireSelected) { doc, id ->
-                        VideoSearchBridgeProtocol.extractCrawl(doc, id, config, 0)
+                        VideoSearchBridgeProtocol.extractCrawl(doc, id, config, 0,
+                        VideoSearchResultBudgets.documentCards(site.resultLimit))
                     } as? VideoSearchBridgeMessage.Results
                         ?: return stop(VideoSearchPaginationStop.STALLED)
                     if (result.page.status != "ok" || result.page.films.none {
@@ -1006,7 +1010,8 @@ internal class VideoSearchBridgeController(
                     }
                     val cursor = collector.nextCardIndex
                     val appended = privateRequest(site, tabId, "crawl", false, requireSelected) { doc, request ->
-                        VideoSearchBridgeProtocol.extractCrawl(doc, request, config, cursor)
+                        VideoSearchBridgeProtocol.extractCrawl(doc, request, config, cursor,
+                        VideoSearchResultBudgets.documentCards(site.resultLimit))
                     } as? VideoSearchBridgeMessage.Results
                         ?: return stop(VideoSearchPaginationStop.ERROR)
                     if (appended.page.status == "stale")
@@ -1024,7 +1029,8 @@ internal class VideoSearchBridgeController(
                         }
                     }
                     val replacementProbe = privateRequest(site, tabId, "crawl", false, requireSelected) { doc, request ->
-                        VideoSearchBridgeProtocol.extractCrawl(doc, request, config, 0)
+                        VideoSearchBridgeProtocol.extractCrawl(doc, request, config, 0,
+                        VideoSearchResultBudgets.documentCards(site.resultLimit))
                     } as? VideoSearchBridgeMessage.Results
                         ?: return stop(VideoSearchPaginationStop.ERROR)
                     if (replacementProbe.page.status == "stale")
