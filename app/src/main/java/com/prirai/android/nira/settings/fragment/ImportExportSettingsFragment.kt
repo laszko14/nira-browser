@@ -6,22 +6,16 @@ import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.edit
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.prirai.android.nira.R
-import com.prirai.android.nira.browser.bookmark.items.BookmarkFolderItem
-import com.prirai.android.nira.browser.bookmark.items.BookmarkItem
-import com.prirai.android.nira.browser.bookmark.items.BookmarkSiteItem
 import com.prirai.android.nira.browser.bookmark.repository.BookmarkManager
-import com.prirai.android.nira.utils.BookmarkUtils
-import org.json.JSONArray
-import org.json.JSONObject
-import org.json.JSONTokener
-import java.io.FileOutputStream
-import java.io.InputStream
 import java.io.OutputStream
-import java.util.Scanner
 
 
 class ImportExportSettingsFragment : BaseSettingsFragment() {
@@ -123,182 +117,48 @@ class ImportExportSettingsFragment : BaseSettingsFragment() {
     }
 
     private fun importBookmarks(uri: Uri) {
-        val manager = BookmarkManager.getInstance(requireActivity())
-        val bookmarkFile = manager.file
-
-        val input: InputStream? = requireActivity().contentResolver.openInputStream(uri)
-        val content = input?.bufferedReader().use { it?.readText() }
-
-        if (context?.contentResolver?.getType(uri) == "text/html") {
-            bookmarkFile.delete()
-            manager.initialize()
-
-            val lines = content?.split("\n") ?: listOf()
-
-            val folderStack = mutableListOf<BookmarkFolderItem>()
-            folderStack.add(manager.root)
-
-            var lastFolder: BookmarkFolderItem? = null
-            var lastFolderName = ""
-
-            for (line in lines) {
-                val trimmedLine = line.trim()
-
-                // Skip HR tags
-                if (trimmedLine.startsWith("<HR", ignoreCase = true)) {
-                    continue
-                }
-
-                // Check for folder (H3 tag)
-                if (trimmedLine.contains("<H3", ignoreCase = true)) {
-                    val startIdx = trimmedLine.indexOf('>', trimmedLine.indexOf("<H3", ignoreCase = true)) + 1
-                    val endIdx = trimmedLine.indexOf("</H3>", ignoreCase = true)
-
-                    if (startIdx > 0 && endIdx > startIdx) {
-                        lastFolderName = trimmedLine.substring(startIdx, endIdx).trim()
-
-                        if (lastFolderName.isNotEmpty()) {
-                            val currentParent = folderStack.lastOrNull() ?: manager.root
-                            lastFolder = BookmarkFolderItem(
-                                lastFolderName,
-                                currentParent,
-                                BookmarkUtils.getNewId()
-                            )
-                            currentParent.add(lastFolder!!)
-                        }
+        // Read, validate and prepare on IO. No existing bookmark file or
+        // in-memory collection is touched until validation has succeeded.
+        val appContext = requireContext().applicationContext
+        val resolver = requireContext().contentResolver
+        val sourceType = resolver.getType(uri)
+        lifecycleScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val stream = requireNotNull(resolver.openInputStream(uri)) {
+                        "Cannot open bookmark import"
                     }
-                }
-                // Check for opening DL tag (start of folder contents)
-                else if (trimmedLine.startsWith("<DL", ignoreCase = true)) {
-                    if (lastFolder != null) {
-                        folderStack.add(lastFolder!!)
-                        lastFolder = null
-                    }
-                }
-                // Check for closing DL tag (end of folder contents)
-                else if (trimmedLine.startsWith("</DL>", ignoreCase = true)) {
-                    if (folderStack.size > 1) {
-                        folderStack.removeAt(folderStack.size - 1)
-                    }
-                }
-                // Check for bookmark (A tag)
-                else if (trimmedLine.contains("<A", ignoreCase = true) &&
-                    trimmedLine.contains("HREF", ignoreCase = true)
-                ) {
-
-                    // Extract URL
-                    val hrefStart = trimmedLine.indexOf("HREF=\"", ignoreCase = true)
-                    if (hrefStart >= 0) {
-                        val urlStart = hrefStart + 6
-                        val urlEnd = trimmedLine.indexOf('"', urlStart)
-
-                        if (urlEnd > urlStart) {
-                            val url = trimmedLine.substring(urlStart, urlEnd)
-
-                            // Extract title
-                            val titleStart = trimmedLine.indexOf('>', hrefStart) + 1
-                            val titleEnd = trimmedLine.indexOf("</A>", ignoreCase = true)
-
-                            val title = if (titleEnd > titleStart) {
-                                trimmedLine.substring(titleStart, titleEnd).trim()
-                            } else {
-                                url
+                    val text = stream.use { input ->
+                        val bytes = java.io.ByteArrayOutputStream()
+                        val chunk = ByteArray(8192)
+                        var total = 0
+                        while (true) {
+                            val count = input.read(chunk)
+                            if (count < 0) break
+                            total += count
+                            require(total <= com.prirai.android.nira.browser.bookmark.repository.BookmarkImportCodec.MAX_IMPORT_BYTES) {
+                                "Bookmark import too large"
                             }
-
-                            if (url.isNotEmpty()) {
-                                val bookmark = BookmarkSiteItem(
-                                    title,
-                                    url,
-                                    BookmarkUtils.getNewId()
-                                )
-                                val currentParent = folderStack.lastOrNull() ?: manager.root
-                                manager.add(currentParent, bookmark)
-                            }
+                            bytes.write(chunk, 0, count)
                         }
+                        bytes.toString(Charsets.UTF_8.name())
                     }
+                    val staged = com.prirai.android.nira.browser.bookmark.repository.BookmarkImportCodec
+                        .prepare(text, sourceType)
+                    BookmarkManager.getInstance(appContext).importPrepared(staged)
                 }
-            }
-
-            manager.save()
-
-            Toast.makeText(context, R.string.successful, Toast.LENGTH_SHORT).show()
-        } else {
-
-            val itemArray = JSONTokener(content).nextValue()
-
-            // If the imported file is JSON and is an array, assume it's an export from this browser, or if it's an object, assume it's a legacy export
-            if (itemArray is JSONArray) {
-                val bookmarks = FileOutputStream(bookmarkFile, false)
-                val contents: ByteArray = content?.toByteArray() ?: byteArrayOf()
-                bookmarks.write(contents)
-                bookmarks.flush()
-                bookmarks.close()
-
-                manager.initialize()
-            } else if (itemArray is JSONObject) {
-                bookmarkFile.delete()
-                manager.initialize()
-
-                val folderScanner = Scanner(content)
-                val folderArray = mutableListOf<String>()
-
-                // Iterate over all folder items in the bookmark list and create them
-                while (folderScanner.hasNextLine()) {
-                    val line = folderScanner.nextLine()
-                    val `object` = JSONObject(line)
-                    val folderName: String = `object`.getString(KEY_FOLDER)
-
-                    if (folderName != "") {
-                        folderArray.add(folderName)
-                    }
+                // Return to Main only after the disk commit and live index swap.
+                context?.let {
+                    Toast.makeText(it, getString(R.string.successful), Toast.LENGTH_SHORT).show()
+                    Toast.makeText(it, getString(R.string.app_restart), Toast.LENGTH_LONG).show()
                 }
-
-                val uniqueFolderArray = folderArray.distinct()
-                val folderItemArray = mutableListOf<BookmarkFolderItem>()
-
-                for (i in uniqueFolderArray) {
-                    val newFolder = BookmarkFolderItem(i, manager.root, BookmarkUtils.getNewId())
-                    folderItemArray.add(newFolder)
-                    manager.root.add(newFolder)
+            } catch (e: Exception) {
+                Log.e("ImportExportSettings", "Bookmark import rejected; existing collection retained", e)
+                context?.let {
+                    Toast.makeText(it, R.string.error, Toast.LENGTH_LONG).show()
                 }
-
-                val scanner = Scanner(content)
-
-                // Iterate over bookmarks and add them to relevant folders based on names
-                while (scanner.hasNextLine()) {
-                    val line = scanner.nextLine()
-                    val `object` = JSONObject(line)
-                    val folderName: String = `object`.getString(KEY_FOLDER)
-
-                    var folder = manager.root
-
-                    // Not the best way to do this, but it should be OK because names are unique in the old bookmark system
-                    if (folderName != "") {
-                        folder = folderItemArray[uniqueFolderArray.indexOf(folderName)]
-                    }
-
-                    val entry: BookmarkItem = BookmarkSiteItem(
-                        `object`.getString(KEY_TITLE),
-                        `object`.getString(KEY_URL),
-                        BookmarkUtils.getNewId()
-                    )
-
-                    manager.add(folder, entry)
-                    manager.save()
-                }
-
-                scanner.close()
-            } else {
-                Toast.makeText(context, R.string.error, Toast.LENGTH_SHORT).show()
-                return
             }
         }
-
-        Toast.makeText(
-            context,
-            requireContext().resources.getText(R.string.app_restart),
-            Toast.LENGTH_LONG
-        ).show()
     }
 
     private fun exportBookmarks(uri: Uri) {
