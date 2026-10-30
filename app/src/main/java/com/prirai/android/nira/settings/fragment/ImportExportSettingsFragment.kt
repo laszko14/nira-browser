@@ -362,7 +362,7 @@ class ImportExportSettingsFragment : BaseSettingsFragment() {
             }
             val content = input.bufferedReader().use { it.readText() }
             val userPref = requireActivity().getSharedPreferences(SCW_PREFERENCES, 0)
-            check(SettingsImportCodec.import(userPref, content, ::migrateSettingKey)) {
+            check(SettingsImportCodec.importSettings(userPref, content, ::migrateSettingKey)) {
                 "Preferences commit failed"
             }
             Toast.makeText(context, R.string.successful, Toast.LENGTH_SHORT).show()
