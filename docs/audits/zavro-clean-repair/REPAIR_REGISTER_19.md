@@ -191,7 +191,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-053 | parametry uwierzytelniania w diagnostyce Sync | CONFIRMED | P2 | 6/19 | DO_RECHECK |
 | ZC-AUD-054 | trwały cache favicon z prywatnej karty | CONFIRMED | P2 | 6/19 | DO_RECHECK |
 | ZC-AUD-055 | probe pobierania nie respektuje anulowania | CONFIRMED | P2 | 18/19 | DO_RECHECK |
-| ZC-AUD-056 | import nadpisuje zakładki przed walidacją | CONFIRMED | P1 | 5/19 | DO_RECHECK |
+| ZC-AUD-056 | import nadpisuje zakładki przed walidacją | CONFIRMED | P1 | 5/19 | IMPLEMENTED — stage 5, CI_PENDING |
 | ZC-AUD-057 | resume nie wiąże części z wersją zasobu | CONFIRMED | P2 | 18/19 | DO_RECHECK |
 | ZC-AUD-058 | nowy intent PWA ginie przed utworzeniem fragmentu | CONFIRMED | P2 | 9/19 | DO_RECHECK |
 | ZC-AUD-059 | nieatomowe mutacje listy profili | CONFIRMED | P2 | 8/19 | DO_RECHECK |
@@ -240,3 +240,14 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - Testy `TaskExitSaveBarrierTest`: opóźniony zapis S0→S1, restore gate, odmowa błędnego restore, `save=false`, exception dysku, idempotentne wielokrotne wywołanie, kontrola braku kill przed ack. Wymagana pełna JVM/Robolectric, WebExtension JS, Android lint. Na fizycznym Android 15: kill/relaunch i zamykanie/ponowne otwarcie kart/URL, pending AutoSave, PiP, obsługa first launch: NOT_TESTED.
 - Ograniczenia: to gwarancja kolejności na kontrolowanej ścieżce `isFinishing && isTaskRoot`, nie gwarancja uratowania stanu po niespodziewanym zabiciu przez system. Żaden plik sesji nie był zmieniany ręcznie. Etap 4 nie zastępuje planowanych napraw startu/restora w etapie 9.
 - Bez APK, bez merge do main; etap 5 **ZC-AUD-056** dopiero po zielonym CI końcowego SHA.
+
+## Etap 5/19 — ZC-AUD-056: bezpieczny, atomowy import zakładek (2026-10-30)
+
+- Baza: etap 4 `091f87afe06959ce5d6dcd353f1bff5221070080`, zielone CI [41124834816](https://github.com/laszko14/nira-browser/actions/runs/41124834816). Odseparowana gałąź `fix/zavro-clean-audit60-stage5-atomic-bookmarks-import-20261030`.
+- Problem nadal występował: wejściowe `JSONArray` było zapisywane bez sprawdzenia elementów przez `FileOutputStream(..., false)`; błąd Moshi `readForRoot=false` nie był poprawnie propagowany. Ścieżka HTML i stary JSON usuwały plik zanim powstał kompletny nowy model. Przykład `[1]` mógł zastąpić plik niepoprawnym JSON.
+- `BookmarkImportCodec.prepare` waliduje pełne drzewo własnego JSON, strukturę Netscape HTML i każdą linię formatu legacy w oddzielnym drzewie, bez modyfikacji danych aktywnych. Wymagane poprawne elementy, identyfikatory, zagnieżdżenie, URL i format; limit źródła 32 MiB, maksymalnie 100 000 wpisów i 64 poziomy. `[]` jest wyłącznie świadomym pustym importem w natywnym formacie.
+- Zatwierdzenie `BookmarkImportCodec.atomicWrite` używa Android `AtomicFile` z `startWrite/finishWrite/failWrite`; w przypadku błędu stare bajty zostają zachowane. Dopiero po udanym zatwierdzeniu `BookmarkManager.importPrepared` przełącza `root` i odbudowuje indeks. `BookmarkManager.initialize` nie czyści aktywnego drzewa przed sprawdzeniem całego odczytu; także zwykły zapis managera używa AtomicFile, co chroni po awarii dysku.
+- Fragment czyta dokument w ograniczonych porcjach na `Dispatchers.IO`, przygotowuje import, zapisuje i zgłasza sukces tylko po zatwierdzeniu; błąd URI/parsowania/zapisu daje komunikat bez kasowania danych. Nie zmieniono formatów eksportu zakładek ani folderów użytkownika.
+- Regresje `BookmarkAtomicImportTest`: prawidłowy JSON→restart, poprawne `[]`, JSON `[1]` i inne zepsute schematy, HTML Netscape (w tym encje) i HTML uszkodzony, legacy line-JSON i brakujące pole, niepełny zapis z wstrzykniętym `IOException`, sprawdzanie identycznych bajtów starego pliku i wpisów indeksu po niepowodzeniu. Pełny JVM/Robolectric, JS, lint — wymagane CI na końcowym SHA.
+- Granice: nie wykonywano fizycznej próby przerwania zasilania i restartu Androida 15; wynik automatyczny nie zastępuje ręcznej weryfikacji dużych kopii/folderów i odzysku na realnym urządzeniu. Zero APK, zero merge do main.
+- Po zielonym CI następny etap 6/19: ZC-AUD-053/054 (prywatność diagnostyki i favicon).
