@@ -179,7 +179,7 @@ internal object VideoSearchResultsPresenter {
 
     fun budgetLabel(issue: VideoSearchSiteIssue?): String? =
         if (issue == VideoSearchSiteIssue.RESULT_BUDGET_REACHED)
-            "Osiągnięto łączny limit 2000 filmów" else null
+            "Osiągnięto łączny limit wybranych witryn" else null
 
     fun completionLabel(reason: VideoSearchCompletionReason?): String? = when (reason) {
         VideoSearchCompletionReason.LIMIT_REACHED -> "Osiągnięto limit witryny"
