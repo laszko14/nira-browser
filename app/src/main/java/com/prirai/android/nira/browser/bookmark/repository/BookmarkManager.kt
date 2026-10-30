@@ -6,6 +6,8 @@ import com.prirai.android.nira.browser.bookmark.items.BookmarkItem
 import com.prirai.android.nira.browser.bookmark.items.BookmarkSiteItem
 import com.squareup.moshi.JsonReader
 import com.squareup.moshi.JsonWriter
+import com.squareup.moshi.JsonReader.Token
+import okio.Buffer
 import mozilla.components.support.base.log.logger.Logger
 import okio.buffer
 import okio.sink
@@ -45,47 +47,67 @@ class BookmarkManager private constructor(context: Context) : Serializable {
         }
     }
 
+    /**
+     * Load into an isolated tree, then swap it into the live root only after
+     * the ENTIRE file is validated. A corrupt file may never erase the live
+     * collection or poison its URL index.
+     */
+    @Synchronized
     fun initialize(): Boolean {
-        root.clear()
-
-        if (!file.exists() || file.isDirectory){
+        if (!file.exists() || file.isDirectory) {
+            if (file.isDirectory) return false
+            root.clear()
+            siteIndex.clear()
             return true
         }
-
-        try {
-            JsonReader.of(file.source().buffer()).use {
-                root.readForRoot(it)
-                createIndex()
-
-                return true
+        return try {
+            val staged = BookmarkFolderItem(null, null, -1L)
+            JsonReader.of(file.source().buffer()).use { reader ->
+                if (!staged.readForRoot(reader) || reader.peek() != Token.END_DOCUMENT) {
+                    throw IOException("Invalid bookmark structure")
+                }
             }
-        } catch (e: IOException) {
-            // Bookmarks file is corrupt or unreadable. Return false so callers
-            // can react (currently none do - but at least the exception is
-            // no longer silently swallowed).
-            logger.error("Failed to read bookmarks from ${file.path}", e)
+            installStaged(staged)
+            true
+        } catch (e: Exception) {
+            logger.error("Unable to load bookmarks; retaining current collection", e)
+            false
         }
-        return false
     }
 
+    private fun installStaged(staged: BookmarkFolderItem) {
+        root.clear()
+        staged.itemList.forEach { item ->
+            if (item is BookmarkFolderItem) item.parent = root
+            root.add(item)
+        }
+        createIndex()
+    }
+
+    /**
+     * Prepared content is fully parsed in a detached tree. The sole disk
+     * replacement uses AtomicFile (including rollback of interrupted writes);
+     * the live tree is replaced only after the atomic commit completes.
+     */
+    @Synchronized
+    fun importPrepared(prepared: BookmarkImportCodec.Prepared) {
+        BookmarkImportCodec.atomicWrite(file, prepared.bytes)
+        installStaged(prepared.root)
+    }
+
+    @Synchronized
     fun save(): Boolean {
-        file.parentFile?.apply {
-            if (!exists()) mkdirs()
-        }
-
-        try {
-            JsonWriter.of(file.sink().buffer()).use {
-                root.writeForRoot(it)
-                return true
+        return try {
+            val buffer = Buffer()
+            JsonWriter.of(buffer).use { writer ->
+                if (!root.writeForRoot(writer)) throw IOException("Bookmark tree serialization failed")
             }
-        } catch (e: IOException) {
-            // Bookmarks write failed - disk full, permissions, etc. Callers
-            // observe the returned `false`; see BrowserFragment "Add Bookmark"
-            // menu action which surfaces this to the user as a Toast.
-            logger.error("Failed to save bookmarks to ${file.path}", e)
+            BookmarkImportCodec.atomicWrite(file, buffer.readByteArray())
+            true
+        } catch (e: Exception) {
+            logger.error("Unable to write bookmarks; prior file retained", e)
+            false
         }
-
-        return false
     }
 
     fun addFirst(folder: BookmarkFolderItem, item: BookmarkItem) {
