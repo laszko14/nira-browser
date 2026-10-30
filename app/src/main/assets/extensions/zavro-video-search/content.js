@@ -482,6 +482,22 @@
       controls.appendChild(button);
     }
     if (kind !== "input") action("Pomiń", "pick_skipped");
+    // Explicit opt-in when a site has no next button and loads on scroll.
+    // The transport sentinel is translated to null in Kotlin; never clicked.
+    if (kind === "next") {
+      const scroll = document.createElement("button");
+      scroll.textContent = "Przewijanie";
+      scroll.style.cssText =
+        "font:11px sans-serif;padding:4px 6px;min-height:36px;flex:1;";
+      scroll.addEventListener("click", e => {
+        e.preventDefault(); e.stopPropagation();
+        post("picked", command.requestId, {
+          pickKind:kind,selector:"html",formSafe:false,pagination:"INFINITE_SCROLL"
+        });
+        cancelPicker();
+      });
+      controls.appendChild(scroll);
+    }
     action("Anuluj", "pick_cancelled");
     banner.appendChild(controls);
     const feedback = document.createElement("div");
