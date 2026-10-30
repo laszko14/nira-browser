@@ -1,0 +1,52 @@
+name: Zavro Clean P1-P16 re-audit stage 1 - tests only
+
+on:
+  push:
+    branches:
+      - audit/zavro-clean-p1-p16-stage1-20261030
+    paths:
+      - '.github/workflows/zavro-p1-p16-stage1-regression.yml'
+      - 'app/src/main/java/com/prirai/android/nira/videosearch/**'
+      - 'app/src/main/assets/extensions/zavro-video-search/**'
+      - 'app/src/test/java/com/prirai/android/nira/videosearch/**'
+      - 'app/src/test/js/**'
+      - 'docs/VIDEO_SEARCH_P1_P16_REAUDIT_STAGE1.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zavro-p1-p16-stage1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 80
+    steps:
+      - uses: actions/checkout@v4
+      - uses: gradle/wrapper-validation-action@v2
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v5
+      - name: All JavaScript WebExtension regressions
+        run: node --test app/src/test/js/*.test.cjs
+      - name: Full Kotlin JVM and Robolectric regression suite
+        run: ./gradlew :app:testDebugUnitTest --console=plain
+      - name: Android lint
+        run: ./gradlew :app:lintDebug --console=plain
+      - name: Upload diagnostic reports only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p1-p16-stage1-regression-reports
+          path: |
+            app/build/test-results/testDebugUnitTest/**
+            app/build/reports/tests/testDebugUnitTest/**
+            app/build/reports/lint-results-debug*
+          if-no-files-found: warn
+          retention-days: 7
+# Never assemble, sign, or publish an APK in this stage.
