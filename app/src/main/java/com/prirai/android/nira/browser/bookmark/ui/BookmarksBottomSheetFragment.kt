@@ -25,6 +25,17 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
     private lateinit var manager: BookmarkManager
     private lateinit var currentFolder: BookmarkFolderItem
     private var isMultiSelectMode = false
+    private var dialogScope: BookmarkViewDialogScope? = null
+    private val ownedFolderSheets = mutableSetOf<FolderSelectionBottomSheetFragment>()
+
+    private fun refreshFromDialog(scope: BookmarkViewDialogScope, save: Boolean = false) {
+        scope.ifActive {
+            if (dialogScope === scope && _binding != null && isAdded) {
+                if (save) manager.save()
+                setBookmarkList(currentFolder)
+            }
+        }
+    }
 
     /**
      * Embedded side bookmarks reuse the existing RecyclerView, folder hierarchy and
@@ -63,6 +74,7 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
+        dialogScope = BookmarkViewDialogScope()
         _binding = FragmentBookmarksBottomSheetBinding.inflate(inflater, container, false)
         return binding.root
     }
@@ -275,35 +287,30 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
     }
 
     private fun showAddBookmarkDialog() {
-        // Show add bookmark dialog for current page
+        val scope = dialogScope ?: return
         val store = requireContext().components.store
         val selectedTab = store.state.selectedTab
         val title = selectedTab?.content?.title ?: ""
         val url = selectedTab?.content?.url ?: ""
-        
+
         val dialog = AddBookmarkSiteDialog(requireActivity(), title, url)
-        dialog.setOnClickListener { _, _ ->
-            // Save changes to persistent storage
-            manager.save()
-            // Refresh the bookmark list after adding
-            setBookmarkList(currentFolder)
-        }
+        dialog.setOnClickListener { _, _ -> refreshFromDialog(scope, save = true) }
+        scope.track(dialog.windowDialog, dialog::clearOnClickListener)
         dialog.show()
     }
 
     private fun showAddFolderDialog() {
-        // Show add folder dialog - create new folder in current folder
+        val scope = dialogScope ?: return
         val dialog = AddBookmarkFolderDialog(
             context = requireContext(),
             mManager = manager,
-            title = null, // Empty title for new folder
-            mParent = currentFolder, // Create in current folder
-            item = null // null = create new folder (not edit existing)
+            title = null,
+            mParent = currentFolder,
+            item = null
         )
-        dialog.setOnClickListener { _, _ ->
-            // Refresh the bookmark list after adding folder (manager.save() is called inside dialog)
-            setBookmarkList(currentFolder)
-        }
+        // The folder dialog already saves before notifying its listener.
+        dialog.setOnClickListener { _, _ -> refreshFromDialog(scope) }
+        scope.track(dialog.windowDialog, dialog::clearOnClickListener)
         dialog.show()
     }
 
@@ -482,27 +489,18 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
     }
 
     private fun editBookmark(item: BookmarkItem, position: Int) {
+        val scope = dialogScope ?: return
         when (item) {
             is BookmarkSiteItem -> {
-                // Show edit bookmark dialog
                 val dialog = AddBookmarkSiteDialog(requireActivity(), item.title ?: "", item.url)
-                dialog.setOnClickListener { _, _ ->
-                    // Save changes to persistent storage
-                    manager.save()
-                    // Refresh the bookmark list after editing
-                    setBookmarkList(currentFolder)
-                }
+                dialog.setOnClickListener { _, _ -> refreshFromDialog(scope, save = true) }
+                scope.track(dialog.windowDialog, dialog::clearOnClickListener)
                 dialog.show()
             }
             is BookmarkFolderItem -> {
-                // Show edit folder dialog
                 val dialog = AddBookmarkFolderDialog(requireActivity(), manager, item)
-                dialog.setOnClickListener { _, _ ->
-                    // Save changes to persistent storage
-                    manager.save()
-                    // Refresh the bookmark list after editing
-                    setBookmarkList(currentFolder)
-                }
+                dialog.setOnClickListener { _, _ -> refreshFromDialog(scope, save = true) }
+                scope.track(dialog.windowDialog, dialog::clearOnClickListener)
                 dialog.show()
             }
         }
@@ -786,6 +784,14 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
     }
 
     override fun onDestroyView() {
+        // Stale dialog callbacks may never use a released view or detached Fragment.
+        dialogScope?.close()
+        dialogScope = null
+        ownedFolderSheets.toList().forEach { sheet ->
+            sheet.clearOnFolderSelectedListener()
+            if (sheet.isAdded) sheet.dismissAllowingStateLoss()
+        }
+        ownedFolderSheets.clear()
         clearEmbeddedSidePanelCallbacks()
         _binding?.bookmarksRecyclerView?.removeOnScrollListener(testLabScrollListener)
         testLabScroll.finish(com.prirai.android.nira.diagnostics.testlab.OperationOutcome.INTERRUPTED)
