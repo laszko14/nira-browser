@@ -933,9 +933,11 @@
         return { status: "stale", films: [], inspectedCards: 0, moreOnPage: false };
     }
     const crawl = command.event === "extract_crawl";
-    const cardCap = crawl ? 320 : 80;
+    const cardCap = crawl ? (command.cardCap || 320) : 80;
     let cards;
-    try { cards = Array.from(document.querySelectorAll(command.resultsCardSelector)).slice(0, cardCap); }
+    // Avoid materializing all 10k DOM nodes into another large JS array at
+    // every 16-card checkpoint. NodeList is indexable without copying.
+    try { cards = document.querySelectorAll(command.resultsCardSelector); }
     catch (_) { return { status: "stale", films: [], inspectedCards: 0, moreOnPage: false }; }
     // Only an explicit, visible site-owned empty-state marker is proof
     // of zero results. A missing card/selector or loading page is not.
@@ -1160,10 +1162,10 @@
     // Each request inspects at most 16 cards, even if no valid films exist.
     // Never rewind an invalid continuation cursor to card zero.
     const start = command.event === "extract" ? 0 : command.startIndex;
-    const maximumIndex = crawl ? 319 : 79;
+    const maximumIndex = crawl ? cardCap - 1 : 79;
     if (!Number.isInteger(start) || start < 0 || start > maximumIndex)
       return { status: "stale", films: [], inspectedCards: 0, moreOnPage: false };
-    const end = Math.min(cards.length, start + 16);
+    const end = Math.min(cards.length, cardCap, start + 16);
     const found = new Map(), maximum = 16;
     const encoder = new TextEncoder();
     const serializedBytes = row => encoder.encode(JSON.stringify(row)).length;
@@ -1218,7 +1220,7 @@
       usedBytes += nextCost - oldCost;
       found.set(filmUrl, next);
     }
-    if (end < cards.length || cards.length === cardCap) more = true;
+    if (end < Math.min(cards.length, cardCap) || cards.length >= cardCap) more = true;
     const films = Array.from(found.values());
     return { status: films.length ? "ok" : "empty",
       films, inspectedCards: consumed, moreOnPage: more };
@@ -1414,10 +1416,17 @@
               { status: "stale", films: [], inspectedCards: 0, moreOnPage: false });
           } finally { busy = false; }
         } else if (message.event === "extract_crawl" && !picker &&
-            keys === "documentId,durationSelector,event,linkSelector,requestId," +
-                    "resultsCardSelector,schemaVersion,startIndex,thumbnailSelector,titleSelector" &&
+            (keys === "documentId,durationSelector,event,linkSelector,requestId," +
+                    "resultsCardSelector,schemaVersion,startIndex,thumbnailSelector,titleSelector" ||
+             keys === "cardCap,documentId,durationSelector,event,linkSelector,requestId," +
+                    "resultsCardSelector,schemaVersion,startIndex,thumbnailSelector,titleSelector") &&
+            (message.cardCap === undefined ||
+              (keys.startsWith("cardCap,") &&
+                Number.isInteger(message.cardCap) &&
+                message.cardCap > 320 && message.cardCap <= 10_000)) &&
             Number.isInteger(message.startIndex) &&
-            message.startIndex >= 0 && message.startIndex <= 319) {
+            message.startIndex >= 0 &&
+            message.startIndex < (message.cardCap || 320)) {
           busy = true;
           try {
             post("crawl_results", message.requestId, extractResults(message));
