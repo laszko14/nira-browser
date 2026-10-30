@@ -290,7 +290,7 @@ internal object SettingsImportCodec {
         return result
     }
 
-    fun import(
+    fun importSettings(
         preferences: SharedPreferences,
         content: String,
         migrate: (String, Int) -> String? = { key, _ -> key }
