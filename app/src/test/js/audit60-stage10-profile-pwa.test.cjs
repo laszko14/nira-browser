@@ -21,7 +21,8 @@ test('profile deletion restricts storage cleanup to explicit named context and b
   const manager=read('browser/profile/ProfileManager.kt');
   const middleware=read('browser/profile/ProfileMiddleware.kt');
   assert.match(manager,/clearDataForSessionContext\(contextId\)/);
-  assert.match(manager,/sessionStorage\.save\(appContext\.components\.store\.state\)/);
+  assert.match(manager,/sessionStorage\.save\(store\.state\)/);
+  assert.match(read('BrowserApp.kt'),/retryDeletedProfileErasure\(\)/);
   assert.match(manager,/ProfilePwaLiveSessions\.beginDeletion\(profileId\)/);
   assert.match(middleware,/isDeletedProfileContext\(it\.state\.contextId\)/);
 });
