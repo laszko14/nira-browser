@@ -251,15 +251,25 @@ internal fun VideoSearchResultsScreen(
         if (next != projectionState.value) projectionState.value = next
     }
     val results = projectionState.value?.first
-    val groups = projectionState.value?.second.orEmpty()
+    // Keep Compose's active item/key graph bounded. Only 150 additional
+    // cards are activated on explicit demand; full sorting stays on Default.
+    var visibleCount by remember(run?.id, siteFilter, sort) { mutableIntStateOf(150) }
+    val visibleResults = remember(results, visibleCount) {
+        results?.copy(visibleFilms = results.visibleFilms.take(visibleCount))
+    }
+    val groups = remember(visibleResults, siteFilter) {
+        visibleResults?.let { VideoSearchResultsPresenter.groups(it, siteFilter) }.orEmpty()
+    }
+    val hasMoreResults = results != null &&
+        visibleCount < results.visibleFilms.size
 
     // One Lazy state per run and layout. Keys are shared between both modes:
     // a view toggle resumes at the same source/film rather than scroll zero.
     val gridState = remember(run?.id) { LazyGridState() }
     val listState = remember(run?.id) { LazyListState() }
-    val visibleKeys = remember(results, groups, byWebsite, expandedSites) {
-        if (results == null) emptyList() else VideoSearchScrollKeys.visible(
-            results, groups, byWebsite, expandedSites
+    val visibleKeys = remember(visibleResults, groups, byWebsite, expandedSites) {
+        if (visibleResults == null) emptyList() else VideoSearchScrollKeys.visible(
+            visibleResults, groups, byWebsite, expandedSites
         )
     }
     var pendingLayoutSwitch by remember(run?.id) {
@@ -414,7 +424,7 @@ internal fun VideoSearchResultsScreen(
                 }) {
                     Text(if (state.view == VideoSearchView.TILES) "Lista" else "Kafelki")
                 }
-                Text("${results.visibleFilms.size} wyników",
+                Text("${minOf(visibleCount, results.visibleFilms.size)}/${results.visibleFilms.size}",
                     style = MaterialTheme.typography.labelSmall)
             }
             // The grouping choice is intentionally session-only. It does not
@@ -499,11 +509,20 @@ internal fun VideoSearchResultsScreen(
                             }
                         }
                     } else {
-                        items(results.visibleFilms.size, key = { index ->
-                            val film = results.visibleFilms[index]
+                        items(visibleResults!!.visibleFilms.size, key = { index ->
+                            val film = visibleResults.visibleFilms[index]
                             "film:${film.siteId}:${film.id}"
                         }) { index ->
-                            VideoSearchFilmTile(results.visibleFilms[index], onOpen, onLongPress)
+                            VideoSearchFilmTile(visibleResults!!.visibleFilms[index], onOpen, onLongPress)
+                        }
+                    }
+                    if (hasMoreResults) {
+                        item(key = "more-results", span = { GridItemSpan(maxLineSpan) }) {
+                            TextButton(onClick = {
+                                visibleCount = minOf(visibleCount + 150, results.visibleFilms.size)
+                            }, modifier = Modifier.fillMaxWidth()) {
+                                Text("Pokaż kolejne 150 · ${minOf(visibleCount, results.visibleFilms.size)}/${results.visibleFilms.size}")
+                            }
                         }
                     }
                 }
@@ -541,11 +560,20 @@ internal fun VideoSearchResultsScreen(
                             }
                         }
                     } else {
-                        items(results.visibleFilms.size, key = { index ->
-                            val film = results.visibleFilms[index]
+                        items(visibleResults!!.visibleFilms.size, key = { index ->
+                            val film = visibleResults.visibleFilms[index]
                             "film:${film.siteId}:${film.id}"
                         }) { index ->
-                            VideoSearchFilmRow(results.visibleFilms[index], onOpen, onLongPress)
+                            VideoSearchFilmRow(visibleResults!!.visibleFilms[index], onOpen, onLongPress)
+                        }
+                    }
+                    if (hasMoreResults) {
+                        item(key = "more-results") {
+                            TextButton(onClick = {
+                                visibleCount = minOf(visibleCount + 150, results.visibleFilms.size)
+                            }, modifier = Modifier.fillMaxWidth()) {
+                                Text("Pokaż kolejne 150 · ${minOf(visibleCount, results.visibleFilms.size)}/${results.visibleFilms.size}")
+                            }
                         }
                     }
                 }
