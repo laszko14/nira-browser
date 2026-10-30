@@ -36,7 +36,9 @@ internal class VideoSearchMultiRunJournal(
     }
     private var initialized = false
     private var closed = false
-    @Volatile private var remainingResults = 2_000
+    val runResultBudget: Int = VideoSearchResultBudgets.aggregateLimit(
+        plan.selectedSites.map { it.resultLimit })
+    @Volatile private var remainingResults = runResultBudget
 
     /** Advisory worker stop; SQLite remains authoritative. */
     fun hasCapacity(): Boolean = remainingResults > 0
@@ -62,7 +64,8 @@ internal class VideoSearchMultiRunJournal(
         val wasBudgetStopped = old.issue == VideoSearchSiteIssue.RESULT_BUDGET_REACHED
         val completion = if (wasBudgetStopped) null else when (snapshot?.reason) {
             VideoSearchPaginationStop.LIMIT_REACHED ->
-                if (snapshot.films.isNotEmpty()) VideoSearchCompletionReason.LIMIT_REACHED else null
+                if (snapshot.films.size >= site.resultLimit)
+                    VideoSearchCompletionReason.LIMIT_REACHED else null
             VideoSearchPaginationStop.NO_MORE_RESULTS ->
                 if (snapshot.films.isNotEmpty()) VideoSearchCompletionReason.NO_MORE_RESULTS else null
             VideoSearchPaginationStop.NO_RESULTS ->
@@ -100,7 +103,7 @@ internal class VideoSearchMultiRunJournal(
             },
         )
         val stamp = maxOf(now(), run.updatedAtMs + 1)
-        val films = toFilms(site, snapshot, stamp)
+        val films = toFilms(site, snapshot, stamp, old.uniqueResults)
         val nextRun = run.copy(updatedAtMs = stamp)
         // Commit in Room first; never update the journal after a failed DB transaction.
         val saved = repository.putJournalCheckpoint(nextRun, task, films)
@@ -110,7 +113,7 @@ internal class VideoSearchMultiRunJournal(
             issue = if (saved.truncated) VideoSearchSiteIssue.RESULT_BUDGET_REACHED else task.issue,
             completionReason = if (saved.truncated) null else task.completionReason,
         )
-        remainingResults = (2_000 - saved.totalResults).coerceAtLeast(0)
+        remainingResults = (runResultBudget - saved.totalResults).coerceAtLeast(0)
         run = nextRun
     }
 
@@ -131,20 +134,26 @@ internal class VideoSearchMultiRunJournal(
             visitedPages = maxOf(prior.visitedPages, snapshot.visitedPages),
             issue = null, completionReason = null,
         )
-        val saved = repository.putJournalCheckpoint(next, task, toFilms(site, snapshot, stamp))
+        val saved = repository.putJournalCheckpoint(next, task, toFilms(site, snapshot, stamp, prior.uniqueResults))
         tasks[site.id] = task.copy(
             uniqueResults = saved.siteResults,
             status = if (saved.truncated) VideoSearchSiteState.STOPPED else VideoSearchSiteState.ACTIVE,
             issue = if (saved.truncated) VideoSearchSiteIssue.RESULT_BUDGET_REACHED else null,
         )
-        remainingResults = (2_000 - saved.totalResults).coerceAtLeast(0)
+        remainingResults = (runResultBudget - saved.totalResults).coerceAtLeast(0)
         run = next
     }
 
     private fun toFilms(
         site: VideoSearchLaunchSite, snapshot: VideoSearchPaginationSnapshot?, stamp: Long,
+        alreadyPersisted: Int,
     ): List<VideoSearchFilm> {
-        return snapshot?.films?.take(site.resultLimit)?.mapIndexed { index, film ->
+        return // Persist ONLY the newly verified suffix. Previous rows were saved in
+        // earlier Room checkpoints, so re-sending the full 10k prefix each
+        // time would be quadratic in database traffic.
+        return snapshot?.films?.drop(alreadyPersisted).take(
+            (site.resultLimit - alreadyPersisted).coerceAtLeast(0)
+        ).mapIndexed { index, film ->
             VideoSearchFilm(
                 id = UUID.nameUUIDFromBytes(
                     "$id|${site.id}|${film.filmPageUrl}".toByteArray(Charsets.UTF_8)
@@ -153,7 +162,7 @@ internal class VideoSearchMultiRunJournal(
                 siteName = site.displayName, filmPageUrl = film.filmPageUrl,
                 originalTitle = film.originalTitle, thumbnailUrl = film.thumbnailUrl,
                 durationSeconds = film.durationSeconds, titleSource = film.titleSource,
-                imageSource = film.imageSource, originalIndex = index, foundAtMs = stamp,
+                imageSource = film.imageSource, originalIndex = alreadyPersisted + index, foundAtMs = stamp,
             )
         } ?: emptyList()
 
