@@ -128,8 +128,13 @@ internal object SettingsImportCodec {
         val json = JSONObject()
         json.put("_version", 1)
         json.put("_timestamp", System.currentTimeMillis())
+        // JSON may serialize a 1.0f as the integer 1. Explicit type hints
+        // preserve unknown Long/Float keys across a fresh-install restore.
+        val types = JSONObject()
         for ((key, value) in values) {
             if (key.startsWith("_")) continue
+            val kind = typeOf(value) ?: throw IllegalArgumentException("Unsupported setting: $key")
+            types.put(key, kind.name)
             when (value) {
                 is String, is Boolean, is Int, is Long, is Float -> json.put(key, value)
                 is Set<*> -> {
@@ -139,6 +144,7 @@ internal object SettingsImportCodec {
                 else -> throw IllegalArgumentException("Unsupported setting: $key")
             }
         }
+        json.put("_types", types)
         return json.toString(2)
     }
 
@@ -241,6 +247,21 @@ internal object SettingsImportCodec {
             require(raw is Int && raw == 1) { "Unsupported backup version" }
             1
         }
+        val typeHints = linkedMapOf<String, Kind>()
+        if (root.has("_types")) {
+            require(version == 1) { "Legacy backup cannot declare types" }
+            val metadata = root.get("_types") as? JSONObject
+                ?: throw IllegalArgumentException("Malformed type metadata")
+            val hintKeys = metadata.keys()
+            while (hintKeys.hasNext()) {
+                val key = hintKeys.next()
+                require(root.has(key) && !key.startsWith("_")) { "Orphaned type metadata" }
+                val label = metadata.get(key) as? String
+                    ?: throw IllegalArgumentException("Non-text type label")
+                typeHints[key] = Kind.entries.firstOrNull { it.name == label }
+                    ?: throw IllegalArgumentException("Unknown preference type")
+            }
+        }
         val result = linkedMapOf<String, Any>()
         val it = root.keys()
         while (it.hasNext()) {
@@ -254,7 +275,12 @@ internal object SettingsImportCodec {
             require(!result.containsKey(migratedKey)) { "Duplicate migrated preference key" }
             // In v1 the JSON primitive itself is authoritative for unregistered
             // keys. An older damaged on-disk type must not block its repair.
-            val expected = declaredTypes[migratedKey]
+            val declared = declaredTypes[migratedKey]
+            val hinted = typeHints[originalKey]
+            require(declared == null || hinted == null || declared == hinted) {
+                "Backup type conflicts with declared preference type"
+            }
+            val expected = declared ?: hinted
                 ?: if (version == 0) typeOf(existing[migratedKey]) else null
             result[migratedKey] = decodeValue(root.get(originalKey), expected, version == 0)
         }
