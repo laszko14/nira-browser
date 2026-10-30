@@ -19,7 +19,7 @@ internal object VideoSearchResultBudgets {
 
     fun aggregateLimit(limits: Collection<Int>): Int {
         require(limits.isNotEmpty() && limits.size <= MAX_SELECTED_SITES)
-        limits.forEach(::requireSiteLimit)
+        limits.forEach { requireSiteLimit(it) }
         return limits.sum()
     }
 
