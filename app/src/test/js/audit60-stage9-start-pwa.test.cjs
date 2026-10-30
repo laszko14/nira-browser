@@ -11,7 +11,10 @@ test('only restore owner bootstraps start and close, never pre-restore zero', ()
   const base=read('BaseBrowserFragment.kt');
   const gate=read('TabRestoreBootstrapGate.kt');
   assert.match(base,/gate\.shouldCreate\(restored, tabIds\)/);
-  assert.equal((base.match(/components\.tabsUseCases\.addTab\.invoke\(url, selectTab = true\)/g)||[]).length,1);
+  const restoreOwner=base.split('internal fun observeRestoreComplete')[1].split('internal fun observeTabSelection')[0];
+  const selectionObserver=base.split('internal fun observeTabSelection')[1].split('private fun handleTabSelected')[0];
+  assert.equal((restoreOwner.match(/components\.tabsUseCases\.addTab\.invoke\(url, selectTab = true\)/g)||[]).length,1);
+  assert.doesNotMatch(selectionObserver,/tabsUseCases\.addTab/);
   assert.match(gate,/if \(!restoreComplete\) return false/);
 });
 
