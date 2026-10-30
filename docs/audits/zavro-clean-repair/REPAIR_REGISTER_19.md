@@ -163,10 +163,10 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-025 | zakres sugestii kart nie jest ograniczony do bieżącego profilu | SUSPECTED | P2 | 8/19 | SCOPE_DEFINED — 8B local suggestions + guarded callbacks; device UX NOT_TESTED |
 | ZC-AUD-026 | killProcess wyprzedza trwały zapis sesji | CONFIRMED | P1 | 4/19 | IMPLEMENTED — stage 4, CI_PENDING |
 | ZC-AUD-027 | pusty stan startowy jest traktowany jak zamknięcie wszystkich kart | CONFIRMED | P2 | 9/19 | FIXED — stage 9, Kotlin/JS/lint CI PASS, device NOT_TESTED |
-| ZC-AUD-028 | default PWA nie używa canonical kontekstu default | CONFIRMED | P2 | 10/19 | DO_RECHECK |
-| ZC-AUD-029 | ContextMenuFeature PWA jest podłączony do obcej sesji | CONFIRMED | P2 | 10/19 | DO_RECHECK |
-| ZC-AUD-030 | opener ma rozbieżne konteksty karty i przygotowanego engine | SUSPECTED | P1 (potencjalny) | 10/19 | VERIFY_FIRST |
-| ZC-AUD-031 | usunięcie profilu pozostawia osierocone karty | CONFIRMED | P2 | 10/19 | DO_RECHECK |
+| ZC-AUD-028 | default PWA nie używa canonical kontekstu default | CONFIRMED | P2 | 10/19 | IMPLEMENTED — stage 10, canonical default; Gecko device NOT_TESTED |
+| ZC-AUD-029 | ContextMenuFeature PWA jest podłączony do obcej sesji | CONFIRMED | P2 | 10/19 | IMPLEMENTED — stage 10, PWA-owned hit menu; device NOT_TESTED |
+| ZC-AUD-030 | opener ma rozbieżne konteksty karty i przygotowanego engine | SUSPECTED | P1 (potencjalny) | 10/19 | UNRESOLVED SUSPECTED — requires native storage isolation verification |
+| ZC-AUD-031 | usunięcie profilu pozostawia osierocone karty | CONFIRMED | P2 | 10/19 | IMPLEMENTED WITH LIMITS — tabs/tombstones/Gecko erase dispatched; device NOT_TESTED |
 | ZC-AUD-032 | konfiguracje script nie wracają po wznowieniu tego samego DOM | CONFIRMED | P2 | 15/19 | DO_RECHECK |
 | ZC-AUD-033 | childList z source nie skanuje istniejącego video | CONFIRMED | P2 | 15/19 | DO_RECHECK |
 | ZC-AUD-034 | brak wyzwalacza dla późnego open Shadow DOM | CONFIRMED | P2 | 15/19 | DO_RECHECK |
@@ -185,7 +185,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-047 | spóźnione przywrócenie toolbaru koliduje z kolejnym fullscreen | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-048 | prostokąt toolbaru pod panelem nadal wygrywa gest | CONFIRMED | P2 | 13/19 | DO_RECHECK |
 | ZC-AUD-049 | różny znak flingu w toolbarze WWW i Home | CONFIRMED | P2 | 13/19 | DO_RECHECK |
-| ZC-AUD-050 | migracja profilu przenosi stan odtwarzania starego silnika | CONFIRMED | P2 | 10/19 | DO_RECHECK |
+| ZC-AUD-050 | migracja profilu przenosi stan odtwarzania starego silnika | CONFIRMED | P2 | 10/19 | IMPLEMENTED — stage 10, old MediaSession reset; JVM_PENDING |
 | ZC-AUD-051 | zmiana filmu w trasie hash zachowuje stare media | CONFIRMED | P2 | 15/19 | DO_RECHECK |
 | ZC-AUD-052 | brak rejestracji okna filmów otwartego w PREPARING | CONFIRMED | P2 | 7/19 | FIXED — stage 7, JVM + CI PASS; device frames NOT_TESTED |
 | ZC-AUD-053 | parametry uwierzytelniania w diagnostyce Sync | CONFIRMED | P2 | 6/19 | DO_RECHECK |
@@ -333,3 +333,14 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - **NOT_TESTED**: faktyczne cold boot i opóźnienie SessionStorage, działanie pojedynczego PWA na urządzeniu Android 15, prawdziwy FragmentManager przy obracaniu telefonu, realne pobieranie ikon. Przy kompilacji APK do testów konieczna regresja manualna (restore snapshot→normal/private tabs, puste/corrupt storage, A→B→C PWA singleTop, obrót i tło).
 - CI w tym punkcie dotyczy commita kodu; końcowa dokumentacja powinna także mieć osobny zielony przebieg na końcowym SHA.
 - Następny etap po zakończeniu 9/19: **10/19** — ZC-AUD-028, 029, 030 (VERIFY_FIRST), 031 i 050. Bez merge do main.
+
+## Etap 10/19 — PWA, konteksty, kasowanie profili, MediaSession i opener (2026-10-31)
+
+- Baza etapu 9: `82cc03077114417292320e7c50e85ed40d8ff582`, CI [41143047578](https://github.com/laszko14/nira-browser/actions/runs/41143047578) completed/success. Gałąź `fix/zavro-clean-audit60-stage10-pwa-profile-erasure-20261031`.
+- **028 CONFIRMED**: PWA dla default tworzył `"profile_default"` zamiast `null`. WebAppFragment wyznacza contextId przez `BrowserProfile.contextIdFor(id,false)`. Nie wykonuje destrukcyjnej migracji starych danych/cookies w `profile_default`: istniejące instalacje mają dwie historyczne partycje do świadomej migracji. Named pozostaje `profile_UUID`; brak łączenia danych innych profili.
+- **029 CONFIRMED**: usunięto `ContextMenuIntegration(sessionId=null)` z PWA, bo czytała niewłaściwą `BrowserStore.selectedTab`. Nowa obsługa `EngineSession.Observer.onLongPress(HitResult)` korzysta wyłącznie z odrębnego silnika PWA; pokazuje bezpieczny dla URL (HTTP/S) zestaw Open in browser / Copy address / Share link. Dodatkowe dotychczasowe akcje menu głównej przeglądarki (np. pobranie grafiki) nie są przenoszone bez tożsamości PWA; ręczna ocena UX nadal konieczna. PWA session nie trafia do głównego Store tylko po to, by otworzyć menu.
+- **050 CONFIRMED**: migracja `TabSessionState` zeruje `mediaSessionState` razem z EngineState, aby nowa sesja nie przejmowała kontrolera/playbackState starego engine. Zachowany ID, adres i metadane wyboru/grup poza planową zmianą parentId.
+- **031 CONFIRMED**: na kasowanie profilu nałożono preflight aktywnych PWA / custom tabs, jawne usuwanie jego normalnych kart bez tworzenia Undo, tombstone profilu w tej samej transakcji SharedPreferences co usunięcie rejestru, a `ProfileMiddleware` filtruje późne RestoreAction/AddTabAction z usuniętych contextId. W tle domykane jest powiązanie grup, wymagany jest `SessionStorage.save(state)==true`, potem `GeckoRuntime.storageController.clearDataForSessionContext(profile_ID)` tylko dla danego named profile. API Gecko zwraca void, więc brak potwierdzenia trwałego kasowania na dysku. Jeżeli save/erasure zawiedzie, rejestr i tombstone są już zapisane, log zgłasza niedokończone czyszczenie; wymagany retry i manualny test na urządzeniu przed deklaracją pełnego erasure. Dialog nie przełącza aktywnego profilu, jeżeli usuwanie zostało odrzucone.
+- **030 SUSPECTED, VERIFY_FIRST / NOT_RESOLVED:** upstream Mozilla Android Components GeckoEngineSession.onNewSession konstruuje child GeckoEngineSession bez jawnego contextId; GeckoWindowRequest.prepare zwraca tę sesję, WindowFeature przekazuje prepared engine + parentId, a ProfileMiddleware przydziela label rodzica. Weryfikacja źródeł potwierdza rozbieżność `Store.contextId` i `GeckoSessionSettings.contextId`, ale nie dziedziczenie natywnych OriginAttributes Gecko przez opener. Nie wolno deklarować wycieku cookies ani podmieniać engine (zerwałoby window.opener) bez testu izolowanego `window.open`/target_blank; 030 pozostaje otwarty jako bezpieczeństwo do zweryfikowania na urządzeniu.
+- Regresje: Kotlin/Robolectric dla PWA hit-source i guardów live PWA, kasowania kart nazwanych/tombstone i MediaSession PLAYING; JS kontrakty mappera, separacji PWA Store i 030 (statyczny marker). Rzeczywista sesja browser/profile oraz model wykasowania cookies na Android 15 **NOT_TESTED**. Nie ma APK, podpisu, merge do main.
+- Po zielonym pełnym CI: zaktualizować statusy wyników dla 028/029/031/050, zachować 030 VERIFY_FIRST.
