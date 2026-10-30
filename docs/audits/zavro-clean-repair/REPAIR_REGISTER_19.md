@@ -136,9 +136,9 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 
 | ID | Treść ustalenia Codex | Pewność | Priorytet | Etap | Stan na v1195 |
 | --- | --- | --- | --- | --- | --- |
-| ZC-AUD-001 | niespójny kontrakt wersji joba release | CONFIRMED | P2 | 19/19 | DO_RECHECK |
+| ZC-AUD-001 | niespójny kontrakt wersji joba release | CONFIRMED | P2 | 19/19 | IMPLEMENTED — stage 6, CI_PENDING |
 | ZC-AUD-002 | możliwy brak uzgodnienia nowej generacji rozszerzenia | SUSPECTED | P2 | 15/19 | VERIFY_FIRST |
-| ZC-AUD-003 | starsze zadanie zmienia politykę aktywnego profilu | CONFIRMED | P2 | 8/19 | DO_RECHECK |
+| ZC-AUD-003 | starsze zadanie zmienia politykę aktywnego profilu | CONFIRMED | P2 | 8/19 | IMPLEMENTED — stage 6, CI_PENDING |
 | ZC-AUD-004 | brak końcowego sprzątania slotów zamkniętych kart | CONFIRMED | P2 | 11/19 | DO_RECHECK |
 | ZC-AUD-005 | scope komunikatu Cofnij przeżywa swojego właściciela | CONFIRMED | P2 | 11/19 | DO_RECHECK |
 | ZC-AUD-006 | pozostawione przełączniki nie sterują aktualnym interfejsem | CONFIRMED | P2 | 14/19 | DO_RECHECK |
@@ -251,3 +251,13 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - Regresje `BookmarkAtomicImportTest`: prawidłowy JSON→restart, poprawne `[]`, JSON `[1]` i inne zepsute schematy, HTML Netscape (w tym encje) i HTML uszkodzony, legacy line-JSON i brakujące pole, niepełny zapis z wstrzykniętym `IOException`, sprawdzanie identycznych bajtów starego pliku i wpisów indeksu po niepowodzeniu. Pełny JVM/Robolectric, JS, lint — wymagane CI na końcowym SHA.
 - Granice: nie wykonywano fizycznej próby przerwania zasilania i restartu Androida 15; wynik automatyczny nie zastępuje ręcznej weryfikacji dużych kopii/folderów i odzysku na realnym urządzeniu. Zero APK, zero merge do main.
 - Po zielonym CI następny etap 6/19: ZC-AUD-053/054 (prywatność diagnostyki i favicon).
+
+## Etap 6/19 — ZC-AUD-053 + ZC-AUD-054: diagnostyka Sync i favicon private (2026-10-30)
+
+- Baza: etap 5 `295b1ecc8efd2e47538a0d9dd827123a4493cb32`, zielone CI [41126492555](https://github.com/laszko14/nira-browser/actions/runs/41126492555). Gałąź: `fix/zavro-clean-audit60-stage6-private-sync-favicon-20261030`.
+- **053 STILL_PRESENT**: `FxaSyncManager.finishAuthentication` utrwalał fragmenty OAuth code/state, adres email, wyniki i surowe wyjątki w `lastAuthDebugInfo`/logcat; `SyncSettingsFragment.onExportLogs` ujawniał to, accountEmail, avatar i syncError w ACTION_SEND oraz kopiował cały raport do Log.d.
+- Naprawa: `SyncDiagnosticPolicy` dostarcza wyłącznie status próby, losowy identyfikator korelacji i typ błędu (bez komunikatu/stacktrace); opóźniona kontrola pokazuje tylko obecność konta. Przy wylogowaniu czyści ostatnią próbę. Komunikat błędu Sync bez surowego `e.message`. Raport Share jest budowany z ograniczonej listy stanów, bez email/awatara/URL/tokenu/parametrów OAuth i bez logowania całego eksportu. Kwalifikacja błędu i raport mają testy z syntetycznymi wartościami i historycznym skażonym `lastAuthDebugInfo`.
+- **054 STILL_PRESENT**: `PortraitNativeTabStrip.bindFavicon` wołał `FaviconLoader` bez flagi prywatności, który używał wspólnego `FaviconCache` z trwałym `filesDir/favicon_cache`.
+- Naprawa: `tab.content.private` propagowany przez rebind i async do `FaviconLoader.loadFavicon(..., isPrivate=true)` i `IconRequest(isPrivate=true)`. Dla private loader nie tworzy, nie czyta ani nie zapisuje współdzielonego `FaviconCache` (pamięć/dysk) także po późnym zakończeniu żądania. Zwykłe karty pozostają w dotychczasowym szybkim cache. Rebind rozróżnia prywatność, chroniąc recycled View. Brak masowego kasowania prawidłowego cache normalnych kart. Już istniejących plików prywatnych nie da się wiarygodnie odróżnić od zwykłych z powodu historycznego klucza tylko według domeny; nie przypisujemy im fałszywie udanego usunięcia.
+- Regresje: `SyncDiagnosticPolicyTest` — sukces, błąd, opóźnienie, skażone debug-info, brak fragmentów OAuth i adresu e-mail w raporcie; `FaviconPrivateCacheTest` — private cold miss bez pliku, normalny disk/memory hit, wspólna domena private/normal, opóźniona odpowiedź przy zamknięciu karty i przekazanie isPrivate do Mozilla. Wymagane pełne `:app:testDebugUnitTest`, JavaScript, Android lint — wynik CI końcowego SHA osobno.
+- Urządzenie Nothing Phone (1) Android 15, realne konta FxA i prawdziwa sieć/Gecko: NOT_TESTED. Bez APK i merge. Następny etap 7/19: ZC-AUD-052/060, dopiero po zielonym CI.
