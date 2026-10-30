@@ -9,6 +9,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import org.json.JSONArray
 import org.json.JSONObject
 import org.json.JSONException
@@ -39,9 +40,9 @@ class ProfileManager(
     private val markDefaultMigration: (String) -> Unit = { context.components.profileMiddleware.markAsGuestTab(it) },
     private val registryPreferences: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE),
     // Test seam: isolate persistence tests from the real BrowserApp addon/engine side effects.
-    private val activeProfilePolicy: suspend (BrowserProfile) -> Unit = { profile ->
-        ProfileAddonPolicy.applyForProfile(context, profile.id)
-        SearchEnginePreferences.apply(context, private = false)
+    private val activeProfilePolicy: suspend (BrowserProfile, () -> Boolean) -> Unit = { profile, stillCurrent ->
+        ProfileAddonPolicy.applyForProfile(context, profile.id, stillCurrent)
+        if (stillCurrent()) SearchEnginePreferences.apply(context, private = false)
     }
 ) {
 
@@ -154,19 +155,23 @@ class ProfileManager(
      * Set the active profile
      */
     fun setActiveProfile(profile: BrowserProfile) {
-        synchronized(profileRegistryLock) {
+        val generation = synchronized(profileRegistryLock) {
             prefs.edit { putString(KEY_ACTIVE_PROFILE_ID, profile.id) }
+            ProfilePolicySequencer.issue()
         }
-        // Reuse the long-lived ioScope instead of allocating a one-shot
-        // CoroutineScope per call. The previous pattern leaked a tiny amount
-        // of coroutine machinery on every profile switch and skipped
-        // SupervisorJob semantics.
-        applyActiveProfilePolicy(profile)
+        applyActiveProfilePolicy(profile, generation)
     }
 
-    private fun applyActiveProfilePolicy(profile: BrowserProfile) {
-        // Switch ordering and stale addon tasks are handled separately in 8B.
-        ioScope.launch { activeProfilePolicy(profile) }
+    private fun applyActiveProfilePolicy(profile: BrowserProfile, generation: Long) {
+        ioScope.launch {
+            // Serialize every operation that mutates global addon/search policy,
+            // even across ProfileManager instances and delayed IO callbacks.
+            ProfilePolicySequencer.reconcile(generation) { stillCurrent ->
+                if (getActiveProfile().id == profile.id && stillCurrent()) {
+                    activeProfilePolicy(profile) { stillCurrent() && getActiveProfile().id == profile.id }
+                }
+            }
+        }
     }
     
     /**
@@ -217,12 +222,14 @@ class ProfileManager(
         }
         
         var resetActive = false
+        var resetGeneration: Long? = null
         val removed = synchronized(profileRegistryLock) {
             val profiles = getAllProfiles().toMutableList()
             val changed = profiles.removeAll { it.id == profileId }
             if (changed) {
                 resetActive = prefs.getString(KEY_ACTIVE_PROFILE_ID, "default") == profileId
                 saveProfiles(profiles, resetActive)
+                if (resetActive) resetGeneration = ProfilePolicySequencer.issue()
             }
             changed
         }
@@ -230,7 +237,7 @@ class ProfileManager(
 
         if (resetActive) {
             // Registry and fallback were committed together; only reapply policy.
-            applyActiveProfilePolicy(BrowserProfile.getDefaultProfile())
+            resetGeneration?.let { applyActiveProfilePolicy(BrowserProfile.getDefaultProfile(), it) }
         }
         cleanupProfileStorage(profileId)
     }

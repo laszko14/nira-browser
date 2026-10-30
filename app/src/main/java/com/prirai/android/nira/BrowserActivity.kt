@@ -669,13 +669,13 @@ open class BrowserActivity : LocaleAwareAppCompatActivity(), ComponentCallbacks2
     private fun getContextIdForNewTab(isPrivateMode: Boolean, selectedTab: SessionState?): String? {
         if (isPrivateMode) return "private"
 
-        // Try to use contextId from selected tab if available. Legacy
-        // "profile_default" also triggers the default-profile fallback below.
-        val tabContextId = selectedTab?.contextId
-        if (tabContextId != null && tabContextId.startsWith("profile_") &&
-            tabContextId != "profile_default"
-        ) {
-            return tabContextId
+        // Selected normal tab is the source of truth even when it belongs to
+        // canonical default (null). A stale active manager must not move a URL
+        // opened from that tab into the previously selected named profile.
+        if (selectedTab != null && !selectedTab.content.private) {
+            val tabContextId = selectedTab.contextId
+            if (tabContextId == null || tabContextId == "profile_default") return null
+            if (tabContextId.startsWith("profile_")) return tabContextId
         }
 
         val profileManager = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(this)

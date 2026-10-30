@@ -611,7 +611,10 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                     // Safety check: ensure fragment is still attached
                     if (!isAdded) return@mapNotNull null
                     state
-                }.distinctUntilChangedBy { it.selectedTabId }.collect { state ->
+                }.distinctUntilChangedBy { state ->
+                    val tab = state.tabs.find { it.id == state.selectedTabId }
+                    Triple(state.selectedTabId, tab?.contextId, tab?.content?.private)
+                }.collect { state ->
                     // Safety check before accessing context
                     if (!isAdded || context == null) return@collect
                     
@@ -628,24 +631,14 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                         // Update toolbar for private mode if needed
                         updateToolbarForPrivateMode()
                         
-                        // Get the profile for this tab
-                        val tabContextId = tab.contextId
                         val profileManager = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(fragmentContext)
-                        
-                        // Extract profile ID from contextId (format: "profile_X")
-                        val profileId = tabContextId?.removePrefix("profile_")
-                        
-                        if (profileId != null) {
-                            val allProfiles = profileManager.getAllProfiles()
-                            val profile = allProfiles.find { it.id == profileId }
-                            val currentProfile = profileManager.getActiveProfile()
-                            
-                            if (profile != null && currentProfile.id != profileId) {
-                                // Switch to this profile context in the toolbar
-                                profileManager.setActiveProfile(profile)
-                                resultsProfileRevision++
-                                unifiedToolbar?.getTabGroupBar()?.updateProfileIcon(profile)
-                            }
+                        profileManager.setPrivateMode(tab.content.private)
+                        val profile = com.prirai.android.nira.browser.profile.ProfileTabScope
+                            .selectedNormalProfile(tab.contextId, tab.content.private, profileManager.getAllProfiles())
+                        if (profile != null && profileManager.getActiveProfile().id != profile.id) {
+                            profileManager.setActiveProfile(profile)
+                            resultsProfileRevision++
+                            unifiedToolbar?.getTabGroupBar()?.updateProfileIcon(profile)
                         }
                     }
                     

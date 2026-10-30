@@ -34,12 +34,18 @@ object ProfileAddonPolicy {
             .toMutableSet()
     }
 
-    suspend fun applyForProfile(context: Context, profileId: String) {
+    suspend fun applyForProfile(context: Context, profileId: String, stillCurrent: () -> Boolean = { true }) {
+        if (!stillCurrent()) return
         val addons = withContext(Dispatchers.IO) {
-            runCatching {
+            try {
                 context.components.addonManager.getAddons().filter { it.isInstalled() }
-            }.getOrNull()
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                null
+            }
         } ?: return
+        if (!stillCurrent()) return
         if (addons.isEmpty()) {
             return
         }
@@ -47,12 +53,13 @@ object ProfileAddonPolicy {
         val key = KEY_PREFIX + profileId
         if (!prefs.contains(key)) {
             val enabled = addons.filter { it.isEnabled() }.map { it.id }.toSet()
-            prefs.edit { putStringSet(key, enabled) }
+            if (stillCurrent()) prefs.edit { putStringSet(key, enabled) }
             return
         }
         val allowed = prefs.getStringSet(key, emptySet()).orEmpty()
         withContext(Dispatchers.Main) {
             addons.forEach { addon ->
+                if (!stillCurrent()) return@withContext
                 val shouldEnable = allowed.contains(addon.id)
                 if (shouldEnable && !addon.isEnabled()) {
                     context.components.addonManager.enableAddon(addon)

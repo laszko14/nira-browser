@@ -745,15 +745,16 @@ class ComposeHomeFragment : Fragment() {
                 title = getString(R.string.mozac_browser_menu_new_tab),
                 iconRes = R.drawable.mozac_ic_tab_new_24,
                 onClick = {
-                    // Ensure we're using the current active profile
                     val activeProfile = profileManager.getActiveProfile()
-                    val contextId = com.prirai.android.nira.browser.profile.BrowserProfile
-                        .contextIdFor(activeProfile, isPrivate = false)
+                    val isPrivate = components.store.state.selectedTab?.content?.private
+                        ?: browsingModeManager.mode.isPrivate
+                    val destination = com.prirai.android.nira.browser.profile.ProfileTabScope
+                        .newTabDestination(activeProfile, isPrivate)
                     components.tabsUseCases.addTab(
                         url = "about:homepage",
                         selectTab = true,
-                        private = false,
-                        contextId = contextId
+                        private = destination.isPrivate,
+                        contextId = destination.contextId
                     )
                 }
             ),

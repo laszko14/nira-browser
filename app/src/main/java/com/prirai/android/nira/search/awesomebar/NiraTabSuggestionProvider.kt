@@ -2,6 +2,8 @@ package com.prirai.android.nira.search.awesomebar
 
 import android.content.Context
 import com.prirai.android.nira.browser.tabgroups.UnifiedTabGroupManager
+import com.prirai.android.nira.browser.profile.ProfileManager
+import com.prirai.android.nira.browser.profile.ProfileTabScope
 import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.concept.awesomebar.AwesomeBar
 import mozilla.components.feature.tabs.TabsUseCases
@@ -25,10 +27,17 @@ class NiraTabSuggestionProvider(
     override suspend fun onInputChanged(text: String): List<AwesomeBar.Suggestion> {
         val state = store.state
         val selectedTabId = state.selectedTabId
+        val profileId = ProfileManager.getInstance(context).getActiveProfile().id
+
+        fun mayAct(tabId: String): Boolean {
+            if (ProfileManager.getInstance(context).getActiveProfile().id != profileId) return false
+            return store.state.tabs.any { it.id == tabId && ProfileTabScope.belongsToNormalProfile(it, profileId) }
+        }
 
         return state.tabs
             .filter { tab ->
-                tab.id != selectedTabId && !tab.content.private &&
+                tab.id != selectedTabId &&
+                    ProfileTabScope.belongsToNormalProfile(tab, profileId) &&
                     (text.isBlank() ||
                         tab.content.title.contains(text, ignoreCase = true) ||
                         tab.content.url.contains(text, ignoreCase = true))
@@ -47,9 +56,9 @@ class NiraTabSuggestionProvider(
                     icon = null,
                     chips = chips,
                     score = Int.MAX_VALUE - index,
-                    onSuggestionClicked = { selectTabUseCase.invoke(tab.id) },
+                    onSuggestionClicked = { if (mayAct(tab.id)) selectTabUseCase.invoke(tab.id) },
                     onChipClicked = { chip ->
-                        if (chip.title == "✕") {
+                        if (chip.title == "✕" && mayAct(tab.id)) {
                             removeTabUseCase.invoke(tab.id)
                         }
                     }
