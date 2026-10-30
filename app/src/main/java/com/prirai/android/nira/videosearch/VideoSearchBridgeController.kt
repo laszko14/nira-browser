@@ -840,7 +840,6 @@ internal class VideoSearchBridgeController(
         val deadline = minOf(
             SystemClock.elapsedRealtime() + 120_000L, deadlineMs
         )
-        var stagnantPages = 0
 
         fun authorized(): Boolean {
             val live = privateSiteTab(site, tabId, false, requireSelected) ?: return false
@@ -890,6 +889,12 @@ internal class VideoSearchBridgeController(
                 delay(24)
             }
 
+            // The URL transition only enables reading; it is not proof that
+            // the next page contains a new result.
+            if (collector.pageActions > 0 &&
+                config.pagination == VideoSearchPagination.NEXT_LINK &&
+                newInDocument == 0)
+                return stop(VideoSearchPaginationStop.STALLED)
             if (collector.reachedLimit)
                 return stop(VideoSearchPaginationStop.LIMIT_REACHED)
             if (collector.exhaustedCardBudget)
@@ -955,36 +960,70 @@ internal class VideoSearchBridgeController(
                 } ?: return stop(VideoSearchPaginationStop.STALLED)
                 if (!collector.beginDocument(nextUrl))
                     return stop(VideoSearchPaginationStop.STALLED)
-                stagnantPages = if (newInDocument == 0) stagnantPages + 1 else 0
-                if (stagnantPages >= 2) return stop(VideoSearchPaginationStop.STALLED)
+                // Genuine new film URLs are checked after reading the new document.
             } else {
                 if (!authorized()) return stop(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
                 collector.armSameDocumentContinuation()
-                var grew = false
+                var advanced = false
+                var reloadedDocument = false
                 for (attempt in 0..2) {
                     delay(if (attempt == 0) 400L else 650L)
                     if (SystemClock.elapsedRealtime() >= deadline)
                         return stop(VideoSearchPaginationStop.RESOURCE_LIMIT)
                     if (!authorized()) return stop(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
+                    val live = privateSiteTab(site, tabId, false, requireSelected)
+                        ?: return stop(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
+                    val liveUrl = currentTab(originalSession)?.pageUrl ?: beforeUrl
+                    if (live.second.documentId != beforeDocument && liveUrl != beforeUrl &&
+                        VideoSearchBridgeProtocol.sameOrigin(liveUrl, site.siteUrl)) {
+                        if (!collector.beginDocument(liveUrl))
+                            return stop(VideoSearchPaginationStop.STALLED)
+                        reloadedDocument = true
+                        break
+                    }
                     val cursor = collector.nextCardIndex
-                    val result = privateRequest(site, tabId, "crawl", false, requireSelected) { doc, request ->
+                    val appended = privateRequest(site, tabId, "crawl", false, requireSelected) { doc, request ->
                         VideoSearchBridgeProtocol.extractCrawl(doc, request, config, cursor)
                     } as? VideoSearchBridgeMessage.Results
                         ?: return stop(VideoSearchPaginationStop.ERROR)
-                    if (result.page.status == "stale")
+                    if (appended.page.status == "stale")
                         return stop(VideoSearchPaginationStop.ERROR)
-                    if (result.page.inspectedCards == 0) continue
-                    try {
-                        val added = collector.appendWindow(cursor, result.page)
-                        if (added > 0 && authorized())
-                            onProgress(stop(VideoSearchPaginationStop.RESOURCE_LIMIT))
-                    } catch (_: IllegalArgumentException) {
-                        return stop(VideoSearchPaginationStop.ERROR)
+                    if (appended.page.inspectedCards > 0) {
+                        val added = try {
+                            collector.appendWindow(cursor, appended.page)
+                        } catch (_: IllegalArgumentException) {
+                            return stop(VideoSearchPaginationStop.ERROR)
+                        }
+                        if (added > 0) {
+                            if (authorized()) onProgress(stop(VideoSearchPaginationStop.RESOURCE_LIMIT))
+                            advanced = true
+                            break
+                        }
                     }
-                    grew = true
-                    break
+                    val replacementProbe = privateRequest(site, tabId, "crawl", false, requireSelected) { doc, request ->
+                        VideoSearchBridgeProtocol.extractCrawl(doc, request, config, 0)
+                    } as? VideoSearchBridgeMessage.Results
+                        ?: return stop(VideoSearchPaginationStop.ERROR)
+                    if (replacementProbe.page.status == "stale")
+                        return stop(VideoSearchPaginationStop.ERROR)
+                    if (replacementProbe.page.status == "ok" && replacementProbe.page.films.any {
+                            film -> collector.snapshot(VideoSearchPaginationStop.STALLED)
+                                .films.none { it.filmPageUrl == film.filmPageUrl }
+                        }) {
+                        val added = try {
+                            collector.appendVerifiedReplacement(replacementProbe.page)
+                        } catch (_: IllegalArgumentException) {
+                            return stop(VideoSearchPaginationStop.ERROR)
+                        }
+                        if (added > 0) {
+                            if (authorized()) onProgress(stop(VideoSearchPaginationStop.RESOURCE_LIMIT))
+                            advanced = true
+                            break
+                        }
+                    }
                 }
-                if (!grew) return stop(VideoSearchPaginationStop.STALLED)
+                if (reloadedDocument) continue
+                if (!advanced) return stop(VideoSearchPaginationStop.STALLED)
             }
         }
     }
