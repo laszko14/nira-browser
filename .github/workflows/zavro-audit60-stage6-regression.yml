@@ -13,6 +13,7 @@ on:
       - 'app/src/main/java/com/prirai/android/nira/utils/FaviconCache.kt'
       - 'app/src/test/java/com/prirai/android/nira/browser/sync/**'
       - 'app/src/test/java/com/prirai/android/nira/utils/FaviconPrivateCacheTest.kt'
+      - 'app/src/test/js/compact-favicon-v1121-regressions.test.cjs'
       - 'docs/audits/zavro-clean-repair/**'
   workflow_dispatch:
 
