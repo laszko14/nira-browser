@@ -446,13 +446,19 @@ internal object VideoSearchBridgeProtocol {
         }
     }
 
-    /** A 16-card window in the same DOM, max 320 card positions. */
+    /**
+     * A bounded 16-card cursor window. The optional cardCap key is emitted
+     * ONLY for configured limits >200, keeping old WebExtension callers
+     * and existing 320-card fixture contracts intact.
+     */
     fun extractCrawl(documentId: String, requestId: String,
-                     config: VideoSiteConfiguration, startIndex: Int): JSONObject {
-        require(startIndex in 0..319)
+                     config: VideoSiteConfiguration, startIndex: Int,
+                     cardCap: Int = 320): JSONObject {
+        require(cardCap in 320..10_000 && startIndex in 0 until cardCap)
         return extract(documentId, requestId, config).apply {
             put("event", "extract_crawl")
             put("startIndex", startIndex)
+            if (cardCap > 320) put("cardCap", cardCap)
         }
     }
 
