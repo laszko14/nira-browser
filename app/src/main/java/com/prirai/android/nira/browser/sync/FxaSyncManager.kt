@@ -148,6 +148,8 @@ class FxaSyncManager private constructor(private val context: Context) {
         }
 
         override fun onLoggedOut() {
+            lastAuthDebugInfo = null
+            lastAuthTimestamp = 0L
             _isSignedIn.value = false
             _accountEmail.value = null
             _lastSyncTime.value = null
@@ -188,7 +190,7 @@ class FxaSyncManager private constructor(private val context: Context) {
             accountManager.start()
             android.util.Log.d("FxaAuth", "start() completed successfully")
         } catch (e: Exception) {
-            android.util.Log.e("FxaAuth", "start() failed: ${e.message}")
+            android.util.Log.e("FxaAuth", "start() failed: ${SyncDiagnosticPolicy.safeErrorCategory(e)}")
         }
     }
 
@@ -196,39 +198,38 @@ class FxaSyncManager private constructor(private val context: Context) {
         try {
             accountManager.logout()
         } catch (e: Exception) {
-            android.util.Log.e("FxaAuth", "signOut error: ${e.message}")
+            android.util.Log.e("FxaAuth", "signOut error: ${SyncDiagnosticPolicy.safeErrorCategory(e)}")
         }
     }
 
     suspend fun finishAuthentication(code: String, state: String, action: String?) {
         val ts = System.currentTimeMillis()
+        val attempt = SyncDiagnosticPolicy.attemptId()
         try {
             val authData = FxaAuthData(
                 authType = action.toAuthType(),
                 code = code,
                 state = state,
             )
-            val result = accountManager.finishAuthentication(authData)
-            // Check account state RIGHT AFTER finishAuthentication returns
+            // OAuth inputs are used only for authentication. Never persist
+            // their prefixes, email or exception text to diagnostics/logs.
+            accountManager.finishAuthentication(authData)
             val hasAccountNow = accountManager.authenticatedAccount() != null
-            val emailNow = accountManager.accountProfile()?.email
-            lastAuthDebugInfo = "SUCCESS: result=$result immediate after: hasAccount=$hasAccountNow email=$emailNow (action=$action, code=${code.take(6)}..., state=${state.take(6)}...)"
+            lastAuthDebugInfo = SyncDiagnosticPolicy.authSuccess(attempt, hasAccountNow)
             lastAuthTimestamp = ts
-            android.util.Log.d("FxaAuth", "finishAuthentication returned $result, hasAccount=$hasAccountNow email=$emailNow")
+            android.util.Log.d("FxaAuth", "finishAuthentication returned; accountPresent=$hasAccountNow")
 
-            // Re-check after a short delay to catch any tear-down
             if (!hasAccountNow) {
                 kotlinx.coroutines.delay(2000)
                 val hasAccountDelayed = accountManager.authenticatedAccount() != null
-                val emailDelayed = accountManager.accountProfile()?.email
-                lastAuthDebugInfo += " | 2s later: hasAccount=$hasAccountDelayed email=$emailDelayed"
-                android.util.Log.d("FxaAuth", "2s later: hasAccount=$hasAccountDelayed email=$emailDelayed")
+                lastAuthDebugInfo = SyncDiagnosticPolicy.delayedCheck(attempt, hasAccountDelayed)
+                android.util.Log.d("FxaAuth", "2s later: accountPresent=$hasAccountDelayed")
             }
         } catch (e: Exception) {
-            lastAuthDebugInfo = "ERROR: finishAuthentication threw ${e::class.simpleName}: ${e.message}"
+            lastAuthDebugInfo = SyncDiagnosticPolicy.authFailure(attempt, e)
             lastAuthTimestamp = ts
-            android.util.Log.e("FxaAuth", "finishAuthentication failed: ${e.message}")
-            android.util.Log.e("FxaAuth", "stacktrace", e)
+            // Throwable messages and traces can contain OAuth URIs/identifiers.
+            android.util.Log.e("FxaAuth", "finishAuthentication failed: ${SyncDiagnosticPolicy.safeErrorCategory(e)}")
         }
     }
 
