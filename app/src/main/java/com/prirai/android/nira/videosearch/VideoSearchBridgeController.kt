@@ -1255,7 +1255,6 @@ internal class VideoSearchBridgeController(
         val collector = VideoSearchPaginationCollector(site.siteUrl, site.resultLimit)
         if (!collector.beginDocument(startingUrl)) return null
         val deadline = SystemClock.elapsedRealtime() + 120_000L
-        var noNewPages = 0
 
         suspend fun stillAuthorized(): Boolean {
             val live = matchingTab() ?: return false
@@ -1310,6 +1309,12 @@ internal class VideoSearchBridgeController(
                 delay(24) // Yield across bounded, at-most-16-card DOM reads.
             }
 
+            // A changed URL alone never proves another result page.
+            // After following NEXT_LINK, require a genuinely new film URL.
+            if (collector.pageActions > 0 &&
+                config.pagination == VideoSearchPagination.NEXT_LINK &&
+                newInDocument == 0)
+                return collector.snapshot(VideoSearchPaginationStop.STALLED)
             if (collector.reachedLimit)
                 return collector.snapshot(VideoSearchPaginationStop.LIMIT_REACHED)
             if (collector.exhaustedCardBudget)
@@ -1380,41 +1385,79 @@ internal class VideoSearchBridgeController(
                 } ?: return collector.snapshot(VideoSearchPaginationStop.STALLED)
                 if (!collector.beginDocument(next))
                     return collector.snapshot(VideoSearchPaginationStop.STALLED)
-                if (newInDocument == 0) noNewPages++ else noNewPages = 0
-                if (noNewPages >= 2)
-                    return collector.snapshot(VideoSearchPaginationStop.STALLED)
+                // Inspect the newly bound document before claiming progress.
             } else {
-                // Same document; allow *only appended* positions. Do not
-                // re-read the first cards or click repeatedly on no progress.
+                // AJAX / Load More / scroll may APPEND or REPLACE the visible
+                // card list. Neither a dispatched click nor old cards count
+                // as progress; only a newly seen exact film URL does.
                 if (!stillAuthorized())
                     return collector.snapshot(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
                 collector.armSameDocumentContinuation()
-                var grew = false
+                var advanced = false
+                var reloadedDocument = false
                 for (attempt in 0..2) {
                     if (SystemClock.elapsedRealtime() >= deadline)
                         return collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT)
                     delay(if (attempt == 0) 400L else 650L)
                     if (!stillAuthorized())
                         return collector.snapshot(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
+                    val live = matchingTab()
+                        ?: return collector.snapshot(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
+                    val liveUrl = currentTab(session)?.pageUrl ?: beforeUrl
+                    if (live.second.documentId != beforeDoc && liveUrl != beforeUrl &&
+                        VideoSearchBridgeProtocol.sameOrigin(liveUrl, site.siteUrl)) {
+                        if (!collector.beginDocument(liveUrl))
+                            return collector.snapshot(VideoSearchPaginationStop.STALLED)
+                        reloadedDocument = true
+                        break
+                    }
                     val offset = collector.nextCardIndex
-                    val reply = request(site, "crawl", workerTabId = workerTabId) { doc, id ->
+                    val appended = request(site, "crawl", workerTabId = workerTabId) { doc, id ->
                         VideoSearchBridgeProtocol.extractCrawl(doc, id, config, offset)
                     } as? VideoSearchBridgeMessage.Results
                         ?: return collector.snapshot(VideoSearchPaginationStop.ERROR)
-                    if (reply.page.status == "stale")
+                    if (appended.page.status == "stale")
                         return collector.snapshot(VideoSearchPaginationStop.ERROR)
-                    if (reply.page.inspectedCards == 0) continue
-                    try {
-                        val added = collector.appendWindow(offset, reply.page)
-                        if (added > 0 && stillAuthorized())
-                            onProgress(collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT))
-                    } catch (_: IllegalArgumentException) {
-                        return collector.snapshot(VideoSearchPaginationStop.ERROR)
+                    if (appended.page.inspectedCards > 0) {
+                        val added = try {
+                            collector.appendWindow(offset, appended.page)
+                        } catch (_: IllegalArgumentException) {
+                            return collector.snapshot(VideoSearchPaginationStop.ERROR)
+                        }
+                        if (added > 0) {
+                            if (stillAuthorized())
+                                onProgress(collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT))
+                            advanced = true
+                            break
+                        }
                     }
-                    grew = true
-                    break
+                    // Replacement probe: a same-document page may have exactly
+                    // the same number of cards, but wholly different film URLs.
+                    val probe = request(site, "crawl", workerTabId = workerTabId) { doc, id ->
+                        VideoSearchBridgeProtocol.extractCrawl(doc, id, config, 0)
+                    } as? VideoSearchBridgeMessage.Results
+                        ?: return collector.snapshot(VideoSearchPaginationStop.ERROR)
+                    if (probe.page.status == "stale")
+                        return collector.snapshot(VideoSearchPaginationStop.ERROR)
+                    if (probe.page.status == "ok" && probe.page.films.any {
+                            film -> collector.snapshot(VideoSearchPaginationStop.STALLED)
+                                .films.none { it.filmPageUrl == film.filmPageUrl }
+                        }) {
+                        val added = try {
+                            collector.appendVerifiedReplacement(probe.page)
+                        } catch (_: IllegalArgumentException) {
+                            return collector.snapshot(VideoSearchPaginationStop.ERROR)
+                        }
+                        if (added > 0) {
+                            if (stillAuthorized())
+                                onProgress(collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT))
+                            advanced = true
+                            break
+                        }
+                    }
                 }
-                if (!grew)
+                if (reloadedDocument) continue
+                if (!advanced)
                     return collector.snapshot(VideoSearchPaginationStop.STALLED)
             }
         }
