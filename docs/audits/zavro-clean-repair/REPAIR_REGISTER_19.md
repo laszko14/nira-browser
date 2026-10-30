@@ -146,7 +146,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-008 | resize nie zachowuje tożsamości palca | CONFIRMED | P2 | 12/19 | DO_RECHECK |
 | ZC-AUD-009 | nieatomowa walidacja tworzenia grupy z Bez grupy | CONFIRMED | P2 | 11/19 | DO_RECHECK |
 | ZC-AUD-010 | hover pozostaje przy poprzednim celu podczas autoscroll | LIKELY | P2 | 12/19 | VERIFY_FIRST |
-| ZC-AUD-011 | dialog zachowuje callback usuniętego panelu zakładek | CONFIRMED | P1 | 2/19 | DO_RECHECK |
+| ZC-AUD-011 | dialog zachowuje callback usuniętego panelu zakładek | CONFIRMED | P1 | 2/19 | IMPLEMENTED — stage 2, verify CI |
 | ZC-AUD-012 | dwa kryteria sortowania działają jak nazwa | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-013 | kwadratowy koszt projekcji kolejności pasków kart | CONFIRMED | P2 | 11/19 | DO_RECHECK |
 | ZC-AUD-014 | dialog kolejności nie rozróżnia upuszczenia przed i za wierszem | CONFIRMED | P2 | 14/19 | DO_RECHECK |
@@ -212,3 +212,12 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - **Kod produkcyjny:** niezmieniony. **Zmiany dozwolone:** rejestr/plan i mały workflow walidacyjny dokumentacji (bez Gradle, assemble, podpisu, APK).
 - **Weryfikacja samego rejestru:** 60 unikalnych ID, dokładnie po jednym przypisaniu, 19 nagłówków, 53/4/3 według poziomu pewności. Wynik dokumentacyjnego CI należy sprawdzić na SHA commita tej gałęzi.
 - **Następne polecenie użytkownika:** `Dalej` → **Etap 2/19, ZC-AUD-011**. Zanim zacznie się edycja produkcyjna, ponownie potwierdzić HEAD i CI/zmiany równoległych gałęzi.
+
+## Etap 2/19 — aktualizacja ZC-AUD-011 (2026-10-30)
+
+- Aktualny v1195 nadal miał ścieżki `showAddFolderDialog` / `showAddBookmarkDialog` / `editBookmark`, których `AddBookmarkFolderDialog` i `AddBookmarkDialog` przechowują callback do `BookmarksBottomSheetFragment` przez czas dłuższy niż widok. Stare `onDestroyView` czyściło tylko binding i callbacki panelu, nie otwarte okna.
+- Wprowadzono `BookmarkViewDialogScope` na jedną generację widoku; przejmuje okna, odłącza callbacki, unieważnia odświeżenie po zamknięciu i zamyka okna przed `super.onDestroyView` i zwolnieniem bindingu. Dotyczy osadzonego panelu i normalnego fragmentu dialogowego.
+- Dodatkowe akcje sort/delete/flatten oraz wybór folderu otrzymały bramkę aktywnego widoku. Nie zmieniono reguł managera, nazw folderów, kolejności, zapisanych zakładek ani procedury podpisywania i wersji.
+- Testy: `BookmarkViewDialogLifecycleTest` (właściciel, manual dismiss, rzeczywiste dwa warianty FragmentManager + dialog Robolectric), pełny JVM/Robolectric i pełny WebExtension JS oraz lint. Wykonanie CI i faktyczny wynik są raportowane osobno na konkretnym końcowym SHA; do jego potwierdzenia pozostaje `CI_PENDING`.
+- Ograniczenie: brak rzeczywistego obracania telefonu i testu klikania okna po wywołaniu onDestroyView w Gecko/Android 15. Te scenariusze są `NOT_TESTED` na urządzeniu.
+- Następny etap: **3/19 ZC-AUD-022**, typy importu preferencji. Bez merge do main, bez APK przed `Kompiluj`.
