@@ -1,0 +1,48 @@
+name: Zavro Clean audit 60 - stage 1 registry validation (no APK)
+
+on:
+  push:
+    branches:
+      - plan/zavro-clean-audit60-stage1-20261030
+    paths:
+      - 'docs/audits/zavro-clean-repair/**'
+      - '.github/workflows/zavro-audit60-registry.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  registry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate 60 unique issue IDs, 19 stages, audit classifications
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import collections
+          import pathlib
+          import re
+          p = pathlib.Path("docs/audits/zavro-clean-repair/REPAIR_REGISTER_19.md")
+          data = p.read_text(encoding="utf-8")
+          rows = re.findall(r"^\| ZC-AUD-(\d{3}) \|.*?\| (CONFIRMED|LIKELY|SUSPECTED) \|.*?\| (\d+)/19 \|", data, re.M)
+          assert len(rows) == 60, f"Expected 60 rows, got {len(rows)}"
+          ids = [int(x[0]) for x in rows]
+          assert sorted(ids) == list(range(1,61)) and len(set(ids)) == 60, ids
+          assert collections.Counter(x[1] for x in rows) == {"CONFIRMED":53, "LIKELY":4, "SUSPECTED":3}
+          stages = [int(x) for x in re.findall(r"^### Etap (\d+)/19", data, re.M)]
+          assert stages == list(range(1,20)), stages
+          assert all(2 <= int(row[2]) <= 19 for row in rows)
+          declared = re.findall(r"^\*\*ID:\*\* (.+?)\.$", data, re.M)
+          assert len(declared) == 19
+          by_stage = collections.defaultdict(list)
+          for issue, confidence, stage in rows:
+              by_stage[int(stage)].append(issue)
+          for stage in range(2,20):
+              planned = set(re.findall(r"ZC-AUD-(\d{3})", declared[stage-1]))
+              assert planned == set(by_stage[stage]), (stage, planned, by_stage[stage])
+          assert "Bez merge do main" in data
+          print("PASS: 60/60 IDs, 53 confirmed + 4 likely + 3 suspected, 19/19 stages, exact stage coverage; NO APK.")
+          PY
