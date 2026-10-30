@@ -1,0 +1,105 @@
+name: Zavro Clean v1195 signed arm64 update APK
+
+on:
+  push:
+    branches:
+      - feat/zavro-clean-picker-v2-stage1-20261030
+    paths:
+      - '.github/workflows/zavro-v1195-signed-arm64-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zavro-v1195-signed-arm64-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    env:
+      EXPECTED_PACKAGE: com.prirai.android.nira.debug
+      EXPECTED_VERSION_CODE: '1195'
+      EXPECTED_VERSION_NAME: 0.5.22-alpha100-clean
+      EXPECTED_CERT_SHA256: df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Gradle wrapper
+        uses: gradle/wrapper-validation-action@v2
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: zulu
+      - uses: gradle/actions/setup-gradle@v5
+
+      # Fail closed: signed update artifacts may only follow complete tests.
+      - name: Complete WebExtension JavaScript regressions
+        run: node --test app/src/test/js/*.test.cjs
+      - name: Complete Kotlin JVM and Robolectric regressions
+        run: ./gradlew :app:testDebugUnitTest --console=plain
+      - name: Android lint
+        run: ./gradlew :app:lintDebug --console=plain
+
+      - name: Build and verify one signed arm64 update APK
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for key in ANDROID_KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [[ -z "${!key:-}" ]]; then
+              echo "::error::Missing stable update signing secret: $key. No APK published."
+              exit 1
+            fi
+          done
+          keystore_path="$RUNNER_TEMP/zavro-update-v1195.p12"
+          trap 'rm -f "$keystore_path"' EXIT
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
+          chmod 600 "$keystore_path"
+          export NIRA_SIGNING_STORE_FILE="$keystore_path"
+          export NIRA_SIGNING_STORE_PASSWORD="$KEYSTORE_PASSWORD"
+          export NIRA_SIGNING_KEY_ALIAS="$KEY_ALIAS"
+          export NIRA_SIGNING_KEY_PASSWORD="$KEY_PASSWORD"
+          ./gradlew :app:assembleDebug --console=plain
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/debug/*.apk)
+          if [[ "${#apks[@]}" -ne 1 || "${apks[0]}" != *arm64-v8a* ]]; then
+            echo "::error::Expected exactly one arm64-v8a APK; found ${#apks[@]}."
+            exit 1
+          fi
+          bash scripts/verify-update-apk.sh \
+            "${apks[0]}" \
+            "$EXPECTED_PACKAGE" \
+            "$EXPECTED_VERSION_CODE" \
+            "$EXPECTED_VERSION_NAME" \
+            "$EXPECTED_CERT_SHA256"
+          sha256sum "${apks[0]}" > "${apks[0]}.sha256"
+          echo "Verified one signed update-safe Zavro Clean v1195 arm64-v8a APK."
+
+      - name: Upload signed APK and SHA256 checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: zavro-clean-v1195-arm64-update-apk
+          path: |
+            app/build/outputs/apk/debug/*arm64-v8a*.apk
+            app/build/outputs/apk/debug/*arm64-v8a*.apk.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zavro-clean-v1195-failed-test-reports
+          path: |
+            app/build/test-results/testDebugUnitTest/**
+            app/build/reports/tests/testDebugUnitTest/**
+            app/build/reports/lint-results-debug*
+          if-no-files-found: warn
+          retention-days: 7
