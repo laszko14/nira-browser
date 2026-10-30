@@ -27,7 +27,7 @@ internal class VideoSearchPrivateGroupAccess(
             val run = store.runs(scope).singleOrNull {
                 it.id == runId && it.status == VideoSearchRunState.RUNNING
             } ?: return@withAuthorizedTab false
-            run.siteIds.sumOf { store.films(scope, runId, it).size } <
+            run.siteIds.sumOf { store.countFilms(scope, runId, it) } <
                 runLimit(store.tasks(scope, runId))
         } ?: false
 
@@ -95,7 +95,7 @@ internal class VideoSearchPrivateGroupAccess(
                 })) return@withAuthorizedTab false
 
         val consumed = run.siteIds.sumOf { id ->
-            store.films(scope, runId, id).size
+            store.countFilms(scope, runId, id)
         }
         val already = store.films(scope, runId, site.id)
         val previousUrls = already.mapTo(HashSet()) { it.filmPageUrl }
