@@ -35,6 +35,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
       - name: Complete Kotlin JVM and Robolectric regressions
         run: ./gradlew :app:testDebugUnitTest --console=plain
+      - name: Compile Android instrumentation test sources without packaging APK
+        run: ./gradlew :app:compileDebugAndroidTestKotlin --console=plain
       - name: Complete WebExtension JavaScript regressions
         run: node --test app/src/test/js/*.test.cjs
       - name: Android lint
