@@ -154,10 +154,10 @@ internal class VideoSearchMultiRunJournal(
         site: VideoSearchLaunchSite, snapshot: VideoSearchPaginationSnapshot?, stamp: Long,
         alreadyPersisted: Int,
     ): List<VideoSearchFilm> {
-        return // Persist ONLY the newly verified suffix. Previous rows were saved in
+        // Persist ONLY the newly verified suffix. Previous rows were saved in
         // earlier Room checkpoints, so re-sending the full 10k prefix each
         // time would be quadratic in database traffic.
-        return snapshot?.films?.drop(alreadyPersisted).take(
+        return snapshot?.films?.drop(alreadyPersisted)?.take(
             (site.resultLimit - alreadyPersisted).coerceAtLeast(0)
         ).mapIndexed { index, film ->
             VideoSearchFilm(
