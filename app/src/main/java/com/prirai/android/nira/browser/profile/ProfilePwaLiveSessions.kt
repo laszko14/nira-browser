@@ -29,4 +29,12 @@ internal object ProfilePwaLiveSessions {
     @Synchronized fun cancelDeletion(profileId: String) { deleting.remove(profileId) }
 
     @Synchronized fun isDeleting(profileId: String): Boolean = profileId in deleting
+
+    // Tombstones survive process restart; restore the in-memory guard before
+    // retrying Gecko erasure so no late PWA can reopen that named partition.
+    @Synchronized fun guardDeleted(profileId: String): Boolean {
+        if ((open[profileId] ?: 0) > 0) return false
+        deleting.add(profileId)
+        return true
+    }
 }

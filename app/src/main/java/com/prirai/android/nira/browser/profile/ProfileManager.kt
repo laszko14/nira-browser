@@ -271,8 +271,6 @@ class ProfileManager(
         applyDefault?.let { applyActiveProfilePolicy(BrowserProfile.getDefaultProfile(), it) }
 
         ioScope.launch {
-            // Clean Room membership and wait for an acknowledged SessionStorage
-            // snapshot before clearing Gecko's named partition. Never clear all.
             removedTabIds.forEach { id ->
                 try {
                     com.prirai.android.nira.browser.tabgroups.UnifiedTabGroupManager
@@ -281,28 +279,49 @@ class ProfileManager(
                     android.util.Log.w("ProfileManager", "Could not clear removed group membership", error)
                 }
             }
-            if (appContext is com.prirai.android.nira.BrowserApp) {
-                val saved = try {
-                    appContext.components.sessionStorage.save(appContext.components.store.state)
-                } catch (error: Exception) {
-                    android.util.Log.e("ProfileManager", "Profile session save failed; Gecko erasure deferred", error)
-                    false
-                }
-                if (!saved) {
-                    android.util.Log.e("ProfileManager", "Profile data erasure deferred: session save not acknowledged")
-                    return@launch
-                }
-                // Gecko API returns void: dispatch success is not proof of
-                // disk erasure; verify storage on a real device.
-                try {
-                    org.mozilla.geckoview.GeckoRuntime.getDefault(appContext).storageController
-                        .clearDataForSessionContext(contextId)
-                } catch (error: Exception) {
-                    android.util.Log.e("ProfileManager", "Named profile Gecko erasure failed", error)
-                    return@launch
-                }
+            // The durable tombstone is the retry journal. A failed save,
+            // interrupted process or Gecko exception is retried next launch.
+            retryDeletedProfileErasure()
+        }
+    }
+
+    /** Retry pending named-partition erasure after restore has reached the Store. */
+    internal suspend fun retryDeletedProfileErasure() {
+        val app = context.applicationContext as? com.prirai.android.nira.BrowserApp ?: return
+        val store = app.components.store
+        if (!store.state.restoreComplete) return
+
+        val ids = synchronized(profileRegistryLock) {
+            prefs.getStringSet(KEY_DELETED_PROFILE_IDS, emptySet()).orEmpty().toList()
+        }
+        for (id in ids) {
+            // An imported/recreated ID is not eligible for background cleanup.
+            if (getAllProfiles().any { it.id == id }) continue
+            val contextId = BrowserProfile.contextIdFor(id, false) ?: continue
+            if (!ProfilePwaLiveSessions.guardDeleted(id)) continue
+            if (store.state.tabs.any { it.contextId == contextId } ||
+                store.state.customTabs.any { it.contextId == contextId }) continue
+
+            val saved = try {
+                app.components.sessionStorage.save(store.state)
+            } catch (error: Exception) {
+                android.util.Log.e("ProfileManager", "Deferred named-profile save failed", error)
+                false
             }
-            cleanupProfileStorage(profileId)
+            if (!saved) {
+                android.util.Log.w("ProfileManager", "Named-profile erasure deferred until session save succeeds")
+                continue
+            }
+
+            try {
+                // GeckoView's void API dispatches deletion, not a durable
+                // confirmation. Re-issue safely on later startups.
+                org.mozilla.geckoview.GeckoRuntime.getDefault(app).storageController
+                    .clearDataForSessionContext(contextId)
+                cleanupProfileStorage(id)
+            } catch (error: Exception) {
+                android.util.Log.e("ProfileManager", "Deferred named-profile Gecko erasure failed", error)
+            }
         }
     }
 

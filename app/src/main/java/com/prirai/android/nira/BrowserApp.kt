@@ -447,6 +447,14 @@ class BrowserApp : Application() {
                         .whenSessionsChange()
                 }
                 ready = true
+                // Resume erasure of named profiles deleted before a crash or
+                // before a successful save. Never clear a live Gecko context.
+                try {
+                    com.prirai.android.nira.browser.profile.ProfileManager
+                        .getInstance(this@BrowserApp).retryDeletedProfileErasure()
+                } catch (error: Exception) {
+                    android.util.Log.e("BrowserApp", "Deferred profile erasure retry failed", error)
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (t: Throwable) {
