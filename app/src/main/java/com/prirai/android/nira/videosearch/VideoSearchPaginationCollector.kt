@@ -99,6 +99,40 @@ internal class VideoSearchPaginationCollector(
         return added
     }
 
+    /**
+     * SPA pages sometimes REPLACE their cards instead of appending them.
+     * Accept an initial window of a replacement only when a previously unseen
+     * exact on-site film URL proves that a new generation is visible. All
+     * validation happens before changing the previous absolute cursor.
+     * No synthetic page completion or reset to stale cards is permitted.
+     */
+    fun appendVerifiedReplacement(batch: VideoSearchExtractedPage): Int {
+        require(visited.isNotEmpty() && actions > 0 && !reachedLimit)
+        require(batch.status == "ok" && batch.inspectedCards in 1..16 &&
+            batch.films.isNotEmpty() && batch.films.size <= batch.inspectedCards)
+        require(batch.films.all {
+            it.originalIndex in 0 until batch.inspectedCards &&
+                VideoSearchBridgeProtocol.sameOrigin(source, it.filmPageUrl)
+        })
+        require(batch.films.any { it.filmPageUrl !in byUrl }) {
+            "No verified new generation"
+        }
+        require(scanned + batch.inspectedCards <= 3840) {
+            "Card scan budget exceeded"
+        }
+        val previousCursor = cursor
+        val previousMore = moreCards
+        cursor = 0
+        moreCards = true
+        return try {
+            appendWindow(0, batch)
+        } catch (failure: IllegalArgumentException) {
+            cursor = previousCursor
+            moreCards = previousMore
+            throw failure
+        }
+    }
+
     /** A successful same-document click/scroll allows new cards at cursor. */
     fun armSameDocumentContinuation() {
         require(visited.isNotEmpty())
