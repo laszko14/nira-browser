@@ -3,6 +3,8 @@ package com.prirai.android.nira.preferences
 import android.content.Context
 import android.content.Context.MODE_PRIVATE
 import android.content.SharedPreferences
+import kotlin.properties.ReadWriteProperty
+import kotlin.reflect.KProperty
 import com.prirai.android.nira.browser.AddonSortType
 import com.prirai.android.nira.browser.BookmarkSortType
 import com.prirai.android.nira.settings.HomepageBackgroundChoice
@@ -20,6 +22,30 @@ class UserPreferences(appContext: Context) : mozilla.components.support.ktx.andr
 
     override val preferences: SharedPreferences =
         appContext.getSharedPreferences(SCW_PREFERENCES, MODE_PRIVATE)
+
+    /**
+     * Older settings imports could store text such as "12345" or "true" using
+     * a numeric/boolean SharedPreferences type. Recover only that incompatible
+     * value on read, without clearing any other preference or user data.
+     * Already-lost leading zeroes cannot be reconstructed from an old Int.
+     */
+    private fun recoveringStringPreference(key: String, default: String): ReadWriteProperty<Any?, String> =
+        object : ReadWriteProperty<Any?, String> {
+            override fun getValue(thisRef: Any?, property: KProperty<*>): String =
+                try {
+                    preferences.getString(key, default) ?: default
+                } catch (_: ClassCastException) {
+                    val existing = preferences.all[key]
+                    if (existing !is Number && existing !is Boolean) return default
+                    val text = existing.toString()
+                    preferences.edit().putString(key, text).commit()
+                    text
+                }
+
+            override fun setValue(thisRef: Any?, property: KProperty<*>, value: String) {
+                preferences.edit().putString(key, value).apply()
+            }
+        }
 
     // Saved values
     var bookmarkFolder by booleanPreference("save_bookmark_folder", false)
@@ -71,7 +97,7 @@ class UserPreferences(appContext: Context) : mozilla.components.support.ktx.andr
     var javaScriptEnabled by booleanPreference(JAVA_SCRIPT_ENABLED, true)
     var searchEngineChoice by intPreference(SEARCH_ENGINE, 0)
     var customSearchEngine by booleanPreference(CUSTOM_SEARCH_ENGINE, false)
-    var customSearchEngineURL by stringPreference(CUSTOM_SEARCH_ENGINE_URL, "")
+    var customSearchEngineURL by recoveringStringPreference(CUSTOM_SEARCH_ENGINE_URL, "")
     var privateSearchEngineChoice by intPreference(PRIVATE_SEARCH_ENGINE, -1)
     var desktopModeDefault by booleanPreference(DESKTOP_MODE_DEFAULT, false)
     var translationsEnabled by booleanPreference(TRANSLATIONS_ENABLED, true)
@@ -86,7 +112,7 @@ class UserPreferences(appContext: Context) : mozilla.components.support.ktx.andr
     fun hasDesktopModeDefault(): Boolean = preferences.contains(DESKTOP_MODE_DEFAULT)
     var toolbarPosition by intPreference(TOOLBAR_POSITION, ToolbarPosition.BOTTOM.ordinal)
     var homepageType by intPreference(HOMEPAGE_TYPE, HomepageChoice.VIEW.ordinal)
-    var customHomepageUrl by stringPreference(HOMEPAGE_URL, "")
+    var customHomepageUrl by recoveringStringPreference(HOMEPAGE_URL, "")
     
     /**
      * Get the resolved homepage URL based on user preferences.
@@ -98,12 +124,12 @@ class UserPreferences(appContext: Context) : mozilla.components.support.ktx.andr
     var appThemeChoice by intPreference(APP_THEME_CHOICE, ThemeChoice.SYSTEM.ordinal)
     var webThemeChoice by intPreference(WEB_THEME_CHOICE, ThemeChoice.SYSTEM.ordinal)
     var homepageBackgroundChoice by intPreference(HOMEPAGE_BACKGROUND_CHOICE, HomepageBackgroundChoice.NONE.ordinal)
-    var homepageBackgroundUrl by stringPreference(HOMEPAGE_BACKGROUND_URL, "")
+    var homepageBackgroundUrl by recoveringStringPreference(HOMEPAGE_BACKGROUND_URL, "")
     var launchInApp by booleanPreference(LAUNCH_IN_APP, true)
     var customAddonCollection by booleanPreference(CUSTOM_ADDON_BOOL, false)
     var shownCollectionDisclaimer by booleanPreference(SHOWN_ADDON_DISCLAIMER, false)
-    var customAddonCollectionUser by stringPreference(COLLECTION_USER, "")
-    var customAddonCollectionName by stringPreference(COLLECTION_NAME, "")
+    var customAddonCollectionUser by recoveringStringPreference(COLLECTION_USER, "")
+    var customAddonCollectionName by recoveringStringPreference(COLLECTION_NAME, "")
     var autoFontSize by booleanPreference(AUTO_FONT_SIZE, true)
     var fontSizeFactor by floatPreference(FONT_SIZE_FACTOR, 1f)
 
@@ -115,12 +141,12 @@ class UserPreferences(appContext: Context) : mozilla.components.support.ktx.andr
     var niraGroupBarBottom by booleanPreference("nira_group_bar_bottom", false)
     var niraToolbarActionSlotDp by intPreference("nira_toolbar_action_slot_dp", 40)
     var niraAddressMinWidthDp by intPreference("nira_address_min_width_dp", 92)
-    var niraToolbarActionOrder by stringPreference("nira_toolbar_action_order", "")
+    var niraToolbarActionOrder by recoveringStringPreference("nira_toolbar_action_order", "")
     // Separate portrait/landscape settings; legacy action order stays unchanged.
-    var niraToolbarPortraitActionOrder by stringPreference("nira_toolbar_portrait_action_order", "")
-    var niraToolbarLandscapeActionOrder by stringPreference("nira_toolbar_landscape_action_order", "")
-    var niraToolbarPortraitHiddenActions by stringPreference("nira_toolbar_portrait_hidden_actions", "")
-    var niraToolbarLandscapeHiddenActions by stringPreference("nira_toolbar_landscape_hidden_actions", "")
+    var niraToolbarPortraitActionOrder by recoveringStringPreference("nira_toolbar_portrait_action_order", "")
+    var niraToolbarLandscapeActionOrder by recoveringStringPreference("nira_toolbar_landscape_action_order", "")
+    var niraToolbarPortraitHiddenActions by recoveringStringPreference("nira_toolbar_portrait_hidden_actions", "")
+    var niraToolbarLandscapeHiddenActions by recoveringStringPreference("nira_toolbar_landscape_hidden_actions", "")
     var niraToolbarPortraitActionSizeDp by intPreference("nira_toolbar_portrait_action_size_dp", 40)
     var niraToolbarLandscapeActionSizeDp by intPreference("nira_toolbar_landscape_action_size_dp", 40)
     var niraAddressBarHeightDp by intPreference("nira_address_height_dp", 56)
@@ -181,7 +207,7 @@ class UserPreferences(appContext: Context) : mozilla.components.support.ktx.andr
     var httpsOnlyMode by intPreference(HTTPS_ONLY_MODE, HTTPS_ONLY_ALL)
     // DNS over HTTPS: 0=Default, 1=Increased, 2=Max, 3=Off
     var dohMode by intPreference(DOH_MODE, DOH_INCREASED)
-    var dohProviderUrl by stringPreference(DOH_PROVIDER_URL, CLOUDFLARE_DOH_URI)
+    var dohProviderUrl by recoveringStringPreference(DOH_PROVIDER_URL, CLOUDFLARE_DOH_URI)
     var globalPrivacyControl by booleanPreference(GLOBAL_PRIVACY_CONTROL, true)
 
     // Sleeping tabs: 0=Off, 1=Balanced (default), 2=Aggressive
