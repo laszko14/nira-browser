@@ -302,24 +302,101 @@
           const path = base + " " + child;
           if (unique(path)) return path;
         }
-        // A semantic next button is often the last element in its pager.
-        for (const tail of [tag + ":last-of-type", tag + ":last-child"]) {
-          if (unique(base + " " + tail)) return base + " " + tail;
-        }
+        // Positional paths are unsafe: the last item may be "Last", not "Next".
       }
     }
     return null;
   }
+  const backwardPager = /prev(?:ious)?|poprzed|wstecz|cofn|back|first|pierwsz|last|ostatn|login|sign.?up/i;
+  const forwardPager = /next|dalej|nast[eę]pn|load[\s_-]?more|więcej|forward|kolejn|›|»|→/i;
+  // A text "Last" is NEVER equivalent to "Next", even when it shares classes.
+  function pagerHint(el) {
+    return [el.id, typeof el.className === "string" ? el.className : "",
+      el.getAttribute?.("rel"), el.getAttribute?.("aria-label"),
+      el.getAttribute?.("title"), el.getAttribute?.("data-action"),
+      el.innerText, el.textContent]
+      .filter(x => typeof x === "string").map(x => x.slice(0, 90)).join(" ");
+  }
+  function forbiddenPager(el) {
+    return backwardPager.test(pagerHint(el)) ||
+      el.getAttribute?.("aria-disabled") === "true";
+  }
   function safeSamePageAction(el) {
-    const hint = [el.className, el.id, el.getAttribute("aria-label"),
-      el.getAttribute("title"), el.getAttribute("rel"), el.innerText]
-      .filter(value => typeof value === "string").join(" ");
-    return /next|dalej|nast[eę]pn|load.more|więcej|more|pagination|paginac/i.test(hint);
+    const hint = pagerHint(el);
+    return !backwardPager.test(hint) && forwardPager.test(hint);
+  }
+  function numericPage(el) {
+    const raw = [el.getAttribute?.("aria-label"), el.textContent, el.innerText]
+      .filter(x => typeof x === "string").map(x => x.trim()).filter(Boolean);
+    for (const value of raw) {
+      const normalized = value.match(/^(?:page|strona|seite|pagina)\s*(\d{1,4})$/i) ||
+        value.match(/^(\d{1,4})$/);
+      if (normalized) {
+        const page = Number(normalized[1]);
+        if (page >= 1 && page <= 9999) return page;
+      }
+    }
+    return null;
+  }
+  function pagerContainer(el) {
+    let parent = el.parentElement;
+    for (let depth = 0; parent && depth < 6; depth++, parent = parent.parentElement) {
+      const hint = [parent.tagName, parent.id,
+        typeof parent.className === "string" ? parent.className : "",
+        parent.getAttribute?.("role"), parent.getAttribute?.("aria-label"),
+        parent.getAttribute?.("data-testid")]
+        .filter(x => typeof x === "string").join(" ");
+      if (/pagination|pag(e|er|ing)|stron|pages|navigation|nawigac/i.test(hint) &&
+          !backwardPager.test(hint)) {
+        const selector = selectorFor(parent);
+        if (selector && parent.querySelectorAll) return { node:parent, selector };
+      }
+    }
+    return null;
+  }
+  function currentPage(controls) {
+    const marked = controls.filter(el => el.getAttribute?.("aria-current") === "page" ||
+      el.getAttribute?.("aria-selected") === "true" ||
+      el.classList?.contains?.("active") || el.classList?.contains?.("current") ||
+      Array.isArray(el.classList) && (el.classList.includes("active") ||
+        el.classList.includes("current"))).map(numericPage).filter(Number.isInteger);
+    if (marked.length === 1) return marked[0];
+    // URL query is reliable only when the page value is explicitly present.
+    try {
+      const url = new URL(location.href);
+      const values = ["page", "paged", "p"].map(k => url.searchParams.get(k))
+        .filter(v => v != null && /^\d{1,4}$/.test(v));
+      if (values.length === 1) return Number(values[0]);
+    } catch (_) {}
+    return null;
+  }
+  function nextInContainer(container, kind) {
+    const controls = Array.from(container.querySelectorAll(
+      'a[href],button,[role="button"]')).slice(0, 48)
+      .filter(el => visible(el) && !el.disabled && !forbiddenPager(el));
+    const semantic = controls.filter(el => safeSamePageAction(el) &&
+      (kind === "NEXT_LINK" ? el.matches?.("a[href]") :
+        el.matches?.('button,[role="button"],a[href]')));
+    if (semantic.length === 1) return semantic[0];
+    if (semantic.length > 1) return null;
+    const active = currentPage(controls);
+    if (active == null) return null;
+    const next = controls.filter(el => numericPage(el) === active + 1 &&
+      (kind === "NEXT_LINK" ? el.matches?.("a[href]") :
+        el.matches?.('button,[role="button"]')));
+    return next.length === 1 ? next[0] : null;
   }
   function manualNext(node) {
     const el = node.closest('a[href],button,[role="button"]');
     if (!el || !visible(el) || el.disabled ||
-        el.closest('[hidden],[inert],[aria-hidden="true"]')) return null;
+        el.closest('[hidden],[inert],[aria-hidden="true"]') || forbiddenPager(el))
+      return null;
+    const pager = pagerContainer(el);
+    const number = numericPage(el);
+    // Numeric 2 is only "next" if page 1 is demonstrably active.
+    if (number != null && (!pager ||
+        nextInContainer(pager.node, el.tagName === "A" ? "NEXT_LINK" : "LOAD_MORE") !== el))
+      return null;
     let pagination;
     if (el.tagName === "A") {
       try {
@@ -338,15 +415,21 @@
         else return null;
       } catch (_) { return null; }
     } else if (el.tagName === "BUTTON") {
-      // HTML buttons default to type=submit even outside all forms.
-      // Clicking one is safe only if there is NO associated form.
       if (el.form || el.closest("form")) return null;
       pagination = "LOAD_MORE";
     } else if (el.getAttribute("role") === "button" &&
         !el.closest("form") && safeSamePageAction(el)) {
       pagination = "LOAD_MORE";
     } else return null;
-    const selector = paginationSelector(el);
+    if (number == null && !safeSamePageAction(el) && !pager) {
+      // A clearly named standalone button can still be selected through its
+      // explicit, user-confirmed selector; ambiguous pager links cannot.
+      if (el.tagName !== "BUTTON") return null;
+    }
+    // Pager root is reusable as page numbers rotate (2,3,4...), unlike a
+    // locator for one specific numbered link.
+    const selector = number != null ? pager?.selector :
+      paginationSelector(el) || pager?.selector;
     return selector ? { selector, pagination } : null;
   }
   function cancelPicker() {
@@ -506,7 +589,8 @@
       if (kind !== "cards") {
         let found;
         try { found = document.querySelectorAll(selector); } catch (_) { return null; }
-        if (found.length !== 1 || found[0] !== element) return null;
+        if (found.length !== 1 || (found[0] !== element &&
+            !(kind === "next" && found[0].contains?.(element)))) return null;
       } else if (!element) return null;
       return { element, selector, formSafe, pagination, kind };
     }
@@ -555,7 +639,8 @@
       try {
         const found = document.querySelectorAll(candidate.selector);
         if (kind === "cards" ? !found.length : found.length !== 1 ||
-            found[0] !== candidate.element) {
+            (found[0] !== candidate.element &&
+             !(kind === "next" && found[0].contains?.(candidate.element)))) {
           feedback.textContent = "Lokator przestał pasować. Wskaż element ponownie.";
           return;
         }
