@@ -215,4 +215,62 @@ class VideoSearchPaginationCollectorTest {
             assertFalse(snap.toString().contains("films.example"))
         }
     }
+
+    @Test fun acceptsOnlyVerifiedSameDocumentReplacementWithNewFilmUrls() {
+        val c = VideoSearchPaginationCollector(site, 200)
+        assertTrue(c.beginDocument(site))
+        c.appendWindow(0, window(0, count = 2, more = false))
+        val old = c.snapshot(VideoSearchPaginationStop.STALLED)
+        assertTrue(c.recordAction())
+        c.armSameDocumentContinuation()
+        try {
+            c.appendVerifiedReplacement(window(0, count = 2, more = false))
+            fail("Old cards are not evidence of the next page")
+        } catch (_: IllegalArgumentException) {}
+        assertEquals(old.films, c.snapshot(VideoSearchPaginationStop.STALLED).films)
+        assertEquals(2, c.nextCardIndex)
+        val newCards = window(0, count = 2, more = false,
+            films = listOf(film(0, "third"), film(1, "fourth")))
+        assertEquals(2, c.appendVerifiedReplacement(newCards))
+        assertEquals(4, c.uniqueCount)
+        assertEquals(2, c.nextCardIndex)
+        assertEquals(1, c.visitedPages)
+        assertEquals(1, c.pageActions)
+        assertEquals(4, c.snapshot(VideoSearchPaginationStop.STALLED).films.size)
+    }
+
+    @Test fun replacementRejectsCrossOriginAndInvalidIndexesAtomically() {
+        val c = VideoSearchPaginationCollector(site, 200)
+        c.beginDocument(site)
+        c.appendWindow(0, window(0, count = 3, more = false))
+        c.recordAction()
+        val old = c.snapshot(VideoSearchPaginationStop.STALLED)
+        val offsite = VideoSearchExtractedFilm("https://other.example/watch/1",
+            "Other", null, null, VideoResultTitleSource.CARD,
+            VideoResultImageSource.UNKNOWN, 0)
+        for (invalid in listOf(
+            window(0, count = 1, more = false, films = listOf(offsite)),
+            window(0, count = 1, more = false, films = listOf(film(4, "new")))
+        )) {
+            try {
+                c.appendVerifiedReplacement(invalid)
+                fail("Invalid replacement accepted")
+            } catch (_: IllegalArgumentException) {}
+            assertEquals(old.films, c.snapshot(VideoSearchPaginationStop.STALLED).films)
+            assertEquals(3, c.nextCardIndex)
+        }
+    }
+
+    @Test fun replacementRequiresUserPaginationAction() {
+        val c = VideoSearchPaginationCollector(site, 200)
+        c.beginDocument(site)
+        c.appendWindow(0, window(0, count = 1, more = false))
+        try {
+            c.appendVerifiedReplacement(window(0, count = 1, more = false,
+                films = listOf(film(0, "new"))))
+            fail("No explicit pagination action")
+        } catch (_: IllegalArgumentException) {}
+        assertEquals(1, c.uniqueCount)
+    }
+
 }
