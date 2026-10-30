@@ -29,6 +29,7 @@ internal class VideoSearchPrivateMultiPlan private constructor(
                 it.enabled && it.id in settings.selectedSiteIds
             }.sortedWith(compareBy<VideoSearchSite>({ it.position }, { it.createdAtMs }, { it.id }))
             require(selected.isNotEmpty()) { "No selected private sites" }
+            selected.forEach { VideoSearchResultBudgets.requireSiteLimit(it.resultLimit) }
             return VideoSearchPrivateMultiPlan(owner, query, selected.toList())
         }
     }
