@@ -1,3 +1,15 @@
+# Zavro Clean V3.2 — ETAP 1/5 — Picker V2 — 2026-10-30
+
+- **Zakres:** etap 1/5 planu. Gałąź `feat/zavro-clean-picker-v2-stage1-20261030` oparta na `042499e7b6e859f6d0350150b55296e5ff4aa452`. Następne `Dalej` = 2/5, paginacja V2.
+- **CI:** nowy workflow `.github/workflows/zavro-picker-v2-tests-only.yml` uruchamia Node JS, pełne JVM/Robolectric i lint, nie buduje ani nie podpisuje APK. Wcześniejszy workflow podpisujący v1194 nie jest uruchamiany przez push na tej gałęzi.
+- **Picker V2:** `content.js` ma lokatory oparte o stabilne ID, name, data/aria, klasy i unikalne kontenery. Dodano `searchContext` i ostrożne `manualSubmit` dla bezpiecznego GET/form, `role=search` i przycisków `role=button`. `runSearch` weryfikuje jeden rzeczywisty element dopasowany do zapisanego lokatora. Dla SVG i elementów zagnieżdżonych wybiera nadrzędną kontrolkę. Bez wstrzykiwania JS z lokatorów.
+- **Interfejs:** zachowano przesuwany panel 240px, dodano podświetlenie bez przechwytywania dotyku, diagnostykę zamiast ogólnego komunikatu, opcjonalną alternatywę `Inny` i osobne `Zatwierdź`. Samo wskazanie nie wykonuje kliknięcia witryny i nie zapisuje konfiguracji. Protokół `picked`, Room i dotychczasowy JSON pozostają zgodne.
+- **Testy:** przystosowano `video-search-next-picker.test.cjs`, `video-search-picker-drag.test.cjs`, `video-search-p13-two-page-picker.test.cjs`; dodano `video-search-picker-v2.test.cjs` (SVG, role button, login, unsafe input, brak akcji strony). Pierwszy CI 40976832264 miał 286/287 JS PASS, błąd fixture przeciągania poprawiono w `893cc29bf0ac9e0362d6653026a91f3934fc48c5`.
+- **CI_PENDING dla finalnego HEAD.** Ostateczny stan CI sprawdzić dla ostatniego SHA; nie deklarować PASS wcześniej. Prawdziwe GeckoView/Nothing Phone (1) nie zostały przetestowane. Bez merge i bez APK.
+- **Kolejność dalsza:** 2/5 paginacja i dynamiczny DOM; 3/5 limity 1–10000/Room; 4/5 prywatność i prezentacja; 5/5 integracja, wydajność i regresja.
+
+---
+
 - **P16 CI correction:** pierwszy run [40956334669](https://github.com/laszko14/nira-browser/actions/runs/40956334669) zakończył Kotlin targeted/full JVM PASS, ale 7 Node regressions wykazało, że starszy debug workflow `apk-release.yml` wciąż walidował `1191/alpha96` mimo nowego Gradle `1192/alpha97`. Zaktualizowano debug job EXPECTED_VERSION_CODE=1192, EXPECTED_VERSION_NAME=0.5.22-alpha97-clean i nazwę artefaktu `zavro-arm64-update-apk-v1192`; release tag job pozostaje bez zmian. Ponownie uruchomić pełne P16 CI + signed APK; czerwony przebieg nie zaliczony.
 
 # P16/16 — UI-05 — pusty stan witryn, pełna regresja i podpisany APK — 2026-10-29
