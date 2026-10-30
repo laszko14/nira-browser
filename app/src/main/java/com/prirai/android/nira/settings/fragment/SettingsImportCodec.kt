@@ -258,7 +258,9 @@ internal object SettingsImportCodec {
                 ?: if (version == 0) typeOf(existing[migratedKey]) else null
             result[migratedKey] = decodeValue(root.get(originalKey), expected, version == 0)
         }
-        require(result.isNotEmpty()) { "Backup contains no preferences" }
+        // A v1 export of untouched/default-only settings may legitimately
+        // contain metadata but zero stored preferences.
+        if (version == 0) require(result.isNotEmpty()) { "Legacy backup contains no preferences" }
         return result
     }
 
