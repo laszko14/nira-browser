@@ -97,14 +97,15 @@ internal object VideoSearchResultsPresenter {
         val unique = films.sortedWith(original).distinctBy {
             it.siteId to it.filmPageUrl
         }
+        val firstNames = unique.asSequence().filter { it.siteName.isNotBlank() }
+            .distinctBy { it.siteId }.associate { it.siteId to it.siteName }
         val sources = run.siteIds.mapNotNull { id ->
             val task = tasksBySite[id] ?: return@mapNotNull null
-            val name = unique.firstOrNull { it.siteId == id }?.siteName
-                ?: siteNames[id] ?: "Witryna usunięta"
+            val name = firstNames[id] ?: siteNames[id] ?: "Witryna usunięta"
             VideoSearchResultsSource(
                 id, name, task.status, task.uniqueResults,
                 task.resultLimit, task.visitedPages, task.completionReason,
-                task.issue.takeIf { it == VideoSearchSiteIssue.RESULT_BUDGET_REACHED }
+                task.issue
             )
         }
         val visible = unique.filter {
@@ -177,9 +178,16 @@ internal object VideoSearchResultsPresenter {
         VideoSearchSiteState.NEEDS_ATTENTION -> "Wymaga uwagi"
     }
 
-    fun budgetLabel(issue: VideoSearchSiteIssue?): String? =
-        if (issue == VideoSearchSiteIssue.RESULT_BUDGET_REACHED)
-            "Osiągnięto łączny limit wybranych witryn" else null
+    fun budgetLabel(issue: VideoSearchSiteIssue?): String? = when (issue) {
+        VideoSearchSiteIssue.RESULT_BUDGET_REACHED -> "Osiągnięto limit zasobów wyników"
+        VideoSearchSiteIssue.LOGIN_REQUIRED -> "Wymagane logowanie"
+        VideoSearchSiteIssue.CAPTCHA_REQUIRED -> "Weryfikacja CAPTCHA"
+        VideoSearchSiteIssue.NETWORK_ERROR -> "Błąd połączenia"
+        VideoSearchSiteIssue.TIMEOUT -> "Osiągnięto limit czasu lub zasobów"
+        VideoSearchSiteIssue.CONFIGURATION_CHANGED -> "Konfiguracja witryny zmieniona"
+        VideoSearchSiteIssue.OTHER -> "Wyszukiwanie przerwane lub nieobsługiwane"
+        null -> null
+    }
 
     fun completionLabel(reason: VideoSearchCompletionReason?): String? = when (reason) {
         VideoSearchCompletionReason.LIMIT_REACHED -> "Osiągnięto limit witryny"
