@@ -1261,8 +1261,22 @@
     try { matches = document.querySelectorAll(selector); } catch (_) { return "unsafe"; }
     if (matches.length === 0) return terminal();
     if (matches.length !== 1) return "unsafe";
-    const target = matches[0];
-    if (blocked.test((target.id || "") + " " + (target.className || "") + " " +
+    let target = matches[0], resolvedNumeric = false;
+    if (!target.matches?.('a[href],button,[role="button"]')) {
+      // Reusable pager-root configuration: resolve a DIFFERENT next numeral
+      // on every page. Never click the container or guess the "Last" control.
+      const next = nextInContainer(target, kind);
+      if (!next) return terminal(); // no proof of end => pending
+      target = next;
+      resolvedNumeric = numericPage(target) != null;
+    } else if (numericPage(target) != null) {
+      // A stale old selector pointing to "2" on page 2 is unsafe.
+      const pager = pagerContainer(target);
+      if (!pager || nextInContainer(pager.node, kind) !== target) return "unsafe";
+      resolvedNumeric = true;
+    }
+    if (forbiddenPager(target) ||
+        blocked.test((target.id || "") + " " + (target.className || "") + " " +
           (target.getAttribute("aria-label") || ""))) return "unsafe";
     if (!visible(target) || target.disabled ||
         target.getAttribute("aria-disabled") === "true" || loading())
@@ -1284,7 +1298,7 @@
     } else {
       const button = target.matches("button") && !target.form;
       const roleButton = target.getAttribute("role") === "button" &&
-        safeSamePageAction(target);
+        (safeSamePageAction(target) || resolvedNumeric);
       const hashLink = target.matches("a[href]") &&
         (target.getAttribute("href") || "").startsWith("#") &&
         safeSamePageAction(target) && !target.hasAttribute("download") &&
