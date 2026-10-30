@@ -52,49 +52,50 @@ object FaviconLoader {
      *
      * Automatically saves to cache for future fast access
      */
-    suspend fun loadFavicon(context: Context, url: String): Bitmap? {
-        return withContext(Dispatchers.IO) {
-            try {
-                val cache = FaviconCache.getInstance(context)
+    suspend fun loadFavicon(
+        context: Context,
+        url: String,
+        isPrivate: Boolean = false,
+    ): Bitmap? = loadFaviconWithSource(context, url, isPrivate) { request ->
+        context.components.icons.loadIcon(request).await().bitmap
+    }
 
-                cache.getFaviconFromMemory(url)?.let {
-                    return@withContext it
-                }
+    /**
+     * Injectable upstream request for test isolation. Private requests never
+     * read or write our domain-based memory/disk cache; BrowserIcons receives
+     * isPrivate=true to enforce its own non-persistent loading behavior.
+     * Even a late result after closing the tab cannot reach persistent cache.
+     */
+    internal suspend fun loadFaviconWithSource(
+        context: Context,
+        url: String,
+        isPrivate: Boolean,
+        upstream: suspend (IconRequest) -> Bitmap?,
+    ): Bitmap? = withContext(Dispatchers.IO) {
+        try {
+            val cache = if (isPrivate) null else FaviconCache.getInstance(context)
+            cache?.getFaviconFromMemory(url)?.let { return@withContext it }
+            cache?.loadFavicon(url)?.let { return@withContext it }
 
-                cache.loadFavicon(url)?.let {
-                    return@withContext it
-                }
-
-                val iconRequest = IconRequest(
-                    url = url,
-                    size = IconRequest.Size.DEFAULT,
-                    resources = listOf(
-                        IconRequest.Resource(
-                            url = url,
-                            type = IconRequest.Resource.Type.FAVICON
-                        ),
-                        IconRequest.Resource(
-                            url = url,
-                            type = IconRequest.Resource.Type.APPLE_TOUCH_ICON
-                        ),
-                        IconRequest.Resource(
-                            url = url,
-                            type = IconRequest.Resource.Type.IMAGE_SRC
-                        )
-                    )
+            val iconRequest = IconRequest(
+                url = url,
+                isPrivate = isPrivate,
+                size = IconRequest.Size.DEFAULT,
+                resources = listOf(
+                    IconRequest.Resource(url = url, type = IconRequest.Resource.Type.FAVICON),
+                    IconRequest.Resource(url = url, type = IconRequest.Resource.Type.APPLE_TOUCH_ICON),
+                    IconRequest.Resource(url = url, type = IconRequest.Resource.Type.IMAGE_SRC)
                 )
-
-                val icon = context.components.icons.loadIcon(iconRequest).await()
-                val bitmap = icon.bitmap
-                // BrowserIcons always returns a bitmap (may be a generated
-                // placeholder). Cache it so subsequent lookups hit the fast
-                // path in FaviconCache.
-                cache.saveFaviconSync(url, bitmap)
-                bitmap
-            } catch (e: Exception) {
-                logger.warn("Favicon load failed for $url", e)
-                null
+            )
+            val bitmap = upstream(iconRequest) ?: return@withContext null
+            if (!isPrivate) {
+                cache?.saveFaviconSync(url, bitmap)
             }
+            bitmap
+        } catch (e: Exception) {
+            // Error messages can include private URLs; log only error class.
+            logger.warn("Favicon fallback failed (private=$isPrivate): ${e.javaClass.simpleName}")
+            null
         }
     }
 
@@ -139,7 +140,12 @@ object FaviconLoader {
      * }
      * ```
      */
-    fun getFromMemorySync(context: Context, url: String): Bitmap? {
+    fun getFromMemorySync(
+        context: Context,
+        url: String,
+        isPrivate: Boolean = false,
+    ): Bitmap? {
+        if (isPrivate) return null
         return FaviconCache.getInstance(context).getFaviconFromMemory(url)
     }
 
