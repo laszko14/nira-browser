@@ -87,6 +87,7 @@ open class BrowserActivity : LocaleAwareAppCompatActivity(), ComponentCallbacks2
     private var originalContext: Context? = null
 
     private var lastToolbarPosition: Int = 0
+    private var browserContentInstalled = false
 
     protected open fun getIntentSessionId(intent: SafeIntent): String? = null
 
@@ -152,6 +153,7 @@ open class BrowserActivity : LocaleAwareAppCompatActivity(), ComponentCallbacks2
         val view = binding.root
 
         setContentView(view)
+        browserContentInstalled = true
 
         lastToolbarPosition = prefs.toolbarPosition
 
@@ -301,33 +303,21 @@ open class BrowserActivity : LocaleAwareAppCompatActivity(), ComponentCallbacks2
     }
 
     /**
-     * Detect task-removal shutdown and tear everything down so the
-     * process can actually exit.
+     * On explicit root Activity finish, first tear down the media service and
+     * then request a final acknowledged session save in Application scope.
      *
-     * `isFinishing && isTaskRoot` triggers in exactly two cases:
-     *   - user swipes Nira from recents (whole task is destroyed)
-     *   - user hits the back-key on the root browser activity until
-     *     it finishes
+     * The previous unconditional killProcess() could race Mozilla AutoSave's
+     * 2-second delay and lose the most recent tab changes. Neither Activity's
+     * lifecycleScope (cancelled during destroy) nor Main-thread disk IO are
+     * suitable for this barrier. BrowserApp performs the write on IO and may
+     * terminate this process only after SessionStorage.save() returns true.
      *
-     * `isChangingConfigurations` is excluded so a rotation does not
-     * trip the shutdown. In those cases we:
-     *   1. Stop the retained `MediaSessionFeature`. This cancels the
-     *      store-observing scope so no further `showMediaStatus`
-     *      calls can re-bind the service.
-     *   2. Explicitly `stopService(MediaSessionService)` so AC's
-     *      bound-service connection is torn down. Without this the
-     *      service lingers because AC's `handleNoMedia` path only
-     *      triggers when `findActiveMediaTab()` returns null, which
-     *      doesn't happen on task-removal (the tab is still in the
-     *      store, just no longer visible).
-     *   3. `Process.killProcess(myPid())` as a final defensive step.
-     *      Without this the Gecko child services (tab_*, gpu_*,
-     *      utility_*, crashhelper) keep the UID group alive via
-     *      their own bindings. Explicitly killing our pid cascades
-     *      through those children.
+     * First-launch onboarding, rotation, PiP, backgrounding and a non-root
+     * Activity must never trigger forced termination.
      */
     override fun onDestroy() {
-        val taskGone = isFinishing && isTaskRoot && !isChangingConfigurations
+        val taskGone = browserContentInstalled && isFinishing && isTaskRoot &&
+            !isChangingConfigurations
         super.onDestroy()
         if (!taskGone) return
 
@@ -344,8 +334,9 @@ open class BrowserActivity : LocaleAwareAppCompatActivity(), ComponentCallbacks2
             android.util.Log.w(TAG, "stopService(MediaSessionService) failed", t)
         }
 
-        android.util.Log.i(TAG, "Task removed; killing process to force Gecko child-service teardown")
-        android.os.Process.killProcess(android.os.Process.myPid())
+        // The Application-owned task outlives onDestroy; it also waits for
+        // restoreComplete, then drains pending BrowserStore actions before saving.
+        (application as? BrowserApp)?.requestTaskExitSessionSave()
     }
 
     override fun onTrimMemory(level: Int) {
