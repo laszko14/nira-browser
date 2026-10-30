@@ -64,6 +64,9 @@ class VideoSearchV32IntegrationTest {
                 assertTrue(repo.setSiteLimit(owner, second.id, 100, nowMs = 6))
                 assertTrue(repo.setSiteSelected(owner, first.id, true))
                 assertTrue(repo.setSiteSelected(owner, second.id, true))
+                // Two controlled worker leases are required to resolve both
+                // sites before finalizing the same journal transaction.
+                repo.setParallelism(owner, VideoSearchParallelism.TWO)
                 val plan = repo.prepareDispatch(owner, "film")
                 assertEquals(600, VideoSearchResultBudgets.aggregateLimit(
                     plan.selectedSites.map { it.resultLimit }))
