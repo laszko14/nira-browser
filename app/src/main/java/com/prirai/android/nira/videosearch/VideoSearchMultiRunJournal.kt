@@ -61,6 +61,9 @@ internal class VideoSearchMultiRunJournal(
         val old = tasks[site.id] ?: throw IllegalArgumentException("Unknown site")
         require(site.scope == plan.scope)
         require(outcome !in setOf(VideoSearchQueueStatus.LEASED, VideoSearchQueueStatus.QUEUED))
+        require(snapshot == null || snapshot.films.size >= old.uniqueResults) {
+            "Regressive terminal checkpoint"
+        }
         val wasBudgetStopped = old.issue == VideoSearchSiteIssue.RESULT_BUDGET_REACHED
         val completion = if (wasBudgetStopped) null else when (snapshot?.reason) {
             VideoSearchPaginationStop.LIMIT_REACHED ->
@@ -124,6 +127,9 @@ internal class VideoSearchMultiRunJournal(
         check(initialized && !closed)
         require(site.scope == plan.scope && site.id in tasks)
         val prior = tasks.getValue(site.id)
+        require(snapshot.films.size >= prior.uniqueResults) {
+            "Regressive progress checkpoint"
+        }
         if (prior.status !in setOf(VideoSearchSiteState.QUEUED,
                 VideoSearchSiteState.ACTIVE) || snapshot.films.isEmpty()) return@withLock
         val stamp = maxOf(now(), run.updatedAtMs + 1)
