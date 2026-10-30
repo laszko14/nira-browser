@@ -21,7 +21,7 @@ internal data class VideoSearchLaunchSite(
     init {
         require(id.isNotBlank() && displayName.isNotBlank())
         VideoSearchIntegrity.requirePageUrl(siteUrl)
-        require(resultLimit in 1..200)
+        VideoSearchResultBudgets.requireSiteLimit(resultLimit)
     }
     override fun toString(): String = "VideoSearchLaunchSite(redacted)"
 }
@@ -96,7 +96,7 @@ internal class VideoSearchDispatchPlan private constructor(
                         displayName = it.displayName,
                         configuration = it.configuration,
                         configurationState = it.configurationState,
-                        resultLimit = it.resultLimit.coerceIn(1, 200),
+                        resultLimit = VideoSearchResultBudgets.requireSiteLimit(it.resultLimit),
                         updatedAtMs = it.updatedAtMs,
                     )
                 }.toList()
