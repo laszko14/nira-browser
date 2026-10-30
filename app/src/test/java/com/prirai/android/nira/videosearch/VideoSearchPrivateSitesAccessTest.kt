@@ -149,4 +149,19 @@ class VideoSearchPrivateSitesAccessTest {
         assertEquals("private", owner.contextId)
         assertEquals(1, f.store.sites(owner).size)
     }
+
+    @Test fun privateLimitCanBeChangedOnlyForCurrentAuthorizedRamSite() {
+        val f = Fixture()
+        f.access.addSite(f.tab, "default", "https://example.org")
+        val site = f.access.snapshot(f.tab, "default")!!.sites.single()
+        assertEquals(true, f.access.setResultLimit(f.tab, "default", site.id, 10_000))
+        assertEquals(10_000, f.access.snapshot(f.tab, "default")!!.sites.single().resultLimit)
+        assertEquals(false, f.access.setResultLimit(f.tab, "default", site.id, 10_001))
+        assertEquals(false, f.access.setResultLimit(f.tab, "default", site.id, 0))
+        assertNull(f.access.setResultLimit(f.tab, "foreign", site.id, 500))
+        assertEquals(10_000, f.access.snapshot(f.tab, "default")!!.sites.single().resultLimit)
+        f.registry.reconcile(emptyList(), "default")
+        assertNull(f.access.setResultLimit(f.tab, "default", site.id, 500))
+    }
+
 }
