@@ -26,12 +26,16 @@ internal object VideoSearchManualStages {
             return null
         if (next != null && (next.pickKind != "next" ||
             !VideoSearchBridgeProtocol.validSelector(next.selector) ||
+            (next.pagination == VideoSearchPagination.INFINITE_SCROLL &&
+                next.selector != "html") ||
             next.pagination !in setOf(VideoSearchPagination.NEXT_LINK,
-                VideoSearchPagination.LOAD_MORE))) return null
+                VideoSearchPagination.LOAD_MORE, VideoSearchPagination.INFINITE_SCROLL))) return null
         return searchControls.copy(
             resultsCardSelector = cardSelector,
             pagination = next?.pagination ?: VideoSearchPagination.NONE,
-            nextPageSelector = next?.selector,
+            // "html" is an explicit transport sentinel, not a clickable locator.
+            nextPageSelector = if (next?.pagination == VideoSearchPagination.INFINITE_SCROLL)
+                null else next?.selector,
         )
     }
 }
