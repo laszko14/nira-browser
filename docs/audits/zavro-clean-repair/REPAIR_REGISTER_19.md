@@ -194,7 +194,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-056 | import nadpisuje zakładki przed walidacją | CONFIRMED | P1 | 5/19 | IMPLEMENTED — stage 5, CI_PENDING |
 | ZC-AUD-057 | resume nie wiąże części z wersją zasobu | CONFIRMED | P2 | 18/19 | DO_RECHECK |
 | ZC-AUD-058 | nowy intent PWA ginie przed utworzeniem fragmentu | CONFIRMED | P2 | 9/19 | DO_RECHECK |
-| ZC-AUD-059 | nieatomowe mutacje listy profili | CONFIRMED | P2 | 8A/19 | IMPLEMENTED — stage 8A, CI_PENDING |
+| ZC-AUD-059 | nieatomowe mutacje listy profili | CONFIRMED | P2 | 8A/19 | FIXED — stage 8A, JVM + CI PASS; device NOT_TESTED |
 | ZC-AUD-060 | nieaktualny scenariusz TestLabDeviceTest | CONFIRMED | P2 | 7/19 | IMPLEMENTED — stage 7, Android test compilation + CI PASS; device execution NOT_TESTED |
 
 ## Kryteria przejścia i sposób oznaczania stanów
@@ -286,3 +286,9 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - Regresje: 48 jednoczesnych create z wielu instancji i odczyt po ponownym otwarciu managera; równoległe create/update/delete bez gubienia innych ID; wymuszona odmowa `SharedPreferences.Editor.commit()`; ochrona default/fallback aktywnego profilu; delete nieznanego ID bez zapisu. Realny restart procesu, awaria dysku i Android 15: NOT_TESTED.
 - **Pozostałe do 8B/19:** ZC-AUD-003 (stare zadanie polityki dodatków), 023 (canonical default po selection), 024 (NewTab/private), 025 (polityka sugestii). Nie oznaczono ich jako naprawionych w 8A.
 - Brak merge do main, brak APK, bez zmiany podpisu czy danych użytkownika.
+
+### Etap 8A — wyniki i granice CI
+
+- [GitHub Actions 41136992563](https://github.com/laszko14/nira-browser/actions/runs/41136992563): `completed/success` na SHA `95ebf74188c4ed5a8e4a8b816c749892a8174054`. Pełny Kotlin/JVM/Robolectric PASS, JavaScript PASS, Android lint SUCCESS; bez APK.
+- Dwa wcześniejsze przebiegi FAILED dotyczyły wyłącznie nowo dodanych testów: niedozwolonego generycznego wywołania RuntimeEnvironment.getApplication oraz asynchronicznej polityki BrowserApp wywołanej na atrapowym Application. Pięć testów rejestru na drugim przebiegu PASS, ale wyjątek tła zatruł obcy GroupPersistenceTest. Końcowy zestaw izoluje efekt uboczny i ma zielone pełne CI.
+- Końcowe potwierdzenie CI dla tego *dokumentacyjnego* commita następuje po zapisie, aby nie deklarować sukcesu dla innego SHA.
