@@ -124,7 +124,10 @@ class SettingsImportCodecTest {
 
     @Test fun validBackupOnlyChangesItsOwnKeysAndKeepsUnknownStringTypes() {
         val p = prefs()
-        assertTrue(p.edit().putString("unrelated", "stay").commit())
+        assertTrue(p.edit()
+            .putString("unrelated", "stay")
+            .putInt("new_unknown", 5) // already corrupted by an older importer
+            .commit())
         val backup = JSONObject().put("_version", 1)
             .put(UserPreferences.COLLECTION_USER, "true")
             .put("new_unknown", "0005").toString()
