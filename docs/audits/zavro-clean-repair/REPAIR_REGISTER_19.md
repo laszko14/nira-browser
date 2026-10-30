@@ -187,7 +187,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-049 | różny znak flingu w toolbarze WWW i Home | CONFIRMED | P2 | 13/19 | DO_RECHECK |
 | ZC-AUD-050 | migracja profilu przenosi stan odtwarzania starego silnika | CONFIRMED | P2 | 10/19 | DO_RECHECK |
 | ZC-AUD-051 | zmiana filmu w trasie hash zachowuje stare media | CONFIRMED | P2 | 15/19 | DO_RECHECK |
-| ZC-AUD-052 | brak rejestracji okna filmów otwartego w PREPARING | CONFIRMED | P2 | 7/19 | IMPLEMENTED — stage 7, CI_PENDING |
+| ZC-AUD-052 | brak rejestracji okna filmów otwartego w PREPARING | CONFIRMED | P2 | 7/19 | FIXED — stage 7, JVM + CI PASS; device frames NOT_TESTED |
 | ZC-AUD-053 | parametry uwierzytelniania w diagnostyce Sync | CONFIRMED | P2 | 6/19 | DO_RECHECK |
 | ZC-AUD-054 | trwały cache favicon z prywatnej karty | CONFIRMED | P2 | 6/19 | DO_RECHECK |
 | ZC-AUD-055 | probe pobierania nie respektuje anulowania | CONFIRMED | P2 | 18/19 | DO_RECHECK |
@@ -195,7 +195,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-057 | resume nie wiąże części z wersją zasobu | CONFIRMED | P2 | 18/19 | DO_RECHECK |
 | ZC-AUD-058 | nowy intent PWA ginie przed utworzeniem fragmentu | CONFIRMED | P2 | 9/19 | DO_RECHECK |
 | ZC-AUD-059 | nieatomowe mutacje listy profili | CONFIRMED | P2 | 8/19 | DO_RECHECK |
-| ZC-AUD-060 | nieaktualny scenariusz TestLabDeviceTest | CONFIRMED | P2 | 7/19 | IMPLEMENTED — stage 7, CI_PENDING |
+| ZC-AUD-060 | nieaktualny scenariusz TestLabDeviceTest | CONFIRMED | P2 | 7/19 | IMPLEMENTED — stage 7, Android test compilation + CI PASS; device execution NOT_TESTED |
 
 ## Kryteria przejścia i sposób oznaczania stanów
 
@@ -270,3 +270,10 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - **060 STILL_PRESENT:** `TestLabDeviceTest` iterował 60-sekundowe przyciski starych trybów i wymagał `NiraSideTabs` DialogFragment. Bieżący UI udostępnia jeden `FULL_AUDIT` 120 s i osadzone `NiraEmbeddedSideTabs` / `NiraEmbeddedSideBookmarks`. Nowy scenariusz instrumentacji: realny start UI i 120 s, oba panele przez gesty i ich zamknięcie, obrót, kontrola pokrycia Window vs Gecko, aktualne versionCode/versionName odczytane z pakietu, PARTIAL po wcześniejszym stop oraz eksport bez nazw/ID fixture. Nie zakłada historycznego wersjonowania emulatora.
 - Workflow regresji etapu 7 uruchamia pełne JVM/Robolectric, Node JavaScript oraz Android lint **bez assemble, APK i podpisu**. Test urządzeniowy jest zaktualizowany, lecz jego rzeczywiste wykonanie, klatki JankStats arkusza i fizyczny Android 15 są **NOT_TESTED** dopóki nie zostanie jawnie dozwolona kompilacja APK wymaganych przez instrumentację. Sam zielony JVM/lint nie dowodzi pomiaru klatek arkusza.
 - Bez zmian profili, zakładek, odtwarzania, wyszukiwarki filmów, podpisu, pakietu, danych użytkownika czy merge do main. Następny etap po zielonym CI: **8/19**.
+
+### Weryfikacja etapu 7 — checkpoint CI
+
+- Run [41133086777](https://github.com/laszko14/nira-browser/actions/runs/41133086777), `completed/success` na SHA `cb665e038c27d74b05d50537fb826783da810734`: pełny Kotlin/JVM/Robolectric PASS, kompilacja źródeł instrumentacji Android PASS, pełny Node.js JavaScript PASS, Android lint SUCCESS. Żaden z tych kroków nie buduje APK.
+- ZC-AUD-052: strukturalna regresja chroni bezwarunkową rejestrację dialog.Window, regresje Robolectric chronią cykl życia na granicach PREPARING/RUNNING/stop; to nie dowodzi prawdziwych klatek JankStats na Android 15.
+- ZC-AUD-060: scenariusz i jego źródła przeszły kompilację instrumentacji; **sam test na urządzeniu nie został wykonany** z powodu zakazu budowania APK bez polecenia `Kompiluj`. Nie deklarować urządzeniowego PASS.
+- Ten checkpoint dokumentacji został dopisany po przebiegu 41133086777; oddzielne CI dla aktualizowanego końcowego SHA pozostaje obowiązkowe i jest weryfikowane po push.
