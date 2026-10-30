@@ -48,6 +48,8 @@ class BookmarkViewDialogLifecycleTest {
         scope.track(dialog) { cleaned++ }
         dialog.show()
         dialog.dismiss()
+        // Android posts Dialog.onDismiss to the main looper; flush it before asserting.
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
         assertEquals(0, scope.openDialogCount)
         scope.close()
         assertEquals(1, cleaned)
