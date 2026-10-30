@@ -18,8 +18,9 @@ internal data class VideoSearchPaginationSnapshot(
     val reason: VideoSearchPaginationStop,
 ) {
     init {
-        require(films.size <= 200 && visitedPages in 1..12 &&
-            scannedCards in 0..3840 && pageActions in 0..20)
+        require(films.size <= VideoSearchResultBudgets.MAX_SITE_RESULTS &&
+            visitedPages in 1..1_000 && scannedCards in 0..200_000 &&
+            pageActions in 0..1_010)
         require(films.map { it.filmPageUrl }.distinct().size == films.size)
     }
     override fun toString(): String = "VideoSearchPaginationSnapshot(redacted)"
@@ -34,7 +35,11 @@ internal class VideoSearchPaginationCollector(
     siteUrl: String,
     requestedLimit: Int,
 ) {
-    val limit = requestedLimit.coerceIn(1, 200)
+    val limit = VideoSearchResultBudgets.requireSiteLimit(requestedLimit)
+    private val maxCards = VideoSearchResultBudgets.documentCards(limit)
+    private val maxPages = VideoSearchResultBudgets.pageLimit(limit)
+    private val maxActions = VideoSearchResultBudgets.actionLimit(limit)
+    private val maxScanned = VideoSearchResultBudgets.scanLimit(limit)
     private val source = siteUrl
     private val byUrl = LinkedHashMap<String, VideoSearchExtractedFilm>()
     private val visited = LinkedHashSet<String>()
@@ -49,14 +54,15 @@ internal class VideoSearchPaginationCollector(
     val uniqueCount: Int get() = byUrl.size
     fun containsFilmUrl(url: String): Boolean = byUrl.containsKey(url)
     val reachedLimit: Boolean get() = uniqueCount >= limit
-    val exhaustedCardBudget: Boolean get() = cursor >= 320
-    val shouldReadCardWindow: Boolean get() = cursor < 320 && moreCards && !reachedLimit
-    val isAtActionLimit: Boolean get() = actions >= 20
-    val isAtDocumentLimit: Boolean get() = visitedPages >= 12
+    val exhaustedCardBudget: Boolean get() = cursor >= maxCards || scanned >= maxScanned
+    val shouldReadCardWindow: Boolean get() = cursor < maxCards &&
+        scanned < maxScanned && moreCards && !reachedLimit
+    val isAtActionLimit: Boolean get() = actions >= maxActions
+    val isAtDocumentLimit: Boolean get() = visitedPages >= maxPages
 
     fun beginDocument(url: String): Boolean {
         if (!VideoSearchBridgeProtocol.sameOrigin(source, url) ||
-            url in visited || visited.size >= 12) return false
+            url in visited || visited.size >= maxPages) return false
         visited.add(url)
         cursor = 0
         moreCards = true
@@ -66,7 +72,7 @@ internal class VideoSearchPaginationCollector(
     /** Returns number of newly discovered unique film URLs. */
     fun appendWindow(startIndex: Int, batch: VideoSearchExtractedPage): Int {
         require(visited.isNotEmpty() && shouldReadCardWindow)
-        require(startIndex == cursor && startIndex in 0..319) {
+        require(startIndex == cursor && startIndex in 0 until maxCards) {
             "Non-contiguous card window"
         }
         require(batch.status !in setOf("stale", "no_results") &&
@@ -75,25 +81,29 @@ internal class VideoSearchPaginationCollector(
             "Invalid crawl window"
         }
         val end = startIndex + batch.inspectedCards
-        require(end <= 320 && batch.films.size <= batch.inspectedCards)
+        require(end <= maxCards && scanned + batch.inspectedCards <= maxScanned &&
+            batch.films.size <= batch.inspectedCards)
         require(batch.films.all { film ->
             film.originalIndex in startIndex until end &&
                 VideoSearchBridgeProtocol.sameOrigin(source, film.filmPageUrl)
         }) { "Invalid page index or cross-site film" }
 
         // Atomic staging: malicious/stale reply cannot partially mutate state.
-        val staged = LinkedHashMap(byUrl)
+        // Stage only the small validated incoming window: copying all 10,000
+        // previously collected rows every 16 cards would be quadratic.
+        val updates = LinkedHashMap<String, VideoSearchExtractedFilm>()
+        var newCount = 0
         for (film in batch.films) {
-            val existing = staged[film.filmPageUrl]
+            val existing = updates[film.filmPageUrl] ?: byUrl[film.filmPageUrl]
             if (existing != null) {
-                staged[film.filmPageUrl] = VideoSearchResultCorrelator.merge(existing, film)
-            } else if (staged.size < limit) {
-                staged[film.filmPageUrl] = film
+                updates[film.filmPageUrl] = VideoSearchResultCorrelator.merge(existing, film)
+            } else if (byUrl.size + newCount < limit) {
+                updates[film.filmPageUrl] = film
+                newCount++
             }
         }
-        val added = staged.size - byUrl.size
-        byUrl.clear()
-        byUrl.putAll(staged)
+        byUrl.putAll(updates)
+        val added = newCount
         cursor = end
         scanned += batch.inspectedCards
         moreCards = batch.moreOnPage
@@ -118,7 +128,7 @@ internal class VideoSearchPaginationCollector(
         require(batch.films.any { it.filmPageUrl !in byUrl }) {
             "No verified new generation"
         }
-        require(scanned + batch.inspectedCards <= 3840) {
+        require(scanned + batch.inspectedCards <= maxScanned) {
             "Card scan budget exceeded"
         }
         val previousCursor = cursor
@@ -137,12 +147,12 @@ internal class VideoSearchPaginationCollector(
     /** A successful same-document click/scroll allows new cards at cursor. */
     fun armSameDocumentContinuation() {
         require(visited.isNotEmpty())
-        require(!reachedLimit && cursor < 320)
+        require(!reachedLimit && cursor < maxCards && scanned < maxScanned)
         moreCards = true
     }
 
     fun recordAction(): Boolean {
-        if (actions >= 20) return false
+        if (actions >= maxActions) return false
         actions++
         return true
     }
