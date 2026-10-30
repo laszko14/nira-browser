@@ -46,12 +46,14 @@ internal class VideoSearchPrivateRunAccess(
         reason: VideoSearchPaginationStop? = null,
         visitedPages: Int = 1,
     ): Boolean = registry.withAuthorizedTab(tab, profileId) { store, scope ->
-        if (!VideoSearchBridgeProtocol.validQuery(query) ||
-            cards.size > 200 || visitedPages !in 1..12)
+        if (!VideoSearchBridgeProtocol.validQuery(query))
             return@withAuthorizedTab false
         val site = store.sites(scope).singleOrNull {
             it.id == siteId && it.enabled && it.id in store.settings(scope).selectedSiteIds
         } ?: return@withAuthorizedTab false
+        if (cards.size > site.resultLimit ||
+            visitedPages !in 1..VideoSearchResultBudgets.pageLimit(site.resultLimit))
+            return@withAuthorizedTab false
         if (cards.any { !VideoSearchBridgeProtocol.sameOrigin(it.filmPageUrl, site.siteUrl) })
             return@withAuthorizedTab false
         val id = UUID.randomUUID().toString()
@@ -67,7 +69,7 @@ internal class VideoSearchPrivateRunAccess(
         }
         // Only evidence from the bounded collector permits a complete run.
         val complete = (reason == VideoSearchPaginationStop.LIMIT_REACHED &&
-            films.size == DEFAULT_VIDEO_SEARCH_SITE_LIMIT) ||
+            films.size == site.resultLimit) ||
             (reason == VideoSearchPaginationStop.NO_MORE_RESULTS && films.isNotEmpty()) ||
             (reason == VideoSearchPaginationStop.NO_RESULTS && films.isEmpty())
         val completion = if (complete) when (reason) {
@@ -89,7 +91,7 @@ internal class VideoSearchPrivateRunAccess(
             status = if (complete) VideoSearchSiteState.COMPLETED
                 else VideoSearchSiteState.STOPPED,
             uniqueResults = films.size,
-            resultLimit = DEFAULT_VIDEO_SEARCH_SITE_LIMIT,
+            resultLimit = site.resultLimit,
             visitedPages = visitedPages,
             issue = if (complete) null else VideoSearchSiteIssue.OTHER,
             completionReason = completion,
@@ -115,7 +117,7 @@ internal class VideoSearchPrivateRunAccess(
             status = VideoSearchRunState.RUNNING, startedAtMs = stamp,
         ))
         store.putTask(VideoSearchSiteTask(
-            runId = id, siteId = site.id, scope = scope, resultLimit = 200
+            runId = id, siteId = site.id, scope = scope, resultLimit = site.resultLimit
         ))
         store.trimOldRuns(scope)
         id
@@ -138,13 +140,17 @@ internal class VideoSearchPrivateRunAccess(
             it.siteId == siteId &&
                 it.status in setOf(VideoSearchSiteState.QUEUED, VideoSearchSiteState.ACTIVE)
         } ?: return@withAuthorizedTab false
-        if (snapshot.films.any {
+        if (old.resultLimit != site.resultLimit ||
+            snapshot.films.size > old.resultLimit ||
+            snapshot.films.size < old.uniqueResults ||
+            snapshot.visitedPages !in 1..VideoSearchResultBudgets.pageLimit(old.resultLimit) ||
+            snapshot.films.any {
                 !VideoSearchBridgeProtocol.sameOrigin(site.siteUrl, it.filmPageUrl)
             }) return@withAuthorizedTab false
         val existing = store.films(scope, runId, siteId)
         val knownUrls = existing.mapTo(HashSet()) { it.filmPageUrl }
         val fresh = snapshot.films.filterNot { it.filmPageUrl in knownUrls }
-        if (existing.size + fresh.size > 200) return@withAuthorizedTab false
+        if (existing.size + fresh.size > old.resultLimit) return@withAuthorizedTab false
         val stamp = maxOf(System.currentTimeMillis(), run.updatedAtMs + 1)
         fresh.forEachIndexed { index, film ->
             store.putFilm(VideoSearchFilm(
@@ -163,7 +169,7 @@ internal class VideoSearchPrivateRunAccess(
         val complete = terminal && when (snapshot.reason) {
             VideoSearchPaginationStop.NO_MORE_RESULTS -> count > 0
             VideoSearchPaginationStop.NO_RESULTS -> count == 0
-            VideoSearchPaginationStop.LIMIT_REACHED -> count == 200
+            VideoSearchPaginationStop.LIMIT_REACHED -> count == old.resultLimit
             else -> false
         }
         val completion = if (!complete) null else when (snapshot.reason) {
