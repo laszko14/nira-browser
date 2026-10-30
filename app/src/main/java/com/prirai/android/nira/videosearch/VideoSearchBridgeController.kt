@@ -1876,7 +1876,9 @@ internal class VideoSearchBridgeController(
                 lastMultiRunIds[plan.scope.profileId] = journal.runId
                 if (lastMultiRunIds.size > 4)
                     lastMultiRunIds.remove(lastMultiRunIds.keys.first())
-                withTimeoutOrNull(180_000L) {
+                withTimeoutOrNull(VideoSearchResultBudgets.runDurationMs(
+                    plan.selectedSites.map { it.resultLimit }
+                )) {
                     VideoSearchMultiSiteExecutor.dispatch(
                         queue,
                         permittedWorkers = {
