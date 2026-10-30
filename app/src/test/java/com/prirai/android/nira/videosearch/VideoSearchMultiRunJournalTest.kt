@@ -335,4 +335,31 @@ class VideoSearchMultiRunJournalTest {
             assertEquals(VideoSearchRunState.FAILED, repo.run(owner, "run-failed")!!.status)
         } finally { db.close() }
     }
+    @Test fun incrementalCheckpointPreservesLaterMetadataUpgrades() = runBlocking {
+        val database = db()
+        try {
+            val repo = VideoSearchRepository(database.dao())
+            val p = plan(sites(1))
+            val journal = VideoSearchMultiRunJournal(repo, p, "metadata-progress")
+            journal.initialize()
+            val selected = p.selectedSites.single()
+            val first = snapshot(count = 2)
+            journal.progress(selected, first)
+            assertEquals(2, repo.films(owner, "metadata-progress", selected.id).size)
+            val enriched = first.copy(films = first.films.mapIndexed { idx, film ->
+                if (idx == 0) film.copy(
+                    originalTitle = "Verified structured title",
+                    titleSource = VideoResultTitleSource.STRUCTURED
+                ) else film
+            })
+            journal.progress(selected, enriched)
+            val rows = repo.films(owner, "metadata-progress", selected.id)
+            assertEquals(2, rows.size)
+            assertEquals("Verified structured title", rows.first().originalTitle)
+            assertEquals(VideoResultTitleSource.STRUCTURED, rows.first().titleSource)
+            journal.progress(selected, snapshot(count = 3))
+            assertEquals(3, repo.films(owner, "metadata-progress", selected.id).size)
+        } finally { database.close() }
+    }
+
 }
