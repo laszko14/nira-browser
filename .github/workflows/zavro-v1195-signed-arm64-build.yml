@@ -6,6 +6,8 @@ on:
       - feat/zavro-clean-picker-v2-stage1-20261030
     paths:
       - '.github/workflows/zavro-v1195-signed-arm64-build.yml'
+      - '.github/workflows/apk-release.yml'
+      - 'app/build.gradle'
   workflow_dispatch:
 
 permissions:
