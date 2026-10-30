@@ -888,7 +888,7 @@
     const linked = cards.filter(node => node.querySelector &&
         node.querySelector("a[href]")).length;
     if (!linked) return result("unverified", "no_results", 0);
-    if (command.pagination !== "NONE") {
+    if (command.pagination !== "NONE" && command.pagination !== "INFINITE_SCROLL") {
       const pagination = bySelector(command.nextPageSelector);
       if (!pagination) return result("stale", "invalid_selector", linked);
       if (pagination.length === 0)
