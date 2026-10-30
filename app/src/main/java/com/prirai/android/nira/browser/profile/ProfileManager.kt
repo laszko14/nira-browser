@@ -37,7 +37,12 @@ class ProfileManager(
     private val context: Context,
     private val migrationStore: () -> mozilla.components.browser.state.store.BrowserStore = { context.components.store },
     private val markDefaultMigration: (String) -> Unit = { context.components.profileMiddleware.markAsGuestTab(it) },
-    private val registryPreferences: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val registryPreferences: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE),
+    // Test seam: isolate persistence tests from the real BrowserApp addon/engine side effects.
+    private val activeProfilePolicy: suspend (BrowserProfile) -> Unit = { profile ->
+        ProfileAddonPolicy.applyForProfile(context, profile.id)
+        SearchEnginePreferences.apply(context, private = false)
+    }
 ) {
 
     private val prefs: SharedPreferences = registryPreferences
@@ -161,10 +166,7 @@ class ProfileManager(
 
     private fun applyActiveProfilePolicy(profile: BrowserProfile) {
         // Switch ordering and stale addon tasks are handled separately in 8B.
-        ioScope.launch {
-            ProfileAddonPolicy.applyForProfile(context, profile.id)
-            SearchEnginePreferences.apply(context, private = false)
-        }
+        ioScope.launch { activeProfilePolicy(profile) }
     }
     
     /**

@@ -19,7 +19,7 @@ class ProfileRegistryAtomicityTest {
     private fun fresh(): ProfileManager {
         val context=RuntimeEnvironment.getApplication()
         assertTrue(context.getSharedPreferences("profile_manager", 0).edit().clear().commit())
-        return ProfileManager(context)
+        return ProfileManager(context, activeProfilePolicy = {})
     }
 
     @Test fun concurrentCreatesAcrossManagerInstancesPersistEveryAcceptedProfile() {
