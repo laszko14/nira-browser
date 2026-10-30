@@ -17,14 +17,14 @@ import java.util.concurrent.TimeUnit
 @Config(sdk=[35], application=Application::class, manifest=Config.NONE)
 class ProfileRegistryAtomicityTest {
     private fun fresh(): ProfileManager {
-        val context=RuntimeEnvironment.getApplication<Application>()
+        val context=RuntimeEnvironment.getApplication()
         assertTrue(context.getSharedPreferences("profile_manager", 0).edit().clear().commit())
         return ProfileManager(context)
     }
 
     @Test fun concurrentCreatesAcrossManagerInstancesPersistEveryAcceptedProfile() {
         fresh()
-        val context=RuntimeEnvironment.getApplication<Application>()
+        val context=RuntimeEnvironment.getApplication()
         val count=48
         val start=CountDownLatch(1)
         val pool=Executors.newFixedThreadPool(12)
@@ -76,7 +76,7 @@ class ProfileRegistryAtomicityTest {
     }
 
     @Test fun failedCommitRejectsCreationInsteadOfReturningAnUnpersistedId() {
-        val context=RuntimeEnvironment.getApplication<Application>()
+        val context=RuntimeEnvironment.getApplication()
         val prefs=Mockito.mock(SharedPreferences::class.java)
         val editor=Mockito.mock(SharedPreferences.Editor::class.java)
         Mockito.`when`(prefs.edit()).thenReturn(editor)
@@ -109,10 +109,10 @@ class ProfileRegistryAtomicityTest {
     @Test fun deletingUnknownProfileDoesNotOverwriteRegistry() {
         val manager=fresh()
         val profile=manager.createProfile("keep",42,"x")
-        val before=RuntimeEnvironment.getApplication<Application>()
+        val before=RuntimeEnvironment.getApplication()
             .getSharedPreferences("profile_manager",0).getString("profiles",null)
         manager.deleteProfile("missing")
-        val after=RuntimeEnvironment.getApplication<Application>()
+        val after=RuntimeEnvironment.getApplication()
             .getSharedPreferences("profile_manager",0).getString("profiles",null)
         assertEquals(before,after)
         assertEquals(profile.id,ProfileManager(RuntimeEnvironment.getApplication())
