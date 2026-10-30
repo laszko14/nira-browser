@@ -50,6 +50,20 @@ internal class VideoSearchPrivateSitesAccess(
         true
     }
 
+    /** Edit only the RAM-scoped site; never touch normal Room preferences. */
+    fun setResultLimit(
+        tab: VideoSearchPrivateTab, activeProfileId: String,
+        siteId: String, resultLimit: Int,
+    ): Boolean? = registry.withAuthorizedTab(tab, activeProfileId) { store, scope ->
+        if (resultLimit !in 1..VideoSearchResultBudgets.MAX_SITE_RESULTS)
+            return@withAuthorizedTab false
+        val site = store.sites(scope).singleOrNull { it.id == siteId }
+            ?: return@withAuthorizedTab false
+        store.putSite(site.copy(resultLimit = resultLimit,
+            updatedAtMs = maxOf(System.currentTimeMillis(), site.updatedAtMs + 1)))
+        true
+    }
+
     fun setSelected(
         tab: VideoSearchPrivateTab, activeProfileId: String,
         siteId: String, selected: Boolean,
