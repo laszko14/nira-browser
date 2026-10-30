@@ -957,9 +957,29 @@ internal class VideoSearchBridgeController(
                             destination = url
                     }
                     destination
-                } ?: return stop(VideoSearchPaginationStop.STALLED)
-                if (!collector.beginDocument(nextUrl))
-                    return stop(VideoSearchPaginationStop.STALLED)
+                }
+                if (nextUrl != null) {
+                    if (!collector.beginDocument(nextUrl))
+                        return stop(VideoSearchPaginationStop.STALLED)
+                } else {
+                    // An intercepted next link may replace cards without URL
+                    // navigation. Accept it ONLY after seeing an unseen film.
+                    if (!authorized()) return stop(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
+                    val result = privateRequest(site, tabId, "crawl", false, requireSelected) { doc, id ->
+                        VideoSearchBridgeProtocol.extractCrawl(doc, id, config, 0)
+                    } as? VideoSearchBridgeMessage.Results
+                        ?: return stop(VideoSearchPaginationStop.STALLED)
+                    if (result.page.status != "ok" || result.page.films.none {
+                            !collector.containsFilmUrl(it.filmPageUrl)
+                        }) return stop(VideoSearchPaginationStop.STALLED)
+                    val added = try {
+                        collector.appendVerifiedReplacement(result.page)
+                    } catch (_: IllegalArgumentException) {
+                        return stop(VideoSearchPaginationStop.ERROR)
+                    }
+                    if (added <= 0) return stop(VideoSearchPaginationStop.STALLED)
+                    if (authorized()) onProgress(stop(VideoSearchPaginationStop.RESOURCE_LIMIT))
+                }
                 // Genuine new film URLs are checked after reading the new document.
             } else {
                 if (!authorized()) return stop(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
@@ -1007,8 +1027,7 @@ internal class VideoSearchBridgeController(
                     if (replacementProbe.page.status == "stale")
                         return stop(VideoSearchPaginationStop.ERROR)
                     if (replacementProbe.page.status == "ok" && replacementProbe.page.films.any {
-                            film -> collector.snapshot(VideoSearchPaginationStop.STALLED)
-                                .films.none { it.filmPageUrl == film.filmPageUrl }
+                            film -> !collector.containsFilmUrl(film.filmPageUrl)
                         }) {
                         val added = try {
                             collector.appendVerifiedReplacement(replacementProbe.page)
@@ -1421,9 +1440,29 @@ internal class VideoSearchBridgeController(
                             destination = current
                     }
                     destination
-                } ?: return collector.snapshot(VideoSearchPaginationStop.STALLED)
-                if (!collector.beginDocument(next))
-                    return collector.snapshot(VideoSearchPaginationStop.STALLED)
+                }
+                if (next != null) {
+                    if (!collector.beginDocument(next))
+                        return collector.snapshot(VideoSearchPaginationStop.STALLED)
+                } else {
+                    if (!stillAuthorized())
+                        return collector.snapshot(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
+                    val result = request(site, "crawl", workerTabId = workerTabId) { doc, id ->
+                        VideoSearchBridgeProtocol.extractCrawl(doc, id, config, 0)
+                    } as? VideoSearchBridgeMessage.Results
+                        ?: return collector.snapshot(VideoSearchPaginationStop.STALLED)
+                    if (result.page.status != "ok" || result.page.films.none {
+                            !collector.containsFilmUrl(it.filmPageUrl)
+                        }) return collector.snapshot(VideoSearchPaginationStop.STALLED)
+                    val added = try {
+                        collector.appendVerifiedReplacement(result.page)
+                    } catch (_: IllegalArgumentException) {
+                        return collector.snapshot(VideoSearchPaginationStop.ERROR)
+                    }
+                    if (added <= 0) return collector.snapshot(VideoSearchPaginationStop.STALLED)
+                    if (stillAuthorized())
+                        onProgress(collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT))
+                }
                 // Inspect the newly bound document before claiming progress.
             } else {
                 // AJAX / Load More / scroll may APPEND or REPLACE the visible
@@ -1479,8 +1518,7 @@ internal class VideoSearchBridgeController(
                     if (probe.page.status == "stale")
                         return collector.snapshot(VideoSearchPaginationStop.ERROR)
                     if (probe.page.status == "ok" && probe.page.films.any {
-                            film -> collector.snapshot(VideoSearchPaginationStop.STALLED)
-                                .films.none { it.filmPageUrl == film.filmPageUrl }
+                            film -> !collector.containsFilmUrl(film.filmPageUrl)
                         }) {
                         val added = try {
                             collector.appendVerifiedReplacement(probe.page)
