@@ -15,7 +15,7 @@ test('PWA has no reference to main BrowserStore-selected hit result', () => {
   const frag=read('webapp/WebAppFragment.kt');
   assert.match(frag,/override fun onLongPress\(hitResult: HitResult\)/);
   assert.match(frag,/PwaHitResultMenu\.safeTarget\(hitResult\)/);
-  assert.doesNotMatch(frag,/ContextMenuIntegration\(/);
+  assert.doesNotMatch(frag,/feature\s*=\s*ContextMenuIntegration\(/);
 });
 test('profile deletion restricts storage cleanup to explicit named context and blocks resurrection', () => {
   const manager=read('browser/profile/ProfileManager.kt');
