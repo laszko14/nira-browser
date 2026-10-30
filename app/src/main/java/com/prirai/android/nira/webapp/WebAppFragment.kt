@@ -48,6 +48,7 @@ class WebAppFragment : Fragment(), EngineSession.Observer {
     private var startUrl: String? = null
     private var canGoBack: Boolean = false
     private var hitResultDialog: android.app.AlertDialog? = null
+    private var reservedProfile: String? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -86,6 +87,16 @@ class WebAppFragment : Fragment(), EngineSession.Observer {
                 val known = ProfileManager.getInstance(requireContext()).getAllProfiles()
                     .any { it.id == profileId }
                 if (!known) profileId = "default"
+                // Reserve the name before creating GeckoSession; deletion
+                // refuses to erase a partition with a live PWA.
+                val expected = profileId
+                if (!com.prirai.android.nira.browser.profile.ProfilePwaLiveSessions.reserve(expected)) {
+                    profileId = "default"
+                    check(com.prirai.android.nira.browser.profile.ProfilePwaLiveSessions.reserve(profileId)) {
+                        "Default PWA profile unavailable"
+                    }
+                }
+                reservedProfile = profileId
                 val contextId = BrowserProfile.contextIdFor(profileId, isPrivate = false)
                 
                 engineSession = engine.createSession(private = false, contextId = contextId)
@@ -122,6 +133,8 @@ class WebAppFragment : Fragment(), EngineSession.Observer {
     override fun onDestroyView() {
         hitResultDialog?.dismiss()
         hitResultDialog = null
+        reservedProfile?.let(com.prirai.android.nira.browser.profile.ProfilePwaLiveSessions::release)
+        reservedProfile = null
         super.onDestroyView()
         engineSession?.let {
             try {

@@ -27,7 +27,22 @@ class ProfileMiddleware(
         action: BrowserAction
     ) {
         when (action) {
+            is TabListAction.RestoreAction -> {
+                // A crash between registry deletion and SessionStorage.save()
+                // must not resurrect a removed profile from an older snapshot.
+                val retained = action.tabs.filterNot { profileManager.isDeletedProfileContext(it.state.contextId) }
+                val selected = action.selectedTabId?.takeIf { selectedId ->
+                    retained.any { it.state.id == selectedId }
+                }
+                next(action.copy(tabs = retained, selectedTabId = selected))
+                return
+            }
             is TabListAction.AddTabAction -> {
+                if (profileManager.isDeletedProfileContext(action.tab.contextId)) {
+                    // An old action from a deleted profile must not recreate
+                    // its Gecko data after the profile has been erased.
+                    return
+                }
                 if (guestTabIds.contains(action.tab.id)) {
                     // Guest tab - keep contextId as null
                     guestTabIds.remove(action.tab.id)

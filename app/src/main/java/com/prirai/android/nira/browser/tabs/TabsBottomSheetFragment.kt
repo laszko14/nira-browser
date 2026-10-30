@@ -808,15 +808,21 @@ class TabsBottomSheetFragment : DialogFragment() {
                         val profileManager =
                             com.prirai.android.nira.browser.profile.ProfileManager.getInstance(requireContext())
 
-                        if (profile.id == browsingModeManager.currentProfile.id) {
-                            browsingModeManager.currentProfile =
-                                com.prirai.android.nira.browser.profile.BrowserProfile.getDefaultProfile()
+                        try {
+                            profileManager.deleteProfile(profile.id)
+                            if (profile.id == browsingModeManager.currentProfile.id) {
+                                browsingModeManager.currentProfile =
+                                    com.prirai.android.nira.browser.profile.BrowserProfile.getDefaultProfile()
+                            }
+                            setupMergedProfileButtons()
+                            (composeView.parent as? ViewGroup)?.removeView(composeView)
+                        } catch (error: IllegalStateException) {
+                            android.widget.Toast.makeText(
+                                requireContext(),
+                                error.message ?: "Close tabs using this profile and try again",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
                         }
-
-                        profileManager.deleteProfile(profile.id)
-
-                        setupMergedProfileButtons()
-                        (composeView.parent as? ViewGroup)?.removeView(composeView)
                     },
                     onExport = {
                         (composeView.parent as? ViewGroup)?.removeView(composeView)

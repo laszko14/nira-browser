@@ -59,6 +59,7 @@ class ProfileManager(
         private const val KEY_PROFILES = "profiles"
         private const val KEY_ACTIVE_PROFILE_ID = "active_profile_id"
         private const val KEY_LAST_PRIVATE_PROFILE = "last_private_profile"
+        private const val KEY_DELETED_PROFILE_IDS = "deleted_profile_ids"
 
         // One lock shared by imported, UI, and directly constructed managers.
         private val profileRegistryLock = Any()
@@ -217,31 +218,103 @@ class ProfileManager(
      * Delete a profile (cannot delete default)
      */
     fun deleteProfile(profileId: String) {
-        if (profileId == "default") {
-            throw IllegalArgumentException("Cannot delete default profile")
-        }
-        
-        var resetActive = false
-        var resetGeneration: Long? = null
-        val removed = synchronized(profileRegistryLock) {
-            val profiles = getAllProfiles().toMutableList()
-            val changed = profiles.removeAll { it.id == profileId }
-            if (changed) {
-                resetActive = prefs.getString(KEY_ACTIVE_PROFILE_ID, "default") == profileId
-                saveProfiles(profiles, resetActive)
-                if (resetActive) resetGeneration = ProfilePolicySequencer.issue()
+        require(profileId != "default" && profileId != "private") { "Cannot delete built-in profile" }
+        val contextId = BrowserProfile.contextIdFor(profileId, false)
+            ?: error("Only named profiles can be deleted")
+        val appContext = context.applicationContext
+        var applyDefault: Long? = null
+        var removedTabIds: List<String> = emptyList()
+        val erased = synchronized(profileRegistryLock) {
+            val remaining = getAllProfiles().toMutableList()
+            if (remaining.none { it.id == profileId }) return@synchronized false
+            check(ProfilePwaLiveSessions.beginDeletion(profileId)) {
+                "Close the PWA for this profile before deleting its data"
             }
-            changed
-        }
-        if (!removed) return
+            try {
+                val browserStore = runCatching { migrationStore() }.getOrNull()
+                if (appContext is com.prirai.android.nira.BrowserApp) {
+                    check(browserStore != null) { "BrowserStore unavailable; cannot safely delete profile" }
+                }
+                // Custom tabs are managed by an independent Activity. Refuse
+                // deletion until they close rather than erase their live jar.
+                check(browserStore?.state?.customTabs?.none { it.contextId == contextId } != false) {
+                    "Close custom tabs using this profile before deleting its data"
+                }
+                removedTabIds = browserStore?.state?.tabs
+                    ?.filter { !it.content.private && it.contextId == contextId }
+                    ?.map { it.id } ?: emptyList()
 
-        if (resetActive) {
-            // Registry and fallback were committed together; only reapply policy.
-            resetGeneration?.let { applyActiveProfilePolicy(BrowserProfile.getDefaultProfile(), it) }
+                removedTabIds.forEach { id ->
+                    ProfileMigrationGuard.run(id) {
+                        browserStore!!.dispatch(mozilla.components.browser.state.action.TabListAction.RemoveTabAction(
+                            tabId = id, selectParentIfExists = false
+                        ))
+                    }
+                }
+                check(browserStore?.state?.tabs?.none { !it.content.private && it.contextId == contextId } != false) {
+                    "Could not close profile tabs; refusing to erase live Gecko data"
+                }
+
+                remaining.removeAll { it.id == profileId }
+                val active = prefs.getString(KEY_ACTIVE_PROFILE_ID, "default") == profileId
+                // Tombstones are in the SAME durable commit as registry removal:
+                // stale snapshots restored after a crash cannot resurrect tabs.
+                saveProfiles(remaining, active, profileId)
+                if (active) applyDefault = ProfilePolicySequencer.issue()
+                true
+            } catch (failure: Throwable) {
+                ProfilePwaLiveSessions.cancelDeletion(profileId)
+                throw failure
+            }
         }
-        cleanupProfileStorage(profileId)
+        if (!erased) return
+        applyDefault?.let { applyActiveProfilePolicy(BrowserProfile.getDefaultProfile(), it) }
+
+        ioScope.launch {
+            // Clean Room membership and wait for an acknowledged SessionStorage
+            // snapshot before clearing Gecko's named partition. Never clear all.
+            removedTabIds.forEach { id ->
+                try {
+                    com.prirai.android.nira.browser.tabgroups.UnifiedTabGroupManager
+                        .getInstance(appContext).onTabClosed(id)
+                } catch (error: Exception) {
+                    android.util.Log.w("ProfileManager", "Could not clear removed group membership", error)
+                }
+            }
+            if (appContext is com.prirai.android.nira.BrowserApp) {
+                val saved = try {
+                    appContext.components.sessionStorage.save(appContext.components.store.state)
+                } catch (error: Exception) {
+                    android.util.Log.e("ProfileManager", "Profile session save failed; Gecko erasure deferred", error)
+                    false
+                }
+                if (!saved) {
+                    android.util.Log.e("ProfileManager", "Profile data erasure deferred: session save not acknowledged")
+                    return@launch
+                }
+                // Gecko API returns void: dispatch success is not proof of
+                // disk erasure; verify storage on a real device.
+                try {
+                    org.mozilla.geckoview.GeckoRuntime.getDefault(appContext).storageController
+                        .clearDataForSessionContext(contextId)
+                } catch (error: Exception) {
+                    android.util.Log.e("ProfileManager", "Named profile Gecko erasure failed", error)
+                    return@launch
+                }
+            }
+            cleanupProfileStorage(profileId)
+        }
     }
-    
+
+    fun isDeletedProfileContext(contextId: String?): Boolean {
+        if (contextId == null) return false
+        return synchronized(profileRegistryLock) {
+            prefs.getStringSet(KEY_DELETED_PROFILE_IDS, emptySet()).orEmpty().any { deleted ->
+                contextId == BrowserProfile.contextIdFor(deleted, false)
+            }
+        }
+    }
+
     /**
      * Check if we're in private browsing mode
      */
@@ -257,10 +330,18 @@ class ProfileManager(
     }
     
     /** Must hold profileRegistryLock; do not return success before durable commit. */
-    private fun saveProfiles(profiles: List<BrowserProfile>, resetActive: Boolean = false) {
+    private fun saveProfiles(
+        profiles: List<BrowserProfile>,
+        resetActive: Boolean = false,
+        deletingProfileId: String? = null
+    ) {
         val json = profiles.filter { !it.isDefault }.toJsonString()
         val editor = prefs.edit().putString(KEY_PROFILES, json)
         if (resetActive) editor.putString(KEY_ACTIVE_PROFILE_ID, "default")
+        if (deletingProfileId != null) {
+            val deleted = prefs.getStringSet(KEY_DELETED_PROFILE_IDS, emptySet()).orEmpty() + deletingProfileId
+            editor.putStringSet(KEY_DELETED_PROFILE_IDS, deleted)
+        }
         check(editor.commit()) { "Unable to persist profile registry" }
     }
 

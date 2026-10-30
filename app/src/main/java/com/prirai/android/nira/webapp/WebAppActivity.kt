@@ -73,7 +73,11 @@ class WebAppActivity : AppCompatActivity() {
     }
 
     private suspend fun getProfileIdForUrl(url: String): String = withContext(Dispatchers.IO) {
-        components.webAppManager.getWebAppByUrl(url)?.profileId ?: "default"
+        val found = components.webAppManager.getWebAppByUrl(url)?.profileId ?: "default"
+        val valid = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(this@WebAppActivity)
+            .getAllProfiles().any { it.id == found }
+        if (valid && !com.prirai.android.nira.browser.profile.ProfilePwaLiveSessions.isDeleting(found)) found
+        else "default"
     }
 
     override fun onNewIntent(intent: Intent) {
