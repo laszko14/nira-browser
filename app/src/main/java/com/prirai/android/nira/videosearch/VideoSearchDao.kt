@@ -479,10 +479,20 @@ internal interface VideoSearchDao {
         if (previousUrl != null && previousUrl.id != row.id) return false
         if (previousId == null) {
             // Enforce both limits even when a caller bypasses the run journal.
-            val taskLimit = getTask(row.profileId, row.runId, row.siteId)?.resultLimit
-                ?: throw IllegalArgumentException("Search task missing")
-            val totalLimit = VideoSearchResultBudgets.aggregateLimit(
-                getTasks(row.profileId, row.runId).map { it.resultLimit })
+            // Legacy normal-profile writes may be attached to a run before
+            // a task row exists. Preserve that API without reintroducing a
+            // hidden 200 cap for runs that DO have task limit snapshots.
+            val run = getRun(row.profileId, row.runId)
+                ?: throw IllegalArgumentException("Search run missing")
+            val tasksBySite = getTasks(row.profileId, row.runId)
+                .associate { it.siteId to it.resultLimit }
+            val selected = VideoSearchRowCodec.readStrings(run.siteIdsJson)
+            val limits = selected.map { siteId ->
+                tasksBySite[siteId] ?: getSite(row.profileId, siteId)?.resultLimit
+                    ?: DEFAULT_VIDEO_SEARCH_SITE_LIMIT
+            }
+            val taskLimit = limits[selected.indexOf(row.siteId)]
+            val totalLimit = VideoSearchResultBudgets.aggregateLimit(limits)
             require(countSiteFilms(row.profileId, row.runId, row.siteId) <
                 taskLimit && countRunFilms(row.profileId, row.runId) < totalLimit) {
                 "Search result budget exhausted"
