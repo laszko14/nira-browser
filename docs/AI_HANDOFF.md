@@ -1,3 +1,15 @@
+# Zavro Clean V3.2 — ETAP 2/5 — Paginacja V2 — 2026-10-30
+
+- **Gałąź robocza:** `feat/zavro-clean-picker-v2-stage1-20261030` (kontynuacja zielonego 1/5 z `667a21e2006295732ab41ebf9b6874e8fae6c59f`). Następne `Dalej` dopiero po zielonym CI rozpoczyna 3/5, a polecenie `Kompiluj` pozostaje jedynym upoważnieniem do APK.
+- **Semantyka kontrolek:** `content.js` odrzuca Previous/Last/First i nie zgaduje następnego numeru strony. Dla numerowanych paginacji wymaga potwierdzenia aktywnej strony i zapisuje niezmienny CSS lokator na unikalny kontener nawigacji; w każdym kolejnym wywołaniu szuka numeru `active+1`. Zablokowano niebezpieczne pozycyjne `:last-child` jako identyfikację Next. Istniejące semantyczne linki Next i bezpieczne przyciski Load More pozostają obsługiwane.
+- **Scroll opt-in:** w etapie `next` dodano osobną akcję użytkownika `Przewijanie`. Kotlin dekoduje jedynie `picked(next,INFINITE_SCROLL,html)`, zapisuje normalną konfigurację `pagination=INFINITE_SCROLL,nextPageSelector=null`, nigdy nie klika `html`. `validate` i `checkConfiguration` obsługują null dla SCROLL. Bez poszerzania starego JSON lub Room.
+- **Dowód nowych wyników:** `VideoSearchPaginationCollector.appendVerifiedReplacement()` akceptuje zmianę DOM tylko po znalezieniu nowego dokładnego on-site URL w prawidłowej partii; weryfikuje indeksy i budżet skanowania, zachowuje atomowość. Normalne i prywatne pętle sprawdzają dopisane karty oraz zamienione listy, nie traktują samego `dispatched`, nowego URL strony czy kosmetycznej zmiany metadanych jako ukończenia. `NEXT_LINK` z przechwyconym kliknięciem, które nie nawigowało, ma fallback wymagający rzeczywiście nowych filmów.
+- **Bezpieczeństwo:** stary limit 200/2000 pozostaje bez zmian do 3/5. Nie zmieniać certyfikatu, profili, ładowania cudzych iframe, logowania, formularzy POST ani prywatnych zapisów do Room. Powrót `STALLED` nie jest `COMPLETED`.
+- **Testy:** rozszerzono JS testy `video-search-next-picker.test.cjs` (Last/Previous reject; numerowana paginacja 2→3; brak aktywnej strony; scroll opt-in) i Kotlin `VideoSearchPaginationCollectorTest.kt` (proven replacement/reject stale/off-origin) oraz `VideoSearchManualConfigurationTest.kt` (scroll transport, bez selektora). CI-only workflow `.github/workflows/zavro-picker-v2-tests-only.yml` uruchamia Node full, Kotlin/Robolectric full i lint, bez podpisywania/assemble APK.
+- **Weryfikacja:** kod i testy są zapisane w repo. Status finalnego HEAD należy sprawdzić w GitHub Actions; dopiero completed/success dla dokładnego SHA umożliwia oznaczenie 2/5 jako PASS. Real GeckoView/Android 15 nie przetestowany urządzeniem; pełne E2E należy do 5/5. Bez merge.
+
+---
+
 # Zavro Clean V3.2 — ETAP 1/5 — Picker V2 — 2026-10-30
 
 - **Zakres:** etap 1/5 planu. Gałąź `feat/zavro-clean-picker-v2-stage1-20261030` oparta na `042499e7b6e859f6d0350150b55296e5ff4aa452`. Następne `Dalej` = 2/5, paginacja V2.
