@@ -11,7 +11,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.first
 import mozilla.components.lib.state.ext.flow
-import mozilla.components.browser.state.action.AppLifecycleAction
 import com.prirai.android.nira.browser.TaskExitSaveBarrier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -49,10 +48,10 @@ class BrowserApp : Application() {
                 if (!restored) {
                     false
                 } else {
-                    // BrowserStore.dispatch is asynchronous. Enqueue a PauseAction
-                    // after all pending tab changes, then await its Job as a store
-                    // queue fence before taking the final on-disk snapshot.
-                    components.store.dispatch(AppLifecycleAction.PauseAction).join()
+                    // BrowserActivity.onPause has already dispatched the
+                    // lifecycle action. Save the latest available BrowserStore
+                    // snapshot on IO, and wait for SessionStorage's Boolean
+                    // commit acknowledgment before allowing process exit.
                     withContext(Dispatchers.IO) {
                         components.sessionStorage.save(components.store.state)
                     }
