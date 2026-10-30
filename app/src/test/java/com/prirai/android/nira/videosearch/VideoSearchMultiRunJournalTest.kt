@@ -357,7 +357,8 @@ class VideoSearchMultiRunJournalTest {
             assertEquals(2, rows.size)
             assertEquals("Verified structured title", rows.first().originalTitle)
             assertEquals(VideoResultTitleSource.STRUCTURED, rows.first().titleSource)
-            journal.progress(selected, snapshot(count = 3))
+            journal.progress(selected, enriched.copy(
+                films = enriched.films + snapshot(count = 3).films.last()))
             assertEquals(3, repo.films(owner, "metadata-progress", selected.id).size)
         } finally { database.close() }
     }
