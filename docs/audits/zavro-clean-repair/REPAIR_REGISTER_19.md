@@ -161,7 +161,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-023 | wybór canonical default nie uzgadnia aktywnego profilu | CONFIRMED | P2 | 8/19 | DO_RECHECK |
 | ZC-AUD-024 | menu NewTab ma różną semantykę prywatności zależnie od profilu | CONFIRMED | P2 | 8/19 | DO_RECHECK |
 | ZC-AUD-025 | zakres sugestii kart nie jest ograniczony do bieżącego profilu | SUSPECTED | P2 | 8/19 | VERIFY_FIRST |
-| ZC-AUD-026 | killProcess wyprzedza trwały zapis sesji | CONFIRMED | P1 | 4/19 | DO_RECHECK |
+| ZC-AUD-026 | killProcess wyprzedza trwały zapis sesji | CONFIRMED | P1 | 4/19 | IMPLEMENTED — stage 4, CI_PENDING |
 | ZC-AUD-027 | pusty stan startowy jest traktowany jak zamknięcie wszystkich kart | CONFIRMED | P2 | 9/19 | DO_RECHECK |
 | ZC-AUD-028 | default PWA nie używa canonical kontekstu default | CONFIRMED | P2 | 10/19 | DO_RECHECK |
 | ZC-AUD-029 | ContextMenuFeature PWA jest podłączony do obcej sesji | CONFIRMED | P2 | 10/19 | DO_RECHECK |
@@ -230,3 +230,13 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - Znane uszkodzone typy String (liczba/bool już zapisana przez stary import) są korygowane dla znanych kluczy przy późniejszym poprawnym imporcie; wszystkie 11 jawnych pól tekstowych `UserPreferences` mają bezpieczny odczyt i punktową naprawę, bez masowego resetu i bez przywracania niemożliwych do odzyskania zer wiodących.
 - Test `SettingsImportCodecTest`: realne `SharedPreferences` w Robolectric, round-trip 5 tekstów, Int/Long/Float/Boolean/Set, starszy format `"key"="value"`, odmowa niepoprawnych wartości bez częściowego zapisu, zachowanie obcych danych i naprawa wcześniej błędnego klucza przy ponownym uruchomieniu ustawień. Wymagana pełna JVM/Robolectric, pełne JS i lint na końcowym SHA. Rzeczywiste Android 15, restart procesu i ręczne UI kolekcji na telefonie: NOT_TESTED.
 - Bez APK, bez merge do main; następny etap **4/19 — ZC-AUD-026** dopiero po zielonym CI etapu 3.
+
+## Etap 4/19 — ZC-AUD-026: zapis sesji przed zakończeniem (2026-10-30)
+
+- Baza: `f73a29df98117baf7a353ec6b4aed1c2893b9ddd` (etap 3, CI [41122519025](https://github.com/laszko14/nira-browser/actions/runs/41122519025) SUCCESS), gałąź `fix/zavro-clean-audit60-stage4-session-exit-barrier-20261030`.
+- Weryfikacja v1195: `BrowserActivity.onDestroy` wciąż bezwarunkowo wołał `Process.killProcess` przy root finish po stop media service. `AutoSave` Mozilla jest asynchroniczny z minimalnym interwałem 2000 ms; dlatego stan kart może pozostać niezapisany. `SessionStorage.save(BrowserState)` zwraca `Boolean`, używa blokady pliku i `AtomicFile` i filtruje prywatne karty.
+- `BrowserApp` udostępnia `requestTaskExitSessionSave`, uruchamia jednorazową barierę `TaskExitSaveBarrier` w Application `SupervisorJob`. Przed finalnym zapisem musi zakończyć się przywracanie stanu (`restoreComplete` reduktora) oraz inicjalizacja AutoSave. Zdarzenia oczekujące w asynchronicznym `BrowserStore` są opróżnione przez `dispatch(AppLifecycleAction.PauseAction).join()`. `SessionStorage.save(store.state)` wywoływany jest na `Dispatchers.IO`. `killProcess` następuje tylko po `save == true`; w przypadku błędu I/O/restore/timeout nie wymuszamy kill ani resetu danych.
+- `BrowserActivity` w normalnym root finish zachowuje dotychczasowy stop mediów i usługi, ale usuwa natychmiastowy kill. Onboarding (zanim browser UI jest zainstalowane), zwykłe tło, obrót, PiP i nie-root nie wywołują bariery. Brak synchronizowanego I/O na Main.
+- Testy `TaskExitSaveBarrierTest`: opóźniony zapis S0→S1, restore gate, odmowa błędnego restore, `save=false`, exception dysku, idempotentne wielokrotne wywołanie, kontrola braku kill przed ack. Wymagana pełna JVM/Robolectric, WebExtension JS, Android lint. Na fizycznym Android 15: kill/relaunch i zamykanie/ponowne otwarcie kart/URL, pending AutoSave, PiP, obsługa first launch: NOT_TESTED.
+- Ograniczenia: to gwarancja kolejności na kontrolowanej ścieżce `isFinishing && isTaskRoot`, nie gwarancja uratowania stanu po niespodziewanym zabiciu przez system. Żaden plik sesji nie był zmieniany ręcznie. Etap 4 nie zastępuje planowanych napraw startu/restora w etapie 9.
+- Bez APK, bez merge do main; etap 5 **ZC-AUD-056** dopiero po zielonym CI końcowego SHA.
