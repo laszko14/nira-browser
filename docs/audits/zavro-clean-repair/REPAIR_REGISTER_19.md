@@ -162,7 +162,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-024 | menu NewTab ma różną semantykę prywatności zależnie od profilu | CONFIRMED | P2 | 8/19 | FIXED — 8B; explicit NewTab privacy + regressions; device NOT_TESTED |
 | ZC-AUD-025 | zakres sugestii kart nie jest ograniczony do bieżącego profilu | SUSPECTED | P2 | 8/19 | SCOPE_DEFINED — 8B local suggestions + guarded callbacks; device UX NOT_TESTED |
 | ZC-AUD-026 | killProcess wyprzedza trwały zapis sesji | CONFIRMED | P1 | 4/19 | IMPLEMENTED — stage 4, CI_PENDING |
-| ZC-AUD-027 | pusty stan startowy jest traktowany jak zamknięcie wszystkich kart | CONFIRMED | P2 | 9/19 | IMPLEMENTED — stage 9, CI_PENDING |
+| ZC-AUD-027 | pusty stan startowy jest traktowany jak zamknięcie wszystkich kart | CONFIRMED | P2 | 9/19 | FIXED — stage 9, Kotlin/JS/lint CI PASS, device NOT_TESTED |
 | ZC-AUD-028 | default PWA nie używa canonical kontekstu default | CONFIRMED | P2 | 10/19 | DO_RECHECK |
 | ZC-AUD-029 | ContextMenuFeature PWA jest podłączony do obcej sesji | CONFIRMED | P2 | 10/19 | DO_RECHECK |
 | ZC-AUD-030 | opener ma rozbieżne konteksty karty i przygotowanego engine | SUSPECTED | P1 (potencjalny) | 10/19 | VERIFY_FIRST |
@@ -193,7 +193,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-055 | probe pobierania nie respektuje anulowania | CONFIRMED | P2 | 18/19 | DO_RECHECK |
 | ZC-AUD-056 | import nadpisuje zakładki przed walidacją | CONFIRMED | P1 | 5/19 | IMPLEMENTED — stage 5, CI_PENDING |
 | ZC-AUD-057 | resume nie wiąże części z wersją zasobu | CONFIRMED | P2 | 18/19 | DO_RECHECK |
-| ZC-AUD-058 | nowy intent PWA ginie przed utworzeniem fragmentu | CONFIRMED | P2 | 9/19 | IMPLEMENTED — stage 9, CI_PENDING |
+| ZC-AUD-058 | nowy intent PWA ginie przed utworzeniem fragmentu | CONFIRMED | P2 | 9/19 | FIXED — stage 9, Kotlin/JS/lint CI PASS, device NOT_TESTED |
 | ZC-AUD-059 | nieatomowe mutacje listy profili | CONFIRMED | P2 | 8A/19 | FIXED — stage 8A, JVM + CI PASS; device NOT_TESTED |
 | ZC-AUD-060 | nieaktualny scenariusz TestLabDeviceTest | CONFIRMED | P2 | 7/19 | IMPLEMENTED — stage 7, Android test compilation + CI PASS; device execution NOT_TESTED |
 
@@ -324,3 +324,12 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 ### Etap 9 — checkpoint implementacyjny
 
 - Zapisano atomowy commit `579e2ccd9f12ba32d4d493b5946b309ad978d4a7` z dwoma gate, poprawionymi observerami i PWA oraz regresjami. Status: CI_PENDING. Nie uznawać etapu za ukończony bez zielonego przebiegu GitHub Actions dla finalnego SHA.
+
+### Etap 9 — wyniki CI i pozostające testy urządzeniowe
+
+- [GitHub Actions 41142164683](https://github.com/laszko14/nira-browser/actions/runs/41142164683), `completed/success` na SHA `1a3ce33a911788bc2eca915d6eb3aedefd3ba31b`. Kotlin + Robolectric PASS, JavaScript **297/297 PASS**, Android lint SUCCESS. Żadnego tworzenia APK ani zmiany podpisu.
+- W pierwszym przebiegu [41141625822](https://github.com/laszko14/nira-browser/actions/runs/41141625822) Kotlin PASS, JavaScript 296/297. Jedna nowa asercja strukturalna niepoprawnie liczyła `addTab` w całej klasie, obejmując niezwiązany kod; poprawiono zakres do obu obserwatorów i cały zestaw jest zielony.
+- Kontrakt rozdziela pre-restore i rzeczywisty last-close, chroni przed duplikatem przy empty, preservuje wybór odzyskanej karty i pierwszeństwo rzeczywistego intentu. Kontrakt PWA porządkuje zimny start, późniejsze żądania, stan fragmentu i ikonę przy generacji ostatniego intentu.
+- **NOT_TESTED**: faktyczne cold boot i opóźnienie SessionStorage, działanie pojedynczego PWA na urządzeniu Android 15, prawdziwy FragmentManager przy obracaniu telefonu, realne pobieranie ikon. Przy kompilacji APK do testów konieczna regresja manualna (restore snapshot→normal/private tabs, puste/corrupt storage, A→B→C PWA singleTop, obrót i tło).
+- CI w tym punkcie dotyczy commita kodu; końcowa dokumentacja powinna także mieć osobny zielony przebieg na końcowym SHA.
+- Następny etap po zakończeniu 9/19: **10/19** — ZC-AUD-028, 029, 030 (VERIFY_FIRST), 031 i 050. Bez merge do main.
