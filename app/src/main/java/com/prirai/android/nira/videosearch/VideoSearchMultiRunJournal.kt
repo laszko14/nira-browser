@@ -159,7 +159,7 @@ internal class VideoSearchMultiRunJournal(
         // time would be quadratic in database traffic.
         return snapshot?.films?.drop(alreadyPersisted)?.take(
             (site.resultLimit - alreadyPersisted).coerceAtLeast(0)
-        ).mapIndexed { index, film ->
+        )?.mapIndexed { index, film ->
             VideoSearchFilm(
                 id = UUID.nameUUIDFromBytes(
                     "$id|${site.id}|${film.filmPageUrl}".toByteArray(Charsets.UTF_8)
