@@ -479,9 +479,12 @@ internal interface VideoSearchDao {
         if (previousUrl != null && previousUrl.id != row.id) return false
         if (previousId == null) {
             // Enforce both limits even when a caller bypasses the run journal.
-            val taskLimit = getTask(row.profileId, row.runId, row.siteId)?.resultLimit ?: 200
+            val taskLimit = getTask(row.profileId, row.runId, row.siteId)?.resultLimit
+                ?: throw IllegalArgumentException("Search task missing")
+            val totalLimit = VideoSearchResultBudgets.aggregateLimit(
+                getTasks(row.profileId, row.runId).map { it.resultLimit })
             require(countSiteFilms(row.profileId, row.runId, row.siteId) <
-                minOf(200, taskLimit) && countRunFilms(row.profileId, row.runId) < 2_000) {
+                taskLimit && countRunFilms(row.profileId, row.runId) < totalLimit) {
                 "Search result budget exhausted"
             }
         }
@@ -529,7 +532,12 @@ internal interface VideoSearchDao {
         requireRunSite(task.profileId, task.runId, task.siteId)
         var total = countRunFilms(run.profileId, run.id)
         var siteCount = countSiteFilms(run.profileId, run.id, task.siteId)
-        val siteCap = minOf(200, task.resultLimit)
+        val previousTask = getTask(task.profileId, task.runId, task.siteId)
+            ?: throw IllegalArgumentException("Search task missing")
+        require(task.resultLimit == previousTask.resultLimit)
+        val siteCap = VideoSearchResultBudgets.requireSiteLimit(task.resultLimit)
+        val runCap = VideoSearchResultBudgets.aggregateLimit(
+            getTasks(run.profileId, run.id).map { it.resultLimit })
         var truncated = false
         for (film in films) {
             val oldId = getFilmById(film.profileId, film.id)
@@ -540,11 +548,15 @@ internal interface VideoSearchDao {
             val oldUrl = getFilmByUrl(film.profileId, film.runId,
                 film.siteId, film.filmPageUrl)
             if (oldUrl != null && oldUrl.id != film.id) continue
-            if (oldId == null && (siteCount >= siteCap || total >= 2_000)) {
+            if (oldId == null && (siteCount >= siteCap || total >= runCap)) {
                 truncated = true
                 continue
             }
-            if (putFilmChecked(film) && oldId == null) {
+            // Quotas, immutable owner/site/URL identity and uniqueness were
+            // checked above within this transaction. Avoid redundant count(*)
+            // scans per row for larger site limits.
+            putFilm(film)
+            if (oldId == null) {
                 siteCount++
                 total++
             }
