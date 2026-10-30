@@ -210,7 +210,7 @@ class VideoSearchPrivateGroupAccessTest {
         assertTrue(f.store.films(f.owner, id, f.sites[0].id).isEmpty())
     }
 
-    @Test fun twoThousandFilmCeilingTruncatesFurtherSitesWithoutFalseCompletion() {
+    @Test fun selectedPrivateSitesReach2200WithoutOld2000Cap() {
         val f = Fixture(count = 11)
         val id = f.start()
         f.sites.take(10).forEach { site ->
@@ -220,12 +220,12 @@ class VideoSearchPrivateGroupAccessTest {
         val last = f.sites.last()
         assertTrue(f.groups.checkpoint(f.tab, "default", id, last,
             f.snapshot(last, 2, VideoSearchPaginationStop.NO_MORE_RESULTS)))
-        assertTrue(f.store.films(f.owner, id, last.id).isEmpty())
+        assertEquals(2, f.store.films(f.owner, id, last.id).size)
         val lastTask = f.store.tasks(f.owner, id).single { it.siteId == last.id }
-        assertEquals(VideoSearchSiteState.STOPPED, lastTask.status)
-        assertNull(lastTask.completionReason)
-        assertEquals(VideoSearchPrivateGroupAccess.MAX_AGGREGATE_FILMS,
-            f.reader.history(f.tab, "default")!!.single().films.size)
+        assertEquals(VideoSearchSiteState.COMPLETED, lastTask.status)
+        assertEquals(VideoSearchCompletionReason.NO_MORE_RESULTS, lastTask.completionReason)
+        assertEquals(2_002, f.reader.history(f.tab, "default")!!.single().films.size)
+        assertTrue(f.groups.hasCapacity(f.tab, "default", id))
     }
     @Test fun finishWithoutStartedWorkerStopsAllQueuedTasks() {
         val f = Fixture(count = 4)
@@ -292,16 +292,16 @@ class VideoSearchPrivateGroupAccessTest {
         assertNull(f.reader.history(f.tab, "default"))
     }
 
-    @Test fun aggregatePrivateProgressStopsAtExistingTwoThousandLimit() {
+    @Test fun aggregatePrivateProgressStopsAtSumOfSelectedSiteLimits() {
         val f = Fixture(11)
         val id = f.start()
-        f.sites.take(10).forEach { site ->
+        f.sites.forEach { site ->
             assertTrue(f.groups.checkpoint(f.tab, "default", id, site,
                 f.snapshot(site, 200, VideoSearchPaginationStop.RESOURCE_LIMIT),
                 terminal = false))
         }
         assertFalse(f.groups.hasCapacity(f.tab, "default", id))
-        assertEquals(2_000, f.reader.history(f.tab, "default")!!.single().films.size)
+        assertEquals(2_200, f.reader.history(f.tab, "default")!!.single().films.size)
         assertTrue(f.groups.finish(f.tab, "default", id))
         assertEquals(VideoSearchRunState.STOPPED, f.store.runs(f.owner).single().status)
     }
