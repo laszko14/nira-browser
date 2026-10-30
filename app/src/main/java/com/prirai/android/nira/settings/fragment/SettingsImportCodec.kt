@@ -252,7 +252,10 @@ internal object SettingsImportCodec {
                 "Invalid migrated preference key"
             }
             require(!result.containsKey(migratedKey)) { "Duplicate migrated preference key" }
-            val expected = declaredTypes[migratedKey] ?: typeOf(existing[migratedKey])
+            // In v1 the JSON primitive itself is authoritative for unregistered
+            // keys. An older damaged on-disk type must not block its repair.
+            val expected = declaredTypes[migratedKey]
+                ?: if (version == 0) typeOf(existing[migratedKey]) else null
             result[migratedKey] = decodeValue(root.get(originalKey), expected, version == 0)
         }
         require(result.isNotEmpty()) { "Backup contains no preferences" }
