@@ -20,6 +20,9 @@ internal class VideoSearchPrivateStore {
         // Per-session exact URL index. Prevent O(n²) duplicate scans as a
         // private run grows to 10k or 20k cards. All data dies with this State.
         val filmIdsByUrl = HashMap<Triple<String, String, String>, String>()
+        // Scoped index avoids scanning the entire private lifetime for every
+        // single-site checkpoint, group capacity check and history read.
+        val filmIdsByRunSite = HashMap<Pair<String, String>, LinkedHashSet<String>>()
         var settings: VideoSearchSettings? = null
     }
 
@@ -137,6 +140,7 @@ internal class VideoSearchPrivateStore {
             state.tasks.keys.removeAll { it.first in expired }
             state.films.entries.removeAll { it.value.runId in expired }
             state.filmIdsByUrl.keys.removeAll { it.first in expired }
+            state.filmIdsByRunSite.keys.removeAll { it.first in expired }
         }
     }
 
@@ -176,11 +180,21 @@ internal class VideoSearchPrivateStore {
             else {
                 it.films[film.id] = film
                 it.filmIdsByUrl[key] = film.id
+                it.filmIdsByRunSite.getOrPut(film.runId to film.siteId) {
+                    LinkedHashSet()
+                }.add(film.id)
                 true
             }
         }
     }
 
+    fun countFilms(scope: VideoSearchScope.Private, runId: String, siteId: String): Int =
+        access(scope) { it.filmIdsByRunSite[runId to siteId]?.size ?: 0 }
+
     fun films(scope: VideoSearchScope.Private, runId: String, siteId: String): List<VideoSearchFilm> =
-        access(scope) { it.films.values.filter { film -> film.runId == runId && film.siteId == siteId } }
+        access(scope) { state ->
+            state.filmIdsByRunSite[runId to siteId].orEmpty().mapNotNull {
+                state.films[it]
+            }
+        }
 }
