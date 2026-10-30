@@ -163,10 +163,10 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-025 | zakres sugestii kart nie jest ograniczony do bieżącego profilu | SUSPECTED | P2 | 8/19 | SCOPE_DEFINED — 8B local suggestions + guarded callbacks; device UX NOT_TESTED |
 | ZC-AUD-026 | killProcess wyprzedza trwały zapis sesji | CONFIRMED | P1 | 4/19 | IMPLEMENTED — stage 4, CI_PENDING |
 | ZC-AUD-027 | pusty stan startowy jest traktowany jak zamknięcie wszystkich kart | CONFIRMED | P2 | 9/19 | FIXED — stage 9, Kotlin/JS/lint CI PASS, device NOT_TESTED |
-| ZC-AUD-028 | default PWA nie używa canonical kontekstu default | CONFIRMED | P2 | 10/19 | IMPLEMENTED — stage 10, canonical default; Gecko device NOT_TESTED |
-| ZC-AUD-029 | ContextMenuFeature PWA jest podłączony do obcej sesji | CONFIRMED | P2 | 10/19 | IMPLEMENTED — stage 10, PWA-owned hit menu; device NOT_TESTED |
-| ZC-AUD-030 | opener ma rozbieżne konteksty karty i przygotowanego engine | SUSPECTED | P1 (potencjalny) | 10/19 | UNRESOLVED SUSPECTED — requires native storage isolation verification |
-| ZC-AUD-031 | usunięcie profilu pozostawia osierocone karty | CONFIRMED | P2 | 10/19 | IMPLEMENTED WITH LIMITS — tabs/tombstones/Gecko erase dispatched; device NOT_TESTED |
+| ZC-AUD-028 | default PWA nie używa canonical kontekstu default | CONFIRMED | P2 | 10/19 | FIXED — stage 10; JVM/instrumented-compile/JS/lint CI PASS; device storage NOT_TESTED |
+| ZC-AUD-029 | ContextMenuFeature PWA jest podłączony do obcej sesji | CONFIRMED | P2 | 10/19 | FIXED CORE — stage 10; PWA-owned hit menu CI PASS; device UX NOT_TESTED |
+| ZC-AUD-030 | opener ma rozbieżne konteksty karty i przygotowanego engine | SUSPECTED | P1 (potencjalny) | 10/19 | OPEN — SUSPECTED, native OriginAttributes / storage test REQUIRED; NOT_FIXED |
+| ZC-AUD-031 | usunięcie profilu pozostawia osierocone karty | CONFIRMED | P2 | 10/19 | PARTIAL — tabs/tombstones/erasure retry CI PASS; durable Gecko deletion NOT_VERIFIED |
 | ZC-AUD-032 | konfiguracje script nie wracają po wznowieniu tego samego DOM | CONFIRMED | P2 | 15/19 | DO_RECHECK |
 | ZC-AUD-033 | childList z source nie skanuje istniejącego video | CONFIRMED | P2 | 15/19 | DO_RECHECK |
 | ZC-AUD-034 | brak wyzwalacza dla późnego open Shadow DOM | CONFIRMED | P2 | 15/19 | DO_RECHECK |
@@ -185,7 +185,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-047 | spóźnione przywrócenie toolbaru koliduje z kolejnym fullscreen | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-048 | prostokąt toolbaru pod panelem nadal wygrywa gest | CONFIRMED | P2 | 13/19 | DO_RECHECK |
 | ZC-AUD-049 | różny znak flingu w toolbarze WWW i Home | CONFIRMED | P2 | 13/19 | DO_RECHECK |
-| ZC-AUD-050 | migracja profilu przenosi stan odtwarzania starego silnika | CONFIRMED | P2 | 10/19 | IMPLEMENTED — stage 10, old MediaSession reset; JVM_PENDING |
+| ZC-AUD-050 | migracja profilu przenosi stan odtwarzania starego silnika | CONFIRMED | P2 | 10/19 | FIXED — stage 10; stale MediaSession reset with JVM CI PASS; device NOT_TESTED |
 | ZC-AUD-051 | zmiana filmu w trasie hash zachowuje stare media | CONFIRMED | P2 | 15/19 | DO_RECHECK |
 | ZC-AUD-052 | brak rejestracji okna filmów otwartego w PREPARING | CONFIRMED | P2 | 7/19 | FIXED — stage 7, JVM + CI PASS; device frames NOT_TESTED |
 | ZC-AUD-053 | parametry uwierzytelniania w diagnostyce Sync | CONFIRMED | P2 | 6/19 | DO_RECHECK |
@@ -348,3 +348,14 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 ### Etap 10 — niezawodność wznowienia erasure
 
 - Dodatkowa kontrola wykazała ryzyko: nawet przy tombstone poprawny zapis profili przed crash nie oznacza, że nieodwracalna operacja Gecko już wystartowała. Tombstone jest więc również dziennikiem ponawiania: `BrowserApp.restoreBrowserState` po `restoreComplete` i konfiguracji autoSave wywołuje `ProfileManager.retryDeletedProfileErasure()`. Dla każdego nieistniejącego named ID najpierw blokuje otwarcie nowej PWA, sprawdza brak tab/customTab z tym kontekstem, wymaga sukcesu SessionStorage.save, ponawia bezpiecznie wyłącznie `clearDataForSessionContext(profile_ID)`. Brak potwierdzenia trwałego kasowania przez API void — kolejne cold launch może ponowić. Żadnego globalnego `clearData`.
+
+### Etap 10 — pełna weryfikacja GitHub Actions
+
+- **PASS:** [workflow 41145757527](https://github.com/laszko14/nira-browser/actions/runs/41145757527) `completed/success` dla dokładnego SHA `d60b9b0cfd0b9d096a5d32ab99524b304343238e`: cały Kotlin/Robolectric PASS, `:app:compileDebugAndroidTestKotlin` PASS (bez APK), Node.js 301/301 PASS, `:app:lintDebug` SUCCESS.
+- Pierwsze dwa nieudane przebiegi dotyczyły nadmiernie dosłownych asercji nowych testów JS (komentarz o ContextMenuIntegration i nazwa zmiennej SessionStorage.save). Produkcja oraz JVM/instrumentation compile w obu były zielone; finalny test strukturalny sprawdza działanie, nie komentarze i lokalne nazwy.
+- **028:** potwierdzono zmianę mappera PWA na `null` dla default; zachowanie historycznej partycji `profile_default` i cookie migracja są świadomie poza zakresem automatycznej, destrukcyjnej operacji.
+- **029:** appowe menu długiego przytrzymania czyta tylko własny `EngineSession.Observer.HitResult`. Zestaw Open/Copy/Share zawiera funkcje podstawowe; pełna zgodność z gestami i akcjami graficznymi wymaga ręcznej oceny.
+- **031:** restore z tombstoned contextId jest filtrowany, named tabs są zamykane, PWA/customTabs stanowią blokadę, zapis sesji ma potwierdzenie Boolean, a Gecko clearDataForSessionContext ma plan ponowienia po restore. **Nie ma potwierdzenia zakończenia trwałego usunięcia cookies ani historycznego cache, ponieważ API Gecko zwraca void.** Status PARTIAL pozostaje do czasu testu izolowanych kontekstów na fizycznym urządzeniu i potwierdzenia braku późnego odtworzenia. Pozostałe profile mają pozostać nietknięte.
+- **030:** mismatch etykiet engine Store istnieje, ale bez natywnego testu `OriginAttributes` nie można ani potwierdzić wycieku, ani stwierdzić bezpiecznego dziedziczenia. Status OPEN. Nie odłączać gotowego engine od opener bez weryfikacji. Wymagana kontrolowana testowa strona A/B z `window.open`, `target=_blank`, `noopener`, private i suspend/restart, bez produkcyjnych loginów.
+- Nie budowano APK, nie zmieniono signing i nie wykonano merge. Kolejne `Dalej` rozpocznie **11/19**; nierozstrzygnięte testy urządzeniowe 030/031 pozostają w rejestrze i nie zostają fałszywie uznane za PASS.
+- Końcowy commit dokumentacji jest osobnym SHA; wymagane zielone CI również dla niego.
