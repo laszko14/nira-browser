@@ -31,16 +31,20 @@ class UserPreferences(appContext: Context) : mozilla.components.support.ktx.andr
      */
     private fun recoveringStringPreference(key: String, default: String): ReadWriteProperty<Any?, String> =
         object : ReadWriteProperty<Any?, String> {
-            override fun getValue(thisRef: Any?, property: KProperty<*>): String =
-                try {
+            override fun getValue(thisRef: Any?, property: KProperty<*>): String {
+                return try {
                     preferences.getString(key, default) ?: default
                 } catch (_: ClassCastException) {
                     val existing = preferences.all[key]
-                    if (existing !is Number && existing !is Boolean) return default
-                    val text = existing.toString()
-                    preferences.edit().putString(key, text).commit()
-                    text
+                    if (existing is Number || existing is Boolean) {
+                        val text = existing.toString()
+                        preferences.edit().putString(key, text).commit()
+                        text
+                    } else {
+                        default
+                    }
                 }
+            }
 
             override fun setValue(thisRef: Any?, property: KProperty<*>, value: String) {
                 preferences.edit().putString(key, value).apply()
