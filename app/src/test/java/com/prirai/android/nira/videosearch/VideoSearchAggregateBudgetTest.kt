@@ -51,7 +51,7 @@ class VideoSearchAggregateBudgetTest {
                 )
             },
             scannedCards = count, visitedPages = 1, pageActions = 0,
-            reason = if (count == 200) VideoSearchPaginationStop.LIMIT_REACHED
+            reason = if (count == 200 || count == 10_000) VideoSearchPaginationStop.LIMIT_REACHED
                 else VideoSearchPaginationStop.NO_MORE_RESULTS,
         )
 
@@ -86,7 +86,7 @@ class VideoSearchAggregateBudgetTest {
         } finally { db.close() }
     }
 
-    @Test fun elevenFullSitesStopTruthfullyAndNeverDeleteEarlierResults() = runBlocking {
+    @Test fun elevenFullSitesReachTheirOwnCombined2200BudgetWithoutHidden2000Cap() = runBlocking {
         val db = db()
         try {
             val repo = VideoSearchRepository(db.dao())
@@ -101,15 +101,16 @@ class VideoSearchAggregateBudgetTest {
             p.selectedSites.forEach { queue.resolve(it.id, VideoSearchQueueStatus.DONE) }
             journal.finish(queue)
             val saved = repo.resultsSnapshot(owner, "eleven")!!
-            assertEquals(2_000, saved.films.size)
+            assertEquals(2_200, saved.films.size)
             assertEquals(earlier, repo.films(owner, "eleven", "s1").map { it.id })
-            assertEquals(0, saved.films.count { it.siteId == "s11" })
+            assertEquals(200, saved.films.count { it.siteId == "s11" })
             val last = saved.tasks.single { it.siteId == "s11" }
-            assertEquals(0, last.uniqueResults)
-            assertEquals(VideoSearchSiteState.STOPPED, last.status)
-            assertEquals(VideoSearchSiteIssue.RESULT_BUDGET_REACHED, last.issue)
-            assertNull(last.completionReason)
-            assertEquals(VideoSearchRunState.STOPPED, saved.run.status)
+            assertEquals(200, last.uniqueResults)
+            assertEquals(VideoSearchSiteState.COMPLETED, last.status)
+            assertNull(last.issue)
+            assertEquals(VideoSearchCompletionReason.LIMIT_REACHED, last.completionReason)
+            assertEquals(VideoSearchRunState.COMPLETED, saved.run.status)
+            assertFalse(journal.hasCapacity())
         } finally { db.close() }
     }
 
@@ -120,8 +121,9 @@ class VideoSearchAggregateBudgetTest {
             val p = plan(owner, sites(11))
             val journal = VideoSearchMultiRunJournal(repo, p, "race")
             journal.initialize()
-            fill(journal, p, List(9) { 200 } + 199)
-            assertEquals(1999, repo.resultsSnapshot(owner, "race")!!.films.size)
+            fill(journal, p, List(10) { 200 })
+            journal.progress(p.selectedSites.last(), snapshot(11, 199))
+            assertEquals(2199, repo.resultsSnapshot(owner, "race")!!.films.size)
             val outcomes = (0..2).map { idx ->
                 async(Dispatchers.Default) {
                     try {
@@ -135,8 +137,8 @@ class VideoSearchAggregateBudgetTest {
                 }
             }.awaitAll()
             assertEquals(1, outcomes.count { it })
-            assertEquals(2_000, repo.resultsSnapshot(owner, "race")!!.films.size)
-            assertEquals(1, repo.films(owner, "race", "s11").size)
+            assertEquals(2_200, repo.resultsSnapshot(owner, "race")!!.films.size)
+            assertEquals(200, repo.films(owner, "race", "s11").size)
             assertEquals(200, repo.films(owner, "race", "s1").size)
         } finally { db.close() }
     }
@@ -154,9 +156,9 @@ class VideoSearchAggregateBudgetTest {
                 }
             }.awaitAll()
             val saved = repo.resultsSnapshot(owner, "parallel")!!
-            assertEquals(2_000, saved.films.size)
-            assertEquals(2_000, saved.tasks.sumOf { it.uniqueResults })
-            assertEquals(1, saved.tasks.count {
+            assertEquals(2_200, saved.films.size)
+            assertEquals(2_200, saved.tasks.sumOf { it.uniqueResults })
+            assertEquals(0, saved.tasks.count {
                 it.status == VideoSearchSiteState.STOPPED &&
                     it.issue == VideoSearchSiteIssue.RESULT_BUDGET_REACHED
             })
@@ -164,24 +166,46 @@ class VideoSearchAggregateBudgetTest {
         } finally { db.close() }
     }
 
-    @Test fun partialLastSiteKeepsEarlierCardsAndDoesNotClaimCompletion() = runBlocking {
+    @Test fun checkpointRejectsRegressiveSnapshotsWithoutLosingEarlierFilms() = runBlocking {
         val db = db()
         try {
             val repo = VideoSearchRepository(db.dao())
             val p = plan(owner, sites(11))
             val journal = VideoSearchMultiRunJournal(repo, p, "partial")
             journal.initialize()
-            fill(journal, p, List(9) { 200 } + 199)
-            val earlier = repo.films(owner, "partial", "s10").map { it.filmPageUrl }
-            journal.record(p.selectedSites.last(), VideoSearchQueueStatus.DONE, snapshot(11, 20))
-            val saved = repo.resultsSnapshot(owner, "partial")!!
-            assertEquals(2_000, saved.films.size)
-            assertEquals(earlier, repo.films(owner, "partial", "s10").map { it.filmPageUrl })
-            val last = saved.tasks.single { it.siteId == "s11" }
-            assertEquals(1, last.uniqueResults)
-            assertEquals(VideoSearchSiteState.STOPPED, last.status)
-            assertEquals(VideoSearchSiteIssue.RESULT_BUDGET_REACHED, last.issue)
-            assertNull(last.completionReason)
+            fill(journal, p, List(10) { 200 })
+            val last = p.selectedSites.last()
+            journal.progress(last, snapshot(11, 199))
+            val earlier = repo.films(owner, "partial", last.id).map { it.filmPageUrl }
+            try {
+                journal.progress(last, snapshot(11, 20))
+                fail("Regressive checkpoint accepted")
+            } catch (_: IllegalArgumentException) {}
+            assertEquals(2_199, repo.resultsSnapshot(owner, "partial")!!.films.size)
+            assertEquals(earlier, repo.films(owner, "partial", last.id).map { it.filmPageUrl })
+            assertEquals(199, repo.tasks(owner, "partial")
+                .single { it.siteId == last.id }.uniqueResults)
+            journal.record(last, VideoSearchQueueStatus.DONE, snapshot(11))
+            assertEquals(2_200, repo.resultsSnapshot(owner, "partial")!!.films.size)
+        } finally { db.close() }
+    }
+
+    @Test fun singleSiteCanSaveTenThousandUniqueFilmsInOneAtomicCheckpoint() = runBlocking {
+        val db = db()
+        try {
+            val repo = VideoSearchRepository(db.dao())
+            val p = plan(owner, sites(1).map { it.copy(resultLimit = 10_000) })
+            val journal = VideoSearchMultiRunJournal(repo, p, "ten-thousand")
+            assertEquals(10_000, journal.runResultBudget)
+            journal.initialize()
+            journal.record(p.selectedSites.single(), VideoSearchQueueStatus.DONE,
+                snapshot(1, 10_000))
+            val saved = repo.resultsSnapshot(owner, "ten-thousand")!!
+            assertEquals(10_000, saved.films.size)
+            assertEquals(10_000, saved.films.map { it.filmPageUrl }.distinct().size)
+            assertEquals(VideoSearchSiteState.COMPLETED, saved.tasks.single().status)
+            assertEquals(10_000, saved.tasks.single().uniqueResults)
+            assertFalse(journal.hasCapacity())
         } finally { db.close() }
     }
 
