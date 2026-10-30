@@ -157,7 +157,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-019 | raw swipe karty nie respektuje własności gestu Compose | LIKELY | P2 | 12/19 | VERIFY_FIRST |
 | ZC-AUD-020 | obsługa IME usuwa rezerwację miejsca na dolny pasek | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-021 | Anuluj nie cofa wyboru wyszukiwarki | CONFIRMED | P2 | 14/19 | DO_RECHECK |
-| ZC-AUD-022 | import własnego eksportu zmienia typy preferencji | CONFIRMED | P1 | 3/19 | DO_RECHECK |
+| ZC-AUD-022 | import własnego eksportu zmienia typy preferencji | CONFIRMED | P1 | 3/19 | IMPLEMENTED — stage 3, CI_PENDING |
 | ZC-AUD-023 | wybór canonical default nie uzgadnia aktywnego profilu | CONFIRMED | P2 | 8/19 | DO_RECHECK |
 | ZC-AUD-024 | menu NewTab ma różną semantykę prywatności zależnie od profilu | CONFIRMED | P2 | 8/19 | DO_RECHECK |
 | ZC-AUD-025 | zakres sugestii kart nie jest ograniczony do bieżącego profilu | SUSPECTED | P2 | 8/19 | VERIFY_FIRST |
@@ -221,3 +221,12 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - Testy: `BookmarkViewDialogLifecycleTest` (właściciel, manual dismiss, rzeczywiste dwa warianty FragmentManager + dialog Robolectric), pełny JVM/Robolectric i pełny WebExtension JS oraz lint. Wykonanie CI i faktyczny wynik są raportowane osobno na konkretnym końcowym SHA; do jego potwierdzenia pozostaje `CI_PENDING`.
 - Ograniczenie: brak rzeczywistego obracania telefonu i testu klikania okna po wywołaniu onDestroyView w Gecko/Android 15. Te scenariusze są `NOT_TESTED` na urządzeniu.
 - Następny etap: **3/19 ZC-AUD-022**, typy importu preferencji. Bez merge do main, bez APK przed `Kompiluj`.
+
+## Etap 3/19 — ZC-AUD-022: ochrona typów importowanych preferencji (2026-10-30)
+
+- Baza: końcowy etap 2 `14a2006078a8ac4021d8cd3d311d3b36288fb75c`, potwierdzone CI [41116117575](https://github.com/laszko14/nira-browser/actions/runs/41116117575) SUCCESS. Osobna gałąź `fix/zavro-clean-audit60-stage3-settings-import-types-20261030`.
+- Aktualne odtworzenie statyczne: `ImportExportSettingsFragment.importSettings` nadal konwertował każdą zawierającą cyfry/booleany wartość JSON typu String do Int/Boolean/Float; m.in. `collection_user="12345"` kolidował z `stringPreference` w `UserPreferences`. Stan: STILL_PRESENT na bazowym SHA.
+- `SettingsImportCodec`: eksport/import formatu v1 zachowuje tekst; legacy nie zgaduje typów arbitralnych ciągów, ale przelicza tylko deklarowany typ klucza lub typ istniejącej wartości. Pełna walidacja typu i struktury przed jakimkolwiek edytorem. Odmowa nieznanych wersji/null/zagnieżdżonych obiektów/mieszanych tablic; pojedynczy `commit()` i jawna obsługa wyniku. Brak `clear()`, nietknięte inne ustawienia.
+- Znane uszkodzone typy String (liczba/bool już zapisana przez stary import) są korygowane dla znanych kluczy przy późniejszym poprawnym imporcie; wszystkie 11 jawnych pól tekstowych `UserPreferences` mają bezpieczny odczyt i punktową naprawę, bez masowego resetu i bez przywracania niemożliwych do odzyskania zer wiodących.
+- Test `SettingsImportCodecTest`: realne `SharedPreferences` w Robolectric, round-trip 5 tekstów, Int/Long/Float/Boolean/Set, starszy format `"key"="value"`, odmowa niepoprawnych wartości bez częściowego zapisu, zachowanie obcych danych i naprawa wcześniej błędnego klucza przy ponownym uruchomieniu ustawień. Wymagana pełna JVM/Robolectric, pełne JS i lint na końcowym SHA. Rzeczywiste Android 15, restart procesu i ręczne UI kolekcji na telefonie: NOT_TESTED.
+- Bez APK, bez merge do main; następny etap **4/19 — ZC-AUD-026** dopiero po zielonym CI etapu 3.
