@@ -1165,6 +1165,10 @@
     const maximumIndex = crawl ? cardCap - 1 : 79;
     if (!Number.isInteger(start) || start < 0 || start > maximumIndex)
       return { status: "stale", films: [], inspectedCards: 0, moreOnPage: false };
+    // Dynamic pages may remove/replace cards while a crawl is in progress.
+    // Never produce a negative inspectedCards count for a stale cursor.
+    if (start > cards.length)
+      return { status:"empty", films:[], inspectedCards:0, moreOnPage:false };
     const end = Math.min(cards.length, cardCap, start + 16);
     const found = new Map(), maximum = 16;
     const encoder = new TextEncoder();
