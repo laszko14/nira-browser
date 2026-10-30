@@ -968,8 +968,7 @@ internal class VideoSearchBridgeController(
                     // navigation. Accept it ONLY after seeing an unseen film.
                     if (!authorized()) return stop(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
                     val result = privateRequest(site, tabId, "crawl", false, requireSelected) { doc, id ->
-                        VideoSearchBridgeProtocol.extractCrawl(doc, id, config, 0,
-                            VideoSearchResultBudgets.documentCards(site.resultLimit))
+                        VideoSearchBridgeProtocol.extractCrawl(doc, id, config, 0)
                     } as? VideoSearchBridgeMessage.Results
                         ?: return stop(VideoSearchPaginationStop.STALLED)
                     if (result.page.status != "ok" || result.page.films.none {
@@ -1456,7 +1455,8 @@ internal class VideoSearchBridgeController(
                     if (!stillAuthorized())
                         return collector.snapshot(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
                     val result = request(site, "crawl", workerTabId = workerTabId) { doc, id ->
-                        VideoSearchBridgeProtocol.extractCrawl(doc, id, config, 0)
+                        VideoSearchBridgeProtocol.extractCrawl(doc, id, config, 0,
+                            VideoSearchResultBudgets.documentCards(site.resultLimit))
                     } as? VideoSearchBridgeMessage.Results
                         ?: return collector.snapshot(VideoSearchPaginationStop.STALLED)
                     if (result.page.status != "ok" || result.page.films.none {
@@ -1500,7 +1500,8 @@ internal class VideoSearchBridgeController(
                     }
                     val offset = collector.nextCardIndex
                     val appended = request(site, "crawl", workerTabId = workerTabId) { doc, id ->
-                        VideoSearchBridgeProtocol.extractCrawl(doc, id, config, offset)
+                        VideoSearchBridgeProtocol.extractCrawl(doc, id, config, offset,
+                            VideoSearchResultBudgets.documentCards(site.resultLimit))
                     } as? VideoSearchBridgeMessage.Results
                         ?: return collector.snapshot(VideoSearchPaginationStop.ERROR)
                     if (appended.page.status == "stale")
@@ -1521,7 +1522,8 @@ internal class VideoSearchBridgeController(
                     // Replacement probe: a same-document page may have exactly
                     // the same number of cards, but wholly different film URLs.
                     val probe = request(site, "crawl", workerTabId = workerTabId) { doc, id ->
-                        VideoSearchBridgeProtocol.extractCrawl(doc, id, config, 0)
+                        VideoSearchBridgeProtocol.extractCrawl(doc, id, config, 0,
+                            VideoSearchResultBudgets.documentCards(site.resultLimit))
                     } as? VideoSearchBridgeMessage.Results
                         ?: return collector.snapshot(VideoSearchPaginationStop.ERROR)
                     if (probe.page.status == "stale")
