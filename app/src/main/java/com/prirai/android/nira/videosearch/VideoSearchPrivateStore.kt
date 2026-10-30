@@ -17,6 +17,9 @@ internal class VideoSearchPrivateStore {
         val runs = LinkedHashMap<String, VideoSearchRun>()
         val tasks = LinkedHashMap<Pair<String, String>, VideoSearchSiteTask>()
         val films = LinkedHashMap<String, VideoSearchFilm>()
+        // Per-session exact URL index. Prevent O(n²) duplicate scans as a
+        // private run grows to 10k or 20k cards. All data dies with this State.
+        val filmIdsByUrl = HashMap<Triple<String, String, String>, String>()
         var settings: VideoSearchSettings? = null
     }
 
@@ -133,6 +136,7 @@ internal class VideoSearchPrivateStore {
             expired.forEach { state.runs.remove(it) }
             state.tasks.keys.removeAll { it.first in expired }
             state.films.entries.removeAll { it.value.runId in expired }
+            state.filmIdsByUrl.keys.removeAll { it.first in expired }
         }
     }
 
@@ -166,12 +170,12 @@ internal class VideoSearchPrivateStore {
                 old.siteId == film.siteId && old.filmPageUrl == film.filmPageUrl)) {
                 "Film identity cannot move"
             }
-            if (it.films.values.any { existing ->
-                    existing.id != film.id && existing.runId == film.runId &&
-                    existing.siteId == film.siteId && existing.filmPageUrl == film.filmPageUrl
-                }) false
+            val key = Triple(film.runId, film.siteId, film.filmPageUrl)
+            val otherId = it.filmIdsByUrl[key]
+            if (otherId != null && otherId != film.id) false
             else {
                 it.films[film.id] = film
+                it.filmIdsByUrl[key] = film.id
                 true
             }
         }
