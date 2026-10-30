@@ -536,11 +536,11 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
                         requireContext(), 
                         "Error deleting bookmark", 
                         android.widget.Toast.LENGTH_SHORT
-                    ).create().also { scope.track(it); it.show() }
+                    ).show()
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)
-            .show()
+            .create().also { scope.track(it); it.show() }
     }
 
     private fun showMoveFolderDialog(item: BookmarkItem, position: Int) {
@@ -744,7 +744,7 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
                         requireContext(),
                         "Deleted ${selectedItems.size} items",
                         android.widget.Toast.LENGTH_SHORT
-                    ).create().also { scope.track(it); it.show() }
+                    ).show()
                     
                     exitMultiSelectMode()
                 } catch (e: Exception) {
@@ -756,7 +756,7 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)
-            .show()
+            .create().also { scope.track(it); it.show() }
     }
 
     private fun flattenFolder(folder: BookmarkFolderItem) {
@@ -781,7 +781,7 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
                         requireContext(),
                         "Flattened \"${folder.title}\"",
                         android.widget.Toast.LENGTH_SHORT
-                    ).create().also { scope.track(it); it.show() }
+                    ).show()
                 } catch (e: Exception) {
                     android.widget.Toast.makeText(
                         requireContext(),
@@ -791,7 +791,7 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)
-            .show()
+            .create().also { scope.track(it); it.show() }
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
