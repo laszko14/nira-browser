@@ -295,7 +295,7 @@ internal object VideoSearchBridgeProtocol {
                         else -> return null
                     }
                     val index = (row.opt("originalIndex") as? Int)
-                        ?.takeIf { it in 0..(if (event == "crawl_results") 319 else 200) }
+                        ?.takeIf { it in 0..(if (event == "crawl_results") 9_999 else 200) }
                         ?: return null
                     val film = try {
                         VideoSearchExtractedFilm(pageUrl, title, thumbnail, duration,
