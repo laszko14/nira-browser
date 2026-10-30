@@ -1586,7 +1586,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
             .setTitle("Zbierz filmy z kolejnych stron")
             .setMessage("Zavro użyje przycisku następnej strony, „Załaduj więcej” " +
                 "lub przewijania tej witryny. Maksymalnie " +
-                "${minOf(site.resultLimit, 200)} unikalnych filmów, 12 stron, " +
+                "${site.resultLimit} unikalnych filmów, " +
+                         "do ${VideoSearchResultBudgets.pageLimit(site.resultLimit)} stron, " +
                 "20 akcji i 2 minuty. Zebrane dane będą tymczasowe; " +
                 "nie zostaną jeszcze zapisane w historii. " +
                 "Otwórz witrynę w aktywnej karcie i odśwież ją.")
