@@ -21,20 +21,33 @@ class VideoSearchPaginationCollectorTest {
             films, count, more
         )
 
-    @Test fun capsAt200EvenIfUserSets10000() {
+    @Test fun collectsTenThousandUniqueResultsWithoutHidden200Cap() {
         val collector = VideoSearchPaginationCollector(site, 10_000)
-        assertEquals(200, collector.limit)
+        assertEquals(10_000, collector.limit)
         assertTrue(collector.beginDocument(site))
-        for (i in 0..192 step 16) {
-            collector.appendWindow(i, window(i, more = true))
-            if (collector.reachedLimit) break
-        }
-        assertEquals(200, collector.uniqueCount)
+        for (i in 0 until 10_000 step 16)
+            collector.appendWindow(i, window(i, more = i < 9984))
+        assertEquals(10_000, collector.uniqueCount)
         assertTrue(collector.reachedLimit)
         assertFalse(collector.shouldReadCardWindow)
         val snap = collector.snapshot(VideoSearchPaginationStop.LIMIT_REACHED)
-        assertEquals(200, snap.films.size)
-        assertEquals(VideoSearchPaginationStop.LIMIT_REACHED, snap.reason)
+        assertEquals(10_000, snap.films.size)
+        assertEquals(10_000, snap.films.map { it.filmPageUrl }.distinct().size)
+    }
+
+    @Test fun largerRunGetsMorePagesActionsAndDomCardsWithinSafeLimits() {
+        val collector = VideoSearchPaginationCollector(site, 10_000)
+        for (page in 1..14)
+            assertTrue(collector.beginDocument("https://films.example/search?page=$page"))
+        assertFalse(collector.isAtDocumentLimit)
+        assertTrue(collector.recordAction())
+        assertEquals(1, collector.pageActions)
+        val other = VideoSearchPaginationCollector(site, 10_000)
+        assertTrue(other.beginDocument(site))
+        for (i in 0..320 step 16)
+            other.appendWindow(i, window(i, films = emptyList(), more = true))
+        assertEquals(336, other.nextCardIndex)
+        assertFalse(other.exhaustedCardBudget)
     }
 
     @Test fun respectsSmallerPerSiteLimit() {
