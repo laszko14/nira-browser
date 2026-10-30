@@ -194,7 +194,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-056 | import nadpisuje zakładki przed walidacją | CONFIRMED | P1 | 5/19 | IMPLEMENTED — stage 5, CI_PENDING |
 | ZC-AUD-057 | resume nie wiąże części z wersją zasobu | CONFIRMED | P2 | 18/19 | DO_RECHECK |
 | ZC-AUD-058 | nowy intent PWA ginie przed utworzeniem fragmentu | CONFIRMED | P2 | 9/19 | DO_RECHECK |
-| ZC-AUD-059 | nieatomowe mutacje listy profili | CONFIRMED | P2 | 8/19 | DO_RECHECK |
+| ZC-AUD-059 | nieatomowe mutacje listy profili | CONFIRMED | P2 | 8A/19 | IMPLEMENTED — stage 8A, CI_PENDING |
 | ZC-AUD-060 | nieaktualny scenariusz TestLabDeviceTest | CONFIRMED | P2 | 7/19 | IMPLEMENTED — stage 7, Android test compilation + CI PASS; device execution NOT_TESTED |
 
 ## Kryteria przejścia i sposób oznaczania stanów
@@ -277,3 +277,12 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - ZC-AUD-052: strukturalna regresja chroni bezwarunkową rejestrację dialog.Window, regresje Robolectric chronią cykl życia na granicach PREPARING/RUNNING/stop; to nie dowodzi prawdziwych klatek JankStats na Android 15.
 - ZC-AUD-060: scenariusz i jego źródła przeszły kompilację instrumentacji; **sam test na urządzeniu nie został wykonany** z powodu zakazu budowania APK bez polecenia `Kompiluj`. Nie deklarować urządzeniowego PASS.
 - Ten checkpoint dokumentacji został dopisany po przebiegu 41133086777; oddzielne CI dla aktualizowanego końcowego SHA pozostaje obowiązkowe i jest weryfikowane po push.
+
+## Etap 8A/19 — ZC-AUD-059: atomowy rejestr profili (2026-10-30)
+
+- Baza: etap 7 `afcaf4f7aceec972f10e5dca695825960028d01b`, CI [41134345578](https://github.com/laszko14/nira-browser/actions/runs/41134345578) completed/success. Gałąź `fix/zavro-clean-audit60-stage8-profile-isolation-20261030`.
+- **059 STILL_PRESENT** na bazie: create/update/delete używały niezależnego read-modify-apply bez wspólnej blokady między instancjami. Równoległy import IO i dialog UI mogły trwale utracić zaakceptowane zmiany.
+- Poprawka: wspólna w procesie blokada całej transakcji read/modify/commit dla wszystkich instancji managera; `commit()` zapewnia jawne odrzucenie nieudanego zapisu. Usunięcie aktywnego profilu zapisuje listę i fallback default atomowo. Brak czyszczenia danych przy brakującym ID lub nieudanym commicie. Zachowano ID, format JSON, domyślny profil i konteksty Gecko.
+- Regresje: 48 jednoczesnych create z wielu instancji i odczyt po ponownym otwarciu managera; równoległe create/update/delete bez gubienia innych ID; wymuszona odmowa `SharedPreferences.Editor.commit()`; ochrona default/fallback aktywnego profilu; delete nieznanego ID bez zapisu. Realny restart procesu, awaria dysku i Android 15: NOT_TESTED.
+- **Pozostałe do 8B/19:** ZC-AUD-003 (stare zadanie polityki dodatków), 023 (canonical default po selection), 024 (NewTab/private), 025 (polityka sugestii). Nie oznaczono ich jako naprawionych w 8A.
+- Brak merge do main, brak APK, bez zmiany podpisu czy danych użytkownika.
