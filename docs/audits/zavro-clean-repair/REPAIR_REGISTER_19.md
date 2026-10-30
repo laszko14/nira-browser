@@ -138,7 +138,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | --- | --- | --- | --- | --- | --- |
 | ZC-AUD-001 | niespójny kontrakt wersji joba release | CONFIRMED | P2 | 19/19 | IMPLEMENTED — stage 6, CI_PENDING |
 | ZC-AUD-002 | możliwy brak uzgodnienia nowej generacji rozszerzenia | SUSPECTED | P2 | 15/19 | VERIFY_FIRST |
-| ZC-AUD-003 | starsze zadanie zmienia politykę aktywnego profilu | CONFIRMED | P2 | 8/19 | IMPLEMENTED — 8B, CI_PENDING |
+| ZC-AUD-003 | starsze zadanie zmienia politykę aktywnego profilu | CONFIRMED | P2 | 8/19 | FIXED — 8B; Kotlin/JS/lint GREEN on code SHA d9e1047b; device NOT_TESTED |
 | ZC-AUD-004 | brak końcowego sprzątania slotów zamkniętych kart | CONFIRMED | P2 | 11/19 | DO_RECHECK |
 | ZC-AUD-005 | scope komunikatu Cofnij przeżywa swojego właściciela | CONFIRMED | P2 | 11/19 | DO_RECHECK |
 | ZC-AUD-006 | pozostawione przełączniki nie sterują aktualnym interfejsem | CONFIRMED | P2 | 14/19 | DO_RECHECK |
@@ -158,9 +158,9 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-020 | obsługa IME usuwa rezerwację miejsca na dolny pasek | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-021 | Anuluj nie cofa wyboru wyszukiwarki | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-022 | import własnego eksportu zmienia typy preferencji | CONFIRMED | P1 | 3/19 | IMPLEMENTED — stage 3, CI_PENDING |
-| ZC-AUD-023 | wybór canonical default nie uzgadnia aktywnego profilu | CONFIRMED | P2 | 8/19 | IMPLEMENTED — 8B, CI_PENDING |
-| ZC-AUD-024 | menu NewTab ma różną semantykę prywatności zależnie od profilu | CONFIRMED | P2 | 8/19 | IMPLEMENTED — 8B, CI_PENDING |
-| ZC-AUD-025 | zakres sugestii kart nie jest ograniczony do bieżącego profilu | SUSPECTED | P2 | 8/19 | IMPLEMENTED — 8B, CI_PENDING |
+| ZC-AUD-023 | wybór canonical default nie uzgadnia aktywnego profilu | CONFIRMED | P2 | 8/19 | FIXED — 8B; resolver/selection tests + CI GREEN on d9e1047b; device NOT_TESTED |
+| ZC-AUD-024 | menu NewTab ma różną semantykę prywatności zależnie od profilu | CONFIRMED | P2 | 8/19 | FIXED — 8B; explicit NewTab privacy + regressions; device NOT_TESTED |
+| ZC-AUD-025 | zakres sugestii kart nie jest ograniczony do bieżącego profilu | SUSPECTED | P2 | 8/19 | SCOPE_DEFINED — 8B local suggestions + guarded callbacks; device UX NOT_TESTED |
 | ZC-AUD-026 | killProcess wyprzedza trwały zapis sesji | CONFIRMED | P1 | 4/19 | IMPLEMENTED — stage 4, CI_PENDING |
 | ZC-AUD-027 | pusty stan startowy jest traktowany jak zamknięcie wszystkich kart | CONFIRMED | P2 | 9/19 | DO_RECHECK |
 | ZC-AUD-028 | default PWA nie używa canonical kontekstu default | CONFIRMED | P2 | 10/19 | DO_RECHECK |
@@ -302,3 +302,8 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - **025 VERIFY_FIRST → wybrana polityka lokalna:** paski kart i panele ograniczają się do aktywnego profilu. Identyczny zakres przyjęto dla nieprywatnych sugestii: default null/legacy lub dokładny `profile_ID`, bez innych normalnych profili i private. Callback select/close sprawdza profil i przynależność ponownie, jeżeli użytkownik zmieni zakres między wyświetleniem a kliknięciem. Nie ograniczano globalnej historii ani zakładek.
 - Regresje: czysty resolver default/named/legacy/private/unknown, target NewTab macierz default/named × normal/private, filtr zakresu i wyłączenie private, serializacja i generacja A→B→A oraz odrzucanie starych operacji. Testowanie realnego addon managera, rzeczywistych callbacks i telefonu Android 15: NOT_TESTED. Nie zmieniono istniejących contextId ani danych użytkownika. Bez APK i merge.
 - Wymagane pełne CI Kotlin/Robolectric, JavaScript, Android lint na końcowym SHA.
+
+### Etap 8B — checkpoint po weryfikacji pierwszej rewizji
+
+- [CI 41139260080](https://github.com/laszko14/nira-browser/actions/runs/41139260080) ukończone `completed/success` na SHA `d9e1047b7daef3bf4a31c75c6e2dc92713c86c0c`: pełny Kotlin/Robolectric, JavaScript oraz Android lint. Po tym przebiegu wzmocniono ochronę kliknięcia starych sugestii przy przejściu do private i dodano test rzeczywistego ProfileMiddleware dla jawnej normalnej karty default.
+- Ostateczny status wymaga ponownego `completed/success` na końcowym SHA po dopisaniu tych regresji. Wszelkie realne kliknięcia i callbacks addon engine na telefonie Android 15 pozostają NOT_TESTED. W przypadku niedostępności CI nie uznawać etapu za ukończony.

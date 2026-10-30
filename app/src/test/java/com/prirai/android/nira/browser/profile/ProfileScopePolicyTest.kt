@@ -37,6 +37,16 @@ class ProfileScopePolicyTest {
         assertFalse(ProfileTabScope.belongsToNormalProfile(tab("private","private",true),"A"))
     }
 
+    @Test fun staleSuggestionActionsAreBlockedAfterProfileAndPrivacySwitches() {
+        val tabA=TabSessionState(id="a",contextId="profile_A",content=ContentState(url="https://example.org"))
+        assertTrue(ProfileTabScope.canUseSuggestion(tabA,"A","A",false))
+        assertFalse(ProfileTabScope.canUseSuggestion(tabA,"A","B",false))
+        assertFalse(ProfileTabScope.canUseSuggestion(tabA,"A","A",true))
+        assertFalse(ProfileTabScope.canUseSuggestion(null,"A","A",false))
+        val priv=tabA.copy(contextId="private",content=tabA.content.copy(private=true))
+        assertFalse(ProfileTabScope.canUseSuggestion(priv,"A","A",false))
+    }
+
     @Test fun newTabHasSamePrivacyForDefaultAndNamedAndKeepsExplicitNormalDefault() {
         for(profile in listOf(default,a)) {
             val privateTab=ProfileTabScope.newTabDestination(profile,true)

@@ -21,6 +21,15 @@ internal object ProfileTabScope {
         else tab.contextId == "profile_$profileId"
     }
 
+    /** A stale suggestion chip must not cross profile or private-mode boundaries. */
+    fun canUseSuggestion(
+        tab: TabSessionState?,
+        capturedProfileId: String,
+        activeProfileId: String,
+        privateSelection: Boolean,
+    ): Boolean = !privateSelection && capturedProfileId == activeProfileId &&
+        tab != null && belongsToNormalProfile(tab, activeProfileId)
+
     /** Every NewTab surface uses current privacy; normal default is explicit until middleware canonicalizes it. */
     fun newTabDestination(profile: BrowserProfile, isPrivate: Boolean): NewTabDestination =
         NewTabDestination(isPrivate,

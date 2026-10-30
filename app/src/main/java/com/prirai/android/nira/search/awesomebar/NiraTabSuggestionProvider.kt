@@ -30,8 +30,14 @@ class NiraTabSuggestionProvider(
         val profileId = ProfileManager.getInstance(context).getActiveProfile().id
 
         fun mayAct(tabId: String): Boolean {
-            if (ProfileManager.getInstance(context).getActiveProfile().id != profileId) return false
-            return store.state.tabs.any { it.id == tabId && ProfileTabScope.belongsToNormalProfile(it, profileId) }
+            val manager = ProfileManager.getInstance(context)
+            val current = store.state
+            val selectedIsPrivate = current.tabs.firstOrNull { it.id == current.selectedTabId }
+                ?.content?.private == true
+            return ProfileTabScope.canUseSuggestion(
+                current.tabs.firstOrNull { it.id == tabId }, profileId,
+                manager.getActiveProfile().id, manager.isPrivateMode() || selectedIsPrivate
+            )
         }
 
         return state.tabs

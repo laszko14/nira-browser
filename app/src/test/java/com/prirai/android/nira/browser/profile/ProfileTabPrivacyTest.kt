@@ -45,4 +45,31 @@ class ProfileTabPrivacyTest {
         assertTrue(result!!.content.private);assertEquals("private",result!!.contextId)
     }
 
+    @Test fun explicitNormalDefaultFromMenuCannotBePrivatizedByStaleMode() {
+        val context = RuntimeEnvironment.getApplication()
+        val profiles = ProfileManager(context, activeProfilePolicy = { _, _ -> })
+        profiles.setPrivateMode(true)
+        val defaultDestination = ProfileTabScope.newTabDestination(BrowserProfile.getDefaultProfile(), false)
+        val requested = TabSessionState(
+            id = "menu-default", contextId = defaultDestination.contextId,
+            content = ContentState(url = "about:homepage", private = defaultDestination.isPrivate)
+        )
+        var produced: TabSessionState? = null
+        ProfileMiddleware(profiles).invoke(BrowserStore(),
+            { action -> produced = (action as TabListAction.AddTabAction).tab },
+            TabListAction.AddTabAction(requested, true))
+        assertFalse(produced!!.content.private)
+        assertNull("Explicit default sentinel is canonicalized, not moved to private partition", produced!!.contextId)
+
+        val named = BrowserProfile(id = "A", name = "A", color = 1)
+        val privateDestination = ProfileTabScope.newTabDestination(named, true)
+        val privateRequested = TabSessionState(id = "menu-private", contextId = privateDestination.contextId,
+            content = ContentState(url = "about:homepage", private = privateDestination.isPrivate))
+        ProfileMiddleware(profiles).invoke(BrowserStore(),
+            { action -> produced = (action as TabListAction.AddTabAction).tab },
+            TabListAction.AddTabAction(privateRequested, true))
+        assertTrue(produced!!.content.private)
+        assertEquals("private", produced!!.contextId)
+    }
+
 }
