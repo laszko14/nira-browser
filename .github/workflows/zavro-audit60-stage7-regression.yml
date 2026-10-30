@@ -1,0 +1,53 @@
+name: Zavro Clean audit60 stage 7 - TestLab Window and device scenario (no APK)
+
+on:
+  push:
+    branches:
+      - fix/zavro-clean-audit60-stage7-testlab-measurements-20261030
+    paths:
+      - '.github/workflows/zavro-audit60-stage7-regression.yml'
+      - 'app/src/main/java/com/prirai/android/nira/media/MediaFloatingUi.kt'
+      - 'app/src/main/java/com/prirai/android/nira/diagnostics/testlab/**'
+      - 'app/src/androidTest/java/com/prirai/android/nira/diagnostics/testlab/**'
+      - 'app/src/test/java/com/prirai/android/nira/diagnostics/testlab/**'
+      - 'app/src/test/js/testlab-audit60-stage7-window.test.cjs'
+      - 'docs/audits/zavro-clean-repair/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zavro-audit60-stage7-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 80
+    steps:
+      - uses: actions/checkout@v4
+      - uses: gradle/wrapper-validation-action@v2
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Complete Kotlin JVM and Robolectric regressions
+        run: ./gradlew :app:testDebugUnitTest --console=plain
+      - name: Complete WebExtension JavaScript regressions
+        run: node --test app/src/test/js/*.test.cjs
+      - name: Android lint
+        run: ./gradlew :app:lintDebug --console=plain
+      - name: Upload diagnostics only - no APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit60-stage7-test-reports
+          path: |
+            app/build/test-results/testDebugUnitTest/**
+            app/build/reports/tests/testDebugUnitTest/**
+            app/build/reports/lint-results-debug*
+          if-no-files-found: warn
+          retention-days: 7
+# No assemble, signing, instrumentation APK or merge.

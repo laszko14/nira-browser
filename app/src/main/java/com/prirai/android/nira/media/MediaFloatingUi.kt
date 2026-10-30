@@ -300,8 +300,12 @@ internal class MediaFloatingUi(
         // The video sheet has its own Android Window. Request the same supported
         // high-refresh rate as BrowserActivity, without touching Gecko or video FPS.
         requestSheetRefreshRate(dialog)
+        // Register the sheet Window independently of the FAB_OPEN latency token.
+        // PREPARING has no capture yet: TestLabRuntime attaches JankStats at begin().
+        // A denied operation token must not suppress frames from this Window either.
+        // The matching onDismissListener detaches it; TestLab.stop() also cleans up.
+        dialog.window?.let(TestLab::attachWindow)
         if (measurement != null) {
-            dialog.window?.let(TestLab::attachWindow)
             androidx.core.view.OneShotPreDrawListener.add(content) {
                 capture?.end(measurement, proof = CompletionProof.FIRST_PREDRAW)
             }

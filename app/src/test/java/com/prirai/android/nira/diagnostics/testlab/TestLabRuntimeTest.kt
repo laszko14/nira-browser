@@ -2,6 +2,8 @@ package com.prirai.android.nira.diagnostics.testlab
 
 import android.app.Activity
 import android.app.Application
+import android.app.Dialog
+import android.widget.TextView
 import android.os.Looper
 import android.os.SystemClock
 import org.robolectric.RuntimeEnvironment
@@ -125,6 +127,73 @@ class TestLabRuntimeTest {
         val export = TestLabReportGenerator.generate(e.latest()!!)
         assertFalse(export.json.contains("signed.mp4"))
         activity.pause().stop().destroy()
+    }
+
+
+    @Test fun sheetOpenedDuringCountdownIsRegisteredBeforeTrackingBegins() {
+        val e=engine()
+        val runtime=TestLabRuntime(RuntimeEnvironment.getApplication(),e,{it is ProbeActivity},false)
+        assertTrue(runtime.prepare(TestType.FULL_AUDIT))
+        val browser=Robolectric.buildActivity(ProbeActivity::class.java).setup().visible()
+        val sheet=Dialog(browser.get()).apply { setContentView(TextView(context)); show() }
+        val window=sheet.window!!
+        // No FAB_OPEN token is available in PREPARING, but Window ownership is real.
+        assertEquals(LabPhase.PREPARING,e.phase)
+        assertNull(runtime.capture)
+        runtime.attachWindow(window)
+        assertEquals(2,runtime.trackedWindowCount)
+        assertNotNull(window.decorView.findViewWithTag<android.view.View>(TestLabRuntime.COUNTER_TAG))
+        // The already registered Window is included in begin()'s JankStats attach loop.
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(3500))
+        assertEquals(LabPhase.RUNNING,e.phase)
+        assertNotNull(runtime.capture)
+        assertEquals(2,runtime.trackedWindowCount)
+        runtime.detachWindow(window)
+        assertEquals(1,runtime.trackedWindowCount)
+        assertNull(window.decorView.findViewWithTag<android.view.View>(TestLabRuntime.COUNTER_TAG))
+        sheet.dismiss()
+        runtime.stop()
+        assertEquals(0,runtime.trackedWindowCount)
+        browser.pause().stop().destroy()
+    }
+    @Test fun sheetDismissBeforeBeginAndStopWithOpenSheetBothReleaseWindow() {
+        val e=engine()
+        val runtime=TestLabRuntime(RuntimeEnvironment.getApplication(),e,{it is ProbeActivity},false)
+        assertTrue(runtime.prepare(TestType.FULL_AUDIT))
+        val browser=Robolectric.buildActivity(ProbeActivity::class.java).setup().visible()
+        val before=Dialog(browser.get()).apply {setContentView(TextView(context));show()}
+        runtime.attachWindow(before.window!!)
+        assertEquals(2,runtime.trackedWindowCount)
+        runtime.detachWindow(before.window!!)
+        before.dismiss()
+        assertEquals(1,runtime.trackedWindowCount)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(3500))
+        assertEquals(LabPhase.RUNNING,e.phase)
+        val during=Dialog(browser.get()).apply {setContentView(TextView(context));show()}
+        // No operation token is requested; opening a Window is enough.
+        runtime.attachWindow(during.window!!)
+        runtime.attachWindow(during.window!!)
+        assertEquals(2,runtime.trackedWindowCount)
+        runtime.stop()
+        assertEquals(0,runtime.trackedWindowCount)
+        assertNull(during.window!!.decorView.findViewWithTag<android.view.View>(TestLabRuntime.COUNTER_TAG))
+        during.dismiss()
+        browser.pause().stop().destroy()
+    }
+    @Test fun cancelDuringCountdownReleasesSheetAndNeverStartsMeasurement() {
+        val e=engine()
+        val runtime=TestLabRuntime(RuntimeEnvironment.getApplication(),e,{it is ProbeActivity},false)
+        assertTrue(runtime.prepare(TestType.FULL_AUDIT))
+        val browser=Robolectric.buildActivity(ProbeActivity::class.java).setup().visible()
+        val sheet=Dialog(browser.get()).apply {setContentView(TextView(context));show()}
+        runtime.attachWindow(sheet.window!!)
+        runtime.stop()
+        assertEquals(LabPhase.CANCELLED,e.phase)
+        assertEquals(0,runtime.trackedWindowCount)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(4))
+        assertEquals(LabPhase.CANCELLED,e.phase)
+        sheet.dismiss()
+        browser.pause().stop().destroy()
     }
 
     class ProbeActivity:Activity()

@@ -187,7 +187,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-049 | różny znak flingu w toolbarze WWW i Home | CONFIRMED | P2 | 13/19 | DO_RECHECK |
 | ZC-AUD-050 | migracja profilu przenosi stan odtwarzania starego silnika | CONFIRMED | P2 | 10/19 | DO_RECHECK |
 | ZC-AUD-051 | zmiana filmu w trasie hash zachowuje stare media | CONFIRMED | P2 | 15/19 | DO_RECHECK |
-| ZC-AUD-052 | brak rejestracji okna filmów otwartego w PREPARING | CONFIRMED | P2 | 7/19 | DO_RECHECK |
+| ZC-AUD-052 | brak rejestracji okna filmów otwartego w PREPARING | CONFIRMED | P2 | 7/19 | IMPLEMENTED — stage 7, CI_PENDING |
 | ZC-AUD-053 | parametry uwierzytelniania w diagnostyce Sync | CONFIRMED | P2 | 6/19 | DO_RECHECK |
 | ZC-AUD-054 | trwały cache favicon z prywatnej karty | CONFIRMED | P2 | 6/19 | DO_RECHECK |
 | ZC-AUD-055 | probe pobierania nie respektuje anulowania | CONFIRMED | P2 | 18/19 | DO_RECHECK |
@@ -195,7 +195,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-057 | resume nie wiąże części z wersją zasobu | CONFIRMED | P2 | 18/19 | DO_RECHECK |
 | ZC-AUD-058 | nowy intent PWA ginie przed utworzeniem fragmentu | CONFIRMED | P2 | 9/19 | DO_RECHECK |
 | ZC-AUD-059 | nieatomowe mutacje listy profili | CONFIRMED | P2 | 8/19 | DO_RECHECK |
-| ZC-AUD-060 | nieaktualny scenariusz TestLabDeviceTest | CONFIRMED | P2 | 7/19 | DO_RECHECK |
+| ZC-AUD-060 | nieaktualny scenariusz TestLabDeviceTest | CONFIRMED | P2 | 7/19 | IMPLEMENTED — stage 7, CI_PENDING |
 
 ## Kryteria przejścia i sposób oznaczania stanów
 
@@ -261,3 +261,12 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - Naprawa: `tab.content.private` propagowany przez rebind i async do `FaviconLoader.loadFavicon(..., isPrivate=true)` i `IconRequest(isPrivate=true)`. Dla private loader nie tworzy, nie czyta ani nie zapisuje współdzielonego `FaviconCache` (pamięć/dysk) także po późnym zakończeniu żądania. Zwykłe karty pozostają w dotychczasowym szybkim cache. Rebind rozróżnia prywatność, chroniąc recycled View. Brak masowego kasowania prawidłowego cache normalnych kart. Już istniejących plików prywatnych nie da się wiarygodnie odróżnić od zwykłych z powodu historycznego klucza tylko według domeny; nie przypisujemy im fałszywie udanego usunięcia.
 - Regresje: `SyncDiagnosticPolicyTest` — sukces, błąd, opóźnienie, skażone debug-info, brak fragmentów OAuth i adresu e-mail w raporcie; `FaviconPrivateCacheTest` — private cold miss bez pliku, normalny disk/memory hit, wspólna domena private/normal, opóźniona odpowiedź przy zamknięciu karty i przekazanie isPrivate do Mozilla. Wymagane pełne `:app:testDebugUnitTest`, JavaScript, Android lint — wynik CI końcowego SHA osobno.
 - Urządzenie Nothing Phone (1) Android 15, realne konta FxA i prawdziwa sieć/Gecko: NOT_TESTED. Bez APK i merge. Następny etap 7/19: ZC-AUD-052/060, dopiero po zielonym CI.
+
+## Etap 7/19 — ZC-AUD-052 + ZC-AUD-060: TestLab Window i regresja urządzeniowa (2026-10-30)
+
+- Baza: etap 6 `414f8a1a414f06828d2d17aca5e7863bfe9fa350`, zielone CI [41131554080](https://github.com/laszko14/nira-browser/actions/runs/41131554080). Osobna gałąź `fix/zavro-clean-audit60-stage7-testlab-measurements-20261030`.
+- **052 STILL_PRESENT:** `MediaFloatingUi.showSheet` wykonywał `TestLab.attachWindow(dialog.window)` tylko przy tokenie `FAB_OPEN`. Podczas PREPARING `TestLab.capture()==null`, więc widoczne okno nie trafiało do mapy TestLabRuntime, a późniejsze begin()/JankStats nie miało czego podpiąć. Naprawa: rejestracja fizycznego Window niezależnie od tokenu; opóźnienie FAB_OPEN nadal mierzone wyłącznie przy prawidłowym tokenie. onDismiss zawsze wykonuje detach; runtime.stop() zwalnia pozostałe okna. Disabled TestLab: metody fasady pozostają no-op.
+- Regresje `TestLabRuntimeTest`: Window dialogu otwarte w PREPARING i istniejące po przejściu do RUNNING, dismiss przed begin, otwarcie po begin bez tokenu, idempotentny attach, anulowanie podczas odliczania, stop z otwartym oknem oraz usunięcie nieinteraktywnego licznika. JVM/Robolectric **nie** dostarcza prawdziwych klatek JankStats ani FPS Gecko: te dane wymagają urządzenia.
+- **060 STILL_PRESENT:** `TestLabDeviceTest` iterował 60-sekundowe przyciski starych trybów i wymagał `NiraSideTabs` DialogFragment. Bieżący UI udostępnia jeden `FULL_AUDIT` 120 s i osadzone `NiraEmbeddedSideTabs` / `NiraEmbeddedSideBookmarks`. Nowy scenariusz instrumentacji: realny start UI i 120 s, oba panele przez gesty i ich zamknięcie, obrót, kontrola pokrycia Window vs Gecko, aktualne versionCode/versionName odczytane z pakietu, PARTIAL po wcześniejszym stop oraz eksport bez nazw/ID fixture. Nie zakłada historycznego wersjonowania emulatora.
+- Workflow regresji etapu 7 uruchamia pełne JVM/Robolectric, Node JavaScript oraz Android lint **bez assemble, APK i podpisu**. Test urządzeniowy jest zaktualizowany, lecz jego rzeczywiste wykonanie, klatki JankStats arkusza i fizyczny Android 15 są **NOT_TESTED** dopóki nie zostanie jawnie dozwolona kompilacja APK wymaganych przez instrumentację. Sam zielony JVM/lint nie dowodzi pomiaru klatek arkusza.
+- Bez zmian profili, zakładek, odtwarzania, wyszukiwarki filmów, podpisu, pakietu, danych użytkownika czy merge do main. Następny etap po zielonym CI: **8/19**.

@@ -115,121 +115,132 @@ class TestLabDeviceTest {
         // Keep the root BrowserActivity alive: its intentional task-removal shutdown kills the process.
         // The instrumentation runner closes its isolated app at the end of the suite.
     }
-    @Test fun allSevenUiModesReachRealSixtySecondsAndSeparateEarlyStopIsPartial() {
-        try { runSevenModes() } catch(t:Throwable) {
-            // Preserve the original scenario failure if a test-rule teardown also fails.
+    @Test fun fullAuditUiRunsFor120SecondsAndEarlyStopIsPartial() {
+        try { runCurrentFullAudit() } catch(t:Throwable) {
             println("TESTLAB_FIXTURE_FAILURE stage=$stage type=${t.javaClass.simpleName}")
             t.printStackTrace()
             throw t
         }
     }
-    private fun runSevenModes() {
-        val baseline=trial("OFF",5000)
-        val results=mutableMapOf<TestType,TestLabReport>()
-        for(type in TestType.entries) {
-            stage="${type.name}:start-ui"
-            screen=instrumentation.startActivitySync(Intent(app,TestLabActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as TestLabActivity
-            clickUi("${type.labTitle()} — 60 s")
-            clickUi("Rozpocznij i wróć",scroll=false)
-            screen=null
-            stage="${type.name}:await-running"
-            await(30_000){TestLab.ui.value.phase==LabPhase.RUNNING}
-            assertEquals(type,TestLab.ui.value.type)
-            val counter=onMain {browser.window.decorView.findViewWithTag<TextView>(TestLabRuntime.COUNTER_TAG)}
-            assertNotNull(counter);assertFalse(counter.isClickable);assertFalse(counter.isFocusable)
-            if(type==TestType.COMPLEX) {
-                stage="COMPLEX:tabs-room"
-                onMain {repeat(10){tabs.add(app.components.tabsUseCases.addTab("about:blank",selectTab=true,contextId="profile_default"))}}
-                group=runBlocking {withTimeout(15_000){
-                    app.components.tabGroupManager.awaitInitialized()
-                    app.components.tabGroupManager.createGroup(tabs.take(2),name="TESTLAB_PRIVATE_FIXTURE",contextId=null).id
-                }}
-                stage="COMPLEX:left-panel"
-                swipeFromLeftEdge()
-                await(10_000){onMain {
-                    val nav=browser.supportFragmentManager.primaryNavigationFragment
-                    val panel=nav?.childFragmentManager?.findFragmentByTag("NiraSideTabs") as? androidx.fragment.app.DialogFragment
-                    panel?.dialog?.window?.decorView?.let{it.isShown&&it.isLaidOut}==true
-                }}
-                // The final report below must contain FIRST_PREDRAW completion, not merely show().
-                onMain {
-                    val nav=browser.supportFragmentManager.primaryNavigationFragment
-                    nav?.childFragmentManager?.findFragmentByTag("NiraSideTabs")?.let{(it as? androidx.fragment.app.DialogFragment)?.dismiss()}
-                }
-                onMain {TestLab.mark();browser.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE}
-                stage="COMPLEX:rotation-gap"
-                SystemClock.sleep(500)
-                onMain {browser.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_PORTRAIT}
-                // A real ineligible Activity creates a coverage gap, without sending a new Browser intent.
-                screen=instrumentation.startActivitySync(Intent(app,TestLabActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as TestLabActivity
-                SystemClock.sleep(1000)
-                onMain{screen?.finish();screen=null}
-                stage="COMPLEX:await-completed"
-                await(75_000){TestLab.ui.value.phase==LabPhase.COMPLETED}
-            } else {
-                if(type==TestType.RESOURCES)trial("ON_RESOURCES",5000) else SystemClock.sleep(1200)
-                // Every selectable mode must reach its complete, real 60s deadline.
-                // Early stop is verified independently below.
-                await(75_000){TestLab.ui.value.phase==LabPhase.COMPLETED}
-            }
-            stage="${type.name}:report"
-            val report=TestLab.reports.value[type]?:error("No report for completed mode")
-            results[type]=report
-            assertEquals(LabPhase.COMPLETED,report.status)
-            assertEquals(60_000.0,report.durationMs,0.0)
-            // Emulator runs the explicit x86_64 instrumentation ABI: Gradle code 170.
-            // The signed ARM64 update uses its ABI-adjusted code 1170, checked by release CI.
-            assertEquals(170,report.appVersion.versionCode)
-            assertEquals("0.5.22-alpha75-clean",report.appVersion.versionName)
-            assertTrue(report.resourceMetrics.totalSamples>0)
-            assertNotNull(report.resourceMetrics.javaHeapMaxBytes)
-            assertNotNull(report.frameMetrics)
-            assertTrue(report.frameMetrics!!.count>0)
-            assertEquals(Availability.NOT_EXPOSED_BY_PLATFORM,report.metricAvailability[LabMetric.GECKO_COMPOSITOR_FRAMES])
-            assertEquals(Availability.NOT_EXPOSED_BY_PLATFORM,report.metricAvailability[LabMetric.POPUP_WINDOW_FRAMES])
-            assertNull(onMain{browser.window.decorView.findViewWithTag<View>(TestLabRuntime.COUNTER_TAG)})
-            val json=TestLabReportGenerator.generate(report).json
-            assertFalse(json.contains("TESTLAB_PRIVATE_FIXTURE"));tabs.forEach{assertFalse(json.contains(it))}
-            val root=Json.parseToJsonElement(json).jsonObject
-            assertEquals(1,root.getValue("schemaVersion").jsonPrimitive.int)
-        }
-        stage="final-assertions"
-        assertEquals(7,results.size)
-        val full=results.getValue(TestType.COMPLEX)
-        assertEquals(60_000.0,full.durationMs,0.0)
+    private fun currentBrowserFragment():com.prirai.android.nira.BrowserFragment? =
+        browser.supportFragmentManager.primaryNavigationFragment
+            ?.childFragmentManager?.primaryNavigationFragment as? com.prirai.android.nira.BrowserFragment
+
+    private fun panelVisible(tag:String):Boolean=onMain {
+        currentBrowserFragment()?.childFragmentManager?.findFragmentByTag(tag)?.view
+            ?.let { it.isShown && it.isLaidOut }==true
+    }
+    private fun closePanel(tag:String) {
+        instrumentation.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+        await(15_000) { !panelVisible(tag) }
+    }
+    private fun runCurrentFullAudit() {
+        val baseline=trial("OFF",3000)
+        stage="FULL_AUDIT:start-ui"
+        screen=instrumentation.startActivitySync(Intent(app,TestLabActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as TestLabActivity
+        clickUi("URUCHOM JEDEN TEST • 120 s")
+        clickUi("Rozpocznij i wróć",scroll=false)
+        screen=null
+        stage="FULL_AUDIT:await-running"
+        await(30_000){TestLab.ui.value.phase==LabPhase.RUNNING}
+        assertEquals(TestType.FULL_AUDIT,TestLab.ui.value.type)
+        assertTrue((TestLab.ui.value.remainingSeconds?:0) in 1..120)
+        val counter=onMain{browser.window.decorView.findViewWithTag<TextView>(TestLabRuntime.COUNTER_TAG)}
+        assertNotNull(counter);assertFalse(counter.isClickable);assertFalse(counter.isFocusable)
+
+        // Exercise only isolated fixture tabs: never modify real user data.
+        stage="FULL_AUDIT:tabs-and-group"
+        onMain{repeat(10){tabs.add(app.components.tabsUseCases.addTab("about:blank",selectTab=true,contextId="profile_default"))}}
+        group=runBlocking{withTimeout(15_000){
+            app.components.tabGroupManager.awaitInitialized()
+            app.components.tabGroupManager.createGroup(tabs.take(2),name="TESTLAB_PRIVATE_FIXTURE",contextId=null).id
+        }}
+        stage="FULL_AUDIT:embedded-left"
+        swipeFromEdge(left=true)
+        await(15_000){panelVisible("NiraEmbeddedSideTabs")}
+        // Embedded content is not a DialogFragment and has no dialog Window.
+        assertTrue(panelVisible("NiraEmbeddedSideTabs"))
+        closePanel("NiraEmbeddedSideTabs")
+
+        stage="FULL_AUDIT:embedded-right"
+        swipeFromEdge(left=false)
+        await(15_000){panelVisible("NiraEmbeddedSideBookmarks")}
+        assertTrue(panelVisible("NiraEmbeddedSideBookmarks"))
+        closePanel("NiraEmbeddedSideBookmarks")
+
+        stage="FULL_AUDIT:rotation"
+        onMain{TestLab.mark();browser.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE}
+        await(15_000){onMain{browser.resources.configuration.orientation==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE}}
+        onMain{browser.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_PORTRAIT}
+        await(15_000){onMain{browser.resources.configuration.orientation==
+            android.content.res.Configuration.ORIENTATION_PORTRAIT}}
+        assertEquals(LabPhase.RUNNING,TestLab.ui.value.phase)
+        assertNotNull(onMain{browser.window.decorView.findViewWithTag<View>(TestLabRuntime.COUNTER_TAG)})
+
+        // Ineligible foreground Activity creates a real coverage gap, not a synthetic metric.
+        stage="FULL_AUDIT:coverage-gap"
+        screen=instrumentation.startActivitySync(Intent(app,TestLabActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as TestLabActivity
+        SystemClock.sleep(1200)
+        onMain{screen?.finish();screen=null}
+        stage="FULL_AUDIT:await-completed"
+        await(150_000){TestLab.ui.value.phase==LabPhase.COMPLETED}
+        await(15_000){!TestLab.busy}
+        val full=TestLab.reports.value[TestType.FULL_AUDIT]?:error("No FULL_AUDIT report")
+        assertEquals(LabPhase.COMPLETED,full.status)
+        assertEquals(120_000.0,full.durationMs,0.0)
+        val installed=app.packageManager.getPackageInfo(app.packageName,0)
+        val expectedCode=if(android.os.Build.VERSION.SDK_INT>=28)installed.longVersionCode.toInt() else installed.versionCode
+        assertEquals(expectedCode,full.appVersion.versionCode)
+        assertEquals(com.prirai.android.nira.BuildConfig.VERSION_NAME,full.appVersion.versionName)
+        assertTrue(full.resourceMetrics.totalSamples>0)
+        assertNotNull(full.resourceMetrics.javaHeapMaxBytes)
+        assertNotNull(full.frameMetrics)
+        assertTrue(full.frameMetrics!!.count>0)
         assertTrue(full.noCoverageMs>=500.0)
         assertTrue(full.anomalyMarkers.isNotEmpty())
         assertTrue(full.operationMetrics.first{it.operation==LabOperation.TAB_OPEN}.succeeded>=10)
         assertTrue(full.operationMetrics.first{it.operation==LabOperation.GROUP_CREATE}.succeeded>=1)
-        val panel=full.operationMetrics.first{it.operation==LabOperation.LEFT_PANEL_OPEN}
-        assertTrue(panel.succeeded>=1);assertTrue((panel.completionProofs[CompletionProof.FIRST_PREDRAW]?:0)>0)
-        assertTrue(full.frameMetrics!!.cpuSamples>0)
-        assertNotNull(full.resourceMetrics.cpuMeanOneCorePercent)
-        assertEquals(Availability.MEASURED,results.getValue(TestType.STABILITY).metricAvailability[LabMetric.HISTORICAL_EXITS])
+        assertTrue(full.operationMetrics.first{it.operation==LabOperation.LEFT_PANEL_OPEN}.succeeded>=1)
+        assertTrue(full.operationMetrics.first{it.operation==LabOperation.RIGHT_PANEL_OPEN}.succeeded>=1)
+        assertEquals(Availability.NOT_EXPOSED_BY_PLATFORM,full.metricAvailability[LabMetric.GECKO_COMPOSITOR_FRAMES])
+        assertEquals(Availability.NOT_EXPOSED_BY_PLATFORM,full.metricAvailability[LabMetric.POPUP_WINDOW_FRAMES])
+        assertNull(onMain{browser.window.decorView.findViewWithTag<View>(TestLabRuntime.COUNTER_TAG)})
         assertTrue(baseline.draws>0)
-        // Separate real early cancellation: PREPARING -> RUNNING -> PARTIAL, not fake COMPLETED.
-        stage="explicit-partial-after-seven-full-modes"
-        // Use the same Activity-return path as a real user. A direct call from
-        // an already-RESUMED BrowserActivity cannot deliver onActivityResumed
-        // to a lifecycle listener registered after that resume event.
+        val json=TestLabReportGenerator.generate(full).json
+        assertFalse(json.contains("TESTLAB_PRIVATE_FIXTURE"))
+        tabs.forEach{assertFalse(json.contains(it))}
+        assertEquals(1,Json.parseToJsonElement(json).jsonObject.getValue("schemaVersion").jsonPrimitive.int)
+
+        // Start via current UI again, then stop after RUNNING: PARTIAL is not COMPLETED.
+        stage="FULL_AUDIT:early-stop"
         screen=instrumentation.startActivitySync(Intent(app,TestLabActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as TestLabActivity
-        clickUi("${TestType.STABILITY.labTitle()} — 60 s")
+        clickUi("URUCHOM JEDEN TEST • 120 s")
         clickUi("Rozpocznij i wróć",scroll=false)
         screen=null
-        await(15_000){TestLab.ui.value.phase==LabPhase.RUNNING}
-        onMain { TestLab.stop() }
+        await(20_000){TestLab.ui.value.phase==LabPhase.RUNNING}
+        onMain{TestLab.stop()}
         await(15_000){!TestLab.busy}
         assertEquals(LabPhase.PARTIAL,TestLab.ui.value.phase)
-        assertNull(onMain {browser.window.decorView.findViewWithTag<View>(TestLabRuntime.COUNTER_TAG)})
-        // Export controls and a configuration recreation operate on the completed RAM report.
-        screen=instrumentation.startActivitySync(Intent(app,TestLabActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as TestLabActivity
-        clickUi("Otwórz raport")
+        val partial=TestLab.reports.value[TestType.FULL_AUDIT]?:error("No PARTIAL report")
+        assertEquals(LabPhase.PARTIAL,partial.status)
+        assertTrue(partial.durationMs<120_000.0)
+        assertNull(onMain{browser.window.decorView.findViewWithTag<View>(TestLabRuntime.COUNTER_TAG)})
+
+        stage="FULL_AUDIT:report-controls"
+        screen=instrumentation.startActivitySync(Intent(app,TestLabActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as TestLabActivity
+        clickUi("Otwórz jeden raport")
         assertNotNull(uiNode("Eksportuj JSON"))
         onMain{screen?.recreate()}
         clickUi("Kopiuj raport")
-        val clip=app.getSystemService(android.content.ClipboardManager::class.java).primaryClip?.getItemAt(0)?.text.toString()
-        assertTrue(clip.contains("Zavro TestLab"));assertFalse(clip.contains("TESTLAB_PRIVATE_FIXTURE"))
+        val clip=app.getSystemService(android.content.ClipboardManager::class.java)
+            .primaryClip?.getItemAt(0)?.text.toString()
+        assertTrue(clip.contains("Zavro TestLab"))
+        assertFalse(clip.contains("TESTLAB_PRIVATE_FIXTURE"))
     }
     /** Real accessibility actions keep production recomposers on Main and use real elapsed time. */
     private fun uiNode(text:String,scroll:Boolean=true):android.view.accessibility.AccessibilityNodeInfo {
@@ -264,15 +275,17 @@ class TestLabDeviceTest {
         assertTrue(node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK))
         instrumentation.waitForIdleSync()
     }
-    private fun swipeFromLeftEdge() {
+    private fun swipeFromEdge(left:Boolean) {
         val density=browser.resources.displayMetrics.density
         val bounds=onMain {
             val view=browser.findViewById<View>(com.prirai.android.nira.R.id.gestureLayout)
             val location=IntArray(2);view.getLocationOnScreen(location)
             intArrayOf(location[0],location[1],view.width,view.height)
         }
-        // Inside the app's 36dp edge, beyond Android's typical system-back strip.
-        val start=SystemClock.uptimeMillis();val x=bounds[0]+27*density;val screenY=bounds[1]+bounds[3]*0.5f
+        val start=SystemClock.uptimeMillis()
+        val x=if(left)bounds[0]+27*density else bounds[0]+bounds[2]-27*density
+        val direction=if(left)1f else -1f
+        val screenY=bounds[1]+bounds[3]*0.5f
         fun send(action:Int,atX:Float) {
             val pointer=MotionEvent.PointerProperties().apply{id=0;toolType=MotionEvent.TOOL_TYPE_FINGER}
             val coords=MotionEvent.PointerCoords().apply{this.x=atX;this.y=screenY;pressure=if(action==MotionEvent.ACTION_UP)0f else 1f;size=1f}
@@ -281,8 +294,13 @@ class TestLabDeviceTest {
             try{instrumentation.sendPointerSync(event)}finally{event.recycle()}
         }
         send(MotionEvent.ACTION_DOWN,x)
-        repeat(20){i->send(MotionEvent.ACTION_MOVE,(x+(i+1)*8*density).coerceAtMost(bounds[0]+bounds[2]-20f));SystemClock.sleep(12)}
-        send(MotionEvent.ACTION_UP,(x+160*density).coerceAtMost(bounds[0]+bounds[2]-20f))
+        repeat(20){i->
+            send(MotionEvent.ACTION_MOVE,
+                (x+direction*(i+1)*8*density).coerceIn(bounds[0]+20f,bounds[0]+bounds[2]-20f))
+            SystemClock.sleep(12)
+        }
+        send(MotionEvent.ACTION_UP,
+            (x+direction*160*density).coerceIn(bounds[0]+20f,bounds[0]+bounds[2]-20f))
     }
     private data class Trial(val draws:Long)
     private fun trial(label:String,ms:Long):Trial {
