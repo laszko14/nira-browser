@@ -203,4 +203,38 @@ class VideoSearchPrivateRunAccessTest {
         f.registry.reconcile(listOf(f.tab), "default")
         assertNull(f.access.latest(f.tab, "default"))
     }
+
+    @Test fun privateSingleRunStoresTenThousandConfiguredResultsInRamOnly() {
+        val f = Fixture()
+        f.store.putSite(f.site.copy(resultLimit = 10_000))
+        val cards = List(10_000) { i ->
+            f.card("https://example.org/film?id=$i").copy(originalIndex = i)
+        }
+        assertTrue(f.access.record(f.tab, "default", "site", "term", cards,
+            reason = VideoSearchPaginationStop.LIMIT_REACHED,
+            visitedPages = 30))
+        val latest = f.access.latest(f.tab, "default")!!
+        assertEquals(10_000, latest.films.size)
+        assertEquals(10_000, latest.tasks.single().resultLimit)
+        assertEquals(VideoSearchRunState.COMPLETED, latest.run.status)
+        f.registry.reconcile(emptyList(), "default")
+        assertNull(f.access.latest(f.tab, "default"))
+    }
+
+    @Test fun privateSingleProgressHonorsConfiguredHighLimitAndRejectsStaleEpoch() {
+        val f = Fixture()
+        f.store.putSite(f.site.copy(resultLimit = 5_000))
+        val run = f.access.beginSingle(f.tab, "default", "site", "phrase")!!
+        val films = (0 until 500).map { i ->
+            f.card("https://example.org/film?id=$i").copy(originalIndex = i)
+        }
+        val snapshot = VideoSearchPaginationSnapshot(films, scannedCards = 500,
+            visitedPages = 7, pageActions = 5, reason = VideoSearchPaginationStop.RESOURCE_LIMIT)
+        assertTrue(f.access.checkpointSingle(f.tab, "default", run, "site", snapshot))
+        assertEquals(500, f.store.films(f.owner, run, "site").size)
+        assertEquals(5_000, f.store.tasks(f.owner, run).single().resultLimit)
+        f.registry.reconcile(emptyList(), "default")
+        assertFalse(f.access.checkpointSingle(f.tab, "default", run, "site", snapshot))
+    }
+
 }
