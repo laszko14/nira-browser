@@ -108,6 +108,7 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
         var title: String,
         var url: String,
         var iconIdentity: Int?,
+        var isPrivate: Boolean,
         var selected: Boolean
     )
     private val renderedPills = mutableMapOf<String, RenderedPill>()
@@ -217,7 +218,7 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
         // Invalidate any pending async request when the same view is rebound.
         image.tag = null
         val url = tab.content.url
-        val bitmap = tab.content.icon ?: FaviconLoader.getFromMemorySync(context, url)
+        val bitmap = tab.content.icon ?: FaviconLoader.getFromMemorySync(context, url, tab.content.private)
         if (bitmap != null) {
             image.setImageBitmap(bitmap)
             return
@@ -226,10 +227,10 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
         if (!url.startsWith("http://") && !url.startsWith("https://")) return
 
         // Never block the main thread or reassign an icon to a recycled tab.
-        val requestKey = tab.id to url
+        val requestKey = Triple(tab.id, url, tab.content.private)
         image.tag = requestKey
         iconScope.launch {
-            val loaded = FaviconLoader.loadFavicon(context, url)
+            val loaded = FaviconLoader.loadFavicon(context, url, isPrivate = tab.content.private)
             if (image.tag == requestKey && image.parent != null && loaded != null) {
                 image.setImageBitmap(loaded)
             }
@@ -304,7 +305,7 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
         ))
         bindFavicon(image, tab)
         renderedPills[tab.id] = RenderedPill(tabContainer, image, title, tab.content.url,
-            tab.content.icon?.let { System.identityHashCode(it) }, selected)
+            tab.content.icon?.let { System.identityHashCode(it) }, tab.content.private, selected)
         parent.addView(tabContainer)
         if (selected) selectedPill = tabContainer
     }
@@ -402,7 +403,7 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
                 add(group.tabIds.joinToString(","))
                 add(group.isCollapsed.toString())
             }
-            tabs.forEach { add(it.id) }
+            tabs.forEach { add(it.id + ":private=" + it.content.private) }
         }
         val structureChanged = signature != lastSignature
         if (structureChanged) {
@@ -497,9 +498,11 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
                 pill.image.contentDescription = "Ikona strony: $title"
             }
             val iconIdentity = tab.content.icon?.let { System.identityHashCode(it) }
-            if (pill.url != tab.content.url || pill.iconIdentity != iconIdentity) {
+            if (pill.url != tab.content.url || pill.iconIdentity != iconIdentity ||
+                pill.isPrivate != tab.content.private) {
                 pill.url = tab.content.url
                 pill.iconIdentity = iconIdentity
+                pill.isPrivate = tab.content.private
                 bindFavicon(pill.image, tab)
             }
             val selected = tab.id == selectedId
