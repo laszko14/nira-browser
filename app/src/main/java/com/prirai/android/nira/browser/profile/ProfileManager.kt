@@ -110,7 +110,7 @@ class ProfileManager(
 
         // Always ensure default profile exists
         val defaultProfile = BrowserProfile.getDefaultProfile()
-        return if (profiles.none { it.id == defaultProfile.id }) {
+        if (profiles.none { it.id == defaultProfile.id }) {
             listOf(defaultProfile) + profiles
         } else {
             profiles
@@ -142,7 +142,7 @@ class ProfileManager(
      */
     fun getActiveProfile(): BrowserProfile = synchronized(profileRegistryLock) {
         val activeId = prefs.getString(KEY_ACTIVE_PROFILE_ID, "default")
-        return getAllProfiles().find { it.id == activeId } ?: BrowserProfile.getDefaultProfile()
+        getAllProfiles().find { it.id == activeId } ?: BrowserProfile.getDefaultProfile()
     }
     
     /**
