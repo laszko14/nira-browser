@@ -182,8 +182,11 @@ internal object VideoSearchBridgeProtocol {
                     "NONE" -> VideoSearchPagination.NONE
                     "NEXT_LINK" -> VideoSearchPagination.NEXT_LINK
                     "LOAD_MORE" -> VideoSearchPagination.LOAD_MORE
+                    "INFINITE_SCROLL" -> VideoSearchPagination.INFINITE_SCROLL
                     else -> return null
                 }
+                if (pagination == VideoSearchPagination.INFINITE_SCROLL &&
+                    (kind != "next" || selector != "html")) return null
                 if (kind != "input" && formSafe) return null
                 if (kind != "next" && pagination != VideoSearchPagination.NONE) return null
                 if (kind == "next" && pagination == VideoSearchPagination.NONE) return null
