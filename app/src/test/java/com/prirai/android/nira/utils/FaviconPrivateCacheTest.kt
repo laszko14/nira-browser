@@ -73,7 +73,7 @@ class FaviconPrivateCacheTest {
         val url = "https://$host/"
         val target = diskFile(host)
         val normal = icon()
-        val private = icon()
+        val privateBitmap = icon()
         try {
             FaviconLoader.loadFaviconWithSource(context, url, false) { normal }
             val before = target.readBytes()
@@ -81,10 +81,10 @@ class FaviconPrivateCacheTest {
             val loaded = FaviconLoader.loadFaviconWithSource(context, url, true) { request ->
                 privateCalls++
                 assertTrue(request.isPrivate)
-                private
+                privateBitmap
             }
             assertEquals(1, privateCalls)
-            assertSame(private, loaded)
+            assertSame(privateBitmap, loaded)
             assertArrayEquals(before, target.readBytes())
             assertNull(FaviconLoader.getFromMemorySync(context, url, isPrivate = true))
             assertSame(normal, FaviconLoader.getFromMemorySync(context, url))
