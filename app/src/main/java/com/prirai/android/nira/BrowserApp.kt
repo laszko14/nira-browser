@@ -5,7 +5,14 @@ import android.content.Context
 import android.content.Context.MODE_PRIVATE
 import android.view.Choreographer
 import com.prirai.android.nira.components.Components
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.flow.first
+import mozilla.components.lib.state.ext.flow
+import mozilla.components.browser.state.action.AppLifecycleAction
+import com.prirai.android.nira.browser.TaskExitSaveBarrier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
@@ -29,6 +36,46 @@ class BrowserApp : Application() {
     // Main (GeckoView extension installs, store observers, flow collectors
     // that update UI) specify Dispatchers.Main explicitly.
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    // Do not write an initially empty BrowserStore over a still-pending
+    // session restore. A failing restore also blocks forced termination.
+    private val sessionRestoreGate = CompletableDeferred<Boolean>()
+
+    private val taskExitSaveBarrier by lazy {
+        TaskExitSaveBarrier(
+            scope = applicationScope,
+            persist = {
+                val restored = withTimeoutOrNull(15_000L) { sessionRestoreGate.await() } == true
+                if (!restored) {
+                    false
+                } else {
+                    // BrowserStore.dispatch is asynchronous. Enqueue a PauseAction
+                    // after all pending tab changes, then await its Job as a store
+                    // queue fence before taking the final on-disk snapshot.
+                    components.store.dispatch(AppLifecycleAction.PauseAction).join()
+                    withContext(Dispatchers.IO) {
+                        components.sessionStorage.save(components.store.state)
+                    }
+                }
+            },
+            onCommitted = {
+                android.util.Log.i("BrowserApp", "Final session saved; ending root task process")
+                android.os.Process.killProcess(android.os.Process.myPid())
+            },
+            onFailure = { failure ->
+                android.util.Log.e(
+                    "BrowserApp",
+                    "Final session save not confirmed; retaining process for normal Android shutdown",
+                    failure,
+                )
+            },
+        )
+    }
+
+    /** Called only by a finishing root BrowserActivity after service teardown. */
+    internal fun requestTaskExitSessionSave() {
+        taskExitSaveBarrier.request()
+    }
 
     val components by lazy { Components(this) }
     
@@ -386,20 +433,27 @@ class BrowserApp : Application() {
     }
 
     private fun restoreBrowserState() {
-        // Do the heavy session-file deserialise on IO (that is what P1-11
-        // originally targeted: the session file is potentially multi-megabyte
-        // and historically blocked the first frame). But
-        // AutoSave.periodicallyInForeground installs a lifecycle observer
-        // on ProcessLifecycleOwner via LifecycleRegistry.addObserver, which
-        // enforces Main-thread access. So hop to Main for just the autoSave
-        // wiring.
+        // Restore on IO, but register ProcessLifecycleOwner listeners on Main.
+        // Even after the restore use case returns, BrowserStore dispatches
+        // asynchronously; wait for RestoreCompleteAction to reach the reducer.
         applicationScope.launch(Dispatchers.IO) {
-            components.tabsUseCases.restore(components.sessionStorage)
-            withContext(Dispatchers.Main) {
-                components.sessionStorage.autoSave(components.store)
-                    .periodicallyInForeground(interval = 30, unit = TimeUnit.SECONDS)
-                    .whenGoingToBackground()
-                    .whenSessionsChange()
+            var ready = false
+            try {
+                components.tabsUseCases.restore(components.sessionStorage)
+                components.store.flow().first { it.restoreComplete }
+                withContext(Dispatchers.Main) {
+                    components.sessionStorage.autoSave(components.store)
+                        .periodicallyInForeground(interval = 30, unit = TimeUnit.SECONDS)
+                        .whenGoingToBackground()
+                        .whenSessionsChange()
+                }
+                ready = true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                android.util.Log.e("BrowserApp", "Session restore/auto-save setup failed", t)
+            } finally {
+                sessionRestoreGate.complete(ready)
             }
         }
     }
