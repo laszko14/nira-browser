@@ -241,7 +241,7 @@ class FxaSyncManager private constructor(private val context: Context) {
             accountManager.authenticatedAccount()?.deviceConstellation()?.pollForCommands()
             _lastSyncTime.value = System.currentTimeMillis()
         } catch (e: Exception) {
-            _syncError.value = "Sync failed: ${e.message ?: "network error"}"
+            _syncError.value = "Sync failed (${SyncDiagnosticPolicy.safeErrorCategory(e)})"
         } finally {
             _isSyncing.value = false
         }
