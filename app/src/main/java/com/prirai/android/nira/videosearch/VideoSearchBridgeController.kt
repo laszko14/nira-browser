@@ -851,6 +851,7 @@ internal class VideoSearchBridgeController(
         }
 
         fun stop(reason: VideoSearchPaginationStop) = collector.snapshot(reason)
+        var sameUrlNextProved = false
         while (true) {
             if (!hasAggregateCapacity())
                 return stop(VideoSearchPaginationStop.RESOURCE_LIMIT)
@@ -893,8 +894,9 @@ internal class VideoSearchBridgeController(
             // the next page contains a new result.
             if (collector.pageActions > 0 &&
                 config.pagination == VideoSearchPagination.NEXT_LINK &&
-                newInDocument == 0)
+                newInDocument == 0 && !sameUrlNextProved)
                 return stop(VideoSearchPaginationStop.STALLED)
+            sameUrlNextProved = false
             if (collector.reachedLimit)
                 return stop(VideoSearchPaginationStop.LIMIT_REACHED)
             if (collector.exhaustedCardBudget)
@@ -979,6 +981,7 @@ internal class VideoSearchBridgeController(
                     }
                     if (added <= 0) return stop(VideoSearchPaginationStop.STALLED)
                     if (authorized()) onProgress(stop(VideoSearchPaginationStop.RESOURCE_LIMIT))
+                    sameUrlNextProved = true
                 }
                 // Genuine new film URLs are checked after reading the new document.
             } else {
@@ -1328,6 +1331,7 @@ internal class VideoSearchBridgeController(
             return stored == site
         }
 
+        var sameUrlNextProved = false
         while (true) {
             if (!hasAggregateCapacity())
                 return collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT)
@@ -1371,8 +1375,9 @@ internal class VideoSearchBridgeController(
             // After following NEXT_LINK, require a genuinely new film URL.
             if (collector.pageActions > 0 &&
                 config.pagination == VideoSearchPagination.NEXT_LINK &&
-                newInDocument == 0)
+                newInDocument == 0 && !sameUrlNextProved)
                 return collector.snapshot(VideoSearchPaginationStop.STALLED)
+            sameUrlNextProved = false
             if (collector.reachedLimit)
                 return collector.snapshot(VideoSearchPaginationStop.LIMIT_REACHED)
             if (collector.exhaustedCardBudget)
@@ -1462,6 +1467,7 @@ internal class VideoSearchBridgeController(
                     if (added <= 0) return collector.snapshot(VideoSearchPaginationStop.STALLED)
                     if (stillAuthorized())
                         onProgress(collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT))
+                    sameUrlNextProved = true
                 }
                 // Inspect the newly bound document before claiming progress.
             } else {
