@@ -391,7 +391,9 @@ internal object VideoSearchBridgeProtocol {
             VideoSearchSubmission.CLICK_SUBMIT, VideoSearchSubmission.FORM_SUBMIT))
         if (config.submission == VideoSearchSubmission.CLICK_SUBMIT)
             require(validSelector(config.submitSelector))
-        if (config.pagination != VideoSearchPagination.NONE)
+        if (config.pagination == VideoSearchPagination.INFINITE_SCROLL)
+            require(config.nextPageSelector == null)
+        else if (config.pagination != VideoSearchPagination.NONE)
             require(validSelector(config.nextPageSelector))
         return base("validate", documentId, requestId).apply {
             put("inputSelector", config.searchInputSelector)
