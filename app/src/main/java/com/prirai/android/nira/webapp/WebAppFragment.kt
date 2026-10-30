@@ -12,6 +12,7 @@ import com.prirai.android.nira.browser.profile.BrowserProfile
 import com.prirai.android.nira.browser.profile.ProfileManager
 import mozilla.components.concept.engine.HitResult
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import mozilla.components.browser.engine.gecko.GeckoEngineView
 import mozilla.components.concept.engine.EngineSession
 import mozilla.components.concept.engine.window.WindowRequest
@@ -79,7 +80,7 @@ class WebAppFragment : Fragment(), EngineSession.Observer {
         setupKeyboardAdjustment()
         
         // Create a session with the specified profile context
-        lifecycleScope.launch {
+        viewLifecycleOwner.lifecycleScope.launch {
             try {
                 val engine = requireContext().components.engine
                 // Canonical default Gecko partition is null. Do not silently
@@ -124,6 +125,8 @@ class WebAppFragment : Fragment(), EngineSession.Observer {
                 // Load the URL
                 engineSession?.loadUrl(url)
                 
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (e: Exception) {
                 activity?.finish()
             }
