@@ -36,10 +36,11 @@ import org.json.JSONException
 class ProfileManager(
     private val context: Context,
     private val migrationStore: () -> mozilla.components.browser.state.store.BrowserStore = { context.components.store },
-    private val markDefaultMigration: (String) -> Unit = { context.components.profileMiddleware.markAsGuestTab(it) }
+    private val markDefaultMigration: (String) -> Unit = { context.components.profileMiddleware.markAsGuestTab(it) },
+    private val registryPreferences: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 ) {
 
-    private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val prefs: SharedPreferences = registryPreferences
 
     // Scope used for the fire-and-forget work in setActiveProfile. Reusing a
     // single scope avoids allocating a transient CoroutineScope on every call
@@ -52,6 +53,9 @@ class ProfileManager(
         private const val KEY_PROFILES = "profiles"
         private const val KEY_ACTIVE_PROFILE_ID = "active_profile_id"
         private const val KEY_LAST_PRIVATE_PROFILE = "last_private_profile"
+
+        // One lock shared by imported, UI, and directly constructed managers.
+        private val profileRegistryLock = Any()
 
         @Volatile
         private var instance: ProfileManager? = null
@@ -96,7 +100,7 @@ class ProfileManager(
      * Get all profiles (excluding private mode)
      * Always includes the default profile
      */
-    fun getAllProfiles(): List<BrowserProfile> {
+    fun getAllProfiles(): List<BrowserProfile> = synchronized(profileRegistryLock) {
         val json = prefs.getString(KEY_PROFILES, null)
         val profiles = if (json != null) {
             parseProfilesJson(json)
@@ -136,7 +140,7 @@ class ProfileManager(
     /**
      * Get the currently active profile
      */
-    fun getActiveProfile(): BrowserProfile {
+    fun getActiveProfile(): BrowserProfile = synchronized(profileRegistryLock) {
         val activeId = prefs.getString(KEY_ACTIVE_PROFILE_ID, "default")
         return getAllProfiles().find { it.id == activeId } ?: BrowserProfile.getDefaultProfile()
     }
@@ -145,11 +149,18 @@ class ProfileManager(
      * Set the active profile
      */
     fun setActiveProfile(profile: BrowserProfile) {
-        prefs.edit { putString(KEY_ACTIVE_PROFILE_ID, profile.id) }
+        synchronized(profileRegistryLock) {
+            prefs.edit { putString(KEY_ACTIVE_PROFILE_ID, profile.id) }
+        }
         // Reuse the long-lived ioScope instead of allocating a one-shot
         // CoroutineScope per call. The previous pattern leaked a tiny amount
         // of coroutine machinery on every profile switch and skipped
         // SupervisorJob semantics.
+        applyActiveProfilePolicy(profile)
+    }
+
+    private fun applyActiveProfilePolicy(profile: BrowserProfile) {
+        // Switch ordering and stale addon tasks are handled separately in 8B.
         ioScope.launch {
             ProfileAddonPolicy.applyForProfile(context, profile.id)
             SearchEnginePreferences.apply(context, private = false)
@@ -167,9 +178,11 @@ class ProfileManager(
             isDefault = false
         )
         
-        val profiles = getAllProfiles().toMutableList()
-        profiles.add(newProfile)
-        saveProfiles(profiles)
+        synchronized(profileRegistryLock) {
+            val profiles = getAllProfiles().toMutableList()
+            profiles.add(newProfile)
+            saveProfiles(profiles)
+        }
         
         return newProfile
     }
@@ -183,11 +196,13 @@ class ProfileManager(
             return
         }
         
-        val profiles = getAllProfiles().toMutableList()
-        val index = profiles.indexOfFirst { it.id == profile.id }
-        if (index != -1) {
-            profiles[index] = profile
-            saveProfiles(profiles)
+        synchronized(profileRegistryLock) {
+            val profiles = getAllProfiles().toMutableList()
+            val index = profiles.indexOfFirst { it.id == profile.id }
+            if (index != -1) {
+                profiles[index] = profile
+                saveProfiles(profiles)
+            }
         }
     }
     
@@ -199,16 +214,22 @@ class ProfileManager(
             throw IllegalArgumentException("Cannot delete default profile")
         }
         
-        val profiles = getAllProfiles().toMutableList()
-        profiles.removeAll { it.id == profileId }
-        saveProfiles(profiles)
-        
-        // If deleted profile was active, switch to default
-        if (getActiveProfile().id == profileId) {
-            setActiveProfile(BrowserProfile.getDefaultProfile())
+        var resetActive = false
+        val removed = synchronized(profileRegistryLock) {
+            val profiles = getAllProfiles().toMutableList()
+            val changed = profiles.removeAll { it.id == profileId }
+            if (changed) {
+                resetActive = prefs.getString(KEY_ACTIVE_PROFILE_ID, "default") == profileId
+                saveProfiles(profiles, resetActive)
+            }
+            changed
         }
-        
-        // Clean up profile-specific storage
+        if (!removed) return
+
+        if (resetActive) {
+            // Registry and fallback were committed together; only reapply policy.
+            applyActiveProfilePolicy(BrowserProfile.getDefaultProfile())
+        }
         cleanupProfileStorage(profileId)
     }
     
@@ -226,13 +247,14 @@ class ProfileManager(
         prefs.edit { putBoolean(KEY_LAST_PRIVATE_PROFILE, isPrivate) }
     }
     
-    private fun saveProfiles(profiles: List<BrowserProfile>) {
-        // Don't save default profile to prefs, it's generated
-        val toSave = profiles.filter { !it.isDefault }
-        val json = toSave.toJsonString()
-        prefs.edit { putString(KEY_PROFILES, json) }
+    /** Must hold profileRegistryLock; do not return success before durable commit. */
+    private fun saveProfiles(profiles: List<BrowserProfile>, resetActive: Boolean = false) {
+        val json = profiles.filter { !it.isDefault }.toJsonString()
+        val editor = prefs.edit().putString(KEY_PROFILES, json)
+        if (resetActive) editor.putString(KEY_ACTIVE_PROFILE_ID, "default")
+        check(editor.commit()) { "Unable to persist profile registry" }
     }
-    
+
     private fun cleanupProfileStorage(profileId: String) {
         // Delete profile-specific session storage
         val profileDir = context.getDir("profile_$profileId", Context.MODE_PRIVATE)
