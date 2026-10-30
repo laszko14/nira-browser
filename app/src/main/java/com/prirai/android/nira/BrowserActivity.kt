@@ -335,7 +335,7 @@ open class BrowserActivity : LocaleAwareAppCompatActivity(), ComponentCallbacks2
         }
 
         // The Application-owned task outlives onDestroy; it also waits for
-        // restoreComplete, then drains pending BrowserStore actions before saving.
+        // restoreComplete, then saves the latest BrowserStore snapshot on IO.
         (application as? BrowserApp)?.requestTaskExitSessionSave()
     }
 
