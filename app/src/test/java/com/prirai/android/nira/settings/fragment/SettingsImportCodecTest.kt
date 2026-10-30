@@ -35,7 +35,7 @@ class SettingsImportCodecTest {
         assertTrue(old.commit())
         val exported = SettingsImportCodec.export(p.all)
         p.edit().clear().commit()
-        assertTrue(SettingsImportCodec.import(p, exported))
+        assertTrue(SettingsImportCodec.importSettings(p, exported))
         originals.forEach { (key, value) ->
             assertEquals(value, p.getString(key, null))
             assertTrue(p.all[key] is String)
@@ -57,7 +57,7 @@ class SettingsImportCodecTest {
             .commit())
         val exported = SettingsImportCodec.export(p.all)
         p.edit().clear().commit()
-        assertTrue(SettingsImportCodec.import(p, exported))
+        assertTrue(SettingsImportCodec.importSettings(p, exported))
         assertEquals(4, p.getInt(UserPreferences.SEARCH_ENGINE, -1))
         assertEquals(1L, p.getLong("save_bookmark_folder_id", -1L))
         assertEquals(1.25f, p.getFloat(UserPreferences.FONT_SIZE_FACTOR, 0f), 0.001f)
@@ -70,7 +70,7 @@ class SettingsImportCodecTest {
     @Test fun legacyOnlyConvertsStringsWhenKnownTypedKeyRequiresIt() {
         val p = prefs()
         val legacy = """{"collection_user"="00042","search_engine"="3","font_size_factor"="1.25","java_script_enabled"="false","other_custom"="true"}"""
-        assertTrue(SettingsImportCodec.import(p, legacy))
+        assertTrue(SettingsImportCodec.importSettings(p, legacy))
         assertEquals("00042", p.getString(UserPreferences.COLLECTION_USER, null))
         assertEquals(3, p.getInt(UserPreferences.SEARCH_ENGINE, -1))
         assertEquals(1.25f, p.getFloat(UserPreferences.FONT_SIZE_FACTOR, 0f), 0.001f)
@@ -96,7 +96,7 @@ class SettingsImportCodecTest {
         )
         invalid.forEach { backup ->
             try {
-                SettingsImportCodec.import(p, backup)
+                SettingsImportCodec.importSettings(p, backup)
                 fail("Must refuse invalid type without changing preferences: $backup")
             } catch (_: IllegalArgumentException) {
                 assertEquals(initial, p.all)
@@ -111,7 +111,7 @@ class SettingsImportCodecTest {
             .putBoolean(UserPreferences.COLLECTION_NAME, true)
             .putString("keep_untouched", "my-data")
             .commit())
-        assertTrue(SettingsImportCodec.import(p, """{"_version":1,"search_engine":2}"""))
+        assertTrue(SettingsImportCodec.importSettings(p, """{"_version":1,"search_engine":2}"""))
         assertEquals("12345", p.getString(UserPreferences.COLLECTION_USER, null))
         assertEquals("true", p.getString(UserPreferences.COLLECTION_NAME, null))
         assertEquals("my-data", p.getString("keep_untouched", null))
@@ -132,7 +132,7 @@ class SettingsImportCodecTest {
         val p = prefs()
         val emptyExport = SettingsImportCodec.export(emptyMap())
         p.edit().putString("keep_key", "keep_value").commit()
-        assertTrue(SettingsImportCodec.import(p, emptyExport))
+        assertTrue(SettingsImportCodec.importSettings(p, emptyExport))
         assertEquals("keep_value", p.getString("keep_key", null))
     }
 
@@ -145,7 +145,7 @@ class SettingsImportCodecTest {
         val backup = JSONObject().put("_version", 1)
             .put(UserPreferences.COLLECTION_USER, "true")
             .put("new_unknown", "0005").toString()
-        assertTrue(SettingsImportCodec.import(p, backup))
+        assertTrue(SettingsImportCodec.importSettings(p, backup))
         assertEquals("stay", p.getString("unrelated", null))
         assertEquals("true", p.getString(UserPreferences.COLLECTION_USER, null))
         assertEquals("0005", p.getString("new_unknown", null))
