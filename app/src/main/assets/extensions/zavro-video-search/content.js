@@ -144,7 +144,9 @@
         .filter(x => typeof x === "string").join(" ");
       if (blocked.test(hint) || node.querySelector?.('input[type="password"]')) return null;
       if (searchTerms.test(hint)) return node;
-      if (input.type === "search" && depth <= 1 &&
+      const inputHint = [input.name, input.id, input.placeholder]
+        .filter(x => typeof x === "string").join(" ");
+      if (depth <= 2 && (input.type === "search" || searchTerms.test(inputHint)) &&
           node.querySelector?.('button,input[type="submit"],[role="button"]'))
         return node;
     }
@@ -220,10 +222,11 @@
         !visible(button) || button.disabled ||
         button.getAttribute?.("aria-disabled") === "true") return false;
     const area = searchContext(input);
-    if (!area || !area.contains(button)) return false;
+    if (!area) return false;
     if (input.form) {
+      // HTML "form" attribute may associate a submit control outside <form>.
       if (!safeForm(input.form) || button.form !== input.form) return false;
-    } else if (button.form || button.closest?.("form")) return false;
+    } else if (!area.contains(button) || button.form || button.closest?.("form")) return false;
     const hint = [button.innerText, button.value, button.id, button.className,
                   button.getAttribute?.("aria-label"), button.getAttribute?.("title")]
       .filter(x => typeof x === "string").join(" ");
