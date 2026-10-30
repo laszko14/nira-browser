@@ -14,7 +14,11 @@ internal class VideoSearchPrivateGroupAccess(
 ) {
     companion object {
         /** Memory ceiling across ALL sites of one private grouped search. */
-        const val MAX_AGGREGATE_FILMS = 2_000
+        const val MAX_AGGREGATE_FILMS = 20_000
+        /** Sum of immutable task quotas, bounded by the private RAM ceiling. */
+        fun runLimit(tasks: List<VideoSearchSiteTask>): Int =
+            minOf(MAX_AGGREGATE_FILMS,
+                VideoSearchResultBudgets.aggregateLimit(tasks.map { it.resultLimit }))
     }
 
     /** Private per-run remaining budget, checked only in this session RAM. */
@@ -23,7 +27,8 @@ internal class VideoSearchPrivateGroupAccess(
             val run = store.runs(scope).singleOrNull {
                 it.id == runId && it.status == VideoSearchRunState.RUNNING
             } ?: return@withAuthorizedTab false
-            run.siteIds.sumOf { store.films(scope, runId, it).size } < MAX_AGGREGATE_FILMS
+            run.siteIds.sumOf { store.films(scope, runId, it).size } <
+                runLimit(store.tasks(scope, runId))
         } ?: false
 
     fun start(
@@ -47,7 +52,8 @@ internal class VideoSearchPrivateGroupAccess(
         store.putRun(run)
         plan.sites.forEach { site ->
             store.putTask(VideoSearchSiteTask(
-                runId = id, siteId = site.id, scope = scope, resultLimit = 200,
+                runId = id, siteId = site.id, scope = scope,
+                resultLimit = VideoSearchResultBudgets.requireSiteLimit(site.resultLimit),
             ))
         }
         store.trimOldRuns(scope)
@@ -79,9 +85,11 @@ internal class VideoSearchPrivateGroupAccess(
         // Invalidated selections cannot write their stale search payload.
         val stillSelected = store.settings(scope).selectedSiteIds.contains(site.id) &&
             store.sites(scope).any { it == site && it.enabled }
-        if (snapshot != null && !stillSelected) return@withAuthorizedTab false
-        if (snapshot != null && (snapshot.films.size > 200 ||
-                snapshot.visitedPages !in 1..12 ||
+        if (snapshot != null && (!stillSelected ||
+                old.resultLimit != site.resultLimit ||
+                snapshot.films.size < old.uniqueResults)) return@withAuthorizedTab false
+        if (snapshot != null && (snapshot.films.size > old.resultLimit ||
+                snapshot.visitedPages !in 1..VideoSearchResultBudgets.pageLimit(old.resultLimit) ||
                 snapshot.films.any {
                     !VideoSearchBridgeProtocol.sameOrigin(site.siteUrl, it.filmPageUrl)
                 })) return@withAuthorizedTab false
@@ -91,8 +99,9 @@ internal class VideoSearchPrivateGroupAccess(
         }
         val already = store.films(scope, runId, site.id)
         val previousUrls = already.mapTo(HashSet()) { it.filmPageUrl }
-        val space = minOf((MAX_AGGREGATE_FILMS - consumed).coerceAtLeast(0),
-            (200 - already.size).coerceAtLeast(0))
+        val privateRunLimit = runLimit(store.tasks(scope, runId))
+        val space = minOf((privateRunLimit - consumed).coerceAtLeast(0),
+            (old.resultLimit - already.size).coerceAtLeast(0))
         val unseen = snapshot?.films?.distinctBy { it.filmPageUrl }
             ?.filterNot { it.filmPageUrl in previousUrls }.orEmpty()
         val truncated = unseen.size > space
@@ -101,7 +110,7 @@ internal class VideoSearchPrivateGroupAccess(
         val complete = terminal && !truncated && when (snapshot?.reason) {
             VideoSearchPaginationStop.NO_MORE_RESULTS -> newCount > 0
             VideoSearchPaginationStop.NO_RESULTS -> newCount == 0
-            VideoSearchPaginationStop.LIMIT_REACHED -> newCount == 200
+            VideoSearchPaginationStop.LIMIT_REACHED -> newCount == old.resultLimit
             else -> false
         }
         val reason = when (snapshot?.reason) {
@@ -136,7 +145,11 @@ internal class VideoSearchPrivateGroupAccess(
         store.putTask(old.copy(
             status = status, uniqueResults = newCount,
             visitedPages = maxOf(old.visitedPages, snapshot?.visitedPages ?: 0),
-            issue = if (complete || status == VideoSearchSiteState.ACTIVE) null else issue,
+            issue = when {
+                complete || status == VideoSearchSiteState.ACTIVE -> null
+                truncated -> VideoSearchSiteIssue.RESULT_BUDGET_REACHED
+                else -> issue
+            },
             completionReason = reason,
         ))
         store.putRun(run.copy(updatedAtMs = stamp))
@@ -150,13 +163,15 @@ internal class VideoSearchPrivateGroupAccess(
         val run = store.runs(scope).singleOrNull { it.id == runId }
             ?: return@withAuthorizedTab false
         if (run.status != VideoSearchRunState.RUNNING) return@withAuthorizedTab false
+        val limitReached = !hasCapacity(anchor, profileId, runId)
         store.tasks(scope, runId).filter {
             it.status == VideoSearchSiteState.QUEUED ||
                 it.status == VideoSearchSiteState.ACTIVE
         }.forEach { queued ->
             store.putTask(queued.copy(
                 status = VideoSearchSiteState.STOPPED,
-                issue = VideoSearchSiteIssue.OTHER,
+                issue = if (limitReached) VideoSearchSiteIssue.RESULT_BUDGET_REACHED
+                    else VideoSearchSiteIssue.OTHER,
             ))
         }
         val terminal = store.tasks(scope, runId)
