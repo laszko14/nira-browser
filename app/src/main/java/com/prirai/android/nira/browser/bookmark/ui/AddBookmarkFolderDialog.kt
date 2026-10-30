@@ -41,6 +41,14 @@ class AddBookmarkFolderDialog @JvmOverloads constructor(context: Context, privat
             .create()
     }
 
+    /** Window is owned by the fragment view that opened it. */
+    val windowDialog: androidx.appcompat.app.AlertDialog get() = mDialog
+
+    /** Drop the fragment callback before a panel/view is destroyed. */
+    fun clearOnClickListener() {
+        mOnClickListener = null
+    }
+
     fun show() {
         mDialog.show()
 
