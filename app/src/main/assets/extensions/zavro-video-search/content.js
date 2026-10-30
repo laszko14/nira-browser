@@ -1278,7 +1278,8 @@
     if (matches.length === 0) return terminal();
     if (matches.length !== 1) return "unsafe";
     let target = matches[0], resolvedNumeric = false;
-    if (!target.matches?.('a[href],button,[role="button"]')) {
+    if (!(target.matches?.("a[href]") || target.matches?.("button") ||
+          target.getAttribute?.("role") === "button")) {
       // Reusable pager-root configuration: resolve a DIFFERENT next numeral
       // on every page. Never click the container or guess the "Last" control.
       const next = nextInContainer(target, kind);
