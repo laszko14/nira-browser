@@ -153,7 +153,7 @@ class VideoSearchV32IntegrationTest {
         val site = VideoSearchSite(
             id = "temporary", scope = scope,
             siteUrl = "https://private.example.org/search",
-            displayName = "Private", createdAtMs = 1
+            displayName = "Private", position = 0, createdAtMs = 1
         )
         memory.putSite(site.copy(resultLimit = 10_000))
         assertEquals(10_000, memory.sites(scope).single().resultLimit)
