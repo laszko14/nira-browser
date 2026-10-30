@@ -38,7 +38,7 @@ object ProfileAddonPolicy {
         if (!stillCurrent()) return
         val addons = withContext(Dispatchers.IO) {
             try {
-                context.components.addonManager.getAddons().filter { it.isInstalled() }
+                context.components.addonManager.getAddons(waitForPendingActions = true).filter { it.isInstalled() }
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
@@ -57,15 +57,26 @@ object ProfileAddonPolicy {
             return
         }
         val allowed = prefs.getStringSet(key, emptySet()).orEmpty()
+        var submittedChange = false
         withContext(Dispatchers.Main) {
             addons.forEach { addon ->
                 if (!stillCurrent()) return@withContext
                 val shouldEnable = allowed.contains(addon.id)
                 if (shouldEnable && !addon.isEnabled()) {
                     context.components.addonManager.enableAddon(addon)
+                    submittedChange = true
                 } else if (!shouldEnable && addon.isEnabled()) {
                     context.components.addonManager.disableAddon(addon)
+                    submittedChange = true
                 }
+            }
+        }
+        if (submittedChange) {
+            // enableAddon/disableAddon schedule asynchronous Gecko callbacks.
+            // Do not release the global policy mutex until pending actions finish:
+            // otherwise an older callback can overwrite the next profile's state.
+            withContext(Dispatchers.IO) {
+                context.components.addonManager.getAddons(waitForPendingActions = true)
             }
         }
     }

@@ -307,3 +307,8 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 
 - [CI 41139260080](https://github.com/laszko14/nira-browser/actions/runs/41139260080) ukończone `completed/success` na SHA `d9e1047b7daef3bf4a31c75c6e2dc92713c86c0c`: pełny Kotlin/Robolectric, JavaScript oraz Android lint. Po tym przebiegu wzmocniono ochronę kliknięcia starych sugestii przy przejściu do private i dodano test rzeczywistego ProfileMiddleware dla jawnej normalnej karty default.
 - Ostateczny status wymaga ponownego `completed/success` na końcowym SHA po dopisaniu tych regresji. Wszelkie realne kliknięcia i callbacks addon engine na telefonie Android 15 pozostają NOT_TESTED. W przypadku niedostępności CI nie uznawać etapu za ukończony.
+
+### Uzupełnienie 8B — asynchroniczne zakończenia AddonManager
+
+- Potwierdzono w API Mozilla Components, że `enableAddon`/`disableAddon` używają asynchronicznych callbacków, a `getAddons(waitForPendingActions=true)` oczekuje na zadania zarządzane przez AddonManager. Przed odczytem i po zleceniu mutacji polityka 8B czeka na oczekujące operacje. Blokada `ProfilePolicySequencer` obejmuje to oczekiwanie, więc profil B nie może uznać profilu A za zakończony, zanim A zamknie kolejkę działań. Nie zmienia to wyboru globalnego katalogu dodatków ani uprawnień.
+- Regresje JVM testują kolejność i generacje, nie emulują rzeczywistego Gecko callback. Rzeczywista integracja i obciążone siecią dodatki: NOT_TESTED na urządzeniu.
