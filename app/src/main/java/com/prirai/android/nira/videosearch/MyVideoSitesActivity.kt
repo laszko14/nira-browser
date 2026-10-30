@@ -93,6 +93,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private lateinit var privateAddButton: Button
     private lateinit var privateQueryInput: EditText
     private lateinit var privateResultsLabel: TextView
+    private lateinit var privateMoreResultsButton: Button
+    private var privateVisibleFilms = 150
     private lateinit var privateRunPicker: Spinner
     private lateinit var privateRunPickerAdapter: ArrayAdapter<String>
     private var privateRunHistory: List<VideoSearchPrivateRunSnapshot> = emptyList()
@@ -477,6 +479,16 @@ class MyVideoSitesActivity : AppCompatActivity() {
             text = "Brak poprzednich wyników prywatnych w tej sesji."
         }
         header.addView(privateResultsLabel)
+        privateMoreResultsButton = Button(this).apply {
+            text = "Pokaż kolejne prywatne wyniki"
+            isSaveEnabled = false
+            visibility = View.GONE
+            setOnClickListener {
+                privateVisibleFilms = minOf(privateVisibleFilms + 150, privateResultsItems.size)
+                showPrivateResultsWindow()
+            }
+        }
+        header.addView(privateMoreResultsButton)
         privateRunPickerAdapter = ArrayAdapter(this,
             android.R.layout.simple_spinner_item, mutableListOf<String>()).apply {
             setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
@@ -555,19 +567,31 @@ class MyVideoSitesActivity : AppCompatActivity() {
         ) to manager.getActiveProfile().id
     }
 
-    private fun renderPrivateRun(snapshot: VideoSearchPrivateRunSnapshot) {
-        privateResultsItems = snapshot.films
+    private fun showPrivateResultsWindow() {
+        val shown = minOf(privateVisibleFilms, privateResultsItems.size)
         privateResultsAdapter.clear()
-        privateResultsAdapter.addAll(snapshot.films.mapIndexed { index, film ->
+        privateResultsAdapter.addAll(privateResultsItems.take(shown).mapIndexed { index, film ->
             "${index + 1}. " +
-                (if (snapshot.run.siteIds.size > 1) "[${film.siteName}] " else "") +
+                (if (privateRunHistory.firstOrNull { it.run.id == selectedPrivateRunId }
+                        ?.run?.siteIds?.size ?: 1 > 1) "[${film.siteName}] " else "") +
                 (film.originalTitle ?: "Tytuł nieznany") +
                 VideoSearchResultsPresenter.durationLabel(film.durationSeconds)
                     ?.let { " · $it" }.orEmpty()
         })
+        privateMoreResultsButton.visibility =
+            if (shown < privateResultsItems.size) View.VISIBLE else View.GONE
+        privateMoreResultsButton.text = "Pokaż kolejne 150 · $shown/${privateResultsItems.size}"
+    }
+
+    private fun renderPrivateRun(snapshot: VideoSearchPrivateRunSnapshot) {
+        if (snapshot.run.id != selectedPrivateRunId) privateVisibleFilms = 150
+        privateResultsItems = snapshot.films
+        privateVisibleFilms = minOf(privateVisibleFilms, maxOf(150, snapshot.films.size))
+        showPrivateResultsWindow()
         privateResultsLabel.text = "Prywatne wyniki: ${snapshot.films.size} · " +
             VideoSearchPrivateRunPresentation.summary(snapshot) +
-            ". Otwórz film w nowej karcie prywatnej."
+            ". Pokazano ${minOf(privateVisibleFilms, snapshot.films.size)}. " +
+            "Otwórz film w nowej karcie prywatnej."
     }
 
     private fun refreshPrivatePanel() {
@@ -583,6 +607,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             selectedPrivateRunId = null
             privateRunPickerAdapter.clear()
             privateResultsAdapter.clear()
+            privateMoreResultsButton.visibility = View.GONE
             privateStatus.text = "Brak aktywnej prywatnej karty wyszukiwarki. " +
                 "Wróć do prywatnej karty i otwórz Moje witryny ponownie."
             return
@@ -615,6 +640,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             selectedPrivateRunId = null
             privateResultsItems = emptyList()
             privateResultsAdapter.clear()
+            privateMoreResultsButton.visibility = View.GONE
             privateResultsLabel.text = "Brak prywatnych wyników w tej sesji."
         } else {
             selectedPrivateRunId = runs[chosen].run.id
@@ -637,6 +663,34 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 }
             }
             row.addView(check, LinearLayout.LayoutParams(0, -2, 1f))
+            row.addView(Button(this).apply {
+                text = "${site.resultLimit}"
+                contentDescription = "Limit filmów dla ${site.displayName}"
+                setOnClickListener {
+                    val field = EditText(this@MyVideoSitesActivity).apply {
+                        inputType = android.text.InputType.TYPE_CLASS_NUMBER
+                        setText(site.resultLimit.toString())
+                        selectAll()
+                    }
+                    androidx.appcompat.app.AlertDialog.Builder(this@MyVideoSitesActivity)
+                        .setTitle("Limit filmów: 1–10000 (tylko RAM)")
+                        .setView(field)
+                        .setNegativeButton("Anuluj", null)
+                        .setPositiveButton("Zapisz") { _, _ ->
+                            val n = field.text.toString().toIntOrNull()
+                            if (n == null || n !in 1..10_000) {
+                                message("Limit musi wynosić od 1 do 10000")
+                            } else {
+                                val target = selectedPrivateTab()
+                                if (target == null || privateSitesAccess.setResultLimit(
+                                        target.first, target.second, site.id, n) != true)
+                                    message("Nie zapisano prywatnego limitu")
+                                refreshPrivatePanel()
+                            }
+                        }
+                        .show()
+                }
+            })
             row.addView(Button(this).apply {
                 text = "Usuń"
                 setOnClickListener {
