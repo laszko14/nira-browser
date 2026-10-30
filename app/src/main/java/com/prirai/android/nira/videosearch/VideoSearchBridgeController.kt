@@ -835,7 +835,7 @@ internal class VideoSearchBridgeController(
         ) ?: return null
         val originalSession = first.first
         val firstUrl = currentTab(originalSession)?.pageUrl ?: return null
-        val collector = VideoSearchPaginationCollector(site.siteUrl, site.resultLimit)
+        val collector = VideoSearchPaginationCollector(site.siteUrl, 200)
         if (!collector.beginDocument(firstUrl)) return null
         val deadline = minOf(
             SystemClock.elapsedRealtime() + 120_000L, deadlineMs
@@ -968,7 +968,8 @@ internal class VideoSearchBridgeController(
                     // navigation. Accept it ONLY after seeing an unseen film.
                     if (!authorized()) return stop(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
                     val result = privateRequest(site, tabId, "crawl", false, requireSelected) { doc, id ->
-                        VideoSearchBridgeProtocol.extractCrawl(doc, id, config, 0)
+                        VideoSearchBridgeProtocol.extractCrawl(doc, id, config, 0,
+                            VideoSearchResultBudgets.documentCards(site.resultLimit))
                     } as? VideoSearchBridgeMessage.Results
                         ?: return stop(VideoSearchPaginationStop.STALLED)
                     if (result.page.status != "ok" || result.page.films.none {
@@ -1350,7 +1351,8 @@ internal class VideoSearchBridgeController(
                     return collector.snapshot(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
                 val offset = collector.nextCardIndex
                 val reply = request(site, "crawl", workerTabId = workerTabId) { doc, id ->
-                    VideoSearchBridgeProtocol.extractCrawl(doc, id, config, offset)
+                    VideoSearchBridgeProtocol.extractCrawl(doc, id, config, offset,
+                        VideoSearchResultBudgets.documentCards(site.resultLimit))
                 } as? VideoSearchBridgeMessage.Results
                     ?: return collector.snapshot(VideoSearchPaginationStop.ERROR)
                 if (reply.page.status == "no_results") {
