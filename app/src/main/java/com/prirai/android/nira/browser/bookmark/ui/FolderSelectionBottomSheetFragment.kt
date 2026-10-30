@@ -143,6 +143,10 @@ class FolderSelectionBottomSheetFragment : BottomSheetDialogFragment() {
         return this
     }
 
+    fun clearOnFolderSelectedListener() {
+        onFolderSelectedListener = null
+    }
+
     fun setOnFolderSelectedListener(listener: (BookmarkFolderItem) -> Unit): FolderSelectionBottomSheetFragment {
         this.onFolderSelectedListener = listener
         return this
