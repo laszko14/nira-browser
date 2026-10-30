@@ -104,6 +104,14 @@ abstract class AddBookmarkDialog<S : BookmarkItem, T>(
         return mManager.root
     }
 
+    /** Window is owned by the fragment view that opened it. */
+    val windowDialog: AlertDialog get() = mDialog
+
+    /** Drop the fragment callback before a panel/view is destroyed. */
+    fun clearOnClickListener() {
+        mOnClickListener = null
+    }
+
     fun show() {
         mDialog.show()
 
