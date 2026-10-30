@@ -109,7 +109,9 @@ function fixture() {
     if(tag.toUpperCase()==='A') el.href=new URL(attributes.href||'', 'https://films.example/results?q=drama').href;
     return el;
   }
-  return {selectPage,command,sent,timers,node,map:(sel,...value)=>selectors.set(sel,value)};
+  return {selectPage,command,sent,timers,node,
+    picker:()=>document.documentElement.picker,
+    map:(sel,...value)=>selectors.set(sel,value)};
 }
 
 test('NEXT_LINK accepts a nested icon with non-unique page-link class and unique aria-label',()=>{
@@ -220,4 +222,79 @@ test('do not invent selectors for ambiguous matching navigation controls',()=>{
   h.map('a.page-link',prev,next);
   assert.equal(h.selectPage(next),null);
   assert.equal(h.sent.filter(p=>p.event==='picked').length,0);
+});
+
+
+test('explicit Last/Previous controls are never accepted as Next',()=>{
+  for (const label of ['Last', 'Previous page', 'Ostatnia strona', 'Poprzednia']) {
+    const h=fixture();
+    const wrong=h.node('a',{classes:['pager-control'],
+      attributes:{href:'?page=999','aria-label':label}});
+    h.map('a.pager-control',wrong);
+    assert.equal(h.selectPage(wrong),null,label);
+    assert.equal(h.sent.filter(p=>p.event==='picked').length,0);
+    assert.equal(wrong.clicks||0,0);
+  }
+});
+
+test('numeric pagination binds to stable pager root and dynamically selects 2 then 3',()=>{
+  const h=fixture();
+  const nav=h.node('nav',{classes:['pages']});
+  const oneAttr={href:'?page=1','aria-current':'page'};
+  const twoAttr={href:'?page=2'};
+  const threeAttr={href:'?page=3'};
+  const one=h.node('a',{parent:nav,classes:['page-link'],attributes:oneAttr,text:'1'});
+  const two=h.node('a',{parent:nav,classes:['page-link'],attributes:twoAttr,text:'2'});
+  const three=h.node('a',{parent:nav,classes:['page-link'],attributes:threeAttr,text:'3'});
+  const last=h.node('a',{parent:nav,classes:['page-link'],
+    attributes:{href:'?page=99','aria-label':'Last'},text:'Last'});
+  nav.querySelectorAll=()=>[one,two,three,last];
+  nav.contains=node=>node.parentElement===nav || node===nav;
+  h.map('a.page-link',one,two,three,last);
+  h.map('nav.pages',nav);
+  const first=h.selectPage(two);
+  assert.equal(first?.selector,'nav.pages');
+  assert.equal(first?.pagination,'NEXT_LINK');
+  assert.equal(h.command('paginate',{pagination:'NEXT_LINK',
+    nextPageSelector:'nav.pages'}).at(-1).status,'dispatched');
+  h.timers.at(-1)();
+  assert.equal(two.clicks,1);
+  assert.equal(last.clicks||0,0);
+  delete oneAttr['aria-current'];
+  twoAttr['aria-current']='page';
+  assert.equal(h.command('paginate',{pagination:'NEXT_LINK',
+    nextPageSelector:'nav.pages'}).at(-1).status,'dispatched');
+  h.timers.at(-1)();
+  assert.equal(three.clicks,1);
+  assert.equal(two.clicks,1);
+  assert.equal(last.clicks||0,0);
+});
+
+test('numeric pagination never skips pages or guesses without an active marker',()=>{
+  const h=fixture();
+  const nav=h.node('nav',{classes:['pages']});
+  const one=h.node('a',{parent:nav,classes:['page-link'],
+    attributes:{href:'?page=1'},text:'1'});
+  const two=h.node('a',{parent:nav,classes:['page-link'],
+    attributes:{href:'?page=2'},text:'2'});
+  const four=h.node('a',{parent:nav,classes:['page-link'],
+    attributes:{href:'?page=4'},text:'4'});
+  nav.querySelectorAll=()=>[one,two,four];
+  nav.contains=node=>node.parentElement===nav||node===nav;
+  h.map('a.page-link',one,two,four); h.map('nav.pages',nav);
+  assert.equal(h.selectPage(two),null);
+  assert.equal(h.sent.filter(p=>p.event==='picked').length,0);
+});
+
+test('explicit infinite scroll uses a no-click sentinel and requires user intent',()=>{
+  const h=fixture();
+  h.command('pick',{pickKind:'next'});
+  const btn=h.picker().children[1].children.find(x=>x.textContent==='Przewijanie');
+  assert.ok(btn);
+  assert.equal(h.sent.filter(x=>x.event==='picked').length,0);
+  btn.on_click({preventDefault(){},stopPropagation(){}});
+  const msg=h.sent.at(-1);
+  assert.equal(msg.event,'picked');
+  assert.equal(msg.pagination,'INFINITE_SCROLL');
+  assert.equal(msg.selector,'html');
 });
