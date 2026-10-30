@@ -421,15 +421,14 @@
         !el.closest("form") && safeSamePageAction(el)) {
       pagination = "LOAD_MORE";
     } else return null;
-    if (number == null && !safeSamePageAction(el) && !pager) {
-      // A clearly named standalone button can still be selected through its
-      // explicit, user-confirmed selector; ambiguous pager links cannot.
-      if (el.tagName !== "BUTTON") return null;
-    }
+    const directSelector = paginationSelector(el);
+    if (number == null && !safeSamePageAction(el) && !pager &&
+        !directSelector && el.tagName !== "BUTTON") return null;
     // Pager root is reusable as page numbers rotate (2,3,4...), unlike a
-    // locator for one specific numbered link.
+    // locator for one specific numbered link. Explicitly selected Next in
+    // a uniquely identified "li.next" remains backwards compatible.
     const selector = number != null ? pager?.selector :
-      paginationSelector(el) || pager?.selector;
+      directSelector || pager?.selector;
     return selector ? { selector, pagination } : null;
   }
   function cancelPicker() {
