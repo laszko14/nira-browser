@@ -65,7 +65,12 @@ internal data class VideoSearchTaskRow(
 )
 
 @Entity(tableName = "video_search_films", primaryKeys = ["profileId", "id"],
-    indices = [Index(value = ["profileId", "runId", "siteId", "originalIndex"])])
+    indices = [
+        Index(value = ["profileId", "runId", "siteId", "originalIndex"]),
+        // Prevent quadratic full scans when inserting thousands of distinct
+        // URLs and when checking per-site deduplication inside a checkpoint.
+        Index(value = ["profileId", "runId", "siteId", "filmPageUrl"]),
+    ])
 internal data class VideoSearchFilmRow(
     val profileId: String,
     val id: String,
