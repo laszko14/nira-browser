@@ -305,4 +305,28 @@ class VideoSearchPrivateGroupAccessTest {
         assertTrue(f.groups.finish(f.tab, "default", id))
         assertEquals(VideoSearchRunState.STOPPED, f.store.runs(f.owner).single().status)
     }
+
+    @Test fun twoHighLimitPrivateSitesCanFill20000RamRunWithoutWritingToRoom() {
+        val f = Fixture(count = 3)
+        f.sites.forEach { site ->
+            f.store.putSite(site.copy(resultLimit = 10_000))
+        }
+        val id = f.start()
+        assertTrue(f.store.tasks(f.owner, id).all { it.resultLimit == 10_000 })
+        f.sites.take(2).forEach { original ->
+            val site = f.store.sites(f.owner).single { it.id == original.id }
+            assertTrue(f.groups.checkpoint(f.tab, "default", id, site,
+                f.snapshot(site, 10_000, VideoSearchPaginationStop.LIMIT_REACHED)))
+        }
+        assertEquals(20_000, f.reader.latest(f.tab, "default")!!.films.size)
+        assertFalse(f.groups.hasCapacity(f.tab, "default", id))
+        assertTrue(f.groups.finish(f.tab, "default", id))
+        val remaining = f.store.tasks(f.owner, id).single { it.siteId == "s3" }
+        assertEquals(VideoSearchSiteState.STOPPED, remaining.status)
+        assertEquals(VideoSearchSiteIssue.RESULT_BUDGET_REACHED, remaining.issue)
+        assertNull(remaining.completionReason)
+        f.registry.reconcile(emptyList(), "default")
+        assertNull(f.reader.history(f.tab, "default"))
+    }
+
 }
