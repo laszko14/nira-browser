@@ -95,6 +95,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private lateinit var privateResultsLabel: TextView
     private lateinit var privateMoreResultsButton: Button
     private var privateVisibleFilms = 150
+    private var privateRenderedRunId: String? = null
     private lateinit var privateRunPicker: Spinner
     private lateinit var privateRunPickerAdapter: ArrayAdapter<String>
     private var privateRunHistory: List<VideoSearchPrivateRunSnapshot> = emptyList()
@@ -572,8 +573,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
         privateResultsAdapter.clear()
         privateResultsAdapter.addAll(privateResultsItems.take(shown).mapIndexed { index, film ->
             "${index + 1}. " +
-                (if (privateRunHistory.firstOrNull { it.run.id == selectedPrivateRunId }
-                        ?.run?.siteIds?.size ?: 1 > 1) "[${film.siteName}] " else "") +
+                (if ((privateRunHistory.firstOrNull { it.run.id == selectedPrivateRunId }
+                        ?.run?.siteIds?.size ?: 1) > 1) "[${film.siteName}] " else "") +
                 (film.originalTitle ?: "Tytuł nieznany") +
                 VideoSearchResultsPresenter.durationLabel(film.durationSeconds)
                     ?.let { " · $it" }.orEmpty()
@@ -584,7 +585,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
     }
 
     private fun renderPrivateRun(snapshot: VideoSearchPrivateRunSnapshot) {
-        if (snapshot.run.id != selectedPrivateRunId) privateVisibleFilms = 150
+        if (snapshot.run.id != privateRenderedRunId) privateVisibleFilms = 150
+        privateRenderedRunId = snapshot.run.id
         privateResultsItems = snapshot.films
         privateVisibleFilms = minOf(privateVisibleFilms, maxOf(150, snapshot.films.size))
         showPrivateResultsWindow()
@@ -603,6 +605,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             privateAddButton.isEnabled = false
             privateResultsLabel.text = ""
             privateResultsItems = emptyList()
+            privateRenderedRunId = null
             privateRunHistory = emptyList()
             selectedPrivateRunId = null
             privateRunPickerAdapter.clear()
