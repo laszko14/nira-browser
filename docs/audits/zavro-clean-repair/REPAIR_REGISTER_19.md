@@ -320,3 +320,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - **058 STILL_PRESENT**: `onNewIntent` cicho porzucał URL, jeśli `WebAppFragment` nie był jeszcze dodany, a opóźniony onCreate nadpisywał nowsze żądanie. Teraz wspólna generacja `WebAppLaunchGate` z `Job.cancel()` sprawdza aktualność lookupu, instalacji fragmentu (również do pustego kontenera) i opisu zadania/ikony. FragmentManager `isStateSaved` odracza instalację do `onPostResume`. Ten sam URL/profil jest idempotentny po obrocie/restore.
 - Regresje: gate bootstrap false/true/empty/intent/close; PWA A→B oraz B→C, stare wyniki, kolejność ikon, stan zachowany. JVM/Robolectric oraz JavaScript/lint; szczegóły dowodów i CI poniżej.
 - Urządzenie Android 15: fizyczny cold restore PWA singleTop i realne opóźnienia Gecko/dysku NOT_TESTED. Nie zmieniać 028/029/030/031/050 (etap 10). Bez APK i merge.
+
+### Etap 9 — checkpoint implementacyjny
+
+- Zapisano atomowy commit `579e2ccd9f12ba32d4d493b5946b309ad978d4a7` z dwoma gate, poprawionymi observerami i PWA oraz regresjami. Status: CI_PENDING. Nie uznawać etapu za ukończony bez zielonego przebiegu GitHub Actions dla finalnego SHA.
