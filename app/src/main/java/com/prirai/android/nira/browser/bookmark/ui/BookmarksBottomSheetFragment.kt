@@ -315,6 +315,7 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
     }
 
     private fun showSortDialog() {
+        val scope = dialogScope ?: return
         val items = arrayOf(
             getString(R.string.sort_by_name),
             getString(R.string.sort_by_url),
@@ -324,6 +325,7 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
         val dialog = androidx.appcompat.app.AlertDialog.Builder(requireContext())
             .setTitle(getString(R.string.sort))
             .setItems(items) { _, which ->
+                if (dialogScope !== scope || !scope.isActive || _binding == null || !isAdded) return@setItems
                 val sortType = when (which) {
                     0 -> BookmarkSortType.A_Z
                     1 -> BookmarkSortType.A_Z // URL sorting not implemented in original
@@ -333,6 +335,7 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
                 bookmarkAdapter.sortBookmarks(sortType)
             }
             .create()
+        scope.track(dialog)
         dialog.show()
     }
 
@@ -507,6 +510,7 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
     }
 
     private fun deleteBookmark(item: BookmarkItem, position: Int) {
+        val scope = dialogScope ?: return
         // Show confirmation dialog
         val message = when (item) {
             is BookmarkSiteItem -> getString(R.string.delete_bookmark_confirm, item.title ?: "")
@@ -518,6 +522,7 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
             .setTitle(R.string.delete_confirm_title)
             .setMessage(message)
             .setPositiveButton(android.R.string.ok) { _, _ ->
+                if (dialogScope !== scope || !scope.isActive || _binding == null || !isAdded) return@setPositiveButton
                 // Delete the bookmark
                 try {
                     currentFolder.itemList.remove(item)
@@ -531,7 +536,7 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
                         requireContext(), 
                         "Error deleting bookmark", 
                         android.widget.Toast.LENGTH_SHORT
-                    ).show()
+                    ).create().also { scope.track(it); it.show() }
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)
@@ -539,15 +544,21 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
     }
 
     private fun showMoveFolderDialog(item: BookmarkItem, position: Int) {
+        val scope = dialogScope ?: return
         // Show modern folder selection bottom sheet for moving
         val folderSelectionSheet = FolderSelectionBottomSheetFragment.newInstance()
             .setManager(manager)
             .setInitialFolder(manager.root)
             .setExcludeItem(item) // Prevent moving folder into itself or its descendants
             .setOnFolderSelectedListener { selectedFolder ->
-                moveItemToFolder(item, selectedFolder)
+                scope.ifActive {
+                    if (dialogScope === scope && _binding != null && isAdded) {
+                        moveItemToFolder(item, selectedFolder)
+                    }
+                }
             }
         
+        ownedFolderSheets.add(folderSelectionSheet)
         folderSelectionSheet.show(parentFragmentManager, "MoveFolderSelectionBottomSheet")
     }
     
@@ -641,6 +652,7 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
     }
 
     private fun moveSelectedItems() {
+        val scope = dialogScope ?: return
         val selectedItems = bookmarkAdapter.getSelectedBookmarkItems()
         
         if (selectedItems.isEmpty()) {
@@ -653,9 +665,14 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
             .setInitialFolder(manager.root)
             .setExcludeItems(selectedItems) // Prevent moving folders into themselves
             .setOnFolderSelectedListener { targetFolder ->
-                moveItemsToFolder(selectedItems, targetFolder)
+                scope.ifActive {
+                    if (dialogScope === scope && _binding != null && isAdded) {
+                        moveItemsToFolder(selectedItems, targetFolder)
+                    }
+                }
             }
         
+        ownedFolderSheets.add(folderSelectionSheet)
         folderSelectionSheet.show(parentFragmentManager, "MoveMultipleFolderSelectionBottomSheet")
     }
 
@@ -699,6 +716,7 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
     }
 
     private fun deleteSelectedItems() {
+        val scope = dialogScope ?: return
         val selectedItems = bookmarkAdapter.getSelectedBookmarkItems()
         
         if (selectedItems.isEmpty()) {
@@ -710,6 +728,7 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
             .setTitle(R.string.delete_confirm_title)
             .setMessage("Delete ${selectedItems.size} items?")
             .setPositiveButton(android.R.string.ok) { _, _ ->
+                if (dialogScope !== scope || !scope.isActive || _binding == null || !isAdded) return@setPositiveButton
                 try {
                     selectedItems.forEach { item ->
                         currentFolder.itemList.remove(item)
@@ -725,7 +744,7 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
                         requireContext(),
                         "Deleted ${selectedItems.size} items",
                         android.widget.Toast.LENGTH_SHORT
-                    ).show()
+                    ).create().also { scope.track(it); it.show() }
                     
                     exitMultiSelectMode()
                 } catch (e: Exception) {
@@ -741,11 +760,13 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
     }
 
     private fun flattenFolder(folder: BookmarkFolderItem) {
+        val scope = dialogScope ?: return
         // Show confirmation dialog
         androidx.appcompat.app.AlertDialog.Builder(requireContext())
             .setTitle(R.string.flatten_folder)
             .setMessage(getString(R.string.flatten_folder_confirm_formatted, folder.title ?: ""))
             .setPositiveButton(android.R.string.ok) { _, _ ->
+                if (dialogScope !== scope || !scope.isActive || _binding == null || !isAdded) return@setPositiveButton
                 try {
                     // Flatten the folder
                     manager.flattenFolder(currentFolder, folder)
@@ -760,7 +781,7 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
                         requireContext(),
                         "Flattened \"${folder.title}\"",
                         android.widget.Toast.LENGTH_SHORT
-                    ).show()
+                    ).create().also { scope.track(it); it.show() }
                 } catch (e: Exception) {
                     android.widget.Toast.makeText(
                         requireContext(),
