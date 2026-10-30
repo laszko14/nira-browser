@@ -8,12 +8,13 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.prirai.android.nira.R
 import com.prirai.android.nira.ext.components
-import com.prirai.android.nira.integration.ContextMenuIntegration
+import com.prirai.android.nira.browser.profile.BrowserProfile
+import com.prirai.android.nira.browser.profile.ProfileManager
+import mozilla.components.concept.engine.HitResult
 import kotlinx.coroutines.launch
 import mozilla.components.browser.engine.gecko.GeckoEngineView
 import mozilla.components.concept.engine.EngineSession
 import mozilla.components.concept.engine.window.WindowRequest
-import mozilla.components.support.base.feature.ViewBoundFeatureWrapper
 import androidx.core.net.toUri
 
 /**
@@ -46,7 +47,7 @@ class WebAppFragment : Fragment(), EngineSession.Observer {
     private var profileId: String = "default"
     private var startUrl: String? = null
     private var canGoBack: Boolean = false
-    private val contextMenuIntegration = ViewBoundFeatureWrapper<ContextMenuIntegration>()
+    private var hitResultDialog: android.app.AlertDialog? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -71,9 +72,8 @@ class WebAppFragment : Fragment(), EngineSession.Observer {
             return
         }
         
-        // Setup context menu integration
-        setupContextMenu(view)
-        
+        // PWA owns a standalone Gecko session; its long-press events must
+        // never be routed through the unrelated main BrowserStore.selectedTab.
         // Setup keyboard adjustment
         setupKeyboardAdjustment()
         
@@ -81,7 +81,12 @@ class WebAppFragment : Fragment(), EngineSession.Observer {
         lifecycleScope.launch {
             try {
                 val engine = requireContext().components.engine
-                val contextId = "profile_$profileId"
+                // Canonical default Gecko partition is null. Do not silently
+                // merge or delete legacy profile_default storage on upgrade.
+                val known = ProfileManager.getInstance(requireContext()).getAllProfiles()
+                    .any { it.id == profileId }
+                if (!known) profileId = "default"
+                val contextId = BrowserProfile.contextIdFor(profileId, isPrivate = false)
                 
                 engineSession = engine.createSession(private = false, contextId = contextId)
                 
@@ -115,6 +120,8 @@ class WebAppFragment : Fragment(), EngineSession.Observer {
     }
 
     override fun onDestroyView() {
+        hitResultDialog?.dismiss()
+        hitResultDialog = null
         super.onDestroyView()
         engineSession?.let {
             try {
@@ -164,29 +171,37 @@ class WebAppFragment : Fragment(), EngineSession.Observer {
         }
     }
     
-    /**
-     * Initializes context menu integration for PWA to allow long-press actions on links.
-     * Provides options like copy link, share, open in new tab, save image, etc.
-     */
-    private fun setupContextMenu(view: View) {
-        val components = requireContext().components
-        
-        contextMenuIntegration.set(
-            feature = ContextMenuIntegration(
-                context = requireContext(),
-                fragmentManager = parentFragmentManager,
-                browserStore = components.store,
-                tabsUseCases = components.tabsUseCases,
-                contextMenuUseCases = components.contextMenuUseCases,
-                parentView = view,
-                sessionId = null, // PWAs don't use session IDs from store
-                engineView = engineView
-            ),
-            owner = this,
-            view = view
-        )
+    override fun onLongPress(hitResult: HitResult) {
+        // EngineSession.Observer callback is from *this* PWA's Gecko session.
+        // Using ContextMenuIntegration(tabId=null) would instead read hitResult
+        // from BrowserStore.selectedTab, which can belong to another profile.
+        val target = PwaHitResultMenu.safeTarget(hitResult) ?: return
+        activity?.runOnUiThread {
+            if (!isAdded || view == null) return@runOnUiThread
+            hitResultDialog?.dismiss()
+            val options = arrayOf("Open in browser", "Copy address", "Share link")
+            hitResultDialog = android.app.AlertDialog.Builder(requireContext())
+                .setTitle(target)
+                .setItems(options) { _, selected ->
+                    when (selected) {
+                        0 -> openInCustomTab(target, profileId)
+                        1 -> {
+                            val clipboard = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                                as android.content.ClipboardManager
+                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("PWA link", target))
+                        }
+                        2 -> {
+                            val share = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(android.content.Intent.EXTRA_TEXT, target)
+                            }
+                            startActivity(android.content.Intent.createChooser(share, "Share link"))
+                        }
+                    }
+                }.setNegativeButton(android.R.string.cancel, null).create().also { it.show() }
+        }
     }
-    
+
     /**
      * Adjusts engine view bottom padding when keyboard appears to prevent content overlap.
      * Uses WindowInsets to detect keyboard visibility and automatically adjust layout.

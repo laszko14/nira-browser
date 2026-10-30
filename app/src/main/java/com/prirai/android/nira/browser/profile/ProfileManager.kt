@@ -286,6 +286,9 @@ class ProfileManager(
             contextId = targetContextId,
             content = tab.content.copy(private = private),
             parentId = null,
+            // A copied MediaSessionState would retain the old Gecko controller,
+            // PLAYING state and sleep policy after the new engine is created.
+            mediaSessionState = null,
             engineState = mozilla.components.browser.state.state.EngineState()
         )
         val wasSelected = store.state.selectedTabId == tabId
