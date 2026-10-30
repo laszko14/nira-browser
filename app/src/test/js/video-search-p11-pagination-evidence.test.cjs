@@ -78,11 +78,12 @@ function fixture() {
     pagination() {
       return dispatch('paginate', {pagination:'NEXT_LINK', nextPageSelector: '.next'}).status;
     },
-    crawl() {
+    crawl(startIndex = 0, cardCap = null) {
       return dispatch('extract_crawl', {
-        resultsCardSelector:'.cards', startIndex:0,
+        resultsCardSelector:'.cards', startIndex,
         titleSelector:null, linkSelector:null, thumbnailSelector:null,
-        durationSelector:null
+        durationSelector:null,
+        ...(cardCap == null ? {} : {cardCap})
       });
     },
     next(state) {nextState = state;},
@@ -189,4 +190,13 @@ test('hidden no-results marker cannot be used as a proof', () => {
   f.empty(true);
   f.hidden(true);
   assert.equal(f.crawl().status, 'empty');
+});
+
+test('extended 640-card crawl cursor accepts >=320 without negative progress', () => {
+  const f = fixture();
+  const x = f.crawl(320, 640);
+  assert.equal(x.event, 'crawl_results');
+  assert.equal(x.status, 'empty');
+  assert.equal(x.inspectedCards, 0);
+  assert.equal(x.moreOnPage, false);
 });
