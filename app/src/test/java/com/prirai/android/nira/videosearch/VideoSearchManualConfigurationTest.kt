@@ -376,4 +376,23 @@ class VideoSearchManualConfigurationTest {
         assertEquals(".movie", valid.resultsCardSelector)
     }
 
+
+    @Test fun explicitInfiniteScrollPickIsPersistedWithoutExecutableSelector() {
+        val scroll = VideoSearchBridgeProtocol.decode(
+            picked("next", "html", formSafe = false, pagination = "INFINITE_SCROLL")
+        ) as VideoSearchBridgeMessage.Picked
+        val search = VideoSiteConfiguration(
+            "input.search", "article.card",
+            submission = VideoSearchSubmission.FORM_SUBMIT
+        )
+        val result = VideoSearchManualStages.withResults(search, "article.card", scroll)
+        assertNotNull(result)
+        assertEquals(VideoSearchPagination.INFINITE_SCROLL, result!!.pagination)
+        assertNull(result.nextPageSelector)
+        assertNull(VideoSearchBridgeProtocol.decode(
+            picked("next", "button.injected", formSafe = false, pagination = "INFINITE_SCROLL")))
+        assertNull(VideoSearchBridgeProtocol.decode(
+            picked("submit", "html", formSafe = false, pagination = "INFINITE_SCROLL")))
+    }
+
 }
