@@ -605,7 +605,7 @@ private fun VideoSearchSourceHeader(
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.titleMedium)
-                Text("${group.savedCount} filmów",
+                Text("${source.count} filmów",
                     style = MaterialTheme.typography.labelMedium,
                     color = Color(0xffa8c3d7))
             }
