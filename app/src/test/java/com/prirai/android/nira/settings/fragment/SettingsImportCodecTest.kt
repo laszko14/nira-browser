@@ -52,6 +52,8 @@ class SettingsImportCodecTest {
             .putFloat(UserPreferences.FONT_SIZE_FACTOR, 1.25f)
             .putBoolean(UserPreferences.JAVA_SCRIPT_ENABLED, false)
             .putStringSet("my_unknown_text_set", setOf("123", "true"))
+            .putLong("unknown_small_long", 3L)
+            .putFloat("unknown_integral_float", 1.0f)
             .commit())
         val exported = SettingsImportCodec.export(p.all)
         p.edit().clear().commit()
@@ -61,6 +63,8 @@ class SettingsImportCodecTest {
         assertEquals(1.25f, p.getFloat(UserPreferences.FONT_SIZE_FACTOR, 0f), 0.001f)
         assertFalse(p.getBoolean(UserPreferences.JAVA_SCRIPT_ENABLED, true))
         assertEquals(setOf("123", "true"), p.getStringSet("my_unknown_text_set", null))
+        assertEquals(3L, p.getLong("unknown_small_long", -1L))
+        assertEquals(1.0f, p.getFloat("unknown_integral_float", -1f), 0.001f)
     }
 
     @Test fun legacyOnlyConvertsStringsWhenKnownTypedKeyRequiresIt() {
@@ -86,7 +90,9 @@ class SettingsImportCodecTest {
             """{"_version":2,"collection_user":"123"}""",
             """{"_version":1,"search_engine":8,"bad_nested":{"key":"value"}}""",
             """{"_version":1,"search_engine":8,"bad_set":["okay",17]}""",
-            """{"_version":1,"search_engine":8,"font_size_factor":1e100}"""
+            """{"_version":1,"search_engine":8,"font_size_factor":1e100}""",
+            """{"_version":1,"_types":{"search_engine":"STRING"},"search_engine":8}""",
+            """{"_version":1,"_types":{"other":"LONG"},"search_engine":8}"""
         )
         invalid.forEach { backup ->
             try {
