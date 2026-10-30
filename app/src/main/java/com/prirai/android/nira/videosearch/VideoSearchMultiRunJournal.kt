@@ -34,6 +34,10 @@ internal class VideoSearchMultiRunJournal(
             ))
         }
     }
+    // Only ACTIVE site metadata is retained. Completed sites release their
+    // cache, keeping RAM bounded even with up to 200 selected websites.
+    private val savedFilmMetadata =
+        HashMap<String, MutableMap<String, VideoSearchFilm>>()
     private var initialized = false
     private var closed = false
     val runResultBudget: Int = VideoSearchResultBudgets.aggregateLimit(
@@ -116,6 +120,7 @@ internal class VideoSearchMultiRunJournal(
             issue = if (saved.truncated) VideoSearchSiteIssue.RESULT_BUDGET_REACHED else task.issue,
             completionReason = if (saved.truncated) null else task.completionReason,
         )
+        savedFilmMetadata.remove(site.id)
         remainingResults = (runResultBudget - saved.totalResults).coerceAtLeast(0)
         run = nextRun
     }
@@ -140,7 +145,12 @@ internal class VideoSearchMultiRunJournal(
             visitedPages = maxOf(prior.visitedPages, snapshot.visitedPages),
             issue = null, completionReason = null,
         )
-        val saved = repository.putJournalCheckpoint(next, task, toFilms(site, snapshot, stamp, prior.uniqueResults))
+        val delta = toFilms(site, snapshot, stamp, prior.uniqueResults)
+        val saved = repository.putJournalCheckpoint(next, task, delta)
+        // Update RAM only after Room confirmed the complete transaction.
+        val metadata = savedFilmMetadata.getOrPut(site.id) { HashMap() }
+        delta.filter { it.originalIndex < saved.siteResults }
+            .forEach { metadata[it.filmPageUrl] = it }
         tasks[site.id] = task.copy(
             uniqueResults = saved.siteResults,
             status = if (saved.truncated) VideoSearchSiteState.STOPPED else VideoSearchSiteState.ACTIVE,
@@ -154,24 +164,30 @@ internal class VideoSearchMultiRunJournal(
         site: VideoSearchLaunchSite, snapshot: VideoSearchPaginationSnapshot?, stamp: Long,
         alreadyPersisted: Int,
     ): List<VideoSearchFilm> {
-        // Persist ONLY the newly verified suffix. Previous rows were saved in
-        // earlier Room checkpoints, so re-sending the full 10k prefix each
-        // time would be quadratic in database traffic.
-        return snapshot?.films?.drop(alreadyPersisted)?.take(
-            (site.resultLimit - alreadyPersisted).coerceAtLeast(0)
-        )?.mapIndexed { index, film ->
-            VideoSearchFilm(
-                id = UUID.nameUUIDFromBytes(
-                    "$id|${site.id}|${film.filmPageUrl}".toByteArray(Charsets.UTF_8)
-                ).toString(),
-                runId = id, siteId = site.id, scope = plan.scope,
-                siteName = site.displayName, filmPageUrl = film.filmPageUrl,
-                originalTitle = film.originalTitle, thumbnailUrl = film.thumbnailUrl,
-                durationSeconds = film.durationSeconds, titleSource = film.titleSource,
-                imageSource = film.imageSource, originalIndex = alreadyPersisted + index, foundAtMs = stamp,
-            )
+        val previous = savedFilmMetadata[site.id]
+        // Only emit new films or metadata improvements to previously saved
+        // URLs. This prevents O(N²) Room rewrites without losing subsequent
+        // structured title/poster enrichments.
+        return snapshot?.films?.take(site.resultLimit)?.mapIndexedNotNull { index, film ->
+            val old = previous?.get(film.filmPageUrl)
+            val unchanged = old != null &&
+                old.originalTitle == film.originalTitle &&
+                old.thumbnailUrl == film.thumbnailUrl &&
+                old.durationSeconds == film.durationSeconds &&
+                old.titleSource == film.titleSource &&
+                old.imageSource == film.imageSource
+            if (index < alreadyPersisted && unchanged) null else
+                VideoSearchFilm(
+                    id = UUID.nameUUIDFromBytes(
+                        "$id|${site.id}|${film.filmPageUrl}".toByteArray(Charsets.UTF_8)
+                    ).toString(),
+                    runId = id, siteId = site.id, scope = plan.scope,
+                    siteName = site.displayName, filmPageUrl = film.filmPageUrl,
+                    originalTitle = film.originalTitle, thumbnailUrl = film.thumbnailUrl,
+                    durationSeconds = film.durationSeconds, titleSource = film.titleSource,
+                    imageSource = film.imageSource, originalIndex = index, foundAtMs = stamp,
+                )
         } ?: emptyList()
-
     }
 
     suspend fun finish(queue: VideoSearchDispatchQueue) = mutex.withLock {
