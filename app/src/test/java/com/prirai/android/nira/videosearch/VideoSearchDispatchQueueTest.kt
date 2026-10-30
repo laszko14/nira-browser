@@ -171,10 +171,10 @@ class VideoSearchDispatchQueueTest {
         assertEquals(1, q.snapshot().active)
     }
 
-    @Test fun snapshotsClampSiteLimitTo200WithoutEditingOriginal() {
+    @Test fun snapshotsPreserveSiteLimitUpTo10000WithoutEditingOriginal() {
         val original = site("s", 0, resultLimit = 10_000)
         val p = plan(listOf(original))
-        assertEquals(200, p.selectedSites.single().resultLimit)
+        assertEquals(10_000, p.selectedSites.single().resultLimit)
         assertEquals(10_000, original.resultLimit)
         assertEquals("test", p.query)
     }
