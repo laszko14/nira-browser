@@ -15,6 +15,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import com.prirai.android.nira.R
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import mozilla.components.feature.pwa.ext.getWebAppManifest
@@ -41,100 +42,108 @@ class WebAppActivity : AppCompatActivity() {
             notificationPermissionCallback = null
         }
 
+    private val launchGate = WebAppLaunchGate()
+    private var openJob: Job? = null
+    private var iconJob: Job? = null
+    private var pendingOpen: PendingOpen? = null
+
+    private data class PendingOpen(
+        val ticket: WebAppLaunchGate.Ticket,
+        val profileId: String
+    )
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         setContentView(R.layout.activity_webapp)
-
-        // Configure system bars
         setupSystemBars()
 
-        // Extract URL from intent
         val url = extractUrlFromIntent(intent)
-
         if (url.isNullOrEmpty()) {
             finish()
             return
         }
+        openWebApp(url)
 
-        // Load profile ID and setup the fragment
-        lifecycleScope.launch {
-            val profileId = getProfileIdForUrl(url)
-
-            // Load web app details to set task description with icon. Use the
-            // process-wide Components singleton (via `components` ext) so we
-            // hit the same in-memory WebAppManager / BrowserIcons cache that
-            // the install path warmed up - not a fresh Components graph.
-            val webApp = components.webAppManager.getWebAppByUrl(url)
-
-            // Set task description with app name and icon for recents
-            webApp?.let { app ->
-                withContext(Dispatchers.IO) {
-                    // Comprehensive icon loading with multiple fallbacks
-                    val icon =
-                        components.webAppManager.loadIconFromFile(app.iconUrl)
-                            ?: com.prirai.android.nira.utils.FaviconLoader.loadFavicon(this@WebAppActivity, url)
-                            ?: com.prirai.android.nira.utils.FaviconLoader.loadFaviconForPwa(
-                                this@WebAppActivity,
-                                url,
-                                size = 128
-                            )
-
-                    if (icon != null) {
-                        withContext(Dispatchers.Main) {
-                            val taskDescription = android.app.ActivityManager.TaskDescription(app.name, icon)
-                            setTaskDescription(taskDescription)
-                        }
-                    }
-                }
-            }
-
-            // Load the web app fragment if not already added
-            if (savedInstanceState == null) {
-                val fragment = WebAppFragment.newInstance(url, profileId)
-                supportFragmentManager.beginTransaction()
-                    .replace(R.id.webapp_container, fragment)
-                    .commit()
-            }
-        }
-
-        // Handle back button
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 val fragment = supportFragmentManager.findFragmentById(R.id.webapp_container) as? WebAppFragment
-                if (fragment?.handleBackPressed() != true) {
-                    finishAndRemoveTask()
-                }
+                if (fragment?.handleBackPressed() != true) finishAndRemoveTask()
             }
         })
     }
 
     private suspend fun getProfileIdForUrl(url: String): String = withContext(Dispatchers.IO) {
-        // Lookup webapp by URL to get its profile via the shared singleton.
-        val webApp = components.webAppManager.getWebAppByUrl(url)
-        webApp?.profileId ?: "default"
+        components.webAppManager.getWebAppByUrl(url)?.profileId ?: "default"
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        extractUrlFromIntent(intent)?.let(::openWebApp)
+    }
 
-        // Handle new URL when activity is reused
-        val url = extractUrlFromIntent(intent)
-        if (!url.isNullOrEmpty()) {
-            // Get the correct profile for this URL asynchronously
-            lifecycleScope.launch {
-                val profileId = getProfileIdForUrl(url)
+    private fun openWebApp(url: String) {
+        val ticket = launchGate.accept(url)
+        openJob?.cancel()
+        iconJob?.cancel()
+        pendingOpen = null
+        openJob = lifecycleScope.launch {
+            val profileId = getProfileIdForUrl(url)
+            if (!launchGate.isCurrent(ticket) || isFinishing || isDestroyed) return@launch
 
-                val fragment = supportFragmentManager.findFragmentById(R.id.webapp_container) as? WebAppFragment
-                if (fragment != null) {
-                    // Update existing fragment with new URL and profile
-                    val newFragment = WebAppFragment.newInstance(url, profileId)
-                    supportFragmentManager.beginTransaction()
-                        .replace(R.id.webapp_container, newFragment)
-                        .commit()
-                }
-            }
+            val requested = PendingOpen(ticket, profileId)
+            installOrDefer(requested)
+            iconJob = lifecycleScope.launch { updatePwaTaskDescription(ticket) }
+        }
+    }
+
+    private fun installOrDefer(request: PendingOpen) {
+        if (!launchGate.isCurrent(request.ticket) || isFinishing || isDestroyed) return
+        if (supportFragmentManager.isStateSaved) {
+            pendingOpen = request
+            return
+        }
+
+        pendingOpen = null
+        val fragment = supportFragmentManager.findFragmentById(R.id.webapp_container) as? WebAppFragment
+        if (fragment?.matchesLaunch(request.ticket.url, request.profileId) == true) {
+            // FragmentManager has already restored/opened this exact PWA.
+            return
+        }
+        // A new intent arriving before onCreate finishes must be able to
+        // create the FIRST fragment, not merely replace an existing one.
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.webapp_container, WebAppFragment.newInstance(
+                request.ticket.url, request.profileId
+            ))
+            .commit()
+    }
+
+    override fun onPostResume() {
+        super.onPostResume()
+        pendingOpen?.let(::installOrDefer)
+    }
+
+    private suspend fun updatePwaTaskDescription(ticket: WebAppLaunchGate.Ticket) {
+        val url = ticket.url
+        val webApp = withContext(Dispatchers.IO) {
+            components.webAppManager.getWebAppByUrl(url)
+        }
+        if (!launchGate.isCurrent(ticket) || isFinishing || isDestroyed) return
+        // Replace the old recents icon immediately, even if the new app has
+        // no icon. An old asynchronous lookup must never overwrite B with A.
+        val title = webApp?.name ?: runCatching { java.net.URI(url).host }.getOrNull() ?: url
+        setTaskDescription(android.app.ActivityManager.TaskDescription(title))
+        webApp ?: return
+        val icon = withContext(Dispatchers.IO) {
+            components.webAppManager.loadIconFromFile(webApp.iconUrl)
+                ?: com.prirai.android.nira.utils.FaviconLoader.loadFavicon(this@WebAppActivity, url)
+                ?: com.prirai.android.nira.utils.FaviconLoader.loadFaviconForPwa(
+                    this@WebAppActivity, url, size = 128
+                )
+        }
+        if (icon != null && launchGate.isCurrent(ticket) && !isFinishing && !isDestroyed) {
+            setTaskDescription(android.app.ActivityManager.TaskDescription(webApp.name, icon))
         }
     }
 

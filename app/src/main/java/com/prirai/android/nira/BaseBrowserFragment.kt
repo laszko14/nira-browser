@@ -754,112 +754,60 @@ abstract class BaseBrowserFragment : Fragment(), UserInteractionHandler, Activit
         }
     }
 
+    /**
+     * The single owner of the initial empty-tab bootstrap and of replacing
+     * the last tab after an explicit close. Never interpret the Store's
+     * pre-restore zero as a user-initiated close.
+     */
     @VisibleForTesting
     internal fun observeRestoreComplete(store: BrowserStore, navController: NavController) {
         val activity = activity as BrowserActivity
+        val gate = TabRestoreBootstrapGate()
+        var syncedRestore = false
         consumeFlow(store) { flow ->
-            flow.map { state -> state.restoreComplete }
-                .distinctUntilChanged()
-                .collect { restored ->
-                    if (restored) {
-                        // Synchronize LRU manager with restored tabs
-                        val lruManager = com.prirai.android.nira.browser.tabs.TabLRUManager.getInstance(requireContext())
-                        val currentTabIds = store.state.tabs.map { it.id }
-                        lruManager.synchronizeWithTabs(currentTabIds)
-                        
-                        val tabs =
-                            store.state.getNormalOrPrivateTabs(
-                                activity.browsingModeManager.mode.isPrivate
-                            )
-                        if (tabs.isEmpty() || store.state.selectedTabId == null) {
-                            // Navigate to home fragment first
-                            try {
-                                if (navController.currentDestination?.id != R.id.homeFragment) {
-                                    navController.navigate(R.id.homeFragment)
-                                }
-                            } catch (e: Exception) {
-                                // Navigation failed, create tab as fallback
-                            }
-                            
-                            // Then create a new tab based on homepage preference
-                            when (UserPreferences(requireContext()).homepageType) {
-                                HomepageChoice.VIEW.ordinal -> {
-                                    // Load about:homepage in BrowserFragment (HTML homepage)
-                                    components.tabsUseCases.addTab.invoke(
-                                        "about:homepage",
-                                        selectTab = true
-                                    )
-                                }
-
-                                HomepageChoice.BLANK_PAGE.ordinal -> {
-                                    components.tabsUseCases.addTab.invoke(
-                                        "about:blank",
-                                        selectTab = true
-                                    )
-                                }
-
-                                HomepageChoice.ONLY_SEARCH_BAR.ordinal -> {
-                                    components.tabsUseCases.addTab.invoke(
-                                        "about:homepage",
-                                        selectTab = true
-                                    )
-                                }
-                            }
-                        }
-                    }
+            flow.map { state ->
+                state.restoreComplete to state.getNormalOrPrivateTabs(
+                    activity.browsingModeManager.mode.isPrivate
+                ).map { it.id }
+            }.distinctUntilChanged().collect { (restored, tabIds) ->
+                if (restored && !syncedRestore) {
+                    syncedRestore = true
+                    com.prirai.android.nira.browser.tabs.TabLRUManager
+                        .getInstance(requireContext())
+                        .synchronizeWithTabs(store.state.tabs.map { it.id })
                 }
+                if (!gate.shouldCreate(restored, tabIds) || !isAdded || view == null) {
+                    return@collect
+                }
+                // Recheck after collecting: a real launch intent may have
+                // created its tab while the observer was waiting for Main.
+                if (store.state.getNormalOrPrivateTabs(
+                        activity.browsingModeManager.mode.isPrivate
+                    ).isNotEmpty()) return@collect
+
+                try {
+                    if (navController.currentDestination?.id != R.id.homeFragment) {
+                        navController.navigate(R.id.homeFragment)
+                    }
+                } catch (_: Exception) {
+                    // Fragment navigation is optional; preserve tab bootstrap.
+                }
+
+                val url = when (UserPreferences(requireContext()).homepageType) {
+                    HomepageChoice.BLANK_PAGE.ordinal -> "about:blank"
+                    else -> "about:homepage"
+                }
+                components.tabsUseCases.addTab.invoke(url, selectTab = true)
+            }
         }
     }
 
     @VisibleForTesting
     internal fun observeTabSelection(store: BrowserStore) {
         consumeFlow(store) { flow ->
-            flow.distinctUntilChangedBy {
-                it.selectedTabId
-            }
-                .mapNotNull {
-                    it.selectedTab
-                }
-                .collect {
-                    handleTabSelected(it)
-                }
-        }
-        
-        // Also observe when all tabs are closed
-        val activity = activity as? BrowserActivity
-        consumeFlow(store) { flow ->
-            flow.map { state -> 
-                state.getNormalOrPrivateTabs(
-                    activity?.browsingModeManager?.mode?.isPrivate ?: false
-                ).size
-            }
-            .distinctUntilChanged()
-            .collect { tabCount ->
-                if (tabCount == 0 && isAdded && view != null) {
-                    // All tabs closed, navigate to home and create a new tab
-                    try {
-                        val navController = findNavController()
-                        if (navController.currentDestination?.id != R.id.homeFragment) {
-                            navController.navigate(R.id.homeFragment)
-                        }
-                        
-                        // Create a new tab
-                        when (UserPreferences(requireContext()).homepageType) {
-                            HomepageChoice.VIEW.ordinal -> {
-                                components.tabsUseCases.addTab.invoke("about:homepage", selectTab = true)
-                            }
-                            HomepageChoice.BLANK_PAGE.ordinal -> {
-                                components.tabsUseCases.addTab.invoke("about:blank", selectTab = true)
-                            }
-                            HomepageChoice.ONLY_SEARCH_BAR.ordinal -> {
-                                components.tabsUseCases.addTab.invoke("about:homepage", selectTab = true)
-                            }
-                        }
-                    } catch (e: Exception) {
-                        // Ignore navigation errors
-                    }
-                }
-            }
+            flow.distinctUntilChangedBy { it.selectedTabId }
+                .mapNotNull { it.selectedTab }
+                .collect { handleTabSelected(it) }
         }
     }
 

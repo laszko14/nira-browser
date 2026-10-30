@@ -36,6 +36,11 @@ class WebAppFragment : Fragment(), EngineSession.Observer {
         }
     }
 
+    /** Used by the Activity to avoid unnecessary Gecko-session replacement on rotation/reopen. */
+    fun matchesLaunch(url: String, profile: String): Boolean =
+        arguments?.getString(ARG_WEB_APP_URL) == url &&
+            arguments?.getString(ARG_PROFILE_ID) == profile
+
     private lateinit var engineView: GeckoEngineView
     private var engineSession: EngineSession? = null
     private var profileId: String = "default"

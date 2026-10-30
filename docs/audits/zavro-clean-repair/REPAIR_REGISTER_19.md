@@ -162,7 +162,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-024 | menu NewTab ma różną semantykę prywatności zależnie od profilu | CONFIRMED | P2 | 8/19 | FIXED — 8B; explicit NewTab privacy + regressions; device NOT_TESTED |
 | ZC-AUD-025 | zakres sugestii kart nie jest ograniczony do bieżącego profilu | SUSPECTED | P2 | 8/19 | SCOPE_DEFINED — 8B local suggestions + guarded callbacks; device UX NOT_TESTED |
 | ZC-AUD-026 | killProcess wyprzedza trwały zapis sesji | CONFIRMED | P1 | 4/19 | IMPLEMENTED — stage 4, CI_PENDING |
-| ZC-AUD-027 | pusty stan startowy jest traktowany jak zamknięcie wszystkich kart | CONFIRMED | P2 | 9/19 | DO_RECHECK |
+| ZC-AUD-027 | pusty stan startowy jest traktowany jak zamknięcie wszystkich kart | CONFIRMED | P2 | 9/19 | IMPLEMENTED — stage 9, CI_PENDING |
 | ZC-AUD-028 | default PWA nie używa canonical kontekstu default | CONFIRMED | P2 | 10/19 | DO_RECHECK |
 | ZC-AUD-029 | ContextMenuFeature PWA jest podłączony do obcej sesji | CONFIRMED | P2 | 10/19 | DO_RECHECK |
 | ZC-AUD-030 | opener ma rozbieżne konteksty karty i przygotowanego engine | SUSPECTED | P1 (potencjalny) | 10/19 | VERIFY_FIRST |
@@ -193,7 +193,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-055 | probe pobierania nie respektuje anulowania | CONFIRMED | P2 | 18/19 | DO_RECHECK |
 | ZC-AUD-056 | import nadpisuje zakładki przed walidacją | CONFIRMED | P1 | 5/19 | IMPLEMENTED — stage 5, CI_PENDING |
 | ZC-AUD-057 | resume nie wiąże części z wersją zasobu | CONFIRMED | P2 | 18/19 | DO_RECHECK |
-| ZC-AUD-058 | nowy intent PWA ginie przed utworzeniem fragmentu | CONFIRMED | P2 | 9/19 | DO_RECHECK |
+| ZC-AUD-058 | nowy intent PWA ginie przed utworzeniem fragmentu | CONFIRMED | P2 | 9/19 | IMPLEMENTED — stage 9, CI_PENDING |
 | ZC-AUD-059 | nieatomowe mutacje listy profili | CONFIRMED | P2 | 8A/19 | FIXED — stage 8A, JVM + CI PASS; device NOT_TESTED |
 | ZC-AUD-060 | nieaktualny scenariusz TestLabDeviceTest | CONFIRMED | P2 | 7/19 | IMPLEMENTED — stage 7, Android test compilation + CI PASS; device execution NOT_TESTED |
 
@@ -312,3 +312,11 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 
 - Potwierdzono w API Mozilla Components, że `enableAddon`/`disableAddon` używają asynchronicznych callbacków, a `getAddons(waitForPendingActions=true)` oczekuje na zadania zarządzane przez AddonManager. Przed odczytem i po zleceniu mutacji polityka 8B czeka na oczekujące operacje. Blokada `ProfilePolicySequencer` obejmuje to oczekiwanie, więc profil B nie może uznać profilu A za zakończony, zanim A zamknie kolejkę działań. Nie zmienia to wyboru globalnego katalogu dodatków ani uprawnień.
 - Regresje JVM testują kolejność i generacje, nie emulują rzeczywistego Gecko callback. Rzeczywista integracja i obciążone siecią dodatki: NOT_TESTED na urządzeniu.
+
+## Etap 9/19 — ZC-AUD-027 i ZC-AUD-058: start/restore oraz intenty PWA (2026-10-30)
+
+- Baza `3fc99274c524ce34009f2a740838c15932777007`, zielone CI 8B [41140352443](https://github.com/laszko14/nira-browser/actions/runs/41140352443); gałąź `fix/zavro-clean-audit60-stage9-restore-pwa-intents-20261030`.
+- **027 STILL_PRESENT**: restore oraz observer liczby kart posiadały konkurencyjne tworzenie startowej karty. Zredukowano to do jednego obserwatora `observeRestoreComplete`; nic nie tworzy karty przy `restoreComplete=false`, zapobiega powtórnemu wstrzyknięciu przy pustych emisjach i po rzeczywistym zamknięciu ostatniej karty może utworzyć nową. Ukończony restore z kartami i wybranymi intencjami nie tworzy dodatkowego homepage.
+- **058 STILL_PRESENT**: `onNewIntent` cicho porzucał URL, jeśli `WebAppFragment` nie był jeszcze dodany, a opóźniony onCreate nadpisywał nowsze żądanie. Teraz wspólna generacja `WebAppLaunchGate` z `Job.cancel()` sprawdza aktualność lookupu, instalacji fragmentu (również do pustego kontenera) i opisu zadania/ikony. FragmentManager `isStateSaved` odracza instalację do `onPostResume`. Ten sam URL/profil jest idempotentny po obrocie/restore.
+- Regresje: gate bootstrap false/true/empty/intent/close; PWA A→B oraz B→C, stare wyniki, kolejność ikon, stan zachowany. JVM/Robolectric oraz JavaScript/lint; szczegóły dowodów i CI poniżej.
+- Urządzenie Android 15: fizyczny cold restore PWA singleTop i realne opóźnienia Gecko/dysku NOT_TESTED. Nie zmieniać 028/029/030/031/050 (etap 10). Bez APK i merge.
