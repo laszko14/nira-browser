@@ -122,6 +122,14 @@ class SettingsImportCodecTest {
         assertEquals("true", p.getString(UserPreferences.COLLECTION_NAME, null))
     }
 
+    @Test fun emptyV1BackupIsValidAndDoesNotClearExistingPreferences() {
+        val p = prefs()
+        val emptyExport = SettingsImportCodec.export(emptyMap())
+        p.edit().putString("keep_key", "keep_value").commit()
+        assertTrue(SettingsImportCodec.import(p, emptyExport))
+        assertEquals("keep_value", p.getString("keep_key", null))
+    }
+
     @Test fun validBackupOnlyChangesItsOwnKeysAndKeepsUnknownStringTypes() {
         val p = prefs()
         assertTrue(p.edit()
