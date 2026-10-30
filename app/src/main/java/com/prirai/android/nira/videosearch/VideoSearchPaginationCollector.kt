@@ -47,6 +47,7 @@ internal class VideoSearchPaginationCollector(
     val visitedPages: Int get() = visited.size
     val pageActions: Int get() = actions
     val uniqueCount: Int get() = byUrl.size
+    fun containsFilmUrl(url: String): Boolean = byUrl.containsKey(url)
     val reachedLimit: Boolean get() = uniqueCount >= limit
     val exhaustedCardBudget: Boolean get() = cursor >= 320
     val shouldReadCardWindow: Boolean get() = cursor < 320 && moreCards && !reachedLimit
