@@ -41,6 +41,12 @@ internal object VideoSearchResultBudgets {
         if (requireSiteLimit(limit) <= 200) 3_840
         else (limit * 20).coerceIn(3_840, 200_000)
 
+    /** The multi-site coordinator must not kill a 10k crawl after 180 seconds. */
+    fun runDurationMs(limits: Collection<Int>): Long {
+        aggregateLimit(limits)
+        return limits.sumOf { durationMs(it) }.coerceIn(180_000L, 3_600_000L)
+    }
+
     /** Time budget rises with larger requested crawls but stays bounded. */
     fun durationMs(limit: Int): Long =
         (120_000L + (requireSiteLimit(limit) - 200).coerceAtLeast(0) * 75L)
