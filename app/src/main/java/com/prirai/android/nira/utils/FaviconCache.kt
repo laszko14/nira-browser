@@ -207,6 +207,14 @@ class FaviconCache private constructor(private val context: Context) {
     }
     
     /**
+     * Returns the actual disk entry used by this singleton. Visible only
+     * to module tests verifying private/normal cache isolation under
+     * Robolectric's per-test Application contexts.
+     */
+    internal fun cacheFileForTesting(url: String): File =
+        File(cacheDir, "${generateKey(url)}.png")
+
+    /**
      * Get cache statistics
      */
     fun getCacheStats(): CacheStats {
