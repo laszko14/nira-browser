@@ -90,7 +90,7 @@ class BookmarkManager private constructor(context: Context) : Serializable {
      * the live tree is replaced only after the atomic commit completes.
      */
     @Synchronized
-    fun importPrepared(prepared: BookmarkImportCodec.Prepared) {
+    internal fun importPrepared(prepared: BookmarkImportCodec.Prepared) {
         BookmarkImportCodec.atomicWrite(file, prepared.bytes)
         installStaged(prepared.root)
     }
