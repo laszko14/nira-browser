@@ -10,6 +10,7 @@ on:
       - 'app/src/main/java/com/prirai/android/nira/settings/fragment/SyncSettingsFragment.kt'
       - 'app/src/main/java/com/prirai/android/nira/components/toolbar/modern/PortraitNativeTabStrip.kt'
       - 'app/src/main/java/com/prirai/android/nira/utils/FaviconLoader.kt'
+      - 'app/src/main/java/com/prirai/android/nira/utils/FaviconCache.kt'
       - 'app/src/test/java/com/prirai/android/nira/browser/sync/**'
       - 'app/src/test/java/com/prirai/android/nira/utils/FaviconPrivateCacheTest.kt'
       - 'docs/audits/zavro-clean-repair/**'
