@@ -140,7 +140,7 @@ class VideoSearchMultiRunJournalTest {
         } finally { db.close() }
     }
 
-    @Test fun limitReachedIsValidOnlyWithActualFilm() = runBlocking {
+    @Test fun limitReachedNeedsActualConfiguredQuotaNotJustOneFilm() = runBlocking {
         val db = db()
         try {
             val repo = VideoSearchRepository(db.dao())
@@ -153,8 +153,9 @@ class VideoSearchMultiRunJournalTest {
                 snapshot(reason = VideoSearchPaginationStop.LIMIT_REACHED))
             queue.resolve("site1", VideoSearchQueueStatus.DONE)
             journal.finish(queue)
-            assertEquals(VideoSearchCompletionReason.LIMIT_REACHED,
-                repo.tasks(owner, "run-limit").single().completionReason)
+            assertNull(repo.tasks(owner, "run-limit").single().completionReason)
+            assertEquals(VideoSearchSiteState.STOPPED,
+                repo.tasks(owner, "run-limit").single().status)
         } finally { db.close() }
     }
 
