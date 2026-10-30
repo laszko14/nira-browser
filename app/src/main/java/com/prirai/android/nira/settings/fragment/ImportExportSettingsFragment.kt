@@ -340,33 +340,14 @@ class ImportExportSettingsFragment : BaseSettingsFragment() {
     private fun exportSettings(uri: Uri) {
         try {
             val userPref = requireActivity().getSharedPreferences(SCW_PREFERENCES, 0)
-            val allEntries: Map<String, *> = userPref.all
-            
-            // Create JSON object with metadata
-            val jsonObj = JSONObject()
-            jsonObj.put("_version", 1) // Version for migration handling
-            jsonObj.put("_timestamp", System.currentTimeMillis())
-            
-            for (entry in allEntries.entries) {
-                // Skip internal keys
-                if (entry.key.startsWith("_")) continue
-                
-                when (val value = entry.value) {
-                    is Boolean -> jsonObj.put(entry.key, value)
-                    is Int -> jsonObj.put(entry.key, value)
-                    is Long -> jsonObj.put(entry.key, value)
-                    is Float -> jsonObj.put(entry.key, value)
-                    is String -> jsonObj.put(entry.key, value)
-                    else -> jsonObj.put(entry.key, value.toString())
-                }
+            val backup = SettingsImportCodec.export(userPref.all)
+            val output = requireNotNull(requireActivity().contentResolver.openOutputStream(uri)) {
+                "Cannot open backup destination"
             }
-
-            val output: OutputStream? = requireActivity().contentResolver.openOutputStream(uri)
-            output?.use {
-                it.write(jsonObj.toString(2).toByteArray()) // Pretty print with indent
+            output.use {
+                it.write(backup.toByteArray(Charsets.UTF_8))
                 it.flush()
             }
-            
             Toast.makeText(context, R.string.successful, Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             Log.e("ImportExportSettings", "Error exporting settings", e)
@@ -376,112 +357,22 @@ class ImportExportSettingsFragment : BaseSettingsFragment() {
 
     private fun importSettings(uri: Uri) {
         try {
-            val input: InputStream? = requireActivity().contentResolver.openInputStream(uri)
-            input?.use { stream ->
-                val content = stream.bufferedReader().use { it.readText() }
-                
-                // Try to parse as JSON
-                val jsonObj = try {
-                    JSONObject(content)
-                } catch (e: Exception) {
-                    // Try legacy format: {"key"="value",...}
-                    parseLegacySettings(content)
-                }
-
-                val userPref = requireActivity().getSharedPreferences(SCW_PREFERENCES, 0)
-                
-                // Get version for migration
-                val version = try {
-                    jsonObj.getInt("_version")
-                } catch (e: Exception) {
-                    0 // Legacy or no version
-                }
-                
-                // Apply settings with migration
-                userPref.edit {
-                    val keys = jsonObj.keys()
-                    while (keys.hasNext()) {
-                        val key = keys.next()
-
-                        // Skip metadata keys
-                        if (key.startsWith("_")) continue
-
-                        // Apply migrations if needed
-                        val migratedKey = migrateSettingKey(key, version)
-                        if (migratedKey == null) continue // Skip obsolete settings
-
-                        // Get value and determine type
-                        when (val value = jsonObj.get(key)) {
-                            is Boolean -> putBoolean(migratedKey, value)
-                            is Int -> putInt(migratedKey, value)
-                            is Long -> putLong(migratedKey, value)
-                            is Double -> putFloat(migratedKey, value.toFloat())
-                            is String -> {
-                                // Try to infer type from string value
-                                when {
-                                    value == "true" || value == "false" ->
-                                        putBoolean(migratedKey, value.toBoolean())
-
-                                    value.matches("-?\\d+".toRegex()) -> {
-                                        val longValue = value.toLongOrNull()
-                                        if (longValue != null) {
-                                            if (longValue > Int.MAX_VALUE || longValue < Int.MIN_VALUE) {
-                                                putLong(migratedKey, longValue)
-                                            } else {
-                                                putInt(migratedKey, longValue.toInt())
-                                            }
-                                        } else {
-                                            putString(migratedKey, value)
-                                        }
-                                    }
-
-                                    value.matches("-?\\d+\\.\\d+".toRegex()) ->
-                                        putFloat(migratedKey, value.toFloatOrNull() ?: 1.0f)
-
-                                    else ->
-                                        putString(migratedKey, value)
-                                }
-                            }
-
-                            else -> putString(migratedKey, value.toString())
-                        }
-                    }
-                }
-                
-                // Show success and restart
-                Toast.makeText(context, R.string.successful, Toast.LENGTH_SHORT).show()
-                requireActivity().recreate()
+            val input = requireNotNull(requireActivity().contentResolver.openInputStream(uri)) {
+                "Cannot open settings backup"
             }
+            val content = input.bufferedReader().use { it.readText() }
+            val userPref = requireActivity().getSharedPreferences(SCW_PREFERENCES, 0)
+            check(SettingsImportCodec.import(userPref, content, ::migrateSettingKey)) {
+                "Preferences commit failed"
+            }
+            Toast.makeText(context, R.string.successful, Toast.LENGTH_SHORT).show()
+            requireActivity().recreate()
         } catch (e: Exception) {
             Log.e("ImportExportSettings", "Error importing settings", e)
             Toast.makeText(context, R.string.error, Toast.LENGTH_LONG).show()
         }
     }
-    
-    /**
-     * Parse legacy settings format: {"key"="value",...}
-     */
-    private fun parseLegacySettings(content: String): JSONObject {
-        val jsonObj = JSONObject()
-        
-        // Remove surrounding braces
-        val trimmed = content.trim().removeSurrounding("{", "}")
-        
-        // Split by comma
-        val pairs = trimmed.split(",")
-        
-        for (pair in pairs) {
-            val parts = pair.split("=", limit = 2)
-            if (parts.size == 2) {
-                val key = parts[0].trim().removeSurrounding("\"")
-                val value = parts[1].trim().removeSurrounding("\"")
-                jsonObj.put(key, value)
-            }
-        }
-        
-        return jsonObj
-    }
-    
+
     /**
      * Migrate setting keys from old versions to new versions
      * Returns null if setting is obsolete and should be skipped
