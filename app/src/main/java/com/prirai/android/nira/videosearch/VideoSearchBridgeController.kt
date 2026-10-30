@@ -835,7 +835,7 @@ internal class VideoSearchBridgeController(
         ) ?: return null
         val originalSession = first.first
         val firstUrl = currentTab(originalSession)?.pageUrl ?: return null
-        val collector = VideoSearchPaginationCollector(site.siteUrl, 200)
+        val collector = VideoSearchPaginationCollector(site.siteUrl, site.resultLimit)
         if (!collector.beginDocument(firstUrl)) return null
         val deadline = minOf(
             SystemClock.elapsedRealtime() + 120_000L, deadlineMs
@@ -1315,7 +1315,8 @@ internal class VideoSearchBridgeController(
         val startingUrl = currentTab(session)?.pageUrl ?: return null
         val collector = VideoSearchPaginationCollector(site.siteUrl, site.resultLimit)
         if (!collector.beginDocument(startingUrl)) return null
-        val deadline = SystemClock.elapsedRealtime() + 120_000L
+        val deadline = SystemClock.elapsedRealtime() +
+            VideoSearchResultBudgets.durationMs(site.resultLimit)
 
         suspend fun stillAuthorized(): Boolean {
             val live = matchingTab() ?: return false
@@ -2038,7 +2039,8 @@ internal class VideoSearchBridgeController(
                     if (lastMulti.size > 4) lastMulti.remove(lastMulti.keys.first())
                     Toast.makeText(applicationContext,
                         if (!journal.hasCapacity() && queue.snapshot().stopped > 0)
-                            "Zavro: osiągnięto limit 2000 filmów. Pozostałe witryny zatrzymano."
+                            "Zavro: osiągnięto łączny limit ${journal.runResultBudget} filmów. " +
+                                "Pozostałe witryny zatrzymano."
                         else "Zavro: wyszukiwanie zakończone lub zatrzymane. Sprawdź historię wyników.",
                         Toast.LENGTH_LONG).show()
                 }
