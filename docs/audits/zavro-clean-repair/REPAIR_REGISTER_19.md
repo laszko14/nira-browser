@@ -138,7 +138,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 
 | ID | Treść ustalenia Codex | Pewność | Priorytet | Etap | Stan na v1195 |
 | --- | --- | --- | --- | --- | --- |
-| ZC-AUD-001 | niespójny kontrakt wersji joba release | CONFIRMED | P2 | 19A/19 | FIXED CORE — metadata z checkout taga, testy release/debug i cert/ABI; CI_PENDING, APK NOT_TESTED |
+| ZC-AUD-001 | niespójny kontrakt wersji joba release | CONFIRMED | P2 | 19A/19 | FIXED CORE — testy kontraktu release/tag/Gradle/podpisu 6/6; CI 19A #41243726591 SUCCESS; APK, signing i instalacja NOT_TESTED |
 | ZC-AUD-002 | możliwy brak uzgodnienia nowej generacji rozszerzenia | SUSPECTED | P2 | 15E/19 | BLOCKED — conditional JS/native collision demonstrated; real Gecko background restart with retained EngineSession NOT_TESTED |
 | ZC-AUD-003 | starsze zadanie zmienia politykę aktywnego profilu | CONFIRMED | P2 | 8/19 | FIXED — 8B; Kotlin/JS/lint GREEN on code SHA d9e1047b; device NOT_TESTED |
 | ZC-AUD-004 | brak końcowego sprzątania slotów zamkniętych kart | CONFIRMED | P2 | 11/19 | FIXED — 11B post-restore/Undo slot and Room prune; CI PASS; device NOT_TESTED |
@@ -148,7 +148,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-008 | resize nie zachowuje tożsamości palca | CONFIRMED | P2 | 12/19 | FIXED — 12A pointer ownership, rollback on multi-touch/CANCEL; CI PASS, device NOT_TESTED |
 | ZC-AUD-009 | nieatomowa walidacja tworzenia grupy z Bez grupy | CONFIRMED | P2 | 11/19 | FIXED — 11A atomic Room guard; JVM/JS/lint CI PASS; device NOT_TESTED |
 | ZC-AUD-010 | hover pozostaje przy poprzednim celu podczas autoscroll | LIKELY | P2 | 12/19 | FIXED CORE — 12C live geometry, delayed guard; JVM/JS/lint CI PASS; real Compose device NOT_TESTED |
-| ZC-AUD-011 | dialog zachowuje callback usuniętego panelu zakładek | CONFIRMED | P1 | 2/19 | IMPLEMENTED — stage 2, verify CI |
+| ZC-AUD-011 | dialog zachowuje callback usuniętego panelu zakładek | CONFIRMED | P1 | 2/19 | FIXED CORE — etap 2, BookmarkViewDialogLifecycleTest; pełny JVM/JS/lint CI 19A PASS; obrót/Gecko NOT_TESTED |
 | ZC-AUD-012 | dwa kryteria sortowania działają jak nazwa | CONFIRMED | P2 | 14B/19 | FIXED CORE — URL sort and remove fake date, atomic save+rollback; Kotlin/Robolectric/JS/lint CI PASS, device NOT_TESTED |
 | ZC-AUD-013 | kwadratowy koszt projekcji kolejności pasków kart | CONFIRMED | P2 | 11/19 | FIXED — 11A linear projection; JVM/JS/lint CI PASS; 120 Hz NOT_TESTED |
 | ZC-AUD-014 | dialog kolejności nie rozróżnia upuszczenia przed i za wierszem | CONFIRMED | P2 | 14C/19 | FIXED CORE — drag row midpoint before/after + direct end; Kotlin/JS + CI FINAL_PENDING; device NOT_TESTED |
@@ -159,11 +159,11 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-019 | raw swipe karty nie respektuje własności gestu Compose | LIKELY | P2 | 12/19 | FIXED CORE — 12D pointer ownership + consumed/DnD/cancel, JVM/JS/lint PASS; real Compose device NOT_TESTED |
 | ZC-AUD-020 | obsługa IME usuwa rezerwację miejsca na dolny pasek | CONFIRMED | P2 | 14F/19 | FIXED CORE — single margin owner composes chrome + IME + fullscreen; Kotlin/JS CI PENDING; device NOT_TESTED |
 | ZC-AUD-021 | Anuluj nie cofa wyboru wyszukiwarki | CONFIRMED | P2 | 14A/19 | FIXED CORE — transactional picker & custom cancel; Kotlin/Robolectric/JS/lint CI PASS; device NOT_TESTED |
-| ZC-AUD-022 | import własnego eksportu zmienia typy preferencji | CONFIRMED | P1 | 3/19 | IMPLEMENTED — stage 3, CI_PENDING |
+| ZC-AUD-022 | import własnego eksportu zmienia typy preferencji | CONFIRMED | P1 | 3/19 | FIXED CORE — etap 3, SettingsImportCodecTest; pełny JVM/JS/lint CI 19A PASS; Android 15 NOT_TESTED |
 | ZC-AUD-023 | wybór canonical default nie uzgadnia aktywnego profilu | CONFIRMED | P2 | 8/19 | FIXED — 8B; resolver/selection tests + CI GREEN on d9e1047b; device NOT_TESTED |
 | ZC-AUD-024 | menu NewTab ma różną semantykę prywatności zależnie od profilu | CONFIRMED | P2 | 8/19 | FIXED — 8B; explicit NewTab privacy + regressions; device NOT_TESTED |
-| ZC-AUD-025 | zakres sugestii kart nie jest ograniczony do bieżącego profilu | SUSPECTED | P2 | 8/19 | SCOPE_DEFINED — 8B local suggestions + guarded callbacks; device UX NOT_TESTED |
-| ZC-AUD-026 | killProcess wyprzedza trwały zapis sesji | CONFIRMED | P1 | 4/19 | IMPLEMENTED — stage 4, CI_PENDING |
+| ZC-AUD-025 | zakres sugestii kart nie jest ograniczony do bieżącego profilu | SUSPECTED | P2 | 8/19 | SCOPE_DEFINED / PASS CORE — polityka i ograniczenie sugestii do aktywnego profilu w etapie 8B testowane automatycznie; realny UX NOT_TESTED |
+| ZC-AUD-026 | killProcess wyprzedza trwały zapis sesji | CONFIRMED | P1 | 4/19 | FIXED CORE — etap 4, TaskExitSaveBarrierTest; pełny JVM/JS/lint CI 19A PASS; awaria procesu na Android 15 NOT_TESTED |
 | ZC-AUD-027 | pusty stan startowy jest traktowany jak zamknięcie wszystkich kart | CONFIRMED | P2 | 9/19 | FIXED — stage 9, Kotlin/JS/lint CI PASS, device NOT_TESTED |
 | ZC-AUD-028 | default PWA nie używa canonical kontekstu default | CONFIRMED | P2 | 10/19 | FIXED — stage 10; JVM/instrumented-compile/JS/lint CI PASS; device storage NOT_TESTED |
 | ZC-AUD-029 | ContextMenuFeature PWA jest podłączony do obcej sesji | CONFIRMED | P2 | 10/19 | FIXED CORE — stage 10; PWA-owned hit menu CI PASS; device UX NOT_TESTED |
@@ -190,14 +190,14 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-050 | migracja profilu przenosi stan odtwarzania starego silnika | CONFIRMED | P2 | 10/19 | FIXED — stage 10; stale MediaSession reset with JVM CI PASS; device NOT_TESTED |
 | ZC-AUD-051 | zmiana filmu w trasie hash zachowuje stare media | CONFIRMED | P2 | 15D/19 | FIXED CORE — hash material-route generation shared by background/native; old media dropped and stale DOM offers gated; JS/Kotlin regressions, CI_PENDING; device NOT_TESTED |
 | ZC-AUD-052 | brak rejestracji okna filmów otwartego w PREPARING | CONFIRMED | P2 | 7/19 | FIXED — stage 7, JVM + CI PASS; device frames NOT_TESTED |
-| ZC-AUD-053 | parametry uwierzytelniania w diagnostyce Sync | CONFIRMED | P2 | 6/19 | DO_RECHECK |
-| ZC-AUD-054 | trwały cache favicon z prywatnej karty | CONFIRMED | P2 | 6/19 | DO_RECHECK |
+| ZC-AUD-053 | parametry uwierzytelniania w diagnostyce Sync | CONFIRMED | P2 | 6/19 | FIXED CORE — etap 6, SyncDiagnosticPolicyTest, sanitacja logów/OAuth w kodzie; pełny JVM CI 19A PASS; realne konto FxA NOT_TESTED |
+| ZC-AUD-054 | trwały cache favicon z prywatnej karty | CONFIRMED | P2 | 6/19 | FIXED CORE — etap 6, FaviconPrivateCacheTest, prywatny bypass cache; pełny JVM CI 19A PASS; historyczne wpisy nieodróżnialne i realne Gecko NOT_TESTED |
 | ZC-AUD-055 | probe pobierania nie respektuje anulowania | CONFIRMED | P2 | 18C/19 | FIXED CORE — generation, cancellation, live Store guard; CI_PENDING |
-| ZC-AUD-056 | import nadpisuje zakładki przed walidacją | CONFIRMED | P1 | 5/19 | IMPLEMENTED — stage 5, CI_PENDING |
+| ZC-AUD-056 | import nadpisuje zakładki przed walidacją | CONFIRMED | P1 | 5/19 | FIXED CORE — etap 5, BookmarkAtomicImportTest; pełny JVM/JS/lint CI 19A PASS; fizyczna awaria zapisu NOT_TESTED |
 | ZC-AUD-057 | resume nie wiąże części z wersją zasobu | CONFIRMED | P2 | 18D/19 | FIXED CORE — strong ETag, If-Range, wersjonowany sidecar; CI_PENDING, HTTP/device NOT_TESTED |
 | ZC-AUD-058 | nowy intent PWA ginie przed utworzeniem fragmentu | CONFIRMED | P2 | 9/19 | FIXED — stage 9, Kotlin/JS/lint CI PASS, device NOT_TESTED |
 | ZC-AUD-059 | nieatomowe mutacje listy profili | CONFIRMED | P2 | 8A/19 | FIXED — stage 8A, JVM + CI PASS; device NOT_TESTED |
-| ZC-AUD-060 | nieaktualny scenariusz TestLabDeviceTest | CONFIRMED | P2 | 7/19 | IMPLEMENTED — stage 7, Android test compilation + CI PASS; device execution NOT_TESTED |
+| ZC-AUD-060 | nieaktualny scenariusz TestLabDeviceTest | CONFIRMED | P2 | 7/19 | FIXED CORE (test contract) — etap 7, aktualny TestLabDeviceTest kompiluje się na CI 19A; wykonanie na telefonie, JankStats i Gecko FPS NOT_TESTED |
 
 ## Kryteria przejścia i sposób oznaczania stanów
 
@@ -800,3 +800,14 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - **FIXED CORE:** po checkout zweryfikowanego taga (format `vX.Y.Z[-suffix]`, pełne `refs/tags/`, bez gałęzi i dowolnych SHA) skrypt `scripts/resolve-release-contract.cjs` odczytuje faktyczne `versionCode`, `versionName`, package oraz mapę arm64 z `app/build.gradle` w **tym właśnie checkout**, weryfikuje niezmienniki i emituje tylko `EXPECTED_VERSION_CODE/NAME` do `GITHUB_ENV`. Release `EXPECTED_PACKAGE=com.prirai.android.nira` i debug `com.prirai.android.nira.debug` pozostają odrębne; certyfikat SHA-256 nie został zmieniony. Brak ominięcia `scripts/verify-update-apk.sh`, który nadal waliduje podpis, jeden signer, wersję, nazwę, ABI i pakiet. Nie wywołano assemble/release/publish; nie wygenerowano APK.
 - **Regresje:** `app/src/test/js/release-contract-stage19a.test.cjs` obejmuje bieżący kontrakt debug 1195, bieżący release z taga 1195, syntetyczną starszą wersję 1182 z własnego taga, odmowę innego applicationId/multiplier/ABI/malformed metadata, bezpieczny `GITHUB_ENV`, weryfikację taga, kolejność checkout→rozwiązanie metadanych→build oraz niezmienność podpisu i walidatora. Workflow `.github/workflows/zavro-audit60-stage19a-regression.yml` uruchamia fast gate Node, bash syntax, pełne Kotlin/Robolectric, AndroidTest compile bez APK, wszystkie JS i Android lint.
 - **Granice:** prawdziwy release na konkretnym tagu, rzeczywisty podpis, kompatybilność instalacji na urządzeniu i wygenerowany plik APK **NOT_TESTED** zgodnie z zakazem kompilacji. Starsze istniejące tagi nie zawierające nowego skryptu i workflow nie zostają retroaktywnie zmienione. Pełne 60/60 to dopiero 19B po osobnym „Dalej”. ZC-AUD-043 CONDITIONAL_GUARD / REAL_GECKO_REQUIRED; ZC-AUD-002 BLOCKED / REAL_GECKO_REQUIRED; ZC-AUD-030 OPEN; ZC-AUD-031 PARTIAL. **CI_PENDING — wymaga completed/success na finalnym SHA.**
+
+
+## Etap 19B/19 — audyt końcowy 60/60 i bramka regresji (2026-10-31)
+
+- **Baza zweryfikowana:** 19A commit `624ac321b863087189bc0a657fc63979a0bf8f7d`, [Actions #41243726591](https://github.com/laszko14/nira-browser/actions/runs/41243726591) `completed/success`, release-contract 6/6, pełny WebExtension JS 398/398, Kotlin/Robolectric, AndroidTest **compile** i lint. Testy te nie są testem fizycznego telefonu.
+- **Raport 60/60:** [FINAL_AUDIT_19B_60.md](FINAL_AUDIT_19B_60.md) — każda pozycja ma werdykt PASS/FAIL/BLOCKED/NOT_TESTED, opis zakresu, link do dowodu etapu i istniejące testy; `scripts/verify-audit60-stage19b.cjs` wymusza 60 unikalnych ID, zakres źródeł, zgodność etapów i cztery niezamknięte stany.
+- **Macierz CORE / criteria:** **56 PASS**, **1 FAIL (ZC-AUD-031: niezamknięta bramka trwałego erasure, status źródłowy PARTIAL)**, **2 BLOCKED (ZC-AUD-002: REAL_GECKO_REQUIRED; ZC-AUD-030: OPEN i niewystarczające testy storage)**, **1 NOT_TESTED (ZC-AUD-043: CONDITIONAL_GUARD / REAL_GECKO_REQUIRED)**. To nie jest 56 PASS na urządzeniu. Każdy z 60 ma odrębny status fizycznego Gecko/Android 15: **NOT_TESTED**.
+- **Aktualizacja przestarzałych pozycji:** 001, 011, 022, 025, 026, 053, 054, 056 i 060 mają odświeżone opisy ograniczone do dowodów z 19A/etapów. Historyczne `CI_PENDING` zapisane w poszczególnych wcześniejszych checkpointach opisują stan *w tamtym momencie*. Zielony bazowy CI 19A nie zastępuje CI na finalnym SHA 19B. `FIXED CORE` w tabeli nie jest dowodem instalacji ani rzeczywistego UI.
+- **Workflow 19B:** `.github/workflows/zavro-audit60-stage19b-regression.yml`; uruchamia kontrolę macierzy, pełne `:app:testDebugUnitTest`, `:app:compileDebugAndroidTestKotlin`, `node --test app/src/test/js/*.test.cjs` i `:app:lintDebug`, **bez assemble/APK/release**. Dla końcowego SHA wymagane osobne `completed/success`. W razie FAIL nie zamykać etapu; diagnostyka i poprawka w tej samej gałęzi.
+- **Zachowane niezamknięte statusy:** **ZC-AUD-002 BLOCKED/REAL_GECKO_REQUIRED**, **ZC-AUD-030 OPEN**, **ZC-AUD-031 PARTIAL**, **ZC-AUD-043 CONDITIONAL_GUARD/REAL_GECKO_REQUIRED**. Nie ma nowych dowodów z realnego Gecko. Do ich rozstrzygnięcia potrzebne są izolowane próby natywnego background restartu/EngineSession, OriginAttributes i window.open storage, trwałego erasure profilu oraz zmiany src/currentSrc/metadata. Nie testować na realnych danych i nie degradować izolacji.
+- **Granice:** brak kompilacji APK, merge do main, aktualizacji taga, zmiany podpisu, skasowania profilów, prywatnych danych, sesji i zapisanych plików. Wynik CI sam nie rozstrzyga zachowania Nothing Phone (1), Android 15, 120 Hz.
