@@ -1493,7 +1493,7 @@ class TabsBottomSheetFragment : DialogFragment() {
         fun currentSideDrop(): com.prirai.android.nira.browser.tabs.compose.ResolvedDrop? {
             val info = listState.layoutInfo
             return DragPlacement.sideTarget(
-                dragY, info.viewportStartOffset, info.viewportEndOffset,
+                dragY, maxOf(0, info.viewportStartOffset), info.viewportEndOffset,
                 info.visibleItemsInfo.map { DropRow(it.key.toString(), it.offset, it.size) },
                 x = dragX, viewportWidth = listWidth
             )
