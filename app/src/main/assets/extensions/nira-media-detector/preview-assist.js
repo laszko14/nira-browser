@@ -7,7 +7,11 @@
     "[class*='card'],[class*='Card'],[class*='video'],[class*='Video']";
   const PREVIEW_ATTRS = ["data-preview-video", "data-preview-src",
     "data-preview-url", "data-video-preview", "data-trailer", "data-hover-video"];
-  const failed = new WeakSet();
+  // DOM owners are weakly held. Failed preview attempts must not trap navigation
+  // when a generated video node was removed after play() rejected.
+  const failedVideos = new WeakMap(); // video -> source URL
+  const failedCards = new WeakMap(); // card -> {source, link, href}
+  const latestAttempts = new WeakMap(); // video -> current attempt token
 
   function previewUrl(card) {
     const nodes = [card, ...Array.from(card.querySelectorAll(
@@ -90,29 +94,53 @@
     if (!clickedLink && !explicitPreviewControl) return;
     const link = clickedLink || card.querySelector("a[href]");
     if (!link) return;
+    // A failed generated preview has already consumed one click. For the same
+    // card, preview source and link, let the next tap use native navigation.
+    // A new source/link or a new DOM card has a separate preview lifecycle.
+    const ownerFailure = failedCards.get(card);
+    if (source && ownerFailure && ownerFailure.source === source &&
+        ownerFailure.link === link && ownerFailure.href === link.href) return;
     const video = findPreviewVideo(card, source);
-    if (!video || !video.paused || video.isConnected === false || failed.has(video) ||
+    if (!video || !video.paused || video.isConnected === false ||
         typeof video.play !== "function") return;
     const videoSrc = video.currentSrc || video.src ||
       (video.querySelector && (video.querySelector("source[src]") || {}).src);
+    if (failedVideos.get(video) === videoSrc) return;
     if (!videoSrc || !/^(?:https?:|blob:)/i.test(videoSrc)) return;
     // The declared source must belong to this exact video, not a different
     // player in the same article/card. Never copy its sound state to a preview.
     if (source && videoSrc !== source) return;
+    const originalMuted = video.muted;
+    const originalPlaysInline = video.playsInline;
+    const attempt = {};
+    latestAttempts.set(video, attempt);
+    function onFailure() {
+      // An older play() rejection must not invalidate a later attempt.
+      if (latestAttempts.get(video) !== attempt) return;
+      failedVideos.set(video, videoSrc);
+      if (source && previewUrl(card) === source) {
+        failedCards.set(card, { source, link, href: link.href });
+      }
+      const activeSrc = video.currentSrc || video.src;
+      if (activeSrc !== videoSrc) return;
+      if (video.dataset && video.dataset.niraPreviewCreated === "1") {
+        if (typeof video.remove === "function") video.remove();
+      } else {
+        // Return ownership of a real HTML5 player to the page after failure.
+        video.muted = originalMuted;
+        video.playsInline = originalPlaysInline;
+      }
+    }
     video.muted = true;
     video.playsInline = true;
     let result;
-    try { result = video.play(); } catch (_) { failed.add(video); return; }
-    // Intercept only after a usable preview has been found and play attempted.
+    try { result = video.play(); } catch (_) { onFailure(); return; }
+    // An asynchronous failure can only be known after the initial click.
+    // The next click on the same card/source/link will navigate normally.
     event.preventDefault();
     event.stopImmediatePropagation();
     if (result && typeof result.catch === "function") {
-      result.catch(() => {
-        failed.add(video);
-        if (video.dataset && video.dataset.niraPreviewCreated === "1" &&
-            typeof video.remove === "function") video.remove();
-        // On the next tap the original link works normally.
-      });
+      result.catch(onFailure);
     }
   }
   document.addEventListener("click", playPreview, { capture: true });
