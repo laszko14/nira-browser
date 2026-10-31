@@ -1,0 +1,55 @@
+name: Zavro Clean audit60 G4A - static artifact preflight ONLY (no APK)
+
+on:
+  push:
+    branches:
+      - test/zavro-clean-post19-gecko-g4a-preflight-20261031
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit60-gecko-g4a-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reject changes beyond G4A prep-only scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only cc781928f69a347e5016bf0ba587233431cb9bbc "$GITHUB_SHA" > /tmp/g4a-changed
+          test -s /tmp/g4a-changed
+          while IFS= read -r file; do
+            case "$file" in
+              tools/gecko-fixture-g4a/*|docs/audits/zavro-clean-repair/GECKOVIEW_DEVICE_VERIFICATION_G4A.md|.github/workflows/zavro-audit60-gecko-preflight-g4a.yml) ;;
+              *) echo "Unexpected source change: $file"; exit 1 ;;
+            esac
+          done < /tmp/g4a-changed
+      - name: Frozen 60/60 audit statuses
+        run: node scripts/verify-audit60-stage19b.cjs
+      - name: Static build contract and its fail-closed regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check tools/gecko-fixture-g4a/check-build-contract.cjs
+          node --test tools/gecko-fixture-g4a/tests/*.test.cjs
+          node tools/gecko-fixture-g4a/check-build-contract.cjs
+      - name: G3C evidence kit still rejects unobserved data
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tools/gecko-fixture-g3c/tests/*.test.cjs
+          if node tools/gecko-fixture-g3c/check-evidence.cjs tools/gecko-fixture-g3c/NOT_TESTED_TEMPLATE.json > /tmp/g4a-unobserved; then
+            echo 'Evidence kit accepted unobserved data'; exit 1
+          fi
+          grep -Fq '"status": "INCOMPLETE"' /tmp/g4a-unobserved
+      - name: No build and no install
+        run: echo 'G4A preflight only. No Gradle, APK, signing secrets, ADB, installation, device tests.'

@@ -1,0 +1,13 @@
+{
+  "schema": "zavro.geckoview.g4a/1",
+  "baseSha": "cc781928f69a347e5016bf0ba587233431cb9bbc",
+  "packageId": "com.prirai.android.nira.debug",
+  "versionCode": 1195,
+  "versionName": "0.5.22-alpha100-clean",
+  "abi": "arm64-v8a",
+  "signerSha256": "df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00",
+  "buildAuthorization": "NOT_GRANTED",
+  "installAuthorization": "NOT_GRANTED",
+  "deviceExecution": "NOT_GRANTED",
+  "existingInstallationProtected": "NOT_VERIFIED"
+}
