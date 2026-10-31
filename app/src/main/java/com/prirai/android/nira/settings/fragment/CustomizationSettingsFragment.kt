@@ -302,11 +302,6 @@ class CustomizationSettingsFragment : BaseSettingsFragment() {
             onClick = { showIconSizeDialog() }
         )
 
-        clickablePreference(
-            preference = "interface_font_scale",
-            onClick = { showFontScaleDialog() }
-        )
-
         switchPreference(
             preference = requireContext().resources.getString(R.string.key_show_contextual_toolbar),
             isChecked = UserPreferences(requireContext()).showContextualToolbar,

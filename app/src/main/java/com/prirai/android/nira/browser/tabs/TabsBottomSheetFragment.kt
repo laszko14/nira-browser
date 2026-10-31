@@ -250,8 +250,9 @@ class TabsBottomSheetFragment : DialogFragment() {
     private var isGridView: Boolean
         get() = isGridViewState.value
         set(value) { isGridViewState.value = value }
+    // Share the saved grid/list choice with the customization screen.
     private val viewPrefs by lazy {
-        requireContext().getSharedPreferences("tabs_view_prefs", android.content.Context.MODE_PRIVATE)
+        com.prirai.android.nira.preferences.UserPreferences(requireContext())
     }
 
     // Independent of the existing width_portrait / width_landscape preferences.
@@ -495,7 +496,7 @@ class TabsBottomSheetFragment : DialogFragment() {
 
     private fun setupViewModeSwitcher() {
         // Restore saved view preference; Compose header handles the toggle UI
-        isGridViewState.value = viewPrefs.getBoolean("is_grid_view", false)
+        isGridViewState.value = viewPrefs.showTabsInGrid
     }
 
     private fun handleSwitchToListView() {
@@ -1133,7 +1134,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                             selected = !isGridView,
                             onClick = {
                                 isGridViewState.value = false
-                                viewPrefs.edit { putBoolean("is_grid_view", false) }
+                                viewPrefs.showTabsInGrid = false
                             },
                             shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
                         ) {
@@ -1143,7 +1144,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                             selected = isGridView,
                             onClick = {
                                 isGridViewState.value = true
-                                viewPrefs.edit { putBoolean("is_grid_view", true) }
+                                viewPrefs.showTabsInGrid = true
                             },
                             shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
                         ) {

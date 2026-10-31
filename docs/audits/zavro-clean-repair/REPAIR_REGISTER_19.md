@@ -141,7 +141,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-003 | starsze zadanie zmienia politykę aktywnego profilu | CONFIRMED | P2 | 8/19 | FIXED — 8B; Kotlin/JS/lint GREEN on code SHA d9e1047b; device NOT_TESTED |
 | ZC-AUD-004 | brak końcowego sprzątania slotów zamkniętych kart | CONFIRMED | P2 | 11/19 | FIXED — 11B post-restore/Undo slot and Room prune; CI PASS; device NOT_TESTED |
 | ZC-AUD-005 | scope komunikatu Cofnij przeżywa swojego właściciela | CONFIRMED | P2 | 11/19 | FIXED CORE — 11B independent snackbar scope; CI PASS; device UX NOT_TESTED |
-| ZC-AUD-006 | pozostawione przełączniki nie sterują aktualnym interfejsem | CONFIRMED | P2 | 14/19 | DO_RECHECK |
+| ZC-AUD-006 | pozostawione przełączniki nie sterują aktualnym interfejsem | CONFIRMED | P2 | 14G/19 | FIXED CORE — preserve tab bar toggle; wire grid setting; hide unsupported swap/font controls (retain data); CI PENDING/device NOT_TESTED |
 | ZC-AUD-007 | uchwyt resize po niewłaściwej stronie w RTL | CONFIRMED | P2 | 12/19 | FIXED — 12A physical RIGHT grip + RTL Compose padding; CI PASS, device NOT_TESTED |
 | ZC-AUD-008 | resize nie zachowuje tożsamości palca | CONFIRMED | P2 | 12/19 | FIXED — 12A pointer ownership, rollback on multi-touch/CANCEL; CI PASS, device NOT_TESTED |
 | ZC-AUD-009 | nieatomowa walidacja tworzenia grupy z Bez grupy | CONFIRMED | P2 | 11/19 | FIXED — 11A atomic Room guard; JVM/JS/lint CI PASS; device NOT_TESTED |
@@ -589,3 +589,13 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 ### Etap 14F — korekta testów zgodności po zmianie właściciela marginesów
 
 - Pierwsze CI [#41210410925](https://github.com/laszko14/nira-browser/actions/runs/41210410925) na SHA `ba4a84001d14b0cba573343694a6ff6ff315912f`: Kotlin/Robolectric PASS, AndroidTest compile PASS, JavaScript FAIL (330/333 PASS, 3 nieaktualne asercje), lint SKIPPED. Asercje z `v1120` i `v1169` oraz `fullscreen-chrome-audit60` dotyczyły konkretnych starych instrukcji zapisu marginesów. Zaktualizowane do sprawdzania zachowanych niezmienników: brak podwójnego paddingu Gecko, finalny settle `translationY` + publikacja stanu do ownera oraz fullscreen = zerowa rezerwacja w polityce. Implementacji produkcyjnej nie cofnięto; dodatkowe testy `WebViewportReservationTest` i `viewport-ime-chrome-audit60` pozostają. Końcowe CI nowego SHA jest wymagane przed uznaniem PASS.
+
+## Etap 14G/19 — ZC-AUD-006: nieskuteczne przełączniki interfejsu (2026-10-31)
+
+- **Baza:** 14F `0cf64da3f0175dd3733a2f5a91865de3d3d981ef`, [CI #41210945759](https://github.com/laszko14/nira-browser/actions/runs/41210945759) `completed/success`. Gałąź `fix/zavro-clean-audit60-stage14g-dead-customization-20261031`.
+- **A, pasek grup:** `BrowserFragment.initializeUI` nie wymusza już `showTabGroupBar=true`; `UnifiedToolbar.createTabGroupBar` odczytuje zapisany wybór. Pozostaje istniejący komunikat o konieczności restartu.
+- **B, siatka kart:** `TabsBottomSheetFragment.setupViewModeSwitcher` i przyciski Compose używają wspólnego `UserPreferences.showTabsInGrid`, tak samo jak przełącznik ustawień, zamiast niepowiązanych `tabs_view_prefs/is_grid_view`. Panel boczny nadal pokazuje `CompactSideTabs`; ustawienie dotyczy dialogu kart.
+- **C, zamiana stron paneli:** faktyczne gesty i infrastruktura mają stałe role lewego/prawego panelu; niedziałający przełącznik został ukryty w ustawieniach, bez niebezpiecznej zamiany kierunków. Istniejący zapis `swap_drawers` pozostał nietknięty.
+- **D, skala tekstu:** ponieważ `interface_font_scale` nie był wykorzystywany w rendererach View ani Compose, ukryto nieskuteczną kontrolkę w XML i usunięto rejestrację kliknięcia. Zapisane preferencje i systemowa skala Androida pozostały nietknięte.
+- **Regresje:** `customization-live-controls-audit60.test.cjs` weryfikuje ścieżki A/B i brak martwych kontrolek C/D. Workflow `.github/workflows/zavro-audit60-stage14g-regression.yml`: pełny Kotlin/Robolectric, kompilacja AndroidTest bez APK, wszystkie testy JavaScript i lint. Fizyczne sprawdzenie restartu, gestów, dialogu i 120 Hz **NOT_TESTED**. Wymagane `completed/success` końcowego SHA.
+- **Ograniczenia:** starszy wybór zapisany wyłącznie w `tabs_view_prefs/is_grid_view` może wymagać ponownej selekcji po zmianie na kanoniczny klucz. Bez zmian Gecko storage, profili, prywatności, sesji, podpisu, APK i main. ZC-AUD-030 **OPEN**, ZC-AUD-031 **PARTIAL**. Etap 14/19 domyka core 006/012/014/015/020/021/047. Następne `Dalej` → **15/19** po zielonym CI.

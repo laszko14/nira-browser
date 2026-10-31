@@ -115,12 +115,6 @@
             app:defaultValue="true" />
 
         <com.prirai.android.nira.settings.MaterialSwitchPreference
-            app:key="@string/key_swap_drawers"
-            app:title="@string/swap_bookmarks_and_tabs"
-            app:singleLineTitle="false"
-            app:defaultValue="true" />
-
-        <com.prirai.android.nira.settings.MaterialSwitchPreference
             app:key="@string/key_stack_from_bottom"
             app:title="@string/stack_items_reverse"
             app:singleLineTitle="false"
@@ -173,12 +167,6 @@
             app:showSeekBarValue="true"
             app:singleLineTitle="false"
             app:defaultValue="100" />
-
-        <Preference
-            app:key="interface_font_scale"
-            app:title="@string/interface_font_scale"
-            app:summary="@string/interface_font_scale_desc"
-            app:singleLineTitle="false" />
 
     </PreferenceCategory>
 
