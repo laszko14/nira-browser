@@ -501,7 +501,7 @@ class TabOrderManager internal constructor(
             addAll(undoTabIds)
             pendingMoves.values.forEach { move ->
                 add(move.sourceId)
-                move.targetId?.let(::add)
+                move.targetId?.let { add(it) }
             }
         }
         groupManager.pruneFinalizedClosedMembers(retainedIds)
