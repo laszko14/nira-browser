@@ -118,13 +118,14 @@ test("untrusted G2 DOM log is redacted and cannot claim native observations", ()
     JSON.stringify({ seq: 4, ms: 21, event: "loadedmetadata", currentSrc: "B" }),
     JSON.stringify({ seq: 5, ms: 22, event: "source-list-attached" }),
     JSON.stringify({ seq: 6, ms: 23, event: "blob-B-assigned" }),
+    JSON.stringify({ seq: 7, ms: 24, event: "error", src: "BAD", currentSrc: "A" }),
   ].join("\n");
   const extracted = extractG2(raw);
   assert.equal(extracted.provenance, "UNVERIFIED_BROWSER_TEXT");
   assert.equal(extracted.inputSha256.length, 64);
   assert.deepEqual(extracted.events.map(e => e.kind),
     ["A_loadedmetadata", "before_B_assignment", "after_B_assignment",
-      "B_loadedmetadata", "source_list", "blob_B"]);
+      "B_loadedmetadata", "source_list", "blob_B", "invalid_B"]);
   assert.doesNotMatch(JSON.stringify(extracted), /secret|https|token=123|Cookie/i);
 });
 
