@@ -144,11 +144,11 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-006 | pozostawione przełączniki nie sterują aktualnym interfejsem | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-007 | uchwyt resize po niewłaściwej stronie w RTL | CONFIRMED | P2 | 12/19 | DO_RECHECK |
 | ZC-AUD-008 | resize nie zachowuje tożsamości palca | CONFIRMED | P2 | 12/19 | DO_RECHECK |
-| ZC-AUD-009 | nieatomowa walidacja tworzenia grupy z Bez grupy | CONFIRMED | P2 | 11/19 | IMPLEMENTED — 11A atomic Room check, CI_PENDING |
+| ZC-AUD-009 | nieatomowa walidacja tworzenia grupy z Bez grupy | CONFIRMED | P2 | 11/19 | FIXED — 11A atomic Room guard; JVM/JS/lint CI PASS; device NOT_TESTED |
 | ZC-AUD-010 | hover pozostaje przy poprzednim celu podczas autoscroll | LIKELY | P2 | 12/19 | VERIFY_FIRST |
 | ZC-AUD-011 | dialog zachowuje callback usuniętego panelu zakładek | CONFIRMED | P1 | 2/19 | IMPLEMENTED — stage 2, verify CI |
 | ZC-AUD-012 | dwa kryteria sortowania działają jak nazwa | CONFIRMED | P2 | 14/19 | DO_RECHECK |
-| ZC-AUD-013 | kwadratowy koszt projekcji kolejności pasków kart | CONFIRMED | P2 | 11/19 | IMPLEMENTED — 11A Compose index + native Set, CI_PENDING |
+| ZC-AUD-013 | kwadratowy koszt projekcji kolejności pasków kart | CONFIRMED | P2 | 11/19 | FIXED — 11A linear projection; JVM/JS/lint CI PASS; 120 Hz NOT_TESTED |
 | ZC-AUD-014 | dialog kolejności nie rozróżnia upuszczenia przed i za wierszem | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-015 | konfiguracja przycisków zależy od zmiany szerokości zamiast orientacji | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-016 | nieidempotentna obsługa klawiatury przy dismiss | LIKELY | P2 | 13/19 | VERIFY_FIRST |
@@ -368,3 +368,10 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - ZC-AUD-013 STILL_PRESENT: `TabBarCompose.buildBarItems` zastępuje wielokrotne `tabs.find` mapą ID→Tab i mapą grup; natywny `PortraitNativeTabStrip.updateTabs` stosuje Set zamiast listowego contains. Sprawdzane: żywe grupy, brakujące ID, nowa karta, kolejność odwrócona 400 kart. Zmiana złożoności wyszukiwania O(n²)→O(n) dla opisanych fragmentów; rzeczywisty FPS na 120 Hz pozostaje NOT_TESTED.
 - Kryteria: pełne JVM/Robolectric, instrumented-test compilation (bez APK), Node JS, lint w GitHub Actions `zavro-audit60-stage11-regression.yml`. Oznaczyć PASS dopiero po zielonym CI finalnego SHA. Nie zmieniono certyfikatu, wersji, prywatnych sesji ani danych.
 - **Etap 11B/19 (następne `Dalej`):** ZC-AUD-004, ZC-AUD-005 — kontrolowany cleanup po Undo/restoration, właściciel globalnego snackbar; wymagają osobnych regresji, bez przedwczesnego usuwania slotów.
+
+### Etap 11A — CI GREEN, ograniczenia regresji
+
+- [GitHub Actions #41149556383](https://github.com/laszko14/nira-browser/actions/runs/41149556383) — `completed/success` dla dokładnego commita `cbfd05bc8c014367924a4ad67ab80a57794bad60`: pełne Kotlin/Robolectric PASS, kompilacja instrumented test sources PASS (bez APK), JS 301/301 PASS i Android lint SUCCESS (wykonanie lint, nie deklaracja braku wszystkich ostrzeżeń).
+- Dwa stare testy statyczne wymagały zmiany kontraktu oczekiwanych symboli: kolor grup pochodzi teraz z `groupsById`, a recovery sprawdza członkostwo w mutacji managera zamiast w ViewModel. Testy zachowano, zaktualizowano asercje.
+- Testy uruchomione na CI są potwierdzeniem logiki i regresji, nie pomiarem płynności urządzenia ani testem fizycznego Gecko. **Nie zamyka to ZC-AUD-004/005** — kontynuacja wyłącznie w 11B/19.
+- Nowy commit raportu wymaga ponownego CI na jego SHA; do potwierdzenia `CI_PENDING` dotyczy tylko tego końcowego dokumentacyjnego commita.
