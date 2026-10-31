@@ -1,0 +1,45 @@
+name: Zavro Clean audit60 G1 - real Gecko device plan gate (no APK)
+
+on:
+  push:
+    branches:
+      - plan/zavro-clean-post19-gecko-verification-g1-20261031
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit60-gecko-plan-g1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Ensure changes are documentation and this plan-only CI workflow
+        shell: bash
+        run: |
+          git diff --name-only 7ee61665d747d470d05af3fa2401412d72125179 "${GITHUB_SHA}" | while IFS= read -r file; do
+            case "${file}" in
+              docs/audits/zavro-clean-repair/GECKOVIEW_DEVICE_VERIFICATION_PLAN_G1.md|.github/workflows/zavro-audit60-gecko-plan-g1.yml) ;;
+              *) echo "Unexpected change: ${file}"; exit 1 ;;
+            esac
+          done
+      - name: Validate frozen audit 19B matrix
+        run: node scripts/verify-audit60-stage19b.cjs
+      - name: Validate G1 plan coverage and stop gates (not a device test)
+        shell: bash
+        run: |
+          set -euo pipefail
+          doc=docs/audits/zavro-clean-repair/GECKOVIEW_DEVICE_VERIFICATION_PLAN_G1.md
+          test -s "${doc}"
+          for token in ZC-AUD-002 ZC-AUD-030 ZC-AUD-031 ZC-AUD-043 '56 PASS / 1 FAIL / 2 BLOCKED / 1 NOT_TESTED' 'Kompiluj' 'Nothing Phone (1)' 'Android 15' 'G2' 'clearDataForSessionContext' 'OriginAttributes' 'EngineSession' 'currentSrc'; do
+            grep -Fq "${token}" "${doc}"
+          done
+          test "$(grep -c '^### GV-0' "${doc}")" -eq 4
+          echo "G1 documentation-only gate PASS; no Gradle, no APK, no device claim."
