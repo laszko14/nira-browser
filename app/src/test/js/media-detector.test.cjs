@@ -114,6 +114,7 @@ function page() {
   return { HTMLVideoElement, videos, extra, native, diagnostics, fire, navigate, mutate, location, document,
     setNativeReply: fn => { nativeReply = fn; },
     hide: () => { for (const fn of winHandlers.get("pagehide") || []) fn({}); },
+    show: () => { for (const fn of winHandlers.get("pageshow") || []) fn({ persisted: true }); },
     onNetwork: (msg, from = { id: "detector" }) => networkReceiver(msg, from) };
 }
 
@@ -1173,4 +1174,52 @@ test("MME: rejected optional codec text cannot hide a valid HLS rendition", asyn
   const variant=p.native.find(([,m])=>m.url.endsWith("/a.m3u8"));
   assert.ok(variant,"valid source must reach native despite invalid optional codecs");
   assert.equal(variant[1].codecs,undefined);
+});
+
+test("audit60 15A: unchanged player script is reoffered once after BFCache pageshow", async () => {
+  const p = page();
+  const url = "https://media.example.invalid/bfcache.mp4?sig=unchanged";
+  const script = { nodeType: 1, tagName: "SCRIPT", isConnected: true,
+    textContent: JSON.stringify({ title: "Restored film", file: url }),
+    getAttribute: name => name === "type" ? "application/json" : name === "id" ? "opaque" : null };
+  p.extra.set("script", [script]);
+  await p.mutate();
+  assert.equal(p.native.length, 1);
+  const originalKey = p.native[0][1].documentKey;
+  await p.mutate();
+  assert.equal(p.native.length, 1, "no duplicate in active document");
+  p.hide();
+  p.show();
+  await p.mutate();
+  assert.equal(p.native.length, 2, "unchanged object must be reread after resume");
+  assert.equal(p.native[1][1].url, url);
+  assert.notEqual(p.native[1][1].documentKey, originalKey);
+  await p.mutate();
+  assert.equal(p.native.length, 2, "no duplicate in restored document");
+});
+
+test("audit60 15A: source childList discovers MP4/HLS in paused existing video without global scan", async () => {
+  const p = page();
+  const video = new p.HTMLVideoElement("", null, true);
+  video.nodeType = 1;
+  video.tagName = "VIDEO";
+  video.matches = selector => selector === "video";
+  video.closest = () => null;
+  p.videos.push(video);
+  await p.mutate();
+  assert.equal(p.native.length, 0);
+  for (const [i, mime] of ["video/mp4", "application/vnd.apple.mpegurl"].entries()) {
+    const url = i === 0 ? "https://media.example.invalid/lazy.mp4" :
+      "https://media.example.invalid/lazy.m3u8";
+    const source = { nodeType: 1, tagName: "SOURCE", isConnected: true,
+      src: url, type: mime, closest: () => video, matches: () => false,
+      querySelectorAll: () => [], getAttribute: () => null };
+    video.sources.push(source);
+    await p.mutate([{ type: "childList", target: video, addedNodes: [source] }]);
+    assert.equal(p.native.length, i + 1, "mutation must inspect owner video");
+    assert.equal(p.native[i][1].url, url);
+    assert.equal(video.paused, true);
+  }
+  await p.mutate();
+  assert.equal(p.native.length, 2, "repeat scan cannot emit duplicates");
 });
