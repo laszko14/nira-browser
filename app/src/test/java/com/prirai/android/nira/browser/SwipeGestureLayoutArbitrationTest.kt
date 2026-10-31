@@ -21,6 +21,7 @@ class SwipeGestureLayoutArbitrationTest {
         var offers = 0
         var updates = 0
         var finishes = 0
+        var cancels = 0
         override fun onSwipeStarted(start: PointF, next: PointF): Boolean {
             offers++
             return start.x < 30f && next.x > start.x &&
@@ -28,6 +29,7 @@ class SwipeGestureLayoutArbitrationTest {
         }
         override fun onSwipeUpdate(distanceX: Float, distanceY: Float) { updates++ }
         override fun onSwipeFinished(velocityX: Float, velocityY: Float) { finishes++ }
+        override fun onSwipeCancelled() { cancels++ }
     }
 
     private data class Fixture(val activity: Activity, val root: SwipeGestureLayout,
@@ -169,4 +171,97 @@ class SwipeGestureLayoutArbitrationTest {
         assertTrue(pageDelta < 0f)
         f.activity.finish()
     }
+
+    @Test fun disablingAfterParentInterceptCancelsOwnerImmediatelyAndDrainsUp() {
+        val f = fixture()
+        val owner = Spy()
+        f.root.addGestureListener(owner)
+        send(f.root, 1100, 1100, MotionEvent.ACTION_DOWN, 2f, 160f)
+        send(f.root, 1100, 1140, MotionEvent.ACTION_MOVE, 90f, 160f)
+        assertEquals(1, owner.offers)
+        assertEquals(1, owner.updates)
+        assertTrue(f.touches.contains(MotionEvent.ACTION_CANCEL))
+
+        f.root.isSwipeEnabled = false
+        assertEquals("disable must synchronously cancel an owned gesture", 1, owner.cancels)
+        send(f.root, 1100, 1180, MotionEvent.ACTION_MOVE, 120f, 160f)
+        send(f.root, 1100, 1220, MotionEvent.ACTION_UP, 120f, 160f)
+        assertEquals(1, owner.cancels)
+        assertEquals(1, owner.updates)
+        assertEquals(0, owner.finishes)
+        f.activity.finish()
+    }
+
+    @Test fun reEnableDuringBlockedStreamRequiresFreshDownBeforeNextSwipe() {
+        val f = fixture()
+        val owner = Spy()
+        f.root.addGestureListener(owner)
+        send(f.root, 1300, 1300, MotionEvent.ACTION_DOWN, 2f, 160f)
+        send(f.root, 1300, 1340, MotionEvent.ACTION_MOVE, 85f, 160f)
+        assertEquals(1, owner.offers)
+        f.root.isSwipeEnabled = false
+        f.root.isSwipeEnabled = true
+        send(f.root, 1300, 1380, MotionEvent.ACTION_MOVE, 135f, 160f)
+        send(f.root, 1300, 1420, MotionEvent.ACTION_UP, 135f, 160f)
+        assertEquals(1, owner.cancels)
+        assertEquals(1, owner.updates)
+        assertEquals(0, owner.finishes)
+        send(f.root, 1500, 1500, MotionEvent.ACTION_DOWN, 2f, 160f)
+        send(f.root, 1500, 1540, MotionEvent.ACTION_MOVE, 85f, 160f)
+        send(f.root, 1500, 1580, MotionEvent.ACTION_UP, 85f, 160f)
+        assertEquals(2, owner.offers)
+        assertEquals(1, owner.finishes)
+        f.activity.finish()
+    }
+
+    @Test fun disabledFromDownCannotTakeOverMidStreamAfterReEnable() {
+        val f = fixture()
+        val owner = Spy()
+        f.root.addGestureListener(owner)
+        f.root.isSwipeEnabled = false
+        send(f.root, 1600, 1600, MotionEvent.ACTION_DOWN, 2f, 160f)
+        send(f.root, 1600, 1640, MotionEvent.ACTION_MOVE, 60f, 160f)
+        f.root.isSwipeEnabled = true
+        send(f.root, 1600, 1680, MotionEvent.ACTION_MOVE, 120f, 160f)
+        send(f.root, 1600, 1720, MotionEvent.ACTION_UP, 120f, 160f)
+        assertEquals(0, owner.offers)
+        assertEquals(0, owner.finishes)
+        send(f.root, 1800, 1800, MotionEvent.ACTION_DOWN, 2f, 160f)
+        send(f.root, 1800, 1840, MotionEvent.ACTION_MOVE, 85f, 160f)
+        send(f.root, 1800, 1880, MotionEvent.ACTION_CANCEL, 85f, 160f)
+        assertEquals(1, owner.offers)
+        assertEquals(1, owner.cancels)
+        assertEquals(0, owner.finishes)
+        f.activity.finish()
+    }
+
+    @Test fun disableThenPointerCancelDoesNotInvokeSecondCancelOrFinish() {
+        val f = fixture()
+        val owner = Spy()
+        f.root.addGestureListener(owner)
+        send(f.root, 2000, 2000, MotionEvent.ACTION_DOWN, 2f, 160f)
+        send(f.root, 2000, 2040, MotionEvent.ACTION_MOVE, 85f, 160f)
+        f.root.isSwipeEnabled = false
+        val properties = arrayOf(
+            MotionEvent.PointerProperties().apply { id = 0; toolType = MotionEvent.TOOL_TYPE_FINGER },
+            MotionEvent.PointerProperties().apply { id = 1; toolType = MotionEvent.TOOL_TYPE_FINGER }
+        )
+        val coords = arrayOf(
+            MotionEvent.PointerCoords().apply { x = 85f; y = 160f; pressure = 1f; size = 1f },
+            MotionEvent.PointerCoords().apply { x = 105f; y = 160f; pressure = 1f; size = 1f }
+        )
+        val secondFinger = MotionEvent.obtain(
+            2000L, 2080L,
+            MotionEvent.ACTION_POINTER_DOWN or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT),
+            2, properties, coords, 0, 0, 1f, 1f, 0, 0,
+            android.view.InputDevice.SOURCE_TOUCHSCREEN, 0
+        )
+        try { f.root.dispatchTouchEvent(secondFinger) } finally { secondFinger.recycle() }
+        send(f.root, 2000, 2120, MotionEvent.ACTION_CANCEL, 85f, 160f)
+        assertEquals(1, owner.cancels)
+        assertEquals(0, owner.finishes)
+        assertEquals(1, owner.updates)
+        f.activity.finish()
+    }
+
 }
