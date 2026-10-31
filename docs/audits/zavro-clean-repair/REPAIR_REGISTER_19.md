@@ -183,7 +183,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-045 | zwykłe video zostaje uznane za podgląd i wyciszone | CONFIRMED | P2 | 18/19 | DO_RECHECK |
 | ZC-AUD-046 | odtwarzanie błędnego podglądu blokuje każdy kolejny tap | CONFIRMED | P2 | 18/19 | DO_RECHECK |
 | ZC-AUD-047 | spóźnione przywrócenie toolbaru koliduje z kolejnym fullscreen | CONFIRMED | P2 | 14/19 | DO_RECHECK |
-| ZC-AUD-048 | prostokąt toolbaru pod panelem nadal wygrywa gest | CONFIRMED | P2 | 13/19 | IMPLEMENTED — 13C live panel-ownership gate for toolbar, Kotlin/JS CI_PENDING; device NOT_TESTED |
+| ZC-AUD-048 | prostokąt toolbaru pod panelem nadal wygrywa gest | CONFIRMED | P2 | 13/19 | FIXED CORE — 13C live panel-ownership guard; Kotlin/Robolectric/JS/lint CI PASS, device NOT_TESTED |
 | ZC-AUD-049 | różny znak flingu w toolbarze WWW i Home | CONFIRMED | P2 | 13/19 | DO_RECHECK |
 | ZC-AUD-050 | migracja profilu przenosi stan odtwarzania starego silnika | CONFIRMED | P2 | 10/19 | FIXED — stage 10; stale MediaSession reset with JVM CI PASS; device NOT_TESTED |
 | ZC-AUD-051 | zmiana filmu w trasie hash zachowuje stare media | CONFIRMED | P2 | 15/19 | DO_RECHECK |
@@ -501,3 +501,11 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - **Regresja:** `SwipeGestureLayoutArbitrationTest` wysyła rzeczywiste `MotionEvent` do dispatchera z kolejnością toolbar→panel, testuje zamykanie lewej/prawej strony i odzyskanie toolbaru po zamknięciu; JS `toolbar-panel-ownership-audit60.test.cjs` dowodzi rzeczywistego spięcia BrowserFragment/handler/panele/dispatcher i ochrony animacji. Workflow `.github/workflows/zavro-audit60-stage13c-regression.yml`: pełny Kotlin JVM/Robolectric, kompilacja instrumentacyjna bez APK, JS i Android lint. Do ukończenia wymagane zielone CI na końcowym SHA.
 - **Granica:** ręczny gest na realnym Compose panelu, przecięcia z DnD/resize, fullscreen, multi-touch, orientation i 120 Hz na Nothing Phone (1) Android 15 **NOT_TESTED**. Nie zmieniono geometrii/progów ani gestów systemowych, algorytmu paneli, profili, sesji, historii, trybu prywatnego, Gecko storage, podpisu lub wersji. ZC-AUD-030 OPEN, ZC-AUD-031 PARTIAL. Bez APK i merge do main.
 - **Następne `Dalej`:** 13D/19 — ZC-AUD-049 (znaki flingu WWW/Home), dopiero po zielonym CI 13C.
+
+### Etap 13C — checkpoint pełnego zielonego CI
+
+- **PASS:** [GitHub Actions #41188585404](https://github.com/laszko14/nira-browser/actions/runs/41188585404) — `completed/success` na dokładnym **kodowym SHA `6bb4d8a6c02f36dce1d55637dc0afe8fa864615a`**. Pełne `:app:testDebugUnitTest` (Kotlin + Robolectric), `:app:compileDebugAndroidTestKotlin` (bez APK), wszystkie Node.js JS oraz `:app:lintDebug` zakończyły się pomyślnie (możliwe nieblokujące ostrzeżenia lint).
+- [Pierwszy workflow #41188216437](https://github.com/laszko14/nira-browser/actions/runs/41188216437) zakończył się `FAIL` **wyłącznie na jednej przestarzałej asercji w `toolbar-swipe-animation-owner-audit60.test.cjs`**. Oczekiwała warunku `!gestureActive || !animationOwner.isCurrent`, a rzeczywisty `ToolbarGestureHandler` ma dodatkowo `!toolbarIsUncovered()`. Kotlin JVM/Robolectric i kompilacja instrumentacyjna w pierwszym przebiegu: PASS; Android lint został wtedy pominięty z powodu błędu JS. Zaktualizowano tylko test, zachowując osobne rygorystyczne asercje dla WWW i Home; kod produkcyjny nie wymagał poprawek.
+- **ZC-AUD-048 FIXED CORE:** testy źródłowe potwierdzają, że panel zasłaniający toolbar zabiera mu własność gestu, a fizyczny dispatcher `SwipeGestureLayout` z dwoma słuchaczami działa w Robolectric. Ekran Nothing Phone (1), realny Compose hitbox, DnD, resize, dwa palce i działanie na 120 Hz pozostają **NOT_TESTED**. Nie deklarować urządzeniowego potwierdzenia.
+- **Granica bezpieczeństwa:** brak zmian w profilach, sesjach, prywatności, Gecko storage, podpisie, wersji, APK i main. ZC-AUD-030 OPEN, ZC-AUD-031 PARTIAL. **Następne `Dalej`: 13D/19 — ZC-AUD-049 (znak flingu)**.
+- Końcowy dokumentacyjny SHA również wymaga własnego `completed/success` w GitHub Actions; wynik wcześniejszego kodowego commita nie dowodzi statusu późniejszego SHA.
