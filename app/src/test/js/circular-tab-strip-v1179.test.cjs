@@ -20,6 +20,7 @@ test("v1187 circles have no close overlays; collapsed headers and contextual/swi
   const native = read("java/com/prirai/android/nira/components/toolbar/modern/PortraitNativeTabStrip.kt");
   const bar = read("java/com/prirai/android/nira/browser/tabs/compose/TabBarCompose.kt");
   const grouped = read("java/com/prirai/android/nira/browser/tabs/compose/SwipeableTabPill.kt");
+  const swipeOwner = read("java/com/prirai/android/nira/browser/tabs/compose/SwipePillGestureOwner.kt");
   assert.match(native, /shape = GradientDrawable\.OVAL/);
   assert.match(native, /onTabClosed\?\.invoke\(tab\.id\)/);
   assert.match(native, /if \(collapsed\) "" else/);
@@ -31,8 +32,8 @@ test("v1187 circles have no close overlays; collapsed headers and contextual/swi
   assert.match(native, /menu\.add\("Zamknij kartę"\)/);
   assert.doesNotMatch(native, /tabContainer\.addView\(close/);
   assert.doesNotMatch(bar.slice(bar.indexOf("private fun TabPill("), bar.indexOf("* Invisible divider")), /badgeSize|Icons\.Default\.Close/);
-  assert.match(grouped, /offsetY < -swipeThreshold/);
-  assert.match(grouped, /onTabClose\(\)/);
+  assert.match(swipeOwner, /offsetY < -threshold -> SwipePillOutcome.CLOSE/);
+  assert.match(grouped, /SwipePillOutcome.CLOSE -> currentOnTabClose\(\)/);
   assert.doesNotMatch(grouped, /clickable\(onClick = onTabClose\)|badgeSize/);
 });
 test("v1179 signed spacing controls group and ungrouped layout", () => {

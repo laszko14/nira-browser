@@ -9,6 +9,7 @@ const base = "app/src/main/java/com/prirai/android/nira/";
 const native = source(base + "components/toolbar/modern/PortraitNativeTabStrip.kt");
 const compose = source(base + "browser/tabs/compose/TabBarCompose.kt");
 const swipe = source(base + "browser/tabs/compose/SwipeableTabPill.kt");
+const swipeOwner = source(base + "browser/tabs/compose/SwipePillGestureOwner.kt");
 const hybrid = source(base + "browser/tabs/compose/HybridGroupStrip.kt");
 
 test("native tab icons contain no close overlays; contextual close remains", () => {
@@ -32,9 +33,10 @@ test("Compose tab circles have no touchable X; swipe close remains", () => {
 
 test("swipeable group-tab circles have no close badge; gestures remain", () => {
   assert.doesNotMatch(swipe, /badgeSize|Icons\.Default\.Close|clickable\(onClick = onTabClose\)/);
-  assert.match(swipe, /offsetY < -swipeThreshold/);
-  assert.match(swipe, /onTabClose\(\)/);
-  assert.match(swipe, /onShowMenu\(\)/);
+  assert.match(swipeOwner, /offsetY < -threshold -> SwipePillOutcome.CLOSE/);
+  assert.match(swipeOwner, /offsetY > threshold -> SwipePillOutcome.MENU/);
+  assert.match(swipe, /SwipePillOutcome.CLOSE -> currentOnTabClose\(\)/);
+  assert.match(swipe, /SwipePillOutcome.MENU -> currentOnShowMenu\(\)/);
 });
 
 test("hybrid group strip does not draw a dedicated X beside tabs", () => {
