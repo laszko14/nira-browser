@@ -48,7 +48,7 @@ function inspect(policy, gradle, verifier, evidenceReadme) {
   need(/include\(testAbi\s*\?:\s*['"]arm64-v8a['"]\)/.test(gradle), "ABI_SPLIT_CHANGED");
   const signerNames = ["NIRA_SIGNING_STORE_FILE", "NIRA_SIGNING_STORE_PASSWORD",
     "NIRA_SIGNING_KEY_ALIAS", "NIRA_SIGNING_KEY_PASSWORD"];
-  need(signerNames.every(s => gradle.includes(s)) &&
+  need(signerNames.every(s => (gradle.match(new RegExp(s, "g")) || []).length >= 2) &&
     /signingConfig\s*=\s*signingConfigs\.getByName\(["']updateDebug["']\)/.test(gradle),
     "STABLE_SIGNING_WIRING_MISSING");
   need(verifier.includes("apksigner") && verifier.includes("aapt") &&
