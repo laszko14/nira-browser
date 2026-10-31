@@ -553,7 +553,7 @@ class CustomizationSettingsFragment : BaseSettingsFragment() {
             setPadding(dp(18), dp(8), dp(18), dp(8))
         }
         content.addView(android.widget.TextView(ctx).apply {
-            text = "Przytrzymaj ↕ i przeciągnij wiersz, aby zmienić kolejność. " +
+            text = "Przeciągnij ↕: górna połowa = przed, dolna = za (także na koniec). " +
                 "Zaznaczenie określa widoczność."
             setPadding(0, dp(4), 0, dp(10))
         })
@@ -590,11 +590,17 @@ class CustomizationSettingsFragment : BaseSettingsFragment() {
                         android.view.DragEvent.ACTION_DRAG_STARTED -> event.localState is String
                         android.view.DragEvent.ACTION_DROP -> {
                             val moved = event.localState as? String
-                            if (moved != null && moved in order && moved != id) {
-                                order.remove(moved)
-                                order.add(order.indexOf(id), moved)
-                                config.storeOrder(prefs, landscape, order)
-                                rows.post { redrawRows() }
+                            if (moved != null) {
+                                val placement = com.prirai.android.nira.components.toolbar.ToolbarActionDropPosition
+                                val updated = placement.move(
+                                    order, moved, id, placement.isAfter(event.y, row.height)
+                                )
+                                if (updated != order) {
+                                    order.clear()
+                                    order.addAll(updated)
+                                    config.storeOrder(prefs, landscape, order)
+                                    rows.post { redrawRows() }
+                                }
                             }
                             true
                         }
