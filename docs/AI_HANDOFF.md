@@ -22,12 +22,15 @@ changed_paths:
   - docs/ai/CI_MIGRATION.md
   - scripts/ci-workflow-inventory.cjs
   - scripts/check-ci-workflows.test.cjs
+  - app/src/test/js/helpers/update-apk-contract.cjs
+  - app/src/test/js/update-apk-workflow-scope.test.cjs
   - AGENTS.md
   - docs/AI_HANDOFF.md
 verified_before_push:
   - Repo before stage 4 had 65 workflow files
   - Legacy Android CI auto-built signed debug APK for PR except selected branches
   - Stage 3 CI: SUCCESS on 5fdc40bfb514b2c579307cdff307254e0ce4e78b
+  - Wykryte 8 FAIL JS w próbie CI 41253644503: harness zakładał stary separator lint; poprawiono parsowanie bloku build
   - Legacy audit/G4 workflows retained; no PR or APK is authorized
 blockers: []
 next_action: Verify process-docs and all 4 shared test jobs on final SHA; after PASS await Dalej to ETAP 5/9

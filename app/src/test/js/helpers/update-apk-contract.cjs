@@ -20,8 +20,12 @@ function assertUpdateApkContract(gradle, workflow) {
   assert.match(gradle, /"arm64-v8a":\s*1/);
   assert.match(gradle, /output\.versionCode\.set\(base \* 1000 \+ orig\)/);
   const installCode = baseCode + 1000;
-  // Only the debug update job is relevant; release can have a separate version.
-  const buildJob = workflow.split(/\n\s{2}lint:\s*\n/)[0];
+  // Scope the contract to the named build job, not a neighboring reusable
+  // test job or manual release job. The old lint: separator no longer exists.
+  const sections = workflow.split(/^  build:\s*$/m);
+  assert.equal(sections.length, 2, "Exactly one debug build job is required");
+  const buildJob = sections[1].split(/^  [A-Za-z][\w-]*:\s*$/m)[0];
+  assert.ok(buildJob, "Debug build job must not be empty");
   const expectField = (key, expected) => {
     const matches = buildJob.split("\n").filter(line =>
       line.trim().startsWith(key + ":"));
