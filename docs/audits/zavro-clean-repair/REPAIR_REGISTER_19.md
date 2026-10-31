@@ -147,7 +147,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-009 | nieatomowa walidacja tworzenia grupy z Bez grupy | CONFIRMED | P2 | 11/19 | FIXED — 11A atomic Room guard; JVM/JS/lint CI PASS; device NOT_TESTED |
 | ZC-AUD-010 | hover pozostaje przy poprzednim celu podczas autoscroll | LIKELY | P2 | 12/19 | FIXED CORE — 12C live geometry, delayed guard; JVM/JS/lint CI PASS; real Compose device NOT_TESTED |
 | ZC-AUD-011 | dialog zachowuje callback usuniętego panelu zakładek | CONFIRMED | P1 | 2/19 | IMPLEMENTED — stage 2, verify CI |
-| ZC-AUD-012 | dwa kryteria sortowania działają jak nazwa | CONFIRMED | P2 | 14B/19 | FIXED CORE — URL sort and remove fake date, atomic save+rollback; CI_PENDING, device NOT_TESTED |
+| ZC-AUD-012 | dwa kryteria sortowania działają jak nazwa | CONFIRMED | P2 | 14B/19 | FIXED CORE — URL sort and remove fake date, atomic save+rollback; Kotlin/Robolectric/JS/lint CI PASS, device NOT_TESTED |
 | ZC-AUD-013 | kwadratowy koszt projekcji kolejności pasków kart | CONFIRMED | P2 | 11/19 | FIXED — 11A linear projection; JVM/JS/lint CI PASS; 120 Hz NOT_TESTED |
 | ZC-AUD-014 | dialog kolejności nie rozróżnia upuszczenia przed i za wierszem | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-015 | konfiguracja przycisków zależy od zmiany szerokości zamiast orientacji | CONFIRMED | P2 | 14/19 | DO_RECHECK |
@@ -547,3 +547,9 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - **Naprawa:** menu eksponuje jedynie prawdziwe kryteria nazwa/URL (opcja daty ukryta do oddzielnej migracji modelu). `BookmarkUrlSort` trzyma foldery jako pierwsze, sortowane po nazwie; witryny po URL, remisy po tytule/ID, Locale.ROOT; brak URL nie powoduje crash. Oba wybory sortują rzeczywistą listę aktualnego folderu, a `BookmarkManager.save()` (AtomicFile) zachowuje kolejność po ponownym otwarciu. Nieudany zapis cofa in-memory kolejność.
 - **Regresje:** `BookmarkUrlSortTest` (nazwy kontra URL, foldery, null tytułu, brak URL, remisy i idempotencja); `bookmark-sort-audit60.test.cjs` kontroluje podłączenie menu, atomowy zapis/rollback i brak pozorowanej daty. CI `.github/workflows/zavro-audit60-stage14b-regression.yml`: pełny Kotlin/Robolectric, kompilacja AndroidTest bez APK, wszystkie JS oraz Android lint.
 - **Granice:** interaktywny panel Compose, orientacje i realny Android 15/120 Hz NOT_TESTED. Brak zmian w profilach, prywatności, sesjach, Gecko storage, podpisie, versionCode, APK i main. ZC-AUD-030 OPEN, ZC-AUD-031 PARTIAL. Pozostałe w 14/19: 006,014,015,020,047. Następne `Dalej` → 14C/19 po zielonym CI na końcowym SHA.
+
+### Etap 14B — checkpoint zielonego CI kodu
+
+- **PASS:** [GitHub Actions #41196755486](https://github.com/laszko14/nira-browser/actions/runs/41196755486), `completed/success` na dokładnym produkcyjnym SHA `3994c3d54ae1f7445106a3bd07d27dbe761042aa`. `:app:testDebugUnitTest` (Kotlin/Robolectric), `:app:compileDebugAndroidTestKotlin` bez APK, komplet `node --test app/src/test/js/*.test.cjs` i `:app:lintDebug` — SUCCESS. Lint job nie dowodzi zera ostrzeżeń.
+- **ZC-AUD-012 FIXED CORE:** rzeczywisty URL i nazwa mają osobne operacje; daty nie da się poprawnie sortować bez metadanych i migracji, dlatego niedziałającą opcję wycofano. Sort zapisuje trwałą kolejność przez AtomicFile i przy błędzie przywraca stary stan w RAM; regresje objęły obie ścieżki i model folderów.
+- Test fizycznego panelu, rotacji, gestów i długiej listy na Nothing Phone (1) Android 15/120 Hz **NOT_TESTED**. ZC-AUD-030 **OPEN**, ZC-AUD-031 **PARTIAL**. Bez APK/merge/main/podpisu. Końcowy commit dokumentacji wymaga własnego `completed/success`. Następne `Dalej` → 14C/19.
