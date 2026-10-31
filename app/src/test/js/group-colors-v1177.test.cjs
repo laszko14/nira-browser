@@ -35,6 +35,7 @@ test("v1177 both under-address bars use the same tone mapping for all member tab
 
 test("v1177 changes to Room group colors invalidate the bar's color cache", () => {
   assert.match(allTabs, /remember\(order, tabs, groups\)/);
-  assert.match(allTabs, /liveGroups\.firstOrNull \{ it\.id == orderItem\.groupId \}\?\.color/);
+  assert.match(allTabs, /val groupsById = liveGroups\.associateBy \{ it\.id \}/);
+  assert.match(allTabs, /groupsById\[orderItem\.groupId\]\?\.color/);
   assert.match(drawer, /unifiedGroupManager\.groupsState\.collectAsState\(\)/);
 });

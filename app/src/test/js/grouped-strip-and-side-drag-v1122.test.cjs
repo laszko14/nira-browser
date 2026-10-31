@@ -120,7 +120,12 @@ test("v1128: creating groups persists profile context and verifies membership", 
   const vm = read(base + "browser/tabs/compose/TabViewModel.kt");
   assert.match(vm, /val resolvedContext = contextId \?: contextIdForProfile\(profileId\)/);
   assert.match(vm, /suspend fun createNamedGroupFromUngrouped/);
-  assert.match(vm, /groupManager\.getAllGroups\(\)\.any/);
+  const groupManager = read(base + "browser/tabgroups/UnifiedTabGroupManager.kt");
+  // Recovery validation must happen inside the same manager mutation as Room creation,
+  // not in a stale ViewModel snapshot before a suspension point.
+  assert.match(vm, /groupManager\.createGroupIfUngrouped\(/);
+  assert.match(groupManager, /suspend fun createGroupIfUngrouped\(/);
+  assert.match(groupManager, /tabIds\.any \{ tabToGroupMap\.containsKey\(it\) \}/);
   assert.match(vm, /contextId = contextId/);
   assert.match(vm, /_expandedGroups\.value = _expandedGroups\.value \+ created\.id/);
 });
