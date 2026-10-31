@@ -66,7 +66,8 @@
   }
   function onClick(id, callback) {
     document.getElementById(id).addEventListener("click", () => {
-      Promise.resolve().then(callback).catch(() => emit("fixture-action-error", { action: id }));
+      try { Promise.resolve(callback()).catch(() => emit("fixture-action-error", { action: id })); }
+      catch (_) { emit("fixture-action-error", { action: id }); }
     });
   }
   if (page === "storage" || page === "popup") {
