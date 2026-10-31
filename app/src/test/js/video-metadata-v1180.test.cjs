@@ -49,3 +49,59 @@ test("HLS records bitrate kind, peak, average, FPS and rendition group", () => {
  assert.equal(r.variants[0].frameRate,59.94);
  assert.equal(r.variants[0].subtitleGroup,"pl");
 });
+
+function audit60DashPeriods(durations, mpdAttrs = 'type="static"') {
+  return '<MPD ' + mpdAttrs + '>' + durations.map(d => d === null ?
+    '<Period/>' : '<Period duration="' + d + '"/>').join('') + '</MPD>';
+}
+
+test("audit60 17F: fractional DASH periods round only the combined total", () => {
+  const three = p.parseDash(audit60DashPeriods(["PT0.4S", "PT0.4S", "PT0.4S"]), base, 8);
+  const one = p.parseDash(audit60DashPeriods(["PT1.2S"]), base, 8);
+  assert.equal(three.durationSeconds, 2, "three 0.4s periods total 1.2s, not 3s");
+  assert.equal(three.durationSeconds, one.durationSeconds);
+  assert.equal(p.parseDash(audit60DashPeriods(["PT0.25S", "PT0.25S",
+    "PT0.25S", "PT0.25S"]), base, 8).durationSeconds, 1);
+  assert.equal(p.parseDash(audit60DashPeriods(["PT10S", "PT12S"]), base, 8).durationSeconds, 22);
+  assert.equal(p.parseDash(audit60DashPeriods(["PT0.001S", "PT0.001S",
+    "PT0.001S"]), base, 8).durationSeconds, 1);
+});
+
+test("audit60 17F: accumulating many fractional DASH periods stays on an exact-second boundary", () => {
+  const list = Array(1000).fill("PT0.001S");
+  assert.equal(p.parseDash(audit60DashPeriods(list), base, 8).durationSeconds, 1);
+});
+
+test("audit60 17F: global mediaPresentationDuration keeps precedence", () => {
+  const global = p.parseDash(audit60DashPeriods(["PT0.4S", "PT0.4S", "PT0.4S"],
+    'type="static" mediaPresentationDuration="PT8.1S"'), base, 8);
+  assert.equal(global.durationSeconds, 9);
+  const missingPeriod = p.parseDash(audit60DashPeriods([null, "PT1S"],
+    'type="static" mediaPresentationDuration="PT3.1S"'), base, 8);
+  assert.equal(missingPeriod.durationSeconds, 4);
+  const invalidGlobal = p.parseDash(audit60DashPeriods(["PT0.4S", "PT0.4S"],
+    'type="static" mediaPresentationDuration="not-a-duration"'), base, 8);
+  assert.equal(invalidGlobal.durationSeconds, 1, "invalid global duration falls back to complete periods");
+});
+
+test("audit60 17F: dynamic DASH never fabricates duration", () => {
+  for (const attrs of [
+    'type="dynamic"',
+    'type="dynamic" mediaPresentationDuration="PT7S"'
+  ]) assert.equal(p.parseDash(audit60DashPeriods(["PT0.4S", "PT0.4S"], attrs),
+    base, 8).durationSeconds, null);
+});
+
+test("audit60 17F: missing, invalid and unsafe Period duration never yield partial time", () => {
+  for (const list of [
+    [null, "PT1S"],
+    ["bogus", "PT1S"],
+    ["PT0S", "PT1S"],
+    ["PT-1S", "PT1S"],
+    ["PT9007199254740990S", "PT9007199254740990S"]
+  ]) assert.equal(p.parseDash(audit60DashPeriods(list), base, 8).durationSeconds,
+    null, JSON.stringify(list));
+  assert.equal(p.parseDash(audit60DashPeriods(["PT1S"],
+    'type="static" mediaPresentationDuration="PT999999999999999999999999S"'),
+    base, 8).durationSeconds, 1, "unsafe global duration falls back to safe Period");
+});
