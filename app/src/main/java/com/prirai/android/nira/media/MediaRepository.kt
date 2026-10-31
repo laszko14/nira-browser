@@ -106,6 +106,12 @@ internal class MediaRepository(
         // Exact observed URL links a parser group to a local owner without
         // replacing that owner's identity or using a title as a join key.
         var observedManifestGroup: String? = null
+        // An extension-minted parser token is the only cross-URL lineage.
+        // Keep it even for derived streams so reverse DOM/network ordering
+        // can update known variants without guessing from title or hostname.
+        var manifestLineageGroup: String? = null
+        var localOwnerGroup: String? = null
+        var localOwnerConflict = false
         var activeProvenance = MediaProvenance.DOM_HINT
         val revisions = ArrayDeque<MediaUrlRevision>()
         fun observeUrl(exactUrl: String, provenance: MediaProvenance, sequence: Long) {
@@ -413,6 +419,32 @@ internal class MediaRepository(
         record.copy(ambiguous = count > 1)
     }
 
+    /**
+     * Reconcile only records in one trusted manifest lineage, one native
+     * EngineSession/document and one Gecko frame. The exact-URL record is the
+     * bridge between parser observations and a locally titled DOM owner.
+     *
+     * Recompute instead of permanently rewriting identities: if a second
+     * distinct local owner appears later, previously inherited aliases are
+     * withdrawn. Never merge by matching titles, domains or query-stripped URLs.
+     */
+    private fun reconcileManifestLineage(scope: Scope, manifest: String, frame: Long?) {
+        val members = scope.entries.values.filter {
+            it.manifestLineageGroup == manifest && it.frameKey == frame
+        }
+        val owners = members.mapNotNull { it.localOwnerGroup }.distinct()
+        val unambiguous = !members.any { it.localOwnerConflict }
+        val onlyOwner = if (unambiguous) owners.singleOrNull() else null
+        for (member in members) {
+            member.groupId = when {
+                member.localOwnerConflict -> null
+                member.localOwnerGroup != null -> member.localOwnerGroup
+                onlyOwner != null -> onlyOwner
+                else -> manifest
+            }
+        }
+    }
+
     @Synchronized fun isCurrentDocument(tab: MediaTabState, documentKey: Long): Boolean =
         scope(tab, create = false)?.let { it.registered && it.documentKey == documentKey } == true
 
@@ -439,7 +471,8 @@ internal class MediaRepository(
         }
         val manifestGroup = groupId?.takeIf {
             source == MediaSource.NETWORK && it.startsWith("manifest-") &&
-                media.format in setOf(MediaFormat.HLS, MediaFormat.DASH)
+                (media.format in setOf(MediaFormat.HLS, MediaFormat.DASH) ||
+                    provenance == MediaProvenance.MANIFEST_DERIVED)
         }
         val localOwners = if (manifestGroup != null) current.entries.values.filter {
             it.observedManifestGroup == manifestGroup && it.frameKey == metadata?.frameKey &&
@@ -508,11 +541,26 @@ internal class MediaRepository(
                     source == MediaSource.NETWORK && media.format in
                         setOf(MediaFormat.HLS, MediaFormat.DASH) &&
                         (found.title == null || found.titleKind == "page"))) found.groupId = correlatedGroup
-            if (manifestGroup != null && provenance == MediaProvenance.NETWORK_OBSERVED)
-                found.observedManifestGroup = manifestGroup
+            if (manifestGroup != null) {
+                found.manifestLineageGroup = manifestGroup
+                if (provenance == MediaProvenance.NETWORK_OBSERVED)
+                    found.observedManifestGroup = manifestGroup
+            }
             val earlierTitle = found.title
             val earlierKind = found.titleKind
             found.metadata(metadata, found.format)
+            if (source != MediaSource.NETWORK && groupId != null &&
+                metadata?.title != null && metadata.titleKind != "page") {
+                if (!found.localOwnerConflict) {
+                    if (found.localOwnerGroup != null && found.localOwnerGroup != groupId) {
+                        found.localOwnerConflict = true
+                        found.localOwnerGroup = null
+                    } else found.localOwnerGroup = groupId
+                }
+            }
+            found.manifestLineageGroup?.let {
+                reconcileManifestLineage(current, it, found.frameKey)
+            }
             if (com.prirai.android.nira.diagnostics.testlab.TestLab.mediaObservationActive()) {
                 if (earlierTitle != null && metadata?.title != null &&
                     earlierTitle != MediaTitleResolver.normalizeText(metadata.title) && found.title == earlierTitle)
@@ -527,8 +575,14 @@ internal class MediaRepository(
             return InsertResult.DUPLICATE
         }
         val added = Record(identity, media.url, media.format, tick(), correlatedGroup)
-        if (manifestGroup != null && provenance == MediaProvenance.NETWORK_OBSERVED)
-            added.observedManifestGroup = manifestGroup
+        if (manifestGroup != null) {
+            added.manifestLineageGroup = manifestGroup
+            if (provenance == MediaProvenance.NETWORK_OBSERVED)
+                added.observedManifestGroup = manifestGroup
+        }
+        if (source != MediaSource.NETWORK && groupId != null &&
+            metadata?.title != null && metadata.titleKind != "page")
+            added.localOwnerGroup = groupId
         if (source == MediaSource.NETWORK && metadata?.requestSequence != null)
             added.highestNetworkRequestSequence = metadata.requestSequence
         added.observeUrl(media.url, provenance, tick())
@@ -537,6 +591,9 @@ internal class MediaRepository(
         added.frameKey = metadata?.frameKey
         if (source == MediaSource.NETWORK && metadata?.frameKey == null) added.frameUrl = current.pageUrl
         current.entries[identity] = added
+        added.manifestLineageGroup?.let {
+            reconcileManifestLineage(current, it, added.frameKey)
+        }
         if (com.prirai.android.nira.diagnostics.testlab.TestLab.mediaObservationActive())
             com.prirai.android.nira.diagnostics.testlab.TestLab.observedMedia(
                 tab.binding, added.copy(), metadata?.verification in

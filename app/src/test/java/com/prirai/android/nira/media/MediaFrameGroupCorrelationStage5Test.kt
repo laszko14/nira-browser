@@ -175,4 +175,103 @@ class MediaFrameGroupCorrelationStage5Test {
         assertEquals(1, items.size)
         assertEquals(2, items.single().variantCount)
     }
+    @Test fun audit60_16a_networkBeforeDomRejoinsExactMasterAndLocalAlternative() {
+        val repo = repository()
+        val u = "https://cdn.example/master.m3u8?token=exact"
+        val v = "https://cdn.example/backup.m3u8"
+        assertEquals(MediaRepository.InsertResult.ADDED,
+            add(repo, u, MediaSource.NETWORK, "manifest-1-1"))
+        assertEquals(MediaRepository.InsertResult.DUPLICATE,
+            add(repo, u, MediaSource.PAGE, "t1-g1", "Episode 12"))
+        assertEquals(MediaRepository.InsertResult.ADDED,
+            add(repo, v, MediaSource.PAGE, "t1-g1", "Episode 12"))
+        val records = repo.currentEntries(tab)
+        assertEquals(setOf("t1-g1"), records.map { it.groupId }.toSet())
+        val tile = mediaTileItems(records).single()
+        assertEquals("Episode 12", tile.title)
+        assertEquals(2, tile.variantCount)
+        assertEquals(setOf(u, v), records.map { it.url }.toSet())
+    }
+
+    @Test fun audit60_16a_parserDerivedBeforeDomIsReconciledInEitherOrder() {
+        val u = "https://cdn.example/master.m3u8"
+        val v = "https://cdn.example/child/index.m3u8"
+        fun run(domFirst: Boolean): List<MediaEntry> {
+            val repo = repository()
+            if (domFirst) add(repo, u, MediaSource.PAGE, "owner-g1", "Episode 3")
+            add(repo, u, MediaSource.NETWORK, "manifest-1-1")
+            val derived = MediaDetectorMessage.Candidate(v,
+                source = MediaSource.NETWORK, pageUrl = pageUrl, documentKey = 1,
+                groupId = "manifest-1-1", provenance = "derived")
+            repo.add(tab, pageUrl, 1L, DetectedMedia(v, MediaFormat.HLS,
+                tab.binding.tabId, tab.binding.contextId, false),
+                MediaSource.NETWORK, derived.groupId, derived)
+            if (!domFirst) add(repo, u, MediaSource.PAGE, "owner-g1", "Episode 3")
+            add(repo, v, MediaSource.NETWORK, "manifest-1-1")
+            assertEquals(1, mediaTileItems(repo.currentEntries(tab)).size)
+            assertEquals("Episode 3", mediaTileItems(repo.currentEntries(tab)).single().title)
+            return repo.currentEntries(tab)
+        }
+        val first = run(false)
+        val second = run(true)
+        assertEquals(setOf("owner-g1"), first.map { it.groupId }.toSet())
+        assertEquals(setOf("owner-g1"), second.map { it.groupId }.toSet())
+        assertEquals(first.map { it.url }.toSet(), second.map { it.url }.toSet())
+    }
+
+    @Test fun audit60_16a_conflictingOwnersWithdrawInheritedParserAlias() {
+        val repo = repository()
+        val a = "https://cdn.example/a/index.m3u8"
+        val b = "https://cdn.example/b/index.m3u8"
+        val child = "https://cdn.example/shared/child.m3u8"
+        add(repo, a, MediaSource.NETWORK, "manifest-1-1")
+        add(repo, b, MediaSource.NETWORK, "manifest-1-1")
+        add(repo, a, MediaSource.PAGE, "owner-a", "Same title")
+        // Before the second owner's DOM is seen, the parser lineage has one owner.
+        assertEquals(setOf("owner-a"), repo.currentEntries(tab).map { it.groupId }.toSet())
+        add(repo, b, MediaSource.PAGE, "owner-b", "Same title")
+        val derived = MediaDetectorMessage.Candidate(child,
+            source = MediaSource.NETWORK, pageUrl = pageUrl, documentKey = 1,
+            groupId = "manifest-1-1", provenance = "derived")
+        repo.add(tab, pageUrl, 1, DetectedMedia(child, MediaFormat.HLS,
+            tab.binding.tabId, tab.binding.contextId, false),
+            MediaSource.NETWORK, derived.groupId, derived)
+        assertEquals(mapOf(a to "owner-a", b to "owner-b", child to "manifest-1-1"),
+            repo.currentEntries(tab).associate { it.url to it.groupId })
+        assertEquals(3, mediaTileItems(repo.currentEntries(tab)).size)
+    }
+
+    @Test fun audit60_16a_manifestCorrelationRespectsFrameAndNavigation() {
+        val repo = repository(frameTracking = true)
+        val frameA = "https://player.example/a"
+        val frameB = "https://player.example/b"
+        assertTrue(repo.registerFrame(tab, MediaDetectorMessage.Frame(pageUrl, 1, frameA, 1, 101, true)))
+        assertTrue(repo.registerFrame(tab, MediaDetectorMessage.Frame(pageUrl, 1, frameB, 2, 202, true)))
+        val shared = "https://cdn.example/shared.m3u8"
+        add(repo, shared, MediaSource.NETWORK, "manifest-1-1", frame = 101, frameUrl = frameA)
+        add(repo, shared, MediaSource.NETWORK, "manifest-1-1", frame = 202, frameUrl = frameB)
+        add(repo, shared, MediaSource.PAGE, "g-a", "Title A", frame = 101, frameUrl = frameA)
+        add(repo, shared, MediaSource.PAGE, "g-b", "Title B", frame = 202, frameUrl = frameB)
+        assertEquals(2, mediaTileItems(repo.currentEntries(tab)).size)
+        assertEquals(setOf("g-a", "g-b"), repo.currentEntries(tab).mapNotNull { it.groupId }.toSet())
+        assertFalse(repo.registerDocument(tab, pageUrl, 0).accepted)
+        assertTrue(repo.registerDocument(tab, pageUrl, 2, true).accepted)
+        assertTrue(repo.currentEntries(tab).isEmpty())
+        assertEquals(MediaRepository.InsertResult.STALE,
+            repo.add(tab, pageUrl, 1, DetectedMedia(shared, MediaFormat.HLS,
+                tab.binding.tabId, tab.binding.contextId, false), MediaSource.NETWORK, "manifest-1-1"))
+    }
+
+    @Test fun audit60_16a_distinctManifestTokensAndTitlesDoNotMerge() {
+        val repo = repository()
+        val a = "https://cdn.example/one.m3u8"
+        val b = "https://cdn.example/two.m3u8"
+        add(repo, a, MediaSource.NETWORK, "manifest-1-1")
+        add(repo, b, MediaSource.NETWORK, "manifest-2-1")
+        add(repo, a, MediaSource.PAGE, "g-a", "Same title")
+        add(repo, b, MediaSource.PAGE, "g-b", "Same title")
+        assertEquals(2, mediaTileItems(repo.currentEntries(tab)).size)
+        assertEquals(setOf("g-a", "g-b"), repo.currentEntries(tab).mapNotNull { it.groupId }.toSet())
+    }
+
 }
