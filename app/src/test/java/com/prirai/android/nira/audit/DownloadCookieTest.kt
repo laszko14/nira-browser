@@ -26,8 +26,8 @@ class DownloadCookieTest {
         try {
             val download=DownloadState(url="https://example.org/file",contentLength=8)
             val failure=runCatching {
-                ParallelDownloadService().downloadChunk(download,4,7,file) {
-                    Response(download.url,206,MutableHeaders().apply{append("Content-Range","bytes 0-3/8")},Response.Body(ByteArrayInputStream(byteArrayOf(1,2,3,4))))
+                ParallelDownloadService().downloadChunk(download,4,7,file, "\"v1\"") {
+                    Response(download.url,206,MutableHeaders().apply{append("Content-Range","bytes 0-3/8");append("ETag","\"v1\"")},Response.Body(ByteArrayInputStream(byteArrayOf(1,2,3,4))))
                 }
             }.exceptionOrNull()
             assertTrue(failure is IOException)
@@ -39,9 +39,9 @@ class DownloadCookieTest {
         try {
             var fetched=0
             val download=DownloadState(url="https://example.org/file",contentLength=4)
-            ParallelDownloadService().downloadChunk(download,0,3,file) {
+            ParallelDownloadService().downloadChunk(download,0,3,file, "\"v1\"") {
                 fetched++
-                Response(download.url,206,MutableHeaders().apply{append("Content-Range","bytes 0-3/4")},Response.Body(ByteArrayInputStream(byteArrayOf(1,2,3,4))))
+                Response(download.url,206,MutableHeaders().apply{append("Content-Range","bytes 0-3/4");append("ETag","\"v1\"")},Response.Body(ByteArrayInputStream(byteArrayOf(1,2,3,4))))
             }
             assertEquals(1,fetched);assertArrayEquals(byteArrayOf(1,2,3,4),file.readBytes())
         } finally {file.delete()}
@@ -73,15 +73,16 @@ class DownloadCookieTest {
         val file=File.createTempFile("resume-test",".part").apply{writeBytes(byteArrayOf(1,2))}
         try {
             val download=DownloadState(url="https://example.org/file",contentLength=4)
-            ParallelDownloadService().downloadChunk(download,0,3,file) {request ->
+            ParallelDownloadService().downloadChunk(download,0,3,file, "\"v1\"") {request ->
                 assertEquals("bytes=2-3",request.headers!!["Range"])
-                Response(download.url,206,MutableHeaders().apply{append("Content-Range","bytes 2-3/4")},Response.Body(ByteArrayInputStream(byteArrayOf(3,4))))
+                assertEquals("\"v1\"",request.headers!!["If-Range"])
+                Response(download.url,206,MutableHeaders().apply{append("Content-Range","bytes 2-3/4");append("ETag","\"v1\"")},Response.Body(ByteArrayInputStream(byteArrayOf(3,4))))
             }
             assertArrayEquals(byteArrayOf(1,2,3,4),file.readBytes())
             file.writeBytes(byteArrayOf(1,2))
             val error=runCatching {
-                ParallelDownloadService().downloadChunk(download,0,3,file) {
-                    Response(download.url,206,MutableHeaders().apply{append("Content-Range","bytes 2-3/4")},Response.Body(ByteArrayInputStream(byteArrayOf(3))))
+                ParallelDownloadService().downloadChunk(download,0,3,file, "\"v1\"") {
+                    Response(download.url,206,MutableHeaders().apply{append("Content-Range","bytes 2-3/4");append("ETag","\"v1\"")},Response.Body(ByteArrayInputStream(byteArrayOf(3))))
                 }
             }.exceptionOrNull()
             assertTrue(error is IOException)
@@ -119,6 +120,38 @@ class DownloadCookieTest {
             val success=requested.await();sweep.cancelAndJoin();success()
             assertEquals(policy,db.cookiePolicyDao().get(policy.origin))
         } finally {db.close();Dispatchers.resetMain()}
+    }
+
+    @Test fun correctLengthFromChangedVersionCannotAppendToOldPrefix() = runTest {
+        val file = File.createTempFile("changed-etag", ".part").apply { writeBytes(byteArrayOf(1, 2)) }
+        try {
+            val download = DownloadState(url = "https://example.org/file", contentLength = 4)
+            val error = runCatching {
+                ParallelDownloadService().downloadChunk(download, 0, 3, file, "\"version-A\"") { request ->
+                    assertEquals("\"version-A\"", request.headers!!["If-Range"])
+                    Response(download.url, 206, MutableHeaders().apply {
+                        append("Content-Range", "bytes 2-3/4")
+                        append("ETag", "\"version-B\"")
+                    }, Response.Body(ByteArrayInputStream(byteArrayOf(3, 4))))
+                }
+            }.exceptionOrNull()
+            assertTrue(error is IOException)
+            assertArrayEquals(byteArrayOf(1, 2), file.readBytes())
+        } finally { file.delete() }
+    }
+    @Test fun full200ReplyToIfRangeCannotAppendOldPrefix() = runTest {
+        val file = File.createTempFile("if-range-200", ".part").apply { writeBytes(byteArrayOf(1, 2)) }
+        try {
+            val download = DownloadState(url = "https://example.org/file", contentLength = 4)
+            val error = runCatching {
+                ParallelDownloadService().downloadChunk(download, 0, 3, file, "\"version-A\"") {
+                    Response(download.url, 200, MutableHeaders().apply { append("ETag", "\"version-B\"") },
+                        Response.Body(ByteArrayInputStream(byteArrayOf(3, 4))))
+                }
+            }.exceptionOrNull()
+            assertTrue(error is IOException)
+            assertArrayEquals(byteArrayOf(1, 2), file.readBytes())
+        } finally { file.delete() }
     }
 
 }
