@@ -145,7 +145,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-007 | uchwyt resize po niewłaściwej stronie w RTL | CONFIRMED | P2 | 12/19 | FIXED — 12A physical RIGHT grip + RTL Compose padding; CI PASS, device NOT_TESTED |
 | ZC-AUD-008 | resize nie zachowuje tożsamości palca | CONFIRMED | P2 | 12/19 | FIXED — 12A pointer ownership, rollback on multi-touch/CANCEL; CI PASS, device NOT_TESTED |
 | ZC-AUD-009 | nieatomowa walidacja tworzenia grupy z Bez grupy | CONFIRMED | P2 | 11/19 | FIXED — 11A atomic Room guard; JVM/JS/lint CI PASS; device NOT_TESTED |
-| ZC-AUD-010 | hover pozostaje przy poprzednim celu podczas autoscroll | LIKELY | P2 | 12/19 | VERIFY_FIRST |
+| ZC-AUD-010 | hover pozostaje przy poprzednim celu podczas autoscroll | LIKELY | P2 | 12/19 | IMPLEMENTED — 12C live LazyColumn hover/drop geometry + guarded expansion; CI_PENDING, device NOT_TESTED |
 | ZC-AUD-011 | dialog zachowuje callback usuniętego panelu zakładek | CONFIRMED | P1 | 2/19 | IMPLEMENTED — stage 2, verify CI |
 | ZC-AUD-012 | dwa kryteria sortowania działają jak nazwa | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-013 | kwadratowy koszt projekcji kolejności pasków kart | CONFIRMED | P2 | 11/19 | FIXED — 11A linear projection; JVM/JS/lint CI PASS; 120 Hz NOT_TESTED |
@@ -423,3 +423,14 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - ZC-AUD-017: FIXED CORE w zakresie zaobserwowanego zachowania i nowych testów. Test realnego fullscreen i interakcji toolbar/panel/Gecko pozostaje NOT_TESTED. ZC-AUD-010 i ZC-AUD-019 nadal VERIFY_FIRST.
 - ZC-AUD-030 nadal OPEN; ZC-AUD-031 nadal PARTIAL. Brak merge, APK, wersjonowania, zmian podpisu, preferencji, zapisanych danych i sesji.
 - Końcowy commit aktualizujący ten rejestr wymaga również zielonego CI na dokładnym SHA; do takiej weryfikacji checkpoint dokumentacyjny pozostaje CI_PENDING.
+
+
+## Etap 12C/19 — live DnD hover podczas autoscroll (2026-10-31)
+
+- **Baza:** etap 12B `bcb83c0a68d1e15775769201cf8df2b3ba754085`, [GitHub Actions #41155970845](https://github.com/laszko14/nira-browser/actions/runs/41155970845) completed/success. Gałąź `fix/zavro-clean-audit60-stage12c-dnd-hover-autoscroll-20261031`.
+- **ZC-AUD-010 LIKELY → REPRODUCED in source-model → IMPLEMENTED:** aktualny `CompactSideTabs` ponownie potwierdził brak refresh `hoveredKey` w pętli `scrollBy`. Rzeczywiste dopasowanie celu w `finishDrag` pobierało późniejszy `layoutInfo`; podświetlenie i opóźnione rozwinięcie używały starego wiersza. Analogiczna izolowana reprodukcja z oryginalnego audytu: nieruchome `y=75`, wiersz B:50..100 przed scroll, B:0..50 i C:50..100 po scroll → podświetlenie B przy aktualnym drop C. Nie uznawać tego za test fizycznego Compose na telefonie.
+- **Naprawa:** jedna funkcja `currentSideDrop` pobiera **aktualne** `LazyListState.layoutInfo` i wspólny `DragPlacement.sideTarget` dla hover przy MOVE, `snapshotFlow` zmian geometrii, końca każdego `scrollBy` i finalnego `finishDrag`. Wyjście palca poza viewport/szerokość panelu anuluje target. Opóźnione o 450 ms rozwinięcie porównuje bieżący klucz z aktualną geometrią i profilem; nie może rozwijać poprzedniej grupy po zmianie ułożenia. Efekt działa tylko gdy aktywny jest lokalny drag i kończy się z jego generacją; brak zmian w zapisie grup lub kart.
+- **Testy:** `SidePanelHoverAutoscrollTest` sprawdza model B→C bez kolejnego MOVE, aktualny drop/hover, nieaktualny delayed target, przekroczenie granic viewportu/panelu i zmianę layoutu po rozwinięciu; `side-panel-autoscroll-hover-audit60.test.cjs` chroni rzeczywisty callsite Compose (`snapshotFlow`, `scrollBy`, delayed guard, `finishDrag`). Pokrycie logiki nie zastępuje integracyjnego długiego przytrzymania na urządzeniu.
+- **CI:** `.github/workflows/zavro-audit60-stage12c-regression.yml` — pełne Kotlin JVM/Robolectric, kompilacja instrumented Kotlin (bez APK), WebExtension JS i Android lint. Dopóki nie ma wyniku `completed/success` na finalnym SHA: **CI_PENDING**, nie PASS.
+- **Bezpieczeństwo:** profil/prywatność/sesje/Undo/Gecko storage i policy plików pozostawione nietknięte. Nie zmieniono release/versionCode, podpisu, preferencji szerokości, nie ma merge i APK.
+- **Następne `Dalej`:** 12D/19 ZC-AUD-019 (VERIFY_FIRST) — własność Compose swipe kontra DnD, multipointer/CANCEL, bez domniemania naprawy bez reprodukcji. ZC-AUD-030 OPEN, ZC-AUD-031 PARTIAL.
