@@ -1604,3 +1604,42 @@ test("audit60 17B: DASH fractional FPS reaches the exact manifest_verified candi
     assert.equal(b.routed.some(([, m]) => m.verification === "stream_verified"), false);
   }
 });
+
+
+test("audit60 17C: HLS EXTINF duration is preserved through the segment probe", async () => {
+  const manifestUrl = "https://cdn.example/final.m3u8?sig=opaque";
+  const segmentUrl = "https://cdn.example/segment-1.ts?sig=opaque";
+  const body = new TextEncoder().encode("#EXTM3U\n#EXTINF:5.5,\n" +
+    segmentUrl + "\n#EXTINF:5.5,\nsegment-2.ts\n#EXT-X-ENDLIST");
+  const fetched = [];
+  const b = background(async () => true, true, async url => {
+    fetched.push(url);
+    if (url === manifestUrl) return {
+      ok: true, status: 200, url,
+      headers: { get: n => n.toLowerCase() === "content-type" ?
+        "application/vnd.apple.mpegurl" : null },
+      body: { getReader: () => { let done = false; return {
+        read: async () => done ? { done: true } : (done = true, { done: false, value: body }),
+        cancel: async () => {},
+      }; } },
+    };
+    if (url === segmentUrl) return {
+      ok: true, status: 206, url,
+      headers: { get: n => n.toLowerCase() === "content-type" ? "video/mp2t" : null },
+      body: { cancel: async () => {} },
+    };
+    throw new Error("unexpected_request");
+  });
+  b.probe(response(manifestUrl, "application/vnd.apple.mpegurl"));
+  for (let i = 0; i < 8; i++) await tick();
+  const manifest = b.routed.find(([, m]) => m.verification === "manifest_verified")?.[1];
+  const stream = b.routed.find(([, m]) => m.verification === "stream_verified")?.[1];
+  assert.ok(manifest);
+  assert.ok(stream);
+  assert.deepEqual(fetched, [manifestUrl, segmentUrl]);
+  assert.equal(manifest.durationSeconds, 11);
+  assert.equal(stream.durationSeconds, 11);
+  assert.equal(stream.url, manifest.url);
+  assert.equal(stream.groupId, manifest.groupId);
+  assert.equal(stream.documentKey, manifest.documentKey);
+});

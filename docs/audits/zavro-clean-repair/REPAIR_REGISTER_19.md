@@ -176,7 +176,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-038 | wybór reprezentanta pomija metadane i dostępne alternatywy | CONFIRMED | P2 | 16B/19 | FIXED CORE — playback-ranked variant, explicit source menu, conflict-safe poster/time fallback, per-URL size, CI_PENDING, device NOT_TESTED |
 | ZC-AUD-039 | niestabilna tożsamość konfiguracji odczytywanej z atrybutu | CONFIRMED | P2 | 16C/19 | FIXED CORE — stable DOM-owner/attribute/path source-set identity; JS regression; real Gecko NOT_TESTED, CI_PENDING |
 | ZC-AUD-040 | odrzucane typowe ułamkowe FPS DASH | CONFIRMED | P2 | 17B/19 | FIXED CORE — safe integer rational parser, exact manifest message and native FPS/diagnostics regressions; final CI PENDING; real Gecko NOT_TESTED |
-| ZC-AUD-041 | pochodzenie czasu HLS zmienia się na HTML5 | CONFIRMED | P3 | 17/19 | DO_RECHECK |
+| ZC-AUD-041 | pochodzenie czasu HLS zmienia się na HTML5 | CONFIRMED | P3 | 17C/19 | FIXED CORE — parser provenance separated from stream playback verification; Kotlin/JS regressions, final CI pending; real Gecko NOT_TESTED |
 | ZC-AUD-042 | stary szacunek rozmiaru przeżywa utratę average bitrate | CONFIRMED | P2 | 17/19 | DO_RECHECK |
 | ZC-AUD-043 | możliwe przeniesienie parametrów starego źródła na nowe src | LIKELY | P2 | 17/19 | VERIFY_FIRST |
 | ZC-AUD-044 | czas DASH sumuje osobno zaokrąglone okresy | CONFIRMED | P3 | 17/19 | DO_RECHECK |
@@ -706,3 +706,13 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - **CI:** `.github/workflows/zavro-audit60-stage17b-regression.yml` uruchamia pełny Kotlin/Robolectric, AndroidTest compile bez APK, cały zestaw JavaScript i Android lint. Potwierdzić `completed/success` na **końcowym SHA**; zielony CI nie zastępuje prób GeckoView/urządzeniowych.
 - **Granice:** ZC-AUD-043 VERIFY_FIRST (wymaga rzeczywistego Gecko), ZC-AUD-002 BLOCKED / REAL_GECKO_REQUIRED, ZC-AUD-030 OPEN, ZC-AUD-031 PARTIAL. Bez APK, merge do main, zmian certyfikatu i danych użytkownika.
 - **Następne „Dalej”: 17C/19 — ZC-AUD-041**, dopiero po zakończeniu 17B i osobnym poleceniu.
+
+## Etap 17C/19 — ZC-AUD-041: źródło czasu HLS a stream_verified (2026-10-31)
+
+- **Baza:** 17B final `112da32e3fe2adc38fbd17effa8c31b62eac4a83`, [CI #41231433470](https://github.com/laszko14/nira-browser/actions/runs/41231433470) `completed/success` (próba 1). Gałąź `fix/zavro-clean-audit60-stage17c-hls-duration-origin-20261031`.
+- **STILL_PRESENT:** `MediaRepository.Record.metadata` przekwalifikowywał `durationOrigin` z `HLS_EXTINF` na `HTML5` gdy po `manifest_verified` przyszło `stream_verified` tego samego dokładnego URL z tym samym czasem. Ten drugi status w `background.inspectManifest` pochodzi z próby segmentu, a nie z `HTMLVideoElement`, więc `VideoMetadataLedger` błędnie raportował HTML5.
+- **FIXED CORE:** w `MediaRepository.kt` źródło czasu aktualizują tylko jawne dane DOM/PAGE lub sprawdzony manifest HLS/DASH (`manifest_verified` albo `unplayable` dla faktycznie sparsowanego manifestu). Sieciowe `stream_verified` może zmienić status odtwarzania, ale nie może nadpisać czasu ani jego pochodzenia, w szczególności późnego rzeczywistego pomiaru DOM. Dane sieciowe `manifest_observed` bez weryfikacji nie stają się `HTML5`. Zachowane resetowanie LIVE i rzeczywiste przejście na VOD.
+- **Regresje Kotlin:** `MediaDurationOriginAudit60Test` obejmuje HLS `manifest_verified` → `stream_verified`, rzeczywisty DOM czas → późny segment, LIVE → VOD, DRM/unplayable, odrzucanie niezweryfikowanego sieciowego czasu oraz kontrolę DASH; asercje `MediaEntry.durationOrigin` i `VideoMetadataLedger.snapshot().examples.durationSource`. Regresja JS odwzorowuje rzeczywiste wysyłanie obu eventów HLS z identycznym czasem, URL, dokumentem i grupą.
+- **RED/GREEN:** testy dodane przed poprawką na commicie `10ef6b87049de5e50742296b557ac39985e70894`, [CI RED #41232303409](https://github.com/laszko14/nira-browser/actions/runs/41232303409) — osobno zweryfikować wynik. Końcowy workflow `.github/workflows/zavro-audit60-stage17c-regression.yml` musi dać pełne Kotlin/Robolectric, AndroidTest compile, wszystkie JS i Android lint `completed/success` na final SHA przed oznaczeniem etapu ukończonym.
+- **Granice:** realny GeckoView, Nothing Phone (1), Android 15, 120 Hz `NOT_TESTED`. ZC-AUD-043 `VERIFY_FIRST`; ZC-AUD-002 `BLOCKED / REAL_GECKO_REQUIRED`; ZC-AUD-030 `OPEN`; ZC-AUD-031 `PARTIAL`. Bez APK, merge, podpisu oraz modyfikacji danych, sesji, prywatności, profili i kart.
+- **Następne „Dalej”: 17D/19 — ZC-AUD-042**, po zielonym CI i nowej zgodzie.

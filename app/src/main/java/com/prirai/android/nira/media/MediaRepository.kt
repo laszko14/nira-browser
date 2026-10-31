@@ -187,10 +187,15 @@ internal class MediaRepository(
             } else if (candidate.isLive == false) {
                 isLive = false
             }
-            if (!isLive && candidate.durationSeconds != null) {
+            // A stream_verified segment probe changes playback confidence, not
+            // the source of a duration measured by EXTINF/MPD or the video DOM.
+            val manifestDuration = candidate.source == MediaSource.NETWORK &&
+                format in setOf(MediaFormat.HLS, MediaFormat.DASH) &&
+                candidate.verification in setOf("manifest_verified", "unplayable")
+            if (!isLive && candidate.durationSeconds != null &&
+                (manifestDuration || candidate.source != MediaSource.NETWORK)) {
                 durationSeconds = candidate.durationSeconds
-                durationOrigin = if (candidate.source == MediaSource.NETWORK &&
-                    candidate.verification == "manifest_verified") {
+                durationOrigin = if (manifestDuration) {
                     if (format == MediaFormat.HLS) "HLS_EXTINF" else "DASH_MPD"
                 } else "HTML5"
             }
