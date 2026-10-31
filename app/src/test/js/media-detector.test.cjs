@@ -1664,7 +1664,7 @@ test("audit60 17E: src B with currentSrc A cannot inherit A duration, dimensions
   assert.equal(p.native[0][1].durationSeconds, 19);
   assert.equal(p.native[0][1].width, 1280);
   video.src = b; // A is selected, but B is now declared.
-  await p.mutate([{ type: "attributes", target: video }]);
+  await p.mutate();
   const forB = p.native.filter(([, m]) => m.url === b);
   assert.equal(forB.length, 1);
   assert.equal(forB[0][1].source, "page");
@@ -1681,7 +1681,7 @@ test("audit60 17E: new currentSrc must reach HAVE_METADATA before providing tech
   video.duration = 19; video.videoWidth = 1280; video.videoHeight = 720;
   await p.fire("loadedmetadata", video);
   video.src = b; video.currentSrc = ""; video.readyState = 0;
-  await p.mutate([{ type: "attributes", target: video }]);
+  await p.mutate();
   assert.equal(p.native.filter(([, m]) => m.url === b).length, 1);
   assert.equal(p.native.at(-1)[1].durationSeconds, undefined);
   video.currentSrc = b;
@@ -1734,6 +1734,6 @@ test("audit60 17E: failed source and blob transition never reattribute stale met
   video.src = "blob:https://cdn.example/opaque";
   video.currentSrc = video.src;
   video.readyState = 2;
-  await p.mutate([{ type: "attributes", target: video }]);
+  await p.mutate();
   assert.equal(p.native.some(([, m]) => m.url.startsWith("blob:")), false);
 });
