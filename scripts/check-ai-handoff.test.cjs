@@ -29,8 +29,8 @@ function checkpoint(text) {
 test('legacy handoff is byte-identical to the original Git blob', () => {
   const blob = cp.execFileSync('git', ['hash-object', archivePath], {cwd: root, encoding: 'utf8'}).trim();
   assert.equal(blob, originalBlob);
-  const old = cp.execFileSync('git', ['rev-parse', 'f5aff770ad1759dc05edfafa20e3cf8352701c1f:docs/AI_HANDOFF.md'], {cwd: root, encoding: 'utf8'}).trim();
-  assert.equal(old, blob);
+  // The exact original Git blob ID is verified above. Shallow CI clones
+  // need not contain the historical parent commit for this invariant.
   assert.ok(fs.statSync(path.join(root, archivePath)).size > 300000);
 });
 
