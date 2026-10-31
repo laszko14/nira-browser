@@ -25,7 +25,15 @@ function attributes(source){
 function normalizeFile(file){
   if(typeof file!=='string'||!file)throw Error('Lint issue without file');
   const normalized=file.replace(/\\/g,'/');
-  const p=normalized.includes('/nira-browser/')?normalized.split('/nira-browser/').at(-1):normalized;
+  let p=normalized;
+  if(!/^(app|gradle|build\.gradle|settings\.gradle|gradle\.properties)(\/|$)/.test(p)){
+    // actions/checkout uses /work/<repo>/<repo>/app; split('/repo/') loses one segment.
+    if(!normalized.includes('/nira-browser/'))throw Error('Unexpected lint file: '+file);
+    const roots=['/app/','/gradle/','/build.gradle','/settings.gradle','/gradle.properties'];
+    const last=Math.max(...roots.map(root=>normalized.lastIndexOf(root)));
+    if(last<0)throw Error('Unexpected lint file: '+file);
+    p=normalized.slice(last+1);
+  }
   if(!/^(app|gradle|build\.gradle|settings\.gradle|gradle\.properties)(\/|$)/.test(p)||p.includes('../'))
     throw Error('Unexpected lint file: '+file);
   return p;
