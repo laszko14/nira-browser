@@ -57,7 +57,8 @@
 
   function playPreview(event) {
     if (!event.isTrusted || !event.cancelable || event.defaultPrevented ||
-        event.button > 0 || !event.target ||
+        event.button !== 0 || event.ctrlKey || event.metaKey ||
+        event.altKey || event.shiftKey || !event.target ||
         typeof event.target.closest !== "function") return;
     const control = event.target.closest(
       "button,[role='button'],[class*='preview-play'],[class*='play-preview']"
@@ -68,23 +69,36 @@
       control.textContent, control.className
     ].filter(v => typeof v === "string").join(" ") : "";
     const explicitPlay = !!control && /(?:play|preview|podgląd|odtwórz|odtworz)/i.test(label);
+    // Clicking the real video surface must remain under the page/player controls.
+    const targetVideo = event.target.closest("video");
+    if (event.target.tagName === "VIDEO" ||
+        (targetVideo && targetVideo.tagName === "VIDEO")) return;
+    const explicitPreviewControl = !!control &&
+      /(?:preview|podgląd|trailer|zwiastun)/i.test(label);
     const clickedThumb = event.target.closest("img,video,[class*='thumb'],[class*='Thumb']");
     if (!explicitPlay && !clickedThumb) return;
     const card = (control || clickedThumb).closest(CARD) ||
       (clickedThumb && clickedThumb.closest("a[href]") &&
        clickedThumb.closest("a[href]").parentElement);
     if (!card || card.closest("nav,header,footer") || !card.querySelector) return;
-    const link = (control || clickedThumb).closest("a[href]") || card.querySelector("a[href]");
-    if (!link) return;
     const source = card.querySelectorAll ? previewUrl(card) : null;
+    // Neither playsinline/muted/loop nor a random card link proves preview ownership.
+    // Only a local, declared preview source or an explicit preview control can
+    // authorize taking over the click and muting playback.
+    if (!source && !explicitPreviewControl) return;
+    const clickedLink = (control || clickedThumb).closest("a[href]");
+    if (!clickedLink && !explicitPreviewControl) return;
+    const link = clickedLink || card.querySelector("a[href]");
+    if (!link) return;
     const video = findPreviewVideo(card, source);
     if (!video || !video.paused || video.isConnected === false || failed.has(video) ||
         typeof video.play !== "function") return;
     const videoSrc = video.currentSrc || video.src ||
       (video.querySelector && (video.querySelector("source[src]") || {}).src);
     if (!videoSrc || !/^(?:https?:|blob:)/i.test(videoSrc)) return;
-    if (!(source || video.muted || video.defaultMuted || video.loop ||
-          (video.hasAttribute && video.hasAttribute("playsinline")))) return;
+    // The declared source must belong to this exact video, not a different
+    // player in the same article/card. Never copy its sound state to a preview.
+    if (source && videoSrc !== source) return;
     video.muted = true;
     video.playsInline = true;
     let result;
