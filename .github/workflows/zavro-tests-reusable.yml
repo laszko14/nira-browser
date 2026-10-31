@@ -70,7 +70,7 @@ jobs:
         run: ./gradlew :app:compileDebugAndroidTestKotlin --console=plain
 
   lint:
-    name: Android lint (existing baseline policy unchanged)
+    name: Android lint with regression baseline
     needs: javascript
     runs-on: ubuntu-latest
     timeout-minutes: 85
@@ -86,6 +86,8 @@ jobs:
         run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
       - name: Run Android lint
         run: ./gradlew :app:lintDebug --console=plain
+      - name: Block any increase in lint findings relative to real stage 4 baseline
+        run: node scripts/lint-regression.cjs app/build/reports/lint-results-debug.xml
       - name: Upload lint evidence (never APK)
         if: always()
         uses: actions/upload-artifact@v4

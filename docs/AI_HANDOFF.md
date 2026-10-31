@@ -3,39 +3,39 @@
 > Jedno źródło **aktualnego stanu tej gałęzi**; nie jest to globalny status wszystkich równoległych prac. Poprzednia pełna historia jest bez zmian w [archiwum](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md). Nie odczytuj jej bez potrzeby.
 
 ```yaml
-task_id: ZC-PROC-04
+task_id: ZC-PROC-05
 workflow_mode: staged
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: improve/zavro-clean-chatgpt-github-process-20261101
-base_sha: 5fdc40bfb514b2c579307cdff307254e0ce4e78b
-observed_head_sha: 5fdc40bfb514b2c579307cdff307254e0ce4e78b
+base_sha: 7f27f5309a4097c4a620c717684c563ff7f321dc
+observed_head_sha: 7f27f5309a4097c4a620c717684c563ff7f321dc
 status: CI_PENDING
-acceptance_source: prompty.txt / ETAP 4/9 (załączony przez użytkownika)
-required_ci: zavro-ai-process-docs.yml / process-docs + shared-tests/{javascript,unit,android-test-compile,lint}
+acceptance_source: ETAP 5/9 — lint regression gate and SHA-linked CI evidence
+required_ci: zavro-ai-process-docs.yml / process-docs + shared-tests/{javascript,unit,android-test-compile,lint} + quality-evidence
 device: NOT_TESTED
 apk: NOT_BUILT
 changed_paths:
   - .github/workflows/zavro-tests-reusable.yml
   - .github/workflows/zavro-ai-process-docs.yml
-  - .github/workflows/apk-release.yml
-  - docs/ai/CI_MIGRATION.md
-  - scripts/ci-workflow-inventory.cjs
-  - scripts/check-ci-workflows.test.cjs
-  - app/src/test/js/helpers/update-apk-contract.cjs
-  - app/src/test/js/update-apk-workflow-scope.test.cjs
-  - AGENTS.md
+  - scripts/lint-stage4-baseline.cjs
+  - scripts/lint-regression.cjs
+  - scripts/lint-regression.test.cjs
+  - scripts/ci-evidence.cjs
+  - scripts/ci-evidence.test.cjs
+  - docs/ai/LINT_QUALITY_GATE.md
   - docs/AI_HANDOFF.md
+  - AGENTS.md
 verified_before_push:
-  - Repo before stage 4 had 65 workflow files
-  - Legacy Android CI auto-built signed debug APK for PR except selected branches
-  - Stage 3 CI: SUCCESS on 5fdc40bfb514b2c579307cdff307254e0ce4e78b
-  - Wykryte 8 FAIL JS w próbie CI 41253644503: harness zakładał stary separator lint; poprawiono parsowanie bloku build
-  - Legacy audit/G4 workflows retained; no PR or APK is authorized
+  - Stage 4 CI 41253701343 completed/success at 7f27f5309a4097c4a620c717684c563ff7f321dc
+  - Original lint XML SHA256 e79e415b38e65e13a33e276b4b6e67671eb9b2436b2d1b5869710425937399a8
+  - Baseline: 1462 Fatal, 164 Error, 508 Warning, 18 Hint (2152 total)
+  - Baseline groups: 124 paths, 178 path/severity/rule combinations
+  - No changes in app runtime, signing, release or Gecko
 blockers: []
-next_action: Verify process-docs and all 4 shared test jobs on final SHA; after PASS await Dalej to ETAP 5/9
+next_action: Verify process-docs, four shared tests and quality-evidence at final HEAD; then await Dalej for stage 6/9
 evidence_links:
-  - https://github.com/laszko14/nira-browser/actions/runs/41253155256
+  - https://github.com/laszko14/nira-browser/actions/runs/41253701343
 ```
 
 ## Jak wznowić pracę
@@ -49,5 +49,5 @@ evidence_links:
 
 - Zakres tej gałęzi: **proces ChatGPT/GitHub**, bez zmian aplikacji, bez merge do `main`, bez APK. `workflow_mode=staged`: jedno „Dalej” = jedno zadanie i jego kompletna weryfikacja; potem STOP.
 - Prace nad GeckoView to **odrębne gałęzie**. Ostatnio zweryfikowana w etapie 1 linia `test/zavro-clean-post19-gecko-g4d-update-preflight-20261101` miała HEAD `7cfa2d13a467235102666822d40631fe1818c9b4`; stan sprawdzaj ponownie na GitHubie, nie nadpisuj go tym checkpointem.
-- Następne uzgodnione zadanie po zatwierdzeniu etapu 4: **ETAP 5/9 — bramki jakości i dowody CI** (według załączonego `prompty.txt`).
+- Następne uzgodnione zadanie po etapie 5: **ETAP 6/9 — niezależne review i kontrola regresji**.
 - Zachowano pełną zawartość oryginalnego `docs/AI_HANDOFF.md` jako obiekt Git o SHA `ebb553e63d69158da4f4fe89c4e5ae673bbe53f6` w `docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md`. Rejestry audytu nadal są odrębnym materiałem dowodowym.

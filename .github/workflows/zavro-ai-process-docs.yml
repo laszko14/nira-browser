@@ -25,6 +25,8 @@ jobs:
         run: node --test scripts/check-ai-handoff.test.cjs
       - name: Verify workflow safety and trigger contract
         run: node --test scripts/check-ci-workflows.test.cjs
+      - name: Test lint baseline and evidence gate, including negative cases
+        run: node --test scripts/lint-regression.test.cjs scripts/ci-evidence.test.cjs
       - name: Audit all workflow triggers and scopes
         run: node scripts/ci-workflow-inventory.cjs
       - name: Check changes for whitespace errors
@@ -59,3 +61,17 @@ jobs:
     uses: ./.github/workflows/zavro-tests-reusable.yml
     permissions:
       contents: read
+  quality-evidence:
+    name: Verify required jobs and summarize evidence (NO APK)
+    needs: [process-docs, shared-tests]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check required results and publish run SHA / attempt summary
+        env:
+          DOCS_RESULT: ${{ needs.process-docs.result }}
+          SHARED_RESULT: ${{ needs.shared-tests.result }}
+        run: node scripts/ci-evidence.cjs
