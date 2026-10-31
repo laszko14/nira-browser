@@ -191,6 +191,11 @@ open class BookmarkAdapter(
         notifyDataSetChanged()
     }
 
+    fun sortBookmarksByUrl() {
+        BookmarkUrlSort.sortInPlace(items)
+        notifyDataSetChanged()
+    }
+
     interface OnBookmarkRecyclerListener : BookmarkRecyclerViewClickInterface {
         fun onIconClick(v: View, position: Int)
 

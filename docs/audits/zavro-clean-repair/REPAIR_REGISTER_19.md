@@ -147,7 +147,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-009 | nieatomowa walidacja tworzenia grupy z Bez grupy | CONFIRMED | P2 | 11/19 | FIXED — 11A atomic Room guard; JVM/JS/lint CI PASS; device NOT_TESTED |
 | ZC-AUD-010 | hover pozostaje przy poprzednim celu podczas autoscroll | LIKELY | P2 | 12/19 | FIXED CORE — 12C live geometry, delayed guard; JVM/JS/lint CI PASS; real Compose device NOT_TESTED |
 | ZC-AUD-011 | dialog zachowuje callback usuniętego panelu zakładek | CONFIRMED | P1 | 2/19 | IMPLEMENTED — stage 2, verify CI |
-| ZC-AUD-012 | dwa kryteria sortowania działają jak nazwa | CONFIRMED | P2 | 14/19 | DO_RECHECK |
+| ZC-AUD-012 | dwa kryteria sortowania działają jak nazwa | CONFIRMED | P2 | 14B/19 | FIXED CORE — URL sort and remove fake date, atomic save+rollback; CI_PENDING, device NOT_TESTED |
 | ZC-AUD-013 | kwadratowy koszt projekcji kolejności pasków kart | CONFIRMED | P2 | 11/19 | FIXED — 11A linear projection; JVM/JS/lint CI PASS; 120 Hz NOT_TESTED |
 | ZC-AUD-014 | dialog kolejności nie rozróżnia upuszczenia przed i za wierszem | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-015 | konfiguracja przycisków zależy od zmiany szerokości zamiast orientacji | CONFIRMED | P2 | 14/19 | DO_RECHECK |
@@ -539,3 +539,11 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - **PASS:** [GitHub Actions #41195358059](https://github.com/laszko14/nira-browser/actions/runs/41195358059) `completed/success` na dokładnym SHA kodowym `baa46aafbf256079ec97417612269faa5b081aba`. Pełny `:app:testDebugUnitTest` (Kotlin/Robolectric), `:app:compileDebugAndroidTestKotlin` (bez APK), `node --test app/src/test/js/*.test.cjs` i `:app:lintDebug` zakończyły się SUCCESS (lint może nadal mieć nieblokujące ostrzeżenia).
 - **ZC-AUD-021 FIXED CORE:** regresja stanu roboczego i produkcyjnych callbacków, bez zapisów na wyborze/Anuluj, Custom Cancel bez mutacji. Android AlertDialog/Gecko, Back/dismiss, profil użytkownika i fizyczne urządzenie **NOT_TESTED**.
 - Końcowy commit dokumentacji musi przejść własne CI. ZC-AUD-030 **OPEN**, ZC-AUD-031 **PARTIAL**. Bez APK/merge/main/podpisu.
+
+## Etap 14B/19 — ZC-AUD-012: sortowanie zakładek wg URL (2026-10-31)
+
+- **Baza:** 14A final `a772769aa26d23cb837a4557d1a6f486cde4128a`, [GitHub CI #41195961219](https://github.com/laszko14/nira-browser/actions/runs/41195961219) completed/success. Gałąź `fix/zavro-clean-audit60-stage14b-bookmark-sort-20261031`.
+- **STILL_PRESENT na 14A:** `BookmarksBottomSheetFragment.showSortDialog` mapował nazwę, URL i datę na to samo `BookmarkSortType.A_Z`. `BookmarkSiteItem` ma `url`, lecz w bazowym schemacie nie ma daty dodania; także foldery nie mają takiej daty. Nie wolno zgadywać z ID lub kolejności importu.
+- **Naprawa:** menu eksponuje jedynie prawdziwe kryteria nazwa/URL (opcja daty ukryta do oddzielnej migracji modelu). `BookmarkUrlSort` trzyma foldery jako pierwsze, sortowane po nazwie; witryny po URL, remisy po tytule/ID, Locale.ROOT; brak URL nie powoduje crash. Oba wybory sortują rzeczywistą listę aktualnego folderu, a `BookmarkManager.save()` (AtomicFile) zachowuje kolejność po ponownym otwarciu. Nieudany zapis cofa in-memory kolejność.
+- **Regresje:** `BookmarkUrlSortTest` (nazwy kontra URL, foldery, null tytułu, brak URL, remisy i idempotencja); `bookmark-sort-audit60.test.cjs` kontroluje podłączenie menu, atomowy zapis/rollback i brak pozorowanej daty. CI `.github/workflows/zavro-audit60-stage14b-regression.yml`: pełny Kotlin/Robolectric, kompilacja AndroidTest bez APK, wszystkie JS oraz Android lint.
+- **Granice:** interaktywny panel Compose, orientacje i realny Android 15/120 Hz NOT_TESTED. Brak zmian w profilach, prywatności, sesjach, Gecko storage, podpisie, versionCode, APK i main. ZC-AUD-030 OPEN, ZC-AUD-031 PARTIAL. Pozostałe w 14/19: 006,014,015,020,047. Następne `Dalej` → 14C/19 po zielonym CI na końcowym SHA.

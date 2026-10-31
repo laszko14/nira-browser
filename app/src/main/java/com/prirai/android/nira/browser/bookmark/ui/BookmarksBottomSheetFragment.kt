@@ -316,23 +316,29 @@ class BookmarksBottomSheetFragment : BottomSheetDialogFragment(), BookmarkAdapte
 
     private fun showSortDialog() {
         val scope = dialogScope ?: return
-        val items = arrayOf(
-            getString(R.string.sort_by_name),
-            getString(R.string.sort_by_url),
-            getString(R.string.sort_by_date_added)
-        )
-        
+        // Bookmark records have no creation timestamp: do not offer a fake date sort.
+        val items = arrayOf(getString(R.string.sort_by_name), getString(R.string.sort_by_url))
         val dialog = androidx.appcompat.app.AlertDialog.Builder(requireContext())
             .setTitle(getString(R.string.sort))
             .setItems(items) { _, which ->
                 if (dialogScope !== scope || !scope.isActive || _binding == null || !isAdded) return@setItems
-                val sortType = when (which) {
-                    0 -> BookmarkSortType.A_Z
-                    1 -> BookmarkSortType.A_Z // URL sorting not implemented in original
-                    2 -> BookmarkSortType.A_Z // Date sorting not implemented in original
-                    else -> BookmarkSortType.A_Z
+                // The adapter operates on currentFolder.itemList; store the resulting
+                // order atomically and roll back the in-memory order on a failed save.
+                val originalOrder = currentFolder.itemList.toList()
+                when (which) {
+                    0 -> bookmarkAdapter.sortBookmarks(BookmarkSortType.A_Z)
+                    1 -> bookmarkAdapter.sortBookmarksByUrl()
+                    else -> return@setItems
                 }
-                bookmarkAdapter.sortBookmarks(sortType)
+                if (!manager.save()) {
+                    currentFolder.itemList.clear()
+                    currentFolder.itemList.addAll(originalOrder)
+                    bookmarkAdapter.notifyDataSetChanged()
+                    android.widget.Toast.makeText(
+                        requireContext(), "Unable to save bookmark order",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
             }
             .create()
         scope.track(dialog)
