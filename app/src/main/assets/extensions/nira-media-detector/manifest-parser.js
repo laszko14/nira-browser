@@ -19,12 +19,14 @@ globalThis.NiraManifestParser = (() => {
     while ((match = pattern.exec(value || ""))) result[match[1].toUpperCase()] = match[2] ?? match[3];
     return result;
   }
-  function duration(value) {
+  function duration(value, roundUp = true) {
     const match = /^P(?:(\d+(?:\.\d+)?)D)?(?:T(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?)?$/i.exec(value || "");
     if (!match) return null;
     const seconds = Number(match[1] || 0) * 86400 + Number(match[2] || 0) * 3600 +
       Number(match[3] || 0) * 60 + Number(match[4] || 0);
-    return Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds) : null;
+    const result = roundUp ? Math.ceil(seconds) : seconds;
+    return Number.isFinite(seconds) && seconds > 0 &&
+      result <= Number.MAX_SAFE_INTEGER ? result : null;
   }
   function bounded(text, limit) {
     if (typeof text !== "string" || text.length > MAX_CHARS) throw new Error("manifest_too_large");
@@ -229,12 +231,19 @@ globalThis.NiraManifestParser = (() => {
     if (!periods.length) throw new Error("invalid_dash");
     const rootBase = scopeBase(root, base);
     const variants = [], audioTracks = [], subtitleTracks = [];
-    let periodDuration = 0, completeDuration = true;
+    let periodDuration = 0, periodCompensation = 0, completeDuration = true;
     const dynamic = (attr(root, "type") || "").toLowerCase() === "dynamic";
     for (let periodIndex = 0; periodIndex < periods.length; periodIndex++) {
       const period = periods[periodIndex];
-      const d = duration(attr(period, "duration"));
-      if (d === null) completeDuration = false; else periodDuration += d;
+      const d = duration(attr(period, "duration"), false);
+      if (d === null) completeDuration = false;
+      else {
+        // Preserve fractional Period durations until the complete VOD total is known.
+        const adjusted = d - periodCompensation;
+        const next = periodDuration + adjusted;
+        periodCompensation = (next - periodDuration) - adjusted;
+        periodDuration = next;
+      }
       const basePeriod = scopeBase(period, rootBase);
       const segmentedPeriod = !!(first(period, "SegmentTemplate") || first(period, "SegmentList"));
       for (const set of nodes(period, "AdaptationSet")) {
@@ -270,9 +279,12 @@ globalThis.NiraManifestParser = (() => {
     const bitrate = periods.length === 1 && variants.length === 1 &&
       audioTracks.length <= 1 && rates.every(x => Number.isSafeInteger(x.bitrate) && x.bitrate > 0)
       ? rates.reduce((a, x) => a + x.bitrate, 0) : null;
+    const roundedPeriodDuration = completeDuration && Number.isFinite(periodDuration) &&
+      periodDuration > 0 && Math.ceil(periodDuration) <= Number.MAX_SAFE_INTEGER
+      ? Math.ceil(periodDuration) : null;
     return { protocol: "DASH", drm: hasDashContentProtection(root), dynamic,
       live: dynamic, durationSeconds: dynamic ? null :
-        (duration(attr(root, "mediaPresentationDuration")) || (completeDuration ? periodDuration : null)),
+        (duration(attr(root, "mediaPresentationDuration")) || roundedPeriodDuration),
       bitrate, variants, audioTracks, subtitleTracks, trickplayTracks: [], periodCount: periods.length };
   }
   return { parseHls, parseDash };
