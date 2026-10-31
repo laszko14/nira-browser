@@ -940,12 +940,7 @@ class TabsBottomSheetFragment : DialogFragment() {
             onDispose { modelStore.clear() }
         }
 
-        // Set up global snackbar manager scope
-        val scope = rememberCoroutineScope()
-        LaunchedEffect(Unit) {
-            com.prirai.android.nira.browser.tabs.compose.GlobalSnackbarManager.getInstance().coroutineScope = scope
-        }
-
+        // This disposable panel never takes ownership of the Undo coroutine.
         // Get snackbar host state from global manager
         val snackbarHostState =
             com.prirai.android.nira.browser.tabs.compose.GlobalSnackbarManager.getInstance().snackbarHostState

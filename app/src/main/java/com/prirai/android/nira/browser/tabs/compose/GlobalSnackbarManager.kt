@@ -4,8 +4,13 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.coroutines.coroutineContext
 
 /**
  * Global Snackbar Manager
@@ -15,8 +20,8 @@ import kotlinx.coroutines.launch
  * for destructive-action feedback (undo tab close, etc.).
  *
  * Thread-safe singleton. The host composable observes [snackbarHostState]
- * and the Activity/Fragment lifetime scope is injected via
- * [coroutineScope].
+ * and an independent manager-owned scope. Disposing a Compose panel
+ * cannot cancel Undo when the chrome remains visible.
  *
  * The only call-site today is `TabViewModel.showUndoSnackbar(...)` for
  * the tab-close undo flow. Dead helpers (`showInfo`, `dismiss()`,
@@ -24,27 +29,15 @@ import kotlinx.coroutines.launch
  * `showGlobalSnackbar` / `showUndoSnackbar` extensions) were removed
  * - every one of them had zero callers outside this file.
  */
-class GlobalSnackbarManager private constructor() {
+class GlobalSnackbarManager internal constructor(
+    private val snackbarScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+) {
 
     /** SnackbarHostState the UI layer binds to a `SnackbarHost`. */
     val snackbarHostState = SnackbarHostState()
 
-    /**
-     * Coroutine scope for snackbar operations. Must be set by the UI
-     * layer (Activity/Fragment) before the first [showUndoSnackbar]
-     * call; setting it to `null` cancels any in-flight snackbar.
-     */
-    var coroutineScope: CoroutineScope? = null
-        set(value) {
-            field = value
-            if (value == null) {
-                currentSnackbarJob?.cancel()
-                currentSnackbarJob = null
-            }
-        }
-
+    /** Never store a short-lived Compose owner as the global snackbar scope. */
     private var currentSnackbarJob: Job? = null
-    private var currentOnDismiss: (() -> Unit)? = null
 
     /**
      * Internal: show a snackbar with optional action. Kept private
@@ -57,47 +50,32 @@ class GlobalSnackbarManager private constructor() {
         onAction: (() -> Unit)? = null,
         onDismiss: (() -> Unit)? = null,
     ) {
-        val scope = coroutineScope ?: run {
-            android.util.Log.w(TAG, "Cannot show snackbar: coroutineScope not set")
-            return
-        }
-
-        // Cancel any existing snackbar
         currentSnackbarJob?.cancel()
-        currentOnDismiss = onDismiss
-
-        currentSnackbarJob = scope.launch {
+        val request = snackbarScope.launch(start = CoroutineStart.LAZY) {
             try {
-                val result = snackbarHostState.showSnackbar(
-                    message = message,
-                    actionLabel = actionLabel,
-                    duration = duration,
-                    withDismissAction = true, // Show X button
-                )
-
-                when (result) {
-                    SnackbarResult.ActionPerformed -> {
-                        currentOnDismiss = null
-                        onAction?.invoke()
-                    }
-                    SnackbarResult.Dismissed -> {
-                        val callback = currentOnDismiss
-                        currentOnDismiss = null
-                        callback?.invoke()
-                    }
+                // The underlying UndoMiddleware expires recovery at about 5 s.
+                // Do not leave an action waiting indefinitely for a missing UI host.
+                val result = withTimeoutOrNull(5_000L) {
+                    snackbarHostState.showSnackbar(
+                        message = message,
+                        actionLabel = actionLabel,
+                        duration = duration,
+                        withDismissAction = true
+                    )
                 }
+                if (result == SnackbarResult.ActionPerformed) onAction?.invoke()
+                else onDismiss?.invoke()
             } catch (e: kotlinx.coroutines.CancellationException) {
-                android.util.Log.d(TAG, "Snackbar cancelled")
-                throw e
+                throw e // A superseded request must not confirm the wrong close.
             } catch (e: Exception) {
                 android.util.Log.e(TAG, "Error showing snackbar", e)
-                val callback = currentOnDismiss
-                currentOnDismiss = null
-                callback?.invoke()
+                onDismiss?.invoke()
             } finally {
-                currentSnackbarJob = null
+                if (currentSnackbarJob === coroutineContext[Job]) currentSnackbarJob = null
             }
         }
+        currentSnackbarJob = request
+        request.start()
     }
 
     /**

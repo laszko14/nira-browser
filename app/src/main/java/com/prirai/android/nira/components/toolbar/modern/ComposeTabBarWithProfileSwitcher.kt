@@ -296,11 +296,9 @@ class ComposeTabBarWithProfileSwitcher @JvmOverloads constructor(
             }
         }
 
-        // Set up global snackbar manager scope
+        // The shared Undo manager owns its coroutine independently of this
+        // composition. Keep scope only for local tab-bar UI operations.
         val scope = androidx.compose.runtime.rememberCoroutineScope()
-        androidx.compose.runtime.LaunchedEffect(Unit) {
-            com.prirai.android.nira.browser.tabs.compose.GlobalSnackbarManager.getInstance().coroutineScope = scope
-        }
 
         // Observe duplicate tab events
         LaunchedEffect(viewModel, currentProfile.id, isPrivateMode) {
