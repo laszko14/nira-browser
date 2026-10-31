@@ -603,3 +603,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 ### Etap 14G — poprawka kompilacji testów po CI
 
 - Pierwsze CI [#41212667758](https://github.com/laszko14/nira-browser/actions/runs/41212667758) na SHA `a49600e9a9f178e79af209981c03605d82d393f6`: **FAIL** w `:app:compileDebugUnitTestKotlin` z powodu niedostępnego `androidx.test.core.app.ApplicationProvider` w nowym teście. Kompilacja głównego kodu Kotlin przeszła. Test używa teraz `org.robolectric.RuntimeEnvironment.getApplication()`, zgodnie z dostępnym Robolectric, bez nowych zależności; pełny CI końcowego commitu pozostaje wymagany.
+
+### Etap 14G — konfiguracja SDK Robolectric
+
+- CI [#41213082415](https://github.com/laszko14/nira-browser/actions/runs/41213082415) na SHA `26c03af0b4ca7b63df34c7d66e4df055b2942636`: kompilacja Kotlin PASS, ale `TabGridViewPreferenceTest.initializationError` w Robolectric (`DefaultSdkPicker`), 1313 testów wykonanych, 1 błąd. Nowy test używa teraz tego samego jawnego `@Config(sdk=[35], application=Application::class, manifest=Config.NONE)` co istniejące funkcjonalne testy paneli; bez zmian kodu produkcyjnego. Kolejny CI na nowym SHA wymagany.

@@ -1,6 +1,7 @@
 package com.prirai.android.nira.browser.tabs
 
 import android.content.Context
+import android.app.Application
 import org.robolectric.RuntimeEnvironment
 import com.prirai.android.nira.preferences.UserPreferences
 import org.junit.After
@@ -10,8 +11,10 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35], application = Application::class, manifest = Config.NONE)
 class TabGridViewPreferenceTest {
     private val context: Context get() = RuntimeEnvironment.getApplication()
     private val canonical get() = context.getSharedPreferences("tabs_view_prefs", Context.MODE_PRIVATE)
