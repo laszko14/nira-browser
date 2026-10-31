@@ -29,7 +29,7 @@ for field in "name='com.prirai.android.nira.debug'" "versionCode='1195'" "versio
 done
 verified="$("$signer" verify --verbose --print-certs "$temp/installed.apk")" || stop 'Installed APK signature verification failed'
 printf '%s\n' "$verified" | grep -Eq '^[[:space:]]*Number of signers:[[:space:]]*1[[:space:]]*$' || stop 'Expected one installed APK signer'
-cert="$(printf '%s\n' "$verified" | sed -n 's/^.*Signer[^:]*: certificate SHA-256 digest:[[:space:]]*//p' | tr -d ':[:space:]' | tr '[:upper:]' '[:lower:]')"
+cert="$(printf '%s\n' "$verified" | sed -nE 's/^.*Signer[[:space:]]*#[0-9]+:?[[:space:]]+certificate SHA-256 digest:[[:space:]]*//p' | tr -d ':[:space:]' | tr '[:upper:]' '[:lower:]')"
 [ "$cert" = df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00 ] || stop 'Installed signing certificate differs from G4C certificate'
 printf 'INSTALLED_PACKAGE_VERSION_SIGNER=MATCH\n'
 printf 'CANDIDATE_1196=VERIFIED_IN_G4C_CI_ONLY\n'
