@@ -167,8 +167,8 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-029 | ContextMenuFeature PWA jest podłączony do obcej sesji | CONFIRMED | P2 | 10/19 | FIXED CORE — stage 10; PWA-owned hit menu CI PASS; device UX NOT_TESTED |
 | ZC-AUD-030 | opener ma rozbieżne konteksty karty i przygotowanego engine | SUSPECTED | P1 (potencjalny) | 10/19 | OPEN — SUSPECTED, native OriginAttributes / storage test REQUIRED; NOT_FIXED |
 | ZC-AUD-031 | usunięcie profilu pozostawia osierocone karty | CONFIRMED | P2 | 10/19 | PARTIAL — tabs/tombstones/erasure retry CI PASS; durable Gecko deletion NOT_VERIFIED |
-| ZC-AUD-032 | konfiguracje script nie wracają po wznowieniu tego samego DOM | CONFIRMED | P2 | 15/19 | DO_RECHECK |
-| ZC-AUD-033 | childList z source nie skanuje istniejącego video | CONFIRMED | P2 | 15/19 | DO_RECHECK |
+| ZC-AUD-032 | konfiguracje script nie wracają po wznowieniu tego samego DOM | CONFIRMED | P2 | 15A/19 | FIXED CORE — BFCache script cache invalidated; JS regression, CI_PENDING; device NOT_TESTED |
+| ZC-AUD-033 | childList z source nie skanuje istniejącego video | CONFIRMED | P2 | 15A/19 | FIXED CORE — source mutation rechecks owning VIDEO; JS regression, CI_PENDING; device NOT_TESTED |
 | ZC-AUD-034 | brak wyzwalacza dla późnego open Shadow DOM | CONFIRMED | P2 | 15/19 | DO_RECHECK |
 | ZC-AUD-035 | deduplikacja pomija przywrócenie dostępu | CONFIRMED | P2 | 15/19 | DO_RECHECK |
 | ZC-AUD-036 | ochrona DASH rozpoznawana z surowego XML | CONFIRMED | P2 | 17/19 | DO_RECHECK |
@@ -607,3 +607,12 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 ### Etap 14G — konfiguracja SDK Robolectric
 
 - CI [#41213082415](https://github.com/laszko14/nira-browser/actions/runs/41213082415) na SHA `26c03af0b4ca7b63df34c7d66e4df055b2942636`: kompilacja Kotlin PASS, ale `TabGridViewPreferenceTest.initializationError` w Robolectric (`DefaultSdkPicker`), 1313 testów wykonanych, 1 błąd. Nowy test używa teraz tego samego jawnego `@Config(sdk=[35], application=Application::class, manifest=Config.NONE)` co istniejące funkcjonalne testy paneli; bez zmian kodu produkcyjnego. Kolejny CI na nowym SHA wymagany.
+
+## Etap 15A/19 — BFCache script i dynamiczne source (2026-10-31)
+
+- Baza: 14G `ab999a5e1e0b6a01fbd9a42071fb7ab74c612515`, [CI 41213583034](https://github.com/laszko14/nira-browser/actions/runs/41213583034) SUCCESS. Gałąź `fix/zavro-clean-audit60-stage15a-script-source-20261031`.
+- **ZC-AUD-032 STILL_PRESENT → FIXED CORE:** `scriptVersions` nie było resetowane w `pagehide`. Przy BFCache niezmieniony obiekt script pozostawał przetworzony mimo nowej rejestracji dokumentu. Teraz cache resetuje się po pagehide; jedna aktywna generacja nadal nie duplikuje wyników. Regresja Node: script JSON, hide→show(persisted), nowy documentKey i brak duplikatów w zwykłym scan.
+- **ZC-AUD-033 STILL_PRESENT → FIXED CORE:** childList na `HTMLVideoElement` kolejkuje samego właściciela, więc dynamiczne `source` (MP4/HLS) zostaje wykryte również przy `paused`, bez Play lub pełnego rescanu. Koalescencja, limity skanera i walidacja native pozostają.
+- ZC-AUD-002 **SUSPECTED / VERIFY_FIRST**: restart background Gecko przy zachowanej EngineSession wymaga urządzenia; nie deklarować naprawy. ZC-AUD-034/035/051: **DO_RECHECK** w kolejnych podetapach etapu 15.
+- Weryfikacja: nowy workflow `zavro-audit60-stage15a-regression.yml` (pełne Kotlin/Robolectric, instrumented-test source compile, wszystkie JS, lint). **CI_PENDING** do potwierdzenia finalnego SHA. Gecko BFCache, MutationObserver real DOM, Android 15/120 Hz: **NOT_TESTED**. Bez APK, merge, zmiany signing, profili ani sesji. ZC-AUD-030 **OPEN**, ZC-AUD-031 **PARTIAL**.
+- Kolejne `Dalej`: **15B/19 — ZC-AUD-034** late open Shadow DOM.
