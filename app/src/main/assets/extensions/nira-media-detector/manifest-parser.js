@@ -156,12 +156,12 @@ globalThis.NiraManifestParser = (() => {
     let root = null, count = 0;
     for (const token of tokens) {
       if (token.startsWith("</")) {
-        const name = /^<\/([\w:.-]+)\s*>$/.exec(token)?.[1]?.split(":").pop();
-        if (!stack.length || stack.pop().name !== name) throw new Error("invalid_dash");
+        const name = /^<\/([\w:.-]+)\s*>$/.exec(token)?.[1];
+        if (!stack.length || stack.pop().qualifiedName !== name) throw new Error("invalid_dash");
       } else if (token.startsWith("<")) {
         const match = /^<([\w:.-]+)(?:\s[^<>]*)?\/?>$/.exec(token);
         if (!match || ++count > 5000 || stack.length > 16) throw new Error("invalid_dash");
-        const node = { name: match[1].split(":").pop(), tag: token, text: "", children: [] };
+        const node = { name: match[1].split(":").pop(), qualifiedName: match[1], tag: token, text: "", children: [] };
         if (stack.length) stack[stack.length-1].children.push(node);
         else if (root) throw new Error("invalid_dash");
         else root = node;
@@ -187,6 +187,38 @@ globalThis.NiraManifestParser = (() => {
     if (!m || Number(m[2] || 1) === 0) return null;
     const n = Number(m[1]) / Number(m[2] || 1);
     return n > 0 && n <= 240 ? n : null;
+  }
+  // DRM is an actual MPD element with a matching in-scope namespace, never
+  // a comment, foreign element, or unverified raw XML text.
+  function hasDashContentProtection(root) {
+    const DASH_NS = "urn:mpeg:dash:schema:mpd:2011";
+    function scoped(node, inherited) {
+      const scope = Object.create(inherited);
+      const declaration = /\sxmlns(?::([A-Za-z_][\w.-]*))?\s*=\s*(["'])([^"']*)\2/g;
+      let found;
+      while ((found = declaration.exec(node.tag))) scope[found[1] || ""] = found[3];
+      const qname = /^<([\w:.-]+)/.exec(node.tag)?.[1] || "";
+      const colon = qname.indexOf(":");
+      const prefix = colon < 0 ? "" : qname.slice(0, colon);
+      return { scope, uri: scope[prefix] ?? (prefix ? null : "") };
+    }
+    const top = scoped(root, Object.create(null));
+    if (top.uri !== "" && top.uri !== DASH_NS) return false;
+    const valid = uri => uri === DASH_NS || (top.uri === "" && uri === "");
+    function visit(parent, scope) {
+      const expected = parent.name === "MPD" ? ["ContentProtection", "Period"] :
+        parent.name === "Period" ? ["ContentProtection", "AdaptationSet"] :
+        parent.name === "AdaptationSet" ? ["ContentProtection", "Representation"] :
+        parent.name === "Representation" ? ["ContentProtection"] : [];
+      for (const child of parent.children) {
+        if (!expected.includes(child.name)) continue;
+        const current = scoped(child, scope);
+        if (!valid(current.uri)) continue;
+        if (child.name === "ContentProtection" || visit(child, current.scope)) return true;
+      }
+      return false;
+    }
+    return visit(root, top.scope);
   }
   function parseDash(text, base, limit) {
     limit = bounded(text, limit);
@@ -235,7 +267,7 @@ globalThis.NiraManifestParser = (() => {
     const bitrate = periods.length === 1 && variants.length === 1 &&
       audioTracks.length <= 1 && rates.every(x => Number.isSafeInteger(x.bitrate) && x.bitrate > 0)
       ? rates.reduce((a, x) => a + x.bitrate, 0) : null;
-    return { protocol: "DASH", drm: /<ContentProtection\b/i.test(text), dynamic,
+    return { protocol: "DASH", drm: hasDashContentProtection(root), dynamic,
       live: dynamic, durationSeconds: dynamic ? null :
         (duration(attr(root, "mediaPresentationDuration")) || (completeDuration ? periodDuration : null)),
       bitrate, variants, audioTracks, subtitleTracks, trickplayTracks: [], periodCount: periods.length };

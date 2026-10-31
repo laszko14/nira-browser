@@ -81,3 +81,51 @@ test('v1163: DRM manifests are identified without emitting segment videos',()=>{
   const dash=parser.parseDash('<MPD><Period><AdaptationSet><ContentProtection schemeIdUri="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"/></AdaptationSet></Period></MPD>','https://cdn.test/a.mpd',8);
   assert.equal(dash.drm,true);
 });
+
+test("audit60 17A: only a real DASH namespace ContentProtection is DRM", () => {
+  const ns = "urn:mpeg:dash:schema:mpd:2011";
+  const base = "https://cdn.example/manifest.mpd";
+  const period = content => '<MPD><Period><AdaptationSet mimeType="video/mp4">' +
+    content + '<Representation id="v" bandwidth="100"/></AdaptationSet></Period></MPD>';
+  for (const xml of [
+    period("<!-- <ContentProtection/> -->"),
+    period("<!-- <d:ContentProtection/> -->"),
+    period('<f:ContentProtection xmlns:f="urn:foreign"/>'),
+    period('<ContentProtection xmlns="urn:foreign"/>'),
+    period('<SupplementalProperty><ContentProtection/></SupplementalProperty>'),
+  ]) assert.equal(parser.parseDash(xml, base, 8).drm, false);
+  for (const make of [
+    x => '<MPD><ContentProtection/>' + '<Period/>' + '</MPD>',
+    x => '<MPD><Period>' + x + '</Period></MPD>',
+    x => '<MPD><Period><AdaptationSet>' + x + '</AdaptationSet></Period></MPD>',
+    x => '<MPD><Period><AdaptationSet><Representation>' + x +
+      '</Representation></AdaptationSet></Period></MPD>',
+  ]) {
+    const plain = make('<ContentProtection/>');
+    const prefixed = make('<d:ContentProtection xmlns:d="' + ns + '"/>');
+    assert.equal(parser.parseDash(plain, base, 8).drm, true);
+    assert.equal(parser.parseDash(prefixed, base, 8).drm, true);
+  }
+  const full = '<d:MPD xmlns:d="' + ns + '"><d:Period><d:AdaptationSet>' +
+    '<d:Representation><d:ContentProtection/></d:Representation>' +
+    '</d:AdaptationSet></d:Period></d:MPD>';
+  assert.equal(parser.parseDash(full, base, 8).drm, true);
+  const inherited = '<MPD><Period xmlns:d="' + ns + '"><AdaptationSet>' +
+    '<d:ContentProtection/></AdaptationSet></Period></MPD>';
+  assert.equal(parser.parseDash(inherited, base, 8).drm, true);
+  const foreign = '<MPD xmlns="' + ns + '"><f:Period xmlns:f="urn:other">' +
+    '<f:AdaptationSet><ContentProtection/></f:AdaptationSet></f:Period>' +
+    '<Period><AdaptationSet/></Period></MPD>';
+  assert.equal(parser.parseDash(foreign, base, 8).drm, false);
+});
+
+test("audit60 17A: malformed MPD, prefix mismatch, DTD and ENTITY remain rejected", () => {
+  const base = "https://cdn.example/manifest.mpd";
+  for (const xml of [
+    '<MPD><Period><AdaptationSet><ContentProtection/></Period></MPD>',
+    '<MPD><Period><!-- comment not closed</Period></MPD>',
+    '<MPD><p:Period xmlns:p="urn:mpeg:dash:schema:mpd:2011"></x:Period></MPD>',
+    '<!DOCTYPE MPD><MPD><Period/></MPD>',
+    '<!ENTITY leak "x"><MPD><Period/></MPD>',
+  ]) assert.throws(() => parser.parseDash(xml, base, 8));
+});

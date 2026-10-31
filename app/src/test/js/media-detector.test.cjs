@@ -335,6 +335,34 @@ test("v1107: a bounded HLS manifest emits grouped playable variants without segm
   assert.equal(new Set(b.routed.map(x => x[1].groupId)).size, 1);
 });
 
+test("audit60 17A: parsed DASH DRM controls manifest verification, not comments", async () => {
+  const ns = "urn:mpeg:dash:schema:mpd:2011";
+  for (const entry of [
+    { file: "comment", tag: "<!-- <ContentProtection/> -->", state: "manifest_verified" },
+    { file: "protected", tag: '<d:ContentProtection xmlns:d="' + ns + '"/>', state: "unplayable" },
+    { file: "foreign", tag: '<f:ContentProtection xmlns:f="urn:foreign"/>', state: "manifest_verified" },
+  ]) {
+    const target = "https://cdn.example/" + entry.file + ".mpd";
+    const body = new TextEncoder().encode('<MPD><Period><AdaptationSet mimeType="video/mp4">' +
+      entry.tag + '<Representation id="v" bandwidth="1000"/></AdaptationSet></Period></MPD>');
+    const b = background(async () => true, true, async url => ({
+      ok: true, status: 200, url,
+      headers: { get: name => name.toLowerCase() === "content-type" ? "application/dash+xml" : null },
+      body: { getReader: () => { let done = false; return {
+        read: async () => done ? { done: true } : (done = true, { done: false, value: body }),
+        cancel: async () => {},
+      }; } },
+    }));
+    b.probe(response(target, "application/dash+xml"));
+    await tick(); await tick(); await tick(); await tick();
+    assert.equal(b.routed[0][1].verification, "manifest_observed");
+    assert.equal(b.routed.at(-1)[1].verification, entry.state, entry.file);
+    assert.equal(b.routed.at(-1)[1].url, target);
+    assert.equal(b.routed.at(-1)[1].groupId, b.routed[0][1].groupId);
+    assert.equal(b.routed.some(([, m]) => m.verification === "stream_verified"), false);
+  }
+});
+
 test("v1107: chunked manifest is aborted before exceeding the decoded byte cap", async () => {
   let cancelled = false;
   const chunk = new Uint8Array(300000);

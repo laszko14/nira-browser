@@ -20,6 +20,36 @@ class MediaRepositoryTest {
                     source: MediaSource = MediaSource.DOM, format: MediaFormat = MediaFormat.MP4) =
         repo.add(tab, tab.pageUrl, key, media(tab, url, format), source)
 
+    @Test fun dashDrmManifestStatusCannotLeakToAnotherExactSource() {
+        val repo = MediaRepository()
+        val t = tab(profile = "work")
+        begin(repo, t)
+        fun offer(url: String, verification: String): MediaRepository.InsertResult {
+            val message = MediaDetectorMessage.Candidate(
+                url = url, contentType = "application/dash+xml",
+                source = MediaSource.NETWORK, privateHint = false,
+                pageUrl = t.pageUrl, documentKey = 1,
+                verification = verification, httpStatus = 200
+            )
+            return repo.add(t, t.pageUrl, 1,
+                MediaClassifier.fromNetwork(message, t.binding)!!,
+                MediaSource.NETWORK, null, message)
+        }
+        val protected = "https://cdn.example/protected.mpd?sig=opaque"
+        val plain = "https://cdn.example/plain.mpd?sig=opaque"
+        assertEquals(MediaRepository.InsertResult.ADDED, offer(protected, "manifest_observed"))
+        assertEquals(MediaRepository.InsertResult.DUPLICATE, offer(protected, "unplayable"))
+        val blocked = repo.forTab(t.binding).single()
+        assertEquals(MediaPlaybackStatus.UNPLAYABLE, blocked.playbackStatus)
+        assertFalse(mediaVariantPlayable(blocked))
+        assertEquals(MediaRepository.InsertResult.ADDED, offer(plain, "manifest_observed"))
+        assertEquals(MediaRepository.InsertResult.DUPLICATE, offer(plain, "manifest_verified"))
+        val byUrl = repo.forTab(t.binding).associateBy { it.url }
+        assertEquals(MediaPlaybackStatus.UNPLAYABLE, byUrl[protected]?.playbackStatus)
+        assertEquals(MediaPlaybackStatus.NEEDS_VERIFICATION, byUrl[plain]?.playbackStatus)
+        assertEquals(2, byUrl.size)
+    }
+
     @Test fun nativePosterProvenanceIsIndependentFromTitleAndFailsClosedOnConflict() {
         val repo=MediaRepository(); val t=tab(); begin(repo,t)
         val url="https://cdn.example/movie.mp4?token=private"

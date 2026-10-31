@@ -171,7 +171,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-033 | childList z source nie skanuje istniejącego video | CONFIRMED | P2 | 15A/19 | FIXED CORE — source mutation rechecks owning VIDEO; JS regression, CI_PENDING; device NOT_TESTED |
 | ZC-AUD-034 | brak wyzwalacza dla późnego open Shadow DOM | CONFIRMED | P2 | 15B/19 | FIXED CORE — MAIN-world open-root hint, isolated DOM verification, bounded rescan; JS regression, CI_PENDING; device NOT_TESTED |
 | ZC-AUD-035 | deduplikacja pomija przywrócenie dostępu | CONFIRMED | P2 | 15C/19 | FIXED CORE — latest exact-URL response state/sequence handles 200→403→200 and 200→410→200; JS+Kotlin regressions; CI_PENDING; real Gecko NOT_TESTED |
-| ZC-AUD-036 | ochrona DASH rozpoznawana z surowego XML | CONFIRMED | P2 | 17/19 | DO_RECHECK |
+| ZC-AUD-036 | ochrona DASH rozpoznawana z surowego XML | CONFIRMED | P2 | 17A/19 | FIXED CORE — scoped DASH XML/namespace detection, JS and native regressions; CI_PENDING, Gecko NOT_TESTED |
 | ZC-AUD-037 | grupowanie wariantów zależy od kolejności DOM i sieci | CONFIRMED | P2 | 16A/19 | FIXED CORE — exact-URL manifest lineage reconciles reverse order; JVM/CI evidence, device NOT_TESTED |
 | ZC-AUD-038 | wybór reprezentanta pomija metadane i dostępne alternatywy | CONFIRMED | P2 | 16B/19 | FIXED CORE — playback-ranked variant, explicit source menu, conflict-safe poster/time fallback, per-URL size, CI_PENDING, device NOT_TESTED |
 | ZC-AUD-039 | niestabilna tożsamość konfiguracji odczytywanej z atrybutu | CONFIRMED | P2 | 16C/19 | FIXED CORE — stable DOM-owner/attribute/path source-set identity; JS regression; real Gecko NOT_TESTED, CI_PENDING |
@@ -687,3 +687,12 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 ### Etap 16C — korekta izolowanego testu po pierwszym CI
 
 - [CI #41228188285](https://github.com/laszko14/nira-browser/actions/runs/41228188285) na `0bbbb9abfebebc2a560931fba1af04b52bcfe548`: Kotlin/Robolectric PASS, AndroidTest compile PASS, nowe regresje 16C JS PASS; jedna dotychczasowa próba `player-config-titles-stage4.test.cjs` FAIL (2/3), bo harness wycinał fragment `scanPlayerConfigs` bez nowego `configGroupFor`. Produkcyjny skaner w tym teście łapał `ReferenceError` w dotychczasowym `try/catch`. Harness dołącza teraz dokładnie aktualną implementację pomocniczą ze źródła, bez jej duplikowania i bez modyfikacji kodu produkcyjnego. Ponowny pełny CI na końcowym SHA wymagany.
+
+## Etap 17A/19 — ZC-AUD-036: DASH XML/DRM (2026-10-31)
+
+- **Baza:** 16C `b5a6f1b840d8891a5f4719b4f4435583dbb618d3`, [CI #41228670437](https://github.com/laszko14/nira-browser/actions/runs/41228670437) `completed/success` (próba 2). Gałąź `fix/zavro-clean-audit60-stage17a-dash-drm-namespace-20261031`.
+- **STILL_PRESENT:** klasyfikacja `drm` za pomocą regex `/<ContentProtection\\b/i` surowego XML, mimo parsera `mpdTree`; komentarz skutkował fałszywym DRM, prefiksowany element mógł być przeoczony.
+- **FIXED CORE:** DRM wynika ze strukturalnych elementów `ContentProtection` w MPD/Period/AdaptationSet/Representation, przy poprawnym dziedziczeniu `xmlns`, prefiksów i zakresów nazw. Komentarze i obce przestrzenie nie mają wpływu. Doprecyzowano weryfikację pełnych nazw zamykanych elementów. Zachowano limit wejścia/głębokości, blokadę DTD/ENTITY i brak żądań kluczy czy obchodzenia DRM.
+- **Testy:** Node parser: komentarze, prefiksy, zakresy, obce przestrzenie i błędy XML; background integration: poprawne `manifest_verified` / `unplayable` na dokładnym URL i groupId bez fikcyjnego `stream_verified`; Kotlin: `UNPLAYABLE` blokuje odtwarzalność i nie przenosi statusu na drugie źródło. Workflow `.github/workflows/zavro-audit60-stage17a-regression.yml` wykonuje pełne JVM/Robolectric, AndroidTest compile (bez APK), JS i lint. Finalne CI wymaga `completed/success`.
+- **Granice:** rzeczywisty GeckoView, urządzenie Nothing Phone (1), Android 15 i 120 Hz `NOT_TESTED`; ZC-AUD-002 `BLOCKED / REAL_GECKO_REQUIRED`, ZC-AUD-030 `OPEN`, ZC-AUD-031 `PARTIAL`. Bez APK, merge, zmiany podpisu, danych, profili i sesji.
+- **Następne „Dalej”: 17B/19 — ZC-AUD-040**, bez samodzielnego rozpoczynania.
