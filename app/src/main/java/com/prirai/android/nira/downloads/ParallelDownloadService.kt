@@ -191,10 +191,18 @@ class ParallelDownloadService : Service() {
     }
 
     private suspend fun runDownload(initial: DownloadState) {
-        val probed = probeTotal(initial)
-        val total = initial.contentLength?.takeIf { it > 0 } ?: probed
-        if (total == null || total < DownloadController.PARALLEL_MIN_BYTES || probed == null) {
-            Log.i(TAG, "Fallback to serial download for ${initial.id}: total=$total probed=$probed")
+        // Probe the current representation, not the cached DownloadState length.
+        // A weak/missing ETag cannot authenticate old sidecar bytes.
+        val representation = probeRepresentation(initial)
+        val total = representation?.total
+        if (total == null || total < DownloadController.PARALLEL_MIN_BYTES) {
+            Log.i(TAG, "Fallback to serial download for ${initial.id}: no strong range validator or small resource")
+            // Clear legacy/unverifiable parts before serial fallback; otherwise
+            // shouldUseParallel() would repeatedly route the same sidecar here.
+            val stale = sidecarDir(this, initial.id)
+            if (stale.exists() && !stale.deleteRecursively()) {
+                throw IOException("Cannot discard unverified sidecar before serial fallback")
+            }
             DownloadController.startFallback(this, initial.id)
             return
         }
@@ -212,8 +220,19 @@ class ParallelDownloadService : Service() {
         update(download.id) { download }
 
         val dir = sidecarDir(this, download.id)
-        dir.mkdirs()
         val threadCount = DownloadController.PARALLEL_THREADS
+        DownloadResumeGuard.prepare(
+            dir,
+            DownloadResumeIdentity(
+                url = download.url,
+                isPrivate = download.private,
+                referrerUrl = download.referrerUrl,
+                fileName = download.fileName,
+                total = total,
+                parts = threadCount,
+                strongEtag = representation.strongEtag,
+            ),
+        )
         val chunkSize = total / threadCount
 
         coroutineScope {
@@ -235,7 +254,7 @@ class ParallelDownloadService : Service() {
                     async(Dispatchers.IO) {
                         val start = index * chunkSize
                         val end = if (index == threadCount - 1) total - 1 else (index + 1) * chunkSize - 1
-                        downloadChunk(download, start, end, File(dir, "part$index"))
+                        downloadChunk(download, start, end, File(dir, "part$index"), representation.strongEtag)
                     }
                 }.awaitAll()
             } finally {
@@ -256,6 +275,7 @@ class ParallelDownloadService : Service() {
         start: Long,
         end: Long,
         part: File,
+        expectedEtag: String,
         fetch: (Request) -> mozilla.components.concept.fetch.Response = { components.client.fetch(it) },
     ) {
         var existing = if (part.exists()) part.length() else 0L
@@ -269,6 +289,9 @@ class ParallelDownloadService : Service() {
         val rangeStart = start + existing
         val headers = MutableHeaders()
         headers.append("Range", "bytes=$rangeStart-$end")
+        // If the resource changed, a conforming server returns 200 instead of
+        // a 206 with the wrong version. We also verify the returned strong ETag.
+        headers.append("If-Range", expectedEtag)
         val request = Request(
             url = download.url,
             headers = headers,
@@ -277,9 +300,15 @@ class ParallelDownloadService : Service() {
         )
         fetch(request).use { response ->
             val range = parseRange(response.headers["Content-Range"])
-            if (response.status != 206 || range == null || range.first != rangeStart || range.last != end ||
-                range.total != download.contentLength) {
-                throw IOException("Invalid HTTP range response")
+            if (!DownloadResumeGuard.matchesRange(
+                    response.status, range?.first, range?.last, range?.total,
+                    response.headers["ETag"], rangeStart, end,
+                    download.contentLength ?: throw IOException("Missing total size"),
+                    expectedEtag,
+                )) {
+                // Never append a 200 (If-Range miss), or a different/missing
+                // validator, even if Content-Range and the byte count match.
+                throw IOException("HTTP representation changed or range response invalid")
             }
             val job = currentCoroutineContext()[Job]
             // Track actual bytes written. The previous revision trusted
@@ -387,7 +416,9 @@ class ParallelDownloadService : Service() {
         Log.i(TAG, "Download ${download.id} completed, $total bytes")
     }
 
-    private fun probeTotal(download: DownloadState): Long? {
+    private data class ProbedRepresentation(val total: Long, val strongEtag: String)
+
+    private fun probeRepresentation(download: DownloadState): ProbedRepresentation? {
         return try {
             val headers = MutableHeaders()
             headers.append("Range", "bytes=0-0")
@@ -398,10 +429,14 @@ class ParallelDownloadService : Service() {
                 referrerUrl = download.referrerUrl,
             )
             components.client.fetch(request).use { response ->
-                if (response.status != 206) return null
-                parseTotal(response.headers["Content-Range"])
+                val range = parseRange(response.headers["Content-Range"]) ?: return null
+                val strongEtag = DownloadResumeGuard.strongEtag(response.headers["ETag"]) ?: return null
+                if (response.status != 206 || range.first != 0L || range.last != 0L) return null
+                ProbedRepresentation(range.total, strongEtag)
             }
-        } catch (t: Throwable) {
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (t: Exception) {
             Log.w(TAG, "Range probe failed for download ${download.id}: ${t.javaClass.simpleName}")
             null
         }
