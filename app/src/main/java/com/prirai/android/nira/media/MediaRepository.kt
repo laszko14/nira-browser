@@ -154,6 +154,9 @@ internal class MediaRepository(
         var variantCount: Int? = null
         var availableQualities: String? = null
         var bitrateKind: String? = null
+        // A LIVE interval invalidates an earlier VOD average, even if its numeric
+        // bitrate remains useful as technical metadata for the stream.
+        private var vodAverageBitrate = false
         var quality: String? = null
         var bitrate: Long? = null
         var codecs: String? = null
@@ -179,6 +182,7 @@ internal class MediaRepository(
                 posterAmbiguous = chosen.ambiguous
             }
             if (candidate.isLive == true) {
+                vodAverageBitrate = false
                 isLive = true
                 durationSeconds = null
                 durationOrigin = "LIVE"
@@ -230,16 +234,28 @@ internal class MediaRepository(
             if (candidate.bitrate != null) {
                 bitrate = candidate.bitrate
                 bitrateKind = candidate.bitrateKind
+                vodAverageBitrate = !isLive && candidate.bitrateKind == "average"
             }
-            if (!isLive && (sizeBytes == null || sizeEstimated) &&
+            val canEstimate = !isLive && vodAverageBitrate &&
                 format in setOf(MediaFormat.HLS, MediaFormat.DASH) &&
-                durationSeconds != null && bitrate != null &&
-                bitrateKind == "average") {
+                durationSeconds != null && bitrate != null && bitrateKind == "average"
+            // An estimated byte count is valid only while its current average
+            // bitrate and VOD duration are valid. Never clear exact lengths.
+            if (sizeEstimated && !canEstimate) {
+                sizeBytes = null
+                sizeEstimated = false
+                sizeOrigin = null
+            }
+            if (canEstimate && (sizeBytes == null || sizeEstimated)) {
                 val estimate = bitrate!! * durationSeconds!!.toLong() / 8L
                 if (estimate in 1L..1_000_000_000_000L) {
                     sizeBytes = estimate
                     sizeEstimated = true
                     sizeOrigin = "MANIFEST_BITRATE"
+                } else if (sizeEstimated) {
+                    sizeBytes = null
+                    sizeEstimated = false
+                    sizeOrigin = null
                 }
             }
             if (candidate.codecs != null) codecs = candidate.codecs
