@@ -100,15 +100,19 @@ function validate(packet) {
       errors.push("environment.physicalDeviceObserved: invalid");
   }
   const safetyKeys = ["syntheticOnly", "trustedHttps", "isolatedTestEnvironment",
-    "installationAuthorized", "userDataUntouched", "backupVerified"];
+    "installationAuthorized", "userDataUntouched", "backupVerified",
+    "profileDeletionExplicitlyAuthorized"];
   if (keys(packet.safety, safetyKeys, "safety", errors)) {
     for (const k of safetyKeys) {
+      if (k === "profileDeletionExplicitlyAuthorized" && packet.safety[k] === undefined) continue;
       if (typeof packet.safety[k] !== "boolean") errors.push("safety." + k + ": invalid");
       else if (k !== "backupVerified" && packet.safety[k] !== true)
         errors.push("safety." + k + ": safety gate not met");
     }
     if (packet.caseId === "ZC-AUD-031" && packet.safety.backupVerified !== true)
       errors.push("safety.backupVerified: mandatory for deletion case");
+    if (packet.caseId === "ZC-AUD-031" && packet.safety.profileDeletionExplicitlyAuthorized !== true)
+      errors.push("safety.profileDeletionExplicitlyAuthorized: mandatory for deletion case");
   }
   if (!Array.isArray(packet.artifacts) || packet.artifacts.length > 24) {
     errors.push("artifacts: invalid");
