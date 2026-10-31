@@ -75,7 +75,7 @@
     cancelNativeQueue();
     context = null;
     registering = null;
-    seen.clear(); structuredGroups = new WeakMap(); ownerGenerations = new WeakMap();
+    seen.clear(); structuredGroups = new WeakMap(); configGroupOwners = new WeakMap(); ownerGenerations = new WeakMap();
     nextLocalElementId = 0; offers = 0; playObserved = false; stats.clear();
     if (statsTimer !== null) clearTimeout(statsTimer);
     statsTimer = null;
@@ -184,7 +184,7 @@
         // Clearing here bypasses the stale-video quarantine.
         if (message.kind !== "history") seen.clear();
         jobs.length = 0; pendingRoots.clear();
-        ownerGenerations = new WeakMap(); nextLocalElementId = 0;
+        ownerGenerations = new WeakMap(); configGroupOwners = new WeakMap(); nextLocalElementId = 0;
         scriptVersions = new WeakSet(); structuredVersions = new WeakSet();
         scheduleScan();
       }
@@ -271,6 +271,46 @@
     }
     if (!groups.has(element)) groups.set(element, "g" + (++nextGroup));
     return groups.get(element);
+  }
+  // JSON.parse creates new objects on every scan. Keep group owners by DOM
+  // element, attribute and structural path rather than title or poster.
+  let configGroupOwners = new WeakMap();
+  const CONFIG_URL_KEYS = new Set(["file", "src", "source", "contentUrl", "videoUrl",
+    "streamUrl", "playbackUrl", "hlsUrl", "dashUrl", "manifestUrl", "mediaUrl",
+    "playlistUrl", "urlVideo", "masterUrl", "video_src", "url"]);
+  const CONFIG_VARIANT_KEYS = new Set(["sources", "renditions", "variants", "encodings"]);
+  function configSourceSignature(node) {
+    const urls = new Set();
+    function visit(value, depth) {
+      if (depth > 8 || urls.size >= 64 || !value) return;
+      if (typeof value === "string") {
+        const url = absolute(value);
+        if (url) urls.add(url);
+      } else if (Array.isArray(value)) {
+        for (const child of value.slice(0, 48)) visit(child, depth + 1);
+      } else if (typeof value === "object") {
+        for (const key of Object.keys(value).slice(0, 64)) {
+          if (CONFIG_URL_KEYS.has(key) || CONFIG_VARIANT_KEYS.has(key))
+            visit(value[key], depth + 1);
+        }
+      }
+    }
+    visit(node, 0);
+    return JSON.stringify([...urls].sort());
+  }
+  function configGroupFor(element, attributeName, path, node) {
+    let owners = configGroupOwners.get(element);
+    if (!owners) { owners = new Map(); configGroupOwners.set(element, owners); }
+    const key = attributeName + "\u0000" + path;
+    let owner = owners.get(key);
+    if (!owner) {
+      owner = {};
+      owners.set(key, owner);
+      // One owner can expose at most 512 inspected nodes per scan.
+      while (owners.size > 512) owners.delete(owners.keys().next().value);
+    }
+    // Source replacement starts a new group; title/poster changes do not.
+    return groupFor(owner, configSourceSignature(node));
   }
   // Decode presentation text only; never decode, modify or cache signed media URLs.
   function safeTitle(value) {
@@ -938,15 +978,17 @@
     // items and alternatives for ONE item. The current title is a local hint,
     // not a document-wide property and never a media stream identity key.
     let remainingNodes = 512;
-    function walk(node, depth, parentTitle = null, parentGroup = null, parentPoster = null) {
+    function walk(node, depth, parentTitle = null, parentGroup = null, parentPoster = null,
+      configElement = null, configAttribute = null, path = "$") {
       if (depth > 8 || --remainingNodes < 0 || !node || typeof node !== "object") return;
       if (Array.isArray(node)) {
-        for (const child of node.slice(0, 48)) {
+        for (const [index, child] of node.slice(0, 48).entries()) {
           if (typeof child === "string" && parentGroup)
             submit(child, "page", null, parentGroup,
               parentTitle, parentTitle ? "video" : null, null, parentPoster,
               null, "player");
-          else walk(child, depth + 1, parentTitle, parentGroup, parentPoster);
+          else walk(child, depth + 1, parentTitle, parentGroup, parentPoster,
+            configElement, configAttribute, path + "/" + index);
         }
         return;
       }
@@ -962,7 +1004,8 @@
       const title = ownTitle || parentTitle;
       const group = (!independent && parentGroup) ||
         (["sources", "renditions", "variants", "encodings"].some(key =>
-          Array.isArray(node[key])) ? groupFor(node) : null);
+          Array.isArray(node[key])) ? (configElement ?
+            configGroupFor(configElement, configAttribute, path, node) : groupFor(node)) : null);
       const poster = mediaThumbnail(node.poster) ||
         mediaThumbnail(node.thumbnailUrl) || mediaThumbnail(node.image) ||
         (!independent ? parentPoster : null);
@@ -985,14 +1028,16 @@
         if (!node[key] || typeof node[key] !== "object") continue;
         const sameMovie = ["sources", "source", "renditions", "variants", "encodings"].includes(key);
         walk(node[key], depth + 1, sameMovie ? title : null,
-          sameMovie ? group : null, sameMovie ? poster : null);
+          sameMovie ? group : null, sameMovie ? poster : null,
+          configElement, configAttribute, path + "/" + key);
       }
     }
     scanCollection("video[data-setup],video[data-config],[data-player-config],[data-setup]", element => {
       for (const name of ["data-setup", "data-config", "data-player-config"]) {
         const raw = attribute(element, name);
         if (typeof raw !== "string" || raw.length > MAX_SCRIPT_CHARS) continue;
-        try { remainingNodes = 512; walk(JSON.parse(raw), 0, videoTitle(element)); } catch (_) {}
+        try { remainingNodes = 512; walk(JSON.parse(raw), 0, videoTitle(element),
+          null, null, element, name); } catch (_) {}
       }
     });
     scanCollection("script", element => {

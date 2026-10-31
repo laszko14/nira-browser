@@ -174,7 +174,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-036 | ochrona DASH rozpoznawana z surowego XML | CONFIRMED | P2 | 17/19 | DO_RECHECK |
 | ZC-AUD-037 | grupowanie wariantów zależy od kolejności DOM i sieci | CONFIRMED | P2 | 16A/19 | FIXED CORE — exact-URL manifest lineage reconciles reverse order; JVM/CI evidence, device NOT_TESTED |
 | ZC-AUD-038 | wybór reprezentanta pomija metadane i dostępne alternatywy | CONFIRMED | P2 | 16B/19 | FIXED CORE — playback-ranked variant, explicit source menu, conflict-safe poster/time fallback, per-URL size, CI_PENDING, device NOT_TESTED |
-| ZC-AUD-039 | niestabilna tożsamość konfiguracji odczytywanej z atrybutu | CONFIRMED | P2 | 16/19 | DO_RECHECK |
+| ZC-AUD-039 | niestabilna tożsamość konfiguracji odczytywanej z atrybutu | CONFIRMED | P2 | 16C/19 | FIXED CORE — stable DOM-owner/attribute/path source-set identity; JS regression; real Gecko NOT_TESTED, CI_PENDING |
 | ZC-AUD-040 | odrzucane typowe ułamkowe FPS DASH | CONFIRMED | P2 | 17/19 | DO_RECHECK |
 | ZC-AUD-041 | pochodzenie czasu HLS zmienia się na HTML5 | CONFIRMED | P3 | 17/19 | DO_RECHECK |
 | ZC-AUD-042 | stary szacunek rozmiaru przeżywa utratę average bitrate | CONFIRMED | P2 | 17/19 | DO_RECHECK |
@@ -674,3 +674,12 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - **Regresje:** Kotlin `MediaVariantSelectionAudit60Test`: potwierdzony child przy uszkodzonym masterze niezależnie od kolejności, jawne ID i fallback po usunięciu, poster z drugiego źródła, większy i konfliktujący poster, trzy niezależne frame/grupy, niejednoznaczne obrazy, VOD/LIVE/sprzeczne czasy/odrębne rozmiary, izolacja EngineSession/profili/private/tab/group/frame oraz URL renewal. Pozostałe testy kafelków oraz metadata pozostają uruchamiane w pełnej macierzy.
 - **Weryfikacja:** `.github/workflows/zavro-audit60-stage16b-regression.yml` — Kotlin/Robolectric, AndroidTest compile bez APK, komplet JS i lint; zielony final SHA wymagany. Realny Gecko, rzeczywiste kadry posterów i akcje w MPV, Nothing Phone (1)/Android 15/120 Hz: **NOT_TESTED**.
 - **Granice:** ZC-AUD-039 DO_RECHECK; ZC-AUD-002 BLOCKED / REAL_GECKO_REQUIRED, ZC-AUD-030 OPEN, ZC-AUD-031 PARTIAL. Bez APK, merge, zmian podpisu, profili i sesji. Kolejne `Dalej` → **16C/19 — ZC-AUD-039** po zielonym CI.
+
+## Etap 16C/19 — ZC-AUD-039: stabilna tożsamość konfiguracji atrybutów (2026-10-31)
+
+- **Baza:** 16B final `bdd9c3048037dea274c08190a21afdc78a9a6a3d`, [CI #41226970402](https://github.com/laszko14/nira-browser/actions/runs/41226970402) `completed/success`. Gałąź `fix/zavro-clean-audit60-stage16c-config-group-identity-20261031`.
+- **STILL_PRESENT:** `scanPlayerConfigs.walk` odczytywał `data-setup/data-config/data-player-config` przez `JSON.parse` przy każdym skanie, a `groupFor(node)` używał świeżego obiektu. Pomimo identycznych źródeł kolejny skan tworzył nowe `groupId` i omijał `seen`, ponawiając IPC. Błąd w bazie 16B.
+- **FIXED CORE:** grupa jest przypięta do elementu DOM, nazwy atrybutu i ścieżki strukturalnej (w tym pozycji playlisty), a nie nowego obiektu JSON, tytułu czy postera. Identyczny zestaw URL zachowuje grupę; zmiany metadanych aktualizują ją; nowa jakość lub zmiana źródeł generuje nową grupę. Pełne podpisane URL nie są obcinane ani publikowane w diagnostyce. WeakMap i limit 512 kotwic na element ograniczają pamięć. Zmiana dokumentu/historia resetuje tożsamości; niezależni właściciele nie są łączeni.
+- **Regresje Node:** identyczny ponowny skan bez IPC, zmiana tytułu/postera w starej grupie, różne pozycje playlisty o tym samym tytule, nowa jakość i wymiana filmu, brak duplikatów po zmianie, dwa elementy z identycznym JSON/URL oraz nowy dokument SPA. Pełna macierz Kotlin/Robolectric, AndroidTest compile bez APK, JS, lint w `.github/workflows/zavro-audit60-stage16c-regression.yml`; końcowy SHA musi potwierdzić `completed/success`.
+- **Granice:** realny GeckoView/DOM, 120 Hz i Nothing Phone (1) **NOT_TESTED**; ZC-AUD-002 **BLOCKED / REAL_GECKO_REQUIRED**, ZC-AUD-030 **OPEN**, ZC-AUD-031 **PARTIAL**. Bez APK, merge, zmian podpisu, profili i sesji.
+- **Następne `Dalej`: 17A/19 — ZC-AUD-036** (DASH XML/DRM). Nie rozpoczynać przed osobną zgodą.

@@ -913,6 +913,81 @@ test('v1163: a player sources array keeps variants together without merging play
   assert.notEqual(p.native[0][1].groupId,p.native[2][1].groupId);
 });
 
+test("audit60 16C: data configs keep identity on re-scan and metadata but update on new source", async () => {
+  const p = page();
+  const selector = "video[data-setup],video[data-config],[data-player-config],[data-setup]";
+  const config = { playlist: [
+    { title: "First", poster: "https://cdn.example/poster-a.jpg", sources: [
+      { file: "https://cdn.example/first-low.mp4" },
+      { file: "https://cdn.example/first-high.mp4" },
+    ] },
+    { title: "First", sources: [{ file: "https://cdn.example/second.mp4" }] },
+  ] };
+  let raw = JSON.stringify(config);
+  const element = { tagName: "DIV",
+    getAttribute: name => name === "data-player-config" ? raw : null };
+  p.extra.set(selector, [element]);
+  await p.mutate();
+  assert.equal(p.native.length, 3);
+  const first = p.native[0][1].groupId;
+  const second = p.native[2][1].groupId;
+  assert.equal(first, p.native[1][1].groupId);
+  assert.notEqual(first, second, "playlist positions must remain distinct");
+  await p.mutate();
+  assert.equal(p.native.length, 3, "identical JSON must not resend native candidates");
+
+  config.playlist[0].title = "Updated title";
+  config.playlist[0].poster = "https://cdn.example/poster-b.jpg";
+  raw = JSON.stringify(config);
+  await p.mutate();
+  assert.equal(p.native.length, 5, "resend only the updated two sources");
+  for (const [, message] of p.native.slice(3)) {
+    assert.equal(message.groupId, first);
+    assert.equal(message.title, "Updated title");
+    assert.equal(message.posterUrl, "https://cdn.example/poster-b.jpg");
+  }
+  await p.mutate();
+  assert.equal(p.native.length, 5);
+
+  config.playlist[0].sources.push({ file: "https://cdn.example/first-4k.mp4" });
+  raw = JSON.stringify(config);
+  await p.mutate();
+  assert.equal(p.native.length, 8, "new quality must be discovered");
+  const newGroup = p.native[5][1].groupId;
+  assert.notEqual(newGroup, first, "changed source set must start a fresh identity");
+  assert.ok(p.native.slice(5).every(([, m]) => m.groupId === newGroup));
+  await p.mutate();
+  assert.equal(p.native.length, 8);
+
+  config.playlist[0].sources = [{ file: "https://cdn.example/replacement.mp4" }];
+  raw = JSON.stringify(config);
+  await p.mutate();
+  assert.equal(p.native.length, 9);
+  assert.notEqual(p.native[8][1].groupId, newGroup);
+});
+
+test("audit60 16C: owner and navigation isolation for identical attribute configs", async () => {
+  const p = page();
+  const selector = "video[data-setup],video[data-config],[data-player-config],[data-setup]";
+  const raw = JSON.stringify({ title: "Same", sources: [
+    { file: "https://cdn.example/same.mp4" }] });
+  const element = () => ({ tagName: "DIV",
+    getAttribute: name => name === "data-player-config" ? raw : null });
+  p.extra.set(selector, [element(), element()]);
+  await p.mutate();
+  assert.equal(p.native.length, 2);
+  assert.notEqual(p.native[0][1].groupId, p.native[1][1].groupId);
+  await p.mutate();
+  assert.equal(p.native.length, 2);
+  const before = p.native.map(([, m]) => m.groupId);
+  await p.navigate("https://site.example/watch/new");
+  assert.equal(p.native.length, 4, "new document must discover fresh candidates");
+  assert.notEqual(p.native[2][1].groupId, before[0]);
+  assert.notEqual(p.native[3][1].groupId, before[1]);
+  await p.mutate();
+  assert.equal(p.native.length, 4);
+});
+
 test('v1163: repeated responses cannot exhaust the unique-candidate routing budget',async()=>{
   const b=background(async()=>true);
   for(let i=0;i<110;i++)b.probe(response('https://cdn.example/repeat.mp4'));
