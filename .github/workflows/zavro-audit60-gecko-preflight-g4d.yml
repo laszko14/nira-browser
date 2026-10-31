@@ -1,0 +1,49 @@
+name: Zavro GV-G4D - offline installed APK and backup preflight (NO BUILD)
+on:
+  push:
+    branches:
+      - test/zavro-clean-post19-gecko-g4d-update-preflight-20261101
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zavro-g4d-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  read-only-preflight-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Limit changes to G4D evidence and offline tool only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          unexpected="$(git diff --name-only 717608d1af23638614499d25dae7682f16a7fd8a HEAD |
+            grep -Ev '^(tools/gecko-fixture-g4d/(preflight-device.sh|preflight.test.cjs|README.md)|docs/audits/zavro-clean-repair/GECKOVIEW_DEVICE_VERIFICATION_G4D.md|.github/workflows/zavro-audit60-gecko-preflight-g4d.yml)$' || true)"
+          if [ -n "$unexpected" ]; then
+            printf 'Out of scope G4D changes:\n%s\n' "$unexpected"
+            exit 1
+          fi
+          test -z "$(git diff --name-only 717608d1af23638614499d25dae7682f16a7fd8a HEAD -- app/src app/build.gradle gradle gradle.properties)"
+      - name: Offline no-device safety and synthetic ADB unit tests
+        run: |
+          set -euo pipefail
+          bash -n tools/gecko-fixture-g4d/preflight-device.sh
+          node --test tools/gecko-fixture-g4d/preflight.test.cjs
+          node scripts/verify-audit60-stage19b.cjs
+      - name: Confirm known limited backup and installation state
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'android:dataExtractionRules="@xml/data_extraction_rules"' app/src/main/AndroidManifest.xml
+          test "$(grep -c '<include' app/src/main/res/xml/data_extraction_rules.xml)" -eq 2
+          grep -Fq 'GeckoView session data (cookies, history, passwords) is NOT included' app/src/main/java/com/prirai/android/nira/browser/profile/ProfileExportManager.kt
+          grep -Fq 'RESTORABLE_FULL_BACKUP=NOT_VERIFIED' tools/gecko-fixture-g4d/preflight-device.sh
+          grep -Fq 'INSTALLATION=NOT_AUTHORIZED' tools/gecko-fixture-g4d/preflight-device.sh
+          echo 'G4D: offline preflight only. No build, installation, backup or device tests executed.'
