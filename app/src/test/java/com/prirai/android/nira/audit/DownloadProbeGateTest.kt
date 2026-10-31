@@ -1,5 +1,6 @@
 package com.prirai.android.nira.audit
 
+import android.app.Application
 import com.prirai.android.nira.downloads.DownloadProbeGate
 import com.prirai.android.nira.downloads.isEligibleForProbeHandoff
 import kotlinx.coroutines.*
@@ -7,8 +8,13 @@ import kotlinx.coroutines.test.*
 import mozilla.components.browser.state.state.content.DownloadState
 import org.junit.Assert.*
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35], application = Application::class, manifest = Config.NONE)
 class DownloadProbeGateTest {
     private fun state(
         id: String = "download",
