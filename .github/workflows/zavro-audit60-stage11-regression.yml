@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - fix/zavro-clean-audit60-stage11-tabs-undo-groups-20261031
+      - fix/zavro-clean-audit60-stage11b-undo-slot-finalization-20261031
   workflow_dispatch:
 
 permissions:

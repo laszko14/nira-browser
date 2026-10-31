@@ -139,8 +139,8 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-001 | niespójny kontrakt wersji joba release | CONFIRMED | P2 | 19/19 | IMPLEMENTED — stage 6, CI_PENDING |
 | ZC-AUD-002 | możliwy brak uzgodnienia nowej generacji rozszerzenia | SUSPECTED | P2 | 15/19 | VERIFY_FIRST |
 | ZC-AUD-003 | starsze zadanie zmienia politykę aktywnego profilu | CONFIRMED | P2 | 8/19 | FIXED — 8B; Kotlin/JS/lint GREEN on code SHA d9e1047b; device NOT_TESTED |
-| ZC-AUD-004 | brak końcowego sprzątania slotów zamkniętych kart | CONFIRMED | P2 | 11/19 | DO_RECHECK |
-| ZC-AUD-005 | scope komunikatu Cofnij przeżywa swojego właściciela | CONFIRMED | P2 | 11/19 | DO_RECHECK |
+| ZC-AUD-004 | brak końcowego sprzątania slotów zamkniętych kart | CONFIRMED | P2 | 11/19 | IMPLEMENTED — 11B terminal prune gated by restore/Undo, CI_PENDING |
+| ZC-AUD-005 | scope komunikatu Cofnij przeżywa swojego właściciela | CONFIRMED | P2 | 11/19 | IMPLEMENTED — 11B manager-owned scope and bounded Undo, CI_PENDING |
 | ZC-AUD-006 | pozostawione przełączniki nie sterują aktualnym interfejsem | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-007 | uchwyt resize po niewłaściwej stronie w RTL | CONFIRMED | P2 | 12/19 | DO_RECHECK |
 | ZC-AUD-008 | resize nie zachowuje tożsamości palca | CONFIRMED | P2 | 12/19 | DO_RECHECK |
@@ -375,3 +375,12 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - Dwa stare testy statyczne wymagały zmiany kontraktu oczekiwanych symboli: kolor grup pochodzi teraz z `groupsById`, a recovery sprawdza członkostwo w mutacji managera zamiast w ViewModel. Testy zachowano, zaktualizowano asercje.
 - Testy uruchomione na CI są potwierdzeniem logiki i regresji, nie pomiarem płynności urządzenia ani testem fizycznego Gecko. **Nie zamyka to ZC-AUD-004/005** — kontynuacja wyłącznie w 11B/19.
 - Nowy commit raportu wymaga ponownego CI na jego SHA; do potwierdzenia `CI_PENDING` dotyczy tylko tego końcowego dokumentacyjnego commita.
+
+
+## Etap 11B/19 — zamknięte sloty i własność Undo (2026-10-31)
+
+- Baza: `886fa5628a84525171de0635ead2be15d1c1c87c` (11A, [CI #41150245036](https://github.com/laszko14/nira-browser/actions/runs/41150245036) SUCCESS). Gałąź `fix/zavro-clean-audit60-stage11b-undo-slot-finalization-20261031`.
+- **004 STILL_PRESENT → IMPLEMENTED:** wcześniej `reconciled` ponownie dopisywał wszystkie zamknięte identyfikatory. Nowy obserwator `BrowserApp` jest aktywowany dopiero po potwierdzonym `restoreComplete`, rozróżnia identyfikatory żywe i oczekujące w `BrowserState.undoHistory` i czeka 6 sekund po ostatniej zmianie tej struktury. Wtedy `TabOrderManager.finalizeClosedTabs` serializuje usunięcie niechronionych slotów i osieroconego członkostwa Room. Pending `pending_root` pomija dopóki nie zostanie odtworzony. Brak globalnego kasowania sesji lub profili.
+- **005 STILL_PRESENT → IMPLEMENTED:** `GlobalSnackbarManager` nie używa już scope żadnej kompozycji (ani paska, ani panelu). Posiada własny scope i jeden `SnackbarHostState`, więc zamknięcie panelu nie anuluje Undo w przeglądarce. Starsze żądanie jest anulowane przed nowym; przy braku hosta komunikat nie może pozostać dłużej niż 5 s. Zachowano `TabsUseCases.undo()` i kontrakt identycznego ID.
+- Testy: `OrderPersistenceTest` (300 zamkniętych slotów, niepełny restore, pending Undo, członek grupy/Room i odtwarzanie ID) oraz `GlobalSnackbarOwnerTest` (zamknięty panel, timeout i zastąpienie starego komunikatu). Kontrole pośrednie JVM + AndroidTestKotlin compile + JS + lint. Wynik dla finalnego SHA musi być potwierdzony przez GitHub Actions.
+- Nierozstrzygnięte ZC-AUD-030 OPEN / ZC-AUD-031 PARTIAL pozostają bez zmian; brak testów fizycznych Gecko/120 Hz i bez niszczenia danych. Bez APK, signing i merge. Następny etap dopiero po zakończeniu 11B i osobnym `Dalej`: **12/19**, panele/gesty.
