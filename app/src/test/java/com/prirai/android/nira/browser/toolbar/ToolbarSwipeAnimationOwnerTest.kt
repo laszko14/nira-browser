@@ -4,6 +4,7 @@ import android.animation.ValueAnimator
 import android.app.Activity
 import android.app.Application
 import android.view.View
+import androidx.core.view.isVisible
 import android.widget.FrameLayout
 import org.junit.Assert.*
 import org.junit.Test
