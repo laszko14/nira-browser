@@ -581,6 +581,25 @@ class UnifiedTabGroupManager internal constructor(
     }
 
     /**
+     * Commit stale membership removals together in one Room transaction.
+     * Live members are rechecked after acquiring the manager mutation lock.
+     */
+    suspend fun pruneFinalizedClosedMembers(retainedIds: Set<String>): Int = mutate {
+        val currentlyLive = liveTabs().mapTo(mutableSetOf()) { it.id }
+        val stale = tabToGroupMap.keys.filter { it !in retainedIds && it !in currentlyLive }
+        val affected = stale.mapNotNull { tabToGroupMap[it] }.toSet()
+        stale.forEach { removeTabFromGroup(it, notifyChange = false) }
+        if (stale.isNotEmpty()) {
+            emitStateUpdate()
+            affected.forEach { id ->
+                if (groupsCache.containsKey(id)) recordEvent(GroupEvent.GroupUpdated(id))
+                else recordEvent(GroupEvent.GroupDeleted(id))
+            }
+        }
+        stale.size
+    }
+
+    /**
      * Gets the group containing the specified tab
      */
     fun getGroupForTab(tabId: String): TabGroupData? {

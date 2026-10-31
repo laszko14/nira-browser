@@ -65,6 +65,23 @@ data class UnifiedTabOrder(
     }
 
     /**
+     * Persist only slots whose tabs are still live or within the Undo window.
+     * Called only after session restore and the Undo grace period; callers must
+     * not use this on an incomplete BrowserStore snapshot.
+     */
+    fun prunedTo(retainedIds: Set<String>): UnifiedTabOrder {
+        val surviving = primaryOrder.mapNotNull { item ->
+            when (item) {
+                is OrderItem.SingleTab -> item.takeIf { it.tabId in retainedIds }
+                is OrderItem.TabGroup -> item.copy(tabIds = item.tabIds.filter { it in retainedIds })
+                    .takeIf { it.tabIds.isNotEmpty() }
+            }
+        }
+        return if (surviving == primaryOrder) this
+        else copy(primaryOrder = surviving, lastModified = System.currentTimeMillis())
+    }
+
+    /**
      * Get all tab IDs in flat order
      */
     fun getAllTabIds(): List<String> {

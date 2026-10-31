@@ -472,6 +472,44 @@ class TabOrderManager internal constructor(
     }
 
     /**
+     * Complete terminal close only after restore and Undo. Unlike ordinary
+     * rebuild, this intentionally drops historical IDs from DataStore and Room.
+     * Pending root-move intents must first be replayed by rebuild.
+     */
+    suspend fun finalizeClosedTabs(
+        tabs: List<mozilla.components.browser.state.state.TabSessionState>,
+        undoTabIds: Set<String>,
+        restoreComplete: Boolean
+    ) = operation {
+        if (!restoreComplete || !groupManager.awaitInitialized()) return@operation
+        val retainedIds = tabs.mapTo(mutableSetOf()) { it.id }.apply { addAll(undoTabIds) }
+        groupManager.pruneFinalizedClosedMembers(retainedIds)
+        val orderKeys = orderStore.data.first().asMap().keys
+            .mapNotNull { key ->
+                key.name.takeIf { it.startsWith("order_") }
+                    ?.removePrefix("order_")?.takeIf { it.isNotEmpty() }
+            }
+        for (profileId in orderKeys) {
+            // Never erase a durable root-move intent still awaiting restore/replay.
+            if (orderStore.data.first()[stringPreferencesKey("pending_root_$profileId")] != null) continue
+            val expected = com.prirai.android.nira.browser.profile.BrowserProfile
+                .contextIdFor(profileId, isPrivate = profileId == "private")
+            val groups = groupManager.getAllGroups().filter { group ->
+                group.contextId == expected ||
+                    (profileId == "default" && group.contextId == "profile_default")
+            }
+            val ids = tabs.filter { tab ->
+                tab.content.private == (profileId == "private") &&
+                    (tab.contextId == expected ||
+                        (profileId == "default" && tab.contextId == "profile_default"))
+            }.map { it.id }
+            val cleaned = loadOrder(profileId).reconciled(ids, groups).prunedTo(retainedIds)
+            val key = stringPreferencesKey("order_$profileId")
+            if (orderStore.data.first()[key] != json.encodeToString(cleaned)) saveOrder(cleaned)
+        }
+    }
+
+    /**
      * Rebuild order for a profile from current tabs and groups.
      * Used when groups are created/deleted to ensure order stays in sync.
      */

@@ -16,6 +16,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.collectLatest
 import mozilla.components.browser.state.action.SystemAction
 import mozilla.components.feature.addons.update.GlobalAddonDependencyProvider
 import mozilla.components.support.base.facts.Facts
@@ -447,6 +451,39 @@ class BrowserApp : Application() {
                         .whenSessionsChange()
                 }
                 ready = true
+                // Observe only structural tab/Undo changes after a completed
+                // restore. Delay beyond the Undo window; a new tab or Undo
+                // cancels the pending prune. Never compact a partial restore.
+                applicationScope.launch(Dispatchers.Default) {
+                    components.store.flow()
+                        .map { state ->
+                            if (!state.restoreComplete) null else
+                                state.tabs.map { it.id } to state.undoHistory.tabs.map { it.state.id }
+                        }
+                        .distinctUntilChanged()
+                        .collectLatest { ids ->
+                            if (ids == null) return@collectLatest
+                            delay(6_000L)
+                            try {
+                                val current = components.store.state
+                                if (current.restoreComplete) {
+                                    val groups = com.prirai.android.nira.browser.tabgroups
+                                        .UnifiedTabGroupManager.getInstance(this@BrowserApp)
+                                    val orders = com.prirai.android.nira.browser.tabs.compose
+                                        .TabOrderManager.getInstance(this@BrowserApp, groups)
+                                    orders.finalizeClosedTabs(
+                                        current.tabs,
+                                        current.undoHistory.tabs.mapTo(mutableSetOf()) { it.state.id },
+                                        current.restoreComplete
+                                    )
+                                }
+                            } catch (error: CancellationException) {
+                                throw error
+                            } catch (error: Exception) {
+                                android.util.Log.e("BrowserApp", "Final closed-tab slot prune failed", error)
+                            }
+                        }
+                }
                 // Resume erasure of named profiles deleted before a crash or
                 // before a successful save. Never clear a live Gecko context.
                 try {

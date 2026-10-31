@@ -157,6 +157,62 @@ class OrderPersistenceTest {
             assertEquals(original.primaryOrder, reopened.loadOrder("default").primaryOrder)
         } finally { io.cancel(); io.coroutineContext[Job]!!.join(); db.close() }
     }
+    @Test fun terminalCloseRetainsUndoBeforePruningRoomGroupAndOrder() = runTest {
+        val ctx = RuntimeEnvironment.getApplication()
+        val db = Room.inMemoryDatabaseBuilder(ctx, TabGroupDatabase::class.java).build()
+        var live = listOf(tab("a"), tab("b"), tab("solo"))
+        val groups = UnifiedTabGroupManager(ctx, db, StandardTestDispatcher(testScheduler)) { live }
+        groups.initialize(); assertTrue(groups.awaitInitialized())
+        val group = groups.createGroup(listOf("a", "b"), "Stored")
+        val data = PreferenceDataStoreFactory.create(scope = backgroundScope) {
+            File(ctx.cacheDir, "terminal-" + java.util.UUID.randomUUID() + ".preferences_pb")
+        }
+        val manager = TabOrderManager(ctx, groups, data) { "default" }
+        try {
+            manager.saveOrder(UnifiedTabOrder("default", listOf(
+                UnifiedTabOrder.OrderItem.SingleTab("solo"),
+                UnifiedTabOrder.OrderItem.TabGroup(group.id, group.name, group.color, false, listOf("a", "b"))
+            )))
+            live = listOf(tab("a"), tab("solo"))
+            manager.finalizeClosedTabs(live, emptySet(), false)
+            assertEquals(listOf("a", "b"), groups.getGroup(group.id)!!.tabIds)
+            manager.finalizeClosedTabs(live, setOf("b"), true)
+            assertEquals(listOf("a", "b"), groups.getGroup(group.id)!!.tabIds)
+            manager.finalizeClosedTabs(live, emptySet(), true)
+            assertEquals(listOf("a"), groups.getGroup(group.id)!!.tabIds)
+            assertEquals(listOf("a"), db.tabGroupDao().getTabIdsInGroup(group.id))
+            val final = manager.loadOrder("default")
+            assertEquals(listOf("solo", "a"), final.getAllTabIds())
+            assertFalse((final.primaryOrder[1] as UnifiedTabOrder.OrderItem.TabGroup).isExpanded)
+        } finally { db.close() }
+    }
+
+    @Test fun historicalClosedSlotsStopGrowingAfterUndoAndRebuildRestoresLiveIds() = runTest {
+        val ctx = RuntimeEnvironment.getApplication()
+        val db = Room.inMemoryDatabaseBuilder(ctx, TabGroupDatabase::class.java).build()
+        var live = listOf(tab("active"))
+        val groups = UnifiedTabGroupManager(ctx, db, StandardTestDispatcher(testScheduler)) { live }
+        groups.initialize(); assertTrue(groups.awaitInitialized())
+        val data = PreferenceDataStoreFactory.create(scope = backgroundScope) {
+            File(ctx.cacheDir, "prune-" + java.util.UUID.randomUUID() + ".preferences_pb")
+        }
+        val manager = TabOrderManager(ctx, groups, data) { "default" }
+        try {
+            manager.saveOrder(UnifiedTabOrder("default",
+                (0 until 300).map { UnifiedTabOrder.OrderItem.SingleTab("closed" + it) } +
+                    UnifiedTabOrder.OrderItem.SingleTab("active")))
+            manager.finalizeClosedTabs(live, emptySet(), false)
+            assertEquals(301, manager.loadOrder("default").getAllTabIds().size)
+            manager.finalizeClosedTabs(live, emptySet(), true)
+            assertEquals(listOf("active"), manager.loadOrder("default").getAllTabIds())
+            assertFalse(data.data.first()[stringPreferencesKey("order_default")]!!.contains("closed299"))
+            // Recovered live tab with the former ID must not be blocked.
+            live = listOf(tab("active"), tab("closed299"))
+            manager.rebuildOrderForProfile("default", live)
+            assertEquals(listOf("active", "closed299"), manager.loadOrder("default").getAllTabIds())
+        } finally { db.close() }
+    }
+
     @Test fun rapidProfileAndPrivateSwitchKeepsAllFilesAndTheirVisibleOrdersIsolated() = runTest {
         val context = RuntimeEnvironment.getApplication()
         val db = Room.inMemoryDatabaseBuilder(context, TabGroupDatabase::class.java).build()
