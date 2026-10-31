@@ -145,7 +145,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-007 | uchwyt resize po niewłaściwej stronie w RTL | CONFIRMED | P2 | 12/19 | FIXED — 12A physical RIGHT grip + RTL Compose padding; CI PASS, device NOT_TESTED |
 | ZC-AUD-008 | resize nie zachowuje tożsamości palca | CONFIRMED | P2 | 12/19 | FIXED — 12A pointer ownership, rollback on multi-touch/CANCEL; CI PASS, device NOT_TESTED |
 | ZC-AUD-009 | nieatomowa walidacja tworzenia grupy z Bez grupy | CONFIRMED | P2 | 11/19 | FIXED — 11A atomic Room guard; JVM/JS/lint CI PASS; device NOT_TESTED |
-| ZC-AUD-010 | hover pozostaje przy poprzednim celu podczas autoscroll | LIKELY | P2 | 12/19 | IMPLEMENTED — 12C live LazyColumn hover/drop geometry + guarded expansion; CI_PENDING, device NOT_TESTED |
+| ZC-AUD-010 | hover pozostaje przy poprzednim celu podczas autoscroll | LIKELY | P2 | 12/19 | FIXED CORE — 12C live geometry, delayed guard; JVM/JS/lint CI PASS; real Compose device NOT_TESTED |
 | ZC-AUD-011 | dialog zachowuje callback usuniętego panelu zakładek | CONFIRMED | P1 | 2/19 | IMPLEMENTED — stage 2, verify CI |
 | ZC-AUD-012 | dwa kryteria sortowania działają jak nazwa | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-013 | kwadratowy koszt projekcji kolejności pasków kart | CONFIRMED | P2 | 11/19 | FIXED — 11A linear projection; JVM/JS/lint CI PASS; 120 Hz NOT_TESTED |
@@ -434,3 +434,12 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - **CI:** `.github/workflows/zavro-audit60-stage12c-regression.yml` — pełne Kotlin JVM/Robolectric, kompilacja instrumented Kotlin (bez APK), WebExtension JS i Android lint. Dopóki nie ma wyniku `completed/success` na finalnym SHA: **CI_PENDING**, nie PASS.
 - **Bezpieczeństwo:** profil/prywatność/sesje/Undo/Gecko storage i policy plików pozostawione nietknięte. Nie zmieniono release/versionCode, podpisu, preferencji szerokości, nie ma merge i APK.
 - **Następne `Dalej`:** 12D/19 ZC-AUD-019 (VERIFY_FIRST) — własność Compose swipe kontra DnD, multipointer/CANCEL, bez domniemania naprawy bez reprodukcji. ZC-AUD-030 OPEN, ZC-AUD-031 PARTIAL.
+
+
+### Etap 12C — wynik pełnej regresji produkcyjnej
+
+- **PASS** — [GitHub Actions #41156770936](https://github.com/laszko14/nira-browser/actions/runs/41156770936), `completed/success` na kodowym SHA `3035fea7dfd0e6b66b0914b6188b0c572b61b95e`. Pełny Kotlin/JVM/Robolectric, `compileDebugAndroidTestKotlin` bez APK, WebExtension JS i Android lint zakończone `success`. Raport lint może nadal mieć ostrzeżenia.
+- W `currentSideDrop` ograniczono hit-test do rzeczywistego dodatniego początku viewportu mimo ujemnego `viewportStartOffset` od top contentPadding. Ten sam resolver jest używany przez hover i finalny drop.
+- ZC-AUD-010 oznaczono **FIXED CORE** w kodzie z regresją modelu/listy. Brak realnego gestu, Compose animation timing, automatycznego rozwinięcia i 120 Hz na Nothing Phone (1): **NOT_TESTED**, więc nie twierdzimy, że fizyczny przypadek jest potwierdzony na urządzeniu.
+- Pozostałe w etapie 12: ZC-AUD-019 `VERIFY_FIRST`. ZC-AUD-030 `OPEN`, ZC-AUD-031 `PARTIAL`. Bez merge do main i bez APK.
+- Ten dokumentacyjny commit również wymaga końcowego `completed/success` dla dokładnego SHA.
