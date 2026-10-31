@@ -142,8 +142,8 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-004 | brak końcowego sprzątania slotów zamkniętych kart | CONFIRMED | P2 | 11/19 | FIXED — 11B post-restore/Undo slot and Room prune; CI PASS; device NOT_TESTED |
 | ZC-AUD-005 | scope komunikatu Cofnij przeżywa swojego właściciela | CONFIRMED | P2 | 11/19 | FIXED CORE — 11B independent snackbar scope; CI PASS; device UX NOT_TESTED |
 | ZC-AUD-006 | pozostawione przełączniki nie sterują aktualnym interfejsem | CONFIRMED | P2 | 14/19 | DO_RECHECK |
-| ZC-AUD-007 | uchwyt resize po niewłaściwej stronie w RTL | CONFIRMED | P2 | 12/19 | DO_RECHECK |
-| ZC-AUD-008 | resize nie zachowuje tożsamości palca | CONFIRMED | P2 | 12/19 | DO_RECHECK |
+| ZC-AUD-007 | uchwyt resize po niewłaściwej stronie w RTL | CONFIRMED | P2 | 12/19 | IMPLEMENTED — 12A physical RIGHT grip + RTL Compose padding; CI_PENDING, device NOT_TESTED |
+| ZC-AUD-008 | resize nie zachowuje tożsamości palca | CONFIRMED | P2 | 12/19 | IMPLEMENTED — 12A pointer ownership, rollback on multi-touch/CANCEL; CI_PENDING, device NOT_TESTED |
 | ZC-AUD-009 | nieatomowa walidacja tworzenia grupy z Bez grupy | CONFIRMED | P2 | 11/19 | FIXED — 11A atomic Room guard; JVM/JS/lint CI PASS; device NOT_TESTED |
 | ZC-AUD-010 | hover pozostaje przy poprzednim celu podczas autoscroll | LIKELY | P2 | 12/19 | VERIFY_FIRST |
 | ZC-AUD-011 | dialog zachowuje callback usuniętego panelu zakładek | CONFIRMED | P1 | 2/19 | IMPLEMENTED — stage 2, verify CI |
@@ -392,3 +392,14 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - Snackbar ma własny scope zamiast przejmowania scope z Compose; testy chronią przed disposal krótkotrwałego panelu, brakującym hostem i zastąpieniem starego Undo. Realny UI / Android 15 / 120 Hz: **NOT_TESTED**, nie wpisywać PASS dla urządzenia.
 - Nie zmieniono wersji, certyfikatu, PWA/Gecko storage ani ustawień profili. Brak merge do main, brak APK. ZC-AUD-030 nadal OPEN, 031 PARTIAL.
 - Ten dokumentacyjny commit jest osobnym SHA: końcowe CI sprawdzić także dla niego. Następne `Dalej` → **12/19**.
+
+
+## Etap 12A/19 — fizyczna krawędź i właściciel resize (2026-10-31)
+
+- **Baza:** etap 11B `8cb2f17393eeffd516eba349bb4adba6d528cfe7` z zielonym [CI #41153064645](https://github.com/laszko14/nira-browser/actions/runs/41153064645); osobna gałąź `fix/zavro-clean-audit60-stage12a-resize-rtl-pointer-20261031`. Brak merge, APK i zmian podpisu.
+- **ZC-AUD-007 STILL_PRESENT → IMPLEMENTED:** rzeczywisty `TabsBottomSheetFragment.setupSidePanelResizeGrip` nadal korzystał z `Gravity.END`, a Compose rezerwował `padding(end=20.dp)`, gdy host używa fizycznej LEFT. Uchwyt używa teraz fizycznego `Gravity.RIGHT`; rezerwa Compose w RTL używa `start` (fizyczna prawa), w LTR `end`. Dialogowy fallback ma fizyczne `Gravity.LEFT`. Nie wymuszono LTR dla tekstu ani nie ruszono wartości zapisanych szerokości.
+- **ZC-AUD-008 STILL_PRESENT → IMPLEMENTED:** stary handler sumował rawX z indeksu 0 bez identyfikatora palca i zapisywał wynik po `UP`. Nowy `SidePanelResizeGesture` wiąże strumień z `pointerId` przy `DOWN`; dodatkowy palec, utrata właściciela lub `ACTION_CANCEL` kończą operację i cofają niezapisany draft. Tylko legalne `UP` właściciela zapisuje zmianę. Klucz orientacji utrwalany jest przy `DOWN`, osobno `width_portrait` / `width_landscape`. Własność gestu zwalnia blokadę rodzica po zakończeniu i nie przekazuje reszty anulowanego streamu do wierszy.
+- **Regresje źródłowe:** `SidePanelResizeGestureTest` używa prawdziwych zdarzeń `MotionEvent` (pojedynczy palec, indeksy 0→1, `POINTER_DOWN/UP`, `CANCEL`, restart gestu, niezależny klucz orientacji) i `CoordinatorLayout` w LTR/RTL do pomiaru fizycznych bounds uchwytu. Integracyjne dotknięcie osadzonego panelu, landscape/portrait i 120 Hz na Nothing Phone (1) pozostaje **NOT_TESTED**.
+- **CI:** `.github/workflows/zavro-audit60-stage12a-regression.yml` na push tej gałęzi — pełny `testDebugUnitTest`, `compileDebugAndroidTestKotlin` bez APK, Node JS i `lintDebug`. Wynik musi być zweryfikowany na **finalnym SHA**, a nie na poprzednim etapie. Status przy zapisie: **CI_PENDING**.
+- **Nierozwiązane w etapie 12:** ZC-AUD-010 (VERIFY_FIRST; autoscroll hover), ZC-AUD-017 (DO_RECHECK; wyłączenie przejętego gestu), ZC-AUD-019 (VERIFY_FIRST; Compose DnD/swipe); wymagają kolejnych podetapów z osobnymi testami. ZC-AUD-030 nadal OPEN, 031 PARTIAL.
+- **Następne `Dalej`:** 12B/19 — ZC-AUD-017, ścieżki anulowania przejętych gestów; osobny checkpoint.
