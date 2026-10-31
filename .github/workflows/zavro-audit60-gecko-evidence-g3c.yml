@@ -1,0 +1,55 @@
+name: Zavro Clean audit60 G3C - offline evidence integrity (no APK)
+
+on:
+  push:
+    branches:
+      - test/zavro-clean-post19-gecko-g3c-evidence-kit-20261031
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit60-gecko-g3c-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evidence-gate-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Test-only files and documentation gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only 8027eabda85015c37555d38b9a0872f5503bc1ea "$GITHUB_SHA" > /tmp/g3c-paths
+          while IFS= read -r file; do
+            case "$file" in
+              tools/gecko-fixture-g3c/*|docs/audits/zavro-clean-repair/GECKOVIEW_DEVICE_VERIFICATION_G3C.md|.github/workflows/zavro-audit60-gecko-evidence-g3c.yml) ;;
+              *) echo "Out-of-scope source changed: $file"; exit 1 ;;
+            esac
+          done < /tmp/g3c-paths
+          test -s /tmp/g3c-paths
+      - name: Keep all 60 original audit records unchanged
+        run: node scripts/verify-audit60-stage19b.cjs
+      - name: Parse, privacy and fail-closed evidence tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check tools/gecko-fixture-g3c/check-evidence.cjs
+          node --check tools/gecko-fixture-g3c/extract-g2.cjs
+          node --test tools/gecko-fixture-g3c/tests/*.test.cjs
+      - name: Intentionally unobserved sample must fail evidence gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if node tools/gecko-fixture-g3c/check-evidence.cjs tools/gecko-fixture-g3c/NOT_TESTED_TEMPLATE.json > /tmp/g3c-template-check; then
+            echo 'Unsafe acceptance of NOT_TESTED template'
+            exit 1
+          fi
+          grep -Fq '"status": "INCOMPLETE"' /tmp/g3c-template-check
+          grep -Fq 'no physical-device observation' /tmp/g3c-template-check
+          echo 'G3C safety gate PASS; no Android toolchain, Gradle, APK or device run.'
