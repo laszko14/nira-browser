@@ -13,7 +13,13 @@ for (const file of ['ToolbarGestureHandler.kt', 'HomeToolbarGestureHandler.kt'])
   test(file + ' invalidates older animation on accepted gesture, not on rejected offer', () => {
     assert.match(src, /return if \([\s\S]*?gestureEpoch = animationOwner\.beginGesture\(\)/);
     assert.match(src, /gestureActive = true[\s\S]*?gestureDirection = direction/);
-    assert.match(src, /if \(!gestureActive \|\| !animationOwner\.isCurrent\(gestureEpoch\)\) return/);
+    if (file === 'ToolbarGestureHandler.kt') {
+      // Stage 13C adds the panel's higher-priority owner without weakening
+      // stage 13B's epoch/gesture guards.
+      assert.match(src, /if \(!toolbarIsUncovered\(\) \|\| !gestureActive \|\| !animationOwner\.isCurrent\(gestureEpoch\)\) return/);
+    } else {
+      assert.match(src, /if \(!gestureActive \|\| !animationOwner\.isCurrent\(gestureEpoch\)\) return/);
+    }
     assert.match(src, /val epoch = gestureEpoch[\s\S]*?val direction = gestureDirection/);
     assert.match(src, /if \(!animationOwner\.isCurrent\(epoch\)\) return@addUpdateListener/);
     assert.match(src, /animationOwner\.play\([\s\S]*?getAnimator\(browserFinalXCoordinate/);
