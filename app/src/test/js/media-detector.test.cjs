@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const { observeRoutedMessages } = require("./helpers/transport-snapshot.cjs");
 const assets = path.join(__dirname, "../../main/assets/extensions/nira-media-detector");
 
 function background(route = async () => false, initialize = true, fetchImpl = undefined, navigation = undefined) {
@@ -1627,16 +1628,12 @@ test("audit60 17C: HLS EXTINF duration is preserved through the segment probe", 
       body: { cancel: async () => {} } };
   };
   const b = background(async () => true, true, fetchImpl);
-  // The background reuses and later mutates its verified message object.
-  // Capture values when routed, as the actual browser message transport does.
-  const delivered = [];
-  const push = b.routed.push.bind(b.routed);
-  b.routed.push = (...entries) => {
-    for (const [, message] of entries) delivered.push({ ...message });
-    return push(...entries);
-  };
+  // JSON-compatible snapshots at send time, including nested fields.
+  const capture = observeRoutedMessages(b.routed);
   b.probe(response(target, "application/vnd.apple.mpegurl"));
   await tick(); await tick(); await tick(); await tick();
+  capture.restore();
+  const delivered = capture.messages;
   const manifest = delivered.find(m => m.verification === "manifest_verified");
   const stream = delivered.find(m => m.verification === "stream_verified");
   assert.ok(manifest, "media HLS must first deliver manifest_verified");

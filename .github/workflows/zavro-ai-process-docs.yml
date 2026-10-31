@@ -50,3 +50,19 @@ jobs:
           assert.match(redirect, /\.\.\/AGENTS\.md/);
           console.log('Instruction structure: PASS (no APK, signing, release or Gradle performed)');
           NODE
+  quality-regressions:
+    name: Full JS and Robolectric regressions (NO APK)
+    runs-on: ubuntu-latest
+    timeout-minutes: 85
+    steps:
+      - uses: actions/checkout@v4
+      - uses: gradle/wrapper-validation-action@v2
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Full JavaScript WebExtension tests
+        run: node --test app/src/test/js/*.test.cjs
+      - name: Full Kotlin and Robolectric unit tests
+        run: ./gradlew :app:testDebugUnitTest --console=plain

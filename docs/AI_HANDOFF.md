@@ -3,34 +3,36 @@
 > Jedno źródło **aktualnego stanu tej gałęzi**; nie jest to globalny status wszystkich równoległych prac. Poprzednia pełna historia jest bez zmian w [archiwum](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md). Nie odczytuj jej bez potrzeby.
 
 ```yaml
-task_id: ZC-PROC-02
+task_id: ZC-PROC-03
 workflow_mode: staged
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: improve/zavro-clean-chatgpt-github-process-20261101
-base_sha: f5aff770ad1759dc05edfafa20e3cf8352701c1f
-observed_head_sha: f5aff770ad1759dc05edfafa20e3cf8352701c1f
+base_sha: 5d778fa98c859ce414c0e44bb07d19dad5d123f2
+observed_head_sha: 5d778fa98c859ce414c0e44bb07d19dad5d123f2
 status: CI_PENDING
-acceptance_source: prompty.txt / ETAP 2/9 (załączony przez użytkownika)
-required_ci: zavro-ai-process-docs.yml / process-docs
+acceptance_source: prompty.txt / ETAP 3/9 (załączony przez użytkownika)
+required_ci: zavro-ai-process-docs.yml / process-docs + quality-regressions
 device: NOT_TESTED
 apk: NOT_BUILT
 changed_paths:
+  - AGENTS.md
   - docs/AI_HANDOFF.md
-  - docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md
-  - docs/ai/TRANSFER_TEMPLATE.md
+  - docs/ai/TASK_TEMPLATE.md
+  - docs/ai/TEST_PATTERNS.md
+  - app/src/test/js/media-detector.test.cjs
+  - app/src/test/js/helpers/transport-snapshot.cjs
+  - app/src/test/js/transport-snapshot-contract.test.cjs
   - scripts/check-ai-handoff.test.cjs
   - .github/workflows/zavro-ai-process-docs.yml
-  - AGENTS.md
 verified_before_push:
-  - Historyczny blob AI_HANDOFF.md na bazie: ebb553e63d69158da4f4fe89c4e5ae673bbe53f6
-  - Archiwum wskazuje na ten sam blob Git (bez utraty treści)
-  - Brak zmian w kodzie aplikacji, podpisie, ABI i konfiguracji APK
+  - Przejrzano Robolectric AppBoundariesTest i VideoSearchV32IntegrationTest
+  - Sprawdzono przypadek HLS 17C i istniejący Node harness
+  - CI etapu 2: SUCCESS na 5d778fa98c859ce414c0e44bb07d19dad5d123f2
 blockers: []
-next_action: Sprawdź aktualny HEAD i completed/success required_ci na finalnym SHA; po PASS czekaj na polecenie Dalej do ETAPU 3/9
+next_action: Odczytaj HEAD i status pełnego JS/JVM CI na końcowym SHA; po PASS czekaj na Dalej do ETAPU 4/9
 evidence_links:
-  - https://github.com/laszko14/nira-browser/actions/runs/41252612752
-  - https://github.com/laszko14/nira-browser/blob/f5aff770ad1759dc05edfafa20e3cf8352701c1f/AGENTS.md
+  - https://github.com/laszko14/nira-browser/actions/runs/41252838480
 ```
 
 ## Jak wznowić pracę
@@ -44,5 +46,5 @@ evidence_links:
 
 - Zakres tej gałęzi: **proces ChatGPT/GitHub**, bez zmian aplikacji, bez merge do `main`, bez APK. `workflow_mode=staged`: jedno „Dalej” = jedno zadanie i jego kompletna weryfikacja; potem STOP.
 - Prace nad GeckoView to **odrębne gałęzie**. Ostatnio zweryfikowana w etapie 1 linia `test/zavro-clean-post19-gecko-g4d-update-preflight-20261101` miała HEAD `7cfa2d13a467235102666822d40631fe1818c9b4`; stan sprawdzaj ponownie na GitHubie, nie nadpisuj go tym checkpointem.
-- Następne uzgodnione zadanie po zatwierdzeniu etapu 2: **ETAP 3/9 — kontrakt zadania i jakość testów** (według załączonego `prompty.txt`).
+- Następne uzgodnione zadanie po zatwierdzeniu etapu 3: **ETAP 4/9 — bezpieczne wspólne CI** (według załączonego `prompty.txt`).
 - Zachowano pełną zawartość oryginalnego `docs/AI_HANDOFF.md` jako obiekt Git o SHA `ebb553e63d69158da4f4fe89c4e5ae673bbe53f6` w `docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md`. Rejestry audytu nadal są odrębnym materiałem dowodowym.
