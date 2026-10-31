@@ -154,7 +154,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-016 | nieidempotentna obsługa klawiatury przy dismiss | LIKELY | P2 | 13/19 | VERIFY_FIRST |
 | ZC-AUD-017 | flaga gestów nie zatrzymuje już przejętego streamu | CONFIRMED | P2 | 12/19 | FIXED CORE — 12B immediate owner CANCEL and stream drain; Kotlin/JS/lint CI PASS, device NOT_TESTED |
 | ZC-AUD-018 | starsza animacja toolbaru przeżywa rozpoczęcie nowego gestu | CONFIRMED | P2 | 13/19 | DO_RECHECK |
-| ZC-AUD-019 | raw swipe karty nie respektuje własności gestu Compose | LIKELY | P2 | 12/19 | IMPLEMENTED — 12D exclusive pointer ownership, consumption/drag/cancel guards; CI_PENDING, Compose device NOT_TESTED |
+| ZC-AUD-019 | raw swipe karty nie respektuje własności gestu Compose | LIKELY | P2 | 12/19 | FIXED CORE — 12D pointer ownership + consumed/DnD/cancel, JVM/JS/lint PASS; real Compose device NOT_TESTED |
 | ZC-AUD-020 | obsługa IME usuwa rezerwację miejsca na dolny pasek | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-021 | Anuluj nie cofa wyboru wyszukiwarki | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-022 | import własnego eksportu zmienia typy preferencji | CONFIRMED | P1 | 3/19 | IMPLEMENTED — stage 3, CI_PENDING |
@@ -452,3 +452,10 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - **Regresja:** `SwipePillGestureOwnerTest` — oba kierunki, próg, wyłączne ID, drugi palec, konsumowane zdarzenie, przejęcie DnD, anulowanie i świeży DOWN. `swipe-pill-gesture-ownership-audit60.test.cjs` zabezpiecza rzeczywiste spięcie Compose. Pełne Kotlin/JVM/Robolectric, `compileDebugAndroidTestKotlin` (bez APK), Node.js JS, lint przez `.github/workflows/zavro-audit60-stage12d-regression.yml`.
 - **Granica dowodu:** realny Compose pointer dispatch Main/Final, long-press vs drag, dwa palce, Android 15/120 Hz i Gecko **NOT_TESTED** bez APK. Jeśli workflow przejdzie, oznaczyć FIXED CORE, nie „sprawdzone fizycznie”.
 - **Ochrona:** nie ruszać danych/profili, prywatności, sesji, Gecko storage, podpisu, wersji ani APK. Bez merge do main. ZC-AUD-030 OPEN i ZC-AUD-031 PARTIAL.
+
+### Etap 12D — checkpoint zielonego CI
+
+- **PASS:** [GitHub Actions #41158925754](https://github.com/laszko14/nira-browser/actions/runs/41158925754) — `completed/success` na dokładnym produkcyjnym SHA `c1e04e13e2f213c45d56c5ebc1eea39d4b4704c1`. Pełny `:app:testDebugUnitTest` (Kotlin + Robolectric), `:app:compileDebugAndroidTestKotlin` (bez APK), komplet JavaScript i `:app:lintDebug` zakończyły się sukcesem. Lint może zawierać nieblokujące ostrzeżenia.
+- Pierwszy workflow [#41158474031](https://github.com/laszko14/nira-browser/actions/runs/41158474031) zakończył się FAIL wyłącznie w dwóch starych asercjach JS, które wciąż oczekiwały progu i bezpośrednich callbacków w `SwipeableTabPill`. Po ekstrakcji kontrolera `SwipePillGestureOwner` te warunki są rozdzielone; zaktualizowano oba testy, zachowując ochronę gestów bez nakładki X. Produkcja Kotlin, JVM i kompilacja źródeł instrumentacyjnych w tym pierwszym przebiegu miały PASS.
+- ZC-AUD-019 oznaczono **FIXED CORE** z granicą: testy własności zdarzeń i modelu/źródła potwierdzają zachowanie implementacji, ale rzeczywiste `PointerEventPass.Main/Final`, dwa palce i aktywne DnD w środowisku Compose na Nothing Phone (1) Android 15 120 Hz pozostają **NOT_TESTED**. Nie deklarować pełnej reprodukcji i potwierdzenia urządzeniowego.
+- Końcowy dokumentacyjny commit wymaga własnego `completed/success` na dokładnym SHA, nie wolno przypisywać mu wyniku wcześniejszego commita. **Następny etap: 13/19** dopiero po zielonym CI tej gałęzi. ZC-AUD-030 OPEN i ZC-AUD-031 PARTIAL. Bez APK, merge do main i zmian podpisu.
