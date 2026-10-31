@@ -154,18 +154,26 @@ class GeneralSettingsFragment : BaseSettingsFragment() {
             singleItems.add(getString(R.string.custom))
         }
 
-        val checkedItem = if (private) {
-            if (prefs.privateSearchEngineChoice >= 0) prefs.privateSearchEngineChoice + 1 else 0
-        } else if (prefs.customSearchEngine) {
-            singleItems.lastIndex
-        } else {
-            prefs.searchEngineChoice
-        }
+        // A dialog-local draft: Cancel/Back/outside never persist a choice.
+        val draft = SearchEngineSelectionDraft(
+            forPrivateSearch = private,
+            regularChoice = prefs.searchEngineChoice,
+            privateChoice = prefs.privateSearchEngineChoice,
+            useCustom = prefs.customSearchEngine
+        )
+        val checkedItem = draft.checkedIndex(engines.size)
 
         MaterialAlertDialogBuilder(requireActivity())
             .setTitle(if (private) getString(R.string.private_search_engine) else getString(R.string.search_engine))
             .setNeutralButton(resources.getString(R.string.cancel), null)
             .setPositiveButton(resources.getString(R.string.mozac_feature_prompts_ok)) { _, _ ->
+                // The only save point in this picker. Apply Store changes afterward.
+                if (private) {
+                    prefs.privateSearchEngineChoice = draft.privateChoice
+                } else {
+                    prefs.searchEngineChoice = draft.regularChoice
+                    prefs.customSearchEngine = draft.useCustom
+                }
                 viewLifecycleOwner.lifecycleScope.launch {
                     SearchEnginePreferences.apply(requireContext(), private = private)
                     if (!private && prefs.privateSearchEngineChoice < 0) {
@@ -174,14 +182,10 @@ class GeneralSettingsFragment : BaseSettingsFragment() {
                 }
             }
             .setSingleChoiceItems(singleItems.toTypedArray(), checkedItem) { dialog, which ->
-                if (private) {
-                    prefs.privateSearchEngineChoice = if (which == 0) -1 else which - 1
-                } else if (which == singleItems.lastIndex) {
-                    customSearchEngineDialog()
+                if (draft.select(which, engines.size)) {
+                    // Custom has its own validated OK. Discard the parent draft.
                     dialog.cancel()
-                } else {
-                    prefs.customSearchEngine = false
-                    prefs.searchEngineChoice = which
+                    customSearchEngineDialog()
                 }
             }
             .show()
@@ -219,11 +223,8 @@ class GeneralSettingsFragment : BaseSettingsFragment() {
                 customSearchEngineDialog()
             }
         }
-        builder.setNegativeButton(
-            "Cancel"
-        ) { dialog, which ->
-            UserPreferences(requireContext()).customSearchEngine = false
-        }
+        // Cancel never disables the previously committed Custom choice.
+        builder.setNegativeButton("Cancel", null)
 
         builder.show()
     }

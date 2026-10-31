@@ -156,7 +156,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-018 | starsza animacja toolbaru przeżywa rozpoczęcie nowego gestu | CONFIRMED | P2 | 13/19 | FIXED CORE — 13B generation/animator owner for WWW/Home; Kotlin/JS/lint PASS, device NOT_TESTED |
 | ZC-AUD-019 | raw swipe karty nie respektuje własności gestu Compose | LIKELY | P2 | 12/19 | FIXED CORE — 12D pointer ownership + consumed/DnD/cancel, JVM/JS/lint PASS; real Compose device NOT_TESTED |
 | ZC-AUD-020 | obsługa IME usuwa rezerwację miejsca na dolny pasek | CONFIRMED | P2 | 14/19 | DO_RECHECK |
-| ZC-AUD-021 | Anuluj nie cofa wyboru wyszukiwarki | CONFIRMED | P2 | 14/19 | DO_RECHECK |
+| ZC-AUD-021 | Anuluj nie cofa wyboru wyszukiwarki | CONFIRMED | P2 | 14A/19 | FIXED CORE — transactional picker & custom cancel; CI_PENDING; device NOT_TESTED |
 | ZC-AUD-022 | import własnego eksportu zmienia typy preferencji | CONFIRMED | P1 | 3/19 | IMPLEMENTED — stage 3, CI_PENDING |
 | ZC-AUD-023 | wybór canonical default nie uzgadnia aktywnego profilu | CONFIRMED | P2 | 8/19 | FIXED — 8B; resolver/selection tests + CI GREEN on d9e1047b; device NOT_TESTED |
 | ZC-AUD-024 | menu NewTab ma różną semantykę prywatności zależnie od profilu | CONFIRMED | P2 | 8/19 | FIXED — 8B; explicit NewTab privacy + regressions; device NOT_TESTED |
@@ -525,3 +525,11 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - Pierwotne odwrócenie znaku flingu ze starego audytu v1190: **ALREADY_RESOLVED** na bazie 13C. Etap 13D utrwala identyczną politykę i jej testy w obu handlerach; nie deklarować nowej naprawy dawno usuniętej rozbieżności.
 - Przebieg fizyczny Android 15 / Nothing Phone (1) / 120 Hz i RTL: **NOT_TESTED**. ZC-AUD-030 **OPEN**, ZC-AUD-031 **PARTIAL**. Bez APK, merge do main, zmian podpisu, danych profili i sesji.
 - Końcowy commit dokumentacji musi mieć własny `completed/success`. Następne `Dalej`: etap **14/19**, po zielonym CI dokumentacji.
+
+## Etap 14A/19 — ZC-AUD-021: Anuluj nie zapisuje wyszukiwarki (2026-10-31)
+
+- **Baza:** etap 13D `e55aa1fc196c0c5bcbeee52a429af7f3e332422a`; [CI #41190777518](https://github.com/laszko14/nira-browser/actions/runs/41190777518) `completed/success`. Gałąź `fix/zavro-clean-audit60-stage14a-search-engine-dialog-transaction-20261031`.
+- **Weryfikacja na aktualnym SHA:** nadal `STILL_PRESENT`: kliknięcie pojedynczej pozycji bez OK zapisywało `searchEngineChoice`, `customSearchEngine` lub `privateSearchEngineChoice`. Anulowanie edytora Custom zerowało `customSearchEngine` pomimo wcześniejszego wyboru.
+- **Naprawa:** lokalny `SearchEngineSelectionDraft` dla normalnego/prywatnego selektora; na tap zmienia się wyłącznie draft. Jedyny zapis do `UserPreferences` selektora następuje przy pozytywnym OK, przed `SearchEnginePreferences.apply`. Cancel/Back/outside/dispose nie zmieniają utrwalonej konfiguracji. Custom ma osobny OK i walidację URL; jego Cancel niczego nie wyłącza. Wybór private inherit=-1 i dotychczasowe `clearPrivateSearchEngine` po zmianie normalnej wyszukiwarki pozostają.
+- **Regresje:** `SearchEngineSelectionDraftTest` (anulowanie i ponowne otwarcie, normalny wybór, zachowanie Custom, prywatne dziedziczenie/indeks ostatniej wyszukiwarki) i `search-engine-dialog-transaction-audit60.test.cjs` (prawdziwe callbacki Android). Workflow `.github/workflows/zavro-audit60-stage14a-regression.yml` uruchamia pełne Kotlin/Robolectric, compile Android tests bez APK, komplet JS i lint.
+- **Granice:** prawdziwe kliknięcia dialogu, działania Gecko/store i test realnego urządzenia Android 15/120 Hz **NOT_TESTED**. Nie modyfikowano profili, prywatnych sesji, danych, podpisu, versionCode, storage, APK ani main. ZC-AUD-030 **OPEN**, ZC-AUD-031 **PARTIAL**. W etapie 14 pozostają 006,012,014,015,020,047. Następne `Dalej` → **14B/19**, dopiero po CI końcowego SHA.
