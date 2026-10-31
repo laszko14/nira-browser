@@ -1132,6 +1132,10 @@
         const changed = target && (target.nodeType === 3 ? target.parentElement : target);
         const changedScript = changed && changed.closest && changed.closest("script");
         if (changedScript) { scriptVersions.delete(changedScript); structuredVersions.delete(changedScript); }
+        // A childList on an existing <video> must inspect that video, not
+        // only the inserted/removed <source> element.
+        if (record.type === "childList" && changed instanceof HTMLVideoElement)
+          enqueueRoot(changed);
         const titleCard = titleMutationRoot(changed);
         if (titleCard) enqueueRoot(titleCard);
         const posterCard = posterMutationRoot(changed);
@@ -1192,6 +1196,9 @@
     })).catch(() => {});
     context = null; navigationEpoch++; pendingOffers = 0; registering = null;
     alive = false; cancelNativeQueue(); observer.disconnect(); observedRoots = new WeakSet();
+    // BFCache preserves script objects, but pageshow starts a new native document.
+    // Reparse passive configs once on restore, never on each normal DOM scan.
+    scriptVersions = new WeakSet();
     if (scanTimer !== null) clearTimeout(scanTimer);
     if (statsTimer !== null) clearTimeout(statsTimer);
     statsTimer = null; stats.clear();
