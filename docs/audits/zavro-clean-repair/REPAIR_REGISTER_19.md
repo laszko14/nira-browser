@@ -153,7 +153,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-015 | konfiguracja przycisków zależy od zmiany szerokości zamiast orientacji | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-016 | nieidempotentna obsługa klawiatury przy dismiss | LIKELY | P2 | 13/19 | FIXED CORE — 13A explicit dialog-owned IME hide, Kotlin/JS/lint CI PASS; device NOT_TESTED |
 | ZC-AUD-017 | flaga gestów nie zatrzymuje już przejętego streamu | CONFIRMED | P2 | 12/19 | FIXED CORE — 12B immediate owner CANCEL and stream drain; Kotlin/JS/lint CI PASS, device NOT_TESTED |
-| ZC-AUD-018 | starsza animacja toolbaru przeżywa rozpoczęcie nowego gestu | CONFIRMED | P2 | 13/19 | IMPLEMENTED — 13B one generation/animator owner for WWW/Home, CI_PENDING; device NOT_TESTED |
+| ZC-AUD-018 | starsza animacja toolbaru przeżywa rozpoczęcie nowego gestu | CONFIRMED | P2 | 13/19 | FIXED CORE — 13B generation/animator owner for WWW/Home; Kotlin/JS/lint PASS, device NOT_TESTED |
 | ZC-AUD-019 | raw swipe karty nie respektuje własności gestu Compose | LIKELY | P2 | 12/19 | FIXED CORE — 12D pointer ownership + consumed/DnD/cancel, JVM/JS/lint PASS; real Compose device NOT_TESTED |
 | ZC-AUD-020 | obsługa IME usuwa rezerwację miejsca na dolny pasek | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-021 | Anuluj nie cofa wyboru wyszukiwarki | CONFIRMED | P2 | 14/19 | DO_RECHECK |
@@ -485,3 +485,10 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - **Nieruszone:** kierunek flingu (ZC-AUD-049 — do osobnego 13D), priorytet panel/toolbar (ZC-AUD-048 — 13C), klawiatura (13A), profil, sesje, prywatność i storage. Bez merge/main, versionCode, APK i podpisu.
 - **Granica:** rzeczywisty fast swipe, obrót/fragment detach i 120 Hz na Nothing Phone (1) Android 15 nie były wykonane; wynik urządzeniowy **NOT_TESTED**. ZC-AUD-030 OPEN, ZC-AUD-031 PARTIAL.
 - **Następne `Dalej`:** 13C/19 — ZC-AUD-048. Jeden `Dalej` = jeden podetap.
+
+### Etap 13B — wynik pełnego CI
+
+- **PASS:** [GitHub Actions #41186267358](https://github.com/laszko14/nira-browser/actions/runs/41186267358), `completed/success` na dokładnym kodowym SHA `730f041761c23648a865a3cf15540d0df5983c66`: `:app:testDebugUnitTest` (pełne JVM/Robolectric), `:app:compileDebugAndroidTestKotlin` (bez APK), komplet WebExtension JS i `:app:lintDebug` (job SUCCESS, nie dowodzi zera ostrzeżeń).
+- Pierwszy kodowy SHA `a48a902e9512f9af2d385da6cc53ac9d52db72fe` zastąpiono drobnym importem `androidx.core.view.isVisible` w nowym teście; pierwsze CI zostało anulowane przez `concurrency.cancel-in-progress`. Na końcowym kodzie testy wszystkich kategorii zakończyły się SUCCESS.
+- **ZC-AUD-018 FIXED CORE:** właściwości generacji i anulowania zweryfikowano regresją prawdziwego `ValueAnimator` w Robolectric oraz ochroną obu produkcyjnych callsite. Nie uruchomiono rzeczywistych szybkich gestów, obrotu i rysowania podglądu 120 Hz na Nothing Phone (1) Android 15: **NOT_TESTED**. Bez zgadywania wyniku testów fizycznych.
+- Dokumentacyjny commit końcowy również wymaga `completed/success` na własnym SHA; nie przypisywać mu automatycznie wyniku kodowego commita. Następne `Dalej`: **13C/19 — ZC-AUD-048** (panel kontra hitbox toolbaru), następnie 13D/19 — ZC-AUD-049 (znak flingu). ZC-AUD-030 OPEN, ZC-AUD-031 PARTIAL. Bez APK, merge, wersjonowania i zmiany podpisu.
