@@ -50,7 +50,18 @@ class GeckoG3NativeEvidenceTest {
         val repo = MediaDetectorController.uiRepository.value
         eligible.forEach { tab ->
             val engine = tab.engineState.engineSession
-            val gecko = (engine as? GeckoEngineSession)?.geckoSession
+            val gecko = (engine as? GeckoEngineSession)?.let { session ->
+                // AC 156 hides its GeckoSession property from androidTest.
+                // Inspect a public getter by RETURN TYPE only. Reflection is
+                // test-only and never modifies settings or bypasses isolation.
+                runCatching {
+                    session.javaClass.methods.firstOrNull { method ->
+                        method.parameterCount == 0 &&
+                            method.name.startsWith("getGeckoSession") &&
+                            method.returnType == org.mozilla.geckoview.GeckoSession::class.java
+                    }?.invoke(session) as? org.mozilla.geckoview.GeckoSession
+                }.getOrNull()
+            }
             val context = GeckoG3NativeFacts.context(
                 tab.contextId, gecko?.settings?.contextId, gecko != null
             )
