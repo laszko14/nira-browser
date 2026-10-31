@@ -144,11 +144,11 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-006 | pozostawione przełączniki nie sterują aktualnym interfejsem | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-007 | uchwyt resize po niewłaściwej stronie w RTL | CONFIRMED | P2 | 12/19 | DO_RECHECK |
 | ZC-AUD-008 | resize nie zachowuje tożsamości palca | CONFIRMED | P2 | 12/19 | DO_RECHECK |
-| ZC-AUD-009 | nieatomowa walidacja tworzenia grupy z Bez grupy | CONFIRMED | P2 | 11/19 | DO_RECHECK |
+| ZC-AUD-009 | nieatomowa walidacja tworzenia grupy z Bez grupy | CONFIRMED | P2 | 11/19 | IMPLEMENTED — 11A atomic Room check, CI_PENDING |
 | ZC-AUD-010 | hover pozostaje przy poprzednim celu podczas autoscroll | LIKELY | P2 | 12/19 | VERIFY_FIRST |
 | ZC-AUD-011 | dialog zachowuje callback usuniętego panelu zakładek | CONFIRMED | P1 | 2/19 | IMPLEMENTED — stage 2, verify CI |
 | ZC-AUD-012 | dwa kryteria sortowania działają jak nazwa | CONFIRMED | P2 | 14/19 | DO_RECHECK |
-| ZC-AUD-013 | kwadratowy koszt projekcji kolejności pasków kart | CONFIRMED | P2 | 11/19 | DO_RECHECK |
+| ZC-AUD-013 | kwadratowy koszt projekcji kolejności pasków kart | CONFIRMED | P2 | 11/19 | IMPLEMENTED — 11A Compose index + native Set, CI_PENDING |
 | ZC-AUD-014 | dialog kolejności nie rozróżnia upuszczenia przed i za wierszem | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-015 | konfiguracja przycisków zależy od zmiany szerokości zamiast orientacji | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-016 | nieidempotentna obsługa klawiatury przy dismiss | LIKELY | P2 | 13/19 | VERIFY_FIRST |
@@ -359,3 +359,12 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - **030:** mismatch etykiet engine Store istnieje, ale bez natywnego testu `OriginAttributes` nie można ani potwierdzić wycieku, ani stwierdzić bezpiecznego dziedziczenia. Status OPEN. Nie odłączać gotowego engine od opener bez weryfikacji. Wymagana kontrolowana testowa strona A/B z `window.open`, `target=_blank`, `noopener`, private i suspend/restart, bez produkcyjnych loginów.
 - Nie budowano APK, nie zmieniono signing i nie wykonano merge. Kolejne `Dalej` rozpocznie **11/19**; nierozstrzygnięte testy urządzeniowe 030/031 pozostają w rejestrze i nie zostają fałszywie uznane za PASS.
 - Końcowy commit dokumentacji jest osobnym SHA; wymagane zielone CI również dla niego.
+
+
+## Etap 11A/19 — recovery grup i liniowa projekcja (2026-10-31)
+
+- Baza: stage 10 `b346f8275170fed23c1a037f6d305a18f305883b`, CI [41146634949](https://github.com/laszko14/nira-browser/actions/runs/41146634949) SUCCESS. Branch `fix/zavro-clean-audit60-stage11-tabs-undo-groups-20261031`.
+- ZC-AUD-009 STILL_PRESENT: dawny preflight w ViewModel nie był atomowy z mutacją Room. Nowe `createGroupIfUngrouped` sprawdza bieżące członkostwo i tożsamość profilu pod blokadą `UnifiedTabGroupManager.mutate`, w tej samej transakcji co `createGroup`; przy konflikcie zwraca null bez częściowego przenoszenia. Zwykłe `createGroup` nadal świadomie przenosi członków. Testy: konflikt z już przydzieloną kartą, wyścig z wcześniejszą mutacją, izolacja kontekstów.
+- ZC-AUD-013 STILL_PRESENT: `TabBarCompose.buildBarItems` zastępuje wielokrotne `tabs.find` mapą ID→Tab i mapą grup; natywny `PortraitNativeTabStrip.updateTabs` stosuje Set zamiast listowego contains. Sprawdzane: żywe grupy, brakujące ID, nowa karta, kolejność odwrócona 400 kart. Zmiana złożoności wyszukiwania O(n²)→O(n) dla opisanych fragmentów; rzeczywisty FPS na 120 Hz pozostaje NOT_TESTED.
+- Kryteria: pełne JVM/Robolectric, instrumented-test compilation (bez APK), Node JS, lint w GitHub Actions `zavro-audit60-stage11-regression.yml`. Oznaczyć PASS dopiero po zielonym CI finalnego SHA. Nie zmieniono certyfikatu, wersji, prywatnych sesji ani danych.
+- **Etap 11B/19 (następne `Dalej`):** ZC-AUD-004, ZC-AUD-005 — kontrolowany cleanup po Undo/restoration, właściciel globalnego snackbar; wymagają osobnych regresji, bez przedwczesnego usuwania slotów.
