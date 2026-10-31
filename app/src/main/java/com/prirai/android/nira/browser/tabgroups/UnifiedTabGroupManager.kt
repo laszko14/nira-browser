@@ -310,7 +310,7 @@ class UnifiedTabGroupManager internal constructor(
         contextId: String?
     ): TabGroupData? = mutate(LabOperation.GROUP_CREATE) {
         if (tabIds.isEmpty() || tabIds.distinct().size != tabIds.size ||
-            tabIds.any { it in tabToGroupMap } ||
+            tabIds.any { tabToGroupMap.containsKey(it) } ||
             !tabIds.all { tabMatchesContext(it, contextId) }) {
             return@mutate null
         }
