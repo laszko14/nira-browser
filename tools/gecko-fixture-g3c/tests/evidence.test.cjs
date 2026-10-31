@@ -21,6 +21,7 @@ function simulatedPacket(id = "ZC-AUD-043") {
     safety: {
       syntheticOnly: true, trustedHttps: true, isolatedTestEnvironment: true,
       installationAuthorized: true, userDataUntouched: true, backupVerified: true,
+      profileDeletionExplicitlyAuthorized: true,
     },
     artifacts: REQUIRED_ARTIFACTS[id].map(type => ({
       type, sha256: "b".repeat(64),
@@ -61,6 +62,9 @@ test("031 requires verified backup and after-restart old-context control", () =>
   packet.safety.backupVerified = false;
   assert.ok(validate(packet).errors.some(e => e.includes("backupVerified")));
   packet.safety.backupVerified = true;
+  packet.safety.profileDeletionExplicitlyAuthorized = false;
+  assert.ok(validate(packet).errors.some(e => e.includes("profileDeletionExplicitlyAuthorized")));
+  packet.safety.profileDeletionExplicitlyAuthorized = true;
   packet.events = packet.events.filter(e => e.kind !== "old_P_context_verified");
   assert.equal(validate(packet).status, "INCOMPLETE");
 });
