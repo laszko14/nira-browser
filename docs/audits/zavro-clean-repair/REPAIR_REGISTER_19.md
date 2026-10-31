@@ -169,7 +169,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-031 | usunięcie profilu pozostawia osierocone karty | CONFIRMED | P2 | 10/19 | PARTIAL — tabs/tombstones/erasure retry CI PASS; durable Gecko deletion NOT_VERIFIED |
 | ZC-AUD-032 | konfiguracje script nie wracają po wznowieniu tego samego DOM | CONFIRMED | P2 | 15A/19 | FIXED CORE — BFCache script cache invalidated; JS regression, CI_PENDING; device NOT_TESTED |
 | ZC-AUD-033 | childList z source nie skanuje istniejącego video | CONFIRMED | P2 | 15A/19 | FIXED CORE — source mutation rechecks owning VIDEO; JS regression, CI_PENDING; device NOT_TESTED |
-| ZC-AUD-034 | brak wyzwalacza dla późnego open Shadow DOM | CONFIRMED | P2 | 15/19 | DO_RECHECK |
+| ZC-AUD-034 | brak wyzwalacza dla późnego open Shadow DOM | CONFIRMED | P2 | 15B/19 | FIXED CORE — MAIN-world open-root hint, isolated DOM verification, bounded rescan; JS regression, CI_PENDING; device NOT_TESTED |
 | ZC-AUD-035 | deduplikacja pomija przywrócenie dostępu | CONFIRMED | P2 | 15/19 | DO_RECHECK |
 | ZC-AUD-036 | ochrona DASH rozpoznawana z surowego XML | CONFIRMED | P2 | 17/19 | DO_RECHECK |
 | ZC-AUD-037 | grupowanie wariantów zależy od kolejności DOM i sieci | CONFIRMED | P2 | 16/19 | DO_RECHECK |
@@ -616,3 +616,12 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - ZC-AUD-002 **SUSPECTED / VERIFY_FIRST**: restart background Gecko przy zachowanej EngineSession wymaga urządzenia; nie deklarować naprawy. ZC-AUD-034/035/051: **DO_RECHECK** w kolejnych podetapach etapu 15.
 - Weryfikacja: nowy workflow `zavro-audit60-stage15a-regression.yml` (pełne Kotlin/Robolectric, instrumented-test source compile, wszystkie JS, lint). **CI_PENDING** do potwierdzenia finalnego SHA. Gecko BFCache, MutationObserver real DOM, Android 15/120 Hz: **NOT_TESTED**. Bez APK, merge, zmiany signing, profili ani sesji. ZC-AUD-030 **OPEN**, ZC-AUD-031 **PARTIAL**.
 - Kolejne `Dalej`: **15B/19 — ZC-AUD-034** late open Shadow DOM.
+
+## Etap 15B/19 — late open Shadow DOM (2026-10-31)
+
+- Baza: 15A `10072f2972b18e1c33aa93fc462a07b8952eba05`, [CI 41216927633](https://github.com/laszko14/nira-browser/actions/runs/41216927633) `completed/success`. Nowa gałąź `fix/zavro-clean-audit60-stage15b-shadow-open-20261031`.
+- **ZC-AUD-034 STILL_PRESENT → FIXED CORE:** dotychczasowy `MutationObserver(document)` nie informował o `attachShadow({mode:"open"})` na już obecnym hoście. Dodano minimalny `open-shadow-hook.js` w MAIN-world MV2 `document_start` dla wszystkich ramek; przechwytuje natywny `attachShadow`, zachowuje zwrot i wyjątki, emituje wyłącznie DOM event bez URL/tokenów i bez WebExtension API. Isolated `content.js` nie ufa wiadomości strony: sam odczytuje `host.shadowRoot`, wymaga rzeczywistego `mode=open` i zgodnego `root.host`, obserwuje najwyżej raz przez `WeakSet` oraz kolejkuje poddrzewo do istniejącego `MAX_ROOTS/MAX_JOBS` bez globalnego pollingu lub odtwarzania wideo. Zdarzenie composed obsługuje nested open roots. Zamknięte roots nie są odsłaniane.
+- Regresje JS: porządek injection i wszystkie ramki, kontrakt attachShadow zwrot/wyjątek/open/closed/ponowne załadowanie, późny root z paused video wykryty bez pełnego skanu, deduplikacja observer, ignorowanie sfałszowanych, zamkniętych i odłączonych hostów.
+- Granice: MAIN-world może być nadpisany przez stronę, a GeckoView na fizycznym Androidzie nie było testowane; brak gwarancji dla stron, które nadpisują `attachShadow` po hooku lub blokują modyfikację prototypu. Sprawdzić w realnym Gecko z late/nested shadow roots i BFCache (strona bez Play). Nie deklarować PASS dla urządzenia. `world=MAIN` w Firefox MV2 jest wspierane od 128 (źródło: Mozilla addons 2024-07-10).
+- Testy automatyczne: Kotlin/Robolectric, AndroidTest source compile, wszystkie Node JS i lint w `zavro-audit60-stage15b-regression.yml`. **CI_PENDING** do zakończenia finalnego SHA. Bez APK, main, zmiany signing, profili, prywatności i sesji. ZC-AUD-030 **OPEN**, ZC-AUD-031 **PARTIAL**.
+- Następne `Dalej`: **15C/19 — ZC-AUD-035** (200→403→200 odzyskanie dostępu).

@@ -59,6 +59,7 @@ function page() {
   const handlers = new Map();
   const winHandlers = new Map();
   const native = [], diagnostics = [], videos = [], timers = [], extra = new Map();
+  const observedRoots = [];
   let observerCallback;
   let nativeReply = async () => true;
   const location = { href: "https://site.example/watch/1" };
@@ -88,7 +89,7 @@ function page() {
   } };
   class MutationObserver {
     constructor(callback) { observerCallback = callback; }
-    observe() {}
+    observe(root) { observedRoots.push(root); }
     disconnect() {}
   }
   vm.runInNewContext(fs.readFileSync(path.join(assets, "content.js"), "utf8"), {
@@ -111,7 +112,16 @@ function page() {
     while (timers.length) timers.shift()();
     await flush();
   };
-  return { HTMLVideoElement, videos, extra, native, diagnostics, fire, navigate, mutate, location, document,
+  const drain = async () => {
+    while (timers.length) timers.shift()();
+    await flush();
+  };
+  const emitOpenShadow = host => {
+    for (const fn of handlers.get("nira-media-shadow-root-open") || [])
+      fn({ target: host });
+  };
+  return { HTMLVideoElement, videos, extra, native, diagnostics, fire, navigate, mutate,
+    observedRoots, emitOpenShadow, drain, location, document,
     setNativeReply: fn => { nativeReply = fn; },
     hide: () => { for (const fn of winHandlers.get("pagehide") || []) fn({}); },
     show: () => { for (const fn of winHandlers.get("pageshow") || []) fn({ persisted: true }); },
@@ -1227,4 +1237,41 @@ test("audit60 15A: source childList discovers MP4/HLS in paused existing video w
   const afterSources = p.native.length;
   await p.mutate();
   assert.equal(p.native.length, afterSources, "repeat scan cannot emit more offers");
+});
+
+test("audit60 15B: connected late open ShadowRoot is scanned and observed exactly once", async () => {
+  const p = page();
+  const url = "https://media.example.invalid/shadow-late.mp4";
+  const video = new p.HTMLVideoElement(url, "video/mp4", true);
+  const host = { isConnected: true, shadowRoot: null };
+  const root = { mode: "open", isConnected: true, host,
+    querySelectorAll: selector => selector === "video" ? [video] : [] };
+  await p.mutate();
+  assert.equal(p.native.length, 0);
+  host.shadowRoot = root;
+  p.emitOpenShadow(host);
+  await p.drain();
+  assert.ok(p.native.some(([, message]) => message.url === url),
+    "late open root reveals an existing passive media source");
+  assert.equal(p.observedRoots.filter(value => value === root).length, 1);
+  p.emitOpenShadow(host);
+  await p.drain();
+  assert.equal(p.observedRoots.filter(value => value === root).length, 1,
+    "forged/repeated events must not reobserve the same open root");
+  assert.equal(p.native.filter(([, message]) => message.url === url).length, 1);
+  assert.equal(video.paused, true);
+});
+
+test("audit60 15B: disconnected or closed hosts cannot enter the shadow scanner", async () => {
+  const p = page();
+  const before = p.observedRoots.length;
+  const host = { isConnected: true, shadowRoot: null };
+  p.emitOpenShadow(host);
+  host.shadowRoot = { mode: "closed", host, querySelectorAll: () => [] };
+  p.emitOpenShadow(host);
+  host.shadowRoot = { mode: "open", host, querySelectorAll: () => [] };
+  host.isConnected = false;
+  p.emitOpenShadow(host);
+  await p.drain();
+  assert.equal(p.observedRoots.length, before);
 });

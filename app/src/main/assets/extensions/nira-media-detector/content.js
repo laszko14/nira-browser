@@ -1124,6 +1124,11 @@
     if (!target) return null;
     return ownedMediaCard(target, true);
   }
+  function schedulePump() {
+    if (scheduled || !alive) return;
+    scheduled = true;
+    setTimeout(() => { scheduled = false; if (scanTimer === null) pump(); }, 120);
+  }
   function scheduleScan(records) {
     // Observe the changed subtree, including source/script parent changes.
     if (Array.isArray(records) && records.length) {
@@ -1155,9 +1160,7 @@
       }
       if (jobs.length > MAX_JOBS) { jobs.length = 0; overflowRoot = true; }
     } else enqueueRoot(document);
-    if (scheduled || !alive) return;
-    scheduled = true;
-    setTimeout(() => { scheduled = false; if (scanTimer === null) pump(); }, 120);
+    schedulePump();
   }
   function onMediaEvent(event) {
     if (!event.isTrusted || !(event.target instanceof HTMLVideoElement)) return;
@@ -1183,6 +1186,18 @@
     observer.observe(root, observerOptions);
   }
   observeRoot(document);
+  // MAIN-world hook sends a DOM-only hint when a connected host gets an open
+  // shadow root. The page can forge this event, so accept only an actual open
+  // root read independently from the DOM; never accept URLs or privileged data.
+  document.addEventListener("nira-media-shadow-root-open", event => {
+    const host = event.target;
+    if (!alive || !host || host.isConnected === false) return;
+    const root = host.shadowRoot;
+    if (!root || root.mode !== "open" || root.host !== host || observedRoots.has(root)) return;
+    observeRoot(root);
+    enqueueRoot(root);
+    schedulePump();
+  }, { capture: true, passive: true });
   document.addEventListener("DOMContentLoaded", scheduleScan, { once: true });
   document.addEventListener("visibilitychange", scheduleScan, { passive: true });
   for (const event of ["pageshow", "popstate", "hashchange"])
