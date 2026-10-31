@@ -13,6 +13,7 @@ import androidx.preference.SeekBarPreference
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.prirai.android.nira.R
 import com.prirai.android.nira.preferences.UserPreferences
+import com.prirai.android.nira.browser.tabs.TabGridViewPreference
 import com.prirai.android.nira.settings.HomepageBackgroundChoice
 import com.prirai.android.nira.theme.applyAppTheme
 
@@ -302,10 +303,8 @@ class CustomizationSettingsFragment : BaseSettingsFragment() {
             onClick = { showIconSizeDialog() }
         )
 
-        clickablePreference(
-            preference = "interface_font_scale",
-            onClick = { showFontScaleDialog() }
-        )
+        // Do not display an interface-wide font scale until both View and Compose
+        // consume the saved setting. Leave historical preferences intact.
 
         switchPreference(
             preference = requireContext().resources.getString(R.string.key_show_contextual_toolbar),
@@ -318,6 +317,12 @@ class CustomizationSettingsFragment : BaseSettingsFragment() {
                     Toast.LENGTH_LONG
                 ).show()
             }
+        )
+
+        switchPreference(
+            preference = resources.getString(R.string.key_show_tabs_in_grid),
+            isChecked = TabGridViewPreference.read(requireContext()),
+            onCheckChange = { TabGridViewPreference.store(requireContext(), it) }
         )
 
         switchPreference(
@@ -473,41 +478,6 @@ class CustomizationSettingsFragment : BaseSettingsFragment() {
             .show()
     }
     
-    private fun showFontScaleDialog() {
-        val userPreferences = UserPreferences(requireContext())
-        val dialogView = layoutInflater.inflate(R.layout.dialog_size_picker, null)
-        val slider = dialogView.findViewById<com.google.android.material.slider.Slider>(R.id.sizeSlider)
-        val previewIcon = dialogView.findViewById<android.widget.ImageView>(R.id.previewIcon)
-        val previewText = dialogView.findViewById<android.widget.TextView>(R.id.previewText)
-        
-        slider.value = userPreferences.interfaceFontScale
-        slider.valueFrom = 0.8f
-        slider.valueTo = 1.3f
-        slider.stepSize = 0.1f
-        
-        previewIcon.visibility = android.view.View.GONE
-        previewText.text = getString(R.string.interface_font_scale_preview)
-        updateFontPreview(previewText, userPreferences.interfaceFontScale)
-        
-        slider.addOnChangeListener { _, value, _ ->
-            updateFontPreview(previewText, value)
-        }
-        
-        MaterialAlertDialogBuilder(requireActivity())
-            .setTitle(R.string.interface_font_scale)
-            .setView(dialogView)
-            .setPositiveButton(R.string.mozac_feature_prompts_ok) { _, _ ->
-                userPreferences.interfaceFontScale = slider.value
-                Toast.makeText(
-                    context,
-                    requireContext().resources.getText(R.string.app_restart),
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
-    }
-    
     private fun updateIconPreview(icon: android.widget.ImageView, scale: Float) {
         val baseSize = (48 * resources.displayMetrics.density).toInt()
         val scaledSize = (baseSize * scale).toInt()
@@ -517,11 +487,6 @@ class CustomizationSettingsFragment : BaseSettingsFragment() {
         icon.layoutParams = layoutParams
     }
     
-    private fun updateFontPreview(textView: android.widget.TextView, scale: Float) {
-        val baseSize = 16f
-        textView.textSize = baseSize * scale
-    }
-
     private fun pickWebTheme() {
         val items = resources.getStringArray(R.array.theme_types)
         var selectedChoice = UserPreferences(requireContext()).webThemeChoice

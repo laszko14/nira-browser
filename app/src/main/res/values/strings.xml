@@ -253,7 +253,7 @@
   <string name="show_tab_group_bar">Show tab group bar</string>
   <string
         name="show_tab_group_bar_desc"
-    >Display tab island bar above address bar</string>
+    >Pokaż pasek kart i profili pod adresem lub na dole, zgodnie z ustawieniami</string>
 
     <string name="search">Search or enter address</string>
 <string name="bookmark">Bookmark</string>

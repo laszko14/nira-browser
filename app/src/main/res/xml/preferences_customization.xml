@@ -111,14 +111,12 @@
         <com.prirai.android.nira.settings.MaterialSwitchPreference
             app:key="@string/key_show_tabs_in_grid"
             app:title="@string/tab_grid"
+            app:summary="Widok menedżera kart. Panel boczny pozostaje listą."
             app:singleLineTitle="false"
-            app:defaultValue="true" />
+            app:defaultValue="false" />
 
-        <com.prirai.android.nira.settings.MaterialSwitchPreference
-            app:key="@string/key_swap_drawers"
-            app:title="@string/swap_bookmarks_and_tabs"
-            app:singleLineTitle="false"
-            app:defaultValue="true" />
+        <!-- The physical left/right side panels are fixed in Clean.
+             Legacy swap_drawers data is preserved; no misleading switch. -->
 
         <com.prirai.android.nira.settings.MaterialSwitchPreference
             app:key="@string/key_stack_from_bottom"
@@ -174,11 +172,8 @@
             app:singleLineTitle="false"
             app:defaultValue="100" />
 
-        <Preference
-            app:key="interface_font_scale"
-            app:title="@string/interface_font_scale"
-            app:summary="@string/interface_font_scale_desc"
-            app:singleLineTitle="false" />
+        <!-- interface_font_scale remains in storage, but has no real View/Compose
+             consumer. Hide this control rather than promise a partial scale. -->
 
     </PreferenceCategory>
 

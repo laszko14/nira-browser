@@ -149,7 +149,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         UserPreferences(requireContext()).apply {
             toolbarPosition = com.prirai.android.nira.components.toolbar.ToolbarPosition.TOP.ordinal
             showContextualToolbar = false
-            showTabGroupBar = true
+            // Preserve showTabGroupBar from user settings or onboarding.
         }
         super.initializeUI(view, tab)
 
