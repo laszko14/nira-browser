@@ -3,7 +3,7 @@ name: Zavro Clean audit60 stage 17B - DASH fractional FPS regression (no APK)
 on:
   push:
     branches:
-      - fix/zavro-clean-audit60-stage17b-dash-drm-namespace-20261031
+      - fix/zavro-clean-audit60-stage17b-dash-fractional-fps-20261031
   workflow_dispatch:
 
 permissions:
