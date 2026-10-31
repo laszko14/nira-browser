@@ -152,7 +152,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-014 | dialog kolejności nie rozróżnia upuszczenia przed i za wierszem | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-015 | konfiguracja przycisków zależy od zmiany szerokości zamiast orientacji | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-016 | nieidempotentna obsługa klawiatury przy dismiss | LIKELY | P2 | 13/19 | VERIFY_FIRST |
-| ZC-AUD-017 | flaga gestów nie zatrzymuje już przejętego streamu | CONFIRMED | P2 | 12/19 | DO_RECHECK |
+| ZC-AUD-017 | flaga gestów nie zatrzymuje już przejętego streamu | CONFIRMED | P2 | 12/19 | IMPLEMENTED — 12B immediate owner CANCEL + consumed stream until UP, CI_PENDING, device NOT_TESTED |
 | ZC-AUD-018 | starsza animacja toolbaru przeżywa rozpoczęcie nowego gestu | CONFIRMED | P2 | 13/19 | DO_RECHECK |
 | ZC-AUD-019 | raw swipe karty nie respektuje własności gestu Compose | LIKELY | P2 | 12/19 | VERIFY_FIRST |
 | ZC-AUD-020 | obsługa IME usuwa rezerwację miejsca na dolny pasek | CONFIRMED | P2 | 14/19 | DO_RECHECK |
@@ -402,4 +402,13 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - **Regresje źródłowe:** `SidePanelResizeGestureTest` używa prawdziwych zdarzeń `MotionEvent` (pojedynczy palec, indeksy 0→1, `POINTER_DOWN/UP`, `CANCEL`, restart gestu, niezależny klucz orientacji) i `CoordinatorLayout` w LTR/RTL do pomiaru fizycznych bounds uchwytu. Integracyjne dotknięcie osadzonego panelu, landscape/portrait i 120 Hz na Nothing Phone (1) pozostaje **NOT_TESTED**.
 - **CI:** `.github/workflows/zavro-audit60-stage12a-regression.yml` na push tej gałęzi — pełny `testDebugUnitTest`, `compileDebugAndroidTestKotlin` bez APK, Node JS i `lintDebug`. Wynik musi być zweryfikowany na **finalnym SHA**, a nie na poprzednim etapie. Status przy zapisie: **CI_PENDING**.
 - **Nierozwiązane w etapie 12:** ZC-AUD-010 (VERIFY_FIRST; autoscroll hover), ZC-AUD-017 (DO_RECHECK; wyłączenie przejętego gestu), ZC-AUD-019 (VERIFY_FIRST; Compose DnD/swipe); wymagają kolejnych podetapów z osobnymi testami. ZC-AUD-030 nadal OPEN, 031 PARTIAL.
-- **Następne `Dalej`:** 12B/19 — ZC-AUD-017, ścieżki anulowania przejętych gestów; osobny checkpoint.
+- **Następny podetap po 12B:** 12C/19 — ZC-AUD-010 (VERIFY_FIRST), autoscroll i hover.
+
+
+## Etap 12B/19 — anulowanie przejętego gestu (2026-10-31)
+
+- **Baza:** 12A poprawka kompilacji testu `4e4ea2824af64069dc993dc66d8294ba67437b51` na gałęzi `fix/zavro-clean-audit60-stage12a-resize-rtl-pointer-20261031`. Pierwsze CI 12A [#41154231746](https://github.com/laszko14/nira-browser/actions/runs/41154231746) FAIL na test Kotlin compile (niepoprawny parametr generyczny `RuntimeEnvironment.getApplication<Application>()`), naprawione w 4e4ea28. Powtórne CI 12A [#41154605539](https://github.com/laszko14/nira-browser/actions/runs/41154605539) wymaga końcowej weryfikacji; nie deklarować PASS wcześniej.
+- **ZC-AUD-017 STILL_PRESENT → IMPLEMENTED:** na wejściu 12B `SwipeGestureLayout.isSwipeEnabled` nadal było zwykłym polem; po przejęciu MOVE i bezpośrednim skierowaniu kolejnych eventów do `onTouchEvent`, przełączenie flagi na false mogło nadal wywołać update/finish. Setter teraz natychmiast unieważnia właściciela, wywołuje dokładnie jedno `onSwipeCancelled` i oznacza pozostałą część strumienia jako zablokowaną. Obie ścieżki `onInterceptTouchEvent` / `onTouchEvent` sprawdzają flagę i blokadę. Wcześniej przejęty touch pozostaje konsumowany przez rodzica do UP/CANCEL; ponowne włączenie nie wskrzesza starego gestu bez świeżego DOWN. Stan jest czyszczony przy końcu strumienia; nie zmieniono kolejności panel/toolbar ani mapowania fizycznych krawędzi.
+- **Regresje:** `SwipeGestureLayoutArbitrationTest` rozbudowano o rzeczywisty Robolectric `ViewGroup.dispatchTouchEvent`: przejęcie, disable przed MOVE/UP, dokładnie jedno CANCEL, brak update/finish, re-enable w środku nadal nieaktywny, od DOWN disabled, drugi palec/CANCEL i ponowne rozpoczęcie poprawnego gestu. Pełne `testDebugUnitTest`, `compileDebugAndroidTestKotlin` bez APK, WebExtension JS i Android lint w `.github/workflows/zavro-audit60-stage12b-regression.yml` na dokładnym finalnym SHA. Do potwierdzenia: **CI_PENDING**.
+- **Bezpieczeństwo:** brak zmian danych/profili, prywatnych kart, Gecko storage, wersji, podpisu i plików APK; brak merge do main. Android 15/Gecko/120 Hz i faktyczny fullscreen pozostają **NOT_TESTED** na telefonie; nie przypisywać im PASS.
+- **Następne `Dalej`:** po zielonym finalnym CI 12B → 12C/19 ZC-AUD-010 VERIFY_FIRST (DnD/autoscroll hover), następnie 12D ZC-AUD-019 VERIFY_FIRST. ZC-AUD-030 OPEN, ZC-AUD-031 PARTIAL.
