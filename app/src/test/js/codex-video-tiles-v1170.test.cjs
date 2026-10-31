@@ -23,11 +23,11 @@ test("v1170: actions and metadata are real, not inert UI decoration",()=>{
  assert.match(panel,/onCopy\(entry\.id\)/);
  assert.match(ui,/queueDownload\(id\)/);
  assert.match(ui,/ClipboardManager/);
- assert.match(ui,/mediaCurrentActionEntry\\(snapshot, current\\(\\), id\\)/);
- assert.match(ui,/before\\.binding\\.session !== now\\.binding\\.session/);
- assert.match(ui,/before\\.binding\\.contextId != now\\.binding\\.contextId/);
- assert.match(ui,/before\\.binding\\.isPrivate != now\\.binding\\.isPrivate/);
- assert.match(ui,/oldEntry\\.groupId != newEntry\\.groupId/);
+ assert.match(ui,/mediaCurrentActionEntry\(snapshot, current\(\), id\)/);
+ assert.match(ui,/before\.binding\.session !== now\.binding\.session/);
+ assert.match(ui,/before\.binding\.contextId != now\.binding\.contextId/);
+ assert.match(ui,/before\.binding\.isPrivate != now\.binding\.isPrivate/);
+ assert.match(ui,/oldEntry\.groupId != newEntry\.groupId/);
  assert.match(ui,/MediaFormat\.HLS, MediaFormat\.DASH/);
  assert.match(ui,/requestSheetRefreshRate\(dialog\)/);
  assert.match(ui,/HighRefreshRatePolicy\.choose\(rates\)/);
