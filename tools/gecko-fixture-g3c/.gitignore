@@ -1,0 +1,6 @@
+# Local field observations: NEVER commit raw logs, cookies, account data or device packets.
+raw/
+evidence/
+*.jsonl
+*.log
+*.txt
