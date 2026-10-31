@@ -6,6 +6,7 @@ import com.prirai.android.nira.browser.tabgroups.TabGroupDatabase
 import com.prirai.android.nira.browser.tabgroups.UnifiedTabGroupManager
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -26,7 +27,7 @@ class UngroupedRecoveryRaceTest {
         TabSessionState(id = id, contextId = scope, content = ContentState(url = "https://example.org"))
 
     @Test fun recoveryRejectsPartialMoveWithoutRemovingOldMembership() = runTest {
-        val ctx = RuntimeEnvironment.getApplication<Application>()
+        val ctx = RuntimeEnvironment.getApplication()
         val db = Room.inMemoryDatabaseBuilder(ctx, TabGroupDatabase::class.java).build()
         val tabs = listOf(tab("a"), tab("b"), tab("c"))
         val manager = UnifiedTabGroupManager(ctx, db, StandardTestDispatcher(testScheduler)) { tabs }
@@ -47,7 +48,7 @@ class UngroupedRecoveryRaceTest {
     }
 
     @Test fun queuedMoveWinsAndRecoveryAbortsAtomically() = runTest {
-        val ctx = RuntimeEnvironment.getApplication<Application>()
+        val ctx = RuntimeEnvironment.getApplication()
         val db = Room.inMemoryDatabaseBuilder(ctx, TabGroupDatabase::class.java).build()
         val tabs = listOf(tab("a"), tab("b"), tab("c"))
         val manager = UnifiedTabGroupManager(ctx, db, StandardTestDispatcher(testScheduler)) { tabs }
@@ -62,12 +63,12 @@ class UngroupedRecoveryRaceTest {
             val owner = moved.await()
             assertNull(recovered.await())
             assertEquals(listOf("a", "b"), manager.getGroup(owner.id)!!.tabIds)
-            assertEquals(1, db.tabGroupDao().getAllActiveGroups().size)
+            assertEquals(1, db.tabGroupDao().getAllActiveGroups().first().size)
         } finally { db.close() }
     }
 
     @Test fun staleOrMixedProfileIdsCannotCreateRecoveryGroup() = runTest {
-        val ctx = RuntimeEnvironment.getApplication<Application>()
+        val ctx = RuntimeEnvironment.getApplication()
         val db = Room.inMemoryDatabaseBuilder(ctx, TabGroupDatabase::class.java).build()
         val tabs = listOf(tab("a", "profile_A"), tab("b", "profile_B"))
         val manager = UnifiedTabGroupManager(ctx, db, StandardTestDispatcher(testScheduler)) { tabs }
