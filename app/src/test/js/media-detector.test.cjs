@@ -1443,3 +1443,23 @@ test("audit60 15D: History API rescan also quarantines old video on hash-router 
   assert.ok(p.native.length > count);
   assert.equal(p.native.at(-1)[1].url, next.src);
 });
+
+test("audit60 15E: fresh background VM reuses a previously allocated document key (conditional observation)", async () => {
+  // This models independent JS-background replacement, NOT proof that GeckoView
+  // preserves the same EngineSession when the real extension is restarted.
+  const original = background(undefined, false);
+  const begin = (instance, tabId) => instance.receive(
+    { schemaVersion: 1, event: "document_started", pageUrl: "https://site.example/watch/1" },
+    { ...sender, tab: { id: tabId } }
+  );
+  let highest = 0;
+  for (let tabId = 10; tabId < 32; tabId++) {
+    const reply = await begin(original, tabId);
+    assert.equal(reply?.documentKey, ++highest);
+  }
+  const restarted = background(undefined, false);
+  const reply = await begin(restarted, 10); // Same tab/URL; newly allocated JS VM.
+  assert.equal(reply?.documentKey, 1);
+  assert.ok(reply.documentKey < highest);
+  // No claim about native acceptance or a device-level restart is made here.
+});

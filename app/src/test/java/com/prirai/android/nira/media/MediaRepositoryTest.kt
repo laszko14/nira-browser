@@ -435,4 +435,30 @@ class MediaRepositoryTest {
             """{"schemaVersion":1,"event":"media_candidate","source":"dom","url":"https://cdn.example/a.mp4","documentKey":5}"""
         )) assertNull(bad, MediaMessageProtocol.decode(bad))
     }
+    @Test fun backgroundRestartWithSurvivingNativeSessionWouldRejectReusedLowKey() {
+        // Conditional protocol observation, not a device-level Gecko restart.
+        val repo = MediaRepository()
+        val sameEngineSession = Any()
+        val normal = tab(session = sameEngineSession, id = "normal", profile = "work")
+        val privateTab = tab(session = Any(), id = "private", privateMode = true)
+        repo.observe(listOf(normal, privateTab))
+        assertTrue(repo.registerDocument(normal, normal.pageUrl, 20L, frameTracking = true).accepted)
+        assertEquals(MediaRepository.InsertResult.ADDED,
+            add(repo, normal, 20L, "https://cdn.example/retained.mp4"))
+        // An independent background reset can mint 1 again; native must not
+        // trust it as a new generation or erase the currently retained entry.
+        assertFalse(repo.registerDocument(normal, normal.pageUrl, 1L, frameTracking = true).accepted)
+        assertTrue(repo.isCurrentDocument(normal, 20L))
+        assertFalse(repo.isCurrentDocument(normal, 1L))
+        assertEquals(1, repo.forTab(normal.binding).size)
+        // A genuinely fresh EngineSession is independent, including privacy scope.
+        assertTrue(repo.registerDocument(privateTab, privateTab.pageUrl, 1L, frameTracking = true).accepted)
+        assertTrue(repo.forTab(privateTab.binding).isEmpty())
+        assertEquals(1, repo.forTab(normal.binding).size)
+        // A higher new key still retires stale native media as intended.
+        assertTrue(repo.registerDocument(normal, normal.pageUrl, 21L, frameTracking = true).accepted)
+        assertTrue(repo.forTab(normal.binding).isEmpty())
+        assertFalse(repo.isCurrentDocument(normal, 20L))
+    }
+
 }
