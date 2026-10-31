@@ -1,5 +1,6 @@
 package com.prirai.android.nira.media
 
+import com.prirai.android.nira.diagnostics.testlab.VideoMetadataLedger
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -490,5 +491,36 @@ class MediaRepositoryTest {
         assertTrue(repo.forTab(normal.binding).isEmpty())
         assertFalse(repo.isCurrentDocument(normal, 20L))
     }
+
+
+    @Test fun audit60DashFractionalFpsSurvivesNativeProtocolRepositoryAndUiFormatting() {
+        for ((numerator, expectedText) in listOf(
+            24000 to "23.98", 30000 to "29.97", 60000 to "59.94"
+        )) {
+            val rate = numerator.toDouble() / 1001
+            val repo = MediaRepository()
+            val t = tab(id = "fps-$numerator", profile = "test")
+            begin(repo, t)
+            val json = """{"schemaVersion":1,"event":"media_candidate",
+                "source":"network","url":"https://cdn.example/fps-$numerator.mpd?sig=private",
+                "contentType":"application/dash+xml","isPrivate":false,
+                "pageUrl":"$pageA","documentKey":1,
+                "verification":"manifest_verified","frameRate":$rate}"""
+            val message = MediaMessageProtocol.decode(json) as MediaDetectorMessage.Candidate
+            assertEquals(rate, message.frameRate!!, 1e-10)
+            val detected = MediaClassifier.fromNetwork(message, t.binding)!!
+            assertEquals(MediaRepository.InsertResult.ADDED,
+                repo.add(t, t.pageUrl, 1L, detected, MediaSource.NETWORK, null, message))
+            val entry = repo.forTab(t.binding).single()
+            assertEquals(rate, entry.frameRate!!, 1e-10)
+            assertEquals(expectedText,
+                String.format(java.util.Locale.ROOT, "%.2f", entry.frameRate))
+            val diagnostics = VideoMetadataLedger()
+            diagnostics.observe(t.binding, entry)
+            assertEquals(1, diagnostics.snapshot().fpsKnown)
+            assertFalse(entry.toString().contains("private"))
+        }
+    }
+
 
 }

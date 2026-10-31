@@ -129,3 +129,42 @@ test("audit60 17A: malformed MPD, prefix mismatch, DTD and ENTITY remain rejecte
     '<!ENTITY leak "x"><MPD><Period/></MPD>',
   ]) assert.throws(() => parser.parseDash(xml, base, 8));
 });
+
+
+test("audit60 17B: DASH common fractional FPS and inherited representation metadata", () => {
+  const base = "https://cdn.example/media.mpd";
+  for (const [raw, expected] of [
+    ["24000/1001", 24000 / 1001],
+    ["30000/1001", 30000 / 1001],
+    ["60000/1001", 60000 / 1001],
+    ["25/1", 25],
+    ["30", 30],
+    ["60", 60],
+    ["240", 240],
+    ["3000000000000/100100000000", 3000000000000 / 100100000000],
+  ]) {
+    const xml = '<MPD><Period><AdaptationSet mimeType="video/mp4" frameRate="' + raw +
+      '"><Representation id="inherited" bandwidth="2000"/>' +
+      '<Representation id="override" frameRate="25/1" bandwidth="1000"/>' +
+      '</AdaptationSet></Period></MPD>';
+    const result = parser.parseDash(xml, base, 8);
+    assert.equal(result.variants[0].frameRateRaw, raw);
+    assert.equal(result.variants[0].frameRate, expected, raw);
+    assert.equal(result.variants[1].frameRate, 25, "representation override");
+  }
+});
+
+test("audit60 17B: unsafe, zero and out-of-range DASH FPS never become valid metadata", () => {
+  const base = "https://cdn.example/media.mpd";
+  for (const raw of [
+    "0", "0/0", "30000/0", "0/1001", "241", "241/1", "60000/1",
+    "9007199254740992/1001", "30000/9007199254740992",
+    "1e99", "Infinity", "-25/1", "29.97", "30000/", "/1001",
+  ]) {
+    const xml = '<MPD><Period><AdaptationSet mimeType="video/mp4">' +
+      '<Representation frameRate="' + raw + '"/></AdaptationSet></Period></MPD>';
+    const result = parser.parseDash(xml, base, 8);
+    assert.equal(result.variants[0].frameRateRaw, raw);
+    assert.equal(result.variants[0].frameRate, null, raw);
+  }
+});

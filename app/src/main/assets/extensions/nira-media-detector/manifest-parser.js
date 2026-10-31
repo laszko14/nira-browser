@@ -183,10 +183,13 @@ globalThis.NiraManifestParser = (() => {
     return value ? url(xmlDecode(value), base) || base : base;
   }
   function fps(raw) {
-    const m = /^(\d{1,4})(?:\/(\d{1,4}))?$/.exec(raw || "");
-    if (!m || Number(m[2] || 1) === 0) return null;
-    const n = Number(m[1]) / Number(m[2] || 1);
-    return n > 0 && n <= 240 ? n : null;
+    const m = /^(\d+)(?:\/(\d+))?$/.exec(raw || "");
+    if (!m) return null;
+    const numerator = Number(m[1]), denominator = Number(m[2] || 1);
+    if (!Number.isSafeInteger(numerator) || !Number.isSafeInteger(denominator) ||
+        denominator === 0) return null;
+    const rate = numerator / denominator;
+    return Number.isFinite(rate) && rate > 0 && rate <= 240 ? rate : null;
   }
   // DRM is an actual MPD element with a matching in-scope namespace, never
   // a comment, foreign element, or unverified raw XML text.

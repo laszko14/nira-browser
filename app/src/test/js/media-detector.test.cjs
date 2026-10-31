@@ -1566,3 +1566,41 @@ test("audit60 15E: fresh background VM reuses a previously allocated document ke
   assert.ok(reply.documentKey < highest);
   // No claim about native acceptance or a device-level restart is made here.
 });
+
+
+test("audit60 17B: DASH fractional FPS reaches the exact manifest_verified candidate", async () => {
+  for (const [raw, expected] of [
+    ["24000/1001", 24000 / 1001],
+    ["30000/1001", 30000 / 1001],
+    ["60000/1001", 60000 / 1001],
+    ["25/1", 25],
+    ["30000/0", undefined],
+    ["241/1", undefined],
+  ]) {
+    const target = "https://cdn.example/fps-" + raw.replace("/", "-") + ".mpd?token=opaque";
+    const payload = new TextEncoder().encode(
+      '<MPD><Period><AdaptationSet mimeType="video/mp4" frameRate="' + raw +
+      '"><Representation id="video" bandwidth="1000" width="1920" height="1080"/>' +
+      '</AdaptationSet></Period></MPD>');
+    const b = background(async () => true, true, async url => ({
+      ok: true, status: 200, url,
+      headers: { get: name => name.toLowerCase() === "content-type" ? "application/dash+xml" : null },
+      body: { getReader: () => { let done = false; return {
+        read: async () => done ? { done: true } : (done = true, { done: false, value: payload }),
+        cancel: async () => {},
+      }; } },
+    }));
+    b.probe(response(target, "application/dash+xml"));
+    await tick(); await tick(); await tick(); await tick();
+    const first = b.routed[0][1];
+    const verified = b.routed.find(([, m]) => m.verification === "manifest_verified")?.[1];
+    assert.ok(verified, raw);
+    assert.equal(first.verification, "manifest_observed");
+    assert.equal(verified.url, target, "signed exact URL must be retained");
+    assert.equal(verified.groupId, first.groupId, "same document group");
+    assert.equal(verified.frameRate, expected, raw);
+    assert.equal(verified.width, 1920);
+    assert.equal(verified.height, 1080);
+    assert.equal(b.routed.some(([, m]) => m.verification === "stream_verified"), false);
+  }
+});

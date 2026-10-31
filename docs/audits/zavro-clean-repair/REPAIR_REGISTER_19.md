@@ -175,7 +175,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-037 | grupowanie wariantów zależy od kolejności DOM i sieci | CONFIRMED | P2 | 16A/19 | FIXED CORE — exact-URL manifest lineage reconciles reverse order; JVM/CI evidence, device NOT_TESTED |
 | ZC-AUD-038 | wybór reprezentanta pomija metadane i dostępne alternatywy | CONFIRMED | P2 | 16B/19 | FIXED CORE — playback-ranked variant, explicit source menu, conflict-safe poster/time fallback, per-URL size, CI_PENDING, device NOT_TESTED |
 | ZC-AUD-039 | niestabilna tożsamość konfiguracji odczytywanej z atrybutu | CONFIRMED | P2 | 16C/19 | FIXED CORE — stable DOM-owner/attribute/path source-set identity; JS regression; real Gecko NOT_TESTED, CI_PENDING |
-| ZC-AUD-040 | odrzucane typowe ułamkowe FPS DASH | CONFIRMED | P2 | 17/19 | DO_RECHECK |
+| ZC-AUD-040 | odrzucane typowe ułamkowe FPS DASH | CONFIRMED | P2 | 17B/19 | FIXED CORE — safe integer rational parser, exact manifest message and native FPS/diagnostics regressions; final CI PENDING; real Gecko NOT_TESTED |
 | ZC-AUD-041 | pochodzenie czasu HLS zmienia się na HTML5 | CONFIRMED | P3 | 17/19 | DO_RECHECK |
 | ZC-AUD-042 | stary szacunek rozmiaru przeżywa utratę average bitrate | CONFIRMED | P2 | 17/19 | DO_RECHECK |
 | ZC-AUD-043 | możliwe przeniesienie parametrów starego źródła na nowe src | LIKELY | P2 | 17/19 | VERIFY_FIRST |
@@ -696,3 +696,13 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - **Testy:** Node parser: komentarze, prefiksy, zakresy, obce przestrzenie i błędy XML; background integration: poprawne `manifest_verified` / `unplayable` na dokładnym URL i groupId bez fikcyjnego `stream_verified`; Kotlin: `UNPLAYABLE` blokuje odtwarzalność i nie przenosi statusu na drugie źródło. Workflow `.github/workflows/zavro-audit60-stage17a-regression.yml` wykonuje pełne JVM/Robolectric, AndroidTest compile (bez APK), JS i lint. Finalne CI wymaga `completed/success`.
 - **Granice:** rzeczywisty GeckoView, urządzenie Nothing Phone (1), Android 15 i 120 Hz `NOT_TESTED`; ZC-AUD-002 `BLOCKED / REAL_GECKO_REQUIRED`, ZC-AUD-030 `OPEN`, ZC-AUD-031 `PARTIAL`. Bez APK, merge, zmiany podpisu, danych, profili i sesji.
 - **Następne „Dalej”: 17B/19 — ZC-AUD-040**, bez samodzielnego rozpoczynania.
+
+## Etap 17B/19 — ZC-AUD-040: ułamkowe FPS DASH (2026-10-31)
+
+- **Baza:** 17A final `906a97823df04e2f165658075e4b9adf7900e863`, [CI #41230082364](https://github.com/laszko14/nira-browser/actions/runs/41230082364) `completed/success` (próba 1). Gałąź `fix/zavro-clean-audit60-stage17b-dash-fractional-fps-20261031`.
+- **STILL_PRESENT:** funkcja `fps` w `manifest-parser.js` akceptowała najwyżej cztery cyfry w liczniku lub mianowniku. Stąd `24000/1001`, `30000/1001` i `60000/1001` zachowywały jedynie `frameRateRaw`, a obliczone `frameRate` pozostawało `null`. `background.inspectManifest` przesyła tylko poprawne liczbowe FPS. Oryginalny test z `video-metadata-v1180.test.cjs` sprawdzał wyłącznie `frameRateRaw`.
+- **FIXED CORE:** parser akceptuje ułamkowy licznik i mianownik o bezpiecznej liczbie całkowitej (`Number.isSafeInteger`), wymaga niezerowego mianownika i wyniku w przedziale `(0,240]`, zachowując dotychczasowy niezmieniony `frameRateRaw`. Brak zmian semantyki HLS, wyboru wariantów, profili, DRM, sesji i podpisów URL.
+- **Regresje:** parser Node: 24000/1001, 30000/1001, 60000/1001, 25/1, liczby całkowite, dziedziczenie/override, safe integer, zero/0, overflow, formaty nieprawidłowe i ponad 240. Background integration: `manifest_observed` → `manifest_verified` z `frameRate` przypisanym do dokładnego URL/grupy, bez fałszywego `stream_verified`. Kotlin: `MediaMessageProtocol.decode` → `MediaRepository` → `MediaEntry.frameRate` → format menu 2 miejsca → `VideoMetadataLedger.fpsKnown`.
+- **CI:** `.github/workflows/zavro-audit60-stage17b-regression.yml` uruchamia pełny Kotlin/Robolectric, AndroidTest compile bez APK, cały zestaw JavaScript i Android lint. Potwierdzić `completed/success` na **końcowym SHA**; zielony CI nie zastępuje prób GeckoView/urządzeniowych.
+- **Granice:** ZC-AUD-043 VERIFY_FIRST (wymaga rzeczywistego Gecko), ZC-AUD-002 BLOCKED / REAL_GECKO_REQUIRED, ZC-AUD-030 OPEN, ZC-AUD-031 PARTIAL. Bez APK, merge do main, zmian certyfikatu i danych użytkownika.
+- **Następne „Dalej”: 17C/19 — ZC-AUD-041**, dopiero po zakończeniu 17B i osobnym poleceniu.
