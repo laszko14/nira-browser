@@ -155,6 +155,95 @@ class SwipeGestureLayoutArbitrationTest {
         f.activity.finish()
     }
 
+    @Test fun activeSidePanelWinsOverEarlierRegisteredToolbarAndRestoresAfterClose() {
+        val f = fixture()
+        var panelEngaged = true
+        var toolbarStarts = 0
+        var panelStarts = 0
+        var toolbarFinishes = 0
+        var panelFinishes = 0
+
+        val toolbar = object : SwipeGestureListener {
+            override fun onSwipeStarted(start: PointF, next: PointF): Boolean {
+                // Mirrors the live ownership gate supplied by BrowserFragment.
+                if (panelEngaged) return false
+                toolbarStarts++
+                return true
+            }
+            override fun onSwipeUpdate(distanceX: Float, distanceY: Float) {}
+            override fun onSwipeFinished(velocityX: Float, velocityY: Float) {
+                toolbarFinishes++
+            }
+        }
+        val panel = object : SwipeGestureListener {
+            override fun onSwipeStarted(start: PointF, next: PointF): Boolean {
+                if (!panelEngaged) return false
+                panelStarts++
+                return true
+            }
+            override fun onSwipeUpdate(distanceX: Float, distanceY: Float) {}
+            override fun onSwipeFinished(velocityX: Float, velocityY: Float) {
+                panelFinishes++
+            }
+        }
+        f.root.addGestureListener(toolbar) // Same ordering as BrowserFragment.
+        f.root.addGestureListener(panel)
+
+        // Swiping left inside the left drawer, across an occluded toolbar.
+        send(f.root, 3100, 3100, MotionEvent.ACTION_DOWN, 160f, 40f)
+        send(f.root, 3100, 3140, MotionEvent.ACTION_MOVE, 70f, 40f)
+        send(f.root, 3100, 3180, MotionEvent.ACTION_UP, 45f, 40f)
+        assertEquals(0, toolbarStarts)
+        assertEquals(0, toolbarFinishes)
+        assertEquals(1, panelStarts)
+        assertEquals(1, panelFinishes)
+
+        panelEngaged = false // CLOSED: normal tab navigation is restored.
+        send(f.root, 3300, 3300, MotionEvent.ACTION_DOWN, 160f, 40f)
+        send(f.root, 3300, 3340, MotionEvent.ACTION_MOVE, 70f, 40f)
+        send(f.root, 3300, 3380, MotionEvent.ACTION_UP, 45f, 40f)
+        assertEquals(1, toolbarStarts)
+        assertEquals(1, toolbarFinishes)
+        assertEquals(1, panelStarts)
+        f.activity.finish()
+    }
+
+    @Test fun rightPanelAndSettlingStateUseSameToolbarExclusionRule() {
+        val f = fixture()
+        var panelEngaged = true // right drawer OPEN, DRAGGING or SETTLING
+        var toolbarStarts = 0
+        var panelStarts = 0
+        f.root.addGestureListener(object : SwipeGestureListener {
+            override fun onSwipeStarted(start: PointF, next: PointF): Boolean {
+                if (panelEngaged) return false
+                toolbarStarts++
+                return true
+            }
+            override fun onSwipeUpdate(distanceX: Float, distanceY: Float) {}
+            override fun onSwipeFinished(velocityX: Float, velocityY: Float) {}
+        })
+        f.root.addGestureListener(object : SwipeGestureListener {
+            override fun onSwipeStarted(start: PointF, next: PointF): Boolean {
+                if (!panelEngaged || next.x <= start.x) return false
+                panelStarts++
+                return true
+            }
+            override fun onSwipeUpdate(distanceX: Float, distanceY: Float) {}
+            override fun onSwipeFinished(velocityX: Float, velocityY: Float) {}
+        })
+        send(f.root, 3500, 3500, MotionEvent.ACTION_DOWN, 300f, 40f)
+        send(f.root, 3500, 3540, MotionEvent.ACTION_MOVE, 380f, 40f)
+        send(f.root, 3500, 3580, MotionEvent.ACTION_UP, 380f, 40f)
+        assertEquals(0, toolbarStarts)
+        assertEquals(1, panelStarts)
+        panelEngaged = false
+        send(f.root, 3700, 3700, MotionEvent.ACTION_DOWN, 300f, 40f)
+        send(f.root, 3700, 3740, MotionEvent.ACTION_MOVE, 380f, 40f)
+        send(f.root, 3700, 3780, MotionEvent.ACTION_UP, 380f, 40f)
+        assertEquals(1, toolbarStarts)
+        f.activity.finish()
+    }
+
     @Test fun scrollingDrawerDoesNotHideToolbarButPageScrollStillDoes() {
         val f = fixture()
         var pageDelta = 0f

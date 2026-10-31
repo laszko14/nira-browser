@@ -173,7 +173,12 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                     tabPreview = binding.tabPreview,
                     toolbarLayout = toolbar,
                     store = components.store,
-                    selectTabUseCase = components.tabsUseCases.selectTab
+                    selectTabUseCase = components.tabsUseCases.selectTab,
+                    canClaimToolbarSwipe = {
+                        // A mounted, dragging or settling panel takes precedence.
+                        // Evaluate at gesture time, not during handler construction.
+                        sidePanelInfrastructure?.anyPanelEngaged() != true
+                    }
                 )
             )
         }
@@ -241,8 +246,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         val prefs = UserPreferences(requireContext())
         legacyEdgePanelListener?.let(binding.gestureLayout::removeGestureListener)
         legacyEdgePanelListener = null
-        // Toolbar handler has priority. New panels are disabled until their content
-        // and explicit activation are provided in stages 3B/4B.
+        // Toolbar is registered first, but yields whenever either drawer is
+        // engaged. New panels remain disabled until mounted and activated.
         sidePanelInfrastructure?.dispose()
         sidePanelInfrastructure = SidePanelInfrastructure.attach(
             gestures = binding.gestureLayout,

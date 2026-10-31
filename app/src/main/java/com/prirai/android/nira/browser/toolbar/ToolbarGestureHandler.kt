@@ -36,7 +36,9 @@ class ToolbarGestureHandler(
     private val tabPreview: FakeTab,
     private val toolbarLayout: View,
     private val store: BrowserStore,
-    private val selectTabUseCase: TabsUseCases.SelectTabUseCase
+    private val selectTabUseCase: TabsUseCases.SelectTabUseCase,
+    // Live view-lifecycle gate: never claim a toolbar hidden under a side drawer.
+    private val canClaimToolbarSwipe: () -> Boolean = { true }
 ) : SwipeGestureListener {
 
     private val lruManager by lazy { 
@@ -68,7 +70,24 @@ class ToolbarGestureHandler(
     private var gestureEpoch = 0L
     private var gestureActive = false
 
+    /**
+     * A drawer may become engaged after a toolbar stream was accepted (or
+     * while its settle is still animating). Stop that owner synchronously.
+     */
+    private fun toolbarIsUncovered(): Boolean {
+        if (canClaimToolbarSwipe()) return true
+        if (gestureActive) {
+            gestureActive = false
+            gestureSource = null
+            gestureEpoch = animationOwner.beginGesture()
+        }
+        return false
+    }
+
     override fun onSwipeStarted(start: PointF, next: PointF): Boolean {
+        // Listener ordering is toolbar first; let the panel listener see this
+        // MOVE instead of using a hitbox for the view underneath its overlay.
+        if (!toolbarIsUncovered()) return false
         val dx = next.x - start.x
         val dy = next.y - start.y
         val direction = if (dx < 0) {
@@ -95,7 +114,7 @@ class ToolbarGestureHandler(
     }
 
     override fun onSwipeUpdate(distanceX: Float, distanceY: Float) {
-        if (!gestureActive || !animationOwner.isCurrent(gestureEpoch)) return
+        if (!toolbarIsUncovered() || !gestureActive || !animationOwner.isCurrent(gestureEpoch)) return
         when (getDestination()) {
             is Destination.Tab -> {
                 tabPreview.translationX = when (gestureDirection) {
@@ -138,7 +157,7 @@ class ToolbarGestureHandler(
     }
 
     override fun onSwipeFinished(velocityX: Float, velocityY: Float) {
-        if (!gestureActive || !animationOwner.isCurrent(gestureEpoch)) return
+        if (!toolbarIsUncovered() || !gestureActive || !animationOwner.isCurrent(gestureEpoch)) return
         gestureActive = false
         val destination = getDestination()
         if (destination is Destination.Tab && isGestureComplete(velocityX)) {
@@ -150,7 +169,7 @@ class ToolbarGestureHandler(
     }
 
     override fun onSwipeCancelled() {
-        if (!gestureActive || !animationOwner.isCurrent(gestureEpoch)) return
+        if (!toolbarIsUncovered() || !gestureActive || !animationOwner.isCurrent(gestureEpoch)) return
         gestureActive = false
         gestureSource = null
         animateCanceledGesture(0f)
@@ -230,6 +249,10 @@ class ToolbarGestureHandler(
             this.duration = duration
             this.interpolator = LinearOutSlowInInterpolator()
             addUpdateListener { animator ->
+                if (!canClaimToolbarSwipe()) {
+                    gestureEpoch = animationOwner.beginGesture()
+                    return@addUpdateListener
+                }
                 if (!animationOwner.isCurrent(epoch)) return@addUpdateListener
                 val value = animator.animatedValue as Float
                 contentLayout.translationX = value
@@ -254,6 +277,10 @@ class ToolbarGestureHandler(
             epoch,
             getAnimator(browserFinalXCoordinate, FINISHED_GESTURE_ANIMATION_DURATION, epoch, direction)
         ) {
+            if (!canClaimToolbarSwipe()) {
+                gestureEpoch = animationOwner.beginGesture()
+                return@play
+            }
             if (!animationOwner.isCurrent(epoch)) return@play
             contentLayout.translationX = 0f
             if (activity.isFinishing || activity.isDestroyed || !store.state.canFinishSwipe(source, tab.id)) {
