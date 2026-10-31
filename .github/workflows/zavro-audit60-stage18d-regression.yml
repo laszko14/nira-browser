@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: audit60-stage18d-\${{ github.ref }}
+  group: audit60-stage18d-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
