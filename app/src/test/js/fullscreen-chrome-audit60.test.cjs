@@ -11,7 +11,10 @@ test('fullscreen callback generations gate posted toolbar restoration', () => {
   assert.match(browser,/fullscreenChromeGate\.invalidateView\(\)/);
 });
 test('hidden chrome never reserves margins in fullscreen', () => {
-  assert.match(browser,/if \(fullscreenChromeGate\.isFullscreen\) \{[\s\S]*fullscreenLp\.topMargin = 0[\s\S]*fullscreenLp\.bottomMargin = 0/);
+  const policy = fs.readFileSync('app/src/main/java/com/prirai/android/nira/browser/WebViewportReservation.kt','utf8');
+  assert.match(browser,/if \(fullscreenChromeGate\.isFullscreen\) \{[\s\S]*publishChromeReservation\(0, 0\)/);
+  assert.match(base,/webContentPositionManager\?\.setFullscreen\(inFullScreen\)/);
+  assert.match(policy,/if \(fullscreen\) Margins\(0, 0\)/);
 });
 test('base deferred viewport initializer checks current fullscreen and view identity', () => {
   assert.match(base,/fullscreenChromeGeneration\+\+[\s\S]*fullscreenChromeActive = inFullScreen/);

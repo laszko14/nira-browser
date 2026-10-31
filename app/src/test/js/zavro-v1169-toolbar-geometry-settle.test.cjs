@@ -18,7 +18,9 @@ test("v1169: toolbar animation always settles the Gecko viewport after its final
     // During animation only a temporary translation is safe for GeckoView;
     // the non-animating final callback restores it and reconciles margins.
     assert.match(fragment, /isScrollAnimationRunning\(\) == true\)\s*\{\s*binding\.swipeRefresh\.translationY/);
-    assert.match(fragment, /binding\.swipeRefresh\.translationY = 0f[\s\S]*?lp\.topMargin != visibleHeight/);
+    assert.match(fragment, /binding\.swipeRefresh\.translationY = 0f[\s\S]*?publishChromeReservation\(topChrome, bottomChrome\)/);
+    const manager = source("app/src/main/java/com/prirai/android/nira/browser/WebContentPositionManager.kt");
+    assert.match(manager, /private fun applyMargins\(\)[\s\S]*?lp\.topMargin = wanted\.top/);
 });
 
 test("v1169: duplicate in-flight toolbar animations are still skipped", () => {

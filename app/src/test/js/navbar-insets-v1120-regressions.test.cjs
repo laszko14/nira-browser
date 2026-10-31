@@ -20,8 +20,8 @@ test("v1120: activity reserves bottom navigation inset in portrait and side inse
 
 test("v1120: fullscreen reclaims hidden navigation space and the webview has no duplicate inset", () => {
   assert.match(activity, /insets\.getInsets\(/);
-  assert.match(positioning, /engineViewInstance\.setPadding\(0, 0, 0, 0\)/);
-  assert.doesNotMatch(positioning, /engineViewInstance\.setPadding\(0, 0, 0, navigationBarHeight\)/);
+  assert.match(positioning, /view\.setPadding\(0, 0, 0, 0\)/);
+  assert.doesNotMatch(positioning, /view\.setPadding\(0, 0, 0, navigationBarHeight\)/);
 });
 
 test("v1120: footer still attaches at bottom inside inset-safe activity content", () => {
