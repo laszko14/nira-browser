@@ -1626,10 +1626,18 @@ test("audit60 17C: HLS EXTINF duration is preserved through the segment probe", 
       body: { cancel: async () => {} } };
   };
   const b = background(async () => true, true, fetchImpl);
+  // The background reuses and later mutates its verified message object.
+  // Capture values when routed, as the actual browser message transport does.
+  const delivered = [];
+  const push = b.routed.push.bind(b.routed);
+  b.routed.push = (...entries) => {
+    for (const [, message] of entries) delivered.push({ ...message });
+    return push(...entries);
+  };
   b.probe(response(target, "application/vnd.apple.mpegurl"));
   await tick(); await tick(); await tick(); await tick();
-  const manifest = b.routed.find(([, m]) => m.verification === "manifest_verified")?.[1];
-  const stream = b.routed.find(([, m]) => m.verification === "stream_verified")?.[1];
+  const manifest = delivered.find(m => m.verification === "manifest_verified");
+  const stream = delivered.find(m => m.verification === "stream_verified");
   assert.ok(manifest, "media HLS must first deliver manifest_verified");
   assert.ok(stream, "segment probe must then upgrade playback confidence");
   assert.equal(fetched.length, 2);
