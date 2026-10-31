@@ -1737,3 +1737,32 @@ test("audit60 17E: failed source and blob transition never reattribute stale met
   await p.mutate();
   assert.equal(p.native.some(([, m]) => m.url.startsWith("blob:")), false);
 });
+
+test("audit60 17F: fractional multi-Period DASH duration reaches the exact verified candidate", async () => {
+  const target = "https://cdn.example/multi-period.mpd?sig=opaque";
+  const payload = new TextEncoder().encode(
+    '<MPD type="static"><Period duration="PT0.4S"/><Period duration="PT0.4S"/>' +
+    '<Period duration="PT0.4S"><AdaptationSet mimeType="video/mp4">' +
+    '<Representation id="video" bandwidth="1000" width="1920" height="1080"/>' +
+    '</AdaptationSet></Period></MPD>');
+  const b = background(async () => true, true, async url => ({
+    ok: true, status: 200, url,
+    headers: { get: name => name.toLowerCase() === "content-type" ? "application/dash+xml" : null },
+    body: { getReader: () => { let done = false; return {
+      read: async () => done ? { done: true } : (done = true, { done: false, value: payload }),
+      cancel: async () => {},
+    }; } },
+  }));
+  b.probe(response(target, "application/dash+xml"));
+  await tick(); await tick(); await tick(); await tick();
+  const observed = b.routed[0][1];
+  const verified = b.routed.find(([, m]) => m.verification === "manifest_verified")?.[1];
+  assert.equal(observed.verification, "manifest_observed");
+  assert.ok(verified, "manifest must be verified");
+  assert.equal(verified.url, target, "signed URL remains byte-for-byte unchanged");
+  assert.equal(verified.groupId, observed.groupId);
+  assert.equal(verified.durationSeconds, 2, "1.2s total is rounded once, not 3s");
+  assert.equal(verified.width, 1920);
+  assert.equal(verified.height, 1080);
+  assert.equal(b.routed.some(([, m]) => m.verification === "stream_verified"), false);
+});
