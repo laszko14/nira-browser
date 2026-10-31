@@ -12,9 +12,10 @@ const search = fs.readFileSync(
 const methodStart = search.indexOf('private fun hideDeviceKeyboard(dialog: DialogInterface)');
 const methodEnd = search.indexOf('override fun onDismiss(', methodStart);
 const hideBlock = search.slice(methodStart, methodEnd);
+const dismissStart = search.indexOf('override fun onDismiss(');
 const dismissBlock = search.slice(
-  search.indexOf('override fun onDismiss('),
-  search.indexOf('override fun onBackPressed(): Boolean')
+  dismissStart,
+  search.indexOf('override fun onBackPressed(): Boolean', dismissStart)
 );
 
 test('ZC-AUD-016: dismiss always hides IME, never toggles an unknown state', () => {
