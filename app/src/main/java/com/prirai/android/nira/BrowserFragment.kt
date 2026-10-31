@@ -963,16 +963,9 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             return
         }
 
-        // An old animation/layout may still report hidden chrome during fullscreen.
+        // An old animation/layout must not reserve chrome during fullscreen.
         if (fullscreenChromeGate.isFullscreen) {
-            val fullscreenLp = binding.swipeRefresh.layoutParams
-                as? androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams
-            if (fullscreenLp != null && (fullscreenLp.topMargin != 0 ||
-                        fullscreenLp.bottomMargin != 0)) {
-                fullscreenLp.topMargin = 0
-                fullscreenLp.bottomMargin = 0
-                binding.swipeRefresh.layoutParams = fullscreenLp
-            }
+            publishChromeReservation(0, 0)
             binding.swipeRefresh.translationY = 0f
             return
         }
@@ -1005,47 +998,18 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         }
         binding.swipeRefresh.translationY = 0f
 
-        when (cachedToolbarPosition) {
-            com.prirai.android.nira.components.toolbar.ToolbarPosition.BOTTOM.ordinal -> {
-                var changed = false
-                if (lp.topMargin != 0) {
-                    lp.topMargin = 0
-                    changed = true
-                }
-                if (lp.bottomMargin != visibleHeight) {
-                    lp.bottomMargin = visibleHeight
-                    changed = true
-                }
-                if (changed) binding.swipeRefresh.layoutParams = lp
-                // Clear any stale top padding from a previous TOP-mode layout
-                if (binding.swipeRefresh.paddingTop != 0 ||
-                    binding.swipeRefresh.paddingBottom != 0) {
-                    binding.swipeRefresh.setPadding(0, 0, 0, 0)
-                }
-            }
-            else -> {
-                // Keep SwipeRefreshLayout's gesture surface aligned with
-                // the visible page: padding places GeckoView inside the
-                // refresh container and can leave a dead pull zone at top.
-                // A top margin moves both the touch surface and indicator.
-                var changed = false
-                if (lp.topMargin != visibleHeight) {
-                    lp.topMargin = visibleHeight
-                    changed = true
-                }
-                val bottomStripHeight = unifiedToolbar?.getBottomComponentsContainer()
-                    ?.takeIf { it.parent != null && it.visibility == View.VISIBLE }?.height ?: 0
-                if (lp.bottomMargin != bottomStripHeight) {
-                    lp.bottomMargin = bottomStripHeight
-                    changed = true
-                }
-                if (changed) binding.swipeRefresh.layoutParams = lp
-                if (binding.swipeRefresh.paddingTop != 0 ||
-                    binding.swipeRefresh.paddingBottom != 0) {
-                    binding.swipeRefresh.setPadding(0, 0, 0, 0)
-                }
-            }
+        val topChrome: Int
+        val bottomChrome: Int
+        if (cachedToolbarPosition ==
+            com.prirai.android.nira.components.toolbar.ToolbarPosition.BOTTOM.ordinal) {
+            topChrome = 0
+            bottomChrome = visibleHeight
+        } else {
+            topChrome = visibleHeight
+            bottomChrome = unifiedToolbar?.getBottomComponentsContainer()
+                ?.takeIf { it.parent != null && it.visibility == View.VISIBLE }?.height ?: 0
         }
+        publishChromeReservation(topChrome, bottomChrome)
     }
 
     /**

@@ -131,6 +131,11 @@ abstract class BaseBrowserFragment : Fragment(), UserInteractionHandler, Activit
     
     // Web content position manager for toolbar and keyboard handling
     private var webContentPositionManager: com.prirai.android.nira.browser.WebContentPositionManager? = null
+
+    /** Chrome and IME must not independently overwrite SwipeRefreshLayout margins. */
+    protected fun publishChromeReservation(top: Int, bottom: Int) {
+        webContentPositionManager?.setChromeReservation(top, bottom)
+    }
     private val webExtensionPromptFeature = ViewBoundFeatureWrapper<WebExtensionPromptFeature>()
     private var fullScreenMediaSessionFeature =
         ViewBoundFeatureWrapper<MediaSessionFullscreenFeature>()
@@ -732,32 +737,17 @@ abstract class BaseBrowserFragment : Fragment(), UserInteractionHandler, Activit
 
             val actualToolbarHeight = ownerToolbar.height.takeIf { it > 0 } ?: toolbarHeight
 
-            // Reserve layout space for pinned chrome. A top margin rather
-            // than SwipeRefreshLayout padding keeps its gesture surface
-            // aligned with GeckoView and prevents intermittent dead pulls.
-            //
-            // UnifiedToolbar.reconcileEngineViewHeight() updates these
-            // values whenever the toolbar's visible height changes
-            // (minimal state toggle, rotation, font-scale), so this
-            // initial setup only has to seed the first-frame values.
-            val swipeRefreshParams = binding.swipeRefresh.layoutParams as CoordinatorLayout.LayoutParams
-
-            when (prefs.toolbarPosition) {
-                com.prirai.android.nira.components.toolbar.ToolbarPosition.BOTTOM.ordinal -> {
-                    binding.swipeRefresh.setPadding(0, 0, 0, 0)
-                    swipeRefreshParams.bottomMargin = actualToolbarHeight
-                    swipeRefreshParams.topMargin = 0
-                }
-                else -> {
-                    binding.swipeRefresh.setPadding(0, 0, 0, 0)
-                    swipeRefreshParams.topMargin = actualToolbarHeight
-                    swipeRefreshParams.bottomMargin = 0
-                }
+            // Chrome height is published to the same owner as IME insets.
+            // Do not reset the bottom reservation when the keyboard is showing.
+            val bottomStrip = ownerToolbar.getBottomComponentsContainer()
+                ?.takeIf { it.parent != null && it.visibility == View.VISIBLE }?.height ?: 0
+            if (prefs.toolbarPosition ==
+                com.prirai.android.nira.components.toolbar.ToolbarPosition.BOTTOM.ordinal) {
+                publishChromeReservation(0, actualToolbarHeight)
+            } else {
+                publishChromeReservation(actualToolbarHeight, bottomStrip)
             }
-
             binding.swipeRefresh.clipToPadding = false // Allow overscroll effects
-            binding.swipeRefresh.layoutParams = swipeRefreshParams
-            binding.swipeRefresh.requestLayout()
         }
     }
 
@@ -994,6 +984,7 @@ abstract class BaseBrowserFragment : Fragment(), UserInteractionHandler, Activit
     internal open fun fullScreenChanged(inFullScreen: Boolean) {
         fullscreenChromeGeneration++
         fullscreenChromeActive = inFullScreen
+        webContentPositionManager?.setFullscreen(inFullScreen)
         if (inFullScreen) {
             // Close find in page bar if opened
             findInPageIntegration.onBackPressed()
@@ -1011,8 +1002,7 @@ abstract class BaseBrowserFragment : Fragment(), UserInteractionHandler, Activit
             
             // Reset engine view layout - remove all margins and behaviors
             val browserEngine = binding.swipeRefresh.layoutParams as CoordinatorLayout.LayoutParams
-            browserEngine.bottomMargin = 0
-            browserEngine.topMargin = 0
+            // The viewport manager already cleared both margins for fullscreen.
             browserEngine.behavior = null
             binding.swipeRefresh.translationY = 0f
             binding.swipeRefresh.layoutParams = browserEngine

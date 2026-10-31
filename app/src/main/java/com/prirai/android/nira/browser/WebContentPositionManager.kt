@@ -8,12 +8,8 @@ import androidx.core.view.WindowInsetsCompat
 import mozilla.components.concept.engine.EngineView
 
 /**
- * Manages web content positioning to prevent overlap with system bars and keyboard.
- * 
- * This manager:
- * - Applies padding to engine view for system bars (status bar, navigation bar)
- * - Handles keyboard (IME) appearance with smooth animations
- * - Follows Android best practices for edge-to-edge display
+ * Sole writer of SwipeRefreshLayout viewport margins for pinned chrome + IME.
+ * The Activity already reserves system navigation bars at the root level.
  */
 class WebContentPositionManager(
     private val engineView: EngineView,
@@ -22,89 +18,14 @@ class WebContentPositionManager(
     private val getTopToolbarHeight: () -> Int,
     private val getBottomToolbarHeight: () -> Int
 ) {
-    
-    private var lastImeInset = 0
-    private var statusBarHeight = 0
-    private var navigationBarHeight = 0
-    
+    private val reservation = WebViewportReservation()
     private var isDestroyed = false
-    
-    /**
-     * Initialize window insets handling for web content positioning
-     */
+
     fun initialize() {
-        // Listen to window insets for system bars and keyboard (IME) changes
         ViewCompat.setOnApplyWindowInsetsListener(rootView) { _, insets ->
             handleWindowInsets(insets)
             insets
         }
-        
-        // Setup IME (keyboard) animation listener for smooth transitions
-        setupKeyboardAnimation()
-        
-        // Force initial insets application
-        rootView.post {
-            ViewCompat.requestApplyInsets(rootView)
-        }
-    }
-    
-    /**
-     * Update engine view padding to position web content correctly.
-     * Apply padding to prevent web content from drawing under system bars.
-     */
-    private fun updateEnginePadding() {
-        val engineViewInstance = (engineView as? View) ?: return
-        // The toolbar already reserves the status-bar inset in its own
-        // measured height. Padding GeckoView again creates a blank band
-        // between the tab strip and the actual web page.
-        // BrowserActivity already keeps the ENTIRE fragment above the
-        // visible navigation bar via root padding. Reserving the same
-        // bottom inset inside GeckoView creates a second blank band and
-        // makes the page appear shorter than the bottom tab strip.
-        engineViewInstance.setPadding(0, 0, 0, 0)
-    }
-    
-    /**
-     * Handle window insets for keyboard (IME) and system bars
-     */
-    private fun handleWindowInsets(insets: WindowInsetsCompat) {
-        // Get system bars insets (status bar at top, navigation bar at bottom)
-        // This properly handles both gesture navigation and button navigation
-        val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-        statusBarHeight = systemBars.top
-        navigationBarHeight = systemBars.bottom
-        
-        // Update engine view padding with system bar insets
-        updateEnginePadding()
-        
-        // Get keyboard (IME) insets
-        val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
-        
-        // Calculate visible keyboard height (IME minus navigation bar)
-        val visibleImeHeight = maxOf(0, ime.bottom - navigationBarHeight)
-        
-        // When keyboard appears, set bottom margin on swipeRefreshView
-        // to push content above keyboard without black bar
-        if (visibleImeHeight > 0 && visibleImeHeight != lastImeInset) {
-            val layoutParams = swipeRefreshView.layoutParams as? CoordinatorLayout.LayoutParams ?: return
-            layoutParams.bottomMargin = visibleImeHeight
-            swipeRefreshView.layoutParams = layoutParams
-            swipeRefreshView.requestLayout()
-            lastImeInset = visibleImeHeight
-        } else if (visibleImeHeight == 0 && lastImeInset > 0) {
-            // Keyboard hidden, restore to no margin
-            val layoutParams = swipeRefreshView.layoutParams as? CoordinatorLayout.LayoutParams ?: return
-            layoutParams.bottomMargin = 0
-            swipeRefreshView.layoutParams = layoutParams
-            swipeRefreshView.requestLayout()
-            lastImeInset = 0
-        }
-    }
-    
-    /**
-     * Setup smooth keyboard animation handling
-     */
-    private fun setupKeyboardAnimation() {
         ViewCompat.setWindowInsetsAnimationCallback(
             swipeRefreshView,
             object : WindowInsetsAnimationCompat.Callback(DISPATCH_MODE_CONTINUE_ON_SUBTREE) {
@@ -112,24 +33,62 @@ class WebContentPositionManager(
                     insets: WindowInsetsCompat,
                     runningAnimations: List<WindowInsetsAnimationCompat>
                 ): WindowInsetsCompat {
-                    // Smooth animation during keyboard appearance
                     handleWindowInsets(insets)
                     return insets
                 }
             }
         )
+        rootView.post {
+            if (!isDestroyed) ViewCompat.requestApplyInsets(rootView)
+        }
     }
-    
-    /**
-     * Manually trigger update (useful when toolbar visibility changes)
-     */
-    fun requestUpdate() {
+
+    /** Publish actual pinned toolbar/footer dimensions, never overwrite IME state. */
+    fun setChromeReservation(top: Int, bottom: Int) {
+        if (isDestroyed) return
+        reservation.setChrome(top, bottom)
+        applyMargins()
+    }
+
+    /** Fullscreen hides both chrome and IME reservations until fullscreen exits. */
+    fun setFullscreen(fullscreen: Boolean) {
+        if (isDestroyed) return
+        reservation.setFullscreen(fullscreen)
+        applyMargins()
+    }
+
+    private fun updateEnginePadding() {
+        val view = engineView as? View ?: return
+        // Root already reserves system bars; margins reserve pinned chrome.
+        view.setPadding(0, 0, 0, 0)
+    }
+
+    private fun handleWindowInsets(insets: WindowInsetsCompat) {
+        if (isDestroyed) return
+        val navBottom = insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom
+        val imeBottom = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+        // IME and the navigation inset overlap, rather than add together.
+        reservation.setIme((imeBottom - navBottom).coerceAtLeast(0))
         updateEnginePadding()
+        applyMargins()
     }
-    
-    /**
-     * Clean up resources
-     */
+
+    private fun applyMargins() {
+        if (isDestroyed) return
+        val lp = swipeRefreshView.layoutParams as? CoordinatorLayout.LayoutParams ?: return
+        val wanted = reservation.margins()
+        if (lp.topMargin == wanted.top && lp.bottomMargin == wanted.bottom) return
+        lp.topMargin = wanted.top
+        lp.bottomMargin = wanted.bottom
+        swipeRefreshView.layoutParams = lp
+    }
+
+    fun requestUpdate() {
+        if (isDestroyed) return
+        updateEnginePadding()
+        applyMargins()
+    }
+
     fun destroy() {
         isDestroyed = true
         ViewCompat.setOnApplyWindowInsetsListener(rootView, null)
