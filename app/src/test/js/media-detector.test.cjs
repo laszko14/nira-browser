@@ -1418,3 +1418,28 @@ test("audit60 15D: pending hash route never reoffers old DOM video before its re
   await p.mutate();
   assert.equal(p.native.length, issued, "no duplicate route reoffer");
 });
+
+test("audit60 15D: History API rescan also quarantines old video on hash-router material change", async () => {
+  const p = page();
+  await p.navigate("https://site.example/app#/film/a");
+  const old = new p.HTMLVideoElement("https://cdn.example/route-a.mp4", "video/mp4", true);
+  old.nodeType = 1; old.tagName = "VIDEO";
+  old.matches = selector => selector === "video";
+  p.videos.push(old);
+  await p.mutate([{ type: "childList", addedNodes: [old], removedNodes: [] }]);
+  const count = p.native.length;
+  assert.ok(count > 0, "old film must first be observed");
+  p.location.href = "https://site.example/app#/film/b";
+  const acknowledged = await p.onNetwork({ schemaVersion: 1, event: "discovery_rescan", kind: "history" });
+  assert.equal(acknowledged, true);
+  await p.drain();
+  assert.equal(p.native.length, count, "History API must not reoffer old film into new route");
+  const next = new p.HTMLVideoElement("https://cdn.example/route-b.mp4", "video/mp4", true);
+  next.nodeType = 1; next.tagName = "VIDEO";
+  next.matches = selector => selector === "video";
+  old.isConnected = false;
+  p.videos.splice(0, 1, next);
+  await p.mutate([{ type: "childList", target: p.document, addedNodes: [next], removedNodes: [old] }]);
+  assert.ok(p.native.length > count);
+  assert.equal(p.native.at(-1)[1].url, next.src);
+});

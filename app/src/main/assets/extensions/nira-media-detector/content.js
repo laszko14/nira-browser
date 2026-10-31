@@ -179,7 +179,11 @@
       if (message.kind === "history" || FRAME) {
         if (message.kind === "history") note("spa_navigation");
         navigationEpoch++; pendingOffers = 0; cancelNativeQueue(); context = null; registering = null;
-        seen.clear(); jobs.length = 0; pendingRoots.clear();
+        // History API hash routes need the previous offers until
+        // resetNavigation distinguishes a material switch from an anchor.
+        // Clearing here bypasses the stale-video quarantine.
+        if (message.kind !== "history") seen.clear();
+        jobs.length = 0; pendingRoots.clear();
         ownerGenerations = new WeakMap(); nextLocalElementId = 0;
         scriptVersions = new WeakSet(); structuredVersions = new WeakSet();
         scheduleScan();
