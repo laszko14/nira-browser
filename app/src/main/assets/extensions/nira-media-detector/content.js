@@ -736,22 +736,31 @@
     if (!title && video.closest && video.closest(MEDIA_CARDS) && !ownedMediaCard(video))
       note("title_no_owner");
     const kind = playerTitle ? "player" : individualTitle ? "video" : "page";
-    const seconds = durationOf(video);
+    // A declared next src is not evidence that this HTMLVideoElement's
+    // current duration or dimensions already belong to that resource.
+    // Gecko's actual transition timing must still be verified on-device.
+    const selectedUrl = absolute(video.currentSrc);
+    const ownsTechnicalMetadata = !!selectedUrl && selectedUrl === absolute(preferred) &&
+      Number(video.readyState) >= 1; // HAVE_METADATA, not HAVE_NOTHING
+    const seconds = ownsTechnicalMetadata ? durationOf(video) : null;
+    const dimensions = ownsTechnicalMetadata ?
+      { width: video.videoWidth, height: video.videoHeight } : null;
     const poster = posterFor(video);
     const posterKind = absolute(video.poster || attribute(video, "poster") ||
       attribute(video, "data-poster")) ? "element" : "card";
-    if (preferred) submit(preferred, playing ? "dom" : "page", mime, group,
-      title, title ? kind : null, seconds, poster,
-      { width: video.videoWidth, height: video.videoHeight }, posterKind);
+    if (preferred) submit(preferred, playing && ownsTechnicalMetadata ? "dom" : "page",
+      mime, group, title, title ? kind : null, seconds, poster, dimensions, posterKind);
+    // Declared but not selected URLs have no player-measured duration/dimensions.
+    // Preserve discovery and title/poster hints before Play without borrowing
+    // technical evidence from another rendition or the previous src.
     if (video.src && video.src !== preferred)
-      submit(video.src, "page", null, group, title, title ? kind : null, seconds,
+      submit(video.src, "page", null, group, title, title ? kind : null, null,
         poster, null, posterKind);
-    // Each declared source matters, even before currentSrc becomes available.
     for (const item of sources) {
       const declared = item.src || attribute(item, "data-src");
       if (declared && declared !== preferred)
         submit(declared, "page", item.type || null, group,
-          title, title ? kind : null, seconds, poster, null, posterKind);
+          title, title ? kind : null, null, poster, null, posterKind);
     }
   }
 
