@@ -25,6 +25,17 @@ class SwipeGestureLayout @JvmOverloads constructor(
     internal var testLabGestureOrigin: com.prirai.android.nira.diagnostics.testlab.GestureOrigin? = null
         private set
     var isSwipeEnabled = true
+        set(value) {
+            if (field == value) return
+            field = value
+            if (!value) {
+                // A parent that intercepted MOVE may never receive another
+                // onInterceptTouchEvent. Cancel its owner at the transition.
+                gestureBlockedUntilNextDown = true
+                resultsLeftEdgeStream = false
+                cancelOwnedSwipe()
+            }
+        }
 
     /**
      * ONLY for about:zavro-video-search, set by BrowserFragment when selected.
@@ -138,6 +149,10 @@ class SwipeGestureLayout @JvmOverloads constructor(
     private var activeListener: SwipeGestureListener? = null
     private var handledInitialScroll = false
     private var multiTouchStream = false
+    // Keep an intercepted stream with this parent until UP/CANCEL even if the
+    // gesture feature is disabled mid-stream. Never re-offer it on re-enable.
+    private var parentOwnsTouchStream = false
+    private var gestureBlockedUntilNextDown = false
 
     // Interception hands the same MOVE to onTouchEvent after cancelling the child.
     // Keep an allocation-free signature to prevent double delivery to GestureDetector.
@@ -165,9 +180,10 @@ class SwipeGestureLayout @JvmOverloads constructor(
             lastInterceptY == event.y && lastInterceptPointers == event.pointerCount
 
     private fun cancelOwnedSwipe() {
-        activeListener?.onSwipeCancelled()
+        val owner = activeListener
         activeListener = null
         handledInitialScroll = true
+        owner?.onSwipeCancelled()
     }
 
     fun addGestureListener(listener: SwipeGestureListener) {
@@ -196,7 +212,11 @@ class SwipeGestureLayout @JvmOverloads constructor(
         if (verticalDirection || event.pointerCount > 1) resultsLeftEdgeStream = false
         val handled = super.dispatchTouchEvent(event)
         if (event.actionMasked == MotionEvent.ACTION_UP ||
-            event.actionMasked == MotionEvent.ACTION_CANCEL) resultsLeftEdgeStream = false
+            event.actionMasked == MotionEvent.ACTION_CANCEL) {
+            resultsLeftEdgeStream = false
+            parentOwnsTouchStream = false
+            gestureBlockedUntilNextDown = false
+        }
         return handled
     }
 
@@ -216,12 +236,14 @@ class SwipeGestureLayout @JvmOverloads constructor(
     override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             multiTouchStream = false
+            parentOwnsTouchStream = false
+            gestureBlockedUntilNextDown = !isSwipeEnabled
             handledInitialScroll = false
             activeListener = null
             if (isSwipeEnabled) feedFromIntercept(event)
             return false
         }
-        if (!isSwipeEnabled) {
+        if (!isSwipeEnabled || gestureBlockedUntilNextDown) {
             if (activeListener != null) cancelOwnedSwipe()
             return false
         }
@@ -233,7 +255,11 @@ class SwipeGestureLayout @JvmOverloads constructor(
         if (multiTouchStream) return false
 
         return when (event.actionMasked) {
-            MotionEvent.ACTION_MOVE -> feedFromIntercept(event) && activeListener != null
+            MotionEvent.ACTION_MOVE -> {
+                val intercepted = feedFromIntercept(event) && activeListener != null
+                if (intercepted) parentOwnsTouchStream = true
+                intercepted
+            }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 feedFromIntercept(event)
                 false
@@ -243,6 +269,18 @@ class SwipeGestureLayout @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (!isSwipeEnabled || gestureBlockedUntilNextDown) {
+            if (activeListener != null) cancelOwnedSwipe()
+            // Never hand the remainder of an already intercepted stream to
+            // Gecko or a different listener, nor feed a disabled detector.
+            val consumed = parentOwnsTouchStream
+            if (event.actionMasked == MotionEvent.ACTION_UP ||
+                event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                parentOwnsTouchStream = false
+                multiTouchStream = false
+            }
+            return consumed
+        }
         val owned = activeListener != null
         if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN || event.pointerCount > 1) {
             val wasOwned = owned || multiTouchStream
@@ -265,6 +303,8 @@ class SwipeGestureLayout @JvmOverloads constructor(
                 activeListener = null
             }
         }
+        if (event.actionMasked == MotionEvent.ACTION_UP ||
+            event.actionMasked == MotionEvent.ACTION_CANCEL) parentOwnsTouchStream = false
         return owned || activeListener != null
     }
 
