@@ -13,16 +13,30 @@ on:
 
   workflow_dispatch:
     inputs:
+      build_kind:
+        description: "Default: tests only. APK or publishing needs an explicit separate command."
+        required: true
+        default: tests-only
+        type: choice
+        options:
+          - tests-only
+          - debug-apk
+          - publish-release
+      approval_phrase:
+        description: "For debug-apk use Kompiluj; for publication use Publikuj"
+        required: false
+        type: string
       tag:
-        description: "Existing tag to build and attach APKs to (e.g. v1.2.3)"
+        description: "Existing release tag (required only for publish-release)"
         required: false
         type: string
 
 jobs:
   build:
-    # Stage 1 has no approval for APK compilation. PR runs tests and lint only;
-    # all normal release/update workflows remain unchanged.
-    if: github.event_name != 'pull_request' || (github.head_ref != 'feat/zavro-clean-mme-stage1-testlab-20261027' && github.head_ref != 'feat/zavro-clean-mme-stage2-identity-shadow-20261027' && github.head_ref != 'feat/zavro-clean-mme-stage3-individual-media-titles-20261027' && github.head_ref != 'feat/zavro-clean-mme-stage4-poster-attribution-20261027' && github.head_ref != 'feat/zavro-clean-mme-stage5-metadata-provenance-20261028' && github.head_ref != 'feat/zavro-clean-mme-stage6-network-correlation-shadow-20261028')
+    # Never build an APK on push, tag or PR. A separate explicitly
+    # authorized workflow_dispatch builds only after shared tests pass.
+    needs: regression-tests
+    if: github.event_name == 'workflow_dispatch' && inputs.build_kind == 'debug-apk' && inputs.approval_phrase == 'Kompiluj'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -97,60 +111,11 @@ jobs:
           retention-days: 30
 
 
-  lint:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate Gradle wrapper
-        uses: gradle/wrapper-validation-action@v2
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: 17
-          distribution: zulu
-
-      - uses: gradle/actions/setup-gradle@v5
-
-      - name: Run Android lint
-        run: ./gradlew lintDebug
-
-      - name: Upload lint reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: lint-reports
-          path: app/build/reports/lint-results-debug*
-          if-no-files-found: warn
-
-  test:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate Gradle wrapper
-        uses: gradle/wrapper-validation-action@v2
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: 17
-          distribution: zulu
-
-      - uses: gradle/actions/setup-gradle@v5
-
-      - name: Run unit tests
-        run: ./gradlew testDebugUnitTest
-
-      - name: Test media detector WebExtension protocol
-        run: node --test app/src/test/js/*.test.cjs
-
-      - name: Upload test reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: unit-test-reports
-          path: app/build/reports/tests/testDebugUnitTest/**
-          if-no-files-found: warn
+  regression-tests:
+    name: Shared regression gates (NO APK)
+    uses: ./.github/workflows/zavro-tests-reusable.yml
+    permissions:
+      contents: read
 
   release:
     runs-on: ubuntu-latest
@@ -162,8 +127,9 @@ jobs:
       # Do not hardcode tag-dependent metadata in the event workflow.
       EXPECTED_CERT_SHA256: df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
 
-    # Release only on a version tag or manual dispatch with an explicit tag.
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
+    # Publishing is a separate, explicit authorization; tag push never
+    # publishes or builds. Keep tag-based checkout and signed verifier.
+    if: github.event_name == 'workflow_dispatch' && inputs.build_kind == 'publish-release' && inputs.approval_phrase == 'Publikuj' && inputs.tag != ''
 
     steps:
       - name: Resolve and validate an actual version tag (never a branch)
