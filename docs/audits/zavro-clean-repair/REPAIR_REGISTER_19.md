@@ -126,6 +126,8 @@ Klik/mute/playsinline, cancellation i probe generations; A→B tego samego rozmi
 
 ### Etap 19/19 — Kontrakt aktualizacji i pełna regresja końcowa
 
+**Podetapy (2):** **19A** — ZC-AUD-001: zgodność debug/release/versionCode/versionName, walidacja taga i niezmienność certyfikatu bez APK; **19B** — przegląd 60/60, dowody/statusy i bramka końcowa. Każde osobne „Dalej” uruchamia tylko jeden podetap.
+
 **ID:** ZC-AUD-001.
 
 Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj; pełna macierz 60 z dokumentacją PASS/FAIL/BLOCKED.
@@ -136,7 +138,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 
 | ID | Treść ustalenia Codex | Pewność | Priorytet | Etap | Stan na v1195 |
 | --- | --- | --- | --- | --- | --- |
-| ZC-AUD-001 | niespójny kontrakt wersji joba release | CONFIRMED | P2 | 19/19 | IMPLEMENTED — stage 6, CI_PENDING |
+| ZC-AUD-001 | niespójny kontrakt wersji joba release | CONFIRMED | P2 | 19A/19 | FIXED CORE — metadata z checkout taga, testy release/debug i cert/ABI; CI_PENDING, APK NOT_TESTED |
 | ZC-AUD-002 | możliwy brak uzgodnienia nowej generacji rozszerzenia | SUSPECTED | P2 | 15E/19 | BLOCKED — conditional JS/native collision demonstrated; real Gecko background restart with retained EngineSession NOT_TESTED |
 | ZC-AUD-003 | starsze zadanie zmienia politykę aktywnego profilu | CONFIRMED | P2 | 8/19 | FIXED — 8B; Kotlin/JS/lint GREEN on code SHA d9e1047b; device NOT_TESTED |
 | ZC-AUD-004 | brak końcowego sprzątania slotów zamkniętych kart | CONFIRMED | P2 | 11/19 | FIXED — 11B post-restore/Undo slot and Room prune; CI PASS; device NOT_TESTED |
@@ -790,3 +792,11 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 ### Etap 18D — korekta testów zakresu po pierwszym CI
 
 - [CI #41242326134](https://github.com/laszko14/nira-browser/actions/runs/41242326134), SHA `8680698b18d3201972e074379206efdf47f46be3`: szybki test JS PASS, kompilacja produkcyjnego Kotlin PASS; `compileDebugUnitTestKotlin` FAIL z czterema starymi wywołaniami `downloadChunk` w `DownloadCookieTest.kt` bez nowego argumentu silnego ETag. To nie był błąd runtime aplikacji. Dopasowano fixture do rzeczywistego nowego kontraktu (ETag i If-Range), zachowując istniejące testy długości, Content-Range i uciętych danych. Dodano testy A→B w tej samej długości na realnym `downloadChunk` ze sztucznym HTTP 206 + obcym ETag oraz HTTP 200 po If-Range; oba muszą odrzucić zapis przed naruszeniem starego prefiksu. Ponowna bramka pełnego CI na nowym SHA obowiązkowa.
+
+## Etap 19A/19 — ZC-AUD-001: weryfikacja wersji aktualizacji i release (2026-10-31)
+
+- **Baza:** 18D final `74a6d439def38f35b60ca1ccf1ede46b792ded64`, [CI #41242699881](https://github.com/laszko14/nira-browser/actions/runs/41242699881) completed/success (szybki stage18D, pełny Kotlin/Robolectric, AndroidTest compile, JS 392/392, Android lint). Gałąź `fix/zavro-clean-audit60-stage19a-release-contract-20261031`; ID ZC-AUD-001 CONFIRMED/P2.
+- **STILL_PRESENT:** release workflow `.github/workflows/apk-release.yml` miał stałe `EXPECTED_VERSION_CODE=1182` i `EXPECTED_VERSION_NAME=0.5.22-alpha87-clean` podczas gdy aktualny `app/build.gradle` daje arm64 `1195`/`0.5.22-alpha100-clean`. Dodatkowo `workflow_dispatch.inputs.tag` był wstawiany bezpośrednio do shell script i `checkout.ref` nie wymuszał konkretnego `refs/tags/`.
+- **FIXED CORE:** po checkout zweryfikowanego taga (format `vX.Y.Z[-suffix]`, pełne `refs/tags/`, bez gałęzi i dowolnych SHA) skrypt `scripts/resolve-release-contract.cjs` odczytuje faktyczne `versionCode`, `versionName`, package oraz mapę arm64 z `app/build.gradle` w **tym właśnie checkout**, weryfikuje niezmienniki i emituje tylko `EXPECTED_VERSION_CODE/NAME` do `GITHUB_ENV`. Release `EXPECTED_PACKAGE=com.prirai.android.nira` i debug `com.prirai.android.nira.debug` pozostają odrębne; certyfikat SHA-256 nie został zmieniony. Brak ominięcia `scripts/verify-update-apk.sh`, który nadal waliduje podpis, jeden signer, wersję, nazwę, ABI i pakiet. Nie wywołano assemble/release/publish; nie wygenerowano APK.
+- **Regresje:** `app/src/test/js/release-contract-stage19a.test.cjs` obejmuje bieżący kontrakt debug 1195, bieżący release z taga 1195, syntetyczną starszą wersję 1182 z własnego taga, odmowę innego applicationId/multiplier/ABI/malformed metadata, bezpieczny `GITHUB_ENV`, weryfikację taga, kolejność checkout→rozwiązanie metadanych→build oraz niezmienność podpisu i walidatora. Workflow `.github/workflows/zavro-audit60-stage19a-regression.yml` uruchamia fast gate Node, bash syntax, pełne Kotlin/Robolectric, AndroidTest compile bez APK, wszystkie JS i Android lint.
+- **Granice:** prawdziwy release na konkretnym tagu, rzeczywisty podpis, kompatybilność instalacji na urządzeniu i wygenerowany plik APK **NOT_TESTED** zgodnie z zakazem kompilacji. Starsze istniejące tagi nie zawierające nowego skryptu i workflow nie zostają retroaktywnie zmienione. Pełne 60/60 to dopiero 19B po osobnym „Dalej”. ZC-AUD-043 CONDITIONAL_GUARD / REAL_GECKO_REQUIRED; ZC-AUD-002 BLOCKED / REAL_GECKO_REQUIRED; ZC-AUD-030 OPEN; ZC-AUD-031 PARTIAL. **CI_PENDING — wymaga completed/success na finalnym SHA.**
