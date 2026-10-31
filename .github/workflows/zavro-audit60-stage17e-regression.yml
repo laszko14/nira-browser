@@ -3,7 +3,7 @@ name: Zavro Clean audit60 stage 17E - currentSrc metadata ownership regression (
 on:
   push:
     branches:
-      - fix/zavro-clean-audit60-stage17e-estimate-bitrate-invalidation-20261031
+      - fix/zavro-clean-audit60-stage17e-current-src-metadata-20261031
   workflow_dispatch:
 
 permissions:
