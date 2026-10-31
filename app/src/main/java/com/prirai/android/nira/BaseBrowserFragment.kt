@@ -156,6 +156,10 @@ abstract class BaseBrowserFragment : Fragment(), UserInteractionHandler, Activit
 
     private val sharedViewModel: SharedViewModel by activityViewModels()
 
+    // Reject deferred initial margin writes from earlier fullscreen transitions.
+    private var fullscreenChromeGeneration = 0L
+    private var fullscreenChromeActive = false
+
     private var _binding: FragmentBrowserBinding? = null
     protected val binding get() = _binding!!
     protected val bindingOrNull: FragmentBrowserBinding? get() = _binding
@@ -717,13 +721,16 @@ abstract class BaseBrowserFragment : Fragment(), UserInteractionHandler, Activit
         // not Gecko's dynamic-toolbar viewport insets (which double-reserve).
         binding.engineView.setDynamicToolbarMaxHeight(0)
         
-        // Get actual toolbar height (may differ from parameter if components are hidden)
-        // Use post to ensure toolbar is measured
-        unifiedToolbar?.post {
-            // Guard: view may have been destroyed while this was queued
-            if (_binding == null) return@post
+        // Match the original view and transition before reserving pinned chrome.
+        val ownerBinding = _binding ?: return
+        val ownerToolbar = unifiedToolbar ?: return
+        val ownerGeneration = fullscreenChromeGeneration
+        ownerToolbar.post {
+            if (_binding !== ownerBinding || unifiedToolbar !== ownerToolbar ||
+                fullscreenChromeActive || fullscreenChromeGeneration != ownerGeneration
+            ) return@post
 
-            val actualToolbarHeight = unifiedToolbar?.height ?: toolbarHeight
+            val actualToolbarHeight = ownerToolbar.height.takeIf { it > 0 } ?: toolbarHeight
 
             // Reserve layout space for pinned chrome. A top margin rather
             // than SwipeRefreshLayout padding keeps its gesture surface
@@ -985,6 +992,8 @@ abstract class BaseBrowserFragment : Fragment(), UserInteractionHandler, Activit
 
     @VisibleForTesting
     internal open fun fullScreenChanged(inFullScreen: Boolean) {
+        fullscreenChromeGeneration++
+        fullscreenChromeActive = inFullScreen
         if (inFullScreen) {
             // Close find in page bar if opened
             findInPageIntegration.onBackPressed()
@@ -1158,6 +1167,8 @@ abstract class BaseBrowserFragment : Fragment(), UserInteractionHandler, Activit
     }
 
     override fun onDestroyView() {
+        fullscreenChromeGeneration++
+        fullscreenChromeActive = false
         super.onDestroyView()
 
         // Lifecycle-aware features cleaned up automatically

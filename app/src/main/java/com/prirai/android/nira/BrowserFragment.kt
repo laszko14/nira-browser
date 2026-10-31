@@ -70,6 +70,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     private val windowFeature = ViewBoundFeatureWrapper<WindowFeature>()
     private var mediaFloatingUi: MediaFloatingUi? = null
     private var sidePanelInfrastructure: SidePanelInfrastructure? = null
+    private val fullscreenChromeGate = FullscreenChromeRestoreGate()
     private val savedFoldersBackDispatcher = VideoSavedFoldersBackDispatcher()
     // ProfileManager is SharedPreferences-backed, not a Compose StateFlow.
     // Recompose the internal results tab only when a selected tab switches owner.
@@ -136,7 +137,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         // Re-measure the detached footer after its new constraints apply.
         val bottomStrip = unifiedToolbar?.getBottomComponentsContainer()
         bottomStrip?.post {
-            if (!isAdded || view == null) return@post
+            if (!isAdded || view == null || fullscreenChromeGate.isFullscreen) return@post
             bottomStrip.requestLayout()
             unifiedToolbar?.reconcileEngineViewHeight()
             requestWebContentPositionUpdate()
@@ -144,6 +145,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     }
 
     override fun initializeUI(view: View, tab: SessionState) {
+        fullscreenChromeGate.newView()
         UserPreferences(requireContext()).apply {
             toolbarPosition = com.prirai.android.nira.components.toolbar.ToolbarPosition.TOP.ordinal
             showContextualToolbar = false
@@ -441,6 +443,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     }
 
     override fun onDestroyView() {
+        fullscreenChromeGate.invalidateView()
         savedFoldersBackDispatcher.clear()
         // During parent view teardown, let FragmentManager own child view destruction.
         sidePanelInfrastructure?.releaseLeftContentBinding(childFragmentManager)
@@ -960,6 +963,20 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             return
         }
 
+        // An old animation/layout may still report hidden chrome during fullscreen.
+        if (fullscreenChromeGate.isFullscreen) {
+            val fullscreenLp = binding.swipeRefresh.layoutParams
+                as? androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams
+            if (fullscreenLp != null && (fullscreenLp.topMargin != 0 ||
+                        fullscreenLp.bottomMargin != 0)) {
+                fullscreenLp.topMargin = 0
+                fullscreenLp.bottomMargin = 0
+                binding.swipeRefresh.layoutParams = fullscreenLp
+            }
+            binding.swipeRefresh.translationY = 0f
+            return
+        }
+
         // Calculate visible toolbar height
         val visibleHeight = (totalHeight - currentOffset).coerceAtLeast(0)
 
@@ -1046,6 +1063,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
      * API calls from the web content.
      */
     override fun onFullScreenModeChanged(inFullScreen: Boolean) {
+        val transition = fullscreenChromeGate.modeChanged(inFullScreen)
         sidePanelInfrastructure?.onFullscreenChanged(inFullScreen)
         if (inFullScreen) sidePanelInfrastructure?.pruneClosedContent(childFragmentManager)
         mediaFloatingUi?.setFullscreen(inFullScreen)
@@ -1054,7 +1072,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             expandBrowserViewForFullscreen()
         } else {
             // Exiting fullscreen - restore toolbars
-            collapseBrowserViewFromFullscreen()
+            collapseBrowserViewFromFullscreen(transition)
         }
     }
 
@@ -1077,24 +1095,28 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
      * Collapses the browser view from fullscreen by restoring toolbar elements.
      * Follows Mozilla's pattern from Fenix.
      */
-    private fun collapseBrowserViewFromFullscreen() {
+    private fun collapseBrowserViewFromFullscreen(transition: Long) {
         if (!webAppToolbarShouldBeVisible) return
-
-        unifiedToolbar?.apply {
-            isVisible = true
-            getBottomComponentsContainer()?.apply {
-                visibility = View.VISIBLE
-                alpha = 1f
-                translationY = 0f
-                requestLayout()
-            }
-            post {
-                requestApplyInsets()
-                expand()
-                requestLayout()
-                reconcileEngineViewHeight()
-                requestWebContentPositionUpdate()
-            }
+        val ownerView = view ?: return
+        val toolbar = unifiedToolbar ?: return
+        toolbar.isVisible = true
+        toolbar.getBottomComponentsContainer()?.apply {
+            visibility = View.VISIBLE
+            alpha = 1f
+            translationY = 0f
+            requestLayout()
+        }
+        toolbar.post {
+            // Do not let an older exit overwrite a newer enter, or a new view.
+            if (!fullscreenChromeGate.canRestore(transition) || !isAdded ||
+                this@BrowserFragment.view !== ownerView || unifiedToolbar !== toolbar ||
+                !toolbar.isAttachedToWindow
+            ) return@post
+            toolbar.requestApplyInsets()
+            toolbar.expand()
+            toolbar.requestLayout()
+            toolbar.reconcileEngineViewHeight()
+            requestWebContentPositionUpdate()
         }
     }
     private fun showBrowserMenu() {
