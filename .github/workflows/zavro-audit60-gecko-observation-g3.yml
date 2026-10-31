@@ -1,0 +1,50 @@
+name: Zavro Clean audit60 G3 - passive debug probe (no APK)
+
+on:
+  push:
+    branches:
+      - test/zavro-clean-post19-gecko-g3-observation-20261031
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit60-gecko-g3
+  cancel-in-progress: true
+
+jobs:
+  debug-test-source-compile-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Enforce debug-test-only change allowlist since green G2
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only 27606292eab3d8a104c861e9e2594f3d4768c86c "$GITHUB_SHA" | while IFS= read -r file; do
+            case "$file" in
+              app/src/debug/java/com/prirai/android/nira/diagnostics/geckog3/GeckoG3RedactedTrace.kt|\
+              app/src/test/java/com/prirai/android/nira/diagnostics/geckog3/GeckoG3RedactedTraceTest.kt|\
+              app/src/androidTest/java/com/prirai/android/nira/diagnostics/geckog3/GeckoG3PassiveObservationTest.kt|\
+              docs/audits/zavro-clean-repair/GECKOVIEW_DEVICE_VERIFICATION_G3.md|\
+              .github/workflows/zavro-audit60-gecko-observation-g3.yml) ;;
+              *) echo "Unexpected path: $file"; exit 1 ;;
+            esac
+          done
+      - name: Preserve frozen 19B audit
+        run: node scripts/verify-audit60-stage19b.cjs
+      - name: Focused Kotlin JVM regression (redaction, identity, bounded buffer)
+        run: ./gradlew :app:testDebugUnitTest --tests 'com.prirai.android.nira.diagnostics.geckog3.GeckoG3RedactedTraceTest' --console=plain
+      - name: Compile instrumentation TEST SOURCE only, never run or build APK
+        run: ./gradlew :app:compileDebugAndroidTestKotlin --console=plain
+      - name: Android lint
+        run: ./gradlew :app:lintDebug --console=plain
