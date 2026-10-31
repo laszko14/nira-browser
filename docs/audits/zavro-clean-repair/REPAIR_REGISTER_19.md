@@ -154,7 +154,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-016 | nieidempotentna obsługa klawiatury przy dismiss | LIKELY | P2 | 13/19 | VERIFY_FIRST |
 | ZC-AUD-017 | flaga gestów nie zatrzymuje już przejętego streamu | CONFIRMED | P2 | 12/19 | FIXED CORE — 12B immediate owner CANCEL and stream drain; Kotlin/JS/lint CI PASS, device NOT_TESTED |
 | ZC-AUD-018 | starsza animacja toolbaru przeżywa rozpoczęcie nowego gestu | CONFIRMED | P2 | 13/19 | DO_RECHECK |
-| ZC-AUD-019 | raw swipe karty nie respektuje własności gestu Compose | LIKELY | P2 | 12/19 | VERIFY_FIRST |
+| ZC-AUD-019 | raw swipe karty nie respektuje własności gestu Compose | LIKELY | P2 | 12/19 | IMPLEMENTED — 12D exclusive pointer ownership, consumption/drag/cancel guards; CI_PENDING, Compose device NOT_TESTED |
 | ZC-AUD-020 | obsługa IME usuwa rezerwację miejsca na dolny pasek | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-021 | Anuluj nie cofa wyboru wyszukiwarki | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-022 | import własnego eksportu zmienia typy preferencji | CONFIRMED | P1 | 3/19 | IMPLEMENTED — stage 3, CI_PENDING |
@@ -443,3 +443,12 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - ZC-AUD-010 oznaczono **FIXED CORE** w kodzie z regresją modelu/listy. Brak realnego gestu, Compose animation timing, automatycznego rozwinięcia i 120 Hz na Nothing Phone (1): **NOT_TESTED**, więc nie twierdzimy, że fizyczny przypadek jest potwierdzony na urządzeniu.
 - Pozostałe w etapie 12: ZC-AUD-019 `VERIFY_FIRST`. ZC-AUD-030 `OPEN`, ZC-AUD-031 `PARTIAL`. Bez merge do main i bez APK.
 - Ten dokumentacyjny commit również wymaga końcowego `completed/success` dla dokładnego SHA.
+
+## Etap 12D/19 — ZC-AUD-019: własność swipe karty kontra Compose DnD (2026-10-31)
+
+- **Baza:** etap 12C `ae31b6a5588ca80194bc5defd631e4d5e9a941bb`, [GitHub Actions #41157504579](https://github.com/laszko14/nira-browser/actions/runs/41157504579) completed/success. Gałąź `fix/zavro-clean-audit60-stage12d-compose-swipe-ownership-20261031`.
+- **019 LIKELY → POTWIERDZONE źródłowo:** `SwipeableTabPill` zagnieżdżony w `draggableItem` ignorował `isConsumed`, czytał pierwszy indeks zmian i uruchamiał close/menu niezależnie od DnD. Bez urządzeniowego odtworzenia podwójnej akcji pozostaje LIKELY co do faktycznego skutku użytkowego.
+- **Implementacja:** pojedynczy `PointerId` od DOWN do UP, odmowa przy drugim palcu, wymianie ID, zużytym zdarzeniu lub trwającym DnD; pionowy swipe przejmuje strumień dopiero po przewadze nad ruchem poziomym i Compose touchSlop. Odczyt Main/Final, callback tylko po legalnym release, pełne czyszczenie w `finally` także przy CANCEL/detach. Callsite rozwiniętej grupy przekazuje własność z `DragCoordinator`. Nie zmienia algorytmu DnD, tabel grup ani semantyki swipe up=close, down=menu.
+- **Regresja:** `SwipePillGestureOwnerTest` — oba kierunki, próg, wyłączne ID, drugi palec, konsumowane zdarzenie, przejęcie DnD, anulowanie i świeży DOWN. `swipe-pill-gesture-ownership-audit60.test.cjs` zabezpiecza rzeczywiste spięcie Compose. Pełne Kotlin/JVM/Robolectric, `compileDebugAndroidTestKotlin` (bez APK), Node.js JS, lint przez `.github/workflows/zavro-audit60-stage12d-regression.yml`.
+- **Granica dowodu:** realny Compose pointer dispatch Main/Final, long-press vs drag, dwa palce, Android 15/120 Hz i Gecko **NOT_TESTED** bez APK. Jeśli workflow przejdzie, oznaczyć FIXED CORE, nie „sprawdzone fizycznie”.
+- **Ochrona:** nie ruszać danych/profili, prywatności, sesji, Gecko storage, podpisu, wersji ani APK. Bez merge do main. ZC-AUD-030 OPEN i ZC-AUD-031 PARTIAL.

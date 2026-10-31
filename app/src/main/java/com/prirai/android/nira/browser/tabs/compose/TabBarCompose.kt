@@ -816,7 +816,8 @@ private fun GroupPill(
                                     },
                                     modifier = Modifier,
                                     swipeThreshold = 40f,
-                                    iconSizeDp = iconSizeDp
+                                    iconSizeDp = iconSizeDp,
+                                    isDragInProgress = { coordinator.isDragging(tab.id) }
                                 )
                             }
                         }

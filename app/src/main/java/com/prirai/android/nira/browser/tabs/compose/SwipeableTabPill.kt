@@ -22,6 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import com.prirai.android.nira.theme.TabGroupTones
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.text.font.FontWeight
@@ -81,13 +82,18 @@ fun SwipeableTabPill(
     onShowMenu: () -> Unit,
     modifier: Modifier = Modifier,
     swipeThreshold: Float = 40f,
-    iconSizeDp: Int = 34
+    iconSizeDp: Int = 34,
+    isDragInProgress: () -> Boolean = { false }
 ) {
     // Reset offset when the tab id changes so the state does not leak between
     // adjacent slots when Compose reuses this call site for a different tab
     // (e.g. after a neighbouring pill is closed).
     var offsetY by remember(tab.id) { mutableStateOf(0f) }
     val maxOffset = 80f
+    // Callbacks change on recomposition; do not restart a running pointer stream.
+    val currentOnTabClose by rememberUpdatedState(onTabClose)
+    val currentOnShowMenu by rememberUpdatedState(onShowMenu)
+    val currentDragInProgress by rememberUpdatedState(isDragInProgress)
 
     Box(
         modifier = modifier.size(iconSizeDp.coerceIn(10, 52).dp)
@@ -125,55 +131,71 @@ fun SwipeableTabPill(
                 .fillMaxSize()
                 .offset { IntOffset(0, offsetY.roundToInt()) }
                 .pointerInput(tab.id) {
-                    var totalHorizontalDrag = 0f
-                    var totalVerticalDrag = 0f
-
                     awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        totalHorizontalDrag = 0f
-                        totalVerticalDrag = 0f
+                        // A single pointer owns this swipe, and only until Compose/DnD
+                        // consumes the stream. Never promote another finger to owner.
+                        val down = awaitFirstDown(requireUnconsumed = true)
+                        val owner = SwipePillGestureOwner(
+                            touchSlop = viewConfiguration.touchSlop,
+                            threshold = swipeThreshold,
+                            maxOffset = maxOffset
+                        )
+                        owner.begin(down.id.value)
+                        var outcome = SwipePillOutcome.NONE
+                        try {
+                            while (owner.isActive) {
+                                val event = awaitPointerEvent(PointerEventPass.Main)
+                                val change = event.changes.firstOrNull { it.id == down.id }
+                                val otherFinger = event.changes.any {
+                                    it.id != down.id && it.pressed
+                                }
+                                val consumed = event.changes.any { it.isConsumed }
+                                if (change == null || otherFinger || consumed ||
+                                    currentDragInProgress()
+                                ) {
+                                    owner.cancel()
+                                    break
+                                }
+                                if (!change.pressed) {
+                                    // Let descendants finish this event before committing.
+                                    awaitPointerEvent(PointerEventPass.Final)
+                                    outcome = owner.release(
+                                        down.id.value,
+                                        consumed = event.changes.any { it.isConsumed },
+                                        dragInProgress = currentDragInProgress()
+                                    )
+                                    break
+                                }
+                                val delta = change.positionChange()
+                                val claimed = owner.move(
+                                    pointerId = down.id.value,
+                                    deltaX = delta.x,
+                                    deltaY = delta.y,
+                                    dragInProgress = currentDragInProgress()
+                                )
+                                offsetY = owner.offsetY
+                                if (!owner.isActive) break
+                                if (claimed) change.consume()
 
-                        do {
-                            val event = awaitPointerEvent()
-                            val drag = event.changes.firstOrNull()
-
-                            if (drag != null && drag.pressed) {
-                                val deltaX = drag.position.x - drag.previousPosition.x
-                                val deltaY = drag.position.y - drag.previousPosition.y
-
-                                totalHorizontalDrag += abs(deltaX)
-                                totalVerticalDrag += abs(deltaY)
-
-                                // Only handle vertical gestures if vertical movement dominates
-                                if (totalVerticalDrag > totalHorizontalDrag && totalVerticalDrag > 10f) {
-                                    // This is a vertical gesture - consume it
-                                    drag.consume()
-                                    offsetY = (offsetY + deltaY).coerceIn(-maxOffset, maxOffset)
+                                // An unclaimed swipe must yield to a child that consumes
+                                // the event in a later pass (click, scrolling, or DnD).
+                                awaitPointerEvent(PointerEventPass.Final)
+                                if (!claimed && event.changes.any { it.isConsumed }) {
+                                    owner.cancel()
+                                    break
                                 }
                             }
-                        } while (event.changes.any { it.pressed })
-
-                        // On release, trigger action if vertical was dominant
-                        if (totalVerticalDrag > totalHorizontalDrag && totalVerticalDrag > 10f) {
-                            when {
-                                offsetY < -swipeThreshold -> {
-                                    // Swipe up - close tab. Do NOT hide the pill locally;
-                                    // the tab list flowing down from the store will remove
-                                    // it on the next recomposition. Hiding it locally used
-                                    // to leak state to the adjacent pill when Compose
-                                    // reused the slot.
-                                    onTabClose()
-                                }
-
-                                offsetY > swipeThreshold -> {
-                                    // Swipe down - show menu
-                                    onShowMenu()
-                                }
-                            }
+                        } finally {
+                            // Includes parent cancellation, pointer-input disposal and
+                            // exceptions. Never leave a moved pill behind.
+                            owner.cancel()
+                            offsetY = 0f
                         }
-
-                        // Reset position
-                        offsetY = 0f
+                        when (outcome) {
+                            SwipePillOutcome.CLOSE -> currentOnTabClose()
+                            SwipePillOutcome.MENU -> currentOnShowMenu()
+                            SwipePillOutcome.NONE -> Unit
+                        }
                     }
                 },
             shape = CircleShape,
