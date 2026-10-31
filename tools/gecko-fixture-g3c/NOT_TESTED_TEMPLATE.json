@@ -1,0 +1,22 @@
+{
+  "schema": "zavro.geckoview.g3c/1",
+  "caseId": "ZC-AUD-043",
+  "environment": {
+    "deviceModel": "Nothing Phone (1)",
+    "androidVersion": "15",
+    "appSha": "NOT_OBSERVED",
+    "appPackage": "com.prirai.android.nira.debug",
+    "geckoBuild": "NOT_OBSERVED",
+    "physicalDeviceObserved": false
+  },
+  "safety": {
+    "syntheticOnly": false,
+    "trustedHttps": false,
+    "isolatedTestEnvironment": false,
+    "installationAuthorized": false,
+    "userDataUntouched": true,
+    "backupVerified": false
+  },
+  "artifacts": [],
+  "events": []
+}
