@@ -1,7 +1,6 @@
 package com.prirai.android.nira.search
 
 import android.app.Dialog
-import android.content.Context
 import android.content.DialogInterface
 import android.graphics.Color
 import android.os.Build
@@ -10,7 +9,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
-import android.view.inputmethod.InputMethodManager
 import androidx.appcompat.app.AppCompatDialogFragment
 import androidx.constraintlayout.widget.ConstraintProperties.BOTTOM
 import androidx.constraintlayout.widget.ConstraintProperties.PARENT_ID
@@ -18,6 +16,7 @@ import androidx.constraintlayout.widget.ConstraintProperties.TOP
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.graphics.drawable.toDrawable
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
@@ -352,22 +351,29 @@ class SearchDialogFragment : AppCompatDialogFragment(), UserInteractionHandler {
         binding.linkIcon.isVisible = false
     }
 
-    /*
-     * This way of dismissing the keyboard is needed to smoothly dismiss the keyboard while the dialog
-     * is also dismissing. For example, when clicking a top site on home while this dialog is showing.
+    /**
+     * Hide only the search dialog's IME. A toggle could reopen an already hidden
+     * keyboard when Back or a scrim tap had previously dismissed it.
      */
-    private fun hideDeviceKeyboard() {
-        // If the interactor/controller has handled a search event itself, it will hide the keyboard.
-        if (!dialogHandledAction) {
-            val imm =
-                requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-            imm.toggleSoftInput(InputMethodManager.SHOW_IMPLICIT, 0)
+    private fun hideDeviceKeyboard(dialog: DialogInterface) {
+        // The controller already owns IME cleanup for an accepted search action.
+        if (dialogHandledAction) return
+
+        // onDismiss may run after the fragment view is detached: use the
+        // dismissing dialog's window while it is still alive, before super.
+        val dialogWindow = (dialog as? Dialog)?.window
+        if (dialogWindow != null) {
+            WindowCompat.getInsetsController(dialogWindow, dialogWindow.decorView)
+                .hide(WindowInsetsCompat.Type.ime())
+        } else {
+            // Windowless dismiss (e.g. rapid teardown): never toggle IME.
+            view?.hideKeyboard()
         }
     }
 
     override fun onDismiss(dialog: DialogInterface) {
+        hideDeviceKeyboard(dialog)
         super.onDismiss(dialog)
-        hideDeviceKeyboard()
     }
 
     override fun onBackPressed(): Boolean {
