@@ -1,0 +1,50 @@
+name: Zavro AI process - documentation gate (NO APK)
+
+on:
+  push:
+    branches:
+      - improve/zavro-clean-chatgpt-github-process-20261101
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zavro-ai-process-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  process-docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Check changes for whitespace errors
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check HEAD^ HEAD
+      - name: Check process entrypoints and safety rules (structural checks, not behavior tests)
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const policy = fs.readFileSync('AGENTS.md', 'utf8');
+          const entry = fs.readFileSync('docs/ai/CHATGPT_PROJECT_INSTRUCTIONS.md', 'utf8');
+          const redirect = fs.readFileSync('.github/agents.md', 'utf8');
+          assert.match(policy, /workflow_mode=staged/);
+          assert.match(policy, /workflow_mode=autonomous_task/);
+          assert.match(policy, /CI_PENDING/);
+          assert.match(policy, /CODE_VERIFIED/);
+          assert.match(policy, /DEVICE_VERIFIED/);
+          assert.match(policy, /APK_VERIFIED/);
+          assert.match(policy, /bez osobne.*Kompiluj|osobne wyraźne polecenie/);
+          assert.match(entry, /AGENTS\.md/);
+          assert.match(entry, /AI_HANDOFF\.md/);
+          assert.match(redirect, /\.\.\/AGENTS\.md/);
+          console.log('Instruction structure: PASS (no APK, signing, release or Gradle performed)');
+          NODE
