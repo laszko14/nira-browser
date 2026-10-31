@@ -1,0 +1,51 @@
+name: Zavro Clean audit60 stage 19B - final 60 findings verification (no APK)
+
+on:
+  push:
+    branches:
+      - fix/zavro-clean-audit60-stage19b-final-verification-20261031
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit60-stage19b-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  final-evidence-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: gradle/wrapper-validation-action@v2
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Validate audit 19B 60/60 evidence matrix (not a device test)
+        run: |
+          node scripts/verify-audit60-stage19b.cjs
+          node --test app/src/test/js/release-contract-stage19a.test.cjs
+          bash -n scripts/verify-update-apk.sh
+      - name: Full Kotlin JVM and Robolectric regressions
+        run: ./gradlew :app:testDebugUnitTest --console=plain
+      - name: Compile Android instrumentation tests WITHOUT APK
+        run: ./gradlew :app:compileDebugAndroidTestKotlin --console=plain
+      - name: Full WebExtension JavaScript regressions
+        run: node --test app/src/test/js/*.test.cjs
+      - name: Android lint
+        run: ./gradlew :app:lintDebug --console=plain
+      - name: Upload test and lint reports (never APK)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit60-stage19b-test-results
+          path: |
+            app/build/test-results/testDebugUnitTest/**
+            app/build/reports/tests/testDebugUnitTest/**
+            app/build/reports/lint-results-debug*
+          if-no-files-found: warn
+          retention-days: 7
