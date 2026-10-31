@@ -113,7 +113,7 @@ class SidePanelResizeGestureTest {
         assertEquals(20, SidePanelResizeGeometry.contentStartPaddingDp(true))
         assertEquals(0, SidePanelResizeGeometry.contentEndPaddingDp(true))
         for (direction in listOf(View.LAYOUT_DIRECTION_LTR, View.LAYOUT_DIRECTION_RTL)) {
-            val ctx = RuntimeEnvironment.getApplication<Application>()
+            val ctx = RuntimeEnvironment.getApplication()
             val panel = CoordinatorLayout(ctx)
             panel.layoutDirection = direction
             val grip = View(ctx)
