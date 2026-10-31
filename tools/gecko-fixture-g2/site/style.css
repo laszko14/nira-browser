@@ -1,0 +1,6 @@
+html{font-family:system-ui,sans-serif;line-height:1.5;color-scheme:light dark}
+body{max-width:50rem;margin:1rem auto;padding:0 1rem}
+button,select{padding:.5rem;margin:.3rem}
+video{display:block;width:min(100%,34rem);background:#222}
+.controls{margin:.8rem 0}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:25rem;overflow-y:auto;background:#222;color:#eee;padding:.8rem}

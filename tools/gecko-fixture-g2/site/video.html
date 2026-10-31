@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="pl">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zavro GV-G2 — wideo A/B</title>
+<link rel="stylesheet" href="/style.css"><script src="/fixture.js" defer></script></head>
+<body data-page="video">
+<h1>GV-043 — źródło i metadane Gecko</h1>
+<p>A = niebieski 160×90 / 2 s; B = czerwony 320×180 / 5 s. Bez DRM i kont.</p>
+<video id="probe" width="320" height="180" preload="metadata" controls muted playsinline></video>
+<div class="controls">
+<button id="load-a" type="button">Załaduj A</button>
+<button id="load-b" type="button">Załaduj B</button>
+<button id="switch-b" type="button">A loadedmetadata → B</button>
+<button id="invalid-b" type="button">A loadedmetadata → błędny B</button>
+<button id="source-list" type="button">Lista source A/B</button>
+<button id="blob-b" type="button">B jako blob (nie MSE)</button>
+</div>
+<p>Log zdarzeń DOM nie jest dowodem zachowania Gecko na telefonie.</p>
+<pre id="events" aria-live="polite"></pre><a href="/">Wróć</a>
+</body></html>
