@@ -50,7 +50,7 @@ class MediaVariantSelectionAudit60Test {
         assertEquals(high.posterUrl, mediaTileItems(listOf(low, high)).single().posterUrl)
         val conflicting = media(3, poster = "https://images.example/different.jpg", origin = "VIDEO_ELEMENT")
         assertNull(mediaTileItems(listOf(high, conflicting)).single().posterUrl)
-        assertEquals(high.posterUrl, mediaTileItems(listOf(high, high.copy(id = 4L))).single().posterUrl)
+        assertEquals(high.posterUrl, mediaTileItems(listOf(high, media(4, poster = high.posterUrl, origin = "VIDEO_ELEMENT"))).single().posterUrl)
     }
 
     @Test fun groupPosterNeverCrossesFrameOrMovieAndAmbiguousEvidenceIsIgnored() {
@@ -103,7 +103,15 @@ class MediaVariantSelectionAudit60Test {
         assertNull(mediaCurrentActionEntry(shown, MediaUiSnapshot(tab(), emptyList()), 1))
         assertNull(mediaCurrentActionEntry(shown, latest, 999))
         // An exact record may renew its URL without retaining the old signed link.
-        val renewed = shownEntry.copy(url = "https://cdn.example/new-token.m3u8?sig=renewed")
+        val renewed = MediaEntry(
+            id = shownEntry.id,
+            url = "https://cdn.example/new-token.m3u8?sig=renewed",
+            format = shownEntry.format,
+            sources = shownEntry.sources,
+            groupId = shownEntry.groupId,
+            frameKey = shownEntry.frameKey,
+            playbackStatus = shownEntry.playbackStatus,
+        )
         assertEquals(renewed.url, mediaCurrentActionEntry(shown,
             MediaUiSnapshot(tab(), listOf(renewed)), 1)?.url)
         assertFalse(mediaVariantLabel(shownEntry, 1).contains("opaque"))
