@@ -7,6 +7,7 @@ import androidx.core.content.ContextCompat
 import com.prirai.android.nira.ext.components
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import mozilla.components.browser.state.action.DownloadAction
 import mozilla.components.browser.state.state.content.DownloadState
@@ -42,6 +43,7 @@ import mozilla.components.support.utils.DefaultDownloadFileUtils
 object DownloadController {
 
     private const val TAG = "DownloadController"
+    private val probes = DownloadProbeGate()
 
     const val PARALLEL_MIN_BYTES = 8L * 1024 * 1024
     const val PARALLEL_THREADS = 4
@@ -73,6 +75,8 @@ object DownloadController {
      */
     fun start(context: Context, incoming: DownloadState) {
         val app = context.applicationContext
+        // A retry with the same download ID must invalidate a previously delayed probe.
+        probes.invalidate(incoming.id)
 
         // Guarantee a non-null `fileName` before any service touches
         // the DownloadState. This is normally handled by MozAC's
@@ -110,42 +114,50 @@ object DownloadController {
             return
         }
 
-        // Content-Length unknown and no sidecar. GeckoView frequently
-        // reports null `contentLength` here, especially for CDN links
-        // and APKs served with chunked transfer encoding. Probe the
-        // server with a 1-byte range request; if the server advertises
-        // a total >= PARALLEL_MIN_BYTES, switch to the parallel path.
-        //
-        // This runs on a short-lived IO coroutine, not on the service's
-        // own job graph, so a slow probe doesn't block the serial path
-        // we start immediately below.
+        // Start serial before scheduling its optional handoff. Both paths share
+        // one per-download generation, invalidated synchronously by pause,
+        // cancel, resume or a new start for the same ID.
         if (download.contentLength == null) {
-            CoroutineScope(Dispatchers.IO).launch {
-                val probed = probeContentLength(app, download)
-                if (probed != null && probed >= PARALLEL_MIN_BYTES) {
-                    Log.i(TAG, "Probe found length=$probed for ${download.id}; switching to parallel")
-                    // Cancel the serial job we started below. The
-                    // standard AbstractFetchDownloadService ACTION_CANCEL
-                    // tears down the FetchDownloadManager-owned
-                    // download. Then update the state's contentLength
-                    // and start the parallel service.
-                    app.sendBroadcast(
-                        Intent(AbstractFetchDownloadService.ACTION_CANCEL).apply {
-                            setPackage(app.packageName)
-                            putExtra(INTENT_EXTRA_DOWNLOAD_ID, download.id)
+            val ticket = probes.open(download.id)
+            try {
+                if (!probes.runIfCurrent(ticket) {
+                        startService(app, DownloadService::class.java, download.id)
+                    }) return
+            } catch (failure: Throwable) {
+                probes.invalidate(download.id)
+                throw failure
+            }
+            val job = CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val probed = probeContentLength(app, download)
+                    if (probed != null && probed >= PARALLEL_MIN_BYTES) {
+                        // Serialized with controller pause/cancel. Never use
+                        // captured DownloadState as fallback when Store removed
+                        // the record or a terminal status already won.
+                        probes.claim(ticket) {
+                            val current = app.components.store.state.downloads[download.id]
+                            if (!current.isEligibleForProbeHandoff(download)) return@claim
+                            Log.i(TAG, "Probe found length=$probed for ${download.id}; switching to parallel")
+                            app.sendBroadcast(
+                                Intent(AbstractFetchDownloadService.ACTION_CANCEL).apply {
+                                    setPackage(app.packageName)
+                                    putExtra(INTENT_EXTRA_DOWNLOAD_ID, download.id)
+                                }
+                            )
+                            app.components.store.dispatch(
+                                DownloadAction.UpdateDownloadAction(current!!.copy(contentLength = probed))
+                            )
+                            startService(app, ParallelDownloadService::class.java, download.id)
                         }
-                    )
-                    val current = app.components.store.state.downloads[download.id] ?: download
-                    app.components.store.dispatch(
-                        DownloadAction.UpdateDownloadAction(current.copy(contentLength = probed))
-                    )
-                    startService(app, ParallelDownloadService::class.java, download.id)
+                    }
+                } finally {
+                    probes.release(ticket)
                 }
             }
+            probes.attach(ticket, job)
+            return
         }
 
-        // Start the serial path immediately so the user sees progress
-        // right away. The probe (if any) can hand off later.
         startService(app, DownloadService::class.java, download.id)
     }
 
@@ -160,6 +172,7 @@ object DownloadController {
     }
 
     fun pause(context: Context, downloadId: String) {
+        probes.invalidate(downloadId)
         val app = context.applicationContext
         app.sendBroadcast(
             Intent(AbstractFetchDownloadService.ACTION_PAUSE).apply {
@@ -176,6 +189,7 @@ object DownloadController {
     }
 
     fun resume(context: Context, incoming: DownloadState) {
+        probes.invalidate(incoming.id)
         val app = context.applicationContext
         val download = ensureFileName(app, incoming).also { resolved ->
             if (resolved !== incoming) {
@@ -202,6 +216,7 @@ object DownloadController {
     }
 
     fun cancel(context: Context, download: DownloadState) {
+        probes.invalidate(download.id)
         val app = context.applicationContext
         app.sendBroadcast(
             Intent(AbstractFetchDownloadService.ACTION_CANCEL).apply {
@@ -239,7 +254,9 @@ object DownloadController {
                 if (response.status != 206) return null
                 ParallelDownloadService.parseTotal(response.headers["Content-Range"])
             }
-        } catch (t: Throwable) {
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (t: Exception) {
             Log.w(TAG, "Content-length probe failed for download ${download.id}: ${t.javaClass.simpleName}")
             null
         }

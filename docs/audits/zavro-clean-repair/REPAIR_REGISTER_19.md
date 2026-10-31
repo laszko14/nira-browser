@@ -190,7 +190,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-052 | brak rejestracji okna filmów otwartego w PREPARING | CONFIRMED | P2 | 7/19 | FIXED — stage 7, JVM + CI PASS; device frames NOT_TESTED |
 | ZC-AUD-053 | parametry uwierzytelniania w diagnostyce Sync | CONFIRMED | P2 | 6/19 | DO_RECHECK |
 | ZC-AUD-054 | trwały cache favicon z prywatnej karty | CONFIRMED | P2 | 6/19 | DO_RECHECK |
-| ZC-AUD-055 | probe pobierania nie respektuje anulowania | CONFIRMED | P2 | 18/19 | DO_RECHECK |
+| ZC-AUD-055 | probe pobierania nie respektuje anulowania | CONFIRMED | P2 | 18C/19 | FIXED CORE — generation, cancellation, live Store guard; CI_PENDING |
 | ZC-AUD-056 | import nadpisuje zakładki przed walidacją | CONFIRMED | P1 | 5/19 | IMPLEMENTED — stage 5, CI_PENDING |
 | ZC-AUD-057 | resume nie wiąże części z wersją zasobu | CONFIRMED | P2 | 18/19 | DO_RECHECK |
 | ZC-AUD-058 | nowy intent PWA ginie przed utworzeniem fragmentu | CONFIRMED | P2 | 9/19 | FIXED — stage 9, Kotlin/JS/lint CI PASS, device NOT_TESTED |
@@ -766,3 +766,13 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - **Regresje:** `app/src/test/js/preview-assist-stage18b.test.cjs` wykonuje rzeczywisty `preview-assist.js` z fixture DOM: dwa kliknięcia i jeden odrzucony generated preview, istniejący player, synchroniczny throw, zmiana preview URL, zmiana linku, osobne/recyklingowane karty, sukces podglądu, spóźniony reject starego źródła, Ctrl-click i brak zbędnych nowych wideo. Dotychczasowe 18A i v1106/v1108 pozostają w pełnym zestawie JS.
 - **CI:** `.github/workflows/zavro-audit60-stage18b-regression.yml` obejmuje fast gate Node (18A+18B), cały Kotlin/Robolectric, AndroidTest compile bez APK, komplet JS i Android lint. Ostateczny status `completed/success` należy potwierdzić na finalnym SHA. Rzeczywisty GeckoView, nawigacja HTTP, dźwięk, iframe, fullscreen, blob/MSE, Android 15/120 Hz: **NOT_TESTED**.
 - **Statusy bez zmian:** ZC-AUD-043 `CONDITIONAL_GUARD / REAL_GECKO_REQUIRED`, ZC-AUD-002 `BLOCKED / REAL_GECKO_REQUIRED`, ZC-AUD-030 `OPEN`, ZC-AUD-031 `PARTIAL`. Bez APK, merge, zmian podpisu, profili, prywatności, sesji i danych. **Następne osobne `Dalej`: 18C/19 — ZC-AUD-055 (probe pobierania vs anulowanie).**
+
+
+## Etap 18C/19 — ZC-AUD-055: probe pobierania kontra Pause/Cancel (2026-10-31)
+
+- **Baza:** 18B final `efb3289d65d359bf3e639e92da6fd9d28c18c2bd`, [CI #41239124939](https://github.com/laszko14/nira-browser/actions/runs/41239124939) completed/success, próba 1. Gałąź `fix/zavro-clean-audit60-stage18c-probe-cancellation-20261031`. Oryginalny dowód: `audit/zavro-clean-20261028:docs/audits/zavro-clean/FINDINGS.md` ZC-AUD-055, CONFIRMED/P2.
+- **STILL_PRESENT na 18B:** `DownloadController.start` tworzył IO job bez właściciela; po Pause lub Cancel dodatni `probeContentLength` używał `store.downloads[id] ?: capturedDownload`. `UpdateDownloadAction` odtwarzał usunięty rekord i uruchamiał `ParallelDownloadService` mimo zakończenia zadania.
+- **FIXED CORE:** `DownloadProbeGate` posiada jedną aktywną próbę na ID, anuluje job przy Pause/Cancel/Resume/retry i serializuje `claim` z invalidacją. Opóźnione wyniki poprzedniej generacji nie przechodzą do transferu. Handoff działa tylko przy istniejącym, żywym rekordzie Store z identycznym ID/URL/trybem prywatnym/referrer i statusem INITIATED/DOWNLOADING; brak rekordu/PAUSED/CANCELLED/FAILED/COMPLETED nie może przywrócić starego `DownloadState`. Serial jest uruchamiany przed asynchronicznym probe. Nie zmieniano backendu zapisu, danych użytkownika ani integralności sidecar/resume (osobne 18D).
+- **Regresje:** `DownloadProbeGateTest.kt` — wstrzymany niekooperujący probe po pause, cancel + usunięcie Store, statusy terminalne, podmiana URL/private, ponowny start tego samego ID, niezależne pobrania i anulowanie przed uruchomieniem joba. To testy jednostkowe właściciela i warunku Store, nie pełny Android broadcast/foreground/Gecko/device.
+- **CI:** `.github/workflows/zavro-audit60-stage18c-regression.yml` uruchamia regresje 18C, pełny Kotlin/Robolectric, AndroidTest compile bez APK, wszystkie testy JavaScript oraz Android lint. Status wymaga completed/success na finalnym SHA.
+- **Bez zmian:** ZC-AUD-043 CONDITIONAL_GUARD / REAL_GECKO_REQUIRED, ZC-AUD-002 BLOCKED / REAL_GECKO_REQUIRED, ZC-AUD-030 OPEN, ZC-AUD-031 PARTIAL. Brak zmian profili, prywatności, sesji, kart, podpisu, APK i merge do main. **Następne osobne „Dalej”: 18D/19 — ZC-AUD-057.**
