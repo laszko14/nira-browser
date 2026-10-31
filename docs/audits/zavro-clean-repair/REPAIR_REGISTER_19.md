@@ -151,7 +151,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-013 | kwadratowy koszt projekcji kolejności pasków kart | CONFIRMED | P2 | 11/19 | FIXED — 11A linear projection; JVM/JS/lint CI PASS; 120 Hz NOT_TESTED |
 | ZC-AUD-014 | dialog kolejności nie rozróżnia upuszczenia przed i za wierszem | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-015 | konfiguracja przycisków zależy od zmiany szerokości zamiast orientacji | CONFIRMED | P2 | 14/19 | DO_RECHECK |
-| ZC-AUD-016 | nieidempotentna obsługa klawiatury przy dismiss | LIKELY | P2 | 13/19 | IMPLEMENTED — 13A explicit dialog-owned IME hide before super; CI_PENDING, device NOT_TESTED |
+| ZC-AUD-016 | nieidempotentna obsługa klawiatury przy dismiss | LIKELY | P2 | 13/19 | FIXED CORE — 13A explicit dialog-owned IME hide, Kotlin/JS/lint CI PASS; device NOT_TESTED |
 | ZC-AUD-017 | flaga gestów nie zatrzymuje już przejętego streamu | CONFIRMED | P2 | 12/19 | FIXED CORE — 12B immediate owner CANCEL and stream drain; Kotlin/JS/lint CI PASS, device NOT_TESTED |
 | ZC-AUD-018 | starsza animacja toolbaru przeżywa rozpoczęcie nowego gestu | CONFIRMED | P2 | 13/19 | DO_RECHECK |
 | ZC-AUD-019 | raw swipe karty nie respektuje własności gestu Compose | LIKELY | P2 | 12/19 | FIXED CORE — 12D pointer ownership + consumed/DnD/cancel, JVM/JS/lint PASS; real Compose device NOT_TESTED |
@@ -468,3 +468,10 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - **Regresje:** `search-dialog-ime-dismiss-audit60.test.cjs` sprawdza faktyczne powiązanie w źródle: bez `toggleSoftInput`, właściciel okna, `hide(Type.ime())`, kolejność przed `super`, fallback oraz Back i akcje interaktora. Pełny Kotlin/JVM/Robolectric, kompilacja źródeł instrumentacyjnych **bez APK**, JS i Android lint przez `.github/workflows/zavro-audit60-stage13a-regression.yml`. Status przed zakończeniem CI: **CI_PENDING**, nie PASS.
 - **Granica dowodu:** testy i kod nie potwierdzają rzeczywistego stanu IME, fokusu i animacji viewportu na Nothing Phone (1) Android 15 — wymagana osobna regresja urządzeniowa (Back, scrim, wybór sugestii, powrót do pola strony). Brak APK, merge, zmian profili/prywatności, danych sesji, storage Gecko, versionCode lub podpisu.
 - **Następne `Dalej`:** po zielonym CI: **13B/19 ZC-AUD-018** (generacja i anulowanie animacji toolbaru WWW/Home), następnie 13C ZC-AUD-048 (priorytet panelu) i 13D ZC-AUD-049 (znak flingu). ZC-AUD-030 OPEN, 031 PARTIAL.
+
+### Etap 13A — checkpoint po zielonym CI
+
+- **PASS:** [GitHub Actions #41184917638](https://github.com/laszko14/nira-browser/actions/runs/41184917638) — `completed/success` na dokładnym kodowym SHA `39408a27e9f954b1196735cc91b1e5f6d0d9a31c`. Pełny Kotlin JVM/Robolectric, kompilacja instrumentacji Android bez assemble APK, Node.js JavaScript oraz Android lint zakończone sukcesem (lint może zawierać nieblokujące ostrzeżenia).
+- Pierwszy workflow [#41184796747](https://github.com/laszko14/nira-browser/actions/runs/41184796747) anulowano po korekcie **testu**, który błędnie ograniczał wycinek do pierwszego `onBackPressed()` wewnętrznego `Dialog`, zamiast do fragmentowego override po `onDismiss`. Zmiany w kodzie produkcyjnym nie były wymagane.
+- ZC-AUD-016: **FIXED CORE** w zakresie wyeliminowania `toggleSoftInput` i jawnego `hide(Type.ime())` przed super dla nadal żywego okna. Nie ma testu fizycznego realnego stanu IME/fokusu/resize na Nothing Phone (1) Android 15; manualne przypadki Back, scrim, wpisywanie w URL i powrót z input strony pozostają **NOT_TESTED**.
+- Ten dokumentacyjny SHA również wymaga końcowego `completed/success`; wynik kodowej rewizji nie może być przypisywany automatycznie późniejszemu commitowi. Następne `Dalej`: **13B/19 — ZC-AUD-018**. ZC-AUD-030 OPEN, ZC-AUD-031 PARTIAL. Bez APK, merge i zmiany podpisu.
