@@ -482,16 +482,32 @@ class TabOrderManager internal constructor(
         restoreComplete: Boolean
     ) = operation {
         if (!restoreComplete || !groupManager.awaitInitialized()) return@operation
-        val retainedIds = tabs.mapTo(mutableSetOf()) { it.id }.apply { addAll(undoTabIds) }
-        groupManager.pruneFinalizedClosedMembers(retainedIds)
-        val orderKeys = orderStore.data.first().asMap().keys
+        val prefs = orderStore.data.first()
+        val orderKeys = prefs.asMap().keys
             .mapNotNull { key ->
                 key.name.takeIf { it.startsWith("order_") }
                     ?.removePrefix("order_")?.takeIf { it.isNotEmpty() }
             }
+        // A pending root move may reference a temporarily absent tab. Protect
+        // both ends before pruning Room, not just when saving its order file.
+        val pendingMoves = mutableMapOf<String, RootMoveIntent>()
         for (profileId in orderKeys) {
-            // Never erase a durable root-move intent still awaiting restore/replay.
-            if (orderStore.data.first()[stringPreferencesKey("pending_root_$profileId")] != null) continue
+            val pending = prefs[stringPreferencesKey("pending_root_$profileId")] ?: continue
+            val move = runCatching { json.decodeFromString<RootMoveIntent>(pending) }
+                .getOrElse { return@operation } // Corrupt intent: never delete speculative data.
+            pendingMoves[profileId] = move
+        }
+        val retainedIds = tabs.mapTo(mutableSetOf()) { it.id }.apply {
+            addAll(undoTabIds)
+            pendingMoves.values.forEach { move ->
+                add(move.sourceId)
+                move.targetId?.let(::add)
+            }
+        }
+        groupManager.pruneFinalizedClosedMembers(retainedIds)
+        for (profileId in orderKeys) {
+            // First replay the durable move through normal rebuild/restore.
+            if (profileId in pendingMoves) continue
             val expected = com.prirai.android.nira.browser.profile.BrowserProfile
                 .contextIdFor(profileId, isPrivate = profileId == "private")
             val groups = groupManager.getAllGroups().filter { group ->

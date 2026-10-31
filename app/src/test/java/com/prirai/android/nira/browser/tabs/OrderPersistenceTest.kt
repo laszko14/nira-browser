@@ -213,6 +213,32 @@ class OrderPersistenceTest {
         } finally { db.close() }
     }
 
+    @Test fun pendingRootMovePreservesAbsentTabAndGroupUntilReplayed() = runTest {
+        val ctx = RuntimeEnvironment.getApplication()
+        val db = Room.inMemoryDatabaseBuilder(ctx, TabGroupDatabase::class.java).build()
+        var living = listOf(tab("a"), tab("b"))
+        val groups = UnifiedTabGroupManager(ctx, db, StandardTestDispatcher(testScheduler)) { living }
+        groups.initialize(); assertTrue(groups.awaitInitialized())
+        val group = groups.createGroup(listOf("b"), "Keep until replay")
+        val data = PreferenceDataStoreFactory.create(scope = backgroundScope) {
+            File(ctx.cacheDir, "pending-prune-" + java.util.UUID.randomUUID() + ".preferences_pb")
+        }
+        val manager = TabOrderManager(ctx, groups, data) { "default" }
+        try {
+            manager.rebuildOrderForProfile("default", living)
+            manager.rememberRootMove("default", "b", "a", true)
+            living = listOf(tab("a"))
+            manager.finalizeClosedTabs(living, emptySet(), true)
+            assertNotNull(groups.getGroup(group.id))
+            assertEquals(listOf("b"), db.tabGroupDao().getTabIdsInGroup(group.id))
+            assertTrue(manager.loadOrder("default").getAllTabIds().contains("b"))
+            manager.rebuildOrderForProfile("default", living) // Clears pending intent.
+            manager.finalizeClosedTabs(living, emptySet(), true)
+            assertNull(groups.getGroup(group.id))
+            assertEquals(listOf("a"), manager.loadOrder("default").getAllTabIds())
+        } finally { db.close() }
+    }
+
     @Test fun rapidProfileAndPrivateSwitchKeepsAllFilesAndTheirVisibleOrdersIsolated() = runTest {
         val context = RuntimeEnvironment.getApplication()
         val db = Room.inMemoryDatabaseBuilder(context, TabGroupDatabase::class.java).build()
