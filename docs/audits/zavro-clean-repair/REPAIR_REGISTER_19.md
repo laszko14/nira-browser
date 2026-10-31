@@ -184,7 +184,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-046 | odtwarzanie błędnego podglądu blokuje każdy kolejny tap | CONFIRMED | P2 | 18/19 | DO_RECHECK |
 | ZC-AUD-047 | spóźnione przywrócenie toolbaru koliduje z kolejnym fullscreen | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-048 | prostokąt toolbaru pod panelem nadal wygrywa gest | CONFIRMED | P2 | 13/19 | FIXED CORE — 13C live panel-ownership guard; Kotlin/Robolectric/JS/lint CI PASS, device NOT_TESTED |
-| ZC-AUD-049 | różny znak flingu w toolbarze WWW i Home | CONFIRMED | P2 | 13/19 | DO_RECHECK |
+| ZC-AUD-049 | różny znak flingu w toolbarze WWW i Home | CONFIRMED | P2 | 13/19 | ALREADY_RESOLVED — equal sign on 13C base; 13D shared policy/regressions CI_PENDING; device NOT_TESTED |
 | ZC-AUD-050 | migracja profilu przenosi stan odtwarzania starego silnika | CONFIRMED | P2 | 10/19 | FIXED — stage 10; stale MediaSession reset with JVM CI PASS; device NOT_TESTED |
 | ZC-AUD-051 | zmiana filmu w trasie hash zachowuje stare media | CONFIRMED | P2 | 15/19 | DO_RECHECK |
 | ZC-AUD-052 | brak rejestracji okna filmów otwartego w PREPARING | CONFIRMED | P2 | 7/19 | FIXED — stage 7, JVM + CI PASS; device frames NOT_TESTED |
@@ -509,3 +509,11 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - **ZC-AUD-048 FIXED CORE:** testy źródłowe potwierdzają, że panel zasłaniający toolbar zabiera mu własność gestu, a fizyczny dispatcher `SwipeGestureLayout` z dwoma słuchaczami działa w Robolectric. Ekran Nothing Phone (1), realny Compose hitbox, DnD, resize, dwa palce i działanie na 120 Hz pozostają **NOT_TESTED**. Nie deklarować urządzeniowego potwierdzenia.
 - **Granica bezpieczeństwa:** brak zmian w profilach, sesjach, prywatności, Gecko storage, podpisie, wersji, APK i main. ZC-AUD-030 OPEN, ZC-AUD-031 PARTIAL. **Następne `Dalej`: 13D/19 — ZC-AUD-049 (znak flingu)**.
 - Końcowy dokumentacyjny SHA również wymaga własnego `completed/success` w GitHub Actions; wynik wcześniejszego kodowego commita nie dowodzi statusu późniejszego SHA.
+
+## Etap 13D/19 — ZC-AUD-049: zgodny fizyczny znak flingu WWW/Home (2026-10-31)
+
+- **Baza:** 13C commit `2b971fe01d3c9ad3a6bd1dece25ba9b69238566a`, [CI #41189174430](https://github.com/laszko14/nira-browser/actions/runs/41189174430) completed/success. Gałąź `fix/zavro-clean-audit60-stage13d-toolbar-fling-parity-20261031`.
+- **Ponowna weryfikacja:** na bazie 13C oba handlery miały już `RIGHT_TO_LEFT -> velocityX <= 0` i `LEFT_TO_RIGHT -> velocityX >= 0`; `SwipeGestureLayout.onFling` przekazuje niezmienione `velocityX`. Stara niezgodność znaków z v1190 jest **ALREADY_RESOLVED**. W Home `translationX` ma typ Float, a więc obliczenie udziału odsłonięcia nie używa dzielenia całkowitego. Żadnej z tych sytuacji nie przedstawiać jako nowo naprawionej usterki.
+- **13D — zabezpieczenie:** jedna `ToolbarSwipeFinishPolicy` zastępuje dwie kopie reguł bez zmiany fizycznych znaków, progu 25%, minimum flingu, obracania gestu ani dotychczasowych obliczeń odsłonięcia. Bez zmian LRU, RTL wyboru celu, `canFinishSwipe`, scope profili/prywatności, animacji 13B i panelowej arbitraży 13C.
+- **Regresje:** `ToolbarSwipeFinishPolicyTest` (oba kierunki, naturalny/reverse, prędkość poniżej/na/powyżej progu, ułamek 25%, zerowa prędkość, RTL) i `toolbar-fling-parity-audit60.test.cjs` (rzeczywiste dwa callsite i niezmienione `GestureDetector`, `canFinishSwipe`, LRU). Workflow `.github/workflows/zavro-audit60-stage13d-regression.yml`: pełne JVM/Robolectric, kompilacja testów instrumentacyjnych bez APK, JS oraz Android lint.
+- **Status:** CI_PENDING do weryfikacji dokładnego końcowego SHA. Rzeczywisty fling Android 15 / 120 Hz, rotation, podgląd i rzeczywiste RTL **NOT_TESTED**. Bez APK, merge do main, zmian podpisu, wersji, danych, profili, sesji i Gecko storage. ZC-AUD-030 **OPEN**, ZC-AUD-031 **PARTIAL**. Po zielonym CI: następne `Dalej` → etap **14/19**.

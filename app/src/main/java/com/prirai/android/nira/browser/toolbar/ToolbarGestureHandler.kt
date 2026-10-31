@@ -227,15 +227,12 @@ class ToolbarGestureHandler(
 
     private fun isGestureComplete(velocityX: Float): Boolean {
         val previewWidth = tabPreview.getRectWithViewLocation().visibleWidth.toDouble()
-        val velocityMatchesDirection = when (gestureDirection) {
-            GestureDirection.RIGHT_TO_LEFT -> velocityX <= 0
-            GestureDirection.LEFT_TO_RIGHT -> velocityX >= 0
-        }
-        val reverseFling =
-            abs(velocityX) >= minimumFlingVelocity && !velocityMatchesDirection
-
-        return !reverseFling && (previewWidth / windowWidth >= GESTURE_FINISH_PERCENT ||
-            abs(velocityX) >= minimumFlingVelocity)
+        return ToolbarSwipeFinishPolicy.completes(
+            swipingLeft = gestureDirection == GestureDirection.RIGHT_TO_LEFT,
+            velocityX = velocityX,
+            minimumFlingVelocity = minimumFlingVelocity,
+            visibleFraction = previewWidth / windowWidth
+        )
     }
 
     private fun getAnimator(
