@@ -67,6 +67,7 @@ function page() {
   class HTMLVideoElement {
     constructor(url, mime = null, paused = false) {
       this.currentSrc = url; this.src = url;
+      this.readyState = 1; this.videoWidth = 0; this.videoHeight = 0;
       this.paused = paused; this.ended = false; this.isConnected = true;
       this.sources = mime ? [{ src: url, type: mime }] : [];
     }
@@ -1648,4 +1649,91 @@ test("audit60 17C: HLS EXTINF duration is preserved through the segment probe", 
   assert.equal(stream.url, manifest.url);
   assert.equal(stream.groupId, manifest.groupId);
   assert.equal(stream.documentKey, manifest.documentKey);
+});
+
+test("audit60 17E: src B with currentSrc A cannot inherit A duration, dimensions or playing ownership", async () => {
+  // This is a deliberately injected DOM state, NOT a claim that live Gecko
+  // exposes this intermediate state on any particular device or version.
+  const p = page();
+  const a = "https://cdn.example/a.mp4";
+  const b = "https://cdn.example/b.mp4";
+  const video = new p.HTMLVideoElement(a, "video/mp4", false);
+  p.videos.push(video);
+  video.duration = 19; video.videoWidth = 1280; video.videoHeight = 720;
+  await p.fire("loadedmetadata", video);
+  assert.equal(p.native[0][1].durationSeconds, 19);
+  assert.equal(p.native[0][1].width, 1280);
+  video.src = b; // A is selected, but B is now declared.
+  await p.mutate([{ type: "attributes", target: video }]);
+  const forB = p.native.filter(([, m]) => m.url === b);
+  assert.equal(forB.length, 1);
+  assert.equal(forB[0][1].source, "page");
+  assert.equal(forB[0][1].durationSeconds, undefined);
+  assert.equal(forB[0][1].width, undefined);
+  assert.equal(forB[0][1].height, undefined);
+  assert.equal(p.native[0][1].url, a);
+});
+
+test("audit60 17E: new currentSrc must reach HAVE_METADATA before providing technical fields", async () => {
+  const p = page(), a = "https://cdn.example/a.mp4", b = "https://cdn.example/b.mp4";
+  const video = new p.HTMLVideoElement(a, "video/mp4", false);
+  p.videos.push(video);
+  video.duration = 19; video.videoWidth = 1280; video.videoHeight = 720;
+  await p.fire("loadedmetadata", video);
+  video.src = b; video.currentSrc = ""; video.readyState = 0;
+  await p.mutate([{ type: "attributes", target: video }]);
+  assert.equal(p.native.filter(([, m]) => m.url === b).length, 1);
+  assert.equal(p.native.at(-1)[1].durationSeconds, undefined);
+  video.currentSrc = b;
+  await p.fire("emptied", video);
+  assert.equal(p.native.filter(([, m]) => m.url === b).every(([, m]) =>
+    !("durationSeconds" in m) && !("width" in m)), true);
+  video.readyState = 1; video.duration = 42;
+  video.videoWidth = 640; video.videoHeight = 360;
+  await p.fire("loadedmetadata", video);
+  const updated = p.native.filter(([, m]) => m.url === b).at(-1)[1];
+  assert.equal(updated.durationSeconds, 42);
+  assert.equal(updated.width, 640);
+  assert.equal(updated.height, 360);
+  assert.equal(updated.source, "dom");
+});
+
+test("audit60 17E: source-list alternates never inherit currently selected source metrics", async () => {
+  const p = page(), a = "https://cdn.example/a.mp4", b = "https://cdn.example/b.webm";
+  const video = new p.HTMLVideoElement(a, null, true);
+  video.src = "";
+  video.sources = [{ src: a, type: "video/mp4" }, { src: b, type: "video/webm" }];
+  video.duration = 14; video.videoWidth = 1920; video.videoHeight = 1080;
+  p.videos.push(video);
+  await p.fire("loadedmetadata", video);
+  const forA = p.native.find(([, m]) => m.url === a)[1];
+  const forB = p.native.find(([, m]) => m.url === b)[1];
+  assert.equal(forA.durationSeconds, 14);
+  assert.equal(forA.width, 1920);
+  assert.equal(forB.durationSeconds, undefined);
+  assert.equal(forB.width, undefined);
+  video.currentSrc = b; video.duration = 27;
+  video.videoWidth = 854; video.videoHeight = 480;
+  await p.fire("loadedmetadata", video);
+  const selected = p.native.filter(([, m]) => m.url === b).at(-1)[1];
+  assert.equal(selected.durationSeconds, 27);
+  assert.equal(selected.width, 854);
+});
+
+test("audit60 17E: failed source and blob transition never reattribute stale metrics", async () => {
+  const p = page(), a = "https://cdn.example/a.mp4", b = "https://cdn.example/b.mp4";
+  const video = new p.HTMLVideoElement(a, "video/mp4", false);
+  video.duration = 19; video.videoWidth = 1280; video.videoHeight = 720;
+  p.videos.push(video);
+  await p.fire("loadedmetadata", video);
+  video.src = b; video.currentSrc = b; video.readyState = 0;
+  await p.fire("emptied", video);
+  const failed = p.native.filter(([, m]) => m.url === b).at(-1)[1];
+  assert.equal(failed.durationSeconds, undefined);
+  assert.equal(failed.width, undefined);
+  video.src = "blob:https://cdn.example/opaque";
+  video.currentSrc = video.src;
+  video.readyState = 2;
+  await p.mutate([{ type: "attributes", target: video }]);
+  assert.equal(p.native.some(([, m]) => m.url.startsWith("blob:")), false);
 });
