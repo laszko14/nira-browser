@@ -41,6 +41,7 @@ import kotlin.math.roundToInt
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.Alignment
@@ -79,6 +80,7 @@ import com.prirai.android.nira.databinding.FragmentTabsBottomSheetBinding
 import com.prirai.android.nira.ext.components
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
 import mozilla.components.browser.state.state.TabSessionState
 import mozilla.components.lib.state.ext.flowScoped
 import mozilla.components.lib.state.ext.flow
@@ -1428,18 +1430,6 @@ class TabsBottomSheetFragment : DialogFragment() {
         val draggedTabTone = TabGroupTones.forGroup(
             groups.firstOrNull { group -> dragTabId != null && dragTabId in group.tabIds }?.color
         )
-        // Hovering a collapsed header while holding a tab opens the target group
-        // without requiring the user to release the pointer first.
-        LaunchedEffect(dragTabId, hoveredKey) {
-            val targetId = hoveredKey?.takeIf { it.startsWith("group_") && !it.startsWith("group_tab_") }
-                ?.removePrefix("group_")
-            if (dragTabId != null && targetId != null && targetId !in expanded) {
-                kotlinx.coroutines.delay(450)
-                if (dragTabId != null && hoveredKey == "group_" + targetId) {
-                    viewModel.toggleGroupExpanded(targetId)
-                }
-            }
-        }
         val groupedIds = groups.flatMap { it.tabIds }.toSet()
         val tabsById = tabs.associateBy { it.id }
         val groupsById = groups.associateBy { it.id }
@@ -1497,14 +1487,52 @@ class TabsBottomSheetFragment : DialogFragment() {
         }
         val density = resources.displayMetrics.density
 
+        // Always use the SAME current LazyColumn geometry for the highlighted
+        // target and the final drop. Scrolling can move rows under a stationary
+        // finger without producing another pointer MOVE.
+        fun currentSideDrop(): com.prirai.android.nira.browser.tabs.compose.ResolvedDrop? {
+            val info = listState.layoutInfo
+            return DragPlacement.sideTarget(
+                dragY, info.viewportStartOffset, info.viewportEndOffset,
+                info.visibleItemsInfo.map { DropRow(it.key.toString(), it.offset, it.size) },
+                x = dragX, viewportWidth = listWidth
+            )
+        }
+        // Reading layoutInfo inside snapshotFlow observes autoscroll, expansion,
+        // and other LazyColumn remeasurements even with no new pointer event.
+        // Recompute only while a drag belongs to this panel generation.
+        LaunchedEffect(dragTabId, dragGroupId, activeProfileId, orientation) {
+            if (dragTabId == null && dragGroupId == null) {
+                hoveredKey = null
+                return@LaunchedEffect
+            }
+            snapshotFlow { currentSideDrop()?.key }.collect { latestKey ->
+                hoveredKey = latestKey
+            }
+        }
+        // Hovering a collapsed header opens it only if its key still matches
+        // the actual row under the finger after the delay.
+        LaunchedEffect(dragTabId, hoveredKey, activeProfileId, orientation) {
+            val targetId = hoveredKey?.takeIf {
+                it.startsWith("group_") && !it.startsWith("group_tab_")
+            }?.removePrefix("group_")
+            if (dragTabId != null && targetId != null && targetId !in expanded) {
+                kotlinx.coroutines.delay(450)
+                if (dragTabId != null && dragProfileId == activeProfileId &&
+                    hoveredKey == "group_" + targetId &&
+                    currentSideDrop()?.key == "group_" + targetId &&
+                    targetId !in expanded
+                ) {
+                    viewModel.toggleGroupExpanded(targetId)
+                }
+            }
+        }
+
         // Use actual finger coordinates rather than accumulating scroll-sensitive deltas.
         fun moveDrag(pointerRoot: Offset) {
             dragY = pointerRoot.y - listTopY
             dragX = pointerRoot.x - listLeftX
-            val visible = listState.layoutInfo.visibleItemsInfo
-            hoveredKey = visible.firstOrNull {
-                dragY >= it.offset && dragY < it.offset + it.size
-            }?.key?.toString()
+            hoveredKey = currentSideDrop()?.key
         }
         // One bounded scroll job follows the frame clock while the pointer stays
         // inside the edge zone. No competing scroll jobs per pointer event.
@@ -1522,6 +1550,9 @@ class TabsBottomSheetFragment : DialogFragment() {
                 }
                 androidx.compose.runtime.withFrameNanos { }
                 if (listState.scrollBy(velocity) == 0f) break
+                // Update immediately after each scroll frame; snapshotFlow also
+                // handles layout shifts not caused by this autoscroll job.
+                hoveredKey = currentSideDrop()?.key
             }
         }
         fun finishDrag() {
@@ -1531,12 +1562,7 @@ class TabsBottomSheetFragment : DialogFragment() {
             val fromId = dragTabId
             val fromGroupId = dragGroupId
             val expectedProfile = dragProfileId
-            val info = listState.layoutInfo
-            val resolved = DragPlacement.sideTarget(
-                dragY, 0, info.viewportEndOffset,
-                info.visibleItemsInfo.map { DropRow(it.key.toString(), it.offset, it.size) },
-                x = dragX, viewportWidth = listWidth
-            )
+            val resolved = currentSideDrop()
             dragTabId = null
             dragGroupId = null
             hoveredKey = null
