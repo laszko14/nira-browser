@@ -139,8 +139,8 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-001 | niespójny kontrakt wersji joba release | CONFIRMED | P2 | 19/19 | IMPLEMENTED — stage 6, CI_PENDING |
 | ZC-AUD-002 | możliwy brak uzgodnienia nowej generacji rozszerzenia | SUSPECTED | P2 | 15/19 | VERIFY_FIRST |
 | ZC-AUD-003 | starsze zadanie zmienia politykę aktywnego profilu | CONFIRMED | P2 | 8/19 | FIXED — 8B; Kotlin/JS/lint GREEN on code SHA d9e1047b; device NOT_TESTED |
-| ZC-AUD-004 | brak końcowego sprzątania slotów zamkniętych kart | CONFIRMED | P2 | 11/19 | IMPLEMENTED — 11B terminal prune gated by restore/Undo, CI_PENDING |
-| ZC-AUD-005 | scope komunikatu Cofnij przeżywa swojego właściciela | CONFIRMED | P2 | 11/19 | IMPLEMENTED — 11B manager-owned scope and bounded Undo, CI_PENDING |
+| ZC-AUD-004 | brak końcowego sprzątania slotów zamkniętych kart | CONFIRMED | P2 | 11/19 | FIXED — 11B post-restore/Undo slot and Room prune; CI PASS; device NOT_TESTED |
+| ZC-AUD-005 | scope komunikatu Cofnij przeżywa swojego właściciela | CONFIRMED | P2 | 11/19 | FIXED CORE — 11B independent snackbar scope; CI PASS; device UX NOT_TESTED |
 | ZC-AUD-006 | pozostawione przełączniki nie sterują aktualnym interfejsem | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-007 | uchwyt resize po niewłaściwej stronie w RTL | CONFIRMED | P2 | 12/19 | DO_RECHECK |
 | ZC-AUD-008 | resize nie zachowuje tożsamości palca | CONFIRMED | P2 | 12/19 | DO_RECHECK |
@@ -384,3 +384,11 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - **005 STILL_PRESENT → IMPLEMENTED:** `GlobalSnackbarManager` nie używa już scope żadnej kompozycji (ani paska, ani panelu). Posiada własny scope i jeden `SnackbarHostState`, więc zamknięcie panelu nie anuluje Undo w przeglądarce. Starsze żądanie jest anulowane przed nowym; przy braku hosta komunikat nie może pozostać dłużej niż 5 s. Zachowano `TabsUseCases.undo()` i kontrakt identycznego ID.
 - Testy: `OrderPersistenceTest` (300 zamkniętych slotów, niepełny restore, pending Undo, członek grupy/Room i odtwarzanie ID) oraz `GlobalSnackbarOwnerTest` (zamknięty panel, timeout i zastąpienie starego komunikatu). Kontrole pośrednie JVM + AndroidTestKotlin compile + JS + lint. Wynik dla finalnego SHA musi być potwierdzony przez GitHub Actions.
 - Nierozstrzygnięte ZC-AUD-030 OPEN / ZC-AUD-031 PARTIAL pozostają bez zmian; brak testów fizycznych Gecko/120 Hz i bez niszczenia danych. Bez APK, signing i merge. Następny etap dopiero po zakończeniu 11B i osobnym `Dalej`: **12/19**, panele/gesty.
+
+### Etap 11B — końcowy checkpoint regresji
+
+- **PASS:** [workflow #41152171168](https://github.com/laszko14/nira-browser/actions/runs/41152171168), `completed/success` na dokładnym produkcyjnym SHA `d9f07e8acbb512b095c1eb262674f9d8bb3aff65`. Pełny Kotlin/JVM/Robolectric, kompilacja instrumented tests bez APK, WebExtension JS i Android lint mają wyniki SUCCESS. Lint nie oznacza braku wszelkich ostrzeżeń.
+- Dodatkowa regresja wymusza ochronę `pending_root` **przed** sprzątaniem Room, nie tylko przy zapisie DataStore. Testy obejmują wygaśnięte Undo, trwające Undo, niepełny restore, 300 historycznych zamkniętych slotów, członkostwo grupy, ponowne pojawienie się ID oraz zakończenie przerwanego move.
+- Snackbar ma własny scope zamiast przejmowania scope z Compose; testy chronią przed disposal krótkotrwałego panelu, brakującym hostem i zastąpieniem starego Undo. Realny UI / Android 15 / 120 Hz: **NOT_TESTED**, nie wpisywać PASS dla urządzenia.
+- Nie zmieniono wersji, certyfikatu, PWA/Gecko storage ani ustawień profili. Brak merge do main, brak APK. ZC-AUD-030 nadal OPEN, 031 PARTIAL.
+- Ten dokumentacyjny commit jest osobnym SHA: końcowe CI sprawdzić także dla niego. Następne `Dalej` → **12/19**.
