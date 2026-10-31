@@ -1,0 +1,68 @@
+name: Zavro Clean audit60 G2 - HTTPS fixture verification (no APK)
+
+on:
+  push:
+    branches:
+      - test/zavro-clean-post19-gecko-g2-fixtures-20261031
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fixture-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Enforce test-only diff since green G1
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only 7238b70ee2ec868a3585e151a3caddc192a25c58 "$GITHUB_SHA" | while IFS= read -r file; do
+            case "$file" in
+              tools/gecko-fixture-g2/*|docs/audits/zavro-clean-repair/GECKOVIEW_DEVICE_VERIFICATION_G2.md|.github/workflows/zavro-audit60-gecko-fixtures-g2.yml) ;;
+              *) echo "Unexpected production/source change: $file"; exit 1 ;;
+            esac
+          done
+      - name: Frozen audit 19B matrix
+        run: node scripts/verify-audit60-stage19b.cjs
+      - name: Check fixture syntax, inputs and media
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v ffmpeg
+          command -v ffprobe
+          command -v openssl
+          node --check tools/gecko-fixture-g2/site/fixture.js
+          bash -n tools/gecko-fixture-g2/make-media.sh
+          python3 -m py_compile tools/gecko-fixture-g2/serve-https.py tools/gecko-fixture-g2/tests/test_fixture.py
+          bash tools/gecko-fixture-g2/make-media.sh
+          python3 -m unittest discover -s tools/gecko-fixture-g2/tests -v
+      - name: Loopback-only HTTPS smoke using temporary local CA leaf (no Android)
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmpdir="$(mktemp -d)"
+          pid=""
+          trap 'if [ -n "$pid" ]; then kill "$pid" 2>/dev/null || true; fi; rm -rf "$tmpdir"' EXIT
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" \
+            -keyout "$tmpdir/key.pem" -out "$tmpdir/cert.pem" >/dev/null 2>&1
+          python3 tools/gecko-fixture-g2/serve-https.py --cert "$tmpdir/cert.pem" --key "$tmpdir/key.pem" >"$tmpdir/server.log" 2>&1 &
+          pid="$!"
+          for i in $(seq 1 30); do
+            if curl -s --fail --cacert "$tmpdir/cert.pem" https://127.0.0.1:9443/ >"$tmpdir/index"; then break; fi
+            sleep 0.3
+          done
+          grep -Fq "GV-030 / GV-031" "$tmpdir/index"
+          for file in /popup.html /video.html /fixture.js /media/a.mp4 /media/b.mp4; do
+            test "$(curl -s --cacert "$tmpdir/cert.pem" -o /dev/null -w '%{http_code}' "https://127.0.0.1:9443$file")" = "200"
+          done
+          for file in /media/invalid-b.mp4 /.gitignore /../README.md; do
+            test "$(curl -s --path-as-is --cacert "$tmpdir/cert.pem" -o /dev/null -w '%{http_code}' "https://127.0.0.1:9443$file")" = "404"
+          done
+          curl -sI --cacert "$tmpdir/cert.pem" https://127.0.0.1:9443/video.html | grep -iFq "Content-Security-Policy:"
+          echo "G2 fixture HTTPS smoke PASS — no device, no APK, no real-origin test."
