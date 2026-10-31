@@ -29,6 +29,10 @@ jobs:
           done
       - name: Frozen audit 19B matrix
         run: node scripts/verify-audit60-stage19b.cjs
+      - name: Install ffmpeg for expendable synthetic media only
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
       - name: Check fixture syntax, inputs and media
         shell: bash
         run: |
