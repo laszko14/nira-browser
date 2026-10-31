@@ -1245,7 +1245,13 @@
   document.addEventListener("visibilitychange", scheduleScan, { passive: true });
   for (const event of ["pageshow", "popstate", "hashchange"])
     window.addEventListener(event, () => {
-      alive = true; seen.clear(); structuredVersions = new WeakSet();
+      alive = true;
+      // Preserve prior observed URLs until resetNavigation compares the old
+      // and new hash material routes. Clearing here silently bypassed the
+      // guard and reoffered movie A before the router mounted movie B.
+      // BFCache restoration remains a separate epoch and can clear now.
+      if (event === "pageshow") seen.clear();
+      structuredVersions = new WeakSet();
       observeRoot(document); scheduleScan();
     }, { passive: true });
   window.addEventListener("pagehide", () => {
