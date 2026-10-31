@@ -5,7 +5,6 @@ import android.app.Activity
 import android.graphics.PointF
 import android.view.View
 import android.view.ViewConfiguration
-import androidx.core.animation.doOnEnd
 import androidx.core.graphics.contains
 import androidx.core.graphics.toPoint
 import androidx.core.view.isVisible
@@ -64,11 +63,14 @@ class HomeToolbarGestureHandler(
     private var gestureSource: TabSessionState? = null
 
     private var gestureDirection = GestureDirection.LEFT_TO_RIGHT
+    private val animationOwner = ToolbarSwipeAnimationOwner(contentLayout, tabPreview)
+    private var gestureEpoch = 0L
+    private var gestureActive = false
 
     override fun onSwipeStarted(start: PointF, next: PointF): Boolean {
         val dx = next.x - start.x
         val dy = next.y - start.y
-        gestureDirection = if (dx < 0) {
+        val direction = if (dx < 0) {
             GestureDirection.RIGHT_TO_LEFT
         } else {
             GestureDirection.LEFT_TO_RIGHT
@@ -80,6 +82,9 @@ class HomeToolbarGestureHandler(
             abs(dx) > touchSlop &&
             abs(dy) < abs(dx)
         ) {
+            gestureEpoch = animationOwner.beginGesture()
+            gestureActive = true
+            gestureDirection = direction
             gestureSource = store.state.selectedTab
             preparePreview(getDestination())
             true
@@ -89,6 +94,7 @@ class HomeToolbarGestureHandler(
     }
 
     override fun onSwipeUpdate(distanceX: Float, distanceY: Float) {
+        if (!gestureActive || !animationOwner.isCurrent(gestureEpoch)) return
         when (getDestination()) {
             is Destination.Tab -> {
                 tabPreview.translationX = when (gestureDirection) {
@@ -129,15 +135,20 @@ class HomeToolbarGestureHandler(
     }
 
     override fun onSwipeFinished(velocityX: Float, velocityY: Float) {
+        if (!gestureActive || !animationOwner.isCurrent(gestureEpoch)) return
+        gestureActive = false
         val destination = getDestination()
         if (destination is Destination.Tab && isGestureComplete(velocityX)) {
             animateToNextTab(destination.tab)
         } else {
             animateCanceledGesture(velocityX)
         }
+        gestureSource = null
     }
 
     override fun onSwipeCancelled() {
+        if (!gestureActive || !animationOwner.isCurrent(gestureEpoch)) return
+        gestureActive = false
         gestureSource = null
         animateCanceledGesture(0f)
     }
@@ -189,67 +200,74 @@ class HomeToolbarGestureHandler(
             abs(velocityX) >= minimumFlingVelocity)
     }
 
-    private fun getAnimator(finalContextX: Float, duration: Long): ValueAnimator {
+    private fun getAnimator(
+        finalContextX: Float,
+        duration: Long,
+        epoch: Long,
+        direction: GestureDirection
+    ): ValueAnimator {
+        val width = windowWidth.toFloat()
         return ValueAnimator.ofFloat(contentLayout.translationX, finalContextX).apply {
             this.duration = duration
             this.interpolator = LinearOutSlowInInterpolator()
             addUpdateListener { animator ->
+                if (!animationOwner.isCurrent(epoch)) return@addUpdateListener
                 val value = animator.animatedValue as Float
                 contentLayout.translationX = value
-                tabPreview.translationX = when (gestureDirection) {
-                    GestureDirection.RIGHT_TO_LEFT -> value + windowWidth + previewOffset
-                    GestureDirection.LEFT_TO_RIGHT -> value - windowWidth - previewOffset
+                tabPreview.translationX = when (direction) {
+                    GestureDirection.RIGHT_TO_LEFT -> value + width + previewOffset
+                    GestureDirection.LEFT_TO_RIGHT -> value - width - previewOffset
                 }
             }
         }
     }
 
     private fun animateToNextTab(tab: TabSessionState) {
+        val epoch = gestureEpoch
+        val direction = gestureDirection
         val source = gestureSource ?: store.state.selectedTab
-        val browserFinalXCoordinate: Float = when (gestureDirection) {
+        val browserFinalXCoordinate: Float = when (direction) {
             GestureDirection.RIGHT_TO_LEFT -> -windowWidth.toFloat() - previewOffset
             GestureDirection.LEFT_TO_RIGHT -> windowWidth.toFloat() + previewOffset
         }
 
-        getAnimator(browserFinalXCoordinate, FINISHED_GESTURE_ANIMATION_DURATION).apply {
-            doOnEnd {
-                contentLayout.translationX = 0f
-
-                if (activity.isFinishing || activity.isDestroyed || !store.state.canFinishSwipe(source, tab.id)) {
-                    tabPreview.isVisible = false
-                    return@doOnEnd
-                }
-                if(tab.content.url != "about:homepage") {
+        animationOwner.play(
+            epoch,
+            getAnimator(browserFinalXCoordinate, FINISHED_GESTURE_ANIMATION_DURATION, epoch, direction)
+        ) {
+            if (!animationOwner.isCurrent(epoch)) return@play
+            contentLayout.translationX = 0f
+            if (activity.isFinishing || activity.isDestroyed || !store.state.canFinishSwipe(source, tab.id)) {
+                tabPreview.isVisible = false
+                return@play
+            }
+                if (tab.content.url != "about:homepage") {
                     activity.findNavController(R.id.container).navigate(R.id.browserFragment)
                 }
 
                 lruManager.markAsSwipeNavigation(tab.id)
                 selectTabUseCase(tab.id)
-
-                val shortAnimationDuration =
+            if (animationOwner.isCurrent(epoch)) {
+                val shortDuration =
                     activity.resources.getInteger(android.R.integer.config_shortAnimTime)
-                tabPreview.animate()
-                    .alpha(0f)
-                    .setDuration(shortAnimationDuration.toLong())
-                    .withEndAction {
-                        tabPreview.isVisible = false
-                    }
+                animationOwner.fadePreview(epoch, shortDuration.toLong())
             }
-        }.start()
+        }
     }
 
     private fun animateCanceledGesture(velocityX: Float) {
+        val epoch = gestureEpoch
+        val direction = gestureDirection
         val duration = if (abs(velocityX) >= minimumFlingVelocity) {
             CANCELED_FLING_ANIMATION_DURATION
         } else {
             CANCELED_GESTURE_ANIMATION_DURATION
         }
-
-        getAnimator(0f, duration).apply {
-            doOnEnd {
-                tabPreview.isVisible = false
-            }
-        }.start()
+        animationOwner.play(epoch, getAnimator(0f, duration, epoch, direction)) {
+            if (!animationOwner.isCurrent(epoch)) return@play
+            contentLayout.translationX = 0f
+            tabPreview.isVisible = false
+        }
     }
 
     private fun PointF.isInToolbar(): Boolean {
