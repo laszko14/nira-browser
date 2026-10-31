@@ -35,7 +35,7 @@ function extractG2(raw) {
       kind = label === "A" ? "A_loadedmetadata" : label === "B" ? "B_loadedmetadata" : null;
     else if (event === "before-B-assignment") kind = "before_B_assignment";
     else if (event === "after-B-assignment") kind = "after_B_assignment";
-    else if (event === "error" && label === "BAD") kind = "invalid_B";
+    else if (event === "error" && src === "BAD") kind = "invalid_B";
     else if (event === "source-list-attached") kind = "source_list";
     else if (event === "blob-B-assigned") kind = "blob_B";
     if (kind) events.push({ seq, elapsedMs: ms, source: "DOM", kind });
