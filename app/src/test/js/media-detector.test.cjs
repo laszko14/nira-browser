@@ -1398,6 +1398,7 @@ test("audit60 15D: pending hash route never reoffers old DOM video before its re
   await p.navigate("https://site.example/app#/film/a");
   const old = new p.HTMLVideoElement("https://cdn.example/movie-a.mp4", "video/mp4", true);
   old.nodeType = 1; old.tagName = "VIDEO";
+  old.matches = selector => selector === "video";
   p.videos.push(old);
   await p.mutate([{ type: "childList", addedNodes: [old], removedNodes: [] }]);
   const previous = p.native.length;
@@ -1406,6 +1407,7 @@ test("audit60 15D: pending hash route never reoffers old DOM video before its re
   assert.equal(p.native.length, previous, "old connected video must not be offered in new generation");
   const fresh = new p.HTMLVideoElement("https://cdn.example/movie-b.mp4", "video/mp4", true);
   fresh.nodeType = 1; fresh.tagName = "VIDEO";
+  fresh.matches = selector => selector === "video";
   old.isConnected = false;
   p.videos.splice(0, 1, fresh);
   await p.mutate([{ type: "childList", target: p.document, addedNodes: [fresh], removedNodes: [old] }]);
