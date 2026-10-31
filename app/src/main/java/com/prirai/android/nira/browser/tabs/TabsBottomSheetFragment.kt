@@ -420,7 +420,7 @@ class TabsBottomSheetFragment : DialogFragment() {
                 isCancelable = true
                 window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
                 window.setDimAmount(0.55f)
-                window.setGravity(android.view.Gravity.START or android.view.Gravity.TOP)
+                window.setGravity(android.view.Gravity.LEFT or android.view.Gravity.TOP)
             }
             window.setLayout(
                 if (side) sidePanelWidth()
@@ -1012,8 +1012,17 @@ class TabsBottomSheetFragment : DialogFragment() {
                             SideDrawerPalette.backgroundTop,
                             SideDrawerPalette.backgroundBottom
                         )))
-                        // Keep the 20 dp edge-resize strip separate from row actions.
-                        .padding(end = 20.dp)
+                        // Reserve the physical RIGHT edge in both LTR and RTL.
+                        .padding(
+                            start = SidePanelResizeGeometry.contentStartPaddingDp(
+                                androidx.compose.ui.platform.LocalLayoutDirection.current ==
+                                    androidx.compose.ui.unit.LayoutDirection.Rtl
+                            ).dp,
+                            end = SidePanelResizeGeometry.contentEndPaddingDp(
+                                androidx.compose.ui.platform.LocalLayoutDirection.current ==
+                                    androidx.compose.ui.unit.LayoutDirection.Rtl
+                            ).dp
+                        )
                         else Modifier)
             ) {
                 // Manual override is shared between orientations; when absent,
@@ -1300,63 +1309,71 @@ class TabsBottomSheetFragment : DialogFragment() {
             setBackgroundColor(android.graphics.Color.TRANSPARENT)
         }
         val params = androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams(
-            (20 * resources.displayMetrics.density).toInt(),
+            (SidePanelResizeGeometry.EDGE_DP * resources.displayMetrics.density).toInt(),
             ViewGroup.LayoutParams.MATCH_PARENT
-        ).apply { gravity = android.view.Gravity.END }
+        ).apply { gravity = SidePanelResizeGeometry.GRIP_GRAVITY }
         root.addView(grip, params)
 
-        var downX = 0f
-        var initialWidth = 0
-        grip.setOnTouchListener { _, event ->
-            when (event.actionMasked) {
-                android.view.MotionEvent.ACTION_DOWN -> {
-                    testLabResize?.let{it.first.end(it.second,OperationOutcome.INTERRUPTED)}
-                    val capture=TestLab.capture();val op=capture?.operation(LabOperation.PANEL_RESIZE)
-                    testLabResize=if(capture!=null&&op!=null)capture to op else null
-                    downX = event.rawX
-                    setEmbeddedChildInteraction(true)
-                    initialWidth = if (isEmbeddedSidePanel) {
-                        binding.root.width.takeIf { it > 0 } ?: sidePanelWidth()
-                    } else {
-                        dialog?.window?.attributes?.width?.takeIf { it > 0 } ?: sidePanelWidth()
-                    }
-                    true
+        var widthPreferenceKey: String? = null
+        val gesture = SidePanelResizeGesture(
+            initialWidth = {
+                if (isEmbeddedSidePanel) {
+                    binding.root.width.takeIf { it > 0 } ?: sidePanelWidth()
+                } else {
+                    dialog?.window?.attributes?.width?.takeIf { it > 0 } ?: sidePanelWidth()
                 }
-                android.view.MotionEvent.ACTION_MOVE, android.view.MotionEvent.ACTION_UP -> {
-                    val screenWidth = resources.displayMetrics.widthPixels
-                    val density = resources.displayMetrics.density
-                    val min = (220 * density).toInt().coerceAtMost(screenWidth)
-                    val max = (screenWidth - 48 * density).toInt().coerceAtLeast(min)
-                    val desired = (initialWidth + event.rawX - downX).toInt().coerceIn(min, max)
-                    applySidePanelWidth(desired)
-                    if (event.actionMasked == android.view.MotionEvent.ACTION_UP) {
-                        setEmbeddedChildInteraction(false)
-                        val measurement=testLabResize;testLabResize=null
-                        if(desired==initialWidth)measurement?.let{it.first.end(it.second,OperationOutcome.CANCELLED)}
-                        else if (measurement != null) {
-                            val redrawView = if (isEmbeddedSidePanel) binding.root
-                                else dialog?.window?.decorView
-                            if (redrawView != null) {
-                                androidx.core.view.OneShotPreDrawListener.add(redrawView) {
-                                    measurement.let { it.first.end(it.second, proof = CompletionProof.FIRST_PREDRAW) }
+            },
+            allowedWidths = {
+                val screenWidth = resources.displayMetrics.widthPixels
+                val density = resources.displayMetrics.density
+                val min = (220 * density).toInt().coerceAtMost(screenWidth)
+                val max = (screenWidth - 48 * density).toInt().coerceAtLeast(min)
+                min..max
+            },
+            onStart = {
+                widthPreferenceKey = if (resources.configuration.orientation ==
+                    android.content.res.Configuration.ORIENTATION_LANDSCAPE
+                ) "width_landscape" else "width_portrait"
+                testLabResize?.let { it.first.end(it.second, OperationOutcome.INTERRUPTED) }
+                val capture = TestLab.capture()
+                val op = capture?.operation(LabOperation.PANEL_RESIZE)
+                testLabResize = if (capture != null && op != null) capture to op else null
+                setEmbeddedChildInteraction(true)
+            },
+            onResize = { applySidePanelWidth(it) },
+            onFinish = { committed, _, finalWidth ->
+                setEmbeddedChildInteraction(false)
+                val measurement = testLabResize
+                testLabResize = null
+                if (!committed) {
+                    measurement?.let { it.first.end(it.second, OperationOutcome.CANCELLED) }
+                } else {
+                    if (measurement != null) {
+                        val redrawView = if (isEmbeddedSidePanel) binding.root
+                            else dialog?.window?.decorView
+                        if (redrawView != null) {
+                            androidx.core.view.OneShotPreDrawListener.add(redrawView) {
+                                measurement.let {
+                                    it.first.end(it.second, proof = CompletionProof.FIRST_PREDRAW)
                                 }
-                            } else measurement.let { it.first.end(it.second, OperationOutcome.INTERRUPTED) }
+                            }
+                        } else {
+                            measurement.let { it.first.end(it.second, OperationOutcome.INTERRUPTED) }
                         }
-                        val key = if (resources.configuration.orientation ==
-                            android.content.res.Configuration.ORIENTATION_LANDSCAPE) "width_landscape" else "width_portrait"
-                        requireContext().getSharedPreferences("nira_side_panel_width", android.content.Context.MODE_PRIVATE)
-                            .edit().putInt(key, desired).apply()
                     }
-                    true
+                    // Orientation is captured at DOWN, not recomputed at UP.
+                    if (isAdded) {
+                        widthPreferenceKey?.let { key ->
+                            requireContext().getSharedPreferences(
+                                "nira_side_panel_width", android.content.Context.MODE_PRIVATE
+                            ).edit().putInt(key, finalWidth).apply()
+                        }
+                    }
                 }
-                android.view.MotionEvent.ACTION_CANCEL -> {
-                    setEmbeddedChildInteraction(false)
-                    testLabResize?.let{it.first.end(it.second,OperationOutcome.CANCELLED)};testLabResize=null
-                    false
-                }
-                else -> false
+                widthPreferenceKey = null
             }
-        }
+        )
+        grip.setOnTouchListener { _, event -> gesture.onTouch(event) }
     }
 
     /**
