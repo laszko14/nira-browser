@@ -1134,7 +1134,7 @@
         if (changedScript) { scriptVersions.delete(changedScript); structuredVersions.delete(changedScript); }
         // A childList on an existing <video> must inspect that video, not
         // only the inserted/removed <source> element.
-        if (record.type === "childList" && changed instanceof HTMLVideoElement)
+        if (record.type === "childList" && changed && changed.tagName === "VIDEO")
           enqueueRoot(changed);
         const titleCard = titleMutationRoot(changed);
         if (titleCard) enqueueRoot(titleCard);

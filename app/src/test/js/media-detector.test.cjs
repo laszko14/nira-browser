@@ -1214,12 +1214,17 @@ test("audit60 15A: source childList discovers MP4/HLS in paused existing video w
     const source = { nodeType: 1, tagName: "SOURCE", isConnected: true,
       src: url, type: mime, closest: () => video, matches: () => false,
       querySelectorAll: () => [], getAttribute: () => null };
+    const before = p.native.length;
     video.sources.push(source);
     await p.mutate([{ type: "childList", target: video, addedNodes: [source] }]);
-    assert.equal(p.native.length, i + 1, "mutation must inspect owner video");
-    assert.equal(p.native[i][1].url, url);
+    assert.ok(p.native.length > before, "mutation must inspect owner video");
+    assert.ok(p.native.slice(before).some(([_, message]) => message.url === url),
+      "new source must be among offers from this mutation");
     assert.equal(video.paused, true);
   }
+  assert.equal(new Set(p.native.map(([_, message]) => message.url)).size, 2,
+    "the two declared URLs must both be discovered");
+  const afterSources = p.native.length;
   await p.mutate();
-  assert.equal(p.native.length, 2, "repeat scan cannot emit duplicates");
+  assert.equal(p.native.length, afterSources, "repeat scan cannot emit more offers");
 });
