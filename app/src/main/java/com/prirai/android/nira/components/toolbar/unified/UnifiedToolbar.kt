@@ -81,6 +81,14 @@ class UnifiedToolbar @JvmOverloads constructor(
     // Store reference for tab updates
     private var browserStore: BrowserStore? = null
     private var hostLifecycleOwner: LifecycleOwner? = null
+    // View.onConfigurationChanged also fires when orientation changes at the same width.
+    // The action views are configured after their BrowserToolbar host is laid out.
+    private var refreshToolbarActionsForConfiguration: (() -> Unit)? = null
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        refreshToolbarActionsForConfiguration?.invoke()
+    }
     // Rapid toolbar clicks must not rebuild/select out of order.
     private val tabCycleMutex = Mutex()
     
@@ -752,8 +760,14 @@ class UnifiedToolbar @JvmOverloads constructor(
             fun landscape() = resources.configuration.orientation ==
                 android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
+            // Store both dimensions: a same-width height resize can change orientation.
+            var lastWidth = -1
+            var lastOrientation = android.content.res.Configuration.ORIENTATION_UNDEFINED
+
             fun applyActionPreferences() {
-                val horizontal = landscape()
+                val orientation = resources.configuration.orientation
+                lastOrientation = orientation
+                val horizontal = orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
                 val orderedIds = options.getOrder(prefs, horizontal)
                 val hidden = options.getHidden(prefs, horizontal)
                 // Both tab-cycling actions now participate in saved per-orientation order.
@@ -863,12 +877,24 @@ class UnifiedToolbar @JvmOverloads constructor(
                     }
                 }
             }
-            var lastWidth = -1
             toolbar.asView().addOnLayoutChangeListener { _, left, _, right, _, oldLeft, _, oldRight, _ ->
                 val width = right - left
-                if (width != lastWidth || width != oldRight - oldLeft) {
+                if (com.prirai.android.nira.components.toolbar.ToolbarActionLayoutRefreshPolicy.needsRefresh(
+                        width = width,
+                        previousLayoutWidth = oldRight - oldLeft,
+                        lastWidth = lastWidth,
+                        orientation = resources.configuration.orientation,
+                        lastOrientation = lastOrientation
+                    )
+                ) {
                     lastWidth = width
                     applyActionPreferences()
+                }
+            }
+            // An orientation change need not cause a toolbar layout callback at all.
+            refreshToolbarActionsForConfiguration = {
+                actions.post {
+                    if (actions.isAttachedToWindow) applyActionPreferences()
                 }
             }
             val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -881,6 +907,7 @@ class UnifiedToolbar @JvmOverloads constructor(
             hostLifecycleOwner?.lifecycle?.addObserver(object : DefaultLifecycleObserver {
                 override fun onDestroy(owner: LifecycleOwner) {
                     prefs.preferences.unregisterOnSharedPreferenceChangeListener(listener)
+                    refreshToolbarActionsForConfiguration = null
                 }
             })
             applyActionPreferences()
