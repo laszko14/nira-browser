@@ -5,6 +5,20 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+// This contract mirrors background.js materialHashRoute. Plain #chapter anchors
+// do not restart the media list, but conventional hash-router paths do. Never
+// normalize the signed media URL itself or use route strings as profile IDs.
+private val mediaHashRoutePattern =
+    Regex("^(?:!/|/|(?:film|video|movie|watch|episode|player)(?:/|\\?))", RegexOption.IGNORE_CASE)
+private fun materialHashRoute(url: String): String? {
+    val hash = url.substringAfter('#', "")
+    if (!mediaHashRoutePattern.containsMatchIn(hash)) return null
+    return hash.substringBefore('#')
+}
+private fun sameMediaFragment(previous: String, next: String): Boolean =
+    previous.substringBefore('#') == next.substringBefore('#') &&
+        materialHashRoute(previous) == materialHashRoute(next)
+
 /** Trusted BrowserStore snapshot. No field here is supplied as a tab/profile ID by a web page. */
 internal data class MediaTabState(
     val binding: MediaSessionBinding,
@@ -297,10 +311,11 @@ internal class MediaRepository(
                 scope.registered = false
                 continue
             }
-            // A fragment is not a new document/material. Keep the document high-water
-            // mark and media, but require subsequent messages to use the current URL.
+            // Same-film anchors retain their entries. A hash-router material
+            // switch is a real navigation: remove old entries immediately,
+            // before asynchronous WebExtension document registration completes.
             val fragmentOnly = actual.pageUrl != scope.pageUrl &&
-                actual.pageUrl.substringBefore('#') == scope.pageUrl.substringBefore('#') &&
+                sameMediaFragment(scope.pageUrl, actual.pageUrl) &&
                 !(!scope.loading && actual.loading)
             if (fragmentOnly) {
                 scope.entries.values.filter { it.frameKey == null && it.frameUrl == scope.pageUrl }

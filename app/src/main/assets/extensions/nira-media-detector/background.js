@@ -148,9 +148,19 @@ function contentSize(details, format) {
 // accept an identity supplied in the page's message body or infer it from URL.
 const geckoId = value => typeof value === "string" && /^[a-f0-9{}-]{16,64}$/i.test(value) ? value : null;
 const opaqueFrame = value => value === "about:blank" || value === "about:srcdoc";
+// Conventional anchors retain one media generation. Hash routers carry an
+// actual media route inside #/..., #!/..., or #film/...; changing that route
+// must mint a new key. A second # within a route can be a local anchor.
+const materialHashRoute = hash =>
+  /^(?:#(?:!\/|\/)|#(?:film|video|movie|watch|episode|player)(?:\/|\?))/i.test(hash) ?
+    hash.slice(1).split("#", 1)[0] : null;
 const sameRoute = (a, b) => {
-  try { const x = new URL(a), y = new URL(b); x.hash = y.hash = ""; return x.href === y.href; }
-  catch (_) { return a === b; }
+  try {
+    const x = new URL(a), y = new URL(b);
+    const materialX = materialHashRoute(x.hash), materialY = materialHashRoute(y.hash);
+    x.hash = y.hash = "";
+    return x.href === y.href && materialX === materialY;
+  } catch (_) { return a === b; }
 };
 const earlyRequests = new Map(), pendingFrameStarts = new Map();
 const EARLY_LIMIT = 128, EARLY_TTL = 2500;

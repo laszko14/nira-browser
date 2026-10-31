@@ -9,6 +9,22 @@
   const FRAME = typeof window.top !== "undefined" && window !== window.top;
   const MAX_ITEMS = 96, MAX_SEEN = 256, MAX_SCRIPT_CHARS = 48000;
   let activeUrl = location.href, context = null, registering = null, navigationEpoch = 0;
+  let routeMediaPending = false;
+  const materialHashRoute = url => {
+    try {
+      const hash = new URL(url).hash;
+      return /^(?:#(?:!\/|\/)|#(?:film|video|movie|watch|episode|player)(?:\/|\?))/i.test(hash) ?
+        hash.slice(1).split("#", 1)[0] : null;
+    } catch (_) { return null; }
+  };
+  const materialRouteChanged = (a, b) => {
+    try {
+      const x = new URL(a), y = new URL(b);
+      const oldRoute = materialHashRoute(a), newRoute = materialHashRoute(b);
+      x.hash = y.hash = "";
+      return x.href === y.href && oldRoute !== newRoute;
+    } catch (_) { return false; }
+  };
   let scheduled = false, pendingOffers = 0;
   let scanRoot = document, scanTimer = null, alive = true;
   let statsTimer = null, offers = 0, playObserved = false;
@@ -50,6 +66,10 @@
 
   function resetNavigation() {
     if (activeUrl === location.href) return;
+    // A hash-router may notify before its replacement video has entered the
+    // DOM. Do not offer its still-connected old media into the new generation.
+    // Resume when the router replaces/removes a media node or changes its src.
+    routeMediaPending = materialRouteChanged(activeUrl, location.href) && seen.size > 0;
     activeUrl = location.href;
     navigationEpoch++; pendingOffers = 0;
     cancelNativeQueue();
@@ -1057,6 +1077,7 @@
     scanTimer = null;
     if (!alive) return;
     resetNavigation();
+    if (routeMediaPending) return;
     const start = Date.now();
     let processed = 0;
     while (processed < MAX_ITEMS && pendingOffers < 64 && Date.now() - start < SLICE_MS) {
@@ -1129,6 +1150,27 @@
     scheduled = true;
     setTimeout(() => { scheduled = false; if (scanTimer === null) pump(); }, 120);
   }
+  function routeMediaMutation(records) {
+    if (!records) return false;
+    const touchesMedia = node => {
+      if (!node || node.nodeType !== 1) return false;
+      if (/^(?:VIDEO|SOURCE|SCRIPT|IFRAME)$/i.test(node.tagName || "")) return true;
+      return typeof node.querySelector === "function" &&
+        !!node.querySelector("video,source,script,[data-video-url],[data-video-src],[data-hls],[data-mpd]");
+    };
+    for (const record of records) {
+      if (record.type === "attributes" && touchesMedia(record.target)) return true;
+      if (record.type === "childList") {
+        for (const node of [...(record.addedNodes || []), ...(record.removedNodes || [])])
+          if (touchesMedia(node)) return true;
+      }
+    }
+    return false;
+  }
+  function onDomMutation(records) {
+    if (routeMediaPending && routeMediaMutation(records)) routeMediaPending = false;
+    scheduleScan(records);
+  }
   function scheduleScan(records) {
     // Observe the changed subtree, including source/script parent changes.
     if (Array.isArray(records) && records.length) {
@@ -1164,6 +1206,7 @@
   }
   function onMediaEvent(event) {
     if (!event.isTrusted || !(event.target instanceof HTMLVideoElement)) return;
+    if (routeMediaPending) return;
     if (event.type === "play" || event.type === "playing") playObserved = true;
     if (event.type === "emptied") seen.clear();
     inspect(event.target);
@@ -1171,7 +1214,7 @@
   for (const event of ["play", "playing", "loadedmetadata", "durationchange", "resize", "emptied"]) {
     document.addEventListener(event, onMediaEvent, { capture: true, passive: true });
   }
-  const observer = new MutationObserver(scheduleScan);
+  const observer = new MutationObserver(onDomMutation);
   const observerOptions = { childList: true, subtree: true, attributes: true, characterData: true,
     attributeFilter: ["src", "srcdoc", "type", "content", "href", "title", "aria-label", "aria-labelledby",
       "data-title", "data-video-title", "data-poster", "data-thumbnail", "data-thumb",
@@ -1210,6 +1253,7 @@
       schemaVersion: 1, event: "frame_ended", frameKey: context.frameKey,
     })).catch(() => {});
     context = null; navigationEpoch++; pendingOffers = 0; registering = null;
+    routeMediaPending = false;
     alive = false; cancelNativeQueue(); observer.disconnect(); observedRoots = new WeakSet();
     // BFCache preserves script objects, but pageshow starts a new native document.
     // Reparse passive configs once on restore, never on each normal DOM scan.

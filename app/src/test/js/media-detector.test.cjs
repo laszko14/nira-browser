@@ -5,7 +5,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 const assets = path.join(__dirname, "../../main/assets/extensions/nira-media-detector");
 
-function background(route = async () => false, initialize = true, fetchImpl = undefined) {
+function background(route = async () => false, initialize = true, fetchImpl = undefined, navigation = undefined) {
   let receive, rawProbe, before, filter, extras;
   let requestId = 0;
   const native = [], timers = [], routed = [], controls = [];
@@ -18,6 +18,7 @@ function background(route = async () => false, initialize = true, fetchImpl = un
     tabs: { sendMessage: async (...args) => {
       (args[1].event === "media_candidate" ? routed : controls).push(args); return route(...args);
     } },
+    webNavigation: navigation,
     webRequest: {
       onBeforeRequest: { addListener: callback => { before = callback; } },
       onHeadersReceived: { addListener: (callback, options, info) => {
@@ -1349,4 +1350,69 @@ test("audit60 15C: recovery and dedup remain separated by live frame and private
   assert.notEqual(b.routed[0][1].frameKey, b.routed[2][1].frameKey);
   assert.equal(b.routed[3][1].isPrivate, true);
   assert.equal(b.routed[4][1].isPrivate, false);
+});
+
+test("audit60 15D: hash-router material switch mints a new document key in same Gecko UUID", async () => {
+  const initial = "https://site.example/app#/film/a";
+  const other = "https://site.example/app#/film/b";
+  const documentId = "01234567-89ab-cdef-0123-456789abcdef";
+  let visible = initial;
+  const navigation = { getFrame: async () => ({ documentId, url: visible }) };
+  const senderAtStart = { ...sender, url: initial, documentId };
+  const b = background(async () => true, false, undefined, navigation);
+  const start = pageUrl => b.receive({ schemaVersion: 1, event: "document_started", pageUrl }, senderAtStart);
+  const first = await start(initial);
+  visible = other;
+  const second = await start(other);
+  assert.ok(second.documentKey > first.documentKey, "film B requires a new key");
+  visible = initial;
+  const third = await start(initial);
+  assert.ok(third.documentKey > second.documentKey, "return to film A is another material generation");
+  visible = "https://site.example/app?mode=cinema#/film/a";
+  const fourth = await start(visible);
+  assert.ok(fourth.documentKey > third.documentKey, "query+hash navigation must not preserve old state");
+});
+
+test("audit60 15D: ordinary anchors and nested same-route anchors preserve media key", async () => {
+  const documentId = "01234567-89ab-cdef-0123-456789abcdef";
+  const initial = "https://site.example/watch/1#intro";
+  let visible = initial;
+  const nav = { getFrame: async () => ({ documentId, url: visible }) };
+  const s = { ...sender, url: initial, documentId };
+  const b = background(async () => true, false, undefined, nav);
+  const start = pageUrl => b.receive({ schemaVersion: 1, event: "document_started", pageUrl }, s);
+  const first = await start(initial);
+  visible = "https://site.example/watch/1#comments";
+  const anchor = await start(visible);
+  assert.equal(anchor.documentKey, first.documentKey);
+  visible = "https://site.example/watch/1#/film/a";
+  const routed = await start(visible);
+  assert.ok(routed.documentKey > first.documentKey);
+  visible = "https://site.example/watch/1#/film/a#chapter2";
+  const sameMaterial = await start(visible);
+  assert.equal(sameMaterial.documentKey, routed.documentKey);
+});
+
+test("audit60 15D: pending hash route never reoffers old DOM video before its replacement", async () => {
+  const p = page();
+  await p.navigate("https://site.example/app#/film/a");
+  const old = new p.HTMLVideoElement("https://cdn.example/movie-a.mp4", "video/mp4", true);
+  old.nodeType = 1; old.tagName = "VIDEO";
+  p.videos.push(old);
+  await p.mutate([{ type: "childList", addedNodes: [old], removedNodes: [] }]);
+  const previous = p.native.length;
+  assert.equal(p.native.at(-1)[1].url, old.src);
+  await p.navigate("https://site.example/app#/film/b");
+  assert.equal(p.native.length, previous, "old connected video must not be offered in new generation");
+  const fresh = new p.HTMLVideoElement("https://cdn.example/movie-b.mp4", "video/mp4", true);
+  fresh.nodeType = 1; fresh.tagName = "VIDEO";
+  old.isConnected = false;
+  p.videos.splice(0, 1, fresh);
+  await p.mutate([{ type: "childList", target: p.document, addedNodes: [fresh], removedNodes: [old] }]);
+  assert.ok(p.native.length > previous);
+  assert.equal(p.native.at(-1)[1].url, fresh.src);
+  assert.equal(fresh.paused, true);
+  const issued = p.native.length;
+  await p.mutate();
+  assert.equal(p.native.length, issued, "no duplicate route reoffer");
 });

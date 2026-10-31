@@ -271,6 +271,54 @@ class MediaRepositoryTest {
             add(repo, moved, 3, "https://cdn.example/new.mp4"))
     }
 
+    @Test fun hashRouterMaterialSwitchDropsStaleMediaAndRejectsOldEpoch() {
+        val repo = MediaRepository()
+        val sessionA = Any()
+        val original = tab(session = sessionA, id = "hash-A",
+            page = "https://site.example/app#/film/a")
+        val otherTab = tab(id = "other")
+        repo.observe(listOf(original, otherTab))
+        assertTrue(repo.registerDocument(original, original.pageUrl, 1).accepted)
+        assertTrue(repo.registerDocument(otherTab, otherTab.pageUrl, 2).accepted)
+        add(repo, original, 1, "https://cdn.example/movie-a.mp4")
+        add(repo, otherTab, 2, "https://cdn.example/other.mp4")
+        val next = original.copy(pageUrl = "https://site.example/app#/film/b")
+        val changes = repo.observe(listOf(next, otherTab))
+        assertEquals(1, changes.size)
+        assertEquals(1, changes.single().removed)
+        assertTrue(changes.single().navigation)
+        assertTrue(repo.forTab(next.binding).isEmpty())
+        assertEquals(1, repo.forTab(otherTab.binding).size)
+        assertEquals(MediaRepository.InsertResult.STALE,
+            add(repo, next, 1, "https://cdn.example/late-a.mp4"))
+        assertFalse(repo.registerDocument(next, next.pageUrl, 1).accepted)
+        assertTrue(repo.registerDocument(next, next.pageUrl, 3).accepted)
+        assertEquals(MediaRepository.InsertResult.ADDED,
+            add(repo, next, 3, "https://cdn.example/movie-b.mp4"))
+        val back = next.copy(pageUrl = original.pageUrl)
+        assertEquals(1, repo.observe(listOf(back, otherTab)).single().removed)
+        assertTrue(repo.forTab(back.binding).isEmpty())
+        assertTrue(repo.registerDocument(back, back.pageUrl, 4).accepted)
+        assertEquals(MediaRepository.InsertResult.ADDED,
+            add(repo, back, 4, "https://cdn.example/movie-a.mp4"))
+    }
+
+    @Test fun ordinaryAnchorDoesNotDiscardSameMovieButHashRouterDoes() {
+        val repo = MediaRepository()
+        val t = tab(page = "https://site.example/watch/1#intro")
+        begin(repo, t)
+        add(repo, t, 1, "https://cdn.example/same.mp4")
+        val anchored = t.copy(pageUrl = "https://site.example/watch/1#comments")
+        assertTrue(repo.observe(listOf(anchored)).isEmpty())
+        assertTrue(repo.registerDocument(anchored, anchored.pageUrl, 1).accepted)
+        assertEquals(1, repo.forTab(anchored.binding).size)
+        val route = anchored.copy(pageUrl = "https://site.example/watch/1#/film/a")
+        val removed = repo.observe(listOf(route))
+        assertEquals(1, removed.single().removed)
+        assertTrue(removed.single().navigation)
+        assertFalse(repo.registerDocument(route, route.pageUrl, 1).accepted)
+    }
+
     @Test fun sameUrlReloadAndBackForwardProduceFreshGenerations() {
         val repo = MediaRepository()
         val t = tab()
