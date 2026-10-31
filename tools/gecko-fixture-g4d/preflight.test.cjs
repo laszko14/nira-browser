@@ -80,6 +80,6 @@ test('missing or inaccessible base APK is a hard block', () => {
 
 test('tool never carries install, erase or restore authorization', () => {
   const content = fs.readFileSync(script, 'utf8');
-  assert.doesNotMatch(content, /adb[^\n]*(?: install| uninstall| pm clear| shell rm| backup| restore)/);
+  assert.doesNotMatch(content, /adb[^\n]*\b(?:install|uninstall|pm clear|shell rm|backup|restore)\b/);
   assert.match(content, /INSTALLATION=NOT_AUTHORIZED/);
 });
