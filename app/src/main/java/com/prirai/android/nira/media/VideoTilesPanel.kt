@@ -47,7 +47,37 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 /** The URL stays exclusively in this in-memory entry, never in saveable UI state. */
-internal class VideoTileItem(val key: Long, val entry: MediaEntry, val title: String, val variantCount: Int)
+internal class VideoTileItem(
+    val key: Long,
+    val entry: MediaEntry,
+    val title: String,
+    val variantCount: Int,
+    val variants: List<MediaEntry> = listOf(entry),
+    val posterUrl: String? = entry.posterUrl,
+    val groupDurationSeconds: Int? = entry.durationSeconds,
+    val groupIsLive: Boolean = entry.isLive,
+) {
+    fun selected(id: Long?): MediaEntry = variants.firstOrNull { it.id == id } ?: entry
+    fun liveFor(selected: MediaEntry): Boolean =
+        selected.isLive || (selected.durationSeconds == null && groupIsLive)
+    fun durationFor(selected: MediaEntry): Int? =
+        if (liveFor(selected)) null else selected.durationSeconds ?: groupDurationSeconds
+}
+
+internal fun mediaVariantPlayable(entry: MediaEntry): Boolean =
+    entry.playbackStatus !in setOf(
+        MediaPlaybackStatus.EXPIRED, MediaPlaybackStatus.AUTH_ERROR, MediaPlaybackStatus.UNPLAYABLE)
+
+internal fun mediaVariantLabel(entry: MediaEntry, number: Int): String {
+    val state = when (entry.playbackStatus) {
+        MediaPlaybackStatus.CONFIRMED -> "potwierdzony"
+        MediaPlaybackStatus.NEEDS_VERIFICATION -> "do weryfikacji"
+        else -> "niedostępny"
+    }
+    val quality = entry.quality?.takeIf { it.isNotBlank() }?.let { " · deklarowana $it" } ?: ""
+    // Never show a token-bearing playback URL in the variant chooser.
+    return "Źródło $number · ${entry.format.name}$quality · $state"
+}
 
 private val panelShape = RoundedCornerShape(24.dp)
 private val panelGradient = Brush.verticalGradient(listOf(Color(0xf51a1e24), Color(0xfa0c1014)))
@@ -241,12 +271,17 @@ private fun VisibilitySetting(label: String, checked: Boolean, change: (Boolean)
 private fun VideoTile(item: VideoTileItem, settings: VideoTilesSettings,
                       onPlay: (Long) -> Unit, onDownload: (Long) -> Unit,
                       onCopy: (Long) -> Unit, modifier: Modifier) {
-    val entry = item.entry
+    // Only a record ID is kept in Compose memory; the URL stays in the current
+    // native snapshot. Evicted/changed variants revert to the safe default.
+    var selectedVariantId by remember(item.key) { mutableStateOf<Long?>(null) }
+    val entry = item.selected(selectedVariantId)
+    val live = item.liveFor(entry)
+    val duration = item.durationFor(entry)
     val geometry = VideoTilesGeometry(settings, LocalDensity.current.fontScale,
         LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE)
-    val playable = entry.playbackStatus !in setOf(MediaPlaybackStatus.EXPIRED, MediaPlaybackStatus.AUTH_ERROR, MediaPlaybackStatus.UNPLAYABLE)
+    val playable = mediaVariantPlayable(entry)
     var menu by remember(item.key) { mutableStateOf(false) }
-    Column(modifier.testTag("video-tile-${item.key}").semantics { if (entry.durationSeconds == null) contentDescription = "Czas nieznany" }) {
+    Column(modifier.testTag("video-tile-${item.key}").semantics { if (!live && duration == null) contentDescription = "Czas nieznany" }) {
         val thumbnailShape = RoundedCornerShape(7.dp)
         val tint = when ((item.key % 3).toInt()) { 0 -> Color(0xff153c43); 1 -> Color(0xff152b37); else -> Color(0xff232b39) }
         Box(Modifier.fillMaxWidth().height(geometry.thumbnailHeightDp.dp).clip(thumbnailShape)
@@ -254,7 +289,7 @@ private fun VideoTile(item: VideoTileItem, settings: VideoTilesSettings,
                 else Brush.verticalGradient(listOf(Color(0xff181e24), Color(0xff11161b))))
             .border(1.dp, Color(0xff46515c), thumbnailShape), contentAlignment = Alignment.Center) {
             // Real poster metadata from Gecko DOM; never use fabricated movie artwork.
-            val poster = entry.posterUrl?.takeIf {
+            val poster = item.posterUrl?.takeIf {
                 (it.startsWith("https://", ignoreCase = true) ||
                     it.startsWith("http://", ignoreCase = true)) &&
                     runCatching { java.net.URI(it).host?.isNotBlank() == true }.getOrDefault(false)
@@ -308,6 +343,22 @@ private fun VideoTile(item: VideoTileItem, settings: VideoTilesSettings,
                         onClick = { menu = false; onDownload(entry.id) })
                     DropdownMenuItem(text = { Text("Kopiuj adres filmu") },
                         onClick = { menu = false; onCopy(entry.id) })
+                    if (item.variants.size > 1) {
+                        HorizontalDivider()
+                        DropdownMenuItem(text = { Text("Wybierz źródło (${item.variants.size})") },
+                            enabled = false, onClick = {})
+                        item.variants.forEachIndexed { index, option ->
+                            DropdownMenuItem(
+                                text = { Text(
+                                    (if (entry.id == option.id) "✓ " else "") +
+                                        mediaVariantLabel(option, index + 1),
+                                    maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                                onClick = {
+                                    selectedVariantId = option.id
+                                    menu = false
+                                })
+                        }
+                    }
                     HorizontalDivider()
                     DropdownMenuItem(text = { Text("Pełny tytuł: ${item.title}") }, onClick = { menu = false })
                     // Preserve filename context, but never pass it off as a verified title.
@@ -327,8 +378,8 @@ private fun VideoTile(item: VideoTileItem, settings: VideoTilesSettings,
                         DropdownMenuItem(text = { Text("Dostępne jakości: ${entry.variantCount}") }, onClick = { menu = false })
                     if (entry.codecs != null)
                         DropdownMenuItem(text = { Text("Kodek: ${entry.codecs}") }, onClick = { menu = false })
-                    DropdownMenuItem(text = { Text(if (entry.isLive) "Rozmiar: Nie dotyczy (LIVE)" else sizeText(entry) ?: "Rozmiar nieznany") }, onClick = { menu = false })
-                    DropdownMenuItem(text = { Text(if (entry.isLive) "Na żywo" else durationText(entry.durationSeconds) ?: "Czas nieznany") }, onClick = { menu = false })
+                    DropdownMenuItem(text = { Text(if (live) "Rozmiar: Nie dotyczy (LIVE)" else sizeText(entry) ?: "Rozmiar nieznany") }, onClick = { menu = false })
+                    DropdownMenuItem(text = { Text(if (live) "Na żywo" else durationText(duration) ?: "Czas nieznany") }, onClick = { menu = false })
                 }
             }
             // Both fields remain present even for streams without retrievable data.
@@ -337,10 +388,10 @@ private fun VideoTile(item: VideoTileItem, settings: VideoTilesSettings,
                 .background(Color(0xe3000000), RoundedCornerShape(3.dp))
                 .padding(horizontal = 3.dp, vertical = 1.dp),
                 horizontalAlignment = Alignment.End) {
-                Text(if (entry.isLive) "Czas: LIVE" else
-                    "Czas: " + (durationText(entry.durationSeconds) ?: "?"),
+                Text(if (live) "Czas: LIVE" else
+                    "Czas: " + (durationText(duration) ?: "?"),
                     color = Color.White, fontSize = 9.sp, lineHeight = 10.sp, maxLines = 1)
-                Text(if (entry.isLive) "Rozm.: —" else
+                Text(if (live) "Rozm.: —" else
                     "Rozm.: " + (sizeText(entry) ?: "?"),
                     color = Color.White, fontSize = 9.sp, lineHeight = 10.sp, maxLines = 1)
             }

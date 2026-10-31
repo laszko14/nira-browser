@@ -209,9 +209,8 @@ internal class MediaFloatingUi(
                                 tilePreferences.save(landscape, value)
                             },
                             onPlay = { id ->
-                                val now = current()
-                                if (snapshot == null || now == null || !sameSelection(snapshot.tab, now.tab) ||
-                                    now.entries.none { it.id == id }) {
+                                val selected = mediaCurrentActionEntry(snapshot, current(), id)
+                                if (selected == null || !mediaVariantPlayable(selected)) {
                                     stale()
                                     fillSheet()
                                 } else {
@@ -227,14 +226,11 @@ internal class MediaFloatingUi(
                                 }
                             },
                             onDownload = { id ->
-                                val latest = current()
-                                if (snapshot == null || latest == null ||
-                                    !sameSelection(snapshot.tab, latest.tab) ||
-                                    latest.entries.none { it.id == id }) {
+                                val entry = mediaCurrentActionEntry(snapshot, current(), id)
+                                if (entry == null) {
                                     stale()
                                     fillSheet()
                                 } else {
-                                    val entry = latest.entries.first { it.id == id }
                                     if (entry.format in setOf(MediaFormat.HLS, MediaFormat.DASH)) {
                                         Toast.makeText(context,
                                             "HLS/DASH wymaga pobrania całego strumienia, nie samego manifestu",
@@ -252,14 +248,12 @@ internal class MediaFloatingUi(
                                 }
                             },
                             onCopy = { id ->
-                                val latest = current()
-                                if (snapshot == null || latest == null ||
-                                    !sameSelection(snapshot.tab, latest.tab) ||
-                                    latest.entries.none { it.id == id }) {
+                                val entry = mediaCurrentActionEntry(snapshot, current(), id)
+                                if (entry == null) {
                                     stale()
                                     fillSheet()
                                 } else {
-                                    val url = latest.entries.first { it.id == id }.url
+                                    val url = entry.url
                                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                     clipboard.setPrimaryClip(ClipData.newPlainText("Adres filmu", url))
                                 }
@@ -366,16 +360,41 @@ internal class MediaFloatingUi(
 
 // Pure mapping for unit tests: grouping, identity, and titles must stay coupled.
 internal fun mediaTileItems(entries: List<MediaEntry>): List<VideoTileItem> {
-    // Group IDs are minted independently per Gecko document/frame.
+    // Group tokens are scoped to one Gecko frame; signed URLs remain exact.
     val movies = entries.groupBy { it.frameKey to (it.groupId ?: "url:${it.url}") }
     return movies.values.mapIndexed { index, found ->
-        val variants = found.sortedWith(compareByDescending<MediaEntry> { MediaSource.NETWORK in it.sources }
-            .thenByDescending { MediaSource.DOM in it.sources })
+        // An expired master must never hide a confirmed child. Ties are
+        // deterministic, regardless of DOM/network delivery order.
+        val variants = found.sortedWith(
+            compareBy<MediaEntry> { when (it.playbackStatus) {
+                MediaPlaybackStatus.CONFIRMED -> 0
+                MediaPlaybackStatus.NEEDS_VERIFICATION -> 1
+                else -> 2
+            } }.thenByDescending { MediaSource.NETWORK in it.sources }
+                .thenByDescending { MediaSource.DOM in it.sources }
+                .thenBy { it.id })
         val bestTitle = MediaTitleResolver.selectGroup(variants, movies.size == 1).text
         val filename = if (bestTitle == null) variants.firstNotNullOfOrNull { friendlyFileName(it.url) } else null
         val title = bestTitle ?: filename?.let { "Plik (niepotwierdzony): $it" }
             ?: "Film #${index + 1}"
-        VideoTileItem(found.minOf { it.id }, variants.first(), title, variants.size)
+
+        // Pool only poster evidence, never a foreign variant's playback URL,
+        // bitrate, estimated size or claimed quality. Equal-rank conflicting
+        // posters yield unknown, as in MediaPosterResolver for a single URL.
+        val posters = MediaPosterResolver.State()
+        variants.filterNot { it.posterAmbiguous }.forEach { variant ->
+            val origin = MediaPosterResolver.Origin.entries.firstOrNull {
+                it.name == variant.posterOrigin
+            }?.wire
+            posters.offer(variant.posterUrl, origin)
+        }
+        val durations = variants.filterNot { it.isLive }
+            .mapNotNull { it.durationSeconds?.takeIf { seconds -> seconds > 0 } }
+            .distinct()
+        val live = variants.any { it.isLive } && durations.isEmpty()
+        val sharedDuration = if (variants.any { it.isLive }) null else durations.singleOrNull()
+        VideoTileItem(found.minOf { it.id }, variants.first(), title, variants.size,
+            variants, posters.snapshot().url, sharedDuration, live)
     }
 }
 
@@ -394,4 +413,28 @@ internal fun friendlyFileName(url: String): String? {
         RegexOption.IGNORE_CASE)
     if (part.length !in 3..65 || !part.any { it.isLetter() } || technical.matches(part)) return null
     return part
+}
+
+/**
+ * Actions resolve their selected variant against the live native snapshot.
+ * Group/frame/format changes or tab/profile/privacy switches invalidate a
+ * previously shown choice; signed URL renewal inside the same record uses
+ * the latest in-memory URL, never a saved Compose snapshot.
+ */
+internal fun mediaCurrentActionEntry(
+    shown: MediaUiSnapshot?, latest: MediaUiSnapshot?, id: Long,
+): MediaEntry? {
+    if (shown == null || latest == null) return null
+    val before = shown.tab
+    val now = latest.tab
+    if (before.binding.session !== now.binding.session ||
+        before.binding.tabId != now.binding.tabId ||
+        before.binding.contextId != now.binding.contextId ||
+        before.binding.isPrivate != now.binding.isPrivate ||
+        before.pageUrl != now.pageUrl || before.loading != now.loading) return null
+    val oldEntry = shown.entries.firstOrNull { it.id == id } ?: return null
+    val newEntry = latest.entries.firstOrNull { it.id == id } ?: return null
+    if (oldEntry.frameKey != newEntry.frameKey ||
+        oldEntry.groupId != newEntry.groupId || oldEntry.format != newEntry.format) return null
+    return newEntry
 }
