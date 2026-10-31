@@ -91,6 +91,41 @@ class MediaRepositoryTest {
         assertEquals(100, mediaTileItems(entries).size)
     }
 
+    @Test fun networkRecoveryAfterErrorReopensTheExactMediaEntryAndIgnoresLateOldResponse() {
+        val repo = MediaRepository()
+        val t = tab(profile = "work")
+        val url = "https://cdn.example/stream.mp4?sig=exact"
+        begin(repo, t)
+        fun offer(verification: String, httpStatus: Int, sequence: Long): MediaRepository.InsertResult {
+            val candidate = MediaDetectorMessage.Candidate(
+                url = url, contentType = "video/mp4", source = MediaSource.NETWORK,
+                privateHint = false, pageUrl = t.pageUrl, documentKey = 1,
+                verification = verification, httpStatus = httpStatus,
+                requestSequence = sequence
+            )
+            return repo.add(t, t.pageUrl, 1,
+                MediaClassifier.fromNetwork(candidate, t.binding)!!,
+                MediaSource.NETWORK, null, candidate)
+        }
+        assertEquals(MediaRepository.InsertResult.ADDED, offer("manifest_observed", 200, 1L))
+        assertEquals(MediaPlaybackStatus.NEEDS_VERIFICATION, repo.forTab(t.binding).single().playbackStatus)
+        assertEquals(MediaRepository.InsertResult.DUPLICATE, offer("auth_error", 403, 2L))
+        assertEquals(MediaPlaybackStatus.AUTH_ERROR, repo.forTab(t.binding).single().playbackStatus)
+        assertEquals(MediaRepository.InsertResult.DUPLICATE, offer("manifest_observed", 200, 3L))
+        val recovered = repo.forTab(t.binding).single()
+        assertEquals(MediaPlaybackStatus.NEEDS_VERIFICATION, recovered.playbackStatus)
+        assertEquals(200, recovered.httpStatus)
+        assertEquals(url, recovered.url)
+        assertEquals(1, repo.forTab(t.binding).size)
+        assertEquals(MediaRepository.InsertResult.DUPLICATE, offer("auth_error", 403, 2L))
+        assertEquals(MediaPlaybackStatus.NEEDS_VERIFICATION, repo.forTab(t.binding).single().playbackStatus)
+        assertEquals(200, repo.forTab(t.binding).single().httpStatus)
+        assertEquals(MediaRepository.InsertResult.DUPLICATE, offer("expired", 410, 4L))
+        assertEquals(MediaPlaybackStatus.EXPIRED, repo.forTab(t.binding).single().playbackStatus)
+        assertEquals(MediaRepository.InsertResult.DUPLICATE, offer("manifest_observed", 200, 5L))
+        assertEquals(MediaPlaybackStatus.NEEDS_VERIFICATION, repo.forTab(t.binding).single().playbackStatus)
+    }
+
     @Test fun twoDifferentVideosInOneTabStayIndependent() {
         val repo = MediaRepository()
         val t = tab()

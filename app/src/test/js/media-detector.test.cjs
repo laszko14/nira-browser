@@ -1275,3 +1275,78 @@ test("audit60 15B: disconnected or closed hosts cannot enter the shadow scanner"
   await p.drain();
   assert.equal(p.observedRoots.length, before);
 });
+
+test("audit60 15C: a fresh success after authorization/expiry errors is not hidden by the first success", async () => {
+  for (const errorStatus of [401, 403, 404, 410]) {
+    const b = background(async () => true);
+    const url = "https://media.example.invalid/recover.mp4?sig=same";
+    b.probe(response(url, "video/mp4"));
+    b.probe(response(url, "text/html", { statusCode: errorStatus }));
+    b.probe(response(url, "video/mp4"));
+    await tick();
+    assert.deepEqual(b.routed.map(([, m]) => m.httpStatus), [200, errorStatus, 200]);
+    assert.deepEqual(b.routed.map(([, m]) => m.verification), [
+      "manifest_observed", errorStatus < 404 ? "auth_error" : "expired", "manifest_observed"
+    ]);
+    assert.equal(b.routed[0][1].url, url, "signed URL stays unchanged");
+    assert.ok(b.routed[2][1].requestSequence > b.routed[1][1].requestSequence);
+    b.probe(response(url, "video/mp4"));
+    await tick();
+    assert.equal(b.routed.length, 3, "repeated identical success is still deduplicated");
+  }
+});
+
+test("audit60 15C: identical state is deduplicated, while MIME and size changes are reported", async () => {
+  const b = background(async () => true);
+  const url = "https://media.example.invalid/movie.mp4";
+  const withSize = bytes => response(url, "video/mp4", { responseHeaders: [
+    {name: "Content-Type", value: "video/mp4"},
+    {name: "Content-Length", value: String(bytes)}
+  ] });
+  b.probe(withSize(123));
+  b.probe(withSize(123));
+  b.probe(withSize(456));
+  b.probe(response(url, "video/webm"));
+  await tick();
+  assert.deepEqual(b.routed.map(([, m]) => m.sizeBytes), [123, 456, undefined]);
+  assert.equal(b.routed[2][1].contentType, "video/webm");
+});
+
+test("audit60 15C: delayed older responses cannot roll back a newer network status", async () => {
+  const b = background(async () => true);
+  const url = "https://media.example.invalid/video.mp4";
+  const older = response(url, "video/mp4", { requestId: "old" });
+  const newer = response(url, "text/html", { requestId: "new", statusCode: 403 });
+  b.before(older);
+  b.before(newer);
+  b.rawProbe(newer);
+  b.rawProbe(older);
+  await tick();
+  assert.deepEqual(b.routed.map(([, m]) => m.httpStatus), [403]);
+  b.probe(response(url, "video/mp4"));
+  await tick();
+  assert.deepEqual(b.routed.map(([, m]) => m.httpStatus), [403, 200]);
+});
+
+test("audit60 15C: recovery and dedup remain separated by live frame and private bit", async () => {
+  const b = background(async () => true);
+  for (const frameId of [1, 2]) {
+    const frameUrl = "https://player.example/" + frameId;
+    await b.receive({ schemaVersion: 1, event: "frame_started", frameUrl },
+      { ...sender, frameId, url: frameUrl });
+  }
+  const url = "https://cdn.example/shared.mp4";
+  const probe = (frameId, incognito, statusCode) =>
+    b.probe(response(url, statusCode === 200 ? "video/mp4" : "text/html",
+      { frameId, documentUrl: "https://player.example/" + frameId, incognito, statusCode }));
+  probe(1, false, 200);
+  probe(1, false, 403);
+  probe(2, false, 200);
+  probe(1, true, 200);
+  probe(1, false, 200);
+  await tick();
+  assert.deepEqual(b.routed.map(([, m]) => m.httpStatus), [200, 403, 200, 200, 200]);
+  assert.notEqual(b.routed[0][1].frameKey, b.routed[2][1].frameKey);
+  assert.equal(b.routed[3][1].isPrivate, true);
+  assert.equal(b.routed[4][1].isPrivate, false);
+});

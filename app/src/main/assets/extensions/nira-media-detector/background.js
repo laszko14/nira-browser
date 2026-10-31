@@ -651,11 +651,25 @@ function onHeaders(details) {
   }
   const now = Date.now();
   const sizeBytes = contentSize(details, format);
-  const dedupKey = tabId + ":" + doc.documentKey + ":" + (requestFrame?.frameKey || 0) + ":" + String(details.incognito) +
-    ":" + details.url + ":" + format + ":" + details.statusCode + ":" + (contentType || "");
+  // One latest response state per exact URL and document/frame/private scope.
+  // The previous key included status and MIME, so 200 -> 403 -> 200 incorrectly
+  // suppressed the recovered 200 while its first cached success was still live.
+  // Do not collapse signed URLs or infer that an older request is newer.
+  const dedupKey = JSON.stringify([tabId, doc.documentKey, requestFrame?.frameKey || 0,
+    details.incognito, details.url]);
   const previously = seen.get(dedupKey);
-  if (previously && now - previously.at < RECENT_MS &&
-      (sizeBytes === null || previously.sizeBytes === sizeBytes)) return;
+  const requestSequence = requestDocumentKey.requestSequence;
+  if (previously && requestSequence < previously.requestSequence) return;
+  const identical = previously &&
+    previously.format === format && previously.httpStatus === details.statusCode &&
+    previously.contentType === contentType;
+  if (identical && now - previously.at < RECENT_MS &&
+      (sizeBytes === null || previously.sizeBytes === sizeBytes)) {
+    // Suppressed same-state requests still advance ownership, so an older
+    // delayed response cannot overwrite the latest known status.
+    previously.requestSequence = Math.max(previously.requestSequence, requestSequence);
+    return;
+  }
   const rateKey = tabId + ":" + String(details.incognito);
   const slot = routedRate.get(rateKey);
   if (!slot || now - slot.since >= 5000) routedRate.set(rateKey, { since: now, count: 1 });
@@ -663,7 +677,8 @@ function onHeaders(details) {
   else slot.count++;
   while (routedRate.size > 64) routedRate.delete(routedRate.keys().next().value);
   seen.delete(dedupKey);
-  seen.set(dedupKey, { at: now, sizeBytes });
+  seen.set(dedupKey, { at: now, sizeBytes, format, httpStatus: details.statusCode,
+    contentType, requestSequence });
   while (seen.size > MAX_SEEN) seen.delete(seen.keys().next().value);
   const message = {
     schemaVersion: 1, event: "media_candidate", source: "network", url: details.url,

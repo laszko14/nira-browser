@@ -170,7 +170,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-032 | konfiguracje script nie wracają po wznowieniu tego samego DOM | CONFIRMED | P2 | 15A/19 | FIXED CORE — BFCache script cache invalidated; JS regression, CI_PENDING; device NOT_TESTED |
 | ZC-AUD-033 | childList z source nie skanuje istniejącego video | CONFIRMED | P2 | 15A/19 | FIXED CORE — source mutation rechecks owning VIDEO; JS regression, CI_PENDING; device NOT_TESTED |
 | ZC-AUD-034 | brak wyzwalacza dla późnego open Shadow DOM | CONFIRMED | P2 | 15B/19 | FIXED CORE — MAIN-world open-root hint, isolated DOM verification, bounded rescan; JS regression, CI_PENDING; device NOT_TESTED |
-| ZC-AUD-035 | deduplikacja pomija przywrócenie dostępu | CONFIRMED | P2 | 15/19 | DO_RECHECK |
+| ZC-AUD-035 | deduplikacja pomija przywrócenie dostępu | CONFIRMED | P2 | 15C/19 | FIXED CORE — latest exact-URL response state/sequence handles 200→403→200 and 200→410→200; JS+Kotlin regressions; CI_PENDING; real Gecko NOT_TESTED |
 | ZC-AUD-036 | ochrona DASH rozpoznawana z surowego XML | CONFIRMED | P2 | 17/19 | DO_RECHECK |
 | ZC-AUD-037 | grupowanie wariantów zależy od kolejności DOM i sieci | CONFIRMED | P2 | 16/19 | DO_RECHECK |
 | ZC-AUD-038 | wybór reprezentanta pomija metadane i dostępne alternatywy | CONFIRMED | P2 | 16/19 | DO_RECHECK |
@@ -625,3 +625,12 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - Granice: MAIN-world może być nadpisany przez stronę, a GeckoView na fizycznym Androidzie nie było testowane; brak gwarancji dla stron, które nadpisują `attachShadow` po hooku lub blokują modyfikację prototypu. Sprawdzić w realnym Gecko z late/nested shadow roots i BFCache (strona bez Play). Nie deklarować PASS dla urządzenia. `world=MAIN` w Firefox MV2 jest wspierane od 128 (źródło: Mozilla addons 2024-07-10).
 - Testy automatyczne: Kotlin/Robolectric, AndroidTest source compile, wszystkie Node JS i lint w `zavro-audit60-stage15b-regression.yml`. **CI_PENDING** do zakończenia finalnego SHA. Bez APK, main, zmiany signing, profili, prywatności i sesji. ZC-AUD-030 **OPEN**, ZC-AUD-031 **PARTIAL**.
 - Następne `Dalej`: **15C/19 — ZC-AUD-035** (200→403→200 odzyskanie dostępu).
+
+## Etap 15C/19 — odzyskiwanie dostępu do medium po błędzie odpowiedzi (2026-10-31)
+
+- **Baza:** 15B `ed1177eab79714b806a4fd2b8d351f771709ff62` — [CI #41218082667](https://github.com/laszko14/nira-browser/actions/runs/41218082667) `completed/success`. Gałąź `fix/zavro-clean-audit60-stage15c-network-recovery-20261031`.
+- **ZC-AUD-035 STILL_PRESENT → FIXED CORE:** `background.js:onHeaders` używał odrębnych wpisów deduplikacji dla status/MIME. Przy szybkim `200 → 403 → 200` ostatnie 200 trafiało na zapamiętany sukces z pierwszego żądania i znikało. Nowy, ograniczony do 128 wpisów cache trzyma **ostatni stan** dla dokładnego URL, documentKey, frameKey, tabId i privacy. Równe kolejno stany nadal są tłumione do 20 s; przejście przez 401/403/404/410 resetuje porównanie. Podpisy URL pozostają nietknięte; starsza `requestSequence` nie cofa nowszego stanu, także po dedupie. Limity 96 routów/5 s, sieć i strefy prywatne pozostają.
+- **Regresja Node:** 200→401/403/404/410→200; brak późniejszych powtórzeń tego samego stanu; zmiana Content-Type i Content-Length; starszy response callback po nowszym; ramki i privacy. **Regresja Kotlin:** ten sam rekord/URL w native przechodzi AUTH_ERROR/EXPIRED→NEEDS_VERIFICATION przy rosnącym requestSequence i ignoruje opóźnioną odpowiedź starszą.
+- **Granice:** brak rzeczywistych odpowiedzi GeckoView i 120 Hz na telefonie; `manifest_observed` oznacza potrzebę weryfikacji, nie potwierdzenie odtwarzalności. Brak aktywnych pobrań i zmian danych profili. ZC-AUD-030 **OPEN**, ZC-AUD-031 **PARTIAL**.
+- **Weryfikacja:** pełne Kotlin/Robolectric, AndroidTest compile, WebExtension Node, Android lint na finalnym SHA w `zavro-audit60-stage15c-regression.yml` — `CI_PENDING` do zakończenia workflow. Bez APK, merge do main i zmian podpisu.
+- **Następne „Dalej”**: **15D/19 — ZC-AUD-051** (hash-route → nowy film i invalidacja poprzedniego stanu).
