@@ -502,12 +502,15 @@ fun TabBarCompose(
 /**
  * Build bar items from order
  */
-private fun buildBarItems(
+internal fun buildBarItems(
     order: UnifiedTabOrder?,
     tabs: List<TabSessionState>,
     liveGroups: List<TabGroupData>
 ): List<BarItem> {
     if (order == null) return tabs.map { BarItem.SingleTab(it) }
+    // One index for both standalone and grouped positions, regardless of tab count.
+    val tabsById = tabs.associateBy { it.id }
+    val groupsById = liveGroups.associateBy { it.id }
 
     // The persisted order can lag behind live BrowserStore tabs (new tab,
     // restored session or rotation). Never render an empty strip just because
@@ -515,18 +518,18 @@ private fun buildBarItems(
     val orderedItems = order.primaryOrder.mapNotNull { orderItem ->
         when (orderItem) {
             is UnifiedTabOrder.OrderItem.SingleTab -> {
-                tabs.find { it.id == orderItem.tabId }?.let { BarItem.SingleTab(it) }
+                tabsById[orderItem.tabId]?.let { BarItem.SingleTab(it) }
             }
 
             is UnifiedTabOrder.OrderItem.TabGroup -> {
                 val groupTabs = orderItem.tabIds.mapNotNull { tabId ->
-                    tabs.find { it.id == tabId }
+                    tabsById[tabId]
                 }
                 if (groupTabs.isNotEmpty()) {
                     BarItem.Group(
                         groupId = orderItem.groupId,
                         groupName = orderItem.groupName,
-                        color = liveGroups.firstOrNull { it.id == orderItem.groupId }?.color
+                        color = groupsById[orderItem.groupId]?.color
                             ?: orderItem.color,
                         contextId = groupTabs.first().contextId,
                         tabs = groupTabs,

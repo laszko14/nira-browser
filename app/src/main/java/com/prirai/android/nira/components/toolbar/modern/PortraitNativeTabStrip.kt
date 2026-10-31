@@ -375,7 +375,8 @@ class PortraitNativeTabStrip(context: Context) : LinearLayout(context) {
         val byIdForChooser = tabs.associateBy { it.id }
         val orderedIds = currentOrder?.reconciled(tabs.map { it.id }, currentGroups)
             ?.getAllTabIds().orEmpty().distinct()
-        lastTabs = orderedIds.mapNotNull { byIdForChooser[it] } + tabs.filterNot { it.id in orderedIds }
+        val orderedIdSet = orderedIds.toHashSet()
+        lastTabs = orderedIds.mapNotNull { byIdForChooser[it] } + tabs.filterNot { it.id in orderedIdSet }
         val previousSelectedId = lastSelectedId
         lastSelectedId = selectedId
         val visibleIds = tabs.map { it.id }.toSet()

@@ -445,19 +445,20 @@ class TabViewModel(
             else tab.contextId == contextId && tab.content.private == (profileId == "private")
         }
         if (!belongsToProfile) return false
-        if (groupManager.getAllGroups().any { group ->
-                group.tabIds.any { it in distinctIds }
-            }) return false
-
-        val created = groupManager.createGroup(
+        // Membership is rechecked under the same manager mutex and Room transaction
+        // as creation, not in this ViewModel before a suspend boundary.
+        if (_currentProfileId.value != profileId) return false
+        val created = groupManager.createGroupIfUngrouped(
             tabIds = distinctIds,
             name = name,
             profileId = profileId,
             contextId = contextId
-        )
+        ) ?: return false
         saveCurrentOrder(profileId)
-        refreshGroupsForProfile(profileId)
-        _expandedGroups.value = _expandedGroups.value + created.id
+        if (_currentProfileId.value == profileId) {
+            refreshGroupsForProfile(profileId)
+            _expandedGroups.value = _expandedGroups.value + created.id
+        }
         return true
     }
 

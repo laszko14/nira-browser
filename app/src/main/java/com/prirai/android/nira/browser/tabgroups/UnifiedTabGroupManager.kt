@@ -296,6 +296,27 @@ class UnifiedTabGroupManager internal constructor(
         groupData
     }
 
+
+    /**
+     * Recovery from "Bez grupy" must never steal a tab moved by another
+     * operation while the panel was waiting for the Room mutation lock.
+     * The membership check and creation share one serialized transaction.
+     * Ordinary createGroup intentionally keeps its move-from-group behavior.
+     */
+    suspend fun createGroupIfUngrouped(
+        tabIds: List<String>,
+        name: String,
+        profileId: String?,
+        contextId: String?
+    ): TabGroupData? = mutate(LabOperation.GROUP_CREATE) {
+        if (tabIds.isEmpty() || tabIds.distinct().size != tabIds.size ||
+            tabIds.any { it in tabToGroupMap } ||
+            !tabIds.all { tabMatchesContext(it, contextId) }) {
+            return@mutate null
+        }
+        createGroup(tabIds = tabIds, name = name, profileId = profileId, contextId = contextId)
+    }
+
     /**
      * Adds a tab to an existing group
      */
