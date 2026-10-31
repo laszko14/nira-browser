@@ -184,7 +184,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 | ZC-AUD-046 | odtwarzanie błędnego podglądu blokuje każdy kolejny tap | CONFIRMED | P2 | 18/19 | DO_RECHECK |
 | ZC-AUD-047 | spóźnione przywrócenie toolbaru koliduje z kolejnym fullscreen | CONFIRMED | P2 | 14/19 | DO_RECHECK |
 | ZC-AUD-048 | prostokąt toolbaru pod panelem nadal wygrywa gest | CONFIRMED | P2 | 13/19 | FIXED CORE — 13C live panel-ownership guard; Kotlin/Robolectric/JS/lint CI PASS, device NOT_TESTED |
-| ZC-AUD-049 | różny znak flingu w toolbarze WWW i Home | CONFIRMED | P2 | 13/19 | ALREADY_RESOLVED — equal sign on 13C base; 13D shared policy/regressions CI_PENDING; device NOT_TESTED |
+| ZC-AUD-049 | różny znak flingu w toolbarze WWW i Home | CONFIRMED | P2 | 13/19 | ALREADY_RESOLVED — equal sign on 13C base; 13D shared policy/regressions CI PASS; device NOT_TESTED |
 | ZC-AUD-050 | migracja profilu przenosi stan odtwarzania starego silnika | CONFIRMED | P2 | 10/19 | FIXED — stage 10; stale MediaSession reset with JVM CI PASS; device NOT_TESTED |
 | ZC-AUD-051 | zmiana filmu w trasie hash zachowuje stare media | CONFIRMED | P2 | 15/19 | DO_RECHECK |
 | ZC-AUD-052 | brak rejestracji okna filmów otwartego w PREPARING | CONFIRMED | P2 | 7/19 | FIXED — stage 7, JVM + CI PASS; device frames NOT_TESTED |
@@ -516,4 +516,12 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - **Ponowna weryfikacja:** na bazie 13C oba handlery miały już `RIGHT_TO_LEFT -> velocityX <= 0` i `LEFT_TO_RIGHT -> velocityX >= 0`; `SwipeGestureLayout.onFling` przekazuje niezmienione `velocityX`. Stara niezgodność znaków z v1190 jest **ALREADY_RESOLVED**. W Home `translationX` ma typ Float, a więc obliczenie udziału odsłonięcia nie używa dzielenia całkowitego. Żadnej z tych sytuacji nie przedstawiać jako nowo naprawionej usterki.
 - **13D — zabezpieczenie:** jedna `ToolbarSwipeFinishPolicy` zastępuje dwie kopie reguł bez zmiany fizycznych znaków, progu 25%, minimum flingu, obracania gestu ani dotychczasowych obliczeń odsłonięcia. Bez zmian LRU, RTL wyboru celu, `canFinishSwipe`, scope profili/prywatności, animacji 13B i panelowej arbitraży 13C.
 - **Regresje:** `ToolbarSwipeFinishPolicyTest` (oba kierunki, naturalny/reverse, prędkość poniżej/na/powyżej progu, ułamek 25%, zerowa prędkość, RTL) i `toolbar-fling-parity-audit60.test.cjs` (rzeczywiste dwa callsite i niezmienione `GestureDetector`, `canFinishSwipe`, LRU). Workflow `.github/workflows/zavro-audit60-stage13d-regression.yml`: pełne JVM/Robolectric, kompilacja testów instrumentacyjnych bez APK, JS oraz Android lint.
-- **Status:** CI_PENDING do weryfikacji dokładnego końcowego SHA. Rzeczywisty fling Android 15 / 120 Hz, rotation, podgląd i rzeczywiste RTL **NOT_TESTED**. Bez APK, merge do main, zmian podpisu, wersji, danych, profili, sesji i Gecko storage. ZC-AUD-030 **OPEN**, ZC-AUD-031 **PARTIAL**. Po zielonym CI: następne `Dalej` → etap **14/19**.
+- **Status kodu:** CI PASS na produkcyjnym SHA `14637ea60ad3fc517b9a99fbe4d76f3ea3fea74c` (workflow #41190193286). Dokumentacyjny SHA po tej aktualizacji wymaga osobnego CI. Rzeczywisty fling Android 15 / 120 Hz, rotation, podgląd i rzeczywiste RTL **NOT_TESTED**. Bez APK, merge do main, zmian podpisu, wersji, danych, profili, sesji i Gecko storage. ZC-AUD-030 **OPEN**, ZC-AUD-031 **PARTIAL**. Po zielonym CI: następne `Dalej` → etap **14/19**.
+
+### Etap 13D — checkpoint zielonego CI kodu
+
+- **PASS:** [GitHub Actions #41190193286](https://github.com/laszko14/nira-browser/actions/runs/41190193286), `completed/success` dokładnie na SHA `14637ea60ad3fc517b9a99fbe4d76f3ea3fea74c`.
+- Kroki `:app:testDebugUnitTest` (Kotlin/Robolectric), `:app:compileDebugAndroidTestKotlin` (bez assemble APK), `node --test app/src/test/js/*.test.cjs` i `:app:lintDebug` **SUCCESS**. Lint może zawierać ostrzeżenia nieblokujące.
+- Pierwotne odwrócenie znaku flingu ze starego audytu v1190: **ALREADY_RESOLVED** na bazie 13C. Etap 13D utrwala identyczną politykę i jej testy w obu handlerach; nie deklarować nowej naprawy dawno usuniętej rozbieżności.
+- Przebieg fizyczny Android 15 / Nothing Phone (1) / 120 Hz i RTL: **NOT_TESTED**. ZC-AUD-030 **OPEN**, ZC-AUD-031 **PARTIAL**. Bez APK, merge do main, zmian podpisu, danych profili i sesji.
+- Końcowy commit dokumentacji musi mieć własny `completed/success`. Następne `Dalej`: etap **14/19**, po zielonym CI dokumentacji.
