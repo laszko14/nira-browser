@@ -49,7 +49,7 @@ assert.ok(/ZC-AUD-031 — PARTIAL/.test(report));
 assert.ok(/ZC-AUD-043 — CONDITIONAL_GUARD/.test(report));
 assert.ok(report.includes('Android 15/Gecko = NOT_TESTED'), 'Device caveat missing');
 assert.ok(report.includes('nie oznacza PASS na telefonie') || report.includes('Nie oznacza PASS na telefonie'));
-assert.ok(report.includes('Bez merge do'), 'No-merge scope missing');
+assert.ok(/(?:Brak|Bez) merge do/.test(report), 'No-merge scope missing');
 const confidence = new Map();
 for (const line of regRows) {
   const c = line.split('|').map(x => x.trim())[3];
