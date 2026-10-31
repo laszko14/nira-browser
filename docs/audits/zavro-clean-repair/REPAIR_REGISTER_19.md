@@ -683,3 +683,7 @@ Spójność build/release/versionCode/certyfikatu bez APK do polecenia Kompiluj;
 - **Regresje Node:** identyczny ponowny skan bez IPC, zmiana tytułu/postera w starej grupie, różne pozycje playlisty o tym samym tytule, nowa jakość i wymiana filmu, brak duplikatów po zmianie, dwa elementy z identycznym JSON/URL oraz nowy dokument SPA. Pełna macierz Kotlin/Robolectric, AndroidTest compile bez APK, JS, lint w `.github/workflows/zavro-audit60-stage16c-regression.yml`; końcowy SHA musi potwierdzić `completed/success`.
 - **Granice:** realny GeckoView/DOM, 120 Hz i Nothing Phone (1) **NOT_TESTED**; ZC-AUD-002 **BLOCKED / REAL_GECKO_REQUIRED**, ZC-AUD-030 **OPEN**, ZC-AUD-031 **PARTIAL**. Bez APK, merge, zmian podpisu, profili i sesji.
 - **Następne `Dalej`: 17A/19 — ZC-AUD-036** (DASH XML/DRM). Nie rozpoczynać przed osobną zgodą.
+
+### Etap 16C — korekta izolowanego testu po pierwszym CI
+
+- [CI #41228188285](https://github.com/laszko14/nira-browser/actions/runs/41228188285) na `0bbbb9abfebebc2a560931fba1af04b52bcfe548`: Kotlin/Robolectric PASS, AndroidTest compile PASS, nowe regresje 16C JS PASS; jedna dotychczasowa próba `player-config-titles-stage4.test.cjs` FAIL (2/3), bo harness wycinał fragment `scanPlayerConfigs` bez nowego `configGroupFor`. Produkcyjny skaner w tym teście łapał `ReferenceError` w dotychczasowym `try/catch`. Harness dołącza teraz dokładnie aktualną implementację pomocniczą ze źródła, bez jej duplikowania i bez modyfikacji kodu produkcyjnego. Ponowny pełny CI na końcowym SHA wymagany.

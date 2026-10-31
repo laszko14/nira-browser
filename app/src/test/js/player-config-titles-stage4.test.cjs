@@ -10,9 +10,12 @@ const source = fs.readFileSync(path.join(__dirname,
   "../../main/assets/extensions/nira-media-detector/content.js"), "utf8");
 const titleStart = source.indexOf("  function safeTitle(");
 const titleEnd = source.indexOf("  function explicitVideoTitle(", titleStart);
+const configStart = source.indexOf("  let configGroupOwners = new WeakMap();");
+const configEnd = source.indexOf("  // Decode presentation text only", configStart);
 const playerStart = source.indexOf("  function parseStaticPlayerLiteral(");
 const playerEnd = source.indexOf("  function enqueueRoot(root) {", playerStart);
 assert.ok(titleStart > 0 && titleEnd > titleStart && playerStart > 0 && playerEnd > playerStart);
+assert.ok(configStart > 0 && configEnd > configStart, "load stable config group helper in isolated fixture");
 
 function harness() {
   const scripts = [], elements = [], emitted = [], notes = [];
@@ -48,7 +51,8 @@ function harness() {
       return /^https?:$/.test(url.protocol) ? url.href : null; }
     catch (_) { return null; }
   };
-  vm.runInNewContext(source.slice(titleStart, titleEnd) +
+  vm.runInNewContext(source.slice(configStart, configEnd) +
+    source.slice(titleStart, titleEnd) +
     source.slice(posterStart, posterEnd) +
     source.slice(playerStart, playerEnd) +
     "\n globalThis.playerApi = {scanPlayerConfigs, parseStaticPlayerLiteral};", runtime);
