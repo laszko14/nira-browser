@@ -494,10 +494,11 @@ class MediaRepositoryTest {
 
 
     @Test fun audit60DashFractionalFpsSurvivesNativeProtocolRepositoryAndUiFormatting() {
-        for ((numerator, expectedText) in listOf(
-            24000 to "23.98", 30000 to "29.97", 60000 to "59.94"
+        for ((numerator, denominator, expectedText) in listOf(
+            Triple(24000, 1001, "23.98"), Triple(30000, 1001, "29.97"),
+            Triple(60000, 1001, "59.94"), Triple(25, 1, "25.00")
         )) {
-            val rate = numerator.toDouble() / 1001
+            val rate = numerator.toDouble() / denominator
             val repo = MediaRepository()
             val t = tab(id = "fps-$numerator", profile = "test")
             begin(repo, t)
