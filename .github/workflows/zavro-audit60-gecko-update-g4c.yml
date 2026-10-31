@@ -38,7 +38,7 @@ jobs:
           test -s "$RUNNER_TEMP/g4c-changed"
           while IFS= read -r path; do
             case "$path" in
-              app/build.gradle|.github/workflows/zavro-audit60-gecko-update-g4c.yml|docs/audits/zavro-clean-repair/GECKOVIEW_DEVICE_VERIFICATION_G4C.md) ;;
+              app/build.gradle|.github/workflows/apk-release.yml|app/src/test/js/release-contract-stage19a.test.cjs|.github/workflows/zavro-audit60-gecko-update-g4c.yml|docs/audits/zavro-clean-repair/GECKOVIEW_DEVICE_VERIFICATION_G4C.md) ;;
               *) echo "::error::G4C out-of-scope change: $path"; exit 1 ;;
             esac
           done < "$RUNNER_TEMP/g4c-changed"
@@ -80,7 +80,22 @@ jobs:
           assert.match(actual, /applicationIdSuffix = '.debug'/);
           assert.match(actual, /"arm64-v8a": 1/);
           assert.match(actual, /output.versionCode.set\(base \* 1000 \+ orig\)/);
-          console.log('G4C source version 1196 > installed 1195; same package and signing contract; no install authorized.');
+          const oldRelease = cp.execFileSync('git', ['show', '709f80e8d0ef24be5f14352e0fd1f99ddc301aa7:.github/workflows/apk-release.yml'], { encoding: 'utf8' });
+          const released = oldRelease
+            .replace('EXPECTED_VERSION_CODE: "1195"', 'EXPECTED_VERSION_CODE: "1196"')
+            .replace('EXPECTED_VERSION_NAME: 0.5.22-alpha100-clean', 'EXPECTED_VERSION_NAME: 0.5.22-alpha101-clean')
+            .replace('name: zavro-arm64-update-apk-v1195', 'name: zavro-arm64-update-apk-v1196');
+          assert.notEqual(oldRelease, released);
+          assert.equal(fs.readFileSync('.github/workflows/apk-release.yml', 'utf8'), released,
+            'Existing update CI contract must match version 1196 exactly');
+          const oldTests = cp.execFileSync('git', ['show', '709f80e8d0ef24be5f14352e0fd1f99ddc301aa7:app/src/test/js/release-contract-stage19a.test.cjs'], { encoding: 'utf8' });
+          const expectedTests = oldTests.replaceAll('1195', '1196')
+            .replaceAll('0.5.22-alpha100-clean', '0.5.22-alpha101-clean')
+            .replaceAll('versionCode = 195', 'versionCode = 196')
+            .replace('versionCode = 196\\n        versionCode = 196', 'versionCode = 196\\n        versionCode = 197');
+          assert.equal(fs.readFileSync('app/src/test/js/release-contract-stage19a.test.cjs', 'utf8'), expectedTests,
+            '19A regression tests may update only version-specific expectations');
+          console.log('G4C version 1196, release workflow and regression expectations match; same signature contract; no install.');
           NODE
           node --test tools/gecko-fixture-g3c/tests/*.test.cjs
           if node tools/gecko-fixture-g3c/check-evidence.cjs tools/gecko-fixture-g3c/NOT_TESTED_TEMPLATE.json > "$RUNNER_TEMP/g3c-unobserved"; then

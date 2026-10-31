@@ -27,3 +27,9 @@ Nie wykonywać `adb install`, `pm clear`, odinstalowania ani testów fizycznych 
 Nierozstrzygnięte: ZC-AUD-002 BLOCKED/SUSPECTED, 030 OPEN/SUSPECTED, 031 PARTIAL, 043 CONDITIONAL_GUARD/LIKELY. CORE: 56 PASS / 1 FAIL / 2 BLOCKED / 1 NOT_TESTED. Fizyka GeckoView NOT_TESTED. ZC-AUD-031 testować jako ostatni, tylko na jednorazowym profilu.
 
 **STOP po zielonym CI i zweryfikowanym artefakcie.**
+
+## CI correction — build gate preserved
+
+Pierwszy CI dla wersji 1196 zatrzymał się na 11 z 398 testów JS, gdyż dotychczasowy standardowy `.github/workflows/apk-release.yml` nadal wymagał debug `1195`, a cztery asercje 19A zawierały historyczne stałe `1195`. Wszystkie pozostałe testy JS przeszły. Zgodnie z istniejącym kontraktem aktualizacji zaktualizowano wyłącznie trzy pola **debug build** w istniejącym workflow (kod 1196, nazwa alpha101, nazwa artefaktu v1196) oraz oczekiwania wersji w `app/src/test/js/release-contract-stage19a.test.cjs`. Semantyka testów negatywnych i reguły release/tag pozostają nienaruszone.
+
+G4C CI porównuje te pliki bajt-po-bajcie z poprawnie określonymi zmianami względem G4B; nie pomija regresji, a weryfikacja certyfikatu, ABI, pakietu i rzeczywistego APK pozostaje obowiązkowa. Nie buduje się artefaktu po niezaliczonych testach. Po naprawie CI musi uzyskać COMPLETED/SUCCESS na finalnym commit.
