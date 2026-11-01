@@ -57,7 +57,7 @@ class MyVideoSitesLayoutTest {
             layout(decor, 360, 800)
             val views = descendants(decor)
             val field = views.filterIsInstance<EditText>().single {
-                it.hint?.toString() == "🔗  Wpisz adres nowej witryny"
+                it.hint?.toString() == "🔗  Adres witryny (np. example.org)"
             }
             val add = views.filterIsInstance<Button>().first { it.text == "Dodaj" }
             val rect = Rect()
