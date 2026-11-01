@@ -10,6 +10,7 @@ import android.graphics.Rect
 import android.os.Build
 import android.view.ViewTreeObserver
 import androidx.core.view.ViewCompat
+import androidx.core.view.isNotEmpty
 import androidx.core.view.WindowInsetsCompat
 import android.view.View
 import android.view.ViewGroup
@@ -188,7 +189,7 @@ internal class SidePanelInfrastructure private constructor(
         // Each side is released after its own transition, only if still CLOSED.
         if (leftWasVisible) {
             leftWasVisible = false
-            if (leftFragmentManager != null && host.leftContainer.childCount > 0 &&
+            if (leftFragmentManager != null && host.leftContainer.isNotEmpty() &&
                 leftReuse.onClosed(leftContentOwner?.invoke())) {
                 // Repeated normal-profile edge gestures reuse the existing Compose view.
                 // The cached host stays GONE and cannot steal Back, page touch or the right edge.
