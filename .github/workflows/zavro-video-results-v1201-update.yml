@@ -45,7 +45,7 @@ jobs:
             installCode:1201,versionName:'0.5.22-alpha106-clean'
           });
           const checkpoint=fs.readFileSync('docs/AI_HANDOFF.md','utf8');
-          assert.match(checkpoint,/^branch: fix\/zavro-clean-video-results-state-v1201-20261101$/m);
+          assert.match(checkpoint,/^branch: fix\/zavro-clean-video-results-merge-v1201-20261101$/m);
           console.log('Video results v1201 version and checkpoint PASS.');
           NODE
           node --test scripts/check-ci-workflows.test.cjs
