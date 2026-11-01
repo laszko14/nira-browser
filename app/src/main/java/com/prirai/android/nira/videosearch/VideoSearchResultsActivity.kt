@@ -12,6 +12,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -469,7 +470,12 @@ internal fun VideoSearchResultsScreen(
                 enter = expandVertically(),
                 exit = shrinkVertically(),
             ) {
-              Column {
+              Column(
+                modifier = if (landscape) Modifier.fillMaxWidth()
+                    .heightIn(max = (configuration.screenHeightDp * 0.42f).dp)
+                    .verticalScroll(rememberScrollState())
+                else Modifier.fillMaxWidth(),
+              ) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 Box {
