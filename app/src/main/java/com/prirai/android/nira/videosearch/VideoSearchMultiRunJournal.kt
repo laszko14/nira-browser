@@ -174,6 +174,7 @@ internal class VideoSearchMultiRunJournal(
                 old.originalTitle == film.originalTitle &&
                 old.thumbnailUrl == film.thumbnailUrl &&
                 old.durationSeconds == film.durationSeconds &&
+                old.publishedAtMs == film.publishedAtMs &&
                 old.titleSource == film.titleSource &&
                 old.imageSource == film.imageSource
             if (index < alreadyPersisted && unchanged) null else
@@ -184,7 +185,8 @@ internal class VideoSearchMultiRunJournal(
                     runId = id, siteId = site.id, scope = plan.scope,
                     siteName = site.displayName, filmPageUrl = film.filmPageUrl,
                     originalTitle = film.originalTitle, thumbnailUrl = film.thumbnailUrl,
-                    durationSeconds = film.durationSeconds, titleSource = film.titleSource,
+                    durationSeconds = film.durationSeconds,
+                    publishedAtMs = film.publishedAtMs, titleSource = film.titleSource,
                     imageSource = film.imageSource, originalIndex = index, foundAtMs = stamp,
                 )
         } ?: emptyList()

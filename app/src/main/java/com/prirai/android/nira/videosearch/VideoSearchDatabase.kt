@@ -8,7 +8,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
- * Independent search database, with a non-destructive v1 -> v2 index migration.
+ * Independent search database, with additive non-destructive schema migrations.
  * This is separate from every other Zavro database.
  * Never use fallbackToDestructiveMigration: search history and saved folders
  * must survive upgrades. A future schema bump requires an explicit migration.
@@ -25,7 +25,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         VideoSavedFolderRow::class,
         VideoSavedLinkRow::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 internal abstract class VideoSearchDatabase : RoomDatabase() {
@@ -44,6 +44,13 @@ internal abstract class VideoSearchDatabase : RoomDatabase() {
             }
         }
 
+        /** Adds nullable publication metadata; existing history remains intact. */
+        internal val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `video_search_films` ADD COLUMN `publishedAtMs` INTEGER")
+            }
+        }
+
         @Volatile private var instance: VideoSearchDatabase? = null
 
         fun getInstance(context: Context): VideoSearchDatabase =
@@ -52,7 +59,7 @@ internal abstract class VideoSearchDatabase : RoomDatabase() {
                     context.applicationContext,
                     VideoSearchDatabase::class.java,
                     "zavro_video_search.db",
-                ).addMigrations(MIGRATION_1_2).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { instance = it }
             }
     }
 }

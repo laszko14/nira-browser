@@ -70,9 +70,9 @@ internal fun VideoSearchResultsTabContent(
     val context = LocalContext.current
     val valid = profileId != null && isActiveNormalProfile(context, profileId)
     MaterialTheme(colorScheme = darkColorScheme(
-        primary = Color(0xff3eb6f5),
-        background = Color(0xff0c1015),
-        surface = Color(0xff181e25),
+        primary = Color(0xffd0b5ff),
+        background = Color(0xff100d14),
+        surface = Color(0xff201c26),
         onSurface = Color.White,
     )) {
         if (!valid) {

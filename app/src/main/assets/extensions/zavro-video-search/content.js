@@ -1004,6 +1004,17 @@
       }
       return null;
     }
+    function publicationDate(value) {
+      if (typeof value !== "string" || value.length > 64) return null;
+      const raw = value.trim();
+      if (!/^\d{4}(?:-\d{2}(?:-\d{2})?)?(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})?)?$/i.test(raw))
+        return null;
+      const normalized = /^\d{4}-\d{2}-\d{2}T/.test(raw) &&
+        !/(?:Z|[+-]\d{2}:\d{2})$/i.test(raw) ? raw + "Z" : raw;
+      const stamp = Date.parse(normalized);
+      if (!Number.isFinite(stamp) || stamp < 0 || stamp > 4102444800000) return null;
+      return stamp;
+    }
     function imageUrl(node) {
       if (!node) return null;
       const values = [
@@ -1044,7 +1055,9 @@
           return {
             title: shortText(entity.name || entity.headline, 512),
             image: safeUrl(rawPoster, false),
-            duration: duration(entity.duration)
+            duration: duration(entity.duration),
+            publishedAtMs: publicationDate(entity.datePublished || entity.uploadDate ||
+              entity.dateCreated)
           };
         }
       }
@@ -1154,6 +1167,8 @@
       }
       if (result.durationSeconds === null && next.durationSeconds !== null)
         result.durationSeconds = next.durationSeconds;
+      if (result.publishedAtMs === null && next.publishedAtMs !== null)
+        result.publishedAtMs = next.publishedAtMs;
       result.originalIndex = Math.min(before.originalIndex, next.originalIndex);
       return result;
     }
@@ -1198,12 +1213,26 @@
         duration(cardTime?.getAttribute("datetime") ||
           cardTime?.getAttribute("data-duration") ||
           nodeText(cardTime, 65) || "") ?? inline?.duration ?? null;
+      const structuredTitleIsValid = !!titleFromJson && duration(titleFromJson) === null;
+      const titleText = structuredTitleIsValid ? titleFromJson : title.value;
+      // A pure timestamp in the title slot is metadata noise, not a title.
+      // Timestamps embedded in an actual title remain untouched.
+      const safeTitle = titleText && duration(titleText) === null ? titleText : null;
+      const publicationNode = scoped(card,
+        '[itemprop="datePublished"],[data-published],[data-upload-date],time[datetime]:not(.duration):not(.runtime)');
+      const publishedAtMs = inline?.publishedAtMs ??
+        publicationDate(publicationNode?.getAttribute("datetime") ||
+          publicationNode?.getAttribute("content") ||
+          publicationNode?.getAttribute("data-published") ||
+          publicationNode?.getAttribute("data-upload-date") ||
+          nodeText(publicationNode, 64) || "");
       const fresh = {
         filmPageUrl: filmUrl,
-        originalTitle: titleFromJson || title.value,
+        originalTitle: safeTitle,
         thumbnailUrl: posterFromJson || resultImage,
         durationSeconds: runtime,
-        titleSource: titleFromJson ? "STRUCTURED" : title.source,
+        publishedAtMs,
+        titleSource: safeTitle ? (structuredTitleIsValid ? "STRUCTURED" : title.source) : "UNKNOWN",
         imageSource: posterFromJson ? "STRUCTURED" : resultImage ? "CARD" : "UNKNOWN",
         originalIndex: index
       };

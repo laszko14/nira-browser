@@ -22,6 +22,7 @@ class VideoSearchResultsPresenterTest {
     private fun film(
         site: String, idx: Int, title: String? = "Film $idx",
         duration: Long? = 120L + idx,
+        publishedAtMs: Long? = null,
         url: String = "https://$site.example.org/watch?id=$idx&lang=pl",
     ) = VideoSearchFilm(
         id = "$site-$idx", runId = "run", siteId = site, scope = owner,
@@ -30,7 +31,7 @@ class VideoSearchResultsPresenterTest {
         durationSeconds = duration, titleSource = if (title != null)
             VideoResultTitleSource.CARD else VideoResultTitleSource.UNKNOWN,
         imageSource = VideoResultImageSource.UNKNOWN,
-        originalIndex = idx, foundAtMs = 1000,
+        originalIndex = idx, foundAtMs = 1000, publishedAtMs = publishedAtMs,
     )
 
     @Test fun defaultOrderUsesSavedSiteOrderThenOriginalCardIndex() {
@@ -110,6 +111,20 @@ class VideoSearchResultsPresenterTest {
         )) assertEquals(expected,
             VideoSearchResultsPresenter.project(run, listOf(task("a")), films,
                 sort = sort).visibleFilms.map { it.durationSeconds })
+    }
+
+    @Test fun publicationDateSortKeepsUnknownDatesLastAndOrdersBothWays() {
+        val films = listOf(
+            film("a", 0, publishedAtMs = 1_704_067_200_000L),
+            film("a", 1, publishedAtMs = null),
+            film("a", 2, publishedAtMs = 1_706_745_600_000L),
+        )
+        assertEquals(listOf("a-2", "a-0", "a-1"),
+            VideoSearchResultsPresenter.project(run, listOf(task("a", count = 3)), films,
+                sort = VideoSearchSort.DATE_NEWEST).visibleFilms.map { it.id })
+        assertEquals(listOf("a-0", "a-2", "a-1"),
+            VideoSearchResultsPresenter.project(run, listOf(task("a", count = 3)), films,
+                sort = VideoSearchSort.DATE_OLDEST).visibleFilms.map { it.id })
     }
 
     @Test fun partialSiteIsNotClaimedToBeCompleted() {

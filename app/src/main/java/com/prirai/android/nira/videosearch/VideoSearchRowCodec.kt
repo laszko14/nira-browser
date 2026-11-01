@@ -131,7 +131,8 @@ internal object VideoSearchRowCodec {
         profileId = scope.normalId(), id = id, runId = runId, siteId = siteId,
         siteName = siteName, filmPageUrl = filmPageUrl,
         originalTitle = originalTitle, thumbnailUrl = thumbnailUrl,
-        durationSeconds = durationSeconds, titleSource = titleSource.name,
+        durationSeconds = durationSeconds, publishedAtMs = publishedAtMs,
+        titleSource = titleSource.name,
         imageSource = imageSource.name, originalIndex = originalIndex,
         foundAtMs = foundAtMs,
     )
@@ -141,6 +142,7 @@ internal object VideoSearchRowCodec {
         scope = VideoSearchScope.Normal(profileId), siteName = siteName,
         filmPageUrl = filmPageUrl, originalTitle = originalTitle,
         thumbnailUrl = thumbnailUrl, durationSeconds = durationSeconds,
+        publishedAtMs = publishedAtMs,
         titleSource = enumValueOf(titleSource), imageSource = enumValueOf(imageSource),
         originalIndex = originalIndex, foundAtMs = foundAtMs,
     )

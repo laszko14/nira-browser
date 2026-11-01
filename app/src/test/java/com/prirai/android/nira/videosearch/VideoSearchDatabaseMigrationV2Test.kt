@@ -12,7 +12,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /**
- * Exercise v1 SQL data and the additive v2 migration without destructive
+ * Exercise v1 SQL data and additive migrations without destructive
  * recreation. No private rows are ever written to the persistent database.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -53,6 +53,7 @@ class VideoSearchDatabaseMigrationV2Test {
         try {
             val db = helper.writableDatabase
             VideoSearchDatabase.MIGRATION_1_2.migrate(db)
+            VideoSearchDatabase.MIGRATION_2_3.migrate(db)
             db.query("PRAGMA index_list('video_search_films')").use { cursor ->
                 var indexed = false
                 while (cursor.moveToNext()) {
@@ -65,6 +66,10 @@ class VideoSearchDatabaseMigrationV2Test {
             db.query("SELECT originalTitle FROM video_search_films WHERE id='film-1'").use {
                 assertTrue(it.moveToFirst())
                 assertEquals("Saved title", it.getString(0))
+            }
+            db.query("SELECT publishedAtMs FROM video_search_films WHERE id='film-1'").use {
+                assertTrue(it.moveToFirst())
+                assertTrue("Old rows have an unknown publication date", it.isNull(0))
             }
             db.query("SELECT name FROM video_saved_folders WHERE id='folder-1'").use {
                 assertTrue(it.moveToFirst())

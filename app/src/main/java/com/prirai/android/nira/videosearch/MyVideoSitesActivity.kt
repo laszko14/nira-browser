@@ -1,5 +1,6 @@
 package com.prirai.android.nira.videosearch
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import android.os.Parcelable
 import android.content.Intent
@@ -1989,6 +1990,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
     ) : RecyclerView.Adapter<SitesAdapter.Holder>() {
         private val rows = mutableListOf<VideoSearchSite>()
         private var selectedIds: Set<String> = emptySet()
+        private val expandedActionBySite = mutableMapOf<String, Int>()
         private var initialDragOrder: List<String>? = null
         val isDragging: Boolean get() = initialDragOrder != null
 
@@ -2051,28 +2053,39 @@ class MyVideoSitesActivity : AppCompatActivity() {
             val showCrawl: Button,
             val search: Button,
             val delete: Button,
+            val actionGroups: List<Pair<Button, LinearLayout>>,
         ) : RecyclerView.ViewHolder(root)
 
+        @SuppressLint("SetTextI18n")
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
             val ctx = parent.context
             val density = ctx.resources.displayMetrics.density
             val root = LinearLayout(ctx).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(0, (10 * density).toInt(), 0, (10 * density).toInt())
+                setPadding((12 * density).toInt(), (10 * density).toInt(),
+                    (12 * density).toInt(), (10 * density).toInt())
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(android.graphics.Color.rgb(33, 29, 39))
+                    cornerRadius = 16 * density
+                }
             }
             val first = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
             val heading = TextView(ctx).apply {
                 textSize = 17f
+                setTextColor(android.graphics.Color.rgb(208, 181, 255))
                 setPadding(0, 0, (8 * density).toInt(), 0)
             }
             val toggle = SwitchCompat(ctx).apply { text = "Aktywna" }
             first.addView(heading, LinearLayout.LayoutParams(0, -2, 1f))
             first.addView(toggle)
-            val detail = TextView(ctx).apply { textSize = 13f; maxLines = 3 }
+            val detail = TextView(ctx).apply {
+                textSize = 13f
+                maxLines = 3
+                setTextColor(android.graphics.Color.rgb(201, 192, 210))
+            }
             val select = CheckBox(ctx).apply { text = "Uwzględnij w wyszukiwaniu" }
             val actions = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
             val firstActions = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
-            val secondActions = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
             val crawlActions = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
             val edit = Button(ctx).apply { text = "Edytuj" }
             val inspect = Button(ctx).apply { text = "Rozpoznaj" }
@@ -2086,22 +2099,43 @@ class MyVideoSitesActivity : AppCompatActivity() {
             firstActions.addView(inspect, LinearLayout.LayoutParams(0, -2, 1f))
             firstActions.addView(check, LinearLayout.LayoutParams(0, -2, 1f))
             firstActions.addView(manual, LinearLayout.LayoutParams(0, -2, 1f))
-            secondActions.addView(search, LinearLayout.LayoutParams(0, -2, 1f))
-            secondActions.addView(preview, LinearLayout.LayoutParams(0, -2, 1f))
-            secondActions.addView(edit, LinearLayout.LayoutParams(0, -2, 1f))
-            secondActions.addView(delete, LinearLayout.LayoutParams(0, -2, 1f))
             crawlActions.addView(crawl, LinearLayout.LayoutParams(0, -2, 1f))
             crawlActions.addView(showCrawl, LinearLayout.LayoutParams(0, -2, 1f))
-            actions.addView(firstActions)
-            actions.addView(secondActions)
-            actions.addView(crawlActions)
+            fun addActionGroup(label: String, body: LinearLayout): Pair<Button, LinearLayout> {
+                val header = Button(ctx).apply {
+                    text = "$label  ▾"
+                    textSize = 12f
+                    minHeight = (42 * density).toInt()
+                    setPadding((8 * density).toInt(), 0, (8 * density).toInt(), 0)
+                }
+                body.visibility = View.GONE
+                actions.addView(header)
+                actions.addView(body)
+                return header to body
+            }
+            val actionGroups = listOf(
+                addActionGroup("Rozpoznaj · Sprawdź · Wskaż", firstActions),
+                addActionGroup("Szukaj · Wyniki", LinearLayout(ctx).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    addView(search, LinearLayout.LayoutParams(0, -2, 1f))
+                    addView(preview, LinearLayout.LayoutParams(0, -2, 1f))
+                }),
+                addActionGroup("Edytuj · Usuń", LinearLayout(ctx).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    addView(edit, LinearLayout.LayoutParams(0, -2, 1f))
+                    addView(delete, LinearLayout.LayoutParams(0, -2, 1f))
+                }),
+                addActionGroup("Zbierz · Zebrane", crawlActions),
+            )
             root.addView(first)
             root.addView(detail)
             root.addView(select)
             root.addView(actions)
-            return Holder(root, heading, detail, toggle, select, edit, inspect, check, manual, preview, crawl, showCrawl, search, delete)
+            return Holder(root, heading, detail, toggle, select, edit, inspect, check,
+                manual, preview, crawl, showCrawl, search, delete, actionGroups)
         }
 
+        @SuppressLint("SetTextI18n")
         override fun onBindViewHolder(holder: Holder, position: Int) {
             val site = rows[position]
             holder.heading.text = site.displayName
@@ -2112,6 +2146,28 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 VideoSiteConfigurationState.REPAIR_REQUIRED -> "Wymaga naprawy konfiguracji"
             }
             holder.detail.text = "${site.siteUrl}\n$state • Limit: ${site.resultLimit}"
+            holder.itemView.layoutParams = RecyclerView.LayoutParams(-1, -2).apply {
+                val margin = (5 * holder.itemView.resources.displayMetrics.density).toInt()
+                setMargins(margin, margin, margin, margin)
+            }
+            val openGroup = expandedActionBySite[site.id]
+            holder.actionGroups.forEachIndexed { index, (header, body) ->
+                val expanded = index == openGroup
+                body.visibility = if (expanded) View.VISIBLE else View.GONE
+                header.text = (if (expanded) "⌄ " else "› ") + when (index) {
+                    0 -> "Rozpoznaj · Sprawdź · Wskaż"
+                    1 -> "Szukaj · Wyniki"
+                    2 -> "Edytuj · Usuń"
+                    else -> "Zbierz · Zebrane"
+                }
+                header.setOnClickListener {
+                    if (expandedActionBySite[site.id] == index)
+                        expandedActionBySite.remove(site.id)
+                    else expandedActionBySite[site.id] = index
+                    val current = holder.bindingAdapterPosition
+                    if (current != RecyclerView.NO_POSITION) notifyItemChanged(current)
+                }
+            }
             holder.toggle.setOnCheckedChangeListener(null)
             holder.toggle.isChecked = site.enabled
             holder.toggle.setOnCheckedChangeListener { _, checked -> onToggle(site, checked) }

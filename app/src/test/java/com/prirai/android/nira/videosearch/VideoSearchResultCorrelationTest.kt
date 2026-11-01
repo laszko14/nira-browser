@@ -13,10 +13,12 @@ class VideoSearchResultCorrelationTest {
         imageSource: VideoResultImageSource = VideoResultImageSource.UNKNOWN,
         duration: Long? = null,
         index: Int = 0,
+        publishedAtMs: Long? = null,
     ) = VideoSearchExtractedFilm(
         filmPageUrl = url, originalTitle = title,
         thumbnailUrl = image, durationSeconds = duration,
-        titleSource = titleSource, imageSource = imageSource, originalIndex = index
+        titleSource = titleSource, imageSource = imageSource, originalIndex = index,
+        publishedAtMs = publishedAtMs,
     )
 
     @Test fun duplicateFillsMissingFieldsWithoutChangingFilmIdentity() {
@@ -69,6 +71,16 @@ class VideoSearchResultCorrelationTest {
         val first = film(duration = 100)
         val second = film(duration = 900, index = 6)
         assertEquals(100L, VideoSearchResultCorrelator.merge(first, second).durationSeconds)
+    }
+
+    @Test fun duplicateCanFillMissingPublicationDateWithoutReplacingKnownDate() {
+        val first = film(publishedAtMs = null)
+        val later = film(publishedAtMs = 1_706_976_000_000L, index = 2)
+        assertEquals(1_706_976_000_000L,
+            VideoSearchResultCorrelator.merge(first, later).publishedAtMs)
+        val known = film(publishedAtMs = 1_700_000_000_000L)
+        assertEquals(known.publishedAtMs,
+            VideoSearchResultCorrelator.merge(known, later).publishedAtMs)
     }
 
     @Test fun originalIndexBecomesEarliestAndOrderRemainsFirstSeen() {

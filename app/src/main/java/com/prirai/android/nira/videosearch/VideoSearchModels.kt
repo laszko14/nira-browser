@@ -69,7 +69,8 @@ internal enum class VideoSearchParallelism(val maximumSites: Int?) {
 
 internal enum class VideoSearchView { TILES, LIST }
 internal enum class VideoSearchSort {
-    ORIGINAL, TITLE_A_Z, TITLE_Z_A, DURATION_SHORTEST, DURATION_LONGEST
+    ORIGINAL, TITLE_A_Z, TITLE_Z_A, DURATION_SHORTEST, DURATION_LONGEST,
+    DATE_NEWEST, DATE_OLDEST
 }
 
 /** Separate per-profile preferences; selection is NOT the parallelism limit. */
@@ -154,11 +155,14 @@ internal data class VideoSearchFilm(
     val imageSource: VideoResultImageSource = VideoResultImageSource.UNKNOWN,
     val originalIndex: Int,
     val foundAtMs: Long,
+    /** Publication date reported by the result card/structured metadata, UTC epoch millis. */
+    val publishedAtMs: Long? = null,
 ) {
     init {
         require(id.isNotBlank() && runId.isNotBlank() && siteId.isNotBlank())
         require(siteName.isNotBlank() && filmPageUrl.isNotBlank() && originalIndex >= 0)
         require(durationSeconds == null || durationSeconds >= 0)
+        require(publishedAtMs == null || publishedAtMs in 0L..4_102_444_800_000L)
         require(originalTitle == null || originalTitle.isNotBlank())
         require(thumbnailUrl == null || thumbnailUrl.isNotBlank())
         require(originalTitle != null || titleSource == VideoResultTitleSource.UNKNOWN)
