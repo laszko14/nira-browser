@@ -20,7 +20,11 @@ test('ZC-AUD-048 browser supplies live panel ownership, not a hitbox snapshot', 
 });
 
 test('The panel engagement includes mounted, dragging, settling and pending unmount', () => {
-  assert.match(panels, /fun leftIsEngaged\(\): Boolean[\s\S]*?host\.leftContainer\.childCount > 0 \|\| controller\.snapshot\.side == SidePanelSide\.LEFT/);
+  // Closed, owner-matched left content can be retained briefly without
+  // claiming the right edge. Active or pending-unmount content still owns gestures.
+  assert.match(panels, /fun leftIsEngaged\(\): Boolean[\s\S]*?!leftReuse\.isCached && host\.leftContainer\.childCount > 0[\s\S]*?controller\.snapshot\.side == SidePanelSide\.LEFT/);
+  assert.match(panels, /fun mountRightContent\(fragmentManager: FragmentManager\)[\s\S]*?if \(leftReuse\.isCached\)[\s\S]*?unmountLeftContent\(cachedManager\)/);
+  assert.match(panels, /enabled\.remove\(SidePanelSide\.LEFT\)/);
   assert.match(panels, /fun rightIsEngaged\(\): Boolean[\s\S]*?host\.rightContainer\.childCount > 0 \|\| controller\.snapshot\.side == SidePanelSide\.RIGHT/);
   assert.match(panels, /fun anyPanelEngaged\(\): Boolean = leftIsEngaged\(\) \|\| rightIsEngaged\(\)/);
 });

@@ -11,7 +11,7 @@ branch: improve/zavro-clean-chatgpt-github-process-20261101
 base_sha: af36b043b185650e5775ce933a745d606bfef547
 observed_head_sha: af36b043b185650e5775ce933a745d606bfef547
 status: CI_PENDING
-acceptance_source: T03/16 user TestLab PANELS_GESTURES v1197 and user Dalej
+acceptance_source: ETAP 9/9 — T03/16 user TestLab PANELS_GESTURES v1197 and user Dalej
 required_ci: zavro-ai-process-docs.yml process-docs shared-js shared-jvm shared-lint shared-androidtest-compile quality-evidence
 device: MEASURED_V1197_120HZ; NEW_CODE_NOT_TESTED; 60HZ_NOT_TESTED
 apk: EXISTING_V1197_VERIFIED_CI; NEW_APK_NOT_AUTHORIZED
