@@ -1101,7 +1101,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_settings_24,
                 onClick = {
                     val lab = com.prirai.android.nira.diagnostics.testlab.TestLab
-                    val started = lab.start(requireActivity().application,
+                    val browser = requireActivity() as? BrowserActivity
+                    val started = browser != null && lab.startOnVisibleBrowser(browser,
                         com.prirai.android.nira.diagnostics.testlab.TestType.PANELS_GESTURES)
                     Toast.makeText(requireContext(), if (started)
                         "Test panelów trwa. Powtórz gesty, potem ⋮ → STOP."

@@ -19,6 +19,8 @@ pilot: T01/T02 FOLLOWUP_PENDING; T03 ACTIVE; measured results unavailable
 changed_paths:
   - app/src/main/java/com/prirai/android/nira/BrowserFragment.kt
   - app/src/main/java/com/prirai/android/nira/browser/panels/SidePanelInfrastructure.kt
+  - app/src/main/java/com/prirai/android/nira/diagnostics/testlab/TestLab.kt
+  - app/src/test/java/com/prirai/android/nira/diagnostics/testlab/TestLabRuntimeTest.kt
   - app/src/main/java/com/prirai/android/nira/diagnostics/testlab/TestLabEngine.kt
   - app/src/main/java/com/prirai/android/nira/diagnostics/testlab/TestLabContract.kt
   - app/src/main/java/com/prirai/android/nira/diagnostics/testlab/TestLabActivity.kt
@@ -32,6 +34,7 @@ verified_before_push:
   - parent 91e8a1083b549b838d63a1727bb1009d9b6ffdca CI 41261140960 completed/success six jobs
   - app v1196 installed per user; user set 60 Hz, no direct device measurement
   - reuse existing TestLab with manual Start/Stop and privacy-safe mount timings
+  - browser-entry active window explicitly registered on start; regression test for already-resumed Activity
 blockers:
   - phone validation requires separately authorized signed APK (Kompiluj)
 next_action: Verify CI on final SHA then STOP. Await separate Kompiluj to test this feature on phone. No merge.

@@ -36,6 +36,21 @@ class TestLabRuntimeTest {
         assertEquals(0,runtime.trackedWindowCount)
         settings.pause().stop().destroy();browser.pause().stop().destroy()
     }
+    @Test fun panelStartFromAlreadyResumedBrowserMustRegisterItsWindowBeforeCountdown() {
+        val browser=Robolectric.buildActivity(ProbeActivity::class.java).setup().visible()
+        val e=engine();val runtime=TestLabRuntime(RuntimeEnvironment.getApplication(),e,{it is ProbeActivity},false)
+        assertTrue(runtime.prepare(TestType.PANELS_GESTURES))
+        assertEquals(LabPhase.PREPARING,e.phase)
+        // The Activity was resumed BEFORE TestLab registered its callback.
+        runtime.onActivityResumed(browser.get())
+        assertEquals(1,runtime.trackedWindowCount)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(3500))
+        assertEquals(LabPhase.RUNNING,e.phase)
+        assertTrue(runtime.ui.value.remainingSeconds!! > 240)
+        runtime.stop()
+        assertEquals(0,runtime.trackedWindowCount)
+        browser.pause().stop().destroy()
+    }
     @Test fun pauseResetsPreparationAndOldWindowIsReleased() {
         val e=engine();val runtime=TestLabRuntime(RuntimeEnvironment.getApplication(),e,{true},false)
         runtime.prepare(TestType.PANELS_GESTURES)

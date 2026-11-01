@@ -5,6 +5,7 @@ import android.os.Looper
 import android.os.SystemClock
 import android.view.Window
 import com.prirai.android.nira.BuildConfig
+import com.prirai.android.nira.BrowserActivity
 import com.prirai.android.nira.media.MediaEntry
 import com.prirai.android.nira.media.MediaSessionBinding
 import kotlinx.coroutines.*
@@ -58,6 +59,12 @@ internal object TestLab {
             mutableUi.value=mutableUi.value.copy(phase=LabPhase.FAILED,countdownSeconds=null,remainingSeconds=null)
             return false
         }
+    }
+    /** A browser already RESUMED before registering callbacks will not emit onResume again. */
+    fun startOnVisibleBrowser(browser:BrowserActivity,type:TestType):Boolean {
+        if(!start(browser.application,type))return false
+        runtime?.onActivityResumed(browser)
+        return true
     }
     fun capture():LabCapture?=runtime?.capture
     fun counterChange(code:LabCode,current:Int,previous:Int) {
