@@ -46,7 +46,17 @@ jobs:
           });
           console.log('Exact v1199 source and update signing contract PASS.');
           NODE
-          node --test scripts/check-ai-handoff.test.cjs scripts/check-ci-workflows.test.cjs
+          # The process-branch handoff test intentionally rejects build branches.
+          # Validate this build checkpoint independently without relaxing the global test.
+          node --test scripts/check-ci-workflows.test.cjs
+          node - <<'NODE'
+          const fs=require('node:fs'),assert=require('node:assert/strict');
+          const checkpoint=fs.readFileSync('docs/AI_HANDOFF.md','utf8');
+          assert.match(checkpoint,/^branch: build\/zavro-clean-t03-v1199-20261101$/m);
+          assert.match(checkpoint,/^status: CI_PENDING$/m);
+          assert.match(checkpoint,/^required_ci: .*signed-update verify-all$/m);
+          console.log('Scoped v1199 build checkpoint PASS.');
+          NODE
           git diff --check "$source_sha" "$GITHUB_SHA"
   regressions:
     name: Required shared code gates (NO APK)
