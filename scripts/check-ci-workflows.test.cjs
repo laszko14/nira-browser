@@ -29,6 +29,10 @@ test('PR, push and tags cannot reach installation or release job in Android CI',
   assert.match(b,/github.ref != 'refs\/heads\/main'/);
   assert.match(b,/Validate dispatched implementation task/);
   assert.match(b,/git rev-parse HEAD/);
+  const dispatchedValidation=b.split(/- name: Validate authorized implementation task, ref and exact source\s*\n/)[1];
+  assert.ok(dispatchedValidation,'dispatch implementation validation is required');
+  assert.match(dispatchedValidation,/^\s*if: github\.event_name == 'workflow_dispatch'\s*$/m,
+    'workflow_dispatch-only inputs must not block the independently authorized review flow');
   assert.match(b,/github\.event_name == 'pull_request_review'/);
   assert.match(b,/github\.event\.review\.state == 'commented'/);
   assert.match(b,/github\.event\.review\.user\.login == 'laszko14'/);

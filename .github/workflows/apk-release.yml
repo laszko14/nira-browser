@@ -148,6 +148,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
 
       - name: Validate authorized implementation task, ref and exact source
+        if: github.event_name == 'workflow_dispatch'
         shell: bash
         env:
           TASK_ID: ${{ inputs.task_id }}
