@@ -47,21 +47,6 @@ class MyVideoSitesLayoutTest {
         view.layout(0, 0, width, height)
     }
 
-    private fun visibleIntersectionWithAncestors(view: View): Rect? {
-        var current: View? = view
-        var intersection: Rect? = null
-        while (current != null) {
-            val bounds = Rect()
-            if (current.getGlobalVisibleRect(bounds)) {
-                val previous = intersection
-                if (previous == null) intersection = Rect(bounds)
-                else if (!previous.intersect(bounds)) return Rect()
-            }
-            current = current.parent as? View
-        }
-        return intersection
-    }
-
     @Test fun addressAndAddAreFullyVisibleBelowTheToolbarAtEntry() {
         RuntimeEnvironment.setQualifiers("w360dp-h800dp-port")
         val controller = Robolectric.buildActivity(MyVideoSitesActivity::class.java)
@@ -101,27 +86,24 @@ class MyVideoSitesLayoutTest {
             }
             action.requestRectangleOnScreen(Rect(0, 0, action.width, action.height), true)
             val headerScroll = descendants(decor).filterIsInstance<ScrollView>().single()
-            val visibleHeader = visibleIntersectionWithAncestors(headerScroll)
-                ?: throw AssertionError("landscape form has a visible scroll viewport")
-            assertFalse("landscape form has a non-empty viewport: $visibleHeader",
-                visibleHeader.isEmpty)
+            val firstVisibleAction = Rect()
+            assertTrue("folder action intersects the safe viewport",
+                action.getGlobalVisibleRect(firstVisibleAction))
+            assertTrue("short landscape fixture begins with a clipped folder action",
+                firstVisibleAction.height() < action.height)
             val actionLocation = IntArray(2).also(action::getLocationInWindow)
-            val targetTop = visibleHeader.top +
-                (visibleHeader.height() - action.height) / 2
-            val targetScroll = headerScroll.scrollY + actionLocation[1] - targetTop
+            val clippedAtTop = (firstVisibleAction.top - actionLocation[1]).coerceAtLeast(0)
+            val clippedAtBottom = (actionLocation[1] + action.height -
+                firstVisibleAction.bottom).coerceAtLeast(0)
+            val targetScroll = headerScroll.scrollY + clippedAtBottom - clippedAtTop
             val maxScroll = (headerScroll.getChildAt(0).measuredHeight -
                 headerScroll.height).coerceAtLeast(0)
             headerScroll.scrollTo(0, targetScroll.coerceIn(0, maxScroll))
             layout(decor, 640, 280)
             val rect = Rect()
             assertTrue("last action reachable by scrolling", action.getGlobalVisibleRect(rect))
-            val finalActionLocation = IntArray(2).also(action::getLocationInWindow)
-            val headerLocation = IntArray(2).also(headerScroll::getLocationInWindow)
-            val headerChild = headerScroll.getChildAt(0)
-            assertEquals("whole action reachable: rect=$rect actionTop=${finalActionLocation[1]} " +
+            assertEquals("whole action reachable: rect=$rect " +
                 "scrollY=${headerScroll.scrollY} viewport=${headerScroll.height} " +
-                "visibleViewport=$visibleHeader " +
-                "childHeight=${headerChild.height} headerTop=${headerLocation[1]} " +
                 "decorHeight=${decor.height}", action.height, rect.height())
         } finally { controller.stop().destroy() }
     }
