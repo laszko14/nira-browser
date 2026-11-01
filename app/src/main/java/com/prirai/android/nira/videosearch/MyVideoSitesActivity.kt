@@ -151,7 +151,16 @@ class MyVideoSitesActivity : AppCompatActivity() {
             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
             Gravity.END or Gravity.CENTER_VERTICAL))
         root.addView(toolbar, LinearLayout.LayoutParams(-1, -2))
-        info = TextView(this).apply { textSize = 14f }
+        info = TextView(this).apply {
+            textSize = 13f
+            setTextColor(0xff61e7eb.toInt())
+            setPadding(dp(12), dp(9), dp(12), dp(9))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(0xff101d2a.toInt())
+                cornerRadius = dp(14).toFloat()
+                setStroke(dp(1).coerceAtLeast(1), 0xff1e7082.toInt())
+            }
+        }
 
         normalPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -196,8 +205,6 @@ class MyVideoSitesActivity : AppCompatActivity() {
         }
         compactSearch.addView(compactSettingsAction)
         root.addView(compactSearch, LinearLayout.LayoutParams(-1, -2))
-        normalHeader.addView(info, LinearLayout.LayoutParams(-1, -2))
-
         val inputRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             isBaselineAligned = false
@@ -288,12 +295,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
         }
         multiActions.addView(multiHistoryButton, LinearLayout.LayoutParams(0, dp(76), 1f))
         multiActions.addView(savedFoldersButton, LinearLayout.LayoutParams(0, dp(76), 1f))
+        normalHeader.addView(info, LinearLayout.LayoutParams(-1, -2))
 
-        normalHeader.addView(TextView(this).apply {
-            text = "Witryny pozostają na liście nawet po błędzie konfiguracji. " +
-                "Przytrzymaj i przeciągnij wiersz, aby zmienić kolejność."
-            textSize = 13f
-        })
         normalEmptyState = TextView(this).apply {
             visibility = View.GONE
             textSize = 14f
@@ -867,7 +870,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
         stopMultiButton.isEnabled = true
         multiHistoryButton.isEnabled = true
         savedFoldersButton.isEnabled = true
-        info.text = "Profil: ${manager.getActiveProfile().name}"
+        info.text = "ⓘ Dodane witryny pozostają zapisane nawet przy błędach konfiguracji. " +
+            "Możesz uzupełnić ustawienia później."
         profileButton.text = "${manager.getActiveProfile().emoji}  ${manager.getActiveProfile().name}"
         // Group deletion may occur while this screen is open, independent of
         // a settings change. Reconcile only after manager initialization.
