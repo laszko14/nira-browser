@@ -983,6 +983,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         if (fullscreenChromeGate.isFullscreen) {
             publishChromeReservation(0, 0)
             binding.swipeRefresh.translationY = 0f
+            binding.videoSearchResultsComposeView.translationY = 0f
             return
         }
 
@@ -1009,10 +1010,13 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         if (cachedToolbarPosition ==
                 com.prirai.android.nira.components.toolbar.ToolbarPosition.TOP.ordinal &&
             unifiedToolbar?.isScrollAnimationRunning() == true) {
-            binding.swipeRefresh.translationY = (visibleHeight - lp.topMargin).toFloat()
+            val offset = (visibleHeight - lp.topMargin).toFloat()
+            binding.swipeRefresh.translationY = offset
+            binding.videoSearchResultsComposeView.translationY = offset
             return
         }
         binding.swipeRefresh.translationY = 0f
+        binding.videoSearchResultsComposeView.translationY = 0f
 
         val topChrome: Int
         val bottomChrome: Int

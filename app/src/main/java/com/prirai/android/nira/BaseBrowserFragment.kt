@@ -1062,6 +1062,7 @@ abstract class BaseBrowserFragment : Fragment(), UserInteractionHandler, Activit
         webContentPositionManager = com.prirai.android.nira.browser.WebContentPositionManager(
             engineView = binding.engineView,
             swipeRefreshView = binding.swipeRefresh,
+            internalPageView = binding.videoSearchResultsComposeView,
             rootView = binding.root,
             getTopToolbarHeight = { getTopToolbarHeight() },
             getBottomToolbarHeight = { getBottomToolbarHeight() }

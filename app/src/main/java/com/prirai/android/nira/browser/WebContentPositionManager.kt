@@ -8,7 +8,7 @@ import androidx.core.view.WindowInsetsCompat
 import mozilla.components.concept.engine.EngineView
 
 /**
- * Sole writer of SwipeRefreshLayout viewport margins for pinned chrome + IME.
+ * Sole writer of Gecko and internal-results viewport margins for pinned chrome + IME.
  * The Activity already reserves system navigation bars at the root level.
  */
 class WebContentPositionManager(
@@ -16,10 +16,14 @@ class WebContentPositionManager(
     private val swipeRefreshView: View,
     private val rootView: View,
     private val getTopToolbarHeight: () -> Int,
-    private val getBottomToolbarHeight: () -> Int
+    private val getBottomToolbarHeight: () -> Int,
+    // Internal about: pages share Gecko's viewport, not the full chrome-covered host.
+    private val internalPageView: View? = null
 ) {
     private val reservation = WebViewportReservation()
     private var isDestroyed = false
+    private var fullscreen = false
+    private var statusBarTop = 0
 
     fun initialize() {
         ViewCompat.setOnApplyWindowInsetsListener(rootView) { _, insets ->
@@ -53,6 +57,7 @@ class WebContentPositionManager(
     /** Fullscreen hides both chrome and IME reservations until fullscreen exits. */
     fun setFullscreen(fullscreen: Boolean) {
         if (isDestroyed) return
+        this.fullscreen = fullscreen
         reservation.setFullscreen(fullscreen)
         applyMargins()
     }
@@ -65,6 +70,11 @@ class WebContentPositionManager(
 
     private fun handleWindowInsets(insets: WindowInsetsCompat) {
         if (isDestroyed) return
+        // Root reserves navigation but intentionally not the status bar. Internal
+        // controls must never slip beneath it when the address toolbar collapses.
+        statusBarTop = insets.getInsets(
+            WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout()
+        ).top
         val navBottom = insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom
         val imeBottom = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
         // IME and the navigation inset overlap, rather than add together.
@@ -75,12 +85,20 @@ class WebContentPositionManager(
 
     private fun applyMargins() {
         if (isDestroyed) return
-        val lp = swipeRefreshView.layoutParams as? CoordinatorLayout.LayoutParams ?: return
         val wanted = reservation.margins()
+        applyMarginsTo(swipeRefreshView, wanted)
+        internalPageView?.let { page ->
+            val top = if (fullscreen) wanted.top else maxOf(wanted.top, statusBarTop)
+            applyMarginsTo(page, wanted.copy(top = top))
+        }
+    }
+
+    private fun applyMarginsTo(view: View, wanted: WebViewportReservation.Margins) {
+        val lp = view.layoutParams as? CoordinatorLayout.LayoutParams ?: return
         if (lp.topMargin == wanted.top && lp.bottomMargin == wanted.bottom) return
         lp.topMargin = wanted.top
         lp.bottomMargin = wanted.bottom
-        swipeRefreshView.layoutParams = lp
+        view.layoutParams = lp
     }
 
     fun requestUpdate() {
