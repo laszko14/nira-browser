@@ -1,5 +1,6 @@
 package com.prirai.android.nira.browser
 
+import android.app.Application
 import android.view.View
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.graphics.Insets
@@ -12,8 +13,10 @@ import org.junit.runner.RunWith
 import org.mockito.Mockito
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35], application = Application::class)
 class WebContentPositionManagerTest {
     @Test fun internalResultsHeaderStaysBelowChromeInPortraitAndLandscape() {
         val context = RuntimeEnvironment.getApplication()
