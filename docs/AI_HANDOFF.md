@@ -11,7 +11,7 @@ base_sha: b161b9403425435e106498c382da34b5e3cb3d58
 observed_head_sha: b161b9403425435e106498c382da34b5e3cb3d58
 status: CI_PENDING
 acceptance_source: Zatwierdzony plan Zavro Clean Codex V3 z 2026-11-01; doc-only IMPLEMENT, bazą aplikacji jest v1207, bez APK, bez zmian aplikacji
-required_ci: proces dokumentów, shared JS/JVM/AndroidTest compile/lint + lint-regression, SOURCE SHA i evidence na końcowym commicie
+required_ci: process-docs, shared-tests (JS/JVM/AndroidTest compile/lint + lint-regression), quality-evidence na finalnym SOURCE SHA
 device: NOT_TESTED
 apk: NOT_BUILT - jawny zakres BEZ APK
 completed: Rozpoznano stan v1207 na b161b940; izolowana gałąź procesu; przygotowano komplet polityk i kontrakty V3

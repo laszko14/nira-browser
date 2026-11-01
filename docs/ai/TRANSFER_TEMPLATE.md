@@ -5,7 +5,7 @@ Uzupełnij wyłącznie z bieżącego `docs/AI_HANDOFF.md` na właściwej gałęz
 Kontynuuj [task_id] w [repo], linia [product_line].
 Tryb: [workflow_mode]; branch: [branch].
 Obserwowany HEAD: [observed_head_sha]; bazowy SHA: [base_sha].
-Sprawdź live HEAD, AGENTS.md i docs/AI_HANDOFF.md z jawnego SHA.
+Sprawdź i porównaj aktualny HEAD, AGENTS.md i docs/AI_HANDOFF.md z jawnego SHA.
 Wymaganie: [acceptance_source]; required SOURCE CI: [required_ci].
 Zrobione: [completed]; pozostało: [remaining]; następnym działaniem jest [next_action].
 Dowody i błędy: [verification], [known_failures], [blockers].
