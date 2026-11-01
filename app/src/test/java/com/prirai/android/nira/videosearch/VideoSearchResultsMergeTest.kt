@@ -255,7 +255,10 @@ class VideoSearchResultsMergeTest {
             ), groups.map { group -> group.films.map { it.id } })
             assertEquals(entries, groups.flatMap { it.films })
         }
-        assertEquals(6, VideoSearchResultsMerge.group(entries, false, true).size)
+        // Duration-only retains the established exact-title, one-second
+        // exception; genuinely different aliases remain independent.
+        assertEquals(listOf(2, 2, 1, 1),
+            VideoSearchResultsMerge.group(entries, false, true).map { it.films.size })
     }
 
     @Test fun screenshotDuplicateClustersUniteWithoutLosingAnyLink() {
