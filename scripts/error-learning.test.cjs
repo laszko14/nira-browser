@@ -57,7 +57,10 @@ test('capture records first failing step and exact run/job without raw logs',()=
  assert.equal(r.failures.length,1);
  assert.equal(r.failures[0].first_failing_step,'Robolectric');
  assert.equal(r.failures[0].event_id,'CI-12-2-13');
- assert.ok(!JSON.stringify(r).includes('secrets.'));
+ assert.equal(r.failures[0].raw_logs,undefined);
+ assert.equal(r.failures[0].cause,'undetermined');
+ assert.ok(!Object.hasOwn(r.failures[0],'token'));
+
 });
 test('capture rejects stale SHA, incomplete listing, duplicate jobs',()=>{
  const run={id:12,head_sha:sha,run_attempt:1,repository:{full_name:'laszko14/nira-browser'}};

@@ -3,7 +3,7 @@
   "coverage": [
     {
       "task_id": "ZC-V31-ERROR-LEARNING",
-      "observed_count": 1,
+      "observed_count": 2,
       "state": "ACTIVE"
     }
   ],
@@ -25,6 +25,26 @@
       "fix_sha": null,
       "regression_test": "scripts/error-learning.test.cjs",
       "evidence_links": []
+    },
+    {
+      "id": "CI-41334916448-1-124932586787",
+      "task_id": "ZC-V31-ERROR-LEARNING",
+      "kind": "CI_FAILURE",
+      "fingerprint": "v31-capture-note-test-assertion",
+      "summary": "Pierwszy SOURCE CI V3.1: test błędnie traktował niesekretne słowo secrets w opisie raportu jako wyciek danych.",
+      "source_sha": "0821b3aa06d45f41c47ee9a1c99fd0ea895b47b2",
+      "observed_at": "2026-11-01T18:07:13Z",
+      "run_id": 41334916448,
+      "job_id": 124932586787,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "scripts/error-learning.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41334916448"
+      ]
     }
   ]
 }
