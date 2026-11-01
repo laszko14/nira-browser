@@ -1,5 +1,6 @@
 package com.prirai.android.nira.videosearch
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import android.os.Parcelable
 import android.content.Intent
@@ -2055,6 +2056,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             val actionGroups: List<Pair<Button, LinearLayout>>,
         ) : RecyclerView.ViewHolder(root)
 
+        @SuppressLint("SetTextI18n")
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
             val ctx = parent.context
             val density = ctx.resources.displayMetrics.density
@@ -2133,6 +2135,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 manual, preview, crawl, showCrawl, search, delete, actionGroups)
         }
 
+        @SuppressLint("SetTextI18n")
         override fun onBindViewHolder(holder: Holder, position: Int) {
             val site = rows[position]
             holder.heading.text = site.displayName
