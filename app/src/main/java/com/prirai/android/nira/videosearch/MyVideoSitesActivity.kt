@@ -322,7 +322,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
         sitesList = RecyclerView(this).apply {
             layoutManager = LinearLayoutManager(this@MyVideoSitesActivity)
             val landscapeHeaderHeight = if (normalHeader.orientation == LinearLayout.HORIZONTAL)
-                (resources.configuration.screenHeightDp * 0.45f).toInt() else null
+                (resources.configuration.screenHeightDp * 0.55f).toInt() else null
             adapter = ConcatAdapter(VideoSitesViewAdapter(normalHeader, landscapeHeaderHeight),
                 this@MyVideoSitesActivity.adapter)
             isSaveEnabled = false // Explicit, profile-bound restoration below.
