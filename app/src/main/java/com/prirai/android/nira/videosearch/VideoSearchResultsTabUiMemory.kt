@@ -12,16 +12,26 @@ internal class VideoSearchResultsRunUiState {
     val siteFilter: MutableState<String?> = mutableStateOf(null)
     val sort: MutableState<VideoSearchSort> = mutableStateOf(VideoSearchSort.ORIGINAL)
     val byWebsite: MutableState<Boolean> = mutableStateOf(true)
+    val mergeByName: MutableState<Boolean> = mutableStateOf(false)
+    val mergeByDuration: MutableState<Boolean> = mutableStateOf(false)
     val expandedSites: MutableState<Set<String>?> = mutableStateOf(null)
     val pendingLayoutSwitch: MutableState<Pair<VideoSearchView, String>?> =
         mutableStateOf(null)
     val gridState = LazyGridState()
     val listState = LazyListState()
 
-    private data class Selection(val site: String?, val sort: VideoSearchSort)
+    private data class Selection(
+        val site: String?, val sort: VideoSearchSort,
+        val mergeByName: Boolean, val mergeByDuration: Boolean,
+        val byWebsite: Boolean,
+    )
     private val pageSizes = LinkedHashMap<Selection, MutableIntState>(8, 0.75f, true)
-    @Synchronized fun pageSizeFor(site: String?, sort: VideoSearchSort): MutableIntState {
-        val key = Selection(site, sort)
+    @Synchronized fun pageSizeFor(
+        site: String?, sort: VideoSearchSort,
+        mergeByName: Boolean = false, mergeByDuration: Boolean = false,
+        byWebsite: Boolean = true,
+    ): MutableIntState {
+        val key = Selection(site, sort, mergeByName, mergeByDuration, byWebsite)
         pageSizes[key]?.let { return it }
         val count = mutableIntStateOf(150)
         pageSizes[key] = count
