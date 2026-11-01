@@ -63,12 +63,14 @@
       "job_id": 124933016011,
       "attempt": 1,
       "cause": "test_harness",
-      "state": "OPEN",
+      "state": "FIXED",
       "duplicate_of": null,
-      "fix_sha": null,
+      "fix_sha": "75d59b0ba47269b84e4e027556fd59dcbee66287",
       "regression_test": "scripts/error-learning.test.cjs",
       "evidence_links": [
-        "https://github.com/laszko14/nira-browser/actions/runs/41335018971"
+        "https://github.com/laszko14/nira-browser/actions/runs/41335018971",
+        "https://github.com/laszko14/nira-browser/commit/75d59b0ba47269b84e4e027556fd59dcbee66287",
+        "https://github.com/laszko14/nira-browser/actions/runs/41335154679"
       ]
     },
     {
@@ -83,12 +85,14 @@
       "job_id": 124938975803,
       "attempt": 1,
       "cause": "test_harness",
-      "state": "OPEN",
+      "state": "FIXED",
       "duplicate_of": null,
-      "fix_sha": null,
+      "fix_sha": "0138e1e73de2b3fd4677a774e6adea0cd608b717",
       "regression_test": "scripts/project-sources.test.cjs",
       "evidence_links": [
-        "https://github.com/laszko14/nira-browser/actions/runs/41337049270"
+        "https://github.com/laszko14/nira-browser/actions/runs/41337049270",
+        "https://github.com/laszko14/nira-browser/commit/0138e1e73de2b3fd4677a774e6adea0cd608b717",
+        "https://github.com/laszko14/nira-browser/actions/runs/41337335979"
       ]
     },
     {
@@ -103,12 +107,14 @@
       "job_id": 124939468643,
       "attempt": 1,
       "cause": "test_harness",
-      "state": "OPEN",
+      "state": "FIXED",
       "duplicate_of": null,
-      "fix_sha": null,
+      "fix_sha": "5458e884ebb5b135db1caa7f2f3f7a0f4ddfe43c",
       "regression_test": "scripts/error-learning.test.cjs",
       "evidence_links": [
-        "https://github.com/laszko14/nira-browser/actions/runs/41337163423"
+        "https://github.com/laszko14/nira-browser/actions/runs/41337163423",
+        "https://github.com/laszko14/nira-browser/commit/5458e884ebb5b135db1caa7f2f3f7a0f4ddfe43c",
+        "https://github.com/laszko14/nira-browser/actions/runs/41337335979"
       ]
     }
   ]
