@@ -1,41 +1,41 @@
-# AI_HANDOFF — Zavro Clean / T03 — landscape transient media sheet cleanup
+# AI_HANDOFF — Zavro Clean / T03 — prawy panel i diagnostyka prostokąta
 
-> Checkpoint gałęzi procesu. Historyczne wpisy: [archiwum](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md).
+> Bieżący checkpoint gałęzi procesu; historia: [archiwum](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md).
 
 ```yaml
-task_id: T03-LANDSCAPE-TRANSIENT-MEDIA-SHEET
+task_id: T03-RIGHT-BOOKMARKS-SURFACE-OVERLAY-REPORT
 workflow_mode: staged
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: improve/zavro-clean-chatgpt-github-process-20261101
-base_sha: 4b9067b7413fb53429012c90901eb4737d5046c0
-observed_head_sha: 4b9067b7413fb53429012c90901eb4737d5046c0
+base_sha: 678c429e80d651d2ac38ed05f94a7b6f29f57749
+observed_head_sha: 678c429e80d651d2ac38ed05f94a7b6f29f57749
 status: CI_PENDING
-acceptance_source: ETAP 9/9 — T03/16 follow-up; user supplied portrait/landscape screenshots and persistent grey rounded rectangle in landscape
+acceptance_source: ETAP 9/9 — user confirmed v1198 left first-open lag, persistent translucent bookmarks right drawer and landscape grey rectangle; requested right panel fix and diagnostic button, plus new-chat transfer
 required_ci: zavro-ai-process-docs.yml process-docs shared-js shared-jvm shared-lint shared-androidtest-compile quality-evidence
-device: LANDSCAPE_GREY_OVERLAY_OBSERVED_BY_USER; FIX_NOT_TESTED; ROOT_CAUSE_NOT_CONFIRMED
-apk: EXISTING_V1197_VERIFIED_CI; NEW_APK_NOT_AUTHORIZED
-pilot: T01/T02 FOLLOWUP_PENDING; T03 ACTIVE; 14-day observation not completed
+device: USER_REPORT_V1198 (first left open slightly janks, subsequent smooth; bookmarks transparent; rectangle persists); NEW_FIX_NOT_TESTED
+apk: V1198_SIGNED_CI_RUN_41269564194; NEW_APK_NOT_AUTHORIZED
 changed_paths:
-  - app/src/main/java/com/prirai/android/nira/media/MediaFloatingUi.kt
+  - app/src/main/java/com/prirai/android/nira/browser/panels/SidePanelHost.kt
   - app/src/main/java/com/prirai/android/nira/BrowserFragment.kt
-  - app/src/test/java/com/prirai/android/nira/media/MediaFloatingUiRotationTest.kt
+  - app/src/main/java/com/prirai/android/nira/browser/OverlayWindowDiagnostics.kt
+  - app/src/test/java/com/prirai/android/nira/browser/panels/SidePanelInfrastructureTest.kt
+  - app/src/test/java/com/prirai/android/nira/browser/OverlayWindowDiagnosticsTest.kt
   - docs/AI_HANDOFF.md
 verified_before_push:
-  - Checked exact process HEAD 4b9067b7413fb53429012c90901eb4737d5046c0; instructions and handoff read at this SHA
-  - User reports fixed landscape-only translucent rounded rectangle over every webpage
-  - MediaFloatingUi has round 56dp FAB; no evidence it paints the rectangular artifact itself
-  - It DOES retain BottomSheetDialog window while BrowserActivity handles orientation changes in place
-  - Rotation change explicitly dismisses only the transient media sheet and repositions the existing FAB
-  - No changes to Gecko content, profile isolation, sessions, the 3-second panel cache or animation
+  - Process branch HEAD 678c429e80d651d2ac38ed05f94a7b6f29f57749 and prior signed build source d282b38b980d92f88d683b662d143d2ed5e44eb9 checked against branch refs
+  - Right embedded bookmarks RelativeLayout root has no background; rightContainer was also transparent
+  - Right drawer receives an opaque Material colorSurface in host only; left and legacy dialog unchanged
+  - Existing TestLab records frame/panel events but not native view ownership; diagnosis button uses bounded app decor metadata, no screenshots, URLs or text
+  - User-reported grey rectangle is not attributed; separate system/PiP windows and Gecko-composited pixels cannot be inspected by this report
 blockers:
-  - No direct evidence the rectangle is from the media sheet (could be other native/PiP overlay)
-  - No device evidence for fix; a signed update requires separate Kompiluj
-next_action: Verify all required CI on final SHA; STOP. Device re-test of portrait/landscape overlay only after separately authorized signed update. If rectangle persists, inspect Android Window/PiP ownership; do not keep changing media UI blindly.
+  - Need confirm green CI for final new SHA
+  - A new signed APK needs a separate Kompiluj; user must test root cause on device
+next_action: Check final workflow and commit diff. STOP after green CI. On next Kompiluj build v1199 strictly signed arm64 update. After device install gather one-shot landscape report via ⋮ → Zbadaj prostokąt • raport.
 evidence_links:
-  - https://github.com/laszko14/nira-browser/actions/runs/41266932530
+  - https://github.com/laszko14/nira-browser/actions/runs/41269564194
 ```
 
 ## Wznowienie
 
-Check current process branch HEAD against the pre-push base SHA above; do not treat CI_PENDING as success. Follow `AGENTS.md`. No merge, APK, signing, or changes to profiles/sessions. BrowserActivity handles configuration changes without recreating BrowserFragment. Reported persistent landscape rectangle is not yet attributed conclusively to MediaFloatingUi: orientation cleanup is a bounded mitigation. If it persists after separate device verification, investigate system PiP/other Window overlays instead of assuming this fix worked.
+Read AGENTS.md and this handoff at exact final SHA; confirm branch HEAD before work. Distinguish left first-open cost from warmed cache, right bookmarks surface from system overlay. No merge, APK, install, profile/session changes. Do not claim the rectangle fixed or detected from metadata alone. Do not add CI-only commits after green result.

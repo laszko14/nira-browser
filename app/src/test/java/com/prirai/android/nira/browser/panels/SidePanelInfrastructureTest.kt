@@ -18,6 +18,17 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35], application = Application::class, manifest = Config.NONE)
 class SidePanelInfrastructureTest {
 
+    @Test fun rightBookmarkPanelHasOpaqueThemeSurfaceWithoutChangingLeftPanel() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val host = SidePanelHost(activity)
+        val surface = host.rightContainer.background as? android.graphics.drawable.ColorDrawable
+        assertNotNull("Embedded bookmarks must have an opaque host surface", surface)
+        assertEquals(255, android.graphics.Color.alpha(surface!!.color))
+        assertNull("Left drawer styling is owned by its own tab UI", host.leftContainer.background)
+        assertEquals(View.GONE, host.rightContainer.visibility)
+        activity.finish()
+    }
+
     @Test fun cachedNormalTabOwnerReusesOnlyIdenticalNormalProfile() {
         val policy = LeftPanelReusePolicy()
         val first = SidePanelNormalOwner("tab-1", "profile_default", "default")

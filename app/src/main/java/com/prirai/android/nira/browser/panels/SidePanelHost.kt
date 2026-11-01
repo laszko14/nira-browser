@@ -31,6 +31,13 @@ internal class SidePanelHost @JvmOverloads constructor(
     }
     val rightContainer: FrameLayout = FrameLayout(context).apply {
         id = R.id.nira_embedded_side_bookmarks
+        // The embedded bookmarks layout has a transparent RelativeLayout root.
+        // Unlike its legacy BottomSheetDialog, this host has no dialog surface.
+        // Paint an opaque, theme-aware surface behind the entire right drawer.
+        val surface = com.google.android.material.color.MaterialColors.getColor(
+            context, com.google.android.material.R.attr.colorSurface, Color.WHITE
+        )
+        setBackgroundColor(surface or 0xFF000000.toInt())
         visibility = View.GONE
     }
 

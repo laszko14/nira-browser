@@ -1111,6 +1111,29 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             onClick = { startActivity(android.content.Intent(requireContext(),
                 com.prirai.android.nira.diagnostics.testlab.TestLabActivity::class.java)) }
         ))
+        menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+            id = "overlay_window_diagnostic", title = "Zbadaj prostokąt • raport",
+            iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_settings_24,
+            onClick = {
+                // Take one snapshot after the menu is gone. No ongoing collector,
+                // bitmap, DOM scraping, storage or diagnostic system permission.
+                val owner = activity ?: return@Action
+                owner.window.decorView.postDelayed({
+                    if (!isAdded || !isResumed || owner.isFinishing || owner.isDestroyed) return@postDelayed
+                    val report = com.prirai.android.nira.browser.OverlayWindowDiagnostics.capture(owner)
+                    try {
+                        startActivity(android.content.Intent.createChooser(
+                            android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(android.content.Intent.EXTRA_TEXT, report)
+                            }, "Udostępnij diagnostykę nakładki"
+                        ))
+                    } catch (_: android.content.ActivityNotFoundException) {
+                        Toast.makeText(owner, "Brak aplikacji do udostępnienia raportu", Toast.LENGTH_LONG).show()
+                    }
+                }, 350L)
+            }
+        ))
         if (!com.prirai.android.nira.diagnostics.testlab.TestLab.busy) {
             menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
                 id = "testlab_panels_start", title = "Test panelów • START",
