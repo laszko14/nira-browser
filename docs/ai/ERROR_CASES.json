@@ -5,6 +5,11 @@
       "task_id": "ZC-V31-ERROR-LEARNING",
       "observed_count": 3,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V32-PREFLIGHT-SOURCES",
+      "observed_count": 1,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -64,6 +69,26 @@
       "regression_test": "scripts/error-learning.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41335018971"
+      ]
+    },
+    {
+      "id": "CI-41337049270-1-124938975803",
+      "task_id": "ZC-V32-PREFLIGHT-SOURCES",
+      "kind": "CI_FAILURE",
+      "fingerprint": "v32-project-sources-missing-github-reference",
+      "summary": "Pierwszy SOURCE CI V3.2: statyczny plik ZAVRO_FUNKCJE.md nie wymienia GitHub, choć kontrakt wymaga jawnego wskazania bieżącego źródła.",
+      "source_sha": "0e8081c672b7260eb86b254771f6f768617bbcc0",
+      "observed_at": "2026-11-01T18:31:30Z",
+      "run_id": 41337049270,
+      "job_id": 124938975803,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "scripts/project-sources.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41337049270"
       ]
     }
   ]

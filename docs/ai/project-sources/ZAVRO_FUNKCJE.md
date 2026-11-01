@@ -1,6 +1,6 @@
 # Zavro Clean — orientacja w funkcjach
 
-**Katalog tematów dla nowych rozmów, nie specyfikacja wykonania ani gwarancja, że każda funkcja działa.** Szczegóły, stan wdrożenia i ścieżki kodu sprawdzaj na aktualnym SHA repozytorium.
+**Katalog tematów dla nowych rozmów, nie specyfikacja wykonania ani gwarancja, że każda funkcja działa.** Szczegóły, stan wdrożenia i ścieżki kodu sprawdzaj na aktualnym SHA pobranym przez bezpośredni konektor GitHub.
 
 Zavro Clean to mobilna przeglądarka Android z silnikiem GeckoView. W repozytorium znajdują się m.in.:
 
