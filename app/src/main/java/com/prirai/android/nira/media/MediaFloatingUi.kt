@@ -134,9 +134,31 @@ internal class MediaFloatingUi(
         render(displayed)
     }
 
-    fun detach() {
-        sheet?.dismiss()
+    /**
+     * BrowserActivity handles orientation/screenSize without recreating the Fragment.
+     * A BottomSheetDialog owns a separate Window with the OLD orientation bounds.
+     * Dispose that transient window instead of letting an empty/shadowed surface
+     * linger over subsequent Gecko pages. Keep the existing 56dp media FAB.
+     */
+    fun onHostConfigurationChanged() {
+        dismissTransientSheet()
+        parent.post {
+            // The Fragment may have destroyed this view before the next layout.
+            if (button.parent === parent) place()
+        }
+    }
+
+    private fun dismissTransientSheet() {
+        val previous = sheet
+        // Clear references first: a late onDismiss callback must not erase a new sheet.
         sheet = null
+        sheetContent = null
+        sheetSnapshot = null
+        previous?.dismiss()
+    }
+
+    fun detach() {
+        dismissTransientSheet()
         if (parent.viewTreeObserver.isAlive) {
             parent.viewTreeObserver.removeOnPreDrawListener(placementListener)
         }

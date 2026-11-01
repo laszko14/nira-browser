@@ -132,6 +132,9 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
+        // The media sheet uses its own Dialog Window, unlike the anchored FAB.
+        // Rotation leaves the BrowserFragment alive; discard the old Window now.
+        mediaFloatingUi?.onHostConfigurationChanged()
         sidePanelInfrastructure?.onBrowserConfigurationChanged(childFragmentManager)
         // This Activity handles orientation/screenSize without recreation.
         // Re-measure the detached footer after its new constraints apply.
