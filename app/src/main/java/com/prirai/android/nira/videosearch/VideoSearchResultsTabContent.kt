@@ -1,6 +1,12 @@
 package com.prirai.android.nira.videosearch
 
 import android.content.Context
+import android.content.Intent
+import com.prirai.android.nira.browser.bookmark.items.BookmarkSiteItem
+import com.prirai.android.nira.browser.bookmark.repository.BookmarkManager
+import com.prirai.android.nira.utils.BookmarkUtils
+import java.util.UUID
+import kotlinx.coroutines.yield
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.widget.Toast
@@ -126,6 +132,10 @@ private fun VideoSearchResultsTabBound(
         mutableStateOf<List<VideoSearchGroupMenuChoice>?>(null)
     }
     var openingFilm by remember(tabId, profileId) { mutableStateOf(false) }
+    var bulkBusy by remember(tabId, profileId) { mutableStateOf(false) }
+    var availableFolders by remember(tabId, profileId) {
+        mutableStateOf<List<VideoSavedFilmFolder>?>(null)
+    }
 
     // An already-open results tab may outlive the site-management screen.
     // One cleanup attempt per tab/profile composition; no timer or polling.
@@ -365,6 +375,218 @@ private fun VideoSearchResultsTabBound(
         }
     }
 
+
+    fun loadBulkTargets() {
+        availableGroups = null
+        availableFolders = null
+        uiScope.launch {
+            try {
+                val manager = UnifiedTabGroupManager.getInstance(context.applicationContext)
+                val choices = if (manager.awaitInitialized()) manager.getAllGroups()
+                    .filter { it.contextId == scope.contextId }
+                    .sortedWith(compareBy({ it.name.lowercase() }, { it.id }))
+                    .map { VideoSearchGroupMenuChoice(it.id, it.name) }
+                else emptyList()
+                if (ownsResultsTab()) availableGroups = choices
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                if (ownsResultsTab()) availableGroups = emptyList()
+            }
+        }
+        uiScope.launch {
+            try {
+                val folders = withContext(Dispatchers.IO) { repository.folders(scope) }
+                if (ownsResultsTab()) availableFolders = folders
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                if (ownsResultsTab()) availableFolders = emptyList()
+            }
+        }
+    }
+
+    fun runBulkAction(
+        chosen: List<VideoSearchFilm>,
+        action: VideoSearchBulkAction,
+        argument: String?,
+    ) {
+        if (bulkBusy || !ownsResultsTab() || chosen.isEmpty()) return
+        val originalRun = state.snapshot?.run ?: return
+        val snapshotKeys = state.snapshot?.films?.map(VideoSearchBulkSelection::key)?.toSet()
+            ?: return
+        if (chosen.any { it.runId != originalRun.id || it.scope != scope ||
+                it.siteId !in originalRun.siteIds ||
+                VideoSearchBulkSelection.key(it) !in snapshotKeys }) {
+            notifyUser("Wybór filmów jest nieaktualny")
+            return
+        }
+        bulkBusy = true
+        uiScope.launch {
+            var completed = 0
+            try {
+                val films = chosen.distinctBy(VideoSearchBulkSelection::key)
+                films.forEach { VideoSearchIntegrity.requirePageUrl(it.filmPageUrl) }
+                val uniqueLinks = VideoSearchBulkSelection.uniqueLinks(films)
+                when (action) {
+                    VideoSearchBulkAction.COPY_LINKS -> {
+                        val clipboard = context.getSystemService(
+                            Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText(
+                            "Linki do filmów", uniqueLinks.joinToString("\n")))
+                        completed = uniqueLinks.size
+                    }
+                    VideoSearchBulkAction.SHARE_LINKS -> {
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, uniqueLinks.joinToString("\n"))
+                        }
+                        context.startActivity(Intent.createChooser(intent, "Udostępnij filmy"))
+                        completed = uniqueLinks.size
+                    }
+                    VideoSearchBulkAction.ADD_BOOKMARKS -> {
+                        // The legacy BookmarkManager is application-global, not
+                        // profile-scoped. Never leak named-profile links into it.
+                        if (scope.profileId != "default") {
+                            notifyUser("Zakładki zbiorcze są dostępne tylko w profilu domyślnym")
+                            return@launch
+                        }
+                        val manager = BookmarkManager.getInstance(context.applicationContext)
+                        synchronized(manager) {
+                            films.forEach { film ->
+                                val url = film.filmPageUrl
+                                if (!manager.isBookmarked(url)) {
+                                    manager.addFirst(manager.root, BookmarkSiteItem(
+                                        film.originalTitle ?: film.siteName,
+                                        url, BookmarkUtils.getNewId()))
+                                    completed++
+                                }
+                            }
+                            check(manager.save()) { "Bookmarks could not be saved" }
+                        }
+                    }
+                    VideoSearchBulkAction.SAVE_NEW_FOLDER,
+                    VideoSearchBulkAction.SAVE_EXISTING_FOLDER -> {
+                        val destination = if (action == VideoSearchBulkAction.SAVE_NEW_FOLDER) {
+                            val name = VideoSavedLibraryEditPolicy.folderName(argument.orEmpty())
+                            val now = System.currentTimeMillis()
+                            val folder = VideoSavedFilmFolder(UUID.randomUUID().toString(),
+                                scope, name, now)
+                            withContext(Dispatchers.IO) { repository.putFolder(folder) }
+                            folder.id
+                        } else {
+                            val found = withContext(Dispatchers.IO) {
+                                repository.folders(scope).firstOrNull { it.id == argument }
+                            }
+                            if (found == null) {
+                                notifyUser("Wybrany folder nie istnieje")
+                                return@launch
+                            }
+                            found.id
+                        }
+                        for (film in films) {
+                            if (!ownsResultsTab()) break
+                            val thumbnail = film.thumbnailUrl?.takeIf {
+                                runCatching { VideoSearchIntegrity.requirePageUrl(it) }.isSuccess
+                            }
+                            val link = VideoSavedFilmLink(
+                                id = UUID.randomUUID().toString(), folderId = destination,
+                                scope = scope, filmPageUrl = film.filmPageUrl,
+                                title = film.originalTitle, thumbnailUrl = thumbnail,
+                                durationSeconds = film.durationSeconds,
+                                createdAtMs = System.currentTimeMillis(),
+                            )
+                            if (withContext(Dispatchers.IO) { repository.addSavedLink(link) })
+                                completed++
+                            yield()
+                        }
+                    }
+                    else -> {
+                        val browser = context.applicationContext.components
+                        val manager = UnifiedTabGroupManager.getInstance(context.applicationContext)
+                        if (!manager.awaitInitialized()) {
+                            notifyUser("Grupy kart są niedostępne")
+                            return@launch
+                        }
+                        val destination = when (action) {
+                            VideoSearchBulkAction.OPEN_EXISTING_GROUP -> argument
+                            VideoSearchBulkAction.OPEN_ACTIVE_GROUP ->
+                                manager.getGroupForTab(tabId)?.id
+                            else -> null
+                        }
+                        if (action == VideoSearchBulkAction.OPEN_EXISTING_GROUP ||
+                            action == VideoSearchBulkAction.OPEN_ACTIVE_GROUP) {
+                            if (destination == null ||
+                                manager.getGroup(destination)?.contextId != scope.contextId) {
+                                notifyUser("Brak grupy w bieżącym profilu")
+                                return@launch
+                            }
+                        }
+                        val groupName = if (action == VideoSearchBulkAction.OPEN_NEW_GROUP)
+                            VideoSearchBulkSelection.name(argument) else null
+                        if (action == VideoSearchBulkAction.OPEN_NEW_GROUP && groupName == null) {
+                            notifyUser("Nieprawidłowa nazwa grupy")
+                            return@launch
+                        }
+                        val created = mutableListOf<Pair<VideoSearchFilm, String>>()
+                        for (film in films) {
+                            if (!ownsResultsTab()) break
+                            val id = browser.tabsUseCases.addTab.invoke(
+                                film.filmPageUrl, selectTab = false, private = false,
+                                contextId = scope.contextId)
+                            created.add(film to id)
+                            completed++
+                            // Yield so the UI/panels remain responsive for large selections.
+                            yield()
+                        }
+                        if (created.isNotEmpty() && isActiveNormalProfile(context, profileId)) {
+                            when (action) {
+                                VideoSearchBulkAction.OPEN_NEW_GROUP -> manager.createGroup(
+                                    tabIds = created.map { it.second }, name = groupName,
+                                    contextId = scope.contextId)
+                                VideoSearchBulkAction.OPEN_GROUPS_BY_SITE ->
+                                    created.groupBy { it.first.siteId }.values.forEach { group ->
+                                        if (isActiveNormalProfile(context, profileId)) {
+                                            manager.createGroup(
+                                                tabIds = group.map { it.second },
+                                                name = VideoSearchBulkSelection.name(
+                                                    group.first().first.siteName) ?: "Filmy",
+                                                contextId = scope.contextId)
+                                        }
+                                    }
+                                VideoSearchBulkAction.OPEN_EXISTING_GROUP,
+                                VideoSearchBulkAction.OPEN_ACTIVE_GROUP ->
+                                    created.forEach { (_, id) ->
+                                        if (manager.getGroup(destination!!)?.contextId ==
+                                            scope.contextId) {
+                                            check(manager.addTabToGroup(id, destination)) {
+                                                "Group no longer exists"
+                                            }
+                                        }
+                                    }
+                                else -> Unit
+                            }
+                        }
+                        if (action == VideoSearchBulkAction.OPEN_UNGROUPED &&
+                            ownsResultsTab() && created.isNotEmpty()) {
+                            browser.tabsUseCases.selectTab(created.first().second)
+                        }
+                    }
+                }
+                if (isActiveNormalProfile(context, profileId)) {
+                    notifyUser("Wykonano dla " + completed + " filmów")
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                if (isActiveNormalProfile(context, profileId))
+                    notifyUser("Operacja częściowa: " + completed + " filmów")
+            } finally {
+                bulkBusy = false
+            }
+        }
+    }
+
     VideoSearchResultsScreen(
         state = state,
         retainedUiState = retainedUiState,
@@ -393,6 +615,12 @@ private fun VideoSearchResultsTabBound(
             }
         },
         onOpen = { film -> launchOpening(film) },
+        bulkEnabled = true,
+        bulkGroups = availableGroups,
+        bulkFolders = availableFolders,
+        allowBulkBookmarks = scope.profileId == "default",
+        onBulkMenuOpened = ::loadBulkTargets,
+        onBulkAction = ::runBulkAction,
         onLongPress = { film ->
             if (ownsFilm(film)) {
                 heldFilm = film
