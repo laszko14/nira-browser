@@ -1,5 +1,5 @@
 # AI_HANDOFF — Zavro Clean · V3.2, neonowe UI wyszukiwarki filmów (Clean v1208)
-> Jedyny bieżący checkpoint gałęzi. Handoff jest snapshotem, a nie źródłem live HEAD. Poprzedni checkpoint V3.2: `4d7191ae288246ea3d4348eebabfb5f49a3a5149`.
+> Jedyny bieżący checkpoint gałęzi. Handoff jest snapshotem, a nie źródłem live HEAD. Poprzedni checkpoint V3.2: `4d7191ae288246ea3d4348eebabfb5f49a3a5149`. Archiwum: [AI_HANDOFF_LEGACY](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md).
 
 ```yaml
 task_id: ZC-V1208-NEON-REDESIGN
@@ -15,6 +15,7 @@ required_ci: process-docs + shared-tests (JS, JVM/Robolectric, AndroidTest compi
 device: NOT_TESTED
 apk: APK_BLOCKED until SOURCE CI success and owner COMMENT review PR 119
 completed: Zmieniono styl natywny strony witryn, palete i gesty rozwijania filtrow Compose, czytelnosc kafelkow/listy, motyw w osadzonej karcie. Zachowano istniejace handlery/wyszukiwanie/profile/foldery. Wersja arm64 1208, com.prirai.android.nira.debug, podpis z niezmienionych Secrets. Testy UI JS i uaktualniony rygorystyczny kontrakt podpisu.
+remaining: Finalne SOURCE CI / PR CI oraz bezpieczna recenzja PR do prywatnej budowy APK; niezalezny security review historycznego PR 119 nadal nierozwiazany, test urzadzenia poza tym srodowiskiem.
 known_failures: Dla zadania cztery odrebne zdarzenia (1 USER_REPORT / 3 CI), wszystkie 4 zapisane w ERROR_CASES.json; USER_REPORT OPEN do testu urzadzenia; trzy CI oznaczone FIXED po usunieciu przyczyn, czekaja na finalna walidacje.
 changed_paths:
   - app/src/main/java/com/prirai/android/nira/videosearch/MyVideoSitesActivity.kt
@@ -27,6 +28,18 @@ changed_paths:
   - app/src/test/js/video-search-neon-redesign.test.cjs
   - docs/ai/ERROR_CASES.json
   - docs/AI_HANDOFF.md
+blockers:
+  - Dotychczasowe CI nie obejmuje wizualnego testu na fizycznym Nothing Phone (1).
+  - G4: niezalezny security review procesu PR 119 nadal niepotwierdzony; nie zastępuj go self-review.
+  - Signed APK nie istnieje przed zielonym finalnym SOURCE CI i autoryzowanym review trigger.
+verified_before_push:
+  - Bezposredni GitHub connector potwierdzil source branch i pełny SHA, AGENTS oraz handoff.
+  - Strict update contract 1208, com.prirai.android.nira.debug, arm64-v8a i staly cert bez zmian, podpis Secrets.
+  - 4 z 4 zaobserwowane odrebne zdarzenia zapisano do ERROR_CASES; 3 test/CI harness FIXED po triage.
+evidence_links:
+  - https://github.com/laszko14/nira-browser/pull/119
+  - https://github.com/laszko14/nira-browser/actions/runs/41346184372
+  - https://github.com/laszko14/nira-browser/actions/runs/41346404329
 verification: SOURCE/PR CI PENDING dla finalnego SHA po tym commicie; poprzednie 12 niepowodzen JS (v1207 metadata) usunieto synchronizujac workflow z Gradle; drugi przebieg ujawnil 2 bledy test harness, rowniez poprawione.
 next_action: Sprawdz live SHA po zapisie, wszystkie required SOURCE i PR CI na tym SHA. Przy FAIL diagnozuj log, popraw przyczyne i wykonaj kolejny checkpoint. Gdy zielone CI i bezpieczny trigger potwierdzony, wyslij jeden COMMENT review PR #119 dokladnie wedlug docs/ai/APK_CHAT_GITHUB_REVIEW_TRIGGER.md. Potem zweryfikuj artefakt, certyfikat, package, ABI, versionCode/versionName. Bez merge/release/force push/zmiany certyfikatu.
 ```
