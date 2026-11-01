@@ -7,7 +7,7 @@ repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: improve/zavro-clean-chatgpt-github-process-20261101
 base_sha: 26e62c860b7e17b7935dbf7553f7dce3fc6446a9
-observed_head_sha: b6b29be841d7bb988a103fc8b46f4c59cb58d71c
+observed_head_sha: 4460c7e1de366b13ee2c7c4db04a70abfa651d51
 status: CI_PENDING
 acceptance_source: Polecenie użytkownika: naprawić niespójne instrukcje i oznaczyć stare
 required_ci: process-docs; shared JS/JVM/lint regression; AndroidTest compile; quality-evidence
