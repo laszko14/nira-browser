@@ -199,7 +199,7 @@ class VideoSearchTransactionalTest {
         } finally { db.close() }
     }
 
-    @Test fun fileBackedV2DatabaseSurvivesCloseAndReopen() = runBlocking {
+    @Test fun fileBackedV3DatabaseSurvivesCloseAndReopen() = runBlocking {
         val name = "video-search-stage1c-test.db"
         context.deleteDatabase(name) // isolated Robolectric test DB, not user data
         try {
@@ -209,7 +209,7 @@ class VideoSearchTransactionalTest {
                 repo.putFolder(VideoSavedFilmFolder("saved", owner, "Na później", 123))
                 repo.putRun(newRun())
                 repo.putFilm(newFilm())
-                assertEquals(2, firstDb.openHelper.readableDatabase.version)
+                assertEquals(3, firstDb.openHelper.readableDatabase.version)
             } finally { firstDb.close() }
             val openedAgain = Room.databaseBuilder(context,
                 VideoSearchDatabase::class.java, name).build()
