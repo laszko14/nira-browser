@@ -118,6 +118,7 @@ jobs:
       contents: read
 
   release:
+    needs: regression-tests
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -151,6 +152,15 @@ jobs:
         with:
           ref: refs/tags/${{ steps.tag.outputs.tag }}
           submodules: true
+      - name: Verify tagged source is the tested dispatch SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]; then
+            echo "::error::Release tag SHA differs from dispatch SHA verified by shared tests."
+            exit 1
+          fi
+
       - name: Validate Gradle wrapper
         uses: gradle/wrapper-validation-action@v2
 

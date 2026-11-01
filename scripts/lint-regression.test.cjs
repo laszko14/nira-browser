@@ -33,6 +33,15 @@ test('checkout path normalization cannot be bypassed by another root',()=>{
   assert.throws(()=>normalizeFile('/tmp/other.kt'),/Unexpected lint file/);
   assert.throws(()=>normalizeFile('app/../other.kt'),/Unexpected lint file/);
 });
+test('stage 6: lint absolute paths cannot escape or impersonate checkout',()=>{
+  const workspace='/home/runner/work/nira-browser/nira-browser';
+  assert.equal(normalizeFile(workspace+'/'+file,workspace),file);
+  assert.equal(normalizeFile(workspace+'/'+file,''),file);
+  assert.throws(()=>normalizeFile(workspace+'/other/app/src/main/Fake.kt',workspace),/Unexpected lint file/);
+  assert.throws(()=>normalizeFile(workspace+'/other/app/src/main/Fake.kt',''),/Unexpected lint file/);
+  assert.throws(()=>normalizeFile('/tmp/nira-browser/'+file,workspace),/Unexpected lint file/);
+  assert.throws(()=>normalizeFile('app/src/../other.kt',workspace),/Unexpected lint file/);
+});
 test('missing XML, invalid issue or unsupported severity fails closed',()=>{
   assert.throws(()=>parseLint(''),/Invalid lint report XML/);
   assert.throws(()=>parseLint(report('<issue id="X" severity="Error"></issue>')),/Incomplete lint issue/);

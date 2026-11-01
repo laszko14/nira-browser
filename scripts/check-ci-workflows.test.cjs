@@ -36,6 +36,23 @@ test('PR, push and tags cannot reach installation or release job in Android CI',
   assert.doesNotMatch(main,/^  test:\s*$/m);
   assert.doesNotMatch(main,/^  lint:\s*$/m);
 });
+test('stage 6: release depends on green tests and exact tagged SHA',()=>{
+  const gate=yaml=>{
+    const release=yaml.split(/^  release:\s*$/m)[1];
+    assert.ok(release,'release job is required');
+    assert.match(release,/^    needs: regression-tests\s*$/m);
+    assert.match(release,/Verify tagged source is the tested dispatch SHA/);
+    assert.match(release,/if \[ "\$\(git rev-parse HEAD\)" != "\$GITHUB_SHA" \]; then/);
+  };
+  gate(main);
+  const withoutTests=main.replace('  release:\n    needs: regression-tests\n','  release:\n');
+  const withoutShaCheck=main.replace('if [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]; then',
+    'if [ "any-tag" != "any-tag" ]; then');
+  assert.notEqual(withoutTests,main);
+  assert.notEqual(withoutShaCheck,main);
+  assert.throws(()=>gate(withoutTests),assert.AssertionError);
+  assert.throws(()=>gate(withoutShaCheck),assert.AssertionError);
+});
 test('process branch calls exactly the shared tests and keeps its safe doc gate',()=>{
   assert.match(process,/^  shared-tests:/m);
   assert.match(process,/uses: \.\/\.github\/workflows\/zavro-tests-reusable\.yml/);

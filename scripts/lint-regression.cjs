@@ -22,19 +22,26 @@ function attributes(source){
   for(const m of source.matchAll(/\b([A-Za-z][A-Za-z0-9]*)="([^"]*)"/g))map[m[1]]=m[2];
   return map;
 }
-function normalizeFile(file){
+function normalizeFile(file,workspace=process.env.GITHUB_WORKSPACE){
   if(typeof file!=='string'||!file)throw Error('Lint issue without file');
   const normalized=file.replace(/\\/g,'/');
+  const isAbsolute=normalized.startsWith('/')||/^[A-Za-z]:\//.test(normalized);
   let p=normalized;
-  if(!/^(app|gradle|build\.gradle|settings\.gradle|gradle\.properties)(\/|$)/.test(p)){
-    // actions/checkout uses /work/<repo>/<repo>/app; split('/repo/') loses one segment.
-    if(!normalized.includes('/nira-browser/'))throw Error('Unexpected lint file: '+file);
-    const roots=['/app/','/gradle/','/build.gradle','/settings.gradle','/gradle.properties'];
-    const last=Math.max(...roots.map(root=>normalized.lastIndexOf(root)));
-    if(last<0)throw Error('Unexpected lint file: '+file);
-    p=normalized.slice(last+1);
+  if(isAbsolute){
+    if(workspace){
+      // Bind absolute lint locations to the real checkout, not a similarly named directory.
+      const root=workspace.replace(/\\/g,'/').replace(/\/+$/,'');
+      if(!root||!normalized.startsWith(root+'/'))throw Error('Unexpected lint file: '+file);
+      p=normalized.slice(root.length+1);
+    }else{
+      // Offline reports: the final repository segment must directly own the lint path.
+      const marker='/nira-browser/',index=normalized.lastIndexOf(marker);
+      if(index<0)throw Error('Unexpected lint file: '+file);
+      p=normalized.slice(index+marker.length);
+    }
   }
-  if(!/^(app|gradle|build\.gradle|settings\.gradle|gradle\.properties)(\/|$)/.test(p)||p.includes('../'))
+  const allowed=/^(?:app|gradle)(?:\/|$)|^(?:build\.gradle|settings\.gradle|gradle\.properties)$/;
+  if(!allowed.test(p)||p.split('/').some(part=>!part||part==='.'||part==='..'))
     throw Error('Unexpected lint file: '+file);
   return p;
 }
