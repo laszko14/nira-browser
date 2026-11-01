@@ -1,41 +1,35 @@
-# AI_HANDOFF — Zavro Clean / T03 — prawy panel i diagnostyka prostokąta
+# AI_HANDOFF — Zavro Clean / T03 — podpisana aktualizacja v1199
 
-> Bieżący checkpoint gałęzi procesu; historia: [archiwum](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md).
+> Bieżący checkpoint gałęzi procesu. Wcześniejszy stan T03: SHA 001648305bda927bceb10047aca6749934348184.
 
-```yaml
-task_id: T03-RIGHT-BOOKMARKS-SURFACE-OVERLAY-REPORT
+task_id: T03-SIGNED-APK-V1199
 workflow_mode: staged
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: improve/zavro-clean-chatgpt-github-process-20261101
-base_sha: 678c429e80d651d2ac38ed05f94a7b6f29f57749
-observed_head_sha: 678c429e80d651d2ac38ed05f94a7b6f29f57749
+base_sha: 001648305bda927bceb10047aca6749934348184
 status: CI_PENDING
-acceptance_source: ETAP 9/9 — user confirmed v1198 left first-open lag, persistent translucent bookmarks right drawer and landscape grey rectangle; requested right panel fix and diagnostic button, plus new-chat transfer
-required_ci: zavro-ai-process-docs.yml process-docs shared-js shared-jvm shared-lint shared-androidtest-compile quality-evidence
-device: USER_REPORT_V1198 (first left open slightly janks, subsequent smooth; bookmarks transparent; rectangle persists); NEW_FIX_NOT_TESTED
-apk: V1198_SIGNED_CI_RUN_41269564194; NEW_APK_NOT_AUTHORIZED
-changed_paths:
-  - app/src/main/java/com/prirai/android/nira/browser/panels/SidePanelHost.kt
-  - app/src/main/java/com/prirai/android/nira/BrowserFragment.kt
-  - app/src/main/java/com/prirai/android/nira/browser/OverlayWindowDiagnostics.kt
-  - app/src/test/java/com/prirai/android/nira/browser/panels/SidePanelInfrastructureTest.kt
-  - app/src/test/java/com/prirai/android/nira/browser/OverlayWindowDiagnosticsTest.kt
-  - docs/AI_HANDOFF.md
-verified_before_push:
-  - Process branch HEAD 678c429e80d651d2ac38ed05f94a7b6f29f57749 and prior signed build source d282b38b980d92f88d683b662d143d2ed5e44eb9 checked against branch refs
-  - Right embedded bookmarks RelativeLayout root has no background; rightContainer was also transparent
-  - Right drawer receives an opaque Material colorSurface in host only; left and legacy dialog unchanged
-  - Existing TestLab records frame/panel events but not native view ownership; diagnosis button uses bounded app decor metadata, no screenshots, URLs or text
-  - User-reported grey rectangle is not attributed; separate system/PiP windows and Gecko-composited pixels cannot be inspected by this report
-blockers:
-  - Need confirm green CI for final new SHA
-  - A new signed APK needs a separate Kompiluj; user must test root cause on device
-next_action: Check final workflow and commit diff. STOP after green CI. On next Kompiluj build v1199 strictly signed arm64 update. After device install gather one-shot landscape report via ⋮ → Zbadaj prostokąt • raport.
-evidence_links:
-  - https://github.com/laszko14/nira-browser/actions/runs/41269564194
-```
+acceptance_source: User command "Kompiluj" after T03 panel/overlay diagnostic changes; installed v1198 / 0.5.22-alpha103-clean
 
-## Wznowienie
+Version and package contract:
+- Previous installed: 1198
+- Expected APK code: 1199 (base Gradle 199 with arm64 output offset +1000)
+- Expected APK name: 0.5.22-alpha104-clean
+- Package: com.prirai.android.nira.debug
+- ABI: arm64-v8a
+- Certificate SHA256: df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
+- Artifacts: zavro-arm64-update-apk-v1199
+- Changed: app/build.gradle, .github/workflows/apk-release.yml, docs/AI_HANDOFF.md
 
-Read AGENTS.md and this handoff at exact final SHA; confirm branch HEAD before work. Distinguish left first-open cost from warmed cache, right bookmarks surface from system overlay. No merge, APK, install, profile/session changes. Do not claim the rectangle fixed or detected from metadata alone. Do not add CI-only commits after green result.
+Required verification:
+- At final SHA: shared JS, JVM/Robolectric, lint regression, AndroidTest compilation, quality evidence, process docs as required.
+- Explicit workflow_dispatch for apk-release.yml, build_kind=debug-apk, approval_phrase=Kompiluj on exact branch.
+- Runner verify-update-apk.sh must pass on the resulting signed APK; log SHA256.
+- APK: NOT_YET_VERIFIED; phone: V1199_NOT_TESTED.
+
+Phone tests after successful build:
+- Right bookmarks panel background: code fix NOT_YET_DEVICE_VERIFIED
+- Landscape grey rectangle: persistent in v1198, root cause UNKNOWN, collect "Zbadaj prostokąt • raport"
+- First left drawer opening: slight lag in v1198, subsequent openings smooth
+
+Next action: Dispatch signed v1199 workflow, verify all required jobs and APK, then hand over installation/test instructions. No merge, data removal, publication or additional CI-only commits.
