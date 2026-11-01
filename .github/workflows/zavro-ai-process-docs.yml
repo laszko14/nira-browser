@@ -27,6 +27,8 @@ jobs:
         run: node --test scripts/check-ci-workflows.test.cjs
       - name: Test lint baseline and evidence gate, including negative cases
         run: node --test scripts/lint-regression.test.cjs scripts/ci-evidence.test.cjs
+      - name: Validate stage 7 Gecko device plan (offline structural safety checks)
+        run: node --test scripts/check-gecko-device-plan.test.cjs
       - name: Audit all workflow triggers and scopes
         run: node scripts/ci-workflow-inventory.cjs
       - name: Check changes for whitespace errors
