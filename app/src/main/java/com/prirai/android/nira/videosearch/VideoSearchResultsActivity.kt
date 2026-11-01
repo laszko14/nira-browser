@@ -215,6 +215,7 @@ internal data class VideoSearchResultsScreenState(
 @Composable
 internal fun VideoSearchResultsScreen(
     state: VideoSearchResultsScreenState,
+    retainedUiState: VideoSearchResultsTabUiState? = null,
     onBack: () -> Unit,
     onOpenSavedFolders: () -> Unit,
     onRefresh: () -> Unit,
@@ -225,14 +226,26 @@ internal fun VideoSearchResultsScreen(
 ) {
     val snapshot = state.snapshot
     val run = snapshot?.run
-    var siteFilter by remember(run?.id) { mutableStateOf<String?>(null) }
-    var sort by remember(run?.id) { mutableStateOf(VideoSearchSort.ORIGINAL) }
+    // Film navigation unmounts Compose; this tab-owned state survives re-entry.
+    val retainedRun = remember(run?.id, retainedUiState) {
+        if (run == null) null else retainedUiState?.forRun(run.id)
+    }
+    var siteFilter by remember(run?.id, retainedRun) {
+        retainedRun?.siteFilter ?: mutableStateOf<String?>(null)
+    }
+    var sort by remember(run?.id, retainedRun) {
+        retainedRun?.sort ?: mutableStateOf(VideoSearchSort.ORIGINAL)
+    }
     var runsExpanded by remember { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
     var statusesExpanded by remember(run?.id) { mutableStateOf(false) }
-    var byWebsite by remember(run?.id) { mutableStateOf(true) }
-    // null = all expanded; the expansion state is local to the current run.
-    var expandedSites by remember(run?.id) { mutableStateOf<Set<String>?>(null) }
+    var byWebsite by remember(run?.id, retainedRun) {
+        retainedRun?.byWebsite ?: mutableStateOf(true)
+    }
+    // null = all expanded; the expansion state is local to this exact run.
+    var expandedSites by remember(run?.id, retainedRun) {
+        retainedRun?.expandedSites ?: mutableStateOf<Set<String>?>(null)
+    }
 
     // A Room revision changes snapshot without discarding the previous
     // layout. Do not display a full-screen spinner on every new film.
@@ -253,7 +266,9 @@ internal fun VideoSearchResultsScreen(
     val results = projectionState.value?.first
     // Keep Compose's active item/key graph bounded. Only 150 additional
     // cards are activated on explicit demand; full sorting stays on Default.
-    var visibleCount by remember(run?.id, siteFilter, sort) { mutableIntStateOf(150) }
+    var visibleCount by remember(run?.id, siteFilter, sort, retainedRun) {
+        retainedRun?.pageSizeFor(siteFilter, sort) ?: mutableIntStateOf(150)
+    }
     val visibleResults = remember(results, visibleCount) {
         results?.copy(visibleFilms = results.visibleFilms.take(visibleCount))
     }
@@ -265,15 +280,20 @@ internal fun VideoSearchResultsScreen(
 
     // One Lazy state per run and layout. Keys are shared between both modes:
     // a view toggle resumes at the same source/film rather than scroll zero.
-    val gridState = remember(run?.id) { LazyGridState() }
-    val listState = remember(run?.id) { LazyListState() }
+    val gridState = remember(run?.id, retainedRun) {
+        retainedRun?.gridState ?: LazyGridState()
+    }
+    val listState = remember(run?.id, retainedRun) {
+        retainedRun?.listState ?: LazyListState()
+    }
     val visibleKeys = remember(visibleResults, groups, byWebsite, expandedSites) {
         if (visibleResults == null) emptyList() else VideoSearchScrollKeys.visible(
             visibleResults, groups, byWebsite, expandedSites
         )
     }
-    var pendingLayoutSwitch by remember(run?.id) {
-        mutableStateOf<Pair<VideoSearchView, String>?>(null)
+    var pendingLayoutSwitch by remember(run?.id, retainedRun) {
+        retainedRun?.pendingLayoutSwitch ?:
+            mutableStateOf<Pair<VideoSearchView, String>?>(null)
     }
     LaunchedEffect(state.view, pendingLayoutSwitch, visibleKeys) {
         val switch = pendingLayoutSwitch ?: return@LaunchedEffect

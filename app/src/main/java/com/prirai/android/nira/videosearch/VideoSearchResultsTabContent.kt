@@ -109,7 +109,14 @@ private fun VideoSearchResultsTabBound(
     val repository = remember(context) {
         VideoSearchRepository.from(context.applicationContext)
     }
-    var chosenRunId by remember(tabId, profileId) { mutableStateOf<String?>(null) }
+    // Only presentation choices/Lazy anchors: never films, URLs or private data.
+    val retainedUiState = remember(tabId, profileId) {
+        VideoSearchResultsTabUiMemory.forTab(
+            tabId, profileId,
+            context.applicationContext.components.store.state.tabs.map { it.id }.toSet(),
+        )
+    }
+    var chosenRunId by retainedUiState.chosenRunId
     var refreshVersion by remember(tabId, profileId) { mutableIntStateOf(0) }
     var state by remember(tabId, profileId) {
         mutableStateOf(VideoSearchResultsScreenState())
@@ -360,6 +367,7 @@ private fun VideoSearchResultsTabBound(
 
     VideoSearchResultsScreen(
         state = state,
+        retainedUiState = retainedUiState,
         onBack = onClose,
         onOpenSavedFolders = {
             if (ownsResultsTab()) try {
