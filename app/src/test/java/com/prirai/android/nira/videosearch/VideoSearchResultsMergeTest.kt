@@ -69,4 +69,74 @@ class VideoSearchResultsMergeTest {
         }
         assertEquals(310, VideoSearchResultsMerge.group(many, true, true).single().films.size)
     }
+    @Test fun realScreenshotsWithHd4kAndLeadingTimestampMergeByName() {
+        val films = listOf(
+            film("site-a", "a", "HD 4K 47:37 Elle Marz – Feral Gay Stepdaughter", 2857),
+            film("site-b", "b", "Elle Marz - Feral Gay Step-Daughter", 2857),
+        )
+        assertEquals(listOf("site-a", "site-b"),
+            VideoSearchResultsMerge.group(films, true, false)
+                .single().films.map { it.id })
+    }
+
+    @Test fun realScreenshotsWithApostropheAndOneSecondDifferenceMergeByName() {
+        val films = listOf(
+            film("site-a", "a", "HD 4K 37:46 Elle Marz – I Dont Wanna Share", 2266),
+            film("site-b", "b", "Elle Marz – I Don’T Wanna Share", 2265),
+        )
+        assertEquals(1, VideoSearchResultsMerge.group(films, true, false).size)
+        assertEquals(1, VideoSearchResultsMerge.group(films, true, true).size)
+        assertEquals(2, VideoSearchResultsMerge.group(films, false, true)
+            .single().films.size)
+    }
+
+    @Test fun metadataDoesNotRemoveGenuineWordsInsideFilmTitle() {
+        assertEquals("the4kmission",
+            VideoSearchResultsMerge.titleKey("The 4K Mission"))
+        assertNotEquals(
+            VideoSearchResultsMerge.titleKey("The 4K Mission"),
+            VideoSearchResultsMerge.titleKey("The Mission"),
+        )
+        assertEquals("4kidsshow", VideoSearchResultsMerge.titleKey("4Kids Show"))
+        assertNull(VideoSearchResultsMerge.titleKey("HD 4K 47:37"))
+    }
+
+    @Test fun differentTitlesWithNearbyDurationsRemainSeparate() {
+        val films = listOf(
+            film("one", "a", "My First Original Film", 2000),
+            film("two", "b", "Another Different Film", 2001),
+        )
+        assertEquals(2, VideoSearchResultsMerge.group(films, true, false).size)
+        assertEquals(2, VideoSearchResultsMerge.group(films, false, true).size)
+    }
+
+    @Test fun oneSecondRoundingUsesSameTitleButTwoSecondGapIsNotInferredByDuration() {
+        val films = listOf(
+            film("first", "a", "Title – Part One", 2000),
+            film("round", "b", "Title - Part One", 2001),
+            film("distant", "c", "Title Part One", 2003),
+        )
+        assertEquals(listOf(2, 1), VideoSearchResultsMerge.group(
+            films, false, true).map { it.films.size })
+        assertEquals(1, VideoSearchResultsMerge.group(films, true, false).size)
+    }
+
+    @Test fun missingAndShortTitlesDoNotMatchByName() {
+        val films = listOf(
+            film("first", "a", "HD 47:37", null),
+            film("second", "b", "4K 47:37", null),
+            film("third", "c", "X", null),
+            film("fourth", "d", "X", null),
+        )
+        assertEquals(4, VideoSearchResultsMerge.group(films, true, false).size)
+    }
+
+    @Test fun differingEpisodeNamesDoNotMergeDespiteSamePerformer() {
+        val films = listOf(
+            film("episode-one", "a", "Artist Name - First Scene", 1800),
+            film("episode-two", "b", "Artist Name - Second Scene", 1801),
+        )
+        assertEquals(2, VideoSearchResultsMerge.group(films, true, true).size)
+    }
+
 }
