@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ScrollView
 import androidx.appcompat.widget.Toolbar
 import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
@@ -84,6 +85,8 @@ class MyVideoSitesLayoutTest {
                 it.text == "▱\nFoldery"
             }
             action.requestRectangleOnScreen(Rect(0, 0, action.width, action.height), true)
+            val headerScroll = descendants(decor).filterIsInstance<ScrollView>().single()
+            headerScroll.fullScroll(View.FOCUS_DOWN)
             layout(decor, 640, 280)
             val rect = Rect()
             assertTrue("last action reachable by scrolling", action.getGlobalVisibleRect(rect))

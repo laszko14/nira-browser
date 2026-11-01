@@ -470,9 +470,10 @@ internal fun VideoSearchResultsScreen(
                 enter = expandVertically(),
                 exit = shrinkVertically(),
             ) {
+              BoxWithConstraints(Modifier.fillMaxWidth()) {
               Column(
                 modifier = if (landscape) Modifier.fillMaxWidth()
-                    .heightIn(max = (configuration.screenHeightDp * 0.42f).dp)
+                    .heightIn(max = maxHeight * 0.42f)
                     .verticalScroll(rememberScrollState())
                 else Modifier.fillMaxWidth(),
               ) {
@@ -650,6 +651,7 @@ internal fun VideoSearchResultsScreen(
                     Modifier.padding(horizontal = 14.dp),
                     style = MaterialTheme.typography.labelSmall)
             }
+              }
               }
             }
             AnimatedVisibility(visible = controlsCollapsed, modifier = Modifier.fillMaxWidth()) {
