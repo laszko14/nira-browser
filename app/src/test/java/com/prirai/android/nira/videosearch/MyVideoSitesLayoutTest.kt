@@ -99,10 +99,10 @@ class MyVideoSitesLayoutTest {
             layout(decor, 640, 280)
             val rect = Rect()
             assertTrue("last action reachable by scrolling", action.getGlobalVisibleRect(rect))
-            val actionLocation = IntArray(2).also(action::getLocationInWindow)
+            val finalActionLocation = IntArray(2).also(action::getLocationInWindow)
             val headerLocation = IntArray(2).also(headerScroll::getLocationInWindow)
             val headerChild = headerScroll.getChildAt(0)
-            assertEquals("whole action reachable: rect=$rect actionTop=${actionLocation[1]} " +
+            assertEquals("whole action reachable: rect=$rect actionTop=${finalActionLocation[1]} " +
                 "scrollY=${headerScroll.scrollY} viewport=${headerScroll.height} " +
                 "childHeight=${headerChild.height} headerTop=${headerLocation[1]} " +
                 "decorHeight=${decor.height}", action.height, rect.height())
