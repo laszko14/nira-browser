@@ -4,6 +4,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ScrollView
+import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 
@@ -19,7 +20,7 @@ internal class VideoSitesViewAdapter(
             ScrollView(parent.context).apply {
                 isFillViewport = true
                 isNestedScrollingEnabled = true
-                addView(view, ScrollView.LayoutParams(-1, -2))
+                addView(view, FrameLayout.LayoutParams(-1, -2))
                 layoutParams = RecyclerView.LayoutParams(-1,
                     (scrollableMaxHeightDp * resources.displayMetrics.density).toInt())
             }
