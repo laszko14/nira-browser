@@ -87,6 +87,10 @@ class MyVideoSitesLayoutTest {
             action.requestRectangleOnScreen(Rect(0, 0, action.width, action.height), true)
             val headerScroll = descendants(decor).filterIsInstance<ScrollView>().single()
             headerScroll.scrollTo(0, headerScroll.getChildAt(0).measuredHeight)
+            val sitesList = ReflectionHelpers.getField<RecyclerView>(
+                controller.get(), "sitesList"
+            )
+            sitesList.scrollBy(0, 24)
             layout(decor, 640, 280)
             val rect = Rect()
             assertTrue("last action reachable by scrolling", action.getGlobalVisibleRect(rect))
