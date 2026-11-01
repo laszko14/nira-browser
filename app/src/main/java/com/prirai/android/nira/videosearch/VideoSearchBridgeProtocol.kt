@@ -258,7 +258,7 @@ internal object VideoSearchBridgeProtocol {
                 for (i in 0 until raw.length()) {
                     val row = raw.optJSONObject(i) ?: return null
                     if (!row.strict("filmPageUrl", "originalTitle", "thumbnailUrl",
-                            "durationSeconds", "titleSource", "imageSource",
+                            "durationSeconds", "publishedAtMs", "titleSource", "imageSource",
                             "originalIndex")) return null
                     val pageUrl = row.string("filmPageUrl")
                         ?.takeIf { it.length <= 2048 } ?: return null
@@ -281,6 +281,13 @@ internal object VideoSearchBridgeProtocol {
                         } ?: return null
                         else -> return null
                     }
+                    val publishedAt = when (val value = row.opt("publishedAtMs")) {
+                        JSONObject.NULL -> null
+                        is Number -> value.toLong().takeIf {
+                            it.toDouble() == value.toDouble() && it in 0..4_102_444_800_000L
+                        } ?: return null
+                        else -> return null
+                    }
                     val titleSource = when (row.string("titleSource")) {
                         "CARD" -> VideoResultTitleSource.CARD
                         "STRUCTURED" -> VideoResultTitleSource.STRUCTURED
@@ -299,7 +306,7 @@ internal object VideoSearchBridgeProtocol {
                         ?: return null
                     val film = try {
                         VideoSearchExtractedFilm(pageUrl, title, thumbnail, duration,
-                            titleSource, imageSource, index)
+                            titleSource, imageSource, index, publishedAt)
                     } catch (_: IllegalArgumentException) { return null }
                     items.add(film)
                 }

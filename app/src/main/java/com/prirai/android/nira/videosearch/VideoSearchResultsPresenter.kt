@@ -127,6 +127,12 @@ internal object VideoSearchResultsPresenter {
             VideoSearchSort.DURATION_LONGEST ->
                 compareBy<VideoSearchFilm> { it.durationSeconds == null }
                     .thenByDescending { it.durationSeconds ?: -1L }.then(original)
+            VideoSearchSort.DATE_NEWEST ->
+                compareBy<VideoSearchFilm> { it.publishedAtMs == null }
+                    .thenByDescending { it.publishedAtMs ?: -1L }.then(original)
+            VideoSearchSort.DATE_OLDEST ->
+                compareBy<VideoSearchFilm> { it.publishedAtMs == null }
+                    .thenBy { it.publishedAtMs ?: Long.MAX_VALUE }.then(original)
         }
         return VideoSearchResultsDisplay(
             sources = sources,

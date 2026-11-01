@@ -23,11 +23,13 @@ class VideoSearchEnrichedMetadataProtocolTest {
         image: Any = "https://cdn.films.example/poster.webp",
         imageSource: String = "STRUCTURED",
         index: Int = 0,
+        publishedAt: Any = JSONObject.NULL,
     ) = JSONObject().apply {
         put("filmPageUrl", url)
         put("originalTitle", title)
         put("thumbnailUrl", image)
         put("durationSeconds", 544)
+        put("publishedAtMs", publishedAt)
         put("titleSource", titleSource)
         put("imageSource", imageSource)
         put("originalIndex", index)
@@ -47,13 +49,15 @@ class VideoSearchEnrichedMetadataProtocolTest {
     private fun decode(packet: JSONObject) = VideoSearchBridgeProtocol.decode(packet)
         as? VideoSearchBridgeMessage.Results
 
-    @Test fun acceptsStructuredTitleAndPosterProvenance() {
-        val result = decode(response(entry()))!!.page.films.single()
+    @Test fun acceptsStructuredTitlePosterAndPublicationDateProvenance() {
+        val result = decode(response(entry(publishedAt = 1_706_976_000_000L)))!!
+            .page.films.single()
         assertEquals(VideoResultTitleSource.STRUCTURED, result.titleSource)
         assertEquals(VideoResultImageSource.STRUCTURED, result.imageSource)
         assertEquals("https://films.example/watch?id=17&lang=pl", result.filmPageUrl)
         assertEquals("Nazwa z JSON-LD przypisanego do karty", result.originalTitle)
         assertEquals(544L, result.durationSeconds)
+        assertEquals(1_706_976_000_000L, result.publishedAtMs)
     }
 
     @Test fun acceptsMixedIndependentProvenance() {

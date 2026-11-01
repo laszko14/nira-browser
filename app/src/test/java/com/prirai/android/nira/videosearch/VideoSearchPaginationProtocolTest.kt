@@ -44,6 +44,7 @@ class VideoSearchPaginationProtocolTest {
             put("originalTitle", "Film $index")
             put("thumbnailUrl", JSONObject.NULL)
             put("durationSeconds", JSONObject.NULL)
+            put("publishedAtMs", JSONObject.NULL)
             put("titleSource", "CARD")
             put("imageSource", "UNKNOWN")
             put("originalIndex", index)

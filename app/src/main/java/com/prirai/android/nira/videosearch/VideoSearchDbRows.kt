@@ -85,6 +85,7 @@ internal data class VideoSearchFilmRow(
     val imageSource: String,
     val originalIndex: Int,
     val foundAtMs: Long,
+    val publishedAtMs: Long?,
 )
 
 /* Saved folders and links have NO dependency on 30-day search history. */

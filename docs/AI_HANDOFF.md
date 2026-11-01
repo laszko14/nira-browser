@@ -1,30 +1,30 @@
-# AI_HANDOFF — Zavro Clean / scalanie wyników v1203
+# AI_HANDOFF — Zavro Clean / nowy interfejs wyszukiwarki filmów
 
 ```yaml
-task_id: VIDEO-RESULTS-MERGE-V1203
+task_id: VIDEO-SEARCH-UI-DATE-TITLE-V1204
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
-branch: fix/zavro-clean-video-results-merge-v1203-20261101
-base_sha: 5a8098e52a215c67940cb201a24326a6165755a0
-observed_head_sha: 5a8098e52a215c67940cb201a24326a6165755a0
+branch: feat/zavro-clean-video-search-ui-date-v1203-20261101
+base_sha: 6ab034baeb1b973452bb0bb551ffbbf4556a2dd9
 status: CI_PENDING
-acceptance_source: Screenshot user 2026-11-01: 24:35/24:34, 27:13/27:12 and 32:05/32:04 remain separate despite matching titles.
-change_scope: Strip view-count prefixes only before timestamps; always compare nearby candidates even for an exact-key repeat; retain earliest candidates in bounded fuzzy buckets. Regression: three real screenshot pairs, 2+2 clusters, view-count genuine-title guard, unrelated near-duration control.
-required_ci: .github/workflows/apk-release.yml workflow_dispatch tests-only then authorized private debug-apk from same final SHA; JavaScript, JVM/Robolectric, AndroidTest compile, lint regression; signed update verification.
-apk: TARGET versionCode 1203, versionName 0.5.22-alpha108-clean, arm64-v8a, com.prirai.android.nira.debug; fixed certificate.
-device: NOT_TESTED; install on user's Nothing Phone (1) requires user action.
-safety: No merge to main, public release, force-push, database migration, changes to profiles/sessions/signature.
-changed_paths:
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsMerge.kt
-  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsMergeTest.kt
-  - app/build.gradle
-  - .github/workflows/apk-release.yml
-  - app/src/test/js/release-contract-stage19a.test.cjs
-  - app/src/test/js/update-apk-workflow-scope.test.cjs
-  - docs/AI_HANDOFF.md
-next_action: Verify required CI and signed private APK artifact on final commit SHA; fix failures in this one task only.
+source_version: 0.5.22-alpha108-clean (ARM64 versionCode 1203)
+target_version: 0.5.22-alpha109-clean (ARM64 versionCode 1204)
+scope:
+  - Refresh video result surfaces and group per-site actions into collapsible sections.
+  - Collapse result controls while the results list/grid scrolls forward; reveal on reverse scroll.
+  - Extract safe publication dates, persist through Room v2->v3, and sort newest/oldest.
+  - Reject titles that consist only of a runtime timestamp.
+  - Preserve profile/session isolation, history, result positions, package, ABI, and signing certificate.
+required_ci: PR regression workflow on final SHA; then authorized workflow_dispatch debug-apk on same final SHA, verify-update-apk.sh, certificate and SHA-256 evidence.
+device: NOT_TESTED
+local_android_tests: BLOCKED (Gradle wrapper download unavailable: network unreachable); use GitHub Actions.
+local_js_tests: 405/405 PASS, including publication-date/runtime-title regressions.
+safety: No merge to main, public release, force-push, or destructive migration.
+checkpoint: Implementation and final source review complete. 405/405 local JavaScript tests PASS; focused JS title/date regression PASS. Android/Room/Kotlin verification is pending because local Gradle distribution download failed with network unreachable. No APK/device test yet.
+next_action: Push commit, open draft PR against the v1203 branch and wait for required CI. Then run authorized private debug-apk workflow on the same final SHA and verify package, version, ARM64 ABI, fixed signing certificate and APK SHA-256.
 ```
 
 ## Wznowienie
-Zawsze odczytaj bieżący HEAD gałęzi i AGENTS.md z tego samego SHA. To zadanie jednej poprawki 1/1; nie uznawaj CI_PENDING za PASS i nie przypisuj sobie testu telefonu.
+
+Sprawdź żywy HEAD gałęzi oraz ten handoff z jawnego SHA przed dalszymi zmianami. Zachowaj starszy checkpoint scalania wyników w `docs/ai/archive/AI_HANDOFF_VIDEO_RESULTS_MERGE_V1203_20261101.md`. `CI_PENDING` nie oznacza PASS. Raportuj CODE_VERIFIED, APK_VERIFIED i DEVICE_VERIFIED osobno.

@@ -41,7 +41,7 @@ class VideoSearchResultsRepositoryTest {
         originalTitle = "Film $index", thumbnailUrl = "https://cdn.example.org/$siteId.jpg",
         durationSeconds = 90L, titleSource = VideoResultTitleSource.CARD,
         imageSource = VideoResultImageSource.CARD, originalIndex = index,
-        foundAtMs = 101L,
+        foundAtMs = 101L, publishedAtMs = 1_706_976_000_000L,
     )
 
     @Test fun transactionalSnapshotContainsRunTasksAndFilmsFromBothSites() = runBlocking {
@@ -78,6 +78,7 @@ class VideoSearchResultsRepositoryTest {
             assertEquals("https://cdn.example.org/a.jpg", result.thumbnailUrl)
             assertEquals("Film 0", result.originalTitle)
             assertEquals(90L, result.durationSeconds)
+            assertEquals(1_706_976_000_000L, result.publishedAtMs)
             assertEquals(VideoResultImageSource.CARD, result.imageSource)
             assertEquals("Snapshot a", result.siteName)
         } finally { db.close() }

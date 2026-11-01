@@ -137,7 +137,8 @@ internal class VideoSearchPrivateGroupAccess(
                 runId = runId, siteId = site.id, scope = scope,
                 siteName = site.displayName, filmPageUrl = film.filmPageUrl,
                 originalTitle = film.originalTitle, thumbnailUrl = film.thumbnailUrl,
-                durationSeconds = film.durationSeconds, titleSource = film.titleSource,
+                durationSeconds = film.durationSeconds, publishedAtMs = film.publishedAtMs,
+                titleSource = film.titleSource,
                 imageSource = film.imageSource, originalIndex = already.size + index,
                 foundAtMs = stamp,
             ))

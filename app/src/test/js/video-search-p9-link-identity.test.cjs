@@ -52,12 +52,31 @@ function anchor(href, label = '', options = {}) {
     pick: options.pick || false
   };
 }
-function card(links, title = null) {
+function card(links, title = null, metadata = {}) {
+  const durationNode = metadata.duration ? {
+    textContent: metadata.duration,
+    getAttribute(name) {
+      return name === 'data-duration' ? metadata.duration :
+        name === 'datetime' ? metadata.duration : null;
+    }
+  } : null;
+  const publicationNode = metadata.published ? {
+    textContent: metadata.published,
+    getAttribute(name) {
+      return name === 'datetime' || name === 'content' ||
+        name === 'data-published' ? metadata.published : null;
+    }
+  } : null;
   return {
     querySelectorAll(selector) {
       if (selector === 'a[href]') return links;
       if (selector === 'a.film') return links.filter(a => a.pick);
-      if (selector.includes('script[type=')) return [];
+      if (selector.includes('script[type=')) return metadata.structured ?
+        [{ textContent: JSON.stringify(metadata.structured) }] : [];
+      if (selector.includes('data-duration') || selector.includes('.video-duration'))
+        return durationNode ? [durationNode] : [];
+      if (selector.includes('datePublished') || selector.includes('data-published') ||
+          selector.includes('time[datetime]:not')) return publicationNode ? [publicationNode] : [];
       if (selector.includes('h1,h2,h3,h4') && title) return [titleNode(title)];
       return [];
     }
@@ -105,6 +124,28 @@ test('category link before unmarked film link resolves by exact card-local headi
   assert.equal(packet.films.length, 1);
   assert.equal(packet.films[0].filmPageUrl, origin + '/details?id=1&lang=pl');
   assert.equal(packet.films[0].originalTitle, 'Film A');
+});
+
+test('publication date is preserved and runtime text is not mislabeled as a title', () => {
+  const packet = run([
+    card([anchor(origin + '/watch?id=1', '24:35')], '24:35', {
+      duration: '24:35', published: '2024-02-03T12:00:00Z'
+    }),
+    card([anchor(origin + '/watch?id=2', 'Birds at 24:35')], 'Birds at 24:35', {
+      duration: '24:35'
+    }),
+    card([anchor(origin + '/watch?id=3', 'Actual bird film')], 'Actual bird film', {
+      duration: '24:35',
+      structured: { '@type': 'VideoObject', url: origin + '/watch?id=3', name: '24:35' }
+    })
+  ]);
+  assert.equal(packet.films[0].originalTitle, null);
+  assert.equal(packet.films[0].durationSeconds, 1475);
+  assert.equal(packet.films[0].publishedAtMs, Date.parse('2024-02-03T12:00:00Z'));
+  assert.equal(packet.films[1].originalTitle, 'Birds at 24:35');
+  assert.equal(packet.films[1].publishedAtMs, null);
+  assert.equal(packet.films[2].originalTitle, 'Actual bird film');
+  assert.equal(packet.films[2].titleSource, 'CARD');
 });
 
 test('unmarked category and film links: unique film path is evidence, never first link', () => {

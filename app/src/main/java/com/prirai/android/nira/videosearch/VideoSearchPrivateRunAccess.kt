@@ -63,6 +63,7 @@ internal class VideoSearchPrivateRunAccess(
                 scope = scope, siteName = site.displayName,
                 filmPageUrl = card.filmPageUrl, originalTitle = card.originalTitle,
                 thumbnailUrl = card.thumbnailUrl, durationSeconds = card.durationSeconds,
+                publishedAtMs = card.publishedAtMs,
                 titleSource = card.titleSource, imageSource = card.imageSource,
                 originalIndex = index, foundAtMs = now,
             )
@@ -160,7 +161,8 @@ internal class VideoSearchPrivateRunAccess(
                 runId = runId, siteId = siteId, scope = scope,
                 siteName = site.displayName, filmPageUrl = film.filmPageUrl,
                 originalTitle = film.originalTitle, thumbnailUrl = film.thumbnailUrl,
-                durationSeconds = film.durationSeconds, titleSource = film.titleSource,
+                durationSeconds = film.durationSeconds, publishedAtMs = film.publishedAtMs,
+                titleSource = film.titleSource,
                 imageSource = film.imageSource, originalIndex = existing.size + index,
                 foundAtMs = stamp,
             ))

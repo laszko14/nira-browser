@@ -21,6 +21,7 @@ class VideoSearchResultExtractionTest {
         title: Any = "Pełny tytuł pierwszego filmu",
         thumbnail: Any = "https://images.example.net/posters/37.webp",
         duration: Any = 536,
+        publishedAt: Any = JSONObject.NULL,
         source: String = "CARD",
         imageSource: String = "CARD",
         index: Int = 0,
@@ -29,6 +30,7 @@ class VideoSearchResultExtractionTest {
         put("originalTitle", title)
         put("thumbnailUrl", thumbnail)
         put("durationSeconds", duration)
+        put("publishedAtMs", publishedAt)
         put("titleSource", source)
         put("imageSource", imageSource)
         put("originalIndex", index)
@@ -49,12 +51,13 @@ class VideoSearchResultExtractionTest {
         VideoSearchBridgeProtocol.decode(json) as? VideoSearchBridgeMessage.Results
 
     @Test fun extractsExactFilmPageQueryOriginalCardTitleImageAndDuration() {
-        val parsed = decode(result(film()))!!
+        val parsed = decode(result(film(publishedAt = 1_706_976_000_000L)))!!
         val first = parsed.page.films.single()
         assertEquals("https://example.org/film?id=37&lang=pl", first.filmPageUrl)
         assertEquals("Pełny tytuł pierwszego filmu", first.originalTitle)
         assertEquals("https://images.example.net/posters/37.webp", first.thumbnailUrl)
         assertEquals(536L, first.durationSeconds)
+        assertEquals(1_706_976_000_000L, first.publishedAtMs)
         assertEquals(VideoResultTitleSource.CARD, first.titleSource)
         assertEquals(VideoResultImageSource.CARD, first.imageSource)
         assertEquals(0, first.originalIndex)
@@ -139,6 +142,8 @@ class VideoSearchResultExtractionTest {
         assertNull(decode(result(film(duration = 20.5))))
         assertNull(decode(result(film(index = -1))))
         assertNull(decode(result(film(index = 201))))
+        assertNull(decode(result(film(publishedAt = -1))))
+        assertNull(decode(result(film(publishedAt = "2024-01-01"))))
     }
 
     @Test fun rejectsDuplicateUrlsOrDuplicateIndexes() {

@@ -5,6 +5,9 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.background
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -25,6 +28,7 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,6 +45,7 @@ import java.text.DateFormat
 import java.util.Date
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.lifecycle.lifecycleScope
@@ -72,9 +77,9 @@ internal class VideoSearchResultsActivity : AppCompatActivity() {
         setContentView(ComposeView(this).apply {
             setContent {
                 MaterialTheme(colorScheme = darkColorScheme(
-                    primary = Color(0xff3eb6f5),
-                    background = Color(0xff0c1015),
-                    surface = Color(0xff181e25),
+                    primary = Color(0xffd0b5ff),
+                    background = Color(0xff100d14),
+                    surface = Color(0xff201c26),
                     onSurface = Color.White,
                 )) {
                     VideoSearchResultsScreen(
@@ -308,6 +313,24 @@ internal fun VideoSearchResultsScreen(
     val listState = remember(run?.id, retainedRun) {
         retainedRun?.listState ?: LazyListState()
     }
+    var controlsCollapsed by remember(run?.id) { mutableStateOf(false) }
+    LaunchedEffect(run?.id, state.view, gridState, listState) {
+        var previous: Long? = null
+        snapshotFlow {
+            if (state.view == VideoSearchView.TILES) {
+                (gridState.firstVisibleItemIndex.toLong() * 100_000L +
+                    gridState.firstVisibleItemScrollOffset) to gridState.isScrollInProgress
+            } else {
+                (listState.firstVisibleItemIndex.toLong() * 100_000L +
+                    listState.firstVisibleItemScrollOffset) to listState.isScrollInProgress
+            }
+        }.collect { (position, scrolling) ->
+            if (scrolling) previous?.let { before ->
+                if (position != before) controlsCollapsed = position > before
+            }
+            previous = position
+        }
+    }
     val visibleKeys = remember(visibleResults, groups, byWebsite, expandedSites) {
         if (visibleResults == null) emptyList() else VideoSearchScrollKeys.visible(
             visibleResults, groups, byWebsite, expandedSites
@@ -326,7 +349,7 @@ internal fun VideoSearchResultsScreen(
         pendingLayoutSwitch = null
     }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = Color(0xff0c1015)) {
+    Surface(modifier = Modifier.fillMaxSize(), color = Color(0xff100d14)) {
         Column(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically) {
@@ -366,6 +389,13 @@ internal fun VideoSearchResultsScreen(
                 }
                 return@Column
             }
+            AnimatedVisibility(
+                visible = !controlsCollapsed,
+                modifier = Modifier.fillMaxWidth(),
+                enter = expandVertically(),
+                exit = shrinkVertically(),
+            ) {
+              Column {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 Box {
@@ -540,6 +570,15 @@ internal fun VideoSearchResultsScreen(
                     Modifier.padding(horizontal = 14.dp),
                     style = MaterialTheme.typography.labelSmall)
             }
+              }
+            }
+            AnimatedVisibility(visible = controlsCollapsed, modifier = Modifier.fillMaxWidth()) {
+                TextButton(onClick = { controlsCollapsed = false },
+                    modifier = Modifier.fillMaxWidth()) {
+                    Text("Pokaż opcje · ${VideoSearchRunLabels.sort(sort)} · ${run.query}",
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
             if (!byWebsite && results.visibleFilms.isEmpty() ||
                 byWebsite && groups.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -709,7 +748,7 @@ private fun VideoSearchSourceHeader(
     val source = group.source
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle),
-        colors = CardDefaults.cardColors(containerColor = Color(0xff24313d)),
+        colors = CardDefaults.cardColors(containerColor = Color(0xff302a38)),
     ) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -721,7 +760,7 @@ private fun VideoSearchSourceHeader(
                     style = MaterialTheme.typography.titleMedium)
                 Text("${source.count} filmów",
                     style = MaterialTheme.typography.labelMedium,
-                    color = Color(0xffa8c3d7))
+                    color = Color(0xffd0b5ff))
             }
             Text(VideoSearchResultsPresenter.statusLabel(source.state) +
                 " · ${source.pages} str. · limit ${source.limit}" +
@@ -729,11 +768,11 @@ private fun VideoSearchSourceHeader(
                     ?: VideoSearchResultsPresenter.budgetLabel(source.issue))
                     ?.let { " · $it" } ?: ""),
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xffb7c5d2))
+                color = Color(0xffc9c0d2))
             if (expanded && group.films.isEmpty()) {
                 Text("Brak zapisanych filmów z tej witryny.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xffb7c5d2),
+                    color = Color(0xffc9c0d2),
                     modifier = Modifier.padding(top = 5.dp))
             }
         }
@@ -774,7 +813,7 @@ private fun VideoSearchFilmTile(
     Card(modifier = Modifier.fillMaxWidth().combinedClickable(
         onClick = { onOpen(film) }, onLongClick = { onLongPress(film) }
     ),
-        colors = CardDefaults.cardColors(containerColor = Color(0xff1a232c))) {
+        colors = CardDefaults.cardColors(containerColor = Color(0xff211d27))) {
         Column(Modifier.padding(6.dp)) {
             FilmPoster(film, Modifier.fillMaxWidth().height(104.dp))
             Spacer(Modifier.height(6.dp))
@@ -784,8 +823,9 @@ private fun VideoSearchFilmTile(
                 style = MaterialTheme.typography.bodyMedium)
             Text(mergedLabel ?: film.siteName, maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                color = Color(0xffa8c3d7),
+                color = Color(0xffd0b5ff),
                 style = MaterialTheme.typography.labelSmall)
+            FilmPublishedDate(film)
         }
     }
 }
@@ -800,7 +840,7 @@ private fun VideoSearchFilmRow(
     Card(modifier = Modifier.fillMaxWidth().combinedClickable(
         onClick = { onOpen(film) }, onLongClick = { onLongPress(film) }
     ),
-        colors = CardDefaults.cardColors(containerColor = Color(0xff1a232c))) {
+        colors = CardDefaults.cardColors(containerColor = Color(0xff211d27))) {
         Row(Modifier.fillMaxWidth().padding(8.dp),
             verticalAlignment = Alignment.CenterVertically) {
             FilmPoster(film, Modifier.width(118.dp).height(72.dp))
@@ -815,6 +855,7 @@ private fun VideoSearchFilmRow(
                     overflow = TextOverflow.Ellipsis,
                     color = Color(0xffa8c3d7),
                     style = MaterialTheme.typography.labelSmall)
+                FilmPublishedDate(film)
             }
         }
     }
@@ -847,7 +888,8 @@ private fun VideoSearchMergedFilmPicker(
                                 style = MaterialTheme.typography.bodyMedium,
                                 maxLines = 2, overflow = TextOverflow.Ellipsis)
                             val duration = VideoSearchResultsPresenter.durationLabel(film.durationSeconds)
-                            Text(film.siteName + (duration?.let { " · " + it } ?: ""),
+                            Text(film.siteName + (duration?.let { " · " + it } ?: "") +
+                                (film.publishedAtMs?.let { " · " + publishedDateLabel(it) } ?: ""),
                                 style = MaterialTheme.typography.labelSmall)
                         }
                         TextButton(onClick = {
@@ -878,5 +920,18 @@ internal object VideoSearchRunLabels {
         VideoSearchSort.TITLE_Z_A -> "Tytuł Z–A"
         VideoSearchSort.DURATION_SHORTEST -> "Najkrótsze"
         VideoSearchSort.DURATION_LONGEST -> "Najdłuższe"
+        VideoSearchSort.DATE_NEWEST -> "Data: najnowsze"
+        VideoSearchSort.DATE_OLDEST -> "Data: najstarsze"
     }
 }
+
+@Composable
+private fun FilmPublishedDate(film: VideoSearchFilm) {
+    Text(film.publishedAtMs?.let(::publishedDateLabel) ?: "Data nieznana",
+        color = Color(0xffaaa2b2),
+        style = MaterialTheme.typography.labelSmall,
+        maxLines = 1, overflow = TextOverflow.Ellipsis)
+}
+
+private fun publishedDateLabel(timeMs: Long): String =
+    "Data publikacji · " + DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(timeMs))

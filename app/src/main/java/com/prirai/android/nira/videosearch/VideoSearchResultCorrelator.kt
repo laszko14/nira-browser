@@ -43,6 +43,7 @@ internal object VideoSearchResultCorrelator {
             // Duration source is not typed in the persistent model: keep first
             // valid duration; never replace it with a conflicting guess.
             durationSeconds = first.durationSeconds ?: later.durationSeconds,
+            publishedAtMs = first.publishedAtMs ?: later.publishedAtMs,
             originalIndex = minOf(first.originalIndex, later.originalIndex),
         )
     }
