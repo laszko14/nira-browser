@@ -81,7 +81,7 @@ class MyVideoSitesLayoutTest {
             val decor = controller.get().window.decorView
             layout(decor, 640, 280)
             val action = descendants(decor).filterIsInstance<Button>().single {
-                it.text == "Zapisane filmy — foldery"
+                it.text == "▱\nFoldery"
             }
             action.requestRectangleOnScreen(Rect(0, 0, action.width, action.height), true)
             layout(decor, 640, 280)
@@ -301,6 +301,102 @@ class MyVideoSitesLayoutTest {
             assertEquals(VideoSiteConfigurationState.NEEDS_CONFIGURATION, added.configurationState)
             assertNull(added.configuration)
             assertEquals("", field.text.toString())
+        } finally { controller.stop().destroy() }
+    }
+
+    @Test fun savedSitesStartAsCompactRowsAndExpandIndependentlyOnHeaderTap() {
+        RuntimeEnvironment.setQualifiers("w360dp-h800dp-port")
+        val controller = Robolectric.buildActivity(MyVideoSitesActivity::class.java)
+        controller.get().setTheme(R.style.AppThemeSettings)
+        controller.create().start().visible()
+        try {
+            val activity = controller.get()
+            val owner = VideoSearchScope.Normal("default")
+            ReflectionHelpers.setField(activity, "scope", owner)
+            val adapter = ReflectionHelpers.getField<RecyclerView.Adapter<*>>(activity, "adapter")
+            val rows = listOf("first", "second").mapIndexed { index, id ->
+                VideoSearchSite(id, owner, "https://$id.example.invalid", id, index,
+                    createdAtMs = 1)
+            }
+            adapter.javaClass.getDeclaredMethod("replace", List::class.java, Set::class.java)
+                .apply { isAccessible = true }.invoke(adapter, rows, emptySet<String>())
+            val list = ReflectionHelpers.getField<RecyclerView>(activity, "sitesList")
+            val decor = activity.window.decorView
+            layout(decor, 360, 800)
+
+            fun expandedContent(position: Int): View {
+                val holder = list.findViewHolderForAdapterPosition(position)
+                assertNotNull("site row $position is rendered", holder)
+                return (holder!!.itemView as ViewGroup)
+                    .findViewWithTag("video-site-expanded-content")
+            }
+            assertEquals(View.GONE, expandedContent(1).visibility)
+            assertEquals(View.GONE, expandedContent(2).visibility)
+
+            val firstHeader = list.findViewHolderForAdapterPosition(1)!!.itemView
+                .findViewWithTag<View>("video-site-header")
+            assertNotNull(firstHeader)
+            assertTrue("site header is actionable", firstHeader!!.performClick())
+            layout(decor, 360, 800)
+            assertEquals(View.VISIBLE, expandedContent(1).visibility)
+            assertEquals("expanding one site leaves its neighbor compact",
+                View.GONE, expandedContent(2).visibility)
+        } finally { controller.stop().destroy() }
+    }
+
+    @Test fun landscapeUsesTwoColumnSettingsAndKeepsCompactSearchActionsVisible() {
+        RuntimeEnvironment.setQualifiers("w640dp-h280dp-land")
+        val controller = Robolectric.buildActivity(MyVideoSitesActivity::class.java)
+        controller.get().setTheme(R.style.AppThemeSettings)
+        controller.create().start().visible()
+        try {
+            val activity = controller.get()
+            val decor = activity.window.decorView
+            layout(decor, 640, 280)
+            val header = ReflectionHelpers.getField<android.widget.LinearLayout>(activity, "normalHeader")
+            assertEquals("landscape settings use the available width",
+                android.widget.LinearLayout.HORIZONTAL, header.orientation)
+            val compact = decor.findViewWithTag<View>("video-sites-compact-search")
+            assertNotNull(compact)
+            assertEquals(View.VISIBLE, compact!!.visibility)
+            val search = compact.findViewWithTag<View>("video-sites-compact-search-action")
+            val settings = compact.findViewWithTag<View>("video-sites-compact-settings-action")
+            assertNotNull(search)
+            assertNotNull(settings)
+            assertTrue(search!!.isClickable)
+            assertTrue(settings!!.isClickable)
+        } finally { controller.stop().destroy() }
+    }
+
+    @Test fun expandedSiteSectionsRemainIndividuallyReachable() {
+        RuntimeEnvironment.setQualifiers("w360dp-h800dp-port")
+        val controller = Robolectric.buildActivity(MyVideoSitesActivity::class.java)
+        controller.get().setTheme(R.style.AppThemeSettings)
+        controller.create().start().visible()
+        try {
+            val activity = controller.get()
+            val owner = VideoSearchScope.Normal("default")
+            ReflectionHelpers.setField(activity, "scope", owner)
+            val adapter = ReflectionHelpers.getField<RecyclerView.Adapter<*>>(activity, "adapter")
+            val site = VideoSearchSite("section-site", owner,
+                "https://section.example.invalid", "Section", 0, createdAtMs = 1)
+            adapter.javaClass.getDeclaredMethod("replace", List::class.java, Set::class.java)
+                .apply { isAccessible = true }.invoke(adapter, listOf(site), emptySet<String>())
+            val list = ReflectionHelpers.getField<RecyclerView>(activity, "sitesList")
+            layout(activity.window.decorView, 360, 800)
+            val row = list.findViewHolderForAdapterPosition(1)!!.itemView
+            row.findViewWithTag<View>("video-site-header")!!.performClick()
+            layout(activity.window.decorView, 360, 800)
+            repeat(4) { index ->
+                val section = row.findViewWithTag<View>("video-site-section-header-$index")
+                val content = row.findViewWithTag<View>("video-site-section-content-$index")
+                assertNotNull("configuration section $index is available", section)
+                assertNotNull("configuration section $index has its actions", content)
+                section!!.performClick()
+                assertEquals("tapped section $index expands", View.VISIBLE, content!!.visibility)
+                assertTrue("section content has accessible controls",
+                    (content as ViewGroup).childCount > 0)
+            }
         } finally { controller.stop().destroy() }
     }
 }

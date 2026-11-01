@@ -23,7 +23,18 @@ test('PR, push and tags cannot reach installation or release job in Android CI',
   assert.match(b,/needs: regression-tests/);
   assert.match(b,/github\.event_name == 'workflow_dispatch'/);
   assert.match(b,/inputs\.build_kind == 'debug-apk'/);
-  assert.match(b,/inputs\.approval_phrase == 'Kompiluj'/);
+  assert.match(b,/inputs\.task_kind == 'implementation'/);
+  assert.match(b,/inputs\.task_id != ''/);
+  assert.match(b,/inputs\.source_sha == github.sha/);
+  assert.match(b,/github.ref != 'refs\/heads\/main'/);
+  assert.match(b,/Validate dispatched implementation task/);
+  assert.match(b,/git rev-parse HEAD/);
+  assert.match(b,/github\.event_name == 'pull_request_review'/);
+  assert.match(b,/github\.event\.review\.state == 'commented'/);
+  assert.match(b,/github\.event\.review\.user\.login == 'laszko14'/);
+  assert.match(b,/scripts\/authorize-private-apk-review\.cjs/);
+  assert.match(b,/REVIEW_HEAD_SHA/);
+  assert.match(b,/head_sha=\$REVIEW_HEAD_SHA/);
   assert.match(b,/verify-update-apk\.sh/);
   const release=main.split(/^  release:\s*$/m)[1];
   assert.match(release,/github\.event_name == 'workflow_dispatch'/);
@@ -55,6 +66,7 @@ test('stage 6: release depends on green tests and exact tagged SHA',()=>{
 });
 test('process branch calls exactly the shared tests and keeps its safe doc gate',()=>{
   assert.match(process,/^  shared-tests:/m);
+  assert.match(process,/feat\/zavro-clean-search-redesign-v2-20261101/);
   assert.match(process,/uses: \.\/\.github\/workflows\/zavro-tests-reusable\.yml/);
   assert.match(process,/node --test scripts\/check-ci-workflows\.test\.cjs/);
   assert.match(process,/node --test scripts\/check-ai-handoff\.test\.cjs/);
@@ -69,4 +81,30 @@ test('all legacy workflow files remain and are inventoried, never silently accep
   const risky=all.filter(x=>x.file!=='apk-release.yml'&&x.assembly&&x.events.includes('push'));
   assert.ok(risky.length>0,'legacy push-build hazards should remain listed for migration');
   assert.ok(!all.find(x=>x.file==='apk-release.yml').assembly || main.includes("inputs.build_kind == 'debug-apk'"));
+});
+
+test('v2 negative controls fail on removed task, SHA, ref or verifier protections',()=>{
+  const build=main.split(/^  build:\s*$/m)[1].split(/^  regression-tests:\s*$/m)[0];
+  function contract(x){
+    for(const s of ["github.event_name == 'workflow_dispatch'","inputs.task_kind == 'implementation'",
+       "inputs.task_id != ''","inputs.source_sha == github.sha","github.ref != 'refs/heads/main'",
+       '"$SOURCE_SHA" == "$GITHUB_SHA"','git rev-parse HEAD','verify-update-apk.sh']){
+      assert.ok(x.includes(s),'Missing security contract: '+s);
+    }
+  }
+  contract(build);
+  const inputs=[
+    ["inputs.task_kind == 'implementation'","true"],
+    ["inputs.task_id != ''","true"],
+    ["inputs.source_sha == github.sha","true"],
+    ["github.ref != 'refs/heads/main'","true"],
+    ['"$SOURCE_SHA" == "$GITHUB_SHA"','true'],
+    ['git rev-parse HEAD','fake-head'],
+    ['verify-update-apk.sh','skip-verification']
+  ];
+  for(const [good,bad] of inputs){
+    const altered=build.replaceAll(good,bad);
+    assert.notEqual(altered,build);
+    assert.throws(()=>contract(altered),assert.AssertionError);
+  }
 });

@@ -1,32 +1,38 @@
-# AI_HANDOFF — Zavro Clean · results toolbar viewport v1206
+# AI_HANDOFF — Zavro Clean · v2.0 search redesign
+
+> Historia wcześniejszych przekazań: [archiwum](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md).
 
 ```yaml
-task_id: VIDEO_RESULTS_HEADER_VIEWPORT_V1206_20261101
+task_id: ZAVRO-CLEAN-SEARCH-REDESIGN-V2-20261101
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
-branch: fix/zavro-clean-video-results-header-v1206-20261101
-base_sha: c4c1cba7ef1f51d11fc98cee8e69cdb78abcfa53
-observed_head_sha: c4c1cba7ef1f51d11fc98cee8e69cdb78abcfa53
+branch: feat/zavro-clean-search-redesign-v2-20261101
+base_sha: de8d893731471bd9ac78e4c6006ab34d567eef0d
+observed_head_sha: de8d893731471bd9ac78e4c6006ab34d567eef0d
 status: CI_PENDING
-source_version: 0.5.22-alpha110-clean / arm64 versionCode 1205
-target_version: 0.5.22-alpha111-clean / arm64 versionCode 1206
-device: NOT_TESTED
-apk: NOT_BUILT
-scope:
-  - Restore visible and clickable results header and actions underneath browser chrome.
-  - Reserve the same viewport margins for results ComposeView as for GeckoView.
-  - Keep toolbar animation translation synchronized with Gecko's viewport.
-  - Preserve results state, filters, selection, scroll, profiles and signed update identity.
-tests:
-  - Robolectric WebContentPositionManagerTest: top, collapsed, bottom chrome, fullscreen restoration
-  - Required JavaScript/Kotlin/lint/AndroidTest compile on final SHA via Android CI
-limitations:
-  - No connected physical device; DEVICE_NOT_TESTED.
-  - Existing review-triggered private APK flow requires live validation and authenticated owner review after green CI.
-  - Changes are based on the v1205 APK-review branch (AGENTS v1.6); V2.0 migration is not automatically inherited.
-next_action: Confirm all required CI gates on final HEAD, then if authorized invoke the reviewed PR command and verify signed APK; otherwise APK_BLOCKED.
+implementation_status: UI implementation and CI v2.0 migration in progress
+acceptance_source: User request 2026-11-01 to migrate v1206 to CI v2.0 and redesign My sites and video search results from the attached portrait reference with a separate landscape adaptation
+required_ci: zavro-ai-process-docs (process-docs, four shared-tests jobs, quality-evidence); Android CI pull_request (four shared regression jobs); exact-SHA owner review for private APK
+device: DEVICE_NOT_TESTED; adb is unavailable in this environment
+apk: pending green final-SHA CI and exact-SHA authenticated PR review; expected com.prirai.android.nira.debug, arm64-v8a, versionCode 1207, versionName 0.5.22-alpha112-clean, signing certificate retained
+changed_paths:
+  - AGENTS.md and v2.0 instruction set
+  - CI workflows and their regression tests
+  - MyVideoSitesActivity and its layout tests
+  - VideoSearchResultsScreen and UI state tests
+verified_before_push:
+  - Local starting checkout was clean and moved to a task branch from v1206
+  - GitHub connector confirmed source commit de8d893731471bd9ac78e4c6006ab34d567eef0d
+  - v1206 and v2.0 instruction branch share ancestor e496e141f97045f1a9d315e349a1666277547569
+  - Original v1206 owner-review APK trigger is retained alongside v2.0 dispatch guards
+  - Baseline handoff contract test failed because acceptance_source was missing
+  - Local Gradle bootstrap could not download Gradle 9.7.1; adb is unavailable
+blockers:
+  - Android unit/UI tests require GitHub CI: Gradle 9.7.1 is cached, but the required JetBrains JDK 21 cannot be downloaded from Foojay in this environment
+  - Required GitHub CI and authenticated private APK review remain to be run on final SHA
+next_action: Finish UI implementation and local JavaScript/process gates, commit and push a PR without merging, verify all required jobs on the final SHA, then use the exact authorized review trigger for one verified private APK
+evidence_links:
+  - https://github.com/laszko14/nira-browser/commit/de8d893731471bd9ac78e4c6006ab34d567eef0d
+  - https://github.com/laszko14/nira-browser/tree/7a60fbcb8463afca3526675a8d47dd28ce89b9be
 ```
-
-No merge to main, force-push, public release, data deletion or signing-key changes.
-Checkpoint is pre-commit by design; consult live ref and CI for final SHA and run.

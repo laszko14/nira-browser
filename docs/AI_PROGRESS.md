@@ -1,5 +1,14 @@
 
 
+# 2026-11-01 — Zavro Clean v1207, CI v2.0 migration and search UI redesign
+
+- Branched from verified v1206 `de8d893731471bd9ac78e4c6006ab34d567eef0d`; V2 instruction/workflow set is present on the feature branch, with the existing owner-only exact-SHA APK PR review trigger retained.
+- Android version advanced to ARM64 code 1207 / `0.5.22-alpha112-clean`; package and signing identity remain unchanged.
+- Reworked the active `MyVideoSitesActivity` list/header for compact collapsed site rows, expandable per-site configuration actions, cached/loaded favicons, quick actions, profile selector, landscape columns and compact scroll toolbar. Preserved profile-scoped scroll and added expanded-row restoration.
+- Restyled the active shared results composable, persisted collapsed filter state per tab/profile/run, and made landscape open in its compact results layout. Existing film metadata, merge, group, selection, history and navigation flows remain connected.
+- Added Robolectric and presentation-state regressions. Process/migration Node checks passed 45/45; full JS suite passed 408/408. Android unit/UI suite could not run locally: Gradle needs JetBrains JDK 21 from Foojay, and network access to Foojay is refused. `adb` is unavailable.
+- Required final-SHA GitHub CI, PR, signed APK review and physical Nothing Phone (1) validation remain pending; no device or APK pass is claimed.
+
 ## 2026-10-27 — Zavro Clean v1180, metadata engine (prace w toku)
 
 - Baza v1179: `856281be65561c4fd54c0b97fd7ba28ca6018f51` (PR #94), niezależna gałąź `feat/zavro-clean-v1180-metadata-engine-20261027` bez merge.
