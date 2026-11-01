@@ -20,6 +20,11 @@
       "task_id": "ZC-V32-CHAT-ERROR-SMOKE",
       "observed_count": 1,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V1208-NEON-REDESIGN",
+      "observed_count": 2,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -168,6 +173,44 @@
       "regression_test": null,
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/119"
+      ]
+    },
+    {
+      "id": "ERR-20261101-0004",
+      "task_id": "ZC-V1208-NEON-REDESIGN",
+      "kind": "USER_REPORT",
+      "fingerprint": "video-search-redesign-unreadable-oversized-ui",
+      "summary": "Uzytkownik zglosil, ze poprzednie przeprojektowanie Moje witryny i Wyniki filmow zepsulo czytelnosc i uklad; zalaczone zrzuty pokazaly czarny tekst na ciemnym tle, zbyt duze przyciski i zajmujace ekran filtry.",
+      "source_sha": "4d7191ae288246ea3d4348eebabfb5f49a3a5149",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/video-search-neon-redesign.test.cjs",
+      "evidence_links": []
+    },
+    {
+      "id": "CI-41346184372-1-124966435012",
+      "task_id": "ZC-V1208-NEON-REDESIGN",
+      "kind": "CI_FAILURE",
+      "fingerprint": "v1208-stale-apk-workflow-metadata",
+      "summary": "Pierwszy SOURCE CI po podniesieniu Gradle do v1208: 12 testow JS odrzucilo niezsynchronizowane v1207 w kontrakcie prywatnego APK i fixture negatywnej; poprawiono oczekiwania bez oslabiania walidatora.",
+      "source_sha": "088957cda4c1534a9a2bc7cd8e8563e41af85e70",
+      "observed_at": "2026-11-01T20:18:55Z",
+      "run_id": 41346184372,
+      "job_id": 124966435012,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "64613c3c8ab5ce2c12e655c9eba8ddbab2a63f39",
+      "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41346184372"
       ]
     }
   ]
