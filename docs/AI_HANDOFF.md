@@ -22,6 +22,7 @@ verified_before_push:
   - Zmiany ograniczone do instrukcji i checkpointu; bez kodu aplikacji
   - Stare globalne reguły w Library oznaczone nazwami ARCHIWUM, bez zmiany treści
   - Commit v2.0 bazowy i jego CI zweryfikowane oddzielnie
+  - SHA końcowego commitu oraz wynik CI ustalane z live ref/run; checkpoint nie zapisuje własnego SHA
 blockers:
   - Ustawienia Projektu ChatGPT nie są edytowalne dostępnym narzędziem; tekst do wklejenia jest w docs/ai/CHATGPT_PROJECT_INSTRUCTIONS.md
   - Konektor GitHub nie udostępnia workflow_dispatch; podpisane APK jest BLOCKED bez uprawnionej ścieżki
