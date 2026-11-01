@@ -38,7 +38,15 @@
 - Ogranicz komunikację do ważnych wyników/blokad/końca. Nie opisuj każdej czynności, nie odpytuj CI bez sensu i nie powtarzaj niezmienionych kontroli. Proponuj nową rozmowę na podstawie rzeczywistego SHA i handoffu, jeśli kontekst robi się zbyt długi.
 - Końcowy raport: `ZADANIE | BRANCH | FINAL_SHA | wymagane CI (run/attempt, joby) | CODE | APK (wersja/podpis/ABI/artefakt) | DEVICE | blokady/NOT_TESTED`. Po jednym zadaniu STOP.
 
-## 6. Odczyt selektywny — nie kopiuj reguł
+
+
+## 7. Instrukcje archiwalne i pierwszeństwo
+- Dla tej gałęzi v2.0 nadrzędne są: aktualne polecenie użytkownika, ten plik, bieżący `docs/AI_HANDOFF.md` z jawnego SHA oraz wskazane tu aktywne polityki. Starsze prompty, `CODEX_RULES.md`, instrukcje z `main`, opisy etapów „Dalej/Kompiluj” i dokumenty eksperymentalnego x MPV są historyczne lub zadaniowe; nie zastępują AGENTS v2.0.
+- Nie usuwaj historycznych promptów bez osobnego żądania. Oznacz je jako archiwalne i nie uruchamiaj ich jako samodzielnych instrukcji implementacyjnych.
+- V2.0 obowiązuje tylko na gałęzi, na której pliki v2.0 zostały wdrożone i zweryfikowane. Przed pracą na innej gałęzi sprawdź jej własne instrukcje i workflow; nie kopiuj zmian ani nie zakładaj automatycznej migracji.
+- Katalog rozpoznanych materiałów: `docs/ai/LEGACY_INSTRUCTIONS.md`.
+
+## 8. Odczyt selektywny — nie kopiuj reguł
 - Architektura i pułapki: `ARCHITECTURE.md`, `CONTRIBUTING.md`, `docs/AGENT_REFERENCE.md`.
 - 25 kroków i bramki: `docs/ai/DEVELOPMENT_WORKFLOW.md`, `docs/ai/QUALITY_GATES.md`.
 - Wzorce i testy: `docs/ai/TEST_POLICY.md`, `docs/ai/TEST_PATTERNS.md`, `docs/ai/TASK_TEMPLATE.md`.

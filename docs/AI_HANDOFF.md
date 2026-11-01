@@ -1,38 +1,36 @@
-# AI_HANDOFF — Zavro Clean v2.0 / migracja polityki i CI
-> Jeden aktywny checkpoint procesu; historia: [archiwum](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md).
+# AI_HANDOFF — Zavro Clean · synchronizacja instrukcji v2.0
+> Bieżący checkpoint tej gałęzi. Nie jest checkpointem dla main ani innych gałęzi.
 
 ```yaml
-task_id: V2-MIGRATION-20261101
-workflow_mode: autonomous_task
+task_id: DOCS-INSTRUCTION-ALIGN-20261101
+workflow_mode: documentation_only
 repo: laszko14/nira-browser
 product_line: Zavro Clean
-branch: improve/zavro-clean-chatgpt-github-process-20261101
-base_sha: e496e141f97045f1a9d315e349a1666277547569
-observed_head_sha: e496e141f97045f1a9d315e349a1666277547569
-status: CI_PENDING
-acceptance_source: Wdrożenie AGENTS v2.0 i bezpieczna migracja CI, bez merge do main
-required_ci: zavro-ai-process-docs.yml process-docs shared-tests quality-evidence, shared JS/JVM/lint/AndroidTest compile and CI-contract tests
-device: NOT_TESTED; zadanie procesowe bez testu telefonu
-apk: NOT_BUILT; zadanie procesowe bez budowy APK
-changed_paths:
-  - AGENTS.md, docs/ai instrukcje i wzorce
-  - .github/agents.md, .github/copilot-instructions.md
-  - .github/workflows/apk-release.yml, zavro-ai-process-docs.yml
-  - scripts/check-ci-workflows.test.cjs, scripts/check-ai-handoff.test.cjs
-  - docs/AI_HANDOFF.md
-verified_before_push:
-  - Baza i pełny HEAD gałęzi procesu potwierdzone przed zmianą
-  - Podpis stałym kluczem i pakiet/ABI zachowane; publikacja oddzielna
-  - Push/PR/tag pozostają tests-only; brak automatycznego signed APK w tej migracji
-  - Historyczne workflow i pilotaż pozostają zachowane
+branch: chore/zavro-instructions-align-20261101
+base_sha: 26e62c860b7e17b7935dbf7553f7dce3fc6446a9
+base_ci_run: 41284565319
+base_ci_attempt: 1
+base_ci_status: completed/success
+status: IN_PROGRESS
+apk: NOT_BUILT
+device: NOT_TESTED
+scope:
+  - Ujednolicenie AGENTS v2.0, instrukcji Projektu GPT i checkpointu
+  - Oznaczenie nieaktualnych reguł jako archiwalnych bez kasowania historii
+  - Bez zmian kodu aplikacji, danych, podpisu, merge i publikacji
 blockers:
-  - Potwierdź zielone wymagane CI na końcowym SHA
-  - Wklejenie instrukcji Projektu ChatGPT pozostaje osobnym działaniem użytkownika
-  - Inne historyczne gałęzie nie zostały automatycznie zmigrowane
-next_action: Sprawdź rzeczywiste REQUIRED CI na końcowym SHA, usuń ewentualne FAIL; podaj status wdrożenia bez budowy APK, merge ani publikacji
-evidence_links:
-  - https://github.com/laszko14/nira-browser/commit/e496e141f97045f1a9d315e349a1666277547569
+  - Ustawienia Projektu ChatGPT nie są edytowalne przez dostępne narzędzia; tekst do ręcznego wklejenia znajduje się w docs/ai/CHATGPT_PROJECT_INSTRUCTIONS.md
+  - GitHub connector nie udostępnia workflow_dispatch; signed APK jest BLOCKED dopóki dostępna nie będzie uprawniona ścieżka
+  - V2.0 nie migruje automatycznie main ani pozostałych gałęzi
+next_action: zweryfikować dokumentacyjny CI na finalnym SHA; potem zsynchronizować tekst ustawień Projektu GPT i zachować inne historyczne gałęzie bez zmian
 ```
 
-## Wznowienie
-Historyczny ETAP 9/9, v1199 i poprzednie runy nie są obecnym zadaniem. Odczytaj live HEAD i właściwy checkpoint; nie twórz commita tylko dla wyniku CI. Bez merge i utraty danych.
+## Potwierdzony punkt bazowy
+Commit v2.0 `26e62c860b7e17b7935dbf7553f7dce3fc6446a9` jest rodzicem tej pracy. Dokumentacyjny CI run `41284565319`, attempt 1, zakończył się sukcesem na dokładnie tym SHA; wszystkie 6 jobów zakończono sukcesem. To wynik bazowy, nie walidacja zmian tej gałęzi.
+
+## Ustalenia i granice
+- Lista starszych materiałów i ich status jest w `docs/ai/LEGACY_INSTRUCTIONS.md`.
+- Zachowaj stare treści/historyczne commity; nie usuwaj plików tylko dlatego, że są nieaktualne.
+- Nie migruj main ani gałęzi produktowych przy okazji dokumentacyjnego zadania.
+- Nie twierdź, że ustawienia Projektu ChatGPT zostały zaktualizowane — dostępny tekst jest propozycją do wklejenia.
+- Nie buduj APK dla zmian czysto dokumentacyjnych.
