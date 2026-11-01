@@ -16,6 +16,7 @@ Odtwórz błąd i jego przyczynę, ustal obserwowalny kontrprzykład oraz akcept
 - RED/GREEN, triage FAIL, scope regresji: `docs/ai/TEST_POLICY.md` i przykłady `docs/ai/TEST_PATTERNS.md`.
 - Niezależne review, obowiązkowe bramki, statusy: `docs/ai/QUALITY_GATES.md`.
 - Blokady i wyjątki: `docs/ai/EXCEPTIONS_AND_TOOLS.md`.
+- **V3.1 rejestr błędów:** `docs/ai/ERROR_LEARNING.md` i `docs/ai/ERROR_CASES.json`; zapisuj każdy odrębny błąd użytkownika, CI i review w ramach aktywnego zadania, również gdy nie znasz przyczyny; odnotuj liczbę wykrytych i zarejestrowanych, nie deklaruj kompletności bez porównania. Artefakt CI to dowód, nie automatyczny commit.
 
 ## GitHub Actions i APK
 Używaj bezpośredniego GitHub connector i Actions; **bez TinyFish** ani zewnętrznej automatyzacji GitHub. `CI_PENDING`, skipped, NO-SOURCE i brak dowodu nie są PASS; zweryfikuj wymagane joby oraz źródłowy checkout dokładnego finalnego SHA. Lint regression ma własny baseline.

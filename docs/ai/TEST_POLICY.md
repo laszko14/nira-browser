@@ -9,6 +9,9 @@
 7. Brak JDK/narzędzia nie uzasadnia zmiany poprawnego kodu; raportuj blokadę i korzystaj z właściwego CI.
 8. Po stabilizacji: self-review, wymagane CI końcowego źródła i checkpoint. Kolejna istotna poprawka = nowe źródłowe SHA i ponowna kontrola.
 
+## V3.1 — przypisanie błędu do rejestru
+Po każdym nowym FAIL lub zgłoszeniu przypisz identyfikator w `docs/ai/ERROR_CASES.json`; nie pomijaj powtórek, a brak przyczyny pozostaw `undetermined`. Gdy zapisy w rejestrze są poza zakresem bieżącego commita, zaznacz `NOT_RECONCILED` i nie twierdź, że nauka została ukończona. Prawdziwe zakończenie wymaga porównania liczby odrębnych obserwacji z liczbą wpisów i analizy artefaktów CI.
+
 ## Dobór testów według ryzyka
 - JS/parser/WebExtension: `node --test app/src/test/js/*.test.cjs` i negatywne warianty protokołu.
 - Kotlin/Room/UI: `./gradlew :app:testDebugUnitTest`, Robolectric, zmiany sygnatur/fixture; profile, prywatność, migracje, atomowość, rollback, restart.

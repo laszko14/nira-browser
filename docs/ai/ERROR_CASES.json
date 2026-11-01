@@ -1,0 +1,30 @@
+{
+  "schema": "zavro.error-learning/1",
+  "coverage": [
+    {
+      "task_id": "ZC-V31-ERROR-LEARNING",
+      "observed_count": 1,
+      "state": "ACTIVE"
+    }
+  ],
+  "events": [
+    {
+      "id": "ERR-20261101-0001",
+      "task_id": "ZC-V31-ERROR-LEARNING",
+      "kind": "USER_REPORT",
+      "fingerprint": "incomplete-error-capture",
+      "summary": "Użytkownik zgłosił brak wielu zapisów błędów (szacunkowo 2 z 10); nie ma danych do odtworzenia pozostałych przypadków.",
+      "source_sha": "7ea23d0de749a59f322d1735f12507b218b3c725",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "workflow",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "scripts/error-learning.test.cjs",
+      "evidence_links": []
+    }
+  ]
+}
