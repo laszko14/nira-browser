@@ -124,3 +124,24 @@ test('historical baseline list is source-linked and totals exactly observed wind
   assert.match(doc,/NOT_MEASURED/);
   assert.match(doc,/nie wynik pilotażu/i);
 });
+
+test('schema v2 preserves all sixteen historical records and still accepts archived v1',()=>{
+  assert.equal(source.schema,'zavro.ai.pilot/2');
+  const old=copy();old.schema='zavro.ai.pilot/1';delete old.instruction_experiments;
+  assert.deepEqual(validate(old),{started:3,finished:0});
+  assert.deepEqual(validate(source),{started:3,finished:0});
+  assert.equal(source.instruction_experiments.status,'NOT_MEASURED');
+  assert.equal(source.instruction_experiments.trials.length,0);
+  assert.equal(summarize(source).instruction_experiments_status,'NOT_MEASURED');
+});
+test('instruction experiment register rejects fabricated status and unsupported trials',()=>{
+  let x=copy();x.instruction_experiments.status='COMPLETE';
+  assert.throws(()=>validate(x),/real paired trials/); // no invented completion
+  x=copy();x.instruction_experiments.status='NOT_MEASURED';
+  x.instruction_experiments.trials=[{}];
+  assert.throws(()=>validate(x),/invalid trial fields/);
+  x=copy();x.instruction_experiments.max_total_runs=1000;
+  assert.throws(()=>validate(x),/budget/);
+  x=copy();x.instruction_experiments.extra='simulation';
+  assert.throws(()=>validate(x),/invalid instruction experiment schema/);
+});

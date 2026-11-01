@@ -1,5 +1,5 @@
 {
-  "schema": "zavro.ai.pilot/1",
+  "schema": "zavro.ai.pilot/2",
   "target_tasks": 16,
   "method": "consecutive_eligible_tasks_not_retrospective_fill",
   "records": [
@@ -554,5 +554,15 @@
         }
       }
     }
-  ]
+  ],
+  "instruction_experiments": {
+    "method_id": "zavro_v3_instruction_ab_20261101",
+    "status": "NOT_MEASURED",
+    "max_total_runs": 32,
+    "arms": {
+      "A": "V2-repaired",
+      "B": "V3"
+    },
+    "trials": []
+  }
 }

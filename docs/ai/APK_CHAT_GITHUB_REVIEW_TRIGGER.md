@@ -13,7 +13,7 @@ task=<JAWNY_IDENTYFIKATOR_ZADANIA>
 ```
 
 To **nie** jest zwykły komentarz do issue, etykieta, push, PR `opened` ani automatyczne
-podpisanie przy teście. Zwykłe zdarzenia nadal pozostawiają job `build` jako skipped.
+podpisanie przy teście. Zwykłe zdarzenia nadal pozostawiają job `build` jako skipped. W prawidłowej recenzji nie uruchamia się ponownie czterech testów; build waliduje wcześniejsze SOURCE CI.
 
 ## Bramki bezpieczeństwa
 
@@ -24,14 +24,14 @@ podpisanie przy teście. Zwykłe zdarzenia nadal pozostawiają job `build` jako 
    muszą być identyczne. Zmiana HEAD po recenzji → odmowa.
 4. Przed użyciem sekretów podpisu workflow wykonuje walidator żądania,
    checkout dokładnego SHA oraz kontrolę wcześniej zakończonego z sukcesem
-   workflow `Android CI` (event `pull_request`) i czterech wymaganych jobów
-   na tym samym SHA.
+   źródłowego workflow `Zavro AI process - documentation gate` (event `push`),
+   wszystkich sześciu logicznych jobów i bieżącego HEAD gałęzi na tym samym SHA.
+   PR merge-run służy dodatkowej integracji, nie jest dowodem SOURCE.
 5. Dopiero po tym runner buduje jedno APK dla `arm64-v8a`, używając
    niezmienionego certyfikatu z GitHub Secrets. `verify-update-apk.sh`
    sprawdza pakiet, versionCode, versionName, ABI i SHA-256 certyfikatu.
 6. Brak dowolnego warunku → fail closed, bez publikacji i bez zastępczego podpisu.
-7. `workflow_dispatch` nadal jest wspierany jako osobne ręczne wejście.
-   `publish-release` pozostaje **wyłącznie** ręcznym `workflow_dispatch`.
+7. Prywatnego `debug-apk` z `workflow_dispatch` nie wolno wykorzystywać jako alternatywy z czatu. Publiczny `publish-release` jest osobnym, ręcznym zakresem poza wdrożeniem V3.
 
 ## Kolejność dla agenta
 

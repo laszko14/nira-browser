@@ -4,7 +4,7 @@ const {REPO,BRANCH,WORKFLOW,REQUIRED,evaluate,readOnce}=require('./ci-run-receip
 const SHA='a'.repeat(40), OLD='b'.repeat(40);
 const run={id:123456,run_attempt:2,repository:{full_name:REPO},path:WORKFLOW,
   head_branch:BRANCH,head_sha:SHA,event:'push',status:'completed',conclusion:'success'};
-const jobs=REQUIRED.map((name,i)=>({id:100+i,name,run_attempt:2,status:'completed',
+const jobs=REQUIRED.map((name,i)=>({id:100+i,name,run_id:123456,run_attempt:2,status:'completed',
   conclusion:'success',html_url:'https://github.com/'+REPO+'/actions/runs/123456/job/'+i}));
 const branch={commit:{sha:SHA}};
 function receipt(r=run,j=jobs,b=branch,sha=SHA){return evaluate(r,j,b,sha)}
@@ -25,7 +25,8 @@ test('missing, duplicated, skipped, cancelled, failed and prior-attempt jobs fai
     jobs.map((j,i)=>i===3?{...j,status:'completed',conclusion:'skipped'}:j),
     jobs.map((j,i)=>i===1?{...j,status:'completed',conclusion:'cancelled'}:j),
     jobs.map((j,i)=>i===4?{...j,status:'completed',conclusion:'failure'}:j),
-    jobs.map((j,i)=>i===5?{...j,run_attempt:1}:j)
+    jobs.map((j,i)=>i===5?{...j,run_attempt:3}:j),
+    jobs.map((j,i)=>i===2?{...j,run_id:999999}:j)
   ])assert.equal(receipt(run,corrupted).status,'BLOCKED');
 });
 test('unfinished and stale or unrelated CI never become a verified receipt',()=>{
@@ -81,4 +82,18 @@ test('pagination gaps and untrusted run identity cannot yield PASS',async()=>{
   assert.equal(receipt.status,'BLOCKED');
   assert.equal(calls.length,1);
   assert.throws(()=>evaluate(run,jobs,branch,'not-a-sha'),/Expected exact/);
+});
+
+test('explicit supported Clean branch can be verified; arbitrary and main refs cannot',()=>{
+  const other='feat/zavro-clean-search-redesign-v2-20261101';
+  assert.equal(evaluate({...run,head_branch:other},jobs,branch,SHA,other).status,'CODE_VERIFIED');
+  assert.equal(evaluate({...run,head_branch:other},jobs,branch,SHA).status,'BLOCKED');
+  assert.throws(()=>evaluate(run,jobs,branch,SHA,'main'),/Unsupported/);
+  assert.throws(()=>evaluate(run,jobs,branch,SHA,'evil/other'),/Unsupported/);
+});
+
+test('rerun only failed job preserves prior successful logical jobs on the same run and SHA',()=>{
+  const mixed=jobs.map((j,i)=>i%2===0?{...j,run_attempt:1}:j);
+  assert.equal(receipt(run,mixed).status,'CODE_VERIFIED');
+  assert.equal(receipt({...run,run_attempt:1},jobs).status,'BLOCKED');
 });

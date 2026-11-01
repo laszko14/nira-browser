@@ -25,7 +25,6 @@ on:
         type: choice
         options:
           - tests-only
-          - debug-apk
           - publish-release
       approval_phrase:
         description: "Only for explicit public publication: Publikuj"
@@ -58,21 +57,14 @@ jobs:
     # is the exact owner review command validated before signing secrets.
     needs: regression-tests
     if: >-
-      (github.event_name == 'workflow_dispatch' &&
-       inputs.build_kind == 'debug-apk' &&
-       inputs.task_kind == 'implementation' &&
-       inputs.task_id != '' &&
-       inputs.source_sha == github.sha &&
-       startsWith(github.ref, 'refs/heads/') &&
-       github.ref != 'refs/heads/main')
-      ||
-      (github.event_name == 'pull_request_review' &&
-       github.event.action == 'submitted' &&
-       github.event.review.state == 'commented' &&
-       github.actor == 'laszko14' &&
-       github.event.review.user.login == 'laszko14' &&
-       github.event.pull_request.head.repo.full_name == 'laszko14/nira-browser' &&
-       startsWith(github.event.review.body, 'ZAVRO_PRIVATE_APK_REQUEST'))
+      always() &&
+      github.event_name == 'pull_request_review' &&
+      github.event.action == 'submitted' &&
+      github.event.review.state == 'commented' &&
+      github.actor == 'laszko14' &&
+      github.event.review.user.login == 'laszko14' &&
+      github.event.pull_request.head.repo.full_name == 'laszko14/nira-browser' &&
+      startsWith(github.event.review.body, 'ZAVRO_PRIVATE_APK_REQUEST')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -87,55 +79,32 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'pull_request_review' && github.event.pull_request.head.sha || github.sha }}
-      - name: Validate exact owner review and previous green CI
-        if: github.event_name == 'pull_request_review'
+      - name: Validate exact owner review and current SOURCE CI (no secrets)
         env:
           GH_TOKEN: ${{ github.token }}
           REVIEW_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           REVIEW_BODY: ${{ github.event.review.body }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         shell: bash
         run: |
           set -euo pipefail
           node scripts/authorize-private-apk-review.cjs
           test "$(git rev-parse HEAD)" = "$REVIEW_HEAD_SHA"
-          runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/apk-release.yml/runs?event=pull_request&head_sha=$REVIEW_HEAD_SHA&per_page=30")"
-          run_id="$(jq -er --arg sha "$REVIEW_HEAD_SHA" '
-            [.workflow_runs[] | select(.head_sha == $sha and
-              .event == "pull_request" and .status == "completed" and
-              .conclusion == "success")][0].id
-            ' <<< "$runs")"
-          jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100")"
-          for required in \
-            "JavaScript WebExtension regressions" \
-            "Kotlin and Robolectric JVM tests" \
-            "Android lint with regression baseline" \
-            "Android instrumentation test compilation"; do
-            jq -e --arg required "$required" '
-              [.jobs[] | select(.name | contains($required)) |
-                select(.status == "completed" and .conclusion == "success")
-              ] | length == 1
-            ' <<< "$jobs" > /dev/null || {
-              echo "::error::Required check not green for exact source SHA: $required"
-              exit 1
-            }
-          done
-          echo "Authorized private build only on reviewed SHA $REVIEW_HEAD_SHA; green CI run $run_id."
-
-      - name: Validate dispatched implementation task, ref and exact source
-        if: github.event_name == 'workflow_dispatch'
-        shell: bash
-        env:
-          TASK_ID: ${{ inputs.task_id }}
-          TASK_KIND: ${{ inputs.task_kind }}
-          SOURCE_SHA: ${{ inputs.source_sha }}
-        run: |
-          set -euo pipefail
-          [[ "$TASK_KIND" == "implementation" ]] || { echo '::error::Implementation required'; exit 1; }
-          [[ "$TASK_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{2,79}$ ]] || { echo '::error::Invalid task_id'; exit 1; }
-          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo '::error::Invalid source_sha'; exit 1; }
-          [[ "$GITHUB_REF" == refs/heads/* && "$GITHUB_REF" != refs/heads/main ]] || { echo '::error::Protected ref'; exit 1; }
-          [[ "$SOURCE_SHA" == "$GITHUB_SHA" ]] || { echo '::error::Dispatch SHA mismatch'; exit 1; }
-          [[ "$(git rev-parse HEAD)" == "$SOURCE_SHA" ]] || { echo '::error::Checkout SHA mismatch'; exit 1; }
+          live_pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          jq -e --arg sha "$REVIEW_HEAD_SHA" --arg ref "$PR_HEAD_REF" '
+            .state == "open" and .merged_at == null and
+            .head.sha == $sha and .head.ref == $ref and
+            .head.repo.full_name == "laszko14/nira-browser" and
+            .base.repo.full_name == "laszko14/nira-browser"
+          ' <<< "$live_pr" >/dev/null
+          runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/zavro-ai-process-docs.yml/runs?event=push&head_sha=$REVIEW_HEAD_SHA&branch=$PR_HEAD_REF&per_page=100")"
+          run_id="$(jq -er --arg sha "$REVIEW_HEAD_SHA" --arg ref "$PR_HEAD_REF" '
+            [.workflow_runs[] | select(.event == "push" and
+              .head_sha == $sha and .head_branch == $ref)][0].id
+          ' <<< "$runs")"
+          node scripts/ci-run-receipt.cjs "$run_id" "$REVIEW_HEAD_SHA" "$PR_HEAD_REF"
+          echo "Validated six SOURCE gates for exact reviewed SHA; PR merge tests are separate."
       - name: Validate Gradle wrapper
         uses: gradle/wrapper-validation-action@v2
 
@@ -147,25 +116,20 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v5
 
-      - name: Validate authorized implementation task, ref and exact source
-        if: github.event_name == 'workflow_dispatch'
-        shell: bash
-        env:
-          TASK_ID: ${{ inputs.task_id }}
-          TASK_KIND: ${{ inputs.task_kind }}
-          SOURCE_SHA: ${{ inputs.source_sha }}
-        run: |
-          set -euo pipefail
-          [[ "$TASK_KIND" == "implementation" ]] || { echo '::error::Implementation required'; exit 1; }
-          [[ "$TASK_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{2,79}$ ]] || { echo '::error::Invalid task_id'; exit 1; }
-          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo '::error::Invalid source_sha'; exit 1; }
-          [[ "$GITHUB_REF" == refs/heads/* && "$GITHUB_REF" != refs/heads/main ]] || { echo '::error::Protected ref'; exit 1; }
-          [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]] || { echo '::error::Dispatch only'; exit 1; }
-          [[ "$SOURCE_SHA" == "$GITHUB_SHA" ]] || { echo '::error::Dispatch SHA mismatch'; exit 1; }
-          [[ "$(git rev-parse HEAD)" == "$SOURCE_SHA" ]] || { echo '::error::Checkout SHA mismatch'; exit 1; }
-
       # Do not publish an ephemeral Android debug signature as an update.
       # Reuse the stable signing key already used by the release workflow.
+      - name: Recheck live PR HEAD immediately before signing secrets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEW_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$REVIEW_HEAD_SHA"
+          actual_sha="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)"
+          test "$actual_sha" = "$REVIEW_HEAD_SHA" || { echo "::error::PR head changed after authorization"; exit 1; }
+
       - name: Build single arm64 debug APK (update-safe certificate)
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -217,6 +181,7 @@ jobs:
 
 
   regression-tests:
+    if: github.event_name != 'pull_request_review'
     name: Shared regression gates (NO APK)
     uses: ./.github/workflows/zavro-tests-reusable.yml
     permissions:

@@ -36,7 +36,7 @@ Thank you for your interest in contributing to Nira Browser! This document provi
 ### Prerequisites
 
 - **Android Studio**: Arctic Fox or later
-- **JDK**: 11 or later
+- **JDK**: 17 (verify the required Gradle toolchain and current GitHub Actions workflow)
 - **Android SDK**: API 24+ (Android 7.0+)
 - **Git**: For version control
 - Basic knowledge of Kotlin and Android development

@@ -38,3 +38,10 @@ Nie stosuj webhooka jako obietnicy wznowienia zwykłego czatu. Wymagane rozróż
 - Źródłem statusu jest zawsze aktualny GitHub REST, nie historyczny `docs/AI_HANDOFF.md`.
 - Brak APK, PR/merge, tagów, instalacji integracji, webhooków i zmian `main`.
 - `DEVICE_VERIFIED` i `APK_VERIFIED` pozostają odrębne; ten etap testuje kod narzędzia do odbioru CI.
+
+## V3 — źródłowe potwierdzenie i bezpieczne wznowienie
+Poprzednie runy i nazwy gałęzi w sekcji „Etap 8/9” są dowodami historycznymi, nie domyślną bieżącą gałęzią. Odbiornik obsługuje jawny dozwolony branch Zavro Clean:
+```bash
+node scripts/ci-run-receipt.cjs RUN_ID EXPECTED_40_CHAR_SHA chore/zavro-clean-codex-v3-20261101
+```
+Weryfikuje workflow procesu, bieżący HEAD konkretnej gałęzi, wszystkie sześć logicznych jobów, run ID i próby. Przy re-run pojedynczych nieudanych jobów wcześniejsze zachowane SUCCESS z tego samego run i source SHA mogą zostać uznane, nie z innego SHA. Niekompletne API i brak dowodów blokują PASS. `CI_PENDING` nie budzi samoczynnie czatu; w aktywnej sesji powracaj po racjonalnym odstępie.
