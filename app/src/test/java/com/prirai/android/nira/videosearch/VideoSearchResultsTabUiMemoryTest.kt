@@ -55,6 +55,30 @@ class VideoSearchResultsTabUiMemoryTest {
         assertSame(old, tab.forRun("run-old"))
         assertEquals(setOf("site-one"), tab.forRun("run-old").expandedSites.value)
     }
+    @Test fun mergeChoicesPersistOnReentryButNeverLeakToAnotherRunTabOrProfile() {
+        val first = VideoSearchResultsTabUiMemory.forTab("merge-tab", "default",
+            setOf("merge-tab", "other-tab")).forRun("run")
+        first.mergeByName.value = true
+        first.mergeByDuration.value = true
+        first.byWebsite.value = false
+        first.pageSizeFor(null, VideoSearchSort.ORIGINAL, true, true, false)
+            .intValue = 300
+        val restored = VideoSearchResultsTabUiMemory.forTab("merge-tab", "default",
+            setOf("merge-tab", "other-tab")).forRun("run")
+        assertTrue(restored.mergeByName.value)
+        assertTrue(restored.mergeByDuration.value)
+        assertEquals(300, restored.pageSizeFor(
+            null, VideoSearchSort.ORIGINAL, true, true, false).intValue)
+        assertEquals(150, restored.pageSizeFor(
+            null, VideoSearchSort.ORIGINAL, false, false, true).intValue)
+        assertFalse(VideoSearchResultsTabUiMemory.forTab("merge-tab", "default",
+            setOf("merge-tab", "other-tab")).forRun("another").mergeByName.value)
+        assertFalse(VideoSearchResultsTabUiMemory.forTab("other-tab", "default",
+            setOf("merge-tab", "other-tab")).forRun("run").mergeByDuration.value)
+        assertFalse(VideoSearchResultsTabUiMemory.forTab("merge-tab", "work",
+            setOf("merge-tab", "other-tab")).forRun("run").mergeByName.value)
+    }
+
     @Test fun pruningClosedTabDoesNotPruneResultsWhileFilmIsOpen() {
         val a = VideoSearchResultsTabUiMemory.forTab("result-closed", "default",
             setOf("result-closed"))
