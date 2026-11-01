@@ -40,6 +40,12 @@ internal object VideoSearchResultsMerge {
         val numbers: Set<String>,
     )
 
+    private val ordinalWords = setOf(
+        "one", "two", "three", "four", "five", "six", "seven", "eight",
+        "nine", "ten", "first", "second", "third", "fourth", "fifth",
+        "sixth", "seventh", "eighth", "ninth", "tenth",
+    )
+
     private val wordPattern = Regex("""[\p{L}\p{N}]+""")
 
     private fun parts(raw: String?): TitleParts {
@@ -55,7 +61,9 @@ internal object VideoSearchResultsMerge {
         return TitleParts(
             key = normalized.filter { it.isLetterOrDigit() }.takeIf { it.length >= 4 },
             words = tokens.filter { it.length >= 3 && it.any { ch -> ch.isLetter() } }.toSet(),
-            numbers = tokens.filter { token -> token.all { ch -> ch.isDigit() } }.toSet(),
+            numbers = tokens.filter { token ->
+                token.all { ch -> ch.isDigit() } || token in ordinalWords
+            }.toSet(),
         )
     }
 
@@ -101,12 +109,15 @@ internal object VideoSearchResultsMerge {
         val overlap = if (wordTotal == 0) 0.0 else 2.0 * common / wordTotal
         val oneLongWord = first.words.size == 1 && second.words.size == 1 &&
             minOf(a.length, b.length) >= 12
-        if (overlap < 0.72 && !oneLongWord) return false
+        if (overlap < 0.65 && !oneLongWord) return false
         val durationGap = if (firstSeconds != null && secondSeconds != null &&
             firstSeconds > 0L && secondSeconds > 0L
         ) kotlin.math.abs(firstSeconds - secondSeconds) else Long.MAX_VALUE
         val similarity = characterSimilarity(a, b)
-        if (similarity >= 0.95 && (overlap >= 0.75 || oneLongWord)) return true
+        if (similarity >= 0.95 && (
+                (overlap >= 0.65 && common >= 2) || oneLongWord
+            )
+        ) return true
         if (durationGap <= 2L && similarity >= 0.85 &&
             overlap >= 0.72 && common >= 2
         ) return true

@@ -220,4 +220,20 @@ class VideoSearchResultsMergeTest {
         assertEquals(1, VideoSearchResultsMerge.group(entries, false, true).size)
     }
 
+    @Test fun writtenEpisodeNumbersNeverCrossMergeEvenAtNearDuration() {
+        val entries = listOf(
+            film("one", "a", "Extraordinary Adventures Episode One", 1020),
+            film("two", "b", "Extraordinary Adventures Episode Two", 1021),
+        )
+        assertEquals(2, VideoSearchResultsMerge.group(entries, true, false).size)
+    }
+
+    @Test fun differentOrdinalSceneWordsRemainSeparate() {
+        val entries = listOf(
+            film("one", "a", "The Amazing First Scene with Friends", 1220),
+            film("two", "b", "The Amazing Second Scene with Friends", 1221),
+        )
+        assertEquals(2, VideoSearchResultsMerge.group(entries, true, false).size)
+    }
+
 }

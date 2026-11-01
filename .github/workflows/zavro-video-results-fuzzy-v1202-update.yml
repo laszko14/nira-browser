@@ -4,6 +4,9 @@ on:
     branches:
       - fix/zavro-clean-video-results-fuzzy-v1202-20261101
     paths:
+      - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsMerge.kt
+      - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsMergeTest.kt
+      - docs/AI_HANDOFF.md
       - .github/workflows/zavro-video-results-fuzzy-v1202-update.yml
 permissions:
   contents: read
