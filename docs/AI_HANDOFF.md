@@ -1,41 +1,45 @@
-# AI_HANDOFF — Zavro Clean / T03 — landscape transient media sheet cleanup
+# AI_HANDOFF — Zavro Clean / T03 — signed v1198 landscape update
 
-> Checkpoint gałęzi procesu. Historyczne wpisy: [archiwum](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md).
+> Checkpoint only for this build branch; archive: [history](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md).
 
 ```yaml
-task_id: T03-LANDSCAPE-TRANSIENT-MEDIA-SHEET
+task_id: T03-BUILD-LANDSCAPE-V1198
 workflow_mode: staged
 repo: laszko14/nira-browser
 product_line: Zavro Clean
-branch: improve/zavro-clean-chatgpt-github-process-20261101
-base_sha: 4b9067b7413fb53429012c90901eb4737d5046c0
-observed_head_sha: 4b9067b7413fb53429012c90901eb4737d5046c0
+branch: build/zavro-clean-t03-landscape-v1198-20261101
+base_sha: 678c429e80d651d2ac38ed05f94a7b6f29f57749
+observed_head_sha: 678c429e80d651d2ac38ed05f94a7b6f29f57749
 status: CI_PENDING
-acceptance_source: ETAP 9/9 — T03/16 follow-up; user supplied portrait/landscape screenshots and persistent grey rounded rectangle in landscape
-required_ci: zavro-ai-process-docs.yml process-docs shared-js shared-jvm shared-lint shared-androidtest-compile quality-evidence
-device: LANDSCAPE_GREY_OVERLAY_OBSERVED_BY_USER; FIX_NOT_TESTED; ROOT_CAUSE_NOT_CONFIRMED
-apk: EXISTING_V1197_VERIFIED_CI; NEW_APK_NOT_AUTHORIZED
-pilot: T01/T02 FOLLOWUP_PENDING; T03 ACTIVE; 14-day observation not completed
+acceptance_source: ETAP 9/9 — user explicitly authorized Kompiluj following landscape overlay report
+required_ci: zavro-t03-landscape-update-v1198.yml authorized-source shared-js shared-jvm shared-lint shared-androidtest-compile signed-update verify-all
+device: V1198_NOT_INSTALLED; LANDSCAPE_RECTANGLE_ROOT_CAUSE_NOT_CONFIRMED
+apk: SIGNED_BUILD_PENDING
+expected_package: com.prirai.android.nira.debug
+expected_version_code: 1198
+expected_version_name: 0.5.22-alpha103-clean
+signer_sha256: df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
 changed_paths:
-  - app/src/main/java/com/prirai/android/nira/media/MediaFloatingUi.kt
-  - app/src/main/java/com/prirai/android/nira/BrowserFragment.kt
-  - app/src/test/java/com/prirai/android/nira/media/MediaFloatingUiRotationTest.kt
+  - app/build.gradle
+  - .github/workflows/apk-release.yml
+  - .github/workflows/zavro-t03-landscape-update-v1198.yml
+  - app/src/test/js/release-contract-stage19a.test.cjs
+  - app/src/test/js/update-apk-workflow-scope.test.cjs
   - docs/AI_HANDOFF.md
+  - docs/ai/T03_SIGNED_BUILD_V1198.md
 verified_before_push:
-  - Checked exact process HEAD 4b9067b7413fb53429012c90901eb4737d5046c0; instructions and handoff read at this SHA
-  - User reports fixed landscape-only translucent rounded rectangle over every webpage
-  - MediaFloatingUi has round 56dp FAB; no evidence it paints the rectangular artifact itself
-  - It DOES retain BottomSheetDialog window while BrowserActivity handles orientation changes in place
-  - Rotation change explicitly dismisses only the transient media sheet and repositions the existing FAB
-  - No changes to Gecko content, profile isolation, sessions, the 3-second panel cache or animation
+  - Source branch HEAD 678c429e80d651d2ac38ed05f94a7b6f29f57749 and all CI jobs from run 41268887414 PASS
+  - Source includes left panel reuse and MediaFloatingUi orientation cleanup
+  - Gradle base version 196 -> 198 produces install version 1198; previous user update was 1197
+  - Signing via GitHub Secrets only; scripts/verify-update-apk.sh verifies exact signer and ABI
+  - Workflow is one-off branch and authorization-marker scoped; no automatic builds on process branch
 blockers:
-  - No direct evidence the rectangle is from the media sheet (could be other native/PiP overlay)
-  - No device evidence for fix; a signed update requires separate Kompiluj
-next_action: Verify all required CI on final SHA; STOP. Device re-test of portrait/landscape overlay only after separately authorized signed update. If rectangle persists, inspect Android Window/PiP ownership; do not keep changing media UI blindly.
+  - No device verification for new APK; need artifact provenance and green CI on final SHA
+next_action: Verify all CI and signed artifact on exact final SHA, report link then STOP; no installation, merge or data wipe
 evidence_links:
-  - https://github.com/laszko14/nira-browser/actions/runs/41266932530
+  - https://github.com/laszko14/nira-browser/actions/runs/41268887414
 ```
 
 ## Wznowienie
 
-Check current process branch HEAD against the pre-push base SHA above; do not treat CI_PENDING as success. Follow `AGENTS.md`. No merge, APK, signing, or changes to profiles/sessions. BrowserActivity handles configuration changes without recreating BrowserFragment. Reported persistent landscape rectangle is not yet attributed conclusively to MediaFloatingUi: orientation cleanup is a bounded mitigation. If it persists after separate device verification, investigate system PiP/other Window overlays instead of assuming this fix worked.
+Compare branch HEAD and explicit source base. CI_PENDING is only a pre-push snapshot. No extra commit for CI ID. No merge, publication, signing changes or device install. Retest landscape rectangle after explicit user installation; not proven fixed.
