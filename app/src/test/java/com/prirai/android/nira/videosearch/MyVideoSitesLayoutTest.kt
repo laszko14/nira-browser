@@ -84,7 +84,6 @@ class MyVideoSitesLayoutTest {
             val action = descendants(decor).filterIsInstance<Button>().single {
                 it.text == "▱\nFoldery"
             }
-            action.requestRectangleOnScreen(Rect(0, 0, action.width, action.height), true)
             val headerScroll = descendants(decor).filterIsInstance<ScrollView>().single()
             val firstVisibleAction = Rect()
             assertTrue("folder action intersects the safe viewport",
