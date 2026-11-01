@@ -228,6 +228,13 @@ internal fun VideoSearchResultsScreen(
     onViewChange: (VideoSearchView) -> Unit,
     onOpen: (VideoSearchFilm) -> Unit,
     onLongPress: (VideoSearchFilm) -> Unit = {},
+    bulkEnabled: Boolean = false,
+    bulkGroups: List<VideoSearchGroupMenuChoice>? = null,
+    bulkFolders: List<VideoSavedFilmFolder>? = null,
+    allowBulkBookmarks: Boolean = false,
+    onBulkMenuOpened: () -> Unit = {},
+    onBulkAction: (List<VideoSearchFilm>, VideoSearchBulkAction, String?) -> Unit =
+        { _, _, _ -> },
 ) {
     val snapshot = state.snapshot
     val run = snapshot?.run
@@ -255,6 +262,22 @@ internal fun VideoSearchResultsScreen(
     }
     var selectedMerge by remember(run?.id) {
         mutableStateOf<VideoSearchMergedFilm?>(null)
+    }
+    var selecting by remember(run?.id, retainedRun) {
+        retainedRun?.selecting ?: mutableStateOf(false)
+    }
+    var selectedKeys by remember(run?.id, retainedRun) {
+        retainedRun?.selectedFilmKeys ?: mutableStateOf(emptySet<String>())
+    }
+    var bulkMenuOpen by remember(run?.id) { mutableStateOf(false) }
+    val selectedFilms = VideoSearchBulkSelection.resolve(snapshot, selectedKeys)
+    val toggleFilm: (VideoSearchFilm) -> Unit = { film ->
+        if (run != null && film.runId == run.id && film.scope == run.scope &&
+            snapshot?.films?.any {
+                VideoSearchBulkSelection.key(it) == VideoSearchBulkSelection.key(film)
+            } == true) {
+            selectedKeys = VideoSearchBulkSelection.toggle(selectedKeys, film)
+        }
     }
     // null = all expanded; the expansion state is local to this exact run.
     var expandedSites by remember(run?.id, retainedRun) {
@@ -359,6 +382,13 @@ internal fun VideoSearchResultsScreen(
                 Text("Wyniki wyszukiwania", modifier = Modifier.weight(1f),
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                if (bulkEnabled) TextButton(onClick = {
+                    selecting = !selecting
+                    if (!selecting) {
+                        selectedKeys = emptySet()
+                        bulkMenuOpen = false
+                    }
+                }) { Text(if (selecting) "Anuluj" else "Zaznacz") }
                 TextButton(onClick = onOpenSavedFolders) {
                     Icon(Icons.Default.Folder, contentDescription = null)
                     Spacer(Modifier.width(4.dp))
@@ -366,6 +396,35 @@ internal fun VideoSearchResultsScreen(
                 }
                 IconButton(onClick = onRefresh) {
                     Icon(Icons.Default.Refresh, contentDescription = "Odśwież wyniki")
+                }
+            }
+            if (bulkEnabled && selecting && run != null && results != null) {
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    item { TextButton(onClick = {
+                        selectedKeys = VideoSearchBulkSelection.select(
+                            selectedKeys, results.visibleFilms)
+                    }) { Text("Wszystkie") } }
+                    if (siteFilter != null) {
+                        item { TextButton(onClick = {
+                            selectedKeys = VideoSearchBulkSelection.select(
+                                selectedKeys, results.visibleFilms.filter { it.siteId == siteFilter })
+                        }) { Text("Z witryny") } }
+                    }
+                    item { TextButton(onClick = {
+                        selectedKeys = VideoSearchBulkSelection.invert(
+                            selectedKeys, results.visibleFilms)
+                    }) { Text("Odwróć") } }
+                    item { TextButton(onClick = { selectedKeys = emptySet() }) {
+                        Text("Wyczyść")
+                    } }
+                    item { TextButton(
+                        enabled = selectedFilms.isNotEmpty(),
+                        onClick = { onBulkMenuOpened(); bulkMenuOpen = true },
+                    ) { Text("Akcje (" + selectedFilms.size + ")") } }
                 }
             }
             if (state.loading) {
@@ -619,7 +678,12 @@ internal fun VideoSearchResultsScreen(
                                     val film = group.films[index]
                                     "film:${film.siteId}:${film.id}"
                                 }) { index ->
-                                    VideoSearchFilmTile(group.films[index], onOpen, onLongPress)
+                                    val film = group.films[index]
+                                    VideoSearchFilmTile(
+                                        film, onOpen, onLongPress, selecting = selecting,
+                                        selected = VideoSearchBulkSelection.key(film) in selectedKeys,
+                                        onToggle = toggleFilm,
+                                    )
                                 }
                             }
                         }
@@ -632,17 +696,23 @@ internal fun VideoSearchResultsScreen(
                             VideoSearchFilmTile(
                                 visibleResults!!.visibleFilms[index],
                                 onOpen = { film ->
-                                    if (entry != null && entry.films.size > 1)
+                                    if (selecting) toggleFilm(film)
+                                    else if (entry != null && entry.films.size > 1)
                                         selectedMerge = entry
                                     else onOpen(film)
                                 },
                                 onLongPress = { film ->
                                     if (entry != null && entry.films.size > 1)
                                         selectedMerge = entry
+                                    else if (selecting) toggleFilm(film)
                                     else onLongPress(film)
                                 },
                                 mergedLabel = entry?.takeIf { it.films.size > 1 }
                                     ?.let { "${it.films.size} scalonych filmów" },
+                                selecting = selecting,
+                                selected = VideoSearchBulkSelection.key(
+                                    visibleResults!!.visibleFilms[index]) in selectedKeys,
+                                onToggle = toggleFilm,
                             )
                         }
                     }
@@ -685,7 +755,12 @@ internal fun VideoSearchResultsScreen(
                                     val film = group.films[index]
                                     "film:${film.siteId}:${film.id}"
                                 }) { index ->
-                                    VideoSearchFilmRow(group.films[index], onOpen, onLongPress)
+                                    val film = group.films[index]
+                                    VideoSearchFilmRow(
+                                        film, onOpen, onLongPress, selecting = selecting,
+                                        selected = VideoSearchBulkSelection.key(film) in selectedKeys,
+                                        onToggle = toggleFilm,
+                                    )
                                 }
                             }
                         }
@@ -698,17 +773,23 @@ internal fun VideoSearchResultsScreen(
                             VideoSearchFilmRow(
                                 visibleResults!!.visibleFilms[index],
                                 onOpen = { film ->
-                                    if (entry != null && entry.films.size > 1)
+                                    if (selecting) toggleFilm(film)
+                                    else if (entry != null && entry.films.size > 1)
                                         selectedMerge = entry
                                     else onOpen(film)
                                 },
                                 onLongPress = { film ->
                                     if (entry != null && entry.films.size > 1)
                                         selectedMerge = entry
+                                    else if (selecting) toggleFilm(film)
                                     else onLongPress(film)
                                 },
                                 mergedLabel = entry?.takeIf { it.films.size > 1 }
                                     ?.let { "${it.films.size} scalonych filmów" },
+                                selecting = selecting,
+                                selected = VideoSearchBulkSelection.key(
+                                    visibleResults!!.visibleFilms[index]) in selectedKeys,
+                                onToggle = toggleFilm,
                             )
                         }
                     }
@@ -729,8 +810,21 @@ internal fun VideoSearchResultsScreen(
         VideoSearchMergedFilmPicker(
             group = group,
             onDismiss = { selectedMerge = null },
-            onOpen = onOpen,
-            onLongPress = onLongPress,
+            onOpen = { film -> if (selecting) toggleFilm(film) else onOpen(film) },
+            onLongPress = { film -> if (selecting) toggleFilm(film) else onLongPress(film) },
+        )
+    }
+    if (bulkEnabled && selecting && bulkMenuOpen && selectedFilms.isNotEmpty()) {
+        VideoSearchBulkActionsMenu(
+            count = selectedFilms.size,
+            groups = bulkGroups,
+            folders = bulkFolders,
+            allowBookmarks = allowBulkBookmarks,
+            onDismiss = { bulkMenuOpen = false },
+            onAction = { action, argument ->
+                bulkMenuOpen = false
+                onBulkAction(selectedFilms.toList(), action, argument)
+            },
         )
     }
 }
@@ -809,12 +903,19 @@ private fun VideoSearchFilmTile(
     film: VideoSearchFilm, onOpen: (VideoSearchFilm) -> Unit,
     onLongPress: (VideoSearchFilm) -> Unit,
     mergedLabel: String? = null,
+    selecting: Boolean = false,
+    selected: Boolean = false,
+    onToggle: (VideoSearchFilm) -> Unit = {},
 ) {
     Card(modifier = Modifier.fillMaxWidth().combinedClickable(
-        onClick = { onOpen(film) }, onLongClick = { onLongPress(film) }
+        onClick = { if (selecting) onToggle(film) else onOpen(film) },
+        onLongClick = { onLongPress(film) }
     ),
-        colors = CardDefaults.cardColors(containerColor = Color(0xff211d27))) {
+        colors = CardDefaults.cardColors(containerColor =
+            if (selected) Color(0xff403359) else Color(0xff211d27))) {
         Column(Modifier.padding(6.dp)) {
+            if (selecting) Checkbox(checked = selected,
+                onCheckedChange = { onToggle(film) })
             FilmPoster(film, Modifier.fillMaxWidth().height(104.dp))
             Spacer(Modifier.height(6.dp))
             Text(film.originalTitle ?: "Tytuł nieznany",
@@ -836,13 +937,20 @@ private fun VideoSearchFilmRow(
     film: VideoSearchFilm, onOpen: (VideoSearchFilm) -> Unit,
     onLongPress: (VideoSearchFilm) -> Unit,
     mergedLabel: String? = null,
+    selecting: Boolean = false,
+    selected: Boolean = false,
+    onToggle: (VideoSearchFilm) -> Unit = {},
 ) {
     Card(modifier = Modifier.fillMaxWidth().combinedClickable(
-        onClick = { onOpen(film) }, onLongClick = { onLongPress(film) }
+        onClick = { if (selecting) onToggle(film) else onOpen(film) },
+        onLongClick = { onLongPress(film) }
     ),
-        colors = CardDefaults.cardColors(containerColor = Color(0xff211d27))) {
+        colors = CardDefaults.cardColors(containerColor =
+            if (selected) Color(0xff403359) else Color(0xff211d27))) {
         Row(Modifier.fillMaxWidth().padding(8.dp),
             verticalAlignment = Alignment.CenterVertically) {
+            if (selecting) Checkbox(checked = selected,
+                onCheckedChange = { onToggle(film) })
             FilmPoster(film, Modifier.width(118.dp).height(72.dp))
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {

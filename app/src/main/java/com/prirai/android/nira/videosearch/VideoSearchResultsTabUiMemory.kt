@@ -14,6 +14,9 @@ internal class VideoSearchResultsRunUiState {
     val byWebsite: MutableState<Boolean> = mutableStateOf(true)
     val mergeByName: MutableState<Boolean> = mutableStateOf(false)
     val mergeByDuration: MutableState<Boolean> = mutableStateOf(false)
+    /** In-memory per-run selection survives opening other browser tabs. */
+    val selecting: MutableState<Boolean> = mutableStateOf(false)
+    val selectedFilmKeys: MutableState<Set<String>> = mutableStateOf(emptySet())
     val expandedSites: MutableState<Set<String>?> = mutableStateOf(null)
     val pendingLayoutSwitch: MutableState<Pair<VideoSearchView, String>?> =
         mutableStateOf(null)
