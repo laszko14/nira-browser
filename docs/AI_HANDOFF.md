@@ -1,35 +1,42 @@
-# AI_HANDOFF — Zavro Clean / bulk selection of video-search results
+# AI_HANDOFF — Zavro Clean / GitHub Actions: prywatny APK bez TinyFish
 
 ```yaml
-task_id: VIDEO-SEARCH-BULK-V1205-20261101
+task_id: ZAVRO-CI-PRIVATE-APK-REVIEW-20261101
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
+branch: fix/zavro-clean-ci-private-apk-review-20261101
+base_sha: c66350841741f16d1fccbf81fd876b012f4fe335
+source_app_version: 0.5.22-alpha110-clean / arm64 versionCode 1205
 product_line: Zavro Clean
-branch: feat/zavro-clean-video-results-bulk-v1205-20261101
-base_sha: 85317ed642942ddcb7416825ab3bd16cfb3b881c
-observed_pre_handoff_sha: 3a22af491a8f015b55501128d967a9ffa526ce3a
-source_version: 0.5.22-alpha109-clean / arm64 versionCode 1204
-target_version: 0.5.22-alpha110-clean / arm64 versionCode 1205
 status: CI_PENDING
-local_android_tests: NOT_TESTED (no Gradle network toolchain available)
-device: NOT_TESTED
 apk: NOT_BUILT
+device: NOT_TESTED
 scope:
-  - Select arbitrary film counts in tile/list views; stable across sorts, filters, first 150, tab navigation and merged result variations.
-  - Single- or multi-site group opening; existing and active groups; ungrouped and background browser tabs.
-  - Save to existing/new video library folders, copy/share exact links, add bookmarks in default profile.
-  - No deleting results; no persistent data wipe; no MPV; protect profiles and the fixed signing certificate.
-  - Add JVM tests for 365+ selections, exact attribution, invert, stale owner and per-tab isolation.
-  - Bump version and APK verification metadata before CI.
-known_limits:
-  - Legacy BookmarkManager is global, so bulk bookmarks are disabled outside default profile.
-  - A large interrupted batch can partially open tabs or save links; report partial count and do not destroy new tabs.
-  - Legacy v1204 branch AGENTS v1.6; do not claim automatic v2.0 CI migration.
-  - GitHub connector alone cannot dispatch APK; authenticated browser operator may be attempted after green CI.
+  - Restore controlled private APK trigger from ChatGPT GitHub connector via explicit PR review command.
+  - Fail closed unless repo owner, exact PR head SHA, review commit SHA, signed source and prior green CI match.
+  - Preserve normal push/PR/tag tests-only and workflow_dispatch backup.
+  - Preserve existing signing cert/package/ABI/version and no public release.
+changed_paths:
+  - .github/workflows/apk-release.yml
+  - scripts/authorize-private-apk-review.cjs
+  - app/src/test/js/private-apk-review-request.test.cjs
+  - docs/ai/APK_CHAT_GITHUB_REVIEW_TRIGGER.md
+  - docs/AI_HANDOFF.md
+safety:
+  - No merge, no force push, no publishing, no certificate replacement.
+  - No action on untrusted or fork PR; owner-only review, non-main branch only.
+  - GitHub Actions artifacts in public repo require authentication but are not equivalent to a private repository.
 verification:
-  - GitHub Actions required JS/JVM/AndroidTest compile/lint must pass on the final SHA.
-  - Explicit private debug-apk dispatch on same branch/commit; verify certificate/package/version/ABI in runner output.
-next_action: Open Draft PR to feat/zavro-clean-video-search-ui-date-v1203-20261101 and inspect CI failures; fix only supported causes, re-run on final SHA. If green, dispatch signed private APK and verify before reporting completion.
+  - PR required CI on final HEAD with JS/JVM/AndroidTest-compile/lint.
+  - Only after green CI: explicit GitHub PR review at final SHA, then signed APK with verified certificate.
+known_limit:
+  - GitHub connector has no workflow_dispatch and main workflow form has historical inputs.
+  - Future branches must inherit review-enabled workflow; v2 policy still scoped to migrated branches.
+next_action: Open draft PR against feat/zavro-clean-video-results-bulk-v1205-20261101; verify CI then issue one owner review command from GitHub connector; inspect post-review workflow. Without signed run report APK_BLOCKED.
 ```
 
-This checkpoint is from before the final CI run. The live branch ref and CI must be checked after push. Do not turn CI_PENDING into PASS without GitHub Actions evidence. No merge, release, force-push, uninstall or data reset.
+## Checkpoint
+
+Base v1205 application is unchanged. The new review-command path must be tested
+in actual GitHub Actions before reporting that the execution route is restored.
+A green workflow on an earlier SHA cannot validate the final implementation.
