@@ -847,7 +847,7 @@ private fun VideoSearchMergedFilmPicker(
                                 style = MaterialTheme.typography.bodyMedium,
                                 maxLines = 2, overflow = TextOverflow.Ellipsis)
                             val duration = VideoSearchResultsPresenter.durationLabel(film.durationSeconds)
-                            Text(film.siteName + (duration?.let { " · $"+"it" } ?: ""),
+                            Text(film.siteName + (duration?.let { " · " + it } ?: ""),
                                 style = MaterialTheme.typography.labelSmall)
                         }
                         TextButton(onClick = {
