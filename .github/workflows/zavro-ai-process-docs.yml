@@ -31,6 +31,8 @@ jobs:
         run: node --test scripts/check-gecko-device-plan.test.cjs
       - name: Validate one-shot CI event receipt and failure contracts (offline)
         run: node --test scripts/ci-run-receipt.test.cjs
+      - name: Validate stage 9 pilot baseline and non-fabricating metrics (offline)
+        run: node --test scripts/ai-pilot-metrics.test.cjs
       - name: Audit all workflow triggers and scopes
         run: node scripts/ci-workflow-inventory.cjs
       - name: Check changes for whitespace errors

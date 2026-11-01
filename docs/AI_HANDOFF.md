@@ -1,38 +1,40 @@
 # AI_HANDOFF — bieżący checkpoint (Zavro Clean / proces AI)
 
-> Jedno źródło aktualnego stanu tej gałęzi; historia bez zmian w [archiwum](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md).
+> Jedno źródło bieżącego stanu tej gałęzi. Starsze wpisy pozostają w [archiwum](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md).
 
 ```yaml
-task_id: ZC-PROC-08
+task_id: ZC-PROC-09
 workflow_mode: staged
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: improve/zavro-clean-chatgpt-github-process-20261101
-base_sha: 81c290f40376dc93fabf9b6f21dce6e2bd4a0095
-observed_head_sha: 81c290f40376dc93fabf9b6f21dce6e2bd4a0095
+base_sha: dd6c8d264e506bcee4c61a2012a4b8698ad58290
+observed_head_sha: dd6c8d264e506bcee4c61a2012a4b8698ad58290
 status: CI_PENDING
-acceptance_source: ETAP 8/9 — docs/ai/CI_EVENTS_AND_RECEIPTS.md
+acceptance_source: ETAP 9/9 — docs/ai/PILOT_MEASUREMENT_9.md
 required_ci: zavro-ai-process-docs.yml / process-docs + shared-tests/{javascript,unit,android-test-compile,lint} + quality-evidence
 device: NOT_TESTED
 apk: NOT_BUILT
+pilot: INSTRUMENT_PREPARED / 0 of 16 started / results NOT_MEASURED
 changed_paths:
-  - scripts/ci-run-receipt.cjs
-  - scripts/ci-run-receipt.test.cjs
+  - docs/ai/PILOT_MEASUREMENT_9.md
+  - docs/ai/PILOT_16.json
+  - scripts/ai-pilot-metrics.cjs
+  - scripts/ai-pilot-metrics.test.cjs
   - .github/workflows/zavro-ai-process-docs.yml
-  - docs/ai/CI_EVENTS_AND_RECEIPTS.md
   - docs/AI_HANDOFF.md
 verified_before_push:
-  - Stage 7 final SHA 81c290f40376dc93fabf9b6f21dce6e2bd4a0095 run 41256300980 completed/success, 6/6 jobs
-  - One-shot read-only CI evidence tool; tests for pagination, skipped, stale SHA and attempt
-  - No event hook on default branch, no external integration or extra access
+  - Stage 8 final SHA dd6c8d264e506bcee4c61a2012a4b8698ad58290 run 41257112310 completed/success, six required jobs, attempt 1
+  - Nine historic documentation-only CI runs cross-checked against GitHub REST; elapsed windows sum to 4141 seconds
+  - Pilot 16 slots empty; no outcome or claimed improvement; offline validator with negative tests
 blockers: []
-next_action: Verify process-docs, four shared child jobs and quality-evidence on final SHA; then await Dalej for stage 9/9
+next_action: Verify final SHA/run/all six required jobs, report process setup complete; only fill pilot when real new tasks occur; no automatic follow-up
 evidence_links:
-  - https://github.com/laszko14/nira-browser/actions/runs/41256300980
+  - https://github.com/laszko14/nira-browser/actions/runs/41257112310
 ```
 
-## Wznowienie
+## Wznowienie i granice
 
-Odczytaj `AGENTS.md` i aktualny checkpoint na jawnym SHA. `observed_head_sha` to migawka sprzed końcowego pusha, a `CI_PENDING` nie jest oceną po wykonaniu Actions. Sprawdź żywy HEAD, run ID/próbę/event, cztery potomne joby oraz dwa pozostałe; `skipped` i brak joba nie oznaczają PASS. Przy końcowym sukcesie zakończ etap 8/9 i STOP; etap 9/9 (pilotaż i pomiar) dopiero po kolejnym „Dalej”.
+Przed pracą czytaj `AGENTS.md` i ten checkpoint z jawnego SHA, potem żywy HEAD GitHub. `observed_head_sha` jest stanem sprzed push; `CI_PENDING` w zatwierdzonym pliku nie zastępuje rzeczywistego wyniku Actions. Weryfikuj run ID, finalny HEAD, event, próbę i sześć wymaganych jobów (skipped nie jest PASS). Po zakończeniu etapu 9/9 **STOP**: konfiguracja gotowa, lecz pomiar pilotażowy jeszcze się nie odbył. Dalszy pomiar wymaga kolejnych rzeczywistych zadań, nie dodatkowych sztucznych commitów.
 
-Zakres: proces ChatGPT/GitHub bez APK, PR, merge, kasowania danych, webhooków ani dodatkowych uprawnień. Dokumentacja: [CI_EVENTS_AND_RECEIPTS.md](ai/CI_EVENTS_AND_RECEIPTS.md). Historia: [AI_HANDOFF_LEGACY_2026-11-01.md](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md).
+Granice: bez APK, PR, merge do main, zmian aplikacji, podpisu, telefonu, profili i prywatnych danych. Rejestr [PILOT_16.json](ai/PILOT_16.json); plan i historyczna baza [PILOT_MEASUREMENT_9.md](ai/PILOT_MEASUREMENT_9.md).
