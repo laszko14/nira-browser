@@ -8,6 +8,7 @@
 - Restyled the active shared results composable, persisted collapsed filter state per tab/profile/run, and made landscape open in its compact results layout. Existing film metadata, merge, group, selection, history and navigation flows remain connected.
 - Added Robolectric and presentation-state regressions. Process/migration Node checks passed 45/45; full JS suite passed 408/408. Android unit/UI suite could not run locally: Gradle needs JetBrains JDK 21 from Foojay, and network access to Foojay is refused. `adb` is unavailable.
 - Required final-SHA GitHub CI, PR, signed APK review and physical Nothing Phone (1) validation remain pending; no device or APK pass is claimed.
+- Error Learning from failed exact-SHA CI `41318037272` (head `00d2bc84c3c19fb08afdcba5e891709a6ada31dc`): 1425 JVM tests ran, 4 `MyVideoSitesLayoutTest` cases failed. Causes were a stale address-hint oracle, a test looking for a local rather than Activity header field, a pre-rebind row reference in the accordion test, and an unbounded/unswipable landscape header. Updated the hint/field/binding checks and bounded the landscape header inside a vertical scroller. No new global policy was needed.
 
 ## 2026-10-27 — Zavro Clean v1180, metadata engine (prace w toku)
 

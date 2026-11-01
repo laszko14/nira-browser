@@ -56,7 +56,7 @@ class MyVideoSitesLayoutTest {
             layout(decor, 360, 800)
             val views = descendants(decor)
             val field = views.filterIsInstance<EditText>().single {
-                it.hint?.toString() == "Adres witryny (np. example.org)"
+                it.hint?.toString() == "🔗  Wpisz adres nowej witryny"
             }
             val add = views.filterIsInstance<Button>().first { it.text == "Dodaj" }
             val rect = Rect()
@@ -388,11 +388,14 @@ class MyVideoSitesLayoutTest {
             row.findViewWithTag<View>("video-site-header")!!.performClick()
             layout(activity.window.decorView, 360, 800)
             repeat(4) { index ->
-                val section = row.findViewWithTag<View>("video-site-section-header-$index")
-                val content = row.findViewWithTag<View>("video-site-section-content-$index")
+                val currentRow = list.findViewHolderForAdapterPosition(1)!!.itemView
+                val section = currentRow.findViewWithTag<View>("video-site-section-header-$index")
                 assertNotNull("configuration section $index is available", section)
-                assertNotNull("configuration section $index has its actions", content)
                 section!!.performClick()
+                layout(activity.window.decorView, 360, 800)
+                val refreshedRow = list.findViewHolderForAdapterPosition(1)!!.itemView
+                val content = refreshedRow.findViewWithTag<View>("video-site-section-content-$index")
+                assertNotNull("configuration section $index has its actions", content)
                 assertEquals("tapped section $index expands", View.VISIBLE, content!!.visibility)
                 assertTrue("section content has accessible controls",
                     (content as ViewGroup).childCount > 0)

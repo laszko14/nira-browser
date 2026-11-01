@@ -3,16 +3,31 @@ package com.prirai.android.nira.videosearch
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ScrollView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 
 /** A form/footer participates in the list's scroll, without nesting a long list in ScrollView. */
-internal class VideoSitesViewAdapter(private val view: View) :
+internal class VideoSitesViewAdapter(
+    private val view: View,
+    private val scrollableMaxHeightDp: Int? = null,
+) :
     RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     override fun getItemCount() = 1
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
-        view.layoutParams = RecyclerView.LayoutParams(-1, -2)
-        return object : RecyclerView.ViewHolder(view) {}
+        val item = if (scrollableMaxHeightDp != null) {
+            ScrollView(parent.context).apply {
+                isFillViewport = true
+                isNestedScrollingEnabled = true
+                addView(view, ScrollView.LayoutParams(-1, -2))
+                layoutParams = RecyclerView.LayoutParams(-1,
+                    (scrollableMaxHeightDp * resources.displayMetrics.density).toInt())
+            }
+        } else {
+            view.layoutParams = RecyclerView.LayoutParams(-1, -2)
+            view
+        }
+        return object : RecyclerView.ViewHolder(item) {}
     }
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) = Unit
 }

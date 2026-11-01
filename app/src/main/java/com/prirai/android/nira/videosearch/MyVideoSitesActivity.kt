@@ -93,6 +93,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private var historyRetentionJob: Job? = null
     private var reorderPending = false
     private lateinit var normalPanel: LinearLayout
+    private lateinit var normalHeader: LinearLayout
     private lateinit var privatePanel: LinearLayout
     private lateinit var privateSiteInput: EditText
     private lateinit var privateSitesContainer: LinearLayout
@@ -171,7 +172,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
             visibility = View.GONE
             setPadding(dp(16), dp(12), dp(16), dp(12))
         }
-        val normalHeader = LinearLayout(this).apply {
+        normalHeader = LinearLayout(this).apply {
             orientation = if (resources.configuration.orientation ==
                 android.content.res.Configuration.ORIENTATION_LANDSCAPE)
                 LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
@@ -320,7 +321,10 @@ class MyVideoSitesActivity : AppCompatActivity() {
         )
         sitesList = RecyclerView(this).apply {
             layoutManager = LinearLayoutManager(this@MyVideoSitesActivity)
-            adapter = ConcatAdapter(VideoSitesViewAdapter(normalHeader), this@MyVideoSitesActivity.adapter)
+            val landscapeHeaderHeight = if (normalHeader.orientation == LinearLayout.HORIZONTAL)
+                (resources.configuration.screenHeightDp * 0.45f).toInt() else null
+            adapter = ConcatAdapter(VideoSitesViewAdapter(normalHeader, landscapeHeaderHeight),
+                this@MyVideoSitesActivity.adapter)
             isSaveEnabled = false // Explicit, profile-bound restoration below.
         }
         sitesList.addOnScrollListener(object : RecyclerView.OnScrollListener() {
