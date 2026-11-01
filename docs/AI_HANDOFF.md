@@ -1,42 +1,32 @@
-# AI_HANDOFF — Zavro Clean / GitHub Actions: prywatny APK bez TinyFish
+# AI_HANDOFF — Zavro Clean · results toolbar viewport v1206
 
 ```yaml
-task_id: ZAVRO-CI-PRIVATE-APK-REVIEW-20261101
+task_id: VIDEO_RESULTS_HEADER_VIEWPORT_V1206_20261101
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
-branch: fix/zavro-clean-ci-private-apk-review-20261101
-base_sha: c66350841741f16d1fccbf81fd876b012f4fe335
-source_app_version: 0.5.22-alpha110-clean / arm64 versionCode 1205
 product_line: Zavro Clean
+branch: fix/zavro-clean-video-results-header-v1206-20261101
+base_sha: c4c1cba7ef1f51d11fc98cee8e69cdb78abcfa53
+observed_head_sha: c4c1cba7ef1f51d11fc98cee8e69cdb78abcfa53
 status: CI_PENDING
-apk: NOT_BUILT
+source_version: 0.5.22-alpha110-clean / arm64 versionCode 1205
+target_version: 0.5.22-alpha111-clean / arm64 versionCode 1206
 device: NOT_TESTED
+apk: NOT_BUILT
 scope:
-  - Restore controlled private APK trigger from ChatGPT GitHub connector via explicit PR review command.
-  - Fail closed unless repo owner, exact PR head SHA, review commit SHA, signed source and prior green CI match.
-  - Preserve normal push/PR/tag tests-only and workflow_dispatch backup.
-  - Preserve existing signing cert/package/ABI/version and no public release.
-changed_paths:
-  - .github/workflows/apk-release.yml
-  - scripts/authorize-private-apk-review.cjs
-  - app/src/test/js/private-apk-review-request.test.cjs
-  - docs/ai/APK_CHAT_GITHUB_REVIEW_TRIGGER.md
-  - docs/AI_HANDOFF.md
-safety:
-  - No merge, no force push, no publishing, no certificate replacement.
-  - No action on untrusted or fork PR; owner-only review, non-main branch only.
-  - GitHub Actions artifacts in public repo require authentication but are not equivalent to a private repository.
-verification:
-  - PR required CI on final HEAD with JS/JVM/AndroidTest-compile/lint.
-  - Only after green CI: explicit GitHub PR review at final SHA, then signed APK with verified certificate.
-known_limit:
-  - GitHub connector has no workflow_dispatch and main workflow form has historical inputs.
-  - Future branches must inherit review-enabled workflow; v2 policy still scoped to migrated branches.
-next_action: Open draft PR against feat/zavro-clean-video-results-bulk-v1205-20261101; verify CI then issue one owner review command from GitHub connector; inspect post-review workflow. Without signed run report APK_BLOCKED.
+  - Restore visible and clickable results header and actions underneath browser chrome.
+  - Reserve the same viewport margins for results ComposeView as for GeckoView.
+  - Keep toolbar animation translation synchronized with Gecko's viewport.
+  - Preserve results state, filters, selection, scroll, profiles and signed update identity.
+tests:
+  - Robolectric WebContentPositionManagerTest: top, collapsed, bottom chrome, fullscreen restoration
+  - Required JavaScript/Kotlin/lint/AndroidTest compile on final SHA via Android CI
+limitations:
+  - No connected physical device; DEVICE_NOT_TESTED.
+  - Existing review-triggered private APK flow requires live validation and authenticated owner review after green CI.
+  - Changes are based on the v1205 APK-review branch (AGENTS v1.6); V2.0 migration is not automatically inherited.
+next_action: Confirm all required CI gates on final HEAD, then if authorized invoke the reviewed PR command and verify signed APK; otherwise APK_BLOCKED.
 ```
 
-## Checkpoint
-
-Base v1205 application is unchanged. The new review-command path must be tested
-in actual GitHub Actions before reporting that the execution route is restored.
-A green workflow on an earlier SHA cannot validate the final implementation.
+No merge to main, force-push, public release, data deletion or signing-key changes.
+Checkpoint is pre-commit by design; consult live ref and CI for final SHA and run.

@@ -16,7 +16,9 @@ class WebContentPositionManager(
     private val swipeRefreshView: View,
     private val rootView: View,
     private val getTopToolbarHeight: () -> Int,
-    private val getBottomToolbarHeight: () -> Int
+    private val getBottomToolbarHeight: () -> Int,
+    // Internal about: pages share Gecko's viewport, not the full chrome-covered host.
+    private val internalPageView: View? = null
 ) {
     private val reservation = WebViewportReservation()
     private var isDestroyed = false
@@ -75,12 +77,17 @@ class WebContentPositionManager(
 
     private fun applyMargins() {
         if (isDestroyed) return
-        val lp = swipeRefreshView.layoutParams as? CoordinatorLayout.LayoutParams ?: return
         val wanted = reservation.margins()
+        applyMarginsTo(swipeRefreshView, wanted)
+        internalPageView?.let { applyMarginsTo(it, wanted) }
+    }
+
+    private fun applyMarginsTo(view: View, wanted: WebViewportReservation.Margins) {
+        val lp = view.layoutParams as? CoordinatorLayout.LayoutParams ?: return
         if (lp.topMargin == wanted.top && lp.bottomMargin == wanted.bottom) return
         lp.topMargin = wanted.top
         lp.bottomMargin = wanted.bottom
-        swipeRefreshView.layoutParams = lp
+        view.layoutParams = lp
     }
 
     fun requestUpdate() {
