@@ -27,11 +27,12 @@ class OverlayWindowDiagnosticsTest {
             setBackgroundColor(Color.GRAY)
             elevation = 14f
         }
-        root.addView(rectangle, FrameLayout.LayoutParams(250, 170).apply {
-            leftMargin = 730
-            topMargin = 100
-        })
-        // A deterministic 1000x600 decor layout: sample is at 820x180.
+        // Cover the sample point regardless of Robolectric's status-bar and
+        // content-inset offsets. Geometry is tested separately by Rect.contains.
+        root.addView(rectangle, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
+        ))
+        // A deterministic 1000x600 decor layout; inspect only native metadata.
         activity.window.decorView.measure(
             View.MeasureSpec.makeMeasureSpec(1000, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(600, View.MeasureSpec.EXACTLY)
