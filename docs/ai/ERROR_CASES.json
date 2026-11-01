@@ -23,7 +23,7 @@
     },
     {
       "task_id": "ZC-V1208-NEON-REDESIGN",
-      "observed_count": 2,
+      "observed_count": 4,
       "state": "ACTIVE"
     }
   ],
@@ -211,6 +211,46 @@
       "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41346184372"
+      ]
+    },
+    {
+      "id": "CI-41346404329-1-124967036250",
+      "task_id": "ZC-V1208-NEON-REDESIGN",
+      "kind": "CI_FAILURE",
+      "fingerprint": "v1208-negative-control-stale-fixture",
+      "summary": "SOURCE CI 41346404329: test negatywny aktualizacji nadal zmienial stary literal v1207, przez co nie generowal zlego wariantu; odnowiono tylko wejscie wariantu negatywnego dla v1208.",
+      "source_sha": "63f8d01294b5f94d0e01d67e90eefb49474cdfd9",
+      "observed_at": "2026-11-01T20:21:13Z",
+      "run_id": 41346404329,
+      "job_id": 124967036250,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "37bd7e03083c99c3d66d6ae23ad6b2dfc8d05805",
+      "regression_test": "app/src/test/js/update-apk-workflow-scope.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41346404329"
+      ]
+    },
+    {
+      "id": "ERR-20261101-0005",
+      "task_id": "ZC-V1208-NEON-REDESIGN",
+      "kind": "CI_FAILURE",
+      "fingerprint": "neon-test-incorrect-callback-spelling",
+      "summary": "SOURCE CI 41346404329: nowy test UI zakladal bezposrednie wywolanie inspectSite(it), podczas gdy produkcja zachowuje poprawne przekazanie referencji onInspect = ::inspectSite; skorygowano asercje bez zmiany aplikacji.",
+      "source_sha": "63f8d01294b5f94d0e01d67e90eefb49474cdfd9",
+      "observed_at": "2026-11-01T20:21:13Z",
+      "run_id": 41346404329,
+      "job_id": 124967036250,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "867d6e3f418cc852d0097a5ed59d3548005bf16b",
+      "regression_test": "app/src/test/js/video-search-neon-redesign.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41346404329"
       ]
     }
   ]
