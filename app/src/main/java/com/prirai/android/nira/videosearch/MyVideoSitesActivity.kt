@@ -270,7 +270,11 @@ class MyVideoSitesActivity : AppCompatActivity() {
         }
         normalHeader.addView(defaultGroupButton)
 
-        val multiActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val multiActions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            // Baseline alignment offsets the two-line action tiles below the row's bottom.
+            isBaselineAligned = false
+        }
         multiStatusButton = Button(this).apply {
             text = "⌁\nStatus"
             minHeight = dp(72)
