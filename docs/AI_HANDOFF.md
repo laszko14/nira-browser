@@ -11,7 +11,7 @@ branch: improve/zavro-clean-chatgpt-github-process-20261101
 base_sha: 414b861d14ab03e769dca9b82727644e07a89169
 observed_head_sha: 414b861d14ab03e769dca9b82727644e07a89169
 status: CI_PENDING
-acceptance_source: pilot T01/16 — docs/ai/T01_V1196_NONDESTRUCTIVE_SMOKE.md
+acceptance_source: ETAP 9/9 — pilot T01/16 — docs/ai/T01_V1196_NONDESTRUCTIVE_SMOKE.md
 required_ci: zavro-ai-process-docs.yml / process-docs + shared-tests/{javascript,unit,android-test-compile,lint} + quality-evidence
 device: USER_REPORTED_SMOKE_3_OF_3_OK; ZC-AUD-002/030/031/043 NOT_TESTED
 apk: NOT_BUILT
