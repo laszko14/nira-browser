@@ -49,8 +49,8 @@ test('readOnce uses read-only GET, latest-only pagination, and checks live HEAD'
     if(options?.headers.Authorization==='Bearer redacted-test-token')tokenSeen++;
     let payload;
     if(url.endsWith('/actions/runs/123456'))payload=run;
-    else if(url.includes('page=1'))payload=pages[0];
-    else if(url.includes('page=2'))payload=pages[1];
+    else if(url.endsWith('&page=1'))payload=pages[0];
+    else if(url.endsWith('&page=2'))payload=pages[1];
     else if(url.includes('/branches/'))payload=branch;
     else throw Error('Unexpected request URL');
     return {ok:true,status:200,json:async()=>payload};
