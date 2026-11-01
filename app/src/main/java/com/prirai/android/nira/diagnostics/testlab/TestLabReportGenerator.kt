@@ -68,7 +68,7 @@ object TestLabReportGenerator {
         appendLine("Obsługiwane tryby Hz: ${r.environment.refreshRatesHz}; aktualny: ${r.environment.currentRefreshHz ?: "BRAK DANYCH"}; żądany: ${r.environment.requestedRefreshHz ?: "BRAK DANYCH"}")
         if (r.testType in setOf(TestType.PANELS_GESTURES, TestType.COMPLEX, TestType.FULL_AUDIT)) {
             appendLine("\nPANELE — płynność animacji (tylko Android UI Window):")
-            appendLine("Cel 120 Hz: 8.333 ms na cykl odświeżania. To budżet teoretyczny, NIE zmierzony FPS ani potwierdzone 120 Hz.")
+            appendLine("Budżet: 60 Hz = 16.667 ms, 120 Hz = 8.333 ms. Liczy się odczytany Hz, nie sam wybór w ustawieniach.")
             val measuredHz = r.environment.currentRefreshHz?.takeIf { it.isFinite() && it > 0.0 }
             if (measuredHz == null) {
                 appendLine("Tryb wyświetlacza: NIEPOTWIERDZONY; brak aktualnego odczytu Hz.")
@@ -88,6 +88,14 @@ object TestLabReportGenerator {
                     if (stat.taggedFrames == 0L)
                         appendLine("${operation}: BRAK POWIĄZANYCH KLATEK — nie oceniać płynności tej animacji.")
                 }
+            }
+            if (r.testType == TestType.PANELS_GESTURES) {
+                appendLine("CZAS MONTOWANIA ZAWARTOŚCI PANELI (commitNow, główny wątek):")
+                for (code in listOf(LabCode.LEFT_PANEL_MOUNT_MS, LabCode.RIGHT_PANEL_MOUNT_MS)) {
+                    val samples = r.timeline.filter { it.code == code }.mapNotNull { it.value }
+                    appendLine("$code: wszystkie=${r.eventCounts[code] ?: 0}, zachowane=${samples.size}, max zachowane=${number(samples.maxOrNull())} ms.")
+                }
+                if (r.evictedEvents > 0) appendLine("Ograniczona historia: pominięto część starszych zdarzeń.")
             }
             appendLine("JankStats nie obejmuje kompozytora Gecko/MPV; korelacja operacji i klatek nie dowodzi przyczynowości. Porównaj powtarzalne próby i sprawdź osobno płynność na urządzeniu.")
         }

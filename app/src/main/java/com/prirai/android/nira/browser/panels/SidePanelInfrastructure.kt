@@ -1,6 +1,10 @@
 package com.prirai.android.nira.browser.panels
 
 import android.content.res.Configuration
+import android.os.SystemClock
+import com.prirai.android.nira.diagnostics.testlab.TestLab
+import com.prirai.android.nira.diagnostics.testlab.LabCode
+import com.prirai.android.nira.diagnostics.testlab.LabDomain
 import android.graphics.PointF
 import android.graphics.Rect
 import android.os.Build
@@ -195,9 +199,13 @@ internal class SidePanelInfrastructure private constructor(
         // FragmentManager.commitNow() FIRST. The former ordering crashed on the
         // very first edge gesture with "Fragment not attached to a context".
         if (found == null) {
+            val activeProbe = TestLab.capture()?.allows(LabDomain.PANELS) == true
+            val began = if (activeProbe) SystemClock.elapsedRealtimeNanos() else 0L
             fragmentManager.beginTransaction()
                 .add(host.leftContainer.id, tabs, LEFT_CONTENT_TAG)
                 .commitNow()
+            if (activeProbe) TestLab.note(LabCode.LEFT_PANEL_MOUNT_MS,
+                (SystemClock.elapsedRealtimeNanos() - began).coerceAtLeast(0L) / 1_000_000.0)
         }
         if (!tabs.isAdded || tabs.view?.parent !== host.leftContainer) {
             // A child manager below CREATED can attach a fragment without a view.
@@ -238,9 +246,13 @@ internal class SidePanelInfrastructure private constructor(
 
         // Just as on LEFT, do not query Resources on an unattached DialogFragment.
         if (found == null) {
+            val activeProbe = TestLab.capture()?.allows(LabDomain.PANELS) == true
+            val began = if (activeProbe) SystemClock.elapsedRealtimeNanos() else 0L
             fragmentManager.beginTransaction()
                 .add(host.rightContainer.id, bookmarks, RIGHT_CONTENT_TAG)
                 .commitNow()
+            if (activeProbe) TestLab.note(LabCode.RIGHT_PANEL_MOUNT_MS,
+                (SystemClock.elapsedRealtimeNanos() - began).coerceAtLeast(0L) / 1_000_000.0)
         }
         if (!bookmarks.isAdded || bookmarks.view?.parent !== host.rightContainer) {
             if (found == null && !fragmentManager.isStateSaved) {

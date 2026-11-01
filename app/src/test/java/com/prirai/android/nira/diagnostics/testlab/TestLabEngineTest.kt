@@ -27,6 +27,30 @@ class TestLabEngineTest {
         assertEquals(10.0,report.durationMs,0.001)
         assertNull(report.frameMetrics)
     }
+    @Test fun manualPanelCaptureMeasures60HzMountsAndStopsOnRequest() {
+        val e=engine();val token=e.start(TestType.PANELS_GESTURES)!!
+        assertEquals(300_000_000_000L,e.targetDurationNanos())
+        assertTrue(e.begin(token,LabEnvironment(currentRefreshHz=60.0)))
+        assertTrue(e.foreground(token,true))
+        repeat(4) {
+            assertTrue(e.note(token,LabCode.LEFT_PANEL_MOUNT_MS,19.0))
+            assertTrue(e.note(token,LabCode.RIGHT_PANEL_MOUNT_MS,5.0))
+            advance(150)
+        }
+        advance(70_000);assertFalse(e.poll(token))
+        val report=finish(e,token)
+        assertEquals(LabPhase.COMPLETED,report.status)
+        assertEquals(60.0,report.environment.currentRefreshHz!!,0.01)
+        assertEquals(4L,report.eventCounts[LabCode.LEFT_PANEL_MOUNT_MS])
+        assertTrue(TestLabReportGenerator.generate(report).text.contains("LEFT_PANEL_MOUNT_MS"))
+    }
+    @Test fun panelSafetyCapEndsAsPartialNotSuccessfulMeasurement() {
+        val e=engine();val t=running(e,TestType.PANELS_GESTURES)
+        advance(299_999);assertFalse(e.poll(t))
+        advance(1);assertTrue(e.poll(t));assertTrue(e.complete(t))
+        assertEquals(LabPhase.PARTIAL,e.latest()!!.status)
+        assertEquals(300_000.0,e.latest()!!.durationMs,0.001)
+    }
     @Test fun fullAuditRuns120SecondsAndCoversAllDomains() {
         val e=engine();val t=running(e,TestType.FULL_AUDIT)
         assertEquals(120_000_000_000L,e.targetDurationNanos())

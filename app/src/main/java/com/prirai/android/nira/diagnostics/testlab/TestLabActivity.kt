@@ -139,7 +139,7 @@ class TestLabActivity:AppCompatActivity() {
             LazyColumn(Modifier.fillMaxSize().padding(padding).testTag("testlab-list"),
                 contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 item {
-                    Text("Jeden test • 120 s • jeden raport",style=MaterialTheme.typography.titleMedium)
+                    Text("Test kompletny: 120 s. Test panelów: ręczny STOP (maks. 5 min).",style=MaterialTheme.typography.titleMedium)
                     Text("Detektor może lokalnie odczytywać DOM, tytuły, miniatury, JSON-LD i dostępne manifesty. W raporcie tylko anonimowe wyniki, bez adresów, tokenów, cookies i treści stron. Test nie steruje kartami ani odtwarzaniem.",style=MaterialTheme.typography.bodyMedium)
                     Text("Zakończony pomiar nie oznacza sprawności całej aplikacji. Klatki dotyczą Android UI Window; obraz Gecko i wideo nie są bezpośrednio mierzone.",style=MaterialTheme.typography.bodySmall)
                 }
@@ -153,7 +153,9 @@ class TestLabActivity:AppCompatActivity() {
                         },Modifier.testTag("testlab-status"))
                         Button(onClick=::returnToBrowser,enabled=status.phase!=LabPhase.FINALIZING,modifier=Modifier.fillMaxWidth()){Text("Wróć do przeglądarki")}
                         OutlinedButton(onClick={if(TestLab.mark())message("Znacznik zapisany")},enabled=status.phase==LabPhase.RUNNING,modifier=Modifier.fillMaxWidth()){Text("Zacięło się teraz")}
-                        OutlinedButton(onClick={TestLab.stop()},enabled=status.phase!=LabPhase.FINALIZING,modifier=Modifier.fillMaxWidth()){Text("Zakończ wcześniej • raport częściowy")}
+                        OutlinedButton(onClick={TestLab.stop()},enabled=status.phase==LabPhase.RUNNING,modifier=Modifier.fillMaxWidth()){
+                            Text(if(status.type==TestType.PANELS_GESTURES) "Test panelów • STOP i raport" else "Zakończ wcześniej • raport częściowy")
+                        }
                     }}
                 }
                 if(rendering)item{CircularProgressIndicator();Text("Przygotowywanie raportu…")}

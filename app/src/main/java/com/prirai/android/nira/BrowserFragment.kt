@@ -1095,6 +1095,20 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             onClick = { startActivity(android.content.Intent(requireContext(),
                 com.prirai.android.nira.diagnostics.testlab.TestLabActivity::class.java)) }
         ))
+        if (!com.prirai.android.nira.diagnostics.testlab.TestLab.busy) {
+            menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+                id = "testlab_panels_start", title = "Test panelów • START",
+                iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_settings_24,
+                onClick = {
+                    val lab = com.prirai.android.nira.diagnostics.testlab.TestLab
+                    val started = lab.start(requireActivity().application,
+                        com.prirai.android.nira.diagnostics.testlab.TestType.PANELS_GESTURES)
+                    Toast.makeText(requireContext(), if (started)
+                        "Test panelów trwa. Powtórz gesty, potem ⋮ → STOP."
+                        else "TestLab zajęty albo nie można rozpocząć.", Toast.LENGTH_LONG).show()
+                }
+            ))
+        }
         if (com.prirai.android.nira.diagnostics.testlab.TestLab.busy) {
             menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
                 id = "testlab_marker", title = "TestLab: Zacięło się teraz",
@@ -1103,7 +1117,9 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                     Toast.makeText(requireContext(), "Znacznik zapisany", Toast.LENGTH_SHORT).show() }
             ))
             menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
-                id = "testlab_stop", title = "Zakończ TestLab • raport częściowy",
+                id = "testlab_stop", title = if (com.prirai.android.nira.diagnostics.testlab.TestLab.ui.value.type ==
+                    com.prirai.android.nira.diagnostics.testlab.TestType.PANELS_GESTURES)
+                    "Test panelów • STOP i raport" else "Zakończ TestLab • raport częściowy",
                 iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_cross_24,
                 onClick = { com.prirai.android.nira.diagnostics.testlab.TestLab.stop() }
             ))

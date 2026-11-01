@@ -18,7 +18,11 @@ class TestLabEngine(
     private var serial=0L
     private var token:SessionToken?=null
     private var type=TestType.COMPLEX
-    private val durationNanos:Long get()=if(type==TestType.FULL_AUDIT) FULL_DURATION_NS else DURATION_NS
+    private val durationNanos:Long get()=when(type) {
+        TestType.FULL_AUDIT -> FULL_DURATION_NS
+        TestType.PANELS_GESTURES -> PANEL_MANUAL_SAFETY_NS
+        else -> DURATION_NS
+    }
     @Synchronized fun targetDurationNanos():Long=durationNanos
     private var environment=LabEnvironment()
     private var started:Long?=null
@@ -233,11 +237,11 @@ class TestLabEngine(
     }
     @Synchronized fun poll(session:SessionToken):Boolean {
         if(token!=session||phase!=LabPhase.RUNNING||(offset()?:0)<durationNanos)return false
-        closing(LabPhase.COMPLETED);return true
+        closing(if(type==TestType.PANELS_GESTURES) LabPhase.PARTIAL else LabPhase.COMPLETED);return true
     }
     @Synchronized fun stop(session:SessionToken):Boolean {
         if(token!=session||phase!=LabPhase.RUNNING)return false
-        closing(if((offset()?:0)>=durationNanos)LabPhase.COMPLETED else LabPhase.PARTIAL);return true
+        closing(if(type==TestType.PANELS_GESTURES) LabPhase.COMPLETED else if((offset()?:0)>=durationNanos)LabPhase.COMPLETED else LabPhase.PARTIAL);return true
     }
     @Synchronized fun cancel(session:SessionToken):Boolean {
         if(token!=session||phase !in setOf(LabPhase.PREPARING,LabPhase.RUNNING))return false
@@ -334,5 +338,5 @@ class TestLabEngine(
     }
     fun latest():TestLabReport?=lastReport
     @Synchronized fun deleteReport(){lastReport=null}
-    companion object {const val DURATION_NS=60_000_000_000L; const val FULL_DURATION_NS=120_000_000_000L}
+    companion object {const val DURATION_NS=60_000_000_000L; const val FULL_DURATION_NS=120_000_000_000L; const val PANEL_MANUAL_SAFETY_NS=300_000_000_000L}
 }
