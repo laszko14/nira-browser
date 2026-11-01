@@ -79,6 +79,24 @@ class VideoSearchResultsTabUiMemoryTest {
             setOf("merge-tab", "other-tab")).forRun("run").mergeByName.value)
     }
 
+    @Test fun bulkSelectionsSurviveFilmNavigationButRemainScopedToRunTabAndProfile() {
+        val tab = "bulk-tab"
+        val first = VideoSearchResultsTabUiMemory.forTab(tab, "default", setOf(tab))
+            .forRun("search-a")
+        first.selecting.value = true
+        first.selectedFilmKeys.value = setOf("source:film-1", "source:film-2")
+        val restored = VideoSearchResultsTabUiMemory.forTab(tab, "default",
+            setOf(tab, "another-film")).forRun("search-a")
+        assertTrue(restored.selecting.value)
+        assertEquals(first.selectedFilmKeys.value, restored.selectedFilmKeys.value)
+        assertFalse(VideoSearchResultsTabUiMemory.forTab(tab, "default",
+            setOf(tab, "another-film")).forRun("search-b").selecting.value)
+        assertTrue(VideoSearchResultsTabUiMemory.forTab("other-bulk", "default",
+            setOf(tab, "other-bulk")).forRun("search-a").selectedFilmKeys.value.isEmpty())
+        assertTrue(VideoSearchResultsTabUiMemory.forTab(tab, "work",
+            setOf(tab, "other-bulk")).forRun("search-a").selectedFilmKeys.value.isEmpty())
+    }
+
     @Test fun pruningClosedTabDoesNotPruneResultsWhileFilmIsOpen() {
         val a = VideoSearchResultsTabUiMemory.forTab("result-closed", "default",
             setOf("result-closed"))
