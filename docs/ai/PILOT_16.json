@@ -5,11 +5,11 @@
   "records": [
     {
       "slot": "T01",
-      "state": "NOT_STARTED",
-      "task_ref": null,
-      "scope": null,
-      "complexity": null,
-      "started_at": null,
+      "state": "ACTIVE",
+      "task_ref": "T01-GECKO-V1196",
+      "scope": "GECKO",
+      "complexity": "MEDIUM",
+      "started_at": "2026-11-01T00:53:46.368Z",
       "completed_at": null,
       "followup_due_at": null,
       "followup_checked_at": null,

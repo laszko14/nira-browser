@@ -12,12 +12,30 @@ function complete(){const o=copy(),r=o.records[0];r.state='FOLLOWUP_COMPLETE';
   for(const k of FIELDS)r.metrics[k]=k==='reopened'?false:0;
   for(const k of CAUSES)r.metrics.correction_causes[k]=0;
   return o;}
-test('untouched 16 slots report NO_RESULTS_YET, never an invented success or savings',()=>{
-  assert.deepEqual(validate(source),{started:0,finished:0});
+test('T01 is active without inventing device results or success',()=>{
+  assert.equal(source.records[0].state,'ACTIVE');
+  assert.equal(source.records[0].task_ref,'T01-GECKO-V1196');
+  assert.equal(source.records[0].scope,'GECKO');
+  assert.equal(source.records[0].complexity,'MEDIUM');
+  assert.ok(source.records[0].started_at);
+  assert.ok(FIELDS.every(k=>source.records[0].metrics[k]===null));
+  assert.ok(CAUSES.every(k=>source.records[0].metrics.correction_causes[k]===null));
+  assert.ok(source.records.slice(1).every(r=>r.state==='NOT_STARTED'));
+  assert.deepEqual(validate(source),{started:1,finished:0});
   const s=summarize(source);
-  assert.equal(s.status,'NO_RESULTS_YET');assert.equal(s.sample_target,16);
+  assert.equal(s.status,'NO_RESULTS_YET');
+  assert.equal(s.sample_target,16);
   assert.equal(s.totals_for_completed_followups_only,null);
   assert.equal(s.improved_quality,'NOT_ESTABLISHED');
+});
+test('active task cannot declare unverified completion or silent zeroes',()=>{
+  const o=copy();
+  o.records[0].completed_at='2026-11-01T12:00:00.000Z';
+  assert.throws(()=>validate(o),/unearned completion/);
+  const p=copy();
+  p.records[0].metrics.regressions=0;
+  assert.equal(summarize(p).improved_quality,'NOT_ESTABLISHED');
+  assert.equal(summarize(p).completed_14_day_followups,0);
 });
 test('completed measured row accepts real zero and sums only eligible tasks',()=>{
   const o=complete(),s=summarize(o);

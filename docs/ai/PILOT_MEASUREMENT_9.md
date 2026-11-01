@@ -25,7 +25,7 @@ Audyt wskazuje, że w każdym przypadku zmieniono wyłącznie `REPAIR_REGISTER_1
 
 ## Pilotaż 16 zadań — zapis prospektywny
 
-Źródłem wpisów jest wyłącznie [`PILOT_16.json`](PILOT_16.json), 16 slotów T01–T16 z `NOT_STARTED` i wartościami `null`, nie udawanymi zerami. Poniższa tabela jest **planem**, a nie zapisanym wynikiem.
+Źródłem bieżącego statusu jest wyłącznie [`PILOT_16.json`](PILOT_16.json), zawierający 16 slotów T01–T16. Po rozpoczęciu T01 pierwszy slot ma `ACTIVE`, a wyniki i liczniki pozostają `null`, nie udawanymi zerami. Poniższa tabela jest **planem**, a nie zapisanym wynikiem.
 
 | Zakres | Metoda | Kryterium |
 |---|---|---|
