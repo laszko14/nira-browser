@@ -54,10 +54,16 @@ function validateInstructionExperiments(block){
         'trial metric must be nonnegative or null');
     }
     guard(Array.isArray(trial.evidence_links)&&trial.evidence_links.length>0 &&
-      trial.evidence_links.every(v=>typeof v==='string'&&/^https:\/\/github\.com\/laszko14\/nira-browser\//.test(v)),
+      trial.evidence_links.every(v=>typeof v==='string'&&/^https:\/\/github\.com\/laszko14\/nira-browser\/(?:commit\/[0-9a-f]{40}|pull\/[0-9]+|actions\/runs\/[0-9]+)$/.test(v)),
       'trial must have verified source links');
   }
   if(block.status==='NOT_MEASURED') guard(block.trials.length===0,'unmeasured registry must be empty');
+  if(block.status==='COMPLETE'){
+    guard(block.trials.length>=8,'completed comparison requires real paired trials');
+    const a=block.trials.filter(t=>t.arm==='A'&&t.status==='COMPLETE').length;
+    const b=block.trials.filter(t=>t.arm==='B'&&t.status==='COMPLETE').length;
+    guard(a>=4&&b>=4&&a===b,'completed comparison requires balanced pairs');
+  }
 }
 function validate(data) {
   const v2=data?.schema==='zavro.ai.pilot/2';

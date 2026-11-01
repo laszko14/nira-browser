@@ -26,4 +26,4 @@
 
 **Dobór narzędzi:** zwykły ChatGPT + GitHub jest preferowany; Codex jako rezerwa, gdy to realnie potrzebne lub zwykłe narzędzia nie wystarczą. Przekaż jeden task_id, branch i SHA, diff, kontrprzykład i log, nie powtarzaj audytu.
 
-**Niezależne review:** wymagane dla prywatności, trwałych danych, lifecycle, źródeł mediów i podpisywania. Recenzent czyta *oryginalne wymaganie*, diff i testy, nie tylko opis autora. Pyta o brakujący negatywny przypadek oraz granice dowodu. Opinia innego modelu nie zastępuje regresji.
+**Niezależne review:** dla wysokiego ryzyka (prywatność, trwałe dane, lifecycle, źródła mediów, podpisywanie) według G4 QUALITY_GATES; wymagane gdy odrębny recenzent jest dostępny, jego brak raportuj bez pozornego review. Recenzent czyta *oryginalne wymaganie*, diff i testy, nie tylko opis autora. Pyta o brakujący negatywny przypadek oraz granice dowodu. Opinia innego modelu nie zastępuje regresji.

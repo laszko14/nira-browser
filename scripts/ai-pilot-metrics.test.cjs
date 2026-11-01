@@ -136,7 +136,7 @@ test('schema v2 preserves all sixteen historical records and still accepts archi
 });
 test('instruction experiment register rejects fabricated status and unsupported trials',()=>{
   let x=copy();x.instruction_experiments.status='COMPLETE';
-  assert.deepEqual(validate(x),{started:3,finished:0}); // status alone is not a result
+  assert.throws(()=>validate(x),/real paired trials/); // no invented completion
   x=copy();x.instruction_experiments.status='NOT_MEASURED';
   x.instruction_experiments.trials=[{}];
   assert.throws(()=>validate(x),/invalid trial fields/);

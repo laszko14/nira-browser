@@ -3,8 +3,9 @@ name: Zavro AI process - documentation gate (NO APK)
 on:
   push:
     branches:
-      - feat/zavro-clean-search-redesign-v2-20261101
-      - chore/zavro-clean-codex-v3-20261101
+      - "feat/zavro-clean-**"
+      - "fix/zavro-clean-**"
+      - "chore/zavro-clean-**"
   workflow_dispatch:
 
 permissions:

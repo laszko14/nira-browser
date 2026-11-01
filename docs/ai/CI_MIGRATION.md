@@ -1,3 +1,6 @@
+# HISTORIA (nieaktywna polityka V3)
+> Poniższe workflow_dispatch i warunki Etapu 4/9 są historycznym opisem migracji V1/V2. Kanon V3: AGENTS.md, QUALITY_GATES.md oraz APK_CHAT_GITHUB_REVIEW_TRIGGER.md; prywatny APK wyłącznie przez uprawnioną recenzję PR.
+
 # CI — bezpieczne testy, jawne APK i migracja (etap 4/9)
 
 **Stan weryfikowany:** baza `5fdc40bfb514b2c579307cdff307254e0ce4e78b`, 65 plików workflow przed zmianą. Lista aktualnego HEAD i klasyfikacja eventów/zakresu: `node scripts/ci-workflow-inventory.cjs` (bez sekretnych API i bez wywoływania Actions). Raport jest klasyfikacją tekstu YAML; nie traktuj samego regexu jako pełnego dowodu skuteczności workflow. Dokładne triggery w odpowiednich plikach YAML.

@@ -74,7 +74,7 @@ test('stage 6: release depends on green tests and exact tagged SHA',()=>{
 });
 test('process branch calls exactly the shared tests and keeps its safe doc gate',()=>{
   assert.match(process,/^  shared-tests:/m);
-  assert.match(process,/chore\/zavro-clean-codex-v3-20261101/);
+  for(const pattern of ['feat/zavro-clean-**','fix/zavro-clean-**','chore/zavro-clean-**']) assert.ok(process.includes(pattern),'missing source CI branch '+pattern);
   assert.match(process,/uses: \.\/\.github\/workflows\/zavro-tests-reusable\.yml/);
   assert.match(process,/node --test scripts\/check-ci-workflows\.test\.cjs/);
   assert.match(process,/node --test scripts\/check-ai-handoff\.test\.cjs/);
