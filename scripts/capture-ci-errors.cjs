@@ -10,7 +10,7 @@ function classify(run,jobs,sha,id){
   guard(SHA.test(sha)&&run.head_sha===sha,'stale run SHA');
   guard(Number.isSafeInteger(run.run_attempt)&&run.run_attempt>0,'attempt');
   guard(Array.isArray(jobs)&&jobs.length>0,'missing jobs');
-  const seen=new Set(),failures=[];
+  const seen=new Set(),failures=[],interruptions=[];
   for(const job of jobs){
     guard(Number.isSafeInteger(job.id)&&!seen.has(job.id),'job id/duplicates');
     seen.add(job.id);
@@ -19,6 +19,12 @@ function classify(run,jobs,sha,id){
     guard(job.status==='completed','job not completed: '+safe(job.name));
     guard(job.conclusion==='success'||BAD.has(job.conclusion),'unexpected conclusion');
     if(job.conclusion==='success')continue;
+    // A cancelled, skipped or approval-blocked job is not a failed test.
+    // Preserve it as incomplete evidence; do not invent a CI_FAILURE case.
+    if(job.conclusion!=='failure'&&job.conclusion!=='timed_out'){
+      interruptions.push({job_id:job.id,job:safe(job.name),conclusion:job.conclusion});
+      continue;
+    }
     const step=(job.steps||[]).find(s=>s.conclusion==='failure'||s.conclusion==='timed_out');
     failures.push({event_id:'CI-'+id+'-'+run.run_attempt+'-'+job.id,kind:'CI_FAILURE',
       source_sha:sha,run_id:id,job_id:job.id,attempt:run.run_attempt,
@@ -29,8 +35,9 @@ function classify(run,jobs,sha,id){
   }
   return {schema:'zavro.ci-error-capture/1',repository:REPO,run_id:id,
     source_sha:sha,attempt:run.run_attempt,event:run.event,
-    capture_status:failures.length?'FAILURES_OBSERVED':'NO_FAILURES_OBSERVED',
-    failures,note:'Read-only job metadata only; no logs or secrets. Reconcile into docs/ai/ERROR_CASES.json during task.'};
+    capture_status:failures.length?'FAILURES_OBSERVED':interruptions.length?'INCOMPLETE_RUN':'NO_FAILURES_OBSERVED',
+    failures,interruptions,
+    note:'Read-only job metadata; interruptions are not CI_FAILURE records. No logs or secrets. Reconcile actionable failures into docs/ai/ERROR_CASES.json during task.'};
 }
 async function request(url,token,fetcher){
   const r=await fetcher(url,{headers:{'Accept':'application/vnd.github+json',

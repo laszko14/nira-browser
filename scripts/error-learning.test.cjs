@@ -81,3 +81,34 @@ test('read-only API captures and rejects missing pagination',async()=>{
  const missing=async url=>({ok:true,json:async()=>url.endsWith('/12')?run:{jobs:[job],total_count:2}});
  await assert.rejects(readOnce(12,sha,'',missing),/incomplete job page/);
 });
+
+test('historical SOURCE cancellation does not fabricate three extra CI failures',()=>{
+ const historical='0821b3aa06d45f41c47ee9a1c99fd0ea895b47b2';
+ const run={id:41334916448,head_sha:historical,run_attempt:1,event:'push',
+   repository:{full_name:'laszko14/nira-browser'}};
+ const jobs=[
+  {id:124932586787,name:'process-docs',status:'completed',conclusion:'failure',
+    steps:[{name:'Validate V3.1 persistent error learning and negative tests',conclusion:'failure'}]},
+  {id:124932631666,name:'AndroidTest',status:'completed',conclusion:'cancelled'},
+  {id:124932631676,name:'lint',status:'completed',conclusion:'cancelled'},
+  {id:124932631765,name:'Robolectric',status:'completed',conclusion:'cancelled'}];
+ const r=classify(run,jobs,historical,41334916448);
+ assert.equal(r.capture_status,'FAILURES_OBSERVED');
+ assert.deepEqual(r.failures.map(x=>x.job_id),[124932586787]);
+ assert.deepEqual(r.interruptions.map(x=>x.job_id),[124932631666,124932631676,124932631765]);
+ assert.ok(r.interruptions.every(x=>!Object.hasOwn(x,'kind')));
+});
+test('interrupted-only CI is not silently classified as successful',()=>{
+ const run={id:12,head_sha:sha,run_attempt:1,event:'push',
+   repository:{full_name:'laszko14/nira-browser'}};
+ const r=classify(run,[
+  {id:13,name:'unit',status:'completed',conclusion:'cancelled'},
+  {id:14,name:'lint',status:'completed',conclusion:'skipped'},
+  {id:15,name:'build',status:'completed',conclusion:'skipped'},
+  {id:16,name:'release',status:'completed',conclusion:'skipped'},
+  {id:17,name:'review',status:'completed',conclusion:'action_required'}
+ ],sha,12);
+ assert.equal(r.capture_status,'INCOMPLETE_RUN');
+ assert.deepEqual(r.failures,[]);
+ assert.deepEqual(r.interruptions.map(x=>x.job_id),[13,14,17]);
+});
