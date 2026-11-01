@@ -16,7 +16,7 @@ test('neon site controls keep all existing search and configuration handlers', (
     'bulkSelection(selectAll = false)', 'chooseParallelism()',
     'chooseDefaultVideoGroup()', 'previewQueue()',
     'showMultiStatus()', 'stopMultiSearch()', 'showMultiHistory()',
-    'showSavedFilmFolders()', 'inspectSite(it)', 'checkConfiguration',
+    'showSavedFilmFolders()', 'onInspect = ::inspectSite', 'onCheck = ::checkConfiguration',
     'configureManually', 'confirmRemoval',
   ]) assert.ok(sites.includes(handler), handler);
   assert.match(sites, /styleNeonButton\(this, accent = true, height = 52\)/);
