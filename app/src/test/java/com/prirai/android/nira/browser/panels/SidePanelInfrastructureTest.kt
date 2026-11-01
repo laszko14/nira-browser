@@ -18,6 +18,38 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35], application = Application::class, manifest = Config.NONE)
 class SidePanelInfrastructureTest {
 
+    @Test fun cachedNormalTabOwnerReusesOnlyIdenticalNormalProfile() {
+        val policy = LeftPanelReusePolicy()
+        val first = SidePanelNormalOwner("tab-1", "profile_default", "default")
+        policy.onMounted(first)
+        assertTrue(policy.onClosed(first))
+        assertTrue(policy.isCached)
+        assertTrue(policy.canReuse(first))
+        assertFalse(policy.canReuse(SidePanelNormalOwner("tab-2", "profile_default", "default")))
+        assertFalse(policy.canReuse(SidePanelNormalOwner("tab-1", "profile_other", "other")))
+        assertFalse(policy.canReuse(null)) // Private or unknown owner is never reusable
+        policy.onMounted(first)
+        assertFalse(policy.isCached)
+        assertFalse(policy.canReuse(first))
+    }
+
+    @Test fun ownerChangeOrPrivateModeDoesNotRetainStaleDrawer() {
+        val policy = LeftPanelReusePolicy()
+        val first = SidePanelNormalOwner("tab-1", null, "default")
+        val other = SidePanelNormalOwner("tab-1", "profile_two", "two")
+        policy.onMounted(first)
+        assertFalse(policy.onClosed(other))
+        assertFalse(policy.isCached)
+        policy.onMounted(first)
+        assertFalse(policy.onClosed(null))
+        assertFalse(policy.canReuse(first))
+        policy.onMounted(first)
+        assertTrue(policy.onClosed(first))
+        policy.clear() // Opposite drawer, view destruction or idle eviction
+        assertFalse(policy.isCached)
+        assertFalse(policy.canReuse(first))
+    }
+
     private fun parent(activity: Activity): SwipeGestureLayout =
         SwipeGestureLayout(activity).also { parent ->
             activity.setContentView(parent)

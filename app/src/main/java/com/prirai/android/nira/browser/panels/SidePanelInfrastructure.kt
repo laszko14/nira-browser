@@ -21,6 +21,33 @@ import com.prirai.android.nira.browser.bookmark.ui.BookmarksBottomSheetFragment
 import androidx.fragment.app.FragmentManager
 import kotlin.math.abs
 
+/** A short-lived cache is valid only for the same normal-profile tab owner. */
+internal data class SidePanelNormalOwner(val tabId: String, val contextId: String?, val profileId: String)
+
+internal class LeftPanelReusePolicy {
+    private var mountedOwner: SidePanelNormalOwner? = null
+    private var cachedOwner: SidePanelNormalOwner? = null
+    val isCached: Boolean get() = cachedOwner != null
+
+    fun onMounted(owner: SidePanelNormalOwner?) {
+        mountedOwner = owner
+        cachedOwner = null
+    }
+
+    fun onClosed(owner: SidePanelNormalOwner?): Boolean {
+        cachedOwner = owner?.takeIf { it == mountedOwner }
+        return isCached
+    }
+
+    fun canReuse(owner: SidePanelNormalOwner?): Boolean =
+        owner != null && owner == cachedOwner
+
+    fun clear() {
+        mountedOwner = null
+        cachedOwner = null
+    }
+}
+
 /**
  * View-lifecycle owner for the new overlay, gesture listener and motion controller.
  *
@@ -49,6 +76,16 @@ internal class SidePanelInfrastructure private constructor(
     private var rightFragmentManager: FragmentManager? = null
     private var leftWasVisible = false
     private var rightWasVisible = false
+    private val leftReuse = LeftPanelReusePolicy()
+    /** Null for private/unknown contexts; never retain a private panel. */
+    var leftContentOwner: (() -> SidePanelNormalOwner?)? = null
+    private val evictCachedLeft = Runnable {
+        if (!disposed && leftReuse.isCached && controller.snapshot.phase == SidePanelPhase.CLOSED) {
+            leftFragmentManager?.let { manager ->
+                if (!manager.isStateSaved && !manager.isDestroyed) unmountLeftContent(manager)
+            }
+        }
+    }
     private var childInteractionInProgress = false
     private var fullscreenActive = false
     private var lastRenderedPhase = SidePanelPhase.CLOSED
@@ -151,10 +188,21 @@ internal class SidePanelInfrastructure private constructor(
         // Each side is released after its own transition, only if still CLOSED.
         if (leftWasVisible) {
             leftWasVisible = false
-            gestures.post {
-                if (!disposed && controller.snapshot.phase == SidePanelPhase.CLOSED) {
-                    leftFragmentManager?.let { manager ->
-                        if (!manager.isStateSaved && !manager.isDestroyed) unmountLeftContent(manager)
+            if (leftFragmentManager != null && host.leftContainer.childCount > 0 &&
+                leftReuse.onClosed(leftContentOwner?.invoke())) {
+                // Repeated normal-profile edge gestures reuse the existing Compose view.
+                // The cached host stays GONE and cannot steal Back, page touch or the right edge.
+                enabled.remove(SidePanelSide.LEFT)
+                gestures.removeCallbacks(evictCachedLeft)
+                gestures.postDelayed(evictCachedLeft, LEFT_CACHE_MS)
+                refreshGestureExclusions()
+            } else {
+                leftReuse.clear()
+                gestures.post {
+                    if (!disposed && controller.snapshot.phase == SidePanelPhase.CLOSED) {
+                        leftFragmentManager?.let { manager ->
+                            if (!manager.isStateSaved && !manager.isDestroyed) unmountLeftContent(manager)
+                        }
                     }
                 }
             }
@@ -171,9 +219,20 @@ internal class SidePanelInfrastructure private constructor(
         }
     }
 
-    /** Includes pending unmounts, so a second drawer cannot be mounted between frames. */
+    /** A CLOSED cached-left view is invisible and does not own gestures or the opposite edge. */
     fun leftIsEngaged(): Boolean = !disposed &&
-        (host.leftContainer.childCount > 0 || controller.snapshot.side == SidePanelSide.LEFT)
+        ((!leftReuse.isCached && host.leftContainer.childCount > 0) ||
+            controller.snapshot.side == SidePanelSide.LEFT)
+
+    /** Release stale cached content promptly after selected tab/profile/private changes. */
+    fun invalidateClosedLeftCache() {
+        if (disposed || !leftReuse.isCached ||
+            leftReuse.canReuse(leftContentOwner?.invoke())) return
+        gestures.post {
+            if (!disposed && leftReuse.isCached &&
+                !leftReuse.canReuse(leftContentOwner?.invoke())) evictCachedLeft.run()
+        }
+    }
     fun rightIsEngaged(): Boolean = !disposed &&
         (host.rightContainer.childCount > 0 || controller.snapshot.side == SidePanelSide.RIGHT)
     fun anyPanelEngaged(): Boolean = leftIsEngaged() || rightIsEngaged()
@@ -186,6 +245,12 @@ internal class SidePanelInfrastructure private constructor(
     fun mountLeftContent(fragmentManager: FragmentManager): Boolean {
         if (disposed || rightIsEngaged() ||
             fragmentManager.isStateSaved || fragmentManager.isDestroyed) return false
+        if (leftReuse.isCached &&
+            (!leftReuse.canReuse(leftContentOwner?.invoke()) ||
+                leftFragmentManager !== fragmentManager)) {
+            val staleManager = leftFragmentManager ?: return false
+            if (!unmountLeftContent(staleManager)) return false
+        }
         val found = fragmentManager.findFragmentByTag(LEFT_CONTENT_TAG)
         val tabs = when (found) {
             null -> TabsBottomSheetFragment.newEmbeddedSidePanel()
@@ -225,6 +290,8 @@ internal class SidePanelInfrastructure private constructor(
         )
         host.setPanelWidth(SidePanelSide.LEFT, tabs.embeddedSidePanelWidth())
         leftFragmentManager = fragmentManager
+        gestures.removeCallbacks(evictCachedLeft)
+        leftReuse.onMounted(leftContentOwner?.invoke())
         // Content is mounted but no gesture listener is enabled until activate().
         return true
     }
@@ -236,6 +303,10 @@ internal class SidePanelInfrastructure private constructor(
     fun mountRightContent(fragmentManager: FragmentManager): Boolean {
         if (disposed || leftIsEngaged() ||
             fragmentManager.isStateSaved || fragmentManager.isDestroyed) return false
+        if (leftReuse.isCached) {
+            val cachedManager = leftFragmentManager ?: return false
+            if (!unmountLeftContent(cachedManager)) return false
+        }
         val found = fragmentManager.findFragmentByTag(RIGHT_CONTENT_TAG)
         val bookmarks = when (found) {
             null -> BookmarksBottomSheetFragment.newEmbeddedSidePanel()
@@ -304,6 +375,8 @@ internal class SidePanelInfrastructure private constructor(
 
     /** Called during parent view teardown, when synchronous fragment transactions are unsafe. */
     fun releaseLeftContentBinding(fragmentManager: FragmentManager) {
+        gestures.removeCallbacks(evictCachedLeft)
+        leftReuse.clear()
         childInteractionInProgress = false
         leftFragmentManager = null
         leftWasVisible = false
@@ -323,6 +396,8 @@ internal class SidePanelInfrastructure private constructor(
         childInteractionInProgress = false
         tabs.clearEmbeddedSidePanelCallbacks()
         fragmentManager.beginTransaction().remove(tabs).commitNow()
+        gestures.removeCallbacks(evictCachedLeft)
+        leftReuse.clear()
         return true
     }
 
@@ -493,6 +568,9 @@ internal class SidePanelInfrastructure private constructor(
         swipeOwner = null
         skipFirstUpdate = false
         enabled.clear()
+        gestures.removeCallbacks(evictCachedLeft)
+        leftReuse.clear()
+        leftContentOwner = null
         leftFragmentManager = null
         rightFragmentManager = null
         childInteractionInProgress = false
@@ -510,6 +588,8 @@ internal class SidePanelInfrastructure private constructor(
         if (side == SidePanelSide.LEFT) host.leftContainer else host.rightContainer
 
     companion object {
+        // Short retention improves repeated swipes without holding an idle tab UI indefinitely.
+        private const val LEFT_CACHE_MS = 3_000L
         private const val LEFT_CONTENT_TAG = "NiraEmbeddedSideTabs"
         private const val RIGHT_CONTENT_TAG = "NiraEmbeddedSideBookmarks"
 

@@ -259,6 +259,16 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                     !parentFragmentManager.isStateSaved
             }
         )
+        sidePanelInfrastructure?.leftContentOwner = {
+            val state = components.store.state
+            val selected = state.tabs.firstOrNull { it.id == state.selectedTabId }
+            if (selected == null || selected.content.private || browsingModeManager.mode.isPrivate) null
+            else com.prirai.android.nira.browser.panels.SidePanelNormalOwner(
+                selected.id, selected.contextId,
+                com.prirai.android.nira.browser.profile.ProfileManager
+                    .getInstance(requireContext()).getActiveProfile().id
+            )
+        }
         sidePanelInfrastructure?.prepareLeftOnGesture = { mountEmbeddedSideTabs() }
         sidePanelInfrastructure?.prepareRightOnGesture = { mountEmbeddedSideBookmarks() }
         if (!prefs.niraEdgePanelsEnabled) return
@@ -650,6 +660,9 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                         }
                     }
                     
+                    // A closed normal-profile drawer must not preserve stale tab/profile contents.
+                    sidePanelInfrastructure?.invalidateClosedLeftCache()
+
                     // NO NAVIGATION - HomePage content is now rendered inline in BrowserFragment
                     // when URL is "about:homepage". This keeps the toolbar alive and prevents
                     // tab pills from reloading. See fragment_browser.xml for homepage ComposeView.
