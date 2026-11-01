@@ -45,7 +45,7 @@ test('completed measured row accepts real zero and sums only eligible tasks',()=
   assert.equal(s.totals_for_completed_followups_only.correction_rounds,0);
 });
 test('no false ZERO before data collection and no invented followup status',()=>{
-  let o=copy();o.records[0].metrics.user_interventions=0;
+  let o=copy();o.records[1].metrics.user_interventions=0;
   assert.throws(()=>validate(o),/NOT_STARTED/);
   o=complete();o.records[0].followup_checked_at='2026-11-04T00:00:00.000Z';
   assert.throws(()=>validate(o),/before observation window/);
