@@ -139,4 +139,85 @@ class VideoSearchResultsMergeTest {
         assertEquals(2, VideoSearchResultsMerge.group(films, true, true).size)
     }
 
+    @Test fun titleTypoWithStrongSimilarityMergesEvenWhenDurationMissing() {
+        val entries = listOf(
+            film("a", "a", "Mountain Adventure in the Midnight Forest", null),
+            film("b", "b", "Mountain Adventure in the Midnigt Forest", null),
+        )
+        assertEquals(1, VideoSearchResultsMerge.group(entries, true, false).size)
+    }
+
+    @Test fun mediumSimilarityAndTwoSecondGapMergeWhenMultipleWordsMatch() {
+        val entries = listOf(
+            film("a", "a", "Wonderful Evening Adventure", 3140),
+            film("b", "b", "Wonderful Evening Adventures", 3142),
+        )
+        assertEquals(1, VideoSearchResultsMerge.group(entries, true, false).size)
+        assertEquals(1, VideoSearchResultsMerge.group(entries, true, true).size)
+    }
+
+    @Test fun moderatelySimilarNamesDoNotMergeWithoutDurationCorroboration() {
+        val entries = listOf(
+            film("a", "a", "Wonderful Evening Adventure", 3140),
+            film("b", "b", "Wonderful Evening Adventures", 3200),
+        )
+        // One plural suffix alone may still be high similarity; use a
+        // meaningful changed word for this negative control.
+        val changed = entries[1].copy(originalTitle = "Wonderful Evening Discovery")
+        assertEquals(2, VideoSearchResultsMerge.group(listOf(entries[0], changed),
+            true, false).size)
+    }
+
+    @Test fun sameSeriesDifferentEpisodeNumbersNeverFuzzyMerge() {
+        val entries = listOf(
+            film("a", "a", "The Incredible Adventure Episode 1", 2000),
+            film("b", "b", "The Incredible Adventure Episode 2", 2001),
+        )
+        assertEquals(2, VideoSearchResultsMerge.group(entries, true, false).size)
+    }
+
+    @Test fun samePerformerButDifferentSceneNearDurationStaysIndependent() {
+        val entries = listOf(
+            film("a", "a", "Artist Name First Important Scene", 2800),
+            film("b", "b", "Artist Name Second Important Scene", 2801),
+        )
+        assertEquals(2, VideoSearchResultsMerge.group(entries, true, false).size)
+    }
+
+    @Test fun strongTitleSimilarityDoesNotDependOnFilmWebsite() {
+        val entries = listOf(
+            film("a", "one", "The Beautiful Sunset over the Mountains", 3100),
+            film("b", "two", "The Beautiful Sunset over the Mountans", 3120),
+        )
+        assertEquals(listOf("one", "two"), VideoSearchResultsMerge.group(
+            entries, true, false).single().films.map { it.siteId })
+    }
+
+    @Test fun metadataIsNeverNeededForFuzzyMatchingAndOriginalsRemainIntact() {
+        val entries = listOf(
+            film("a", "one", "HD 4K 37:46 Elle Marz – I Dont Wanna Share", 2266),
+            film("b", "two", "Elle Marz - I Don’T Wanna Share", 2265),
+        )
+        val groups = VideoSearchResultsMerge.group(entries, true, false)
+        assertEquals(1, groups.size)
+        assertEquals(entries, groups.single().films)
+        assertEquals(entries[0].originalTitle, groups.single().primary.originalTitle)
+    }
+
+    @Test fun emptyOrUnknownDurationCannotCauseWeakTitleMerges() {
+        val entries = listOf(
+            film("a", "one", "Artist Name First Important Scene", null),
+            film("b", "two", "Artist Name Second Important Scene", null),
+        )
+        assertEquals(2, VideoSearchResultsMerge.group(entries, true, false).size)
+    }
+
+    @Test fun durationOnlyStillMeansExactSecondsNotFuzzyNames() {
+        val entries = listOf(
+            film("a", "one", "A Perfect Evening with Friends", 999),
+            film("b", "two", "Different Movie with Different Plot", 999),
+        )
+        assertEquals(1, VideoSearchResultsMerge.group(entries, false, true).size)
+    }
+
 }
