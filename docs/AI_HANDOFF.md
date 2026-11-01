@@ -1,35 +1,36 @@
-# AI_HANDOFF — Zavro Clean · V3, główna gałąź robocza
-> Jedyny bieżący checkpoint tej gałęzi. Wersja aplikacji: Clean v1207 z `feat/zavro-clean-search-redesign-v2-20261101` (`b161b9403425435e106498c382da34b5e3cb3d58`). Proces V3 przejęty z `chore/zavro-clean-codex-v3-20261101`; wcześniejsze materiały: [archiwum](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md). Handoff jest snapshotem, nie bieżącym HEAD.
+# AI_HANDOFF — Zavro Clean · V3.2, główna gałąź robocza
+> Jedyny bieżący checkpoint tej gałęzi. Aplikacja Clean v1207 z `feat/zavro-clean-search-redesign-v2-20261101` (`b161b9403425435e106498c382da34b5e3cb3d58`). Proces V3 pochodzi z `chore/zavro-clean-codex-v3-20261101`. [Archiwum](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md). Handoff jest snapshotem, nie HEAD live.
 
 ```yaml
-task_id: ZC-V32-CHAT-ERROR-SMOKE
+task_id: ZC-V32-FINAL-CHECKPOINT
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: feat/zavro-clean-v3-20261101
 base_sha: ff62a26d3d1259626e042afaff702c8c9c1c6610
-observed_head_sha: c39c4edea3d598e050c134b166b9153a23c57e89
-status: CI_PENDING
-acceptance_source: V3.2 etap 2/3; praktyczny smoke z rzeczywistej rozmowy: zapis negatywnego wyniku prosby o niezalezna recenzje PR #119 do ERROR_CASES. Bez APK, merge i zmian aplikacji.
-required_ci: process-docs, shared-tests (JS, JVM/Robolectric, AndroidTest compile, lint + lint-regression), quality-evidence na dokladnym finalnym SOURCE SHA
+observed_head_sha: 27785e1e0391e6ef41061c7d62edb435dd11fee7
+status: G4_BLOCKED
+acceptance_source: Etap 3/3 V3.2 - koncowa ocena na live GitHub, trwaly checkpoint zakresu, dowodow i nierozwiazanych ograniczen. Dokumentacja, bez APK i merge.
+required_ci: process-docs, shared-tests (JS, JVM/Robolectric, AndroidTest compile, lint + lint-regression), quality-evidence na finalnym SOURCE SHA
 device: NOT_TESTED
-apk: NOT_BUILT - jawnie bez APK, bez podpisu i bez review trigger
-completed: Preflight G1 przez GitHub na live c39c4ede, SOURCE 41341275888 oraz PR 41341280189 completed/success na tym SHA. Próba zlecenia review Copilot nie przyniosla obserwowalnego przypisania ani recenzji; zarejestrowano prawdziwe zdarzenie REVIEW ERR-20261101-0003 jako OPEN, z dowodem PR. Nie symulowano bledow.
-remaining: Potwierdzic odczyt nowego wpisu z live SHA, SOURCE oraz PR CI po komicie. Security review PR #119 nadal bez recenzenta; pierwotny raport 2/10 nadal OPEN. Jedna proba z rozmowy nie dowodzi pelnego wychwytywania przyszlych bledow.
-known_failures: ERROR_CASES 7 observed, 7 recorded, 5 FIXED, 2 OPEN (niepelny zapis historyczny i brak potwierdzonego review). W biezacym tescie 1 observed / 1 recorded / 1 OPEN; pozostale 10/10 nieudowodnione.
-verification: SOURCE 41341275888 6/6 success i PR 41341280189 success na c39c4ede przed tym etapem. Finalny nowy SHA i nowe CI do weryfikacji; nie ma niezaleznej recenzji, APK ani testu urzadzenia.
+apk: NOT_BUILT - bez triggera review, podpisu ani instalacji
+completed: Etapy 1-3 ocenione. Odczyt G1 z live SHA, kontrola 3 Project Sources i skryptu preflight, 5 naprawionych zdarzen, 1 realny smoke zapisany z rozmowy do ERROR_CASES (ERR-20261101-0003), oddzielanie cancelled od rzeczywistych failure. Brak zmian app/ wobec Clean v1207. Niezalezne review PR 119 NIE wykonane.
+remaining: SECURITY_REVIEW_PENDING (G4) - brak niezaleznego recenzenta i recenzji PR 119; ERR-20261101-0001 OPEN (historyczne 2/10 niepotwierdzone reprezentatywna probka); ERR-20261101-0003 OPEN (niepotwierdzone przypisanie reviewer). Brak dowodu globalnej skutecznosci zapisywania wszystkich przyszlych bledow.
+known_failures: ERROR_CASES 7 OBSERVED / 7 RECORDED, 5 FIXED, 2 OPEN. W biezacej probie 1 OBSERVED / 1 RECORDED / 1 OPEN. Nie zamykaj OPEN bez faktow.
+verification: SOURCE run 41342988602 (6/6 success, attempt 1) i PR run 41342994437 (success, attempt 1) na przedzapiskowym SHA 27785e1e0391e6ef41061c7d62edb435dd11fee7. Po niniejszym commicie zweryfikuj nowe SOURCE i PR CI na nowym live SHA. CI nie jest recenzentem security ani testem urzadzenia.
 changed_paths:
-  - docs/ai/ERROR_CASES.json (prawdziwe zdarzenie REVIEW z rozmowy)
-  - docs/AI_HANDOFF.md (checkpoint etapu 2/3)
+  - docs/AI_HANDOFF.md (materialne zamkniecie oceny V3.2 z otwartym G4)
 verified_before_push:
-  - Clean v1207 b161b9403425435e106498c382da34b5e3cb3d58; proces V3 ff62a26d3d1259626e042afaff702c8c9c1c6610
-  - Wymagane SOURCE CI i PR CI finalnego procesu success 1/1; porownanie z v1207 daje zero zmienionych plikow app/
+  - Clean v1207 b161b9403425435e106498c382da34b5e3cb3d58, zero zmian w app/ na badanym SHA
+  - SOURCE 41342988602 6/6 SUCCESS, PR 41342994437 SUCCESS, aktualny ref i dokladny wspolny SHA
 blockers:
-  - Brak niezaleznej recenzji security; self-review nie jest jej substytutem
-  - Brak lokalnego checkoutu i fizycznego testu urzadzenia
-next_action: Zweryfikowac zapis z nowego live SHA i 6/6 SOURCE CI; potem etap 3/3 - koncowa ocena V3.2 z jawnymi ograniczeniami G4 i 2/10. Nie budowac APK.
+  - Brak niezaleznej security review PR 119, self-review i komentarz to nie APPROVED
+  - Nieudowodniona skutecznosc 10/10 zapisu z kazdej przyszlej rozmowy i brak odtworzenia dawnej probki
+  - Dodanie trzech statycznych ZAVRO_*.md do Zrodel ChatGPT wymaga weryfikacji ustawien Projektu
+  - Brak testu fizycznego urzadzenia oraz dowodu podpisu prywatnego APK (jawnie poza zakresem)
+next_action: Najpierw sprawdz live SHA, AGENTS, handoff i finalne SOURCE/PR CI; dla dalszego rozwoju V3.2 uzywaj jako procesowego fundamentu z G4_BLOCKED. Pozyskaj rzeczywiste niezalezne review PR #119 i monitoruj nowe bledy. Nie powtarzaj pelnego audytu, bez APK i merge.
 evidence_links:
-  - https://github.com/laszko14/nira-browser/actions/runs/41341275888
-  - https://github.com/laszko14/nira-browser/actions/runs/41341280189
+  - https://github.com/laszko14/nira-browser/actions/runs/41342988602
+  - https://github.com/laszko14/nira-browser/actions/runs/41342994437
   - https://github.com/laszko14/nira-browser/pull/119
 ```
