@@ -13,9 +13,60 @@ const SLOTS = Array.from({length:16},(_,i)=>'T'+String(i+1).padStart(2,'0'));
 function guard(ok,message){ if(!ok) throw Error('Pilot data: '+message); }
 function iso(value) {return typeof value==='string' && !Number.isNaN(Date.parse(value)) &&
   new Date(value).toISOString()===value && value.endsWith('Z');}
+// Replay data are prospective and separate from the unchanged T01–T16 observation cohort.
+function validateInstructionExperiments(block){
+  guard(block && typeof block==='object','missing instruction experiment registry');
+  guard(Object.keys(block).sort().join()===
+    ['method_id','status','max_total_runs','arms','trials'].sort().join(),
+    'invalid instruction experiment schema');
+  guard(block.method_id==='zavro_v3_instruction_ab_20261101','unknown instruction method');
+  guard(['NOT_MEASURED','IN_PROGRESS','INCONCLUSIVE','COMPLETE'].includes(block.status),
+    'invalid instruction status');
+  guard(block.max_total_runs===32 && block.arms?.A==='V2-repaired' && block.arms?.B==='V3',
+    'invalid arms or budget');
+  guard(Array.isArray(block.trials) && block.trials.length<=32,'experiment run limit exceeded');
+  const seen=new Set();
+  for(const trial of block.trials){
+    guard(trial && Object.keys(trial).sort().join()===
+      ['trial_id','scenario_id','arm','source_sha','instructions_sha256','client',
+       'model','effort','speed','status','result','first_result','metrics',
+       'evidence_links'].sort().join(),'invalid trial fields');
+    guard(typeof trial.trial_id==='string'&&/^[A-Z0-9-]{4,64}$/.test(trial.trial_id)
+      &&!seen.has(trial.trial_id),'duplicate or invalid trial id');
+    seen.add(trial.trial_id);
+    guard(/^S0[1-8]$/.test(trial.scenario_id) && ['A','B'].includes(trial.arm),
+      'invalid scenario or arm');
+    guard(/^[0-9a-f]{40}$/.test(trial.source_sha) &&
+      /^[0-9a-f]{64}$/.test(trial.instructions_sha256),
+      'trial source/instructions identity required');
+    guard(['client','model','effort','speed'].every(k=>typeof trial[k]==='string'&&trial[k].length>0),
+      'trial environment identity missing');
+    guard(['INTERRUPTED','COMPLETE'].includes(trial.status),'invalid trial status');
+    guard(['PASS','FAIL','BLOCKED','INCONCLUSIVE'].includes(trial.result),'invalid trial result');
+    guard(trial.first_result===trial.result,'first real result is immutable in this trial');
+    guard(trial.metrics && Object.keys(trial.metrics).sort().join()===
+      ['input_tokens','cached_input_tokens','output_tokens','actions_runner_minutes',
+       'product_limit_units','avoidable_tool_calls'].sort().join(),
+      'invalid trial metrics');
+    for(const key of Object.keys(trial.metrics)){
+      const value=trial.metrics[key];
+      guard(value===null || (typeof value==='number'&&Number.isFinite(value)&&value>=0),
+        'trial metric must be nonnegative or null');
+    }
+    guard(Array.isArray(trial.evidence_links)&&trial.evidence_links.length>0 &&
+      trial.evidence_links.every(v=>typeof v==='string'&&/^https:\/\/github\.com\/laszko14\/nira-browser\//.test(v)),
+      'trial must have verified source links');
+  }
+  if(block.status==='NOT_MEASURED') guard(block.trials.length===0,'unmeasured registry must be empty');
+}
 function validate(data) {
-  guard(data && data.schema==='zavro.ai.pilot/1' && data.target_tasks===16,
+  const v2=data?.schema==='zavro.ai.pilot/2';
+  guard(data && (data.schema==='zavro.ai.pilot/1'||v2) && data.target_tasks===16,
     'unknown schema or target');
+  const topKeys=v2?['schema','target_tasks','method','records','instruction_experiments']:
+    ['schema','target_tasks','method','records'];
+  guard(Object.keys(data).sort().join()===topKeys.sort().join(),'unexpected top-level fields');
+  if(v2) validateInstructionExperiments(data.instruction_experiments);
   guard(data.method==='consecutive_eligible_tasks_not_retrospective_fill','cohort must be prospective');
   guard(Array.isArray(data.records) && data.records.length===16,'exactly 16 slots required');
   guard(new Set(data.records.map(r=>r.slot)).size===16 &&
@@ -103,7 +154,9 @@ function summarize(data) {
     improved_quality:'NOT_ESTABLISHED',
     baseline_comparability:'NOT_ESTABLISHED',
     device_verified:'NOT_EVALUATED',
-    note:'Registry assertions require separate verification in GitHub/device evidence'};
+    note:'Registry assertions require separate verification in GitHub/device evidence',
+    instruction_experiments_status:data.schema==='zavro.ai.pilot/2'?
+      data.instruction_experiments.status:'NOT_CONFIGURED'};
 }
 if(require.main===module){
   const file=process.argv[2]||'docs/ai/PILOT_16.json';

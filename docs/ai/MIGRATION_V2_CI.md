@@ -9,3 +9,5 @@ V2 historycznie wprowadzono na `7a60fbcb8463afca3526675a8d47dd28ce89b9be`. Nie p
 - Zmiany są doc/process-only: bez kodu aplikacji, APK, Secrets, certyfikatu, wersji ani automatycznego merge.
 - Finalny hash zestawu polityki i konkretny CI SOURCE należy odczytać z rzeczywistego commita; sam napis V3 nie potwierdza wdrożenia.
 - Retrospektywne zapisy pilotów T01–T16 są nienaruszalne; pilot V3 wymaga oddzielnych rzeczywistych pomiarów.
+
+- Rejestr pomiarowy: `PILOT_16.json` schema v2 z nienaruszonymi T01–T16 i osobnym, początkowo pustym `instruction_experiments`; bez fikcyjnych wyników.
