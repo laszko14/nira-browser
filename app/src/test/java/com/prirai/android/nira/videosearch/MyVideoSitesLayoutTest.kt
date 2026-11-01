@@ -102,9 +102,20 @@ class MyVideoSitesLayoutTest {
             layout(decor, 640, 280)
             val rect = Rect()
             assertTrue("last action reachable by scrolling", action.getGlobalVisibleRect(rect))
+            val ancestors = buildString {
+                var node: View? = action
+                while (node != null) {
+                    val bounds = Rect()
+                    val visible = node.getGlobalVisibleRect(bounds)
+                    append(node.javaClass.simpleName)
+                    append("(${node.width}x${node.height},top=${node.top},bottom=${node.bottom},")
+                    append("visible=$visible:$bounds,clipChildren=${(node as? ViewGroup)?.clipChildren})>")
+                    node = node.parent as? View
+                }
+            }
             assertEquals("whole action reachable: rect=$rect " +
                 "scrollY=${headerScroll.scrollY} viewport=${headerScroll.height} " +
-                "decorHeight=${decor.height}", action.height, rect.height())
+                "decorHeight=${decor.height} ancestors=$ancestors", action.height, rect.height())
         } finally { controller.stop().destroy() }
     }
 
