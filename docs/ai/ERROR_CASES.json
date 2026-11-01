@@ -15,6 +15,11 @@
       "task_id": "ZC-V32-CI-CAPTURE-FIDELITY",
       "observed_count": 1,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V32-CHAT-ERROR-SMOKE",
+      "observed_count": 1,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -143,6 +148,26 @@
         "https://github.com/laszko14/nira-browser/actions/runs/41335018971",
         "https://github.com/laszko14/nira-browser/actions/runs/41337049270",
         "https://github.com/laszko14/nira-browser/actions/runs/41337163423"
+      ]
+    },
+    {
+      "id": "ERR-20261101-0003",
+      "task_id": "ZC-V32-CHAT-ERROR-SMOKE",
+      "kind": "REVIEW",
+      "fingerprint": "reviewer-request-without-confirmed-assignment",
+      "summary": "Po próbie zgłoszenia niezależnej recenzji Copilot w PR #119 GitHub nie potwierdził żadnego przypisanego recenzenta ani gotowej recenzji; przyczyna nieustalona.",
+      "source_sha": "c39c4edea3d598e050c134b166b9153a23c57e89",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "undetermined",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/pull/119"
       ]
     }
   ]
