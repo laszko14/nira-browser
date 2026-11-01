@@ -17,6 +17,7 @@ import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ImageView
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -45,6 +46,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import com.prirai.android.nira.ext.components
+import mozilla.components.browser.icons.IconRequest
 
 /**
  * "Moje witryny" belongs to the ordinary profile that opened it.
@@ -56,14 +59,17 @@ class MyVideoSitesActivity : AppCompatActivity() {
         const val STATE_DRAFT_OWNER = "videoSites.normalOwner"
         const val STATE_ADDRESS = "videoSites.normalAddress"
         const val STATE_LIST = "videoSites.normalList"
+        const val STATE_EXPANDED = "videoSites.normalExpanded"
         const val STATE_DIALOG = "videoSites.normalDialog"
     }
     private lateinit var repository: VideoSearchRepository
     private lateinit var input: EditText
     private lateinit var addButton: Button
+    private lateinit var profileButton: Button
     private lateinit var info: TextView
     private lateinit var privateInfo: TextView
     private lateinit var selectionInfo: TextView
+    private lateinit var compactSelectionCount: TextView
     private lateinit var normalEmptyState: TextView
     private lateinit var selectAllButton: Button
     private lateinit var clearButton: Button
@@ -87,6 +93,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private var historyRetentionJob: Job? = null
     private var reorderPending = false
     private lateinit var normalPanel: LinearLayout
+    private lateinit var normalHeader: LinearLayout
     private lateinit var privatePanel: LinearLayout
     private lateinit var privateSiteInput: EditText
     private lateinit var privateSitesContainer: LinearLayout
@@ -118,6 +125,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            setBackgroundColor(android.graphics.Color.rgb(9, 8, 17))
         }
         ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
             val safe = insets.getInsets(WindowInsetsCompat.Type.systemBars() or
@@ -131,9 +139,29 @@ class MyVideoSitesActivity : AppCompatActivity() {
             ) {
                 minimumHeight = getDimensionPixelSize(0, 0)
             }
+            title = "Moje witryny"
+            subtitle = "Zavro Clean"
         }
+        profileButton = Button(this).apply {
+            val active = ProfileManager.getInstance(applicationContext).getActiveProfile()
+            text = "${active.emoji}  ${active.name}"
+            contentDescription = "Wybierz profil"
+            setOnClickListener { chooseSearchProfile() }
+        }
+        toolbar.addView(profileButton, Toolbar.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.END or Gravity.CENTER_VERTICAL))
         root.addView(toolbar, LinearLayout.LayoutParams(-1, -2))
-        info = TextView(this).apply { textSize = 14f }
+        info = TextView(this).apply {
+            textSize = 13f
+            setTextColor(0xff61e7eb.toInt())
+            setPadding(dp(12), dp(9), dp(12), dp(9))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(0xff101d2a.toInt())
+                cornerRadius = dp(14).toFloat()
+                setStroke(dp(1).coerceAtLeast(1), 0xff1e7082.toInt())
+            }
+        }
 
         normalPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -144,22 +172,58 @@ class MyVideoSitesActivity : AppCompatActivity() {
             visibility = View.GONE
             setPadding(dp(16), dp(12), dp(16), dp(12))
         }
-        val normalHeader = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        normalHeader.addView(info, LinearLayout.LayoutParams(-1, -2))
-
+        normalHeader = LinearLayout(this).apply {
+            orientation = if (resources.configuration.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE)
+                LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+            tag = "video-sites-normal-header"
+        }
+        val compactSearch = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(3), dp(12), dp(3))
+            tag = "video-sites-compact-search"
+            visibility = if (resources.configuration.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE) View.VISIBLE else View.GONE
+        }
+        compactSelectionCount = TextView(this).apply {
+            text = "✓ 0"
+            setTextColor(0xff55e8e8.toInt())
+            tag = "video-sites-compact-selection-count"
+        }
+        compactSearch.addView(compactSelectionCount, LinearLayout.LayoutParams(0, dp(48), 1f))
+        val compactSearchAction = Button(this).apply {
+            text = "⌕  Wyszukaj"
+            tag = "video-sites-compact-search-action"
+            setOnClickListener { previewQueue() }
+        }
+        compactSearch.addView(compactSearchAction)
+        val compactSettingsAction = Button(this).apply {
+            text = "⚙"
+            contentDescription = "Ustawienia wyszukiwania"
+            tag = "video-sites-compact-settings-action"
+            setOnClickListener { sitesList.smoothScrollToPosition(0) }
+        }
+        compactSearch.addView(compactSettingsAction)
+        root.addView(compactSearch, LinearLayout.LayoutParams(-1, -2))
         val inputRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             isBaselineAligned = false
             gravity = Gravity.CENTER_VERTICAL
         }
         input = EditText(this).apply {
-            hint = "Adres witryny (np. example.org)"
+            hint = "🔗  Wpisz adres nowej witryny"
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
             setSingleLine(true)
         }
         inputRow.addView(input, LinearLayout.LayoutParams(0, -2, 1f))
         addButton = Button(this).apply {
             text = "Dodaj"
+            setTextColor(android.graphics.Color.WHITE)
+            background = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
+                intArrayOf(0xff9d46f3.toInt(), 0xff672bd0.toInt())
+            ).apply { cornerRadius = dp(16).toFloat() }
             setOnClickListener { addSite() }
         }
         inputRow.addView(addButton)
@@ -189,6 +253,12 @@ class MyVideoSitesActivity : AppCompatActivity() {
         }
         queuePreviewButton = Button(this).apply {
             text = "Wyszukaj na witrynach"
+            minHeight = dp(52)
+            setTextColor(android.graphics.Color.WHITE)
+            background = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
+                intArrayOf(0xff18cde0.toInt(), 0xff913bea.toInt())
+            ).apply { cornerRadius = dp(18).toFloat() }
             setOnClickListener { previewQueue() }
         }
         dispatchControls.addView(parallelismButton, LinearLayout.LayoutParams(0, -2, 1f))
@@ -200,41 +270,38 @@ class MyVideoSitesActivity : AppCompatActivity() {
         }
         normalHeader.addView(defaultGroupButton)
 
-        val multiActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val multiActions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            // Baseline alignment offsets the two-line action tiles below the row's bottom.
+            isBaselineAligned = false
+        }
         multiStatusButton = Button(this).apply {
-            text = "Status wyszukiwań"
+            text = "⌁\nStatus"
+            minHeight = dp(72)
             setOnClickListener { showMultiStatus() }
         }
         stopMultiButton = Button(this).apply {
-            text = "Zatrzymaj wyszukiwania"
+            text = "□\nZatrzymaj"
+            minHeight = dp(72)
             setOnClickListener { stopMultiSearch() }
         }
-        multiActions.addView(multiStatusButton, LinearLayout.LayoutParams(0, -2, 1f))
-        multiActions.addView(stopMultiButton, LinearLayout.LayoutParams(0, -2, 1f))
+        multiActions.addView(multiStatusButton, LinearLayout.LayoutParams(0, dp(76), 1f))
+        multiActions.addView(stopMultiButton, LinearLayout.LayoutParams(0, dp(76), 1f))
         normalHeader.addView(multiActions)
         multiHistoryButton = Button(this).apply {
-            text = "Historia znalezionych filmów"
+            text = "◷\nHistoria filmów"
+            minHeight = dp(72)
             setOnClickListener { showMultiHistory() }
         }
         savedFoldersButton = Button(this).apply {
-            text = "Zapisane filmy — foldery"
+            text = "▱\nFoldery"
+            minHeight = dp(72)
             setOnClickListener { showSavedFilmFolders() }
         }
-        // Reuse one existing row; keep the site list's vertical space.
-        val savedNavigation = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-        }
-        savedNavigation.addView(multiHistoryButton,
-            LinearLayout.LayoutParams(0, -2, 1f))
-        savedNavigation.addView(savedFoldersButton,
-            LinearLayout.LayoutParams(0, -2, 1f))
-        normalHeader.addView(savedNavigation)
+        multiActions.addView(multiHistoryButton, LinearLayout.LayoutParams(0, dp(76), 1f))
+        multiActions.addView(savedFoldersButton, LinearLayout.LayoutParams(0, dp(76), 1f))
+        normalHeader.addView(info, LinearLayout.LayoutParams(-1, -2))
 
-        normalHeader.addView(TextView(this).apply {
-            text = "Witryny pozostają na liście nawet po błędzie konfiguracji. " +
-                "Przytrzymaj i przeciągnij wiersz, aby zmienić kolejność."
-            textSize = 13f
-        })
         normalEmptyState = TextView(this).apply {
             visibility = View.GONE
             textSize = 14f
@@ -243,6 +310,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
         normalHeader.addView(normalEmptyState)
 
         adapter = SitesAdapter(
+            scope = lifecycleScope,
             onEdit = { editSite(it) },
             onToggle = ::toggleSite,
             onSelect = ::setSiteSelected,
@@ -257,8 +325,35 @@ class MyVideoSitesActivity : AppCompatActivity() {
         )
         sitesList = RecyclerView(this).apply {
             layoutManager = LinearLayoutManager(this@MyVideoSitesActivity)
-            adapter = ConcatAdapter(VideoSitesViewAdapter(normalHeader), this@MyVideoSitesActivity.adapter)
+            val landscapeHeaderHeight = if (normalHeader.orientation == LinearLayout.HORIZONTAL)
+                (resources.configuration.screenHeightDp * 0.45f).toInt() else null
+            adapter = ConcatAdapter(VideoSitesViewAdapter(normalHeader, landscapeHeaderHeight),
+                this@MyVideoSitesActivity.adapter)
             isSaveEnabled = false // Explicit, profile-bound restoration below.
+        }
+        sitesList.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                val collapsed = (recyclerView.layoutManager as? LinearLayoutManager)
+                    ?.findFirstVisibleItemPosition()?.let { it > 0 } ?: false
+                if (resources.configuration.orientation ==
+                    android.content.res.Configuration.ORIENTATION_PORTRAIT) {
+                    compactSearch.visibility = if (collapsed) View.VISIBLE else View.GONE
+                }
+            }
+        })
+        if (normalHeader.orientation == LinearLayout.HORIZONTAL) {
+            val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            val right = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            val children = (0 until normalHeader.childCount).map { normalHeader.getChildAt(it) }
+            normalHeader.removeAllViews()
+            children.forEachIndexed { index, child ->
+                (if (index < 4) left else right).addView(child,
+                    LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(4) })
+            }
+            normalHeader.addView(left, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                marginEnd = dp(8)
+            })
+            normalHeader.addView(right, LinearLayout.LayoutParams(0, -2, 1f))
         }
         normalPanel.addView(sitesList, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(normalPanel, LinearLayout.LayoutParams(-1, 0, 1f))
@@ -276,6 +371,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 input.setText(savedInstanceState.getString(STATE_ADDRESS).orEmpty())
                 @Suppress("DEPRECATION")
                 normalListState = savedInstanceState.getParcelable(STATE_LIST)
+                adapter.restoreExpanded(savedInstanceState.getStringArrayList(STATE_EXPANDED).orEmpty())
                 pendingDialogRestore = VideoSearchNormalDialogDraft.fromBundle(
                     savedInstanceState.getBundle(STATE_DIALOG), draftOwnerId!!
                 )
@@ -782,7 +878,9 @@ class MyVideoSitesActivity : AppCompatActivity() {
         stopMultiButton.isEnabled = true
         multiHistoryButton.isEnabled = true
         savedFoldersButton.isEnabled = true
-        info.text = "Profil: ${manager.getActiveProfile().name}"
+        info.text = "ⓘ Dodane witryny pozostają zapisane nawet przy błędach konfiguracji. " +
+            "Możesz uzupełnić ustawienia później."
+        profileButton.text = "${manager.getActiveProfile().emoji}  ${manager.getActiveProfile().name}"
         // Group deletion may occur while this screen is open, independent of
         // a settings change. Reconcile only after manager initialization.
         deletedDefaultObserver?.cancel()
@@ -919,6 +1017,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
         outState.putString(STATE_ADDRESS, input.text.toString())
         outState.putParcelable(STATE_LIST,
             normalListState ?: sitesList.layoutManager?.onSaveInstanceState())
+        outState.putStringArrayList(STATE_EXPANDED,
+            ArrayList(adapter.expandedSiteIds()))
         val draft = dialogSnapshot?.invoke()
         if (draft != null && VideoSearchNormalDialogDraft.belongsTo(draft, owner.profileId))
             outState.putBundle(STATE_DIALOG, draft.toBundle())
@@ -958,6 +1058,29 @@ class MyVideoSitesActivity : AppCompatActivity() {
         }
     }
 
+    private fun chooseSearchProfile() {
+        val manager = ProfileManager.getInstance(applicationContext)
+        if (manager.isPrivateMode()) return
+        val profiles = manager.getAllProfiles()
+        if (profiles.isEmpty()) return
+        val activeId = manager.getActiveProfile().id
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Profil wyszukiwania")
+            .setSingleChoiceItems(profiles.map { "${it.emoji}  ${it.name}" }.toTypedArray(),
+                profiles.indexOfFirst { it.id == activeId }.coerceAtLeast(0)) { dialog, which ->
+                val selected = profiles.getOrNull(which) ?: return@setSingleChoiceItems
+                if (selected.id != activeId) {
+                    manager.setActiveProfile(selected)
+                    manager.setPrivateMode(false)
+                    components.sessionUseCases.reload()
+                    dialog.dismiss()
+                    finish()
+                } else dialog.dismiss()
+            }
+            .setNegativeButton("Anuluj", null)
+            .show()
+    }
+
     private fun addSite() {
         val owner = ownerIfCurrent() ?: return
         val typed = input.text.toString()
@@ -989,6 +1112,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
         val enabledSites = sites.filter { it.enabled }
         val effectiveCount = enabledSites.count { it.id in selectedIds }
         selectionInfo.text = "Wybrano $effectiveCount z ${enabledSites.size} aktywnych witryn"
+        compactSelectionCount.text = "✓ $effectiveCount z ${enabledSites.size}"
         selectAllButton.isEnabled = ownerIfCurrent() != null &&
             enabledSites.any { it.id !in selectedIds }
         clearButton.isEnabled = ownerIfCurrent() != null && selectedIds.isNotEmpty()
@@ -1976,6 +2100,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private fun dp(px: Int) = (px * resources.displayMetrics.density).toInt()
 
     private class SitesAdapter(
+        private val scope: kotlinx.coroutines.CoroutineScope,
         private val onEdit: (VideoSearchSite) -> Unit,
         private val onToggle: (VideoSearchSite, Boolean) -> Unit,
         private val onSelect: (VideoSearchSite, Boolean) -> Unit,
@@ -1991,6 +2116,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
         private val rows = mutableListOf<VideoSearchSite>()
         private var selectedIds: Set<String> = emptySet()
         private val expandedActionBySite = mutableMapOf<String, Int>()
+        private val expandedSites = mutableSetOf<String>()
         private var initialDragOrder: List<String>? = null
         val isDragging: Boolean get() = initialDragOrder != null
 
@@ -2036,6 +2162,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
         }
 
         fun cancelDrag() { initialDragOrder = null }
+        fun expandedSiteIds(): Set<String> = expandedSites.toSet()
+        fun restoreExpanded(ids: Collection<String>) { expandedSites.addAll(ids) }
         override fun getItemCount() = rows.size
 
         class Holder(
@@ -2054,6 +2182,12 @@ class MyVideoSitesActivity : AppCompatActivity() {
             val search: Button,
             val delete: Button,
             val actionGroups: List<Pair<Button, LinearLayout>>,
+            val header: LinearLayout,
+            val expanded: LinearLayout,
+            val chevron: TextView,
+            val icon: ImageView,
+            var iconJob: Job? = null,
+            var boundSiteId: String? = null,
         ) : RecyclerView.ViewHolder(root)
 
         @SuppressLint("SetTextI18n")
@@ -2065,19 +2199,53 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 setPadding((12 * density).toInt(), (10 * density).toInt(),
                     (12 * density).toInt(), (10 * density).toInt())
                 background = android.graphics.drawable.GradientDrawable().apply {
-                    setColor(android.graphics.Color.rgb(33, 29, 39))
+                    setColor(android.graphics.Color.rgb(22, 20, 29))
                     cornerRadius = 16 * density
+                    setStroke((1 * density).toInt().coerceAtLeast(1),
+                        android.graphics.Color.rgb(65, 57, 79))
                 }
             }
-            val first = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+            val first = LinearLayout(ctx).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                tag = "video-site-header"
+                minimumHeight = (48 * density).toInt()
+            }
+            val grip = TextView(ctx).apply {
+                text = "⠿"
+                textSize = 21f
+                setTextColor(android.graphics.Color.rgb(158, 145, 177))
+                contentDescription = "Uchwyt zmiany kolejności"
+                setPadding(0, 0, (8 * density).toInt(), 0)
+            }
+            val icon = ImageView(ctx).apply {
+                contentDescription = "Ikona witryny"
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(0xff292438.toInt())
+                    cornerRadius = 8 * density
+                }
+                setPadding((4 * density).toInt(), (4 * density).toInt(),
+                    (4 * density).toInt(), (4 * density).toInt())
+            }
             val heading = TextView(ctx).apply {
                 textSize = 17f
                 setTextColor(android.graphics.Color.rgb(208, 181, 255))
                 setPadding(0, 0, (8 * density).toInt(), 0)
             }
             val toggle = SwitchCompat(ctx).apply { text = "Aktywna" }
+            val chevron = TextView(ctx).apply {
+                text = "⌄"
+                textSize = 20f
+                setTextColor(android.graphics.Color.WHITE)
+                setPadding((8 * density).toInt(), 0, 0, 0)
+            }
+            first.addView(grip)
+            first.addView(icon, LinearLayout.LayoutParams((32 * density).toInt(),
+                (32 * density).toInt()).apply { marginEnd = (8 * density).toInt() })
             first.addView(heading, LinearLayout.LayoutParams(0, -2, 1f))
             first.addView(toggle)
+            first.addView(chevron)
             val detail = TextView(ctx).apply {
                 textSize = 13f
                 maxLines = 3
@@ -2127,17 +2295,43 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 }),
                 addActionGroup("Zbierz · Zebrane", crawlActions),
             )
+            val expanded = LinearLayout(ctx).apply {
+                orientation = LinearLayout.VERTICAL
+                tag = "video-site-expanded-content"
+                visibility = View.GONE
+                setPadding(0, (6 * density).toInt(), 0, 0)
+            }
+            expanded.addView(detail)
+            expanded.addView(select)
+            expanded.addView(actions)
             root.addView(first)
-            root.addView(detail)
-            root.addView(select)
-            root.addView(actions)
+            root.addView(expanded)
             return Holder(root, heading, detail, toggle, select, edit, inspect, check,
-                manual, preview, crawl, showCrawl, search, delete, actionGroups)
+                manual, preview, crawl, showCrawl, search, delete, actionGroups,
+                first, expanded, chevron, icon)
         }
 
         @SuppressLint("SetTextI18n")
         override fun onBindViewHolder(holder: Holder, position: Int) {
             val site = rows[position]
+            holder.iconJob?.cancel()
+            holder.boundSiteId = site.id
+            holder.icon.setImageDrawable(android.graphics.drawable.GradientDrawable().apply {
+                setColor(0xff30263c.toInt())
+                cornerRadius = 8 * holder.itemView.resources.displayMetrics.density
+            })
+            holder.iconJob = scope.launch {
+                val bitmap = try {
+                    val context = holder.itemView.context
+                    context.components.icons.loadIcon(IconRequest(site.siteUrl)).await().bitmap
+                        ?: context.components.faviconCache.loadFavicon(site.siteUrl)
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) { null }
+                if (holder.boundSiteId == site.id && bitmap != null)
+                    holder.icon.setImageBitmap(bitmap)
+            }
+            val open = site.id in expandedSites
             holder.heading.text = site.displayName
             val state = when (site.configurationState) {
                 VideoSiteConfigurationState.NEEDS_CONFIGURATION -> "Wymaga konfiguracji"
@@ -2145,13 +2339,22 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 VideoSiteConfigurationState.CONFIGURED -> "Skonfigurowana"
                 VideoSiteConfigurationState.REPAIR_REQUIRED -> "Wymaga naprawy konfiguracji"
             }
-            holder.detail.text = "${site.siteUrl}\n$state • Limit: ${site.resultLimit}"
+            holder.detail.text = "🔗 ${site.siteUrl}\n● $state     Limit: ${site.resultLimit}"
+            holder.expanded.visibility = if (open) View.VISIBLE else View.GONE
+            holder.chevron.text = if (open) "⌃" else "⌄"
+            holder.header.setOnClickListener {
+                if (!expandedSites.add(site.id)) expandedSites.remove(site.id)
+                val current = holder.bindingAdapterPosition
+                if (current != RecyclerView.NO_POSITION) notifyItemChanged(current)
+            }
             holder.itemView.layoutParams = RecyclerView.LayoutParams(-1, -2).apply {
                 val margin = (5 * holder.itemView.resources.displayMetrics.density).toInt()
                 setMargins(margin, margin, margin, margin)
             }
             val openGroup = expandedActionBySite[site.id]
             holder.actionGroups.forEachIndexed { index, (header, body) ->
+                header.tag = "video-site-section-header-$index"
+                body.tag = "video-site-section-content-$index"
                 val expanded = index == openGroup
                 body.visibility = if (expanded) View.VISIBLE else View.GONE
                 header.text = (if (expanded) "⌄ " else "› ") + when (index) {
@@ -2193,6 +2396,13 @@ class MyVideoSitesActivity : AppCompatActivity() {
             holder.showCrawl.setOnClickListener { onShowCrawl(site) }
             holder.search.setOnClickListener { onSearch(site) }
             holder.delete.setOnClickListener { onDelete(site) }
+        }
+
+        override fun onViewRecycled(holder: Holder) {
+            holder.iconJob?.cancel()
+            holder.iconJob = null
+            holder.boundSiteId = null
+            super.onViewRecycled(holder)
         }
     }
 }

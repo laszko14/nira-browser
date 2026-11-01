@@ -1,7 +1,3 @@
-# Agent guide — entry point
-
-Follow [the repository AGENTS.md](../AGENTS.md) for Zavro workflow, permissions, validation, APK safety and handoff rules.
-
-Read only the relevant sections of [the technical reference](../docs/AGENT_REFERENCE.md) when working on the corresponding subsystem. That reference preserves upstream navigation and implementation notes; confirm details against current code.
-
-Do not load the full technical guide, project history or unrelated documentation for every task.
+# Agent guide — Zavro Clean
+Read [AGENTS.md](../AGENTS.md) and current-branch [docs/AI_HANDOFF.md](../docs/AI_HANDOFF.md) at the explicit SHA. Relevant details only: [docs/AGENT_REFERENCE.md](../docs/AGENT_REFERENCE.md), [docs/ai/DEVELOPMENT_WORKFLOW.md](../docs/ai/DEVELOPMENT_WORKFLOW.md), [docs/ai/QUALITY_GATES.md](../docs/ai/QUALITY_GATES.md).
+No competing policies or historical stage gates.

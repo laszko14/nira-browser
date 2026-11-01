@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ScrollView
 import androidx.appcompat.widget.Toolbar
 import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
@@ -56,7 +57,7 @@ class MyVideoSitesLayoutTest {
             layout(decor, 360, 800)
             val views = descendants(decor)
             val field = views.filterIsInstance<EditText>().single {
-                it.hint?.toString() == "Adres witryny (np. example.org)"
+                it.hint?.toString() == "🔗  Wpisz adres nowej witryny"
             }
             val add = views.filterIsInstance<Button>().first { it.text == "Dodaj" }
             val rect = Rect()
@@ -81,13 +82,39 @@ class MyVideoSitesLayoutTest {
             val decor = controller.get().window.decorView
             layout(decor, 640, 280)
             val action = descendants(decor).filterIsInstance<Button>().single {
-                it.text == "Zapisane filmy — foldery"
+                it.text == "▱\nFoldery"
             }
-            action.requestRectangleOnScreen(Rect(0, 0, action.width, action.height), true)
+            val headerScroll = descendants(decor).filterIsInstance<ScrollView>().single()
+            val firstVisibleAction = Rect()
+            assertTrue("folder action intersects the safe viewport",
+                action.getGlobalVisibleRect(firstVisibleAction))
+            assertTrue("short landscape fixture begins with a clipped folder action",
+                firstVisibleAction.height() < action.height)
+            val actionLocation = IntArray(2).also(action::getLocationInWindow)
+            val clippedAtTop = (firstVisibleAction.top - actionLocation[1]).coerceAtLeast(0)
+            val clippedAtBottom = (actionLocation[1] + action.height -
+                firstVisibleAction.bottom).coerceAtLeast(0)
+            val targetScroll = headerScroll.scrollY + clippedAtBottom - clippedAtTop
+            val maxScroll = (headerScroll.getChildAt(0).measuredHeight -
+                headerScroll.height).coerceAtLeast(0)
+            headerScroll.scrollTo(0, targetScroll.coerceIn(0, maxScroll))
             layout(decor, 640, 280)
             val rect = Rect()
             assertTrue("last action reachable by scrolling", action.getGlobalVisibleRect(rect))
-            assertEquals("whole action reachable", action.height, rect.height())
+            val ancestors = buildString {
+                var node: View? = action
+                while (node != null) {
+                    val bounds = Rect()
+                    val visible = node.getGlobalVisibleRect(bounds)
+                    append(node.javaClass.simpleName)
+                    append("(${node.width}x${node.height},top=${node.top},bottom=${node.bottom},")
+                    append("visible=$visible:$bounds,clipChildren=${(node as? ViewGroup)?.clipChildren})>")
+                    node = node.parent as? View
+                }
+            }
+            assertEquals("whole action reachable: rect=$rect " +
+                "scrollY=${headerScroll.scrollY} viewport=${headerScroll.height} " +
+                "decorHeight=${decor.height} ancestors=$ancestors", action.height, rect.height())
         } finally { controller.stop().destroy() }
     }
 
@@ -301,6 +328,105 @@ class MyVideoSitesLayoutTest {
             assertEquals(VideoSiteConfigurationState.NEEDS_CONFIGURATION, added.configurationState)
             assertNull(added.configuration)
             assertEquals("", field.text.toString())
+        } finally { controller.stop().destroy() }
+    }
+
+    @Test fun savedSitesStartAsCompactRowsAndExpandIndependentlyOnHeaderTap() {
+        RuntimeEnvironment.setQualifiers("w360dp-h800dp-port")
+        val controller = Robolectric.buildActivity(MyVideoSitesActivity::class.java)
+        controller.get().setTheme(R.style.AppThemeSettings)
+        controller.create().start().visible()
+        try {
+            val activity = controller.get()
+            val owner = VideoSearchScope.Normal("default")
+            ReflectionHelpers.setField(activity, "scope", owner)
+            val adapter = ReflectionHelpers.getField<RecyclerView.Adapter<*>>(activity, "adapter")
+            val rows = listOf("first", "second").mapIndexed { index, id ->
+                VideoSearchSite(id, owner, "https://$id.example.invalid", id, index,
+                    createdAtMs = 1)
+            }
+            adapter.javaClass.getDeclaredMethod("replace", List::class.java, Set::class.java)
+                .apply { isAccessible = true }.invoke(adapter, rows, emptySet<String>())
+            val list = ReflectionHelpers.getField<RecyclerView>(activity, "sitesList")
+            val decor = activity.window.decorView
+            layout(decor, 360, 800)
+
+            fun expandedContent(position: Int): View {
+                val holder = list.findViewHolderForAdapterPosition(position)
+                assertNotNull("site row $position is rendered", holder)
+                return (holder!!.itemView as ViewGroup)
+                    .findViewWithTag("video-site-expanded-content")
+            }
+            assertEquals(View.GONE, expandedContent(1).visibility)
+            assertEquals(View.GONE, expandedContent(2).visibility)
+
+            val firstHeader = list.findViewHolderForAdapterPosition(1)!!.itemView
+                .findViewWithTag<View>("video-site-header")
+            assertNotNull(firstHeader)
+            assertTrue("site header is actionable", firstHeader!!.performClick())
+            layout(decor, 360, 800)
+            assertEquals(View.VISIBLE, expandedContent(1).visibility)
+            assertEquals("expanding one site leaves its neighbor compact",
+                View.GONE, expandedContent(2).visibility)
+        } finally { controller.stop().destroy() }
+    }
+
+    @Test fun landscapeUsesTwoColumnSettingsAndKeepsCompactSearchActionsVisible() {
+        RuntimeEnvironment.setQualifiers("w640dp-h280dp-land")
+        val controller = Robolectric.buildActivity(MyVideoSitesActivity::class.java)
+        controller.get().setTheme(R.style.AppThemeSettings)
+        controller.create().start().visible()
+        try {
+            val activity = controller.get()
+            val decor = activity.window.decorView
+            layout(decor, 640, 280)
+            val header = ReflectionHelpers.getField<android.widget.LinearLayout>(activity, "normalHeader")
+            assertEquals("landscape settings use the available width",
+                android.widget.LinearLayout.HORIZONTAL, header.orientation)
+            val compact = decor.findViewWithTag<View>("video-sites-compact-search")
+            assertNotNull(compact)
+            assertEquals(View.VISIBLE, compact!!.visibility)
+            val search = compact.findViewWithTag<View>("video-sites-compact-search-action")
+            val settings = compact.findViewWithTag<View>("video-sites-compact-settings-action")
+            assertNotNull(search)
+            assertNotNull(settings)
+            assertTrue(search!!.isClickable)
+            assertTrue(settings!!.isClickable)
+        } finally { controller.stop().destroy() }
+    }
+
+    @Test fun expandedSiteSectionsRemainIndividuallyReachable() {
+        RuntimeEnvironment.setQualifiers("w360dp-h800dp-port")
+        val controller = Robolectric.buildActivity(MyVideoSitesActivity::class.java)
+        controller.get().setTheme(R.style.AppThemeSettings)
+        controller.create().start().visible()
+        try {
+            val activity = controller.get()
+            val owner = VideoSearchScope.Normal("default")
+            ReflectionHelpers.setField(activity, "scope", owner)
+            val adapter = ReflectionHelpers.getField<RecyclerView.Adapter<*>>(activity, "adapter")
+            val site = VideoSearchSite("section-site", owner,
+                "https://section.example.invalid", "Section", 0, createdAtMs = 1)
+            adapter.javaClass.getDeclaredMethod("replace", List::class.java, Set::class.java)
+                .apply { isAccessible = true }.invoke(adapter, listOf(site), emptySet<String>())
+            val list = ReflectionHelpers.getField<RecyclerView>(activity, "sitesList")
+            layout(activity.window.decorView, 360, 800)
+            val row = list.findViewHolderForAdapterPosition(1)!!.itemView
+            row.findViewWithTag<View>("video-site-header")!!.performClick()
+            layout(activity.window.decorView, 360, 800)
+            repeat(4) { index ->
+                val currentRow = list.findViewHolderForAdapterPosition(1)!!.itemView
+                val section = currentRow.findViewWithTag<View>("video-site-section-header-$index")
+                assertNotNull("configuration section $index is available", section)
+                section!!.performClick()
+                layout(activity.window.decorView, 360, 800)
+                val refreshedRow = list.findViewHolderForAdapterPosition(1)!!.itemView
+                val content = refreshedRow.findViewWithTag<View>("video-site-section-content-$index")
+                assertNotNull("configuration section $index has its actions", content)
+                assertEquals("tapped section $index expands", View.VISIBLE, content!!.visibility)
+                assertTrue("section content has accessible controls",
+                    (content as ViewGroup).childCount > 0)
+            }
         } finally { controller.stop().destroy() }
     }
 }

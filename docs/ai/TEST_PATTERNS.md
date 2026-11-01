@@ -19,11 +19,11 @@
 - [ ] Wszystkie zależne callsite, sąsiednia ścieżka i wyścigi sprawdzone.
 - [ ] Test zachowania z poprawnym oracle; RED na starym kodzie lub ograniczenie jawne.
 - [ ] Finalny HEAD, checkout SHA, workflow/run/attempt i required jobs sprawdzone; `skipped` nie jest PASS.
-- [ ] Urządzenie, Gecko, APK i podpis ocenione osobno; brak niezamówionego merge/build.
+- [ ] Urządzenie, Gecko, APK i podpis ocenione osobno; bez merge i publicznego release; prywatny APK po IMPLEMENT i wymaganym CI, nie po analizie.
 - [ ] Checkpoint przed końcowym pushem, raport krótki, bez commita tylko dla wyniku CI.
 
 ## Delegowanie i niezależne review
 
-**Codex przed implementacją:** wiele callsite, trwałe dane/Room, prywatność, współbieżność, Gecko/native; w trakcie również dwie nieskuteczne próby bez nowych dowodów. Przekaż jeden ID, branch/base SHA, diff, kontrprzykład i pierwszy błąd logu. Bez powtórnego audytu.
+**Dobór narzędzi:** zwykły ChatGPT + GitHub jest preferowany; Codex jako rezerwa, gdy to realnie potrzebne lub zwykłe narzędzia nie wystarczą. Przekaż jeden task_id, branch i SHA, diff, kontrprzykład i log, nie powtarzaj audytu.
 
 **Niezależne review:** wymagane dla prywatności, trwałych danych, lifecycle, źródeł mediów i podpisywania. Recenzent czyta *oryginalne wymaganie*, diff i testy, nie tylko opis autora. Pyta o brakujący negatywny przypadek oraz granice dowodu. Opinia innego modelu nie zastępuje regresji.

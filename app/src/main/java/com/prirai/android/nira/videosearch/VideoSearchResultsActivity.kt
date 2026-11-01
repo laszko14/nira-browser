@@ -12,6 +12,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -35,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -77,9 +79,10 @@ internal class VideoSearchResultsActivity : AppCompatActivity() {
         setContentView(ComposeView(this).apply {
             setContent {
                 MaterialTheme(colorScheme = darkColorScheme(
-                    primary = Color(0xffd0b5ff),
-                    background = Color(0xff100d14),
-                    surface = Color(0xff201c26),
+                    primary = Color(0xffc17bff),
+                    secondary = Color(0xff35d9e2),
+                    background = Color(0xff090811),
+                    surface = Color(0xff171521),
                     onSurface = Color.White,
                 )) {
                     VideoSearchResultsScreen(
@@ -236,6 +239,8 @@ internal fun VideoSearchResultsScreen(
     onBulkAction: (List<VideoSearchFilm>, VideoSearchBulkAction, String?) -> Unit =
         { _, _, _ -> },
 ) {
+    val configuration = LocalConfiguration.current
+    val landscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     val snapshot = state.snapshot
     val run = snapshot?.run
     // Film navigation unmounts Compose; this tab-owned state survives re-entry.
@@ -336,7 +341,15 @@ internal fun VideoSearchResultsScreen(
     val listState = remember(run?.id, retainedRun) {
         retainedRun?.listState ?: LazyListState()
     }
-    var controlsCollapsed by remember(run?.id) { mutableStateOf(false) }
+    var controlsCollapsed by remember(run?.id, retainedRun) {
+        retainedRun?.controlsCollapsed ?: mutableStateOf(landscape)
+    }
+    var controlsCollapsedTouched by remember(run?.id, retainedRun) {
+        retainedRun?.controlsCollapsedTouched ?: mutableStateOf(false)
+    }
+    LaunchedEffect(run?.id, retainedRun, landscape) {
+        if (!controlsCollapsedTouched) controlsCollapsed = landscape
+    }
     LaunchedEffect(run?.id, state.view, gridState, listState) {
         var previous: Long? = null
         snapshotFlow {
@@ -349,7 +362,10 @@ internal fun VideoSearchResultsScreen(
             }
         }.collect { (position, scrolling) ->
             if (scrolling) previous?.let { before ->
-                if (position != before) controlsCollapsed = position > before
+                if (position != before) {
+                    controlsCollapsed = position > before
+                    controlsCollapsedTouched = true
+                }
             }
             previous = position
         }
@@ -372,7 +388,7 @@ internal fun VideoSearchResultsScreen(
         pendingLayoutSwitch = null
     }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = Color(0xff100d14)) {
+    Surface(modifier = Modifier.fillMaxSize(), color = Color(0xff090811)) {
         Column(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically) {
@@ -454,7 +470,13 @@ internal fun VideoSearchResultsScreen(
                 enter = expandVertically(),
                 exit = shrinkVertically(),
             ) {
-              Column {
+              BoxWithConstraints(Modifier.fillMaxWidth()) {
+              Column(
+                modifier = if (landscape) Modifier.fillMaxWidth()
+                    .heightIn(max = maxHeight * 0.42f)
+                    .verticalScroll(rememberScrollState())
+                else Modifier.fillMaxWidth(),
+              ) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 Box {
@@ -630,11 +652,16 @@ internal fun VideoSearchResultsScreen(
                     style = MaterialTheme.typography.labelSmall)
             }
               }
+              }
             }
             AnimatedVisibility(visible = controlsCollapsed, modifier = Modifier.fillMaxWidth()) {
-                TextButton(onClick = { controlsCollapsed = false },
+                TextButton(onClick = {
+                    controlsCollapsedTouched = true
+                    controlsCollapsed = false
+                },
                     modifier = Modifier.fillMaxWidth()) {
-                    Text("Pokaż opcje · ${VideoSearchRunLabels.sort(sort)} · ${run.query}",
+                    Text("⚙ Filtry · ${minOf(visibleCount, flatTotal)}/$flatTotal · " +
+                        "${VideoSearchRunLabels.sort(sort)} · ${run.query}",
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
@@ -842,7 +869,8 @@ private fun VideoSearchSourceHeader(
     val source = group.source
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle),
-        colors = CardDefaults.cardColors(containerColor = Color(0xff302a38)),
+        colors = CardDefaults.cardColors(containerColor = Color(0xff171521)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xff35d9e2)),
     ) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -912,7 +940,9 @@ private fun VideoSearchFilmTile(
         onLongClick = { onLongPress(film) }
     ),
         colors = CardDefaults.cardColors(containerColor =
-            if (selected) Color(0xff403359) else Color(0xff211d27))) {
+            if (selected) Color(0xff302344) else Color(0xff171521)),
+        border = androidx.compose.foundation.BorderStroke(1.dp,
+            if (selected) Color(0xff35d9e2) else Color(0xff4a3a61))) {
         Column(Modifier.padding(6.dp)) {
             if (selecting) Checkbox(checked = selected,
                 onCheckedChange = { onToggle(film) })
@@ -924,7 +954,7 @@ private fun VideoSearchFilmTile(
                 style = MaterialTheme.typography.bodyMedium)
             Text(mergedLabel ?: film.siteName, maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                color = Color(0xffd0b5ff),
+                color = Color(0xff40dce5),
                 style = MaterialTheme.typography.labelSmall)
             FilmPublishedDate(film)
         }
@@ -946,7 +976,9 @@ private fun VideoSearchFilmRow(
         onLongClick = { onLongPress(film) }
     ),
         colors = CardDefaults.cardColors(containerColor =
-            if (selected) Color(0xff403359) else Color(0xff211d27))) {
+            if (selected) Color(0xff302344) else Color(0xff171521)),
+        border = androidx.compose.foundation.BorderStroke(1.dp,
+            if (selected) Color(0xff35d9e2) else Color(0xff4a3a61))) {
         Row(Modifier.fillMaxWidth().padding(8.dp),
             verticalAlignment = Alignment.CenterVertically) {
             if (selecting) Checkbox(checked = selected,

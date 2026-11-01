@@ -42,16 +42,20 @@ test('fresh chat reconstructs the task from the short current handoff alone', ()
   assert.match(data.task_id, /^[A-Z][A-Z0-9-]{3,}$/);
   assert.ok(['staged', 'autonomous_task'].includes(data.workflow_mode));
   assert.equal(data.repo, 'laszko14/nira-browser');
-  assert.match(data.branch, /^improve\/zavro-clean-chatgpt-github-process-/);
+  assert.equal(data.product_line, 'Zavro Clean');
+  assert.equal(data.task_id, 'ZAVRO-CLEAN-SEARCH-REDESIGN-V2-20261101');
+  assert.equal(data.branch, 'feat/zavro-clean-search-redesign-v2-20261101');
   for (const k of ['base_sha','observed_head_sha']) assert.match(data[k], /^[0-9a-f]{40}$/);
   assert.match(data.required_ci, /process-docs/);
+  assert.match(data.required_ci, /shared-tests/);
   assert.match(handoff, /blockers:/);
   assert.match(handoff, /changed_paths:/);
   assert.match(handoff, /verified_before_push:/);
   assert.match(handoff, /evidence_links:/);
   assert.match(handoff, /ai\/archive\/AI_HANDOFF_LEGACY_2026-11-01\.md/);
   assert.match(handoff, /CI_PENDING.*migawką|status: CI_PENDING/);
-  assert.match(handoff, /ETAP [1-9]\/9/);
+  assert.match(handoff, /portrait|pion/i);
+  assert.match(handoff, /landscape|poziom/i);
 });
 
 test('handoff template supports a next-chat restart without copying the archive', () => {
@@ -59,6 +63,8 @@ test('handoff template supports a next-chat restart without copying the archive'
     assert.ok(template.includes('['+placeholder+']'), 'missing transfer field '+placeholder);
   }
   assert.match(template, /porównaj aktualny HEAD/);
-  assert.match(template, /Bez merge i APK/);
+  assert.match(template, /Bez merge, publicznego release/);
+  assert.match(template, /prywatny APK po zielonym CI/);
+  assert.match(template, /workflow.dispatch|uprawnionym dispatch/i);
   assert.doesNotMatch(handoff, /# P16\/16 —/);
 });

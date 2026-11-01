@@ -11,7 +11,7 @@ Wymagania: [acceptance_source]. Wymagany CI: [required_ci].
 Ostatni faktyczny run: [URL, attempt, conclusion lub CI_PENDING — odczytane na żywo].
 Zrobione: [krótko, z dowodami]. Pozostało: [next_action]. Blokery: [blockers].
 Nie ponawiaj dobrych kontroli bez zmiany wejść; nie odczytuj całego archiwum.
-Bez merge i APK, bez zmian podpisu/danych/profili/sesji. Po pełnej weryfikacji krótki raport i STOP.
+Bez merge, publicznego release i destrukcyjnych zmian. IMPLEMENT obejmuje prywatny APK po zielonym CI przy uprawnionym dispatch; ANALYZE nie. Krótki raport i STOP.
 ```
 
 ## Kontrola poprawności przed wznowieniem
