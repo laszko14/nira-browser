@@ -11,6 +11,11 @@ on:
     branches:
       - "**"
 
+  # Explicit review command from the repo owner, not a normal PR/push trigger.
+  # This works through the ChatGPT GitHub connector without workflow_dispatch.
+  pull_request_review:
+    types: [submitted]
+
   workflow_dispatch:
     inputs:
       build_kind:
@@ -33,13 +38,24 @@ on:
 
 jobs:
   build:
-    # Never build an APK on push, tag or PR. A separate explicitly
-    # authorized workflow_dispatch builds only after shared tests pass.
+    # A normal push/PR/tag/review never signs. Only an explicit owner
+    # review command with an exact head SHA, or manual workflow_dispatch, can.
     needs: regression-tests
-    if: github.event_name == 'workflow_dispatch' && inputs.build_kind == 'debug-apk' && inputs.approval_phrase == 'Kompiluj'
+    if: >-
+      (github.event_name == 'workflow_dispatch' &&
+       inputs.build_kind == 'debug-apk' && inputs.approval_phrase == 'Kompiluj')
+      ||
+      (github.event_name == 'pull_request_review' &&
+       github.event.action == 'submitted' &&
+       github.event.review.state == 'commented' &&
+       github.actor == 'laszko14' &&
+       github.event.review.user.login == 'laszko14' &&
+       github.event.pull_request.head.repo.full_name == 'laszko14/nira-browser' &&
+       startsWith(github.event.review.body, 'ZAVRO_PRIVATE_APK_REQUEST'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read
     env:
       EXPECTED_PACKAGE: com.prirai.android.nira.debug
       EXPECTED_VERSION_CODE: "1205"
@@ -48,6 +64,43 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # A PR review normally checks out its synthetic merge SHA.
+          # The signed APK must use the exact reviewed and tested head.
+          ref: ${{ github.event_name == 'pull_request_review' && github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact review authorization and previous green CI
+        if: github.event_name == 'pull_request_review'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEW_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REVIEW_BODY: ${{ github.event.review.body }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/authorize-private-apk-review.cjs
+          test "$(git rev-parse HEAD)" = "$REVIEW_HEAD_SHA"
+          runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/apk-release.yml/runs?event=pull_request&head_sha=$REVIEW_HEAD_SHA&per_page=30")"
+          run_id="$(jq -er --arg sha "$REVIEW_HEAD_SHA" '
+            [.workflow_runs[] | select(.head_sha == $sha and
+              .event == "pull_request" and
+              .status == "completed" and .conclusion == "success")][0].id
+            ' <<< "$runs")"
+          jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100")"
+          for required in \
+            "JavaScript WebExtension regressions" \
+            "Kotlin and Robolectric JVM tests" \
+            "Android lint with regression baseline" \
+            "Android instrumentation test compilation"; do
+            jq -e --arg required "$required" '
+              [.jobs[] | select(.name | contains($required)) |
+                select(.status == "completed" and .conclusion == "success")
+              ] | length == 1
+            ' <<< "$jobs" > /dev/null || {
+              echo "::error::Required check not green for exact source SHA: $required"
+              exit 1
+            }
+          done
+          echo "Authorized private build only on reviewed SHA $REVIEW_HEAD_SHA; green CI run $run_id."
       - name: Validate Gradle wrapper
         uses: gradle/wrapper-validation-action@v2
 
