@@ -29,7 +29,7 @@ test("stage19A release version derives from actual Gradle checkout (not old rele
   });
   // Simulate checkout at a DIFFERENT tag with a different Gradle version.
   const olderTag = gradle
-    .replace("versionCode = 200", "versionCode = 182")
+    .replace("versionCode = 201", "versionCode = 182")
     .replace('versionName = "0.5.22-alpha106-clean"', 'versionName = "0.5.22-alpha87-clean"');
   assert.deepEqual(resolveReleaseContract(olderTag), {
     packageName: "com.prirai.android.nira",
@@ -52,7 +52,7 @@ test("stage19A rejects unsupported ABI, package, malformed metadata and untruste
     gradle.replace('versionName = "0.5.22-alpha106-clean"', 'versionName = "bad name"')),
     /Unsafe/);
   assert.throws(() => resolveReleaseContract(gradle.replace(
-    "versionCode = 200", "versionCode = 200\n        versionCode = 201")),
+    "versionCode = 201", "versionCode = 201\n        versionCode = 201")),
     /exactly one versionCode/);
 });
 
