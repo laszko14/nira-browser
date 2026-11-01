@@ -1,35 +1,34 @@
-# AI_HANDOFF — Zavro Clean · migracja Codex V3
-> Ta gałąź procesu jest odseparowana od linii funkcjonalnej v1207. Checkpoint redesignu pozostaje na `feat/zavro-clean-search-redesign-v2-20261101`. Historia: [archiwum](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md).
+# AI_HANDOFF — Zavro Clean · V3, główna gałąź robocza
+> Jedyny bieżący checkpoint tej gałęzi. Wersja aplikacji: Clean v1207 z `feat/zavro-clean-search-redesign-v2-20261101` (`b161b9403425435e106498c382da34b5e3cb3d58`). Proces V3 przejęty z `chore/zavro-clean-codex-v3-20261101`; wcześniejsze materiały: [archiwum](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md). Handoff jest snapshotem, nie bieżącym HEAD.
 
 ```yaml
-task_id: ZAVRO-CLEAN-CODEX-V3-20261101
+task_id: ZAVRO-CLEAN-V3-BOOTSTRAP-20261101
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
-branch: chore/zavro-clean-codex-v3-20261101
-base_sha: b161b9403425435e106498c382da34b5e3cb3d58
-observed_head_sha: c30a21b834c46264187609c9039f9d0ed1e01ed5
+branch: feat/zavro-clean-v3-20261101
+base_sha: ff62a26d3d1259626e042afaff702c8c9c1c6610
+observed_head_sha: ff62a26d3d1259626e042afaff702c8c9c1c6610
 status: CI_PENDING
-acceptance_source: Zatwierdzony plan Zavro Clean Codex V3 z 2026-11-01; doc-only IMPLEMENT, bazą aplikacji jest v1207, bez APK, bez zmian aplikacji
-required_ci: process-docs, shared-tests (JS/JVM/AndroidTest compile/lint + lint-regression), quality-evidence na finalnym SOURCE SHA
+acceptance_source: Uzytkownik polecil przygotowac glowna galaz robocza V3 bez APK i merge, bez zmian w kodzie aplikacji
+required_ci: process-docs, shared-tests (JS, JVM/Robolectric, AndroidTest compile, lint + lint-regression), quality-evidence na dokladnym finalnym SOURCE SHA
 device: NOT_TESTED
-apk: NOT_BUILT - jawny zakres BEZ APK
-completed: V3 na izolowanej gałęzi, wcześniejsze SOURCE i PR CI zielone na c30a21b; wykryto 9 starych workflow podpisujących; w bieżącym zadaniu usunięto ich aktywne definicje i dodano blokującą bramkę testową
-remaining: Weryfikacja CI po cleanup na końcowym SHA, niezależne review wysokiego ryzyka gdy dostępne, oddzielny pomiar pilotażu A/B; brak integracji PR bez zgody
-known_failures: Historyczne F01-F12 wymagają ponownej oceny względem finalnego SHA; pilot A/B pozostaje NOT_MEASURED
-verification: Realny wynik każdego required joba oraz checkout SOURCE ma być sprawdzony na końcowym SHA; nie wyciągaj PASS z tego planowanego checkpointu
+apk: NOT_BUILT - jawnie bez APK, bez podpisu i bez review trigger
+completed: Wydzielono galaz robocza z weryfikowanego V3 ff62a26d; Clean v1207 bez zmian w app; historyczne workflow podpisu wycofano tylko z V3; poprzednie SOURCE run 41332183638 i PR run 41332187317 zakonczone success, attempt 1
+remaining: Koncowy SOURCE CI nowego HEAD, niezalezne review obszaru CI i podpisu gdy bedzie dostepny; pilot A/B nadal NOT_MEASURED
+known_failures: Brak stwierdzonych nowych regresji na poprzednim finalnym SHA; historyczne F01-F12 wymagaja ponownej oceny jesli dotycza nowego zadania
+verification: Nie uznawaj CI_PENDING ani zielonego CI poprzedniego SHA za PASS nowego; AndroidTest compile nie oznacza testu na telefonie
 changed_paths:
-  - AGENTS.md i docs/ai/* polityki i bootstrap
-  - docs/AI_HANDOFF.md
-  - scripts/* testy procesu
-  - .github/workflows/ usunięcie 9 historycznych definicji podpisywania APK
+  - docs/AI_HANDOFF.md (jedyny checkpoint nowej galezi)
 verified_before_push:
-  - Bazowy HEAD v1207 b161b9403425435e106498c382da34b5e3cb3d58 odczytany przez bezpośredni GitHub connector
-  - Plan Work przeanalizował F01-F12 i R01-R48; raport nie jest implementacją
+  - Clean v1207 b161b9403425435e106498c382da34b5e3cb3d58; proces V3 ff62a26d3d1259626e042afaff702c8c9c1c6610
+  - Wymagane SOURCE CI i PR CI finalnego procesu success 1/1; porownanie z v1207 daje zero zmienionych plikow app/
 blockers:
-  - Brak lokalnego checkoutu/urządzenia; testy runtime wyłącznie przez CI, brak modelowego replay
-next_action: Zweryfikuj 9 usuniętych historycznych workflow, uruchom wymagane SOURCE i PR CI na końcowym SHA, nie buduj APK
+  - Brak niezaleznej recenzji security; self-review nie jest jej substytutem
+  - Brak lokalnego checkoutu i fizycznego testu urzadzenia
+next_action: Po potwierdzeniu SOURCE CI na nowym finalnym HEAD, kolejne zadanie zaczynaj od ponownego odczytu zywego HEAD, AGENTS.md i handoff tej galezi; bez merge ani APK bez nowej zgody
 evidence_links:
-  - https://github.com/laszko14/nira-browser/commit/b161b9403425435e106498c382da34b5e3cb3d58
-  - https://github.com/laszko14/nira-browser/pull/117
+  - https://github.com/laszko14/nira-browser/actions/runs/41332183638
+  - https://github.com/laszko14/nira-browser/actions/runs/41332187317
+  - https://github.com/laszko14/nira-browser/pull/118
 ```
