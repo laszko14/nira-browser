@@ -8,7 +8,7 @@
     },
     {
       "task_id": "ZC-V32-PREFLIGHT-SOURCES",
-      "observed_count": 1,
+      "observed_count": 2,
       "state": "ACTIVE"
     }
   ],
@@ -89,6 +89,26 @@
       "regression_test": "scripts/project-sources.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41337049270"
+      ]
+    },
+    {
+      "id": "CI-41337163423-1-124939468643",
+      "task_id": "ZC-V32-PREFLIGHT-SOURCES",
+      "kind": "CI_FAILURE",
+      "fingerprint": "v32-v31-registry-test-fixture-cross-task",
+      "summary": "SOURCE CI V3.2: test V3.1 zachował coverage nowego zadania przy ograniczeniu eventów do pierwszego przypadku, co fałszywie łamało kontrolę zgodności.",
+      "source_sha": "0138e1e73de2b3fd4677a774e6adea0cd608b717",
+      "observed_at": "2026-11-01T18:33:22Z",
+      "run_id": 41337163423,
+      "job_id": 124939468643,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "scripts/error-learning.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41337163423"
       ]
     }
   ]
