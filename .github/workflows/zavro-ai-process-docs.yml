@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feat/zavro-clean-search-redesign-v2-20261101
+      - chore/zavro-clean-codex-v3-20261101
   workflow_dispatch:
 
 permissions:

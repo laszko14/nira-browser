@@ -1,7 +1,8 @@
 'use strict';
 /** One-shot, read-only receipt for a completed process CI run. Never polls or starts workflows. */
 const REPO = 'laszko14/nira-browser';
-const BRANCH = 'improve/zavro-clean-chatgpt-github-process-20261101';
+const BRANCH = 'chore/zavro-clean-codex-v3-20261101';
+const SAFE_BRANCH = /^(?:feat|fix|chore)\/zavro-clean-[a-z0-9-]+$/;
 const WORKFLOW = '.github/workflows/zavro-ai-process-docs.yml';
 const REQUIRED = [
   "process-docs",
@@ -13,7 +14,8 @@ const REQUIRED = [
 ];
 const API = 'https://api.github.com/repos/' + REPO;
 
-function evaluate(run, jobs, branch, expectedSha) {
+function evaluate(run, jobs, branch, expectedSha, expectedBranch = BRANCH) {
+  if (!SAFE_BRANCH.test(expectedBranch)) throw Error('Unsupported Zavro Clean branch');
   if (!/^[0-9a-f]{40}$/.test(expectedSha)) throw Error('Expected exact 40-character commit SHA');
   if (!run || !Array.isArray(jobs)) throw Error('Missing run/jobs');
   const jobResults = REQUIRED.map(name => {
@@ -25,7 +27,7 @@ function evaluate(run, jobs, branch, expectedSha) {
   });
   let status = 'CODE_VERIFIED', reason = 'All six jobs completed/success on the expected current SHA';
   if (run.repository?.full_name !== REPO || run.path !== WORKFLOW ||
-      run.head_branch !== BRANCH || !['push','workflow_dispatch'].includes(run.event)) {
+      run.head_branch !== expectedBranch || !['push','workflow_dispatch'].includes(run.event)) {
     status = 'BLOCKED'; reason = 'Unexpected repository, workflow, branch or event';
   } else if (run.head_sha !== expectedSha || branch?.commit?.sha !== expectedSha) {
     status = 'STALE_HEAD'; reason = 'Run SHA, expected SHA and live branch HEAD do not match';
@@ -58,12 +60,13 @@ async function getJson(fetcher, url, token) {
   if (!response?.ok) throw Error('GitHub API read failed with HTTP ' + (response?.status || 'unknown'));
   return response.json();
 }
-async function readOnce({runId, expectedSha, fetcher = globalThis.fetch, token = ''}) {
+async function readOnce({runId, expectedSha, branchName = BRANCH, fetcher = globalThis.fetch, token = ''}) {
+  if (!SAFE_BRANCH.test(branchName)) throw Error('Unsupported Zavro Clean branch');
   if (!Number.isSafeInteger(runId) || runId < 1) throw Error('Invalid workflow run ID');
   if (!/^[0-9a-f]{40}$/.test(expectedSha)) throw Error('Invalid expected SHA');
   const run = await getJson(fetcher, API+'/actions/runs/'+runId, token);
-  if (run.repository?.full_name !== REPO || run.path !== WORKFLOW || run.head_branch !== BRANCH) {
-    return evaluate(run, [], null, expectedSha); // fail closed before reading another branch
+  if (run.repository?.full_name !== REPO || run.path !== WORKFLOW || run.head_branch !== branchName) {
+    return evaluate(run, [], null, expectedSha, branchName); // fail closed before reading another branch
   }
   const jobs = [];
   let total = null;
@@ -80,19 +83,19 @@ async function readOnce({runId, expectedSha, fetcher = globalThis.fetch, token =
     if (data.jobs.length !== 100) throw Error('Incomplete GitHub job page');
   }
   if (jobs.length !== total) throw Error('Incomplete job listing; refuse to report PASS');
-  const liveBranch = await getJson(fetcher, API+'/branches/'+encodeURIComponent(BRANCH), token);
-  return evaluate(run, jobs, liveBranch, expectedSha);
+  const liveBranch = await getJson(fetcher, API+'/branches/'+encodeURIComponent(branchName), token);
+  return evaluate(run, jobs, liveBranch, expectedSha, branchName);
 }
 async function main(argv = process.argv.slice(2), fetcher = globalThis.fetch) {
-  const [runId, sha] = argv;
-  if (argv.length !== 2 || !/^[1-9][0-9]*$/.test(runId || '')) {
-    process.stderr.write('Usage: node scripts/ci-run-receipt.cjs RUN_ID EXPECTED_40_CHAR_SHA\n');
+  const [runId, sha, branchName = BRANCH] = argv;
+  if ((argv.length !== 2 && argv.length !== 3) || !/^[1-9][0-9]*$/.test(runId || '')) {
+    process.stderr.write('Usage: node scripts/ci-run-receipt.cjs RUN_ID EXPECTED_40_CHAR_SHA [BRANCH]\n');
     process.exitCode = 2;
     return;
   }
   try {
     const receipt = await readOnce({runId:Number(runId), expectedSha:sha,
-      fetcher, token:process.env.GH_TOKEN || ''});
+      branchName, fetcher, token:process.env.GH_TOKEN || ''});
     process.stdout.write(JSON.stringify(receipt,null,2)+'\n');
     if (receipt.status !== 'CODE_VERIFIED') process.exitCode = 2;
   } catch (error) {

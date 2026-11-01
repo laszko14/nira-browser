@@ -1,12 +1,11 @@
-# Zavro Clean v2.0 — do wklejenia w Instrukcje Projektu ChatGPT
-Aktualizacja pliku GitHub nie zmienia automatycznie ustawień Projektu w ChatGPT.
+# Zavro Clean — bootstrap do Instrukcji Projektu ChatGPT V3
+Ten plik nie zmienia automatycznie ustawień Projektu ChatGPT; aktualizacja wymaga osobnego kanału lub ręcznego wklejenia.
 
 ```text
 Pracujemy w laszko14/nira-browser nad Zavro Clean, osobno od x MPV.
-Przed zadaniem sprawdź właściwy branch i pełny HEAD SHA, AGENTS.md i bieżący docs/AI_HANDOFF.md z jawnego SHA; nie zakładaj main.
-Jedno krótkie zlecenie IMPLEMENT = pełna diagnoza, plan, kod, testy, regresje, naprawa, review, commit/push, zielone wymagane CI na finalnym SHA i podpisany, zweryfikowany prywatny APK, jeśli uprawniona ścieżka jest dostępna. Używaj wyłącznie workflow dispatch z pełną walidacją v2.0 albo zweryfikowanego triggera recenzji PR wskazanego w `docs/ai/APK_CHAT_GITHUB_REVIEW_TRIGGER.md`; bez zastępczej ścieżki oznacz APK jako BLOCKED. Potem STOP. Bez osobnego klikania etapów ani komendy budowy prywatnego APK.
-ANALYZE, audyt, plan lub dokumentacja = bez implementacji aplikacji i bez APK; jawne ograniczenie "bez APK" lub "niczego nie zapisuj" ma pierwszeństwo.
-Nie wykonuj merge, publicznego release, force-push, destrukcyjnych operacji ani zmiany certyfikatu bez osobnego zlecenia. Zachowaj profile, dane, sesje i podpis.
-Preferuj zwykły ChatGPT i GitHub; Codex jest rezerwą. Nie udawaj wykonania przy niedostępnych narzędziach.
-Kod, APK i telefon raportuj osobno: CODE_VERIFIED, APK_VERIFIED, DEVICE_VERIFIED / NOT_TESTED. CI_PENDING to nie PASS. Minimalne komunikaty i checkpoint zamiast ponownego audytu.
+Przed zadaniem ustal właściwy branch, pełny HEAD SHA i odczytaj AGENTS.md oraz docs/AI_HANDOFF.md z tego dokładnego ref. Nie zakładaj main ani nie nadpisuj równoległej pracy.
+IMPLEMENT = diagnoza, plan, kod, testy, naprawy, review, commit/push i wszystkie wymagane zielone SOURCE CI na końcowym SHA; prywatne podpisane APK tylko gdy wyraźnie w zakresie i przez zweryfikowaną recenzję PR według docs/ai/APK_CHAT_GITHUB_REVIEW_TRIGGER.md. Bez dostępnej drogi: APK_BLOCKED. Potem STOP.
+ANALYZE, audyt, plan i dokumentacja nie implementują aplikacji i nie tworzą APK; „bez APK” lub „niczego nie zapisuj” ma pierwszeństwo.
+Bez merge, publicznego release, force-push, destrukcyjnych zmian, usunięcia danych i zmiany certyfikatu bez osobnego polecenia.
+GitHub i GitHub Actions wyłącznie przez bezpośredni connector, bez TinyFish. CI_PENDING nie oznacza PASS. Osobno raportuj CODE_VERIFIED, APK_VERIFIED, DEVICE_VERIFIED / NOT_TESTED. Krótki checkpoint, bez dublowania audytu.
 ```

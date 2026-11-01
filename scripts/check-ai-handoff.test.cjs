@@ -43,8 +43,8 @@ test('fresh chat reconstructs the task from the short current handoff alone', ()
   assert.ok(['staged', 'autonomous_task'].includes(data.workflow_mode));
   assert.equal(data.repo, 'laszko14/nira-browser');
   assert.equal(data.product_line, 'Zavro Clean');
-  assert.equal(data.task_id, 'ZAVRO-CLEAN-SEARCH-REDESIGN-V2-20261101');
-  assert.equal(data.branch, 'feat/zavro-clean-search-redesign-v2-20261101');
+  assert.match(data.branch, /^(?:feat|fix|chore)\/zavro-clean-[a-z0-9-]+$/);
+  assert.ok(data.acceptance_source.length > 15, 'must carry a meaningful acceptance source');
   for (const k of ['base_sha','observed_head_sha']) assert.match(data[k], /^[0-9a-f]{40}$/);
   assert.match(data.required_ci, /process-docs/);
   assert.match(data.required_ci, /shared-tests/);
@@ -53,18 +53,17 @@ test('fresh chat reconstructs the task from the short current handoff alone', ()
   assert.match(handoff, /verified_before_push:/);
   assert.match(handoff, /evidence_links:/);
   assert.match(handoff, /ai\/archive\/AI_HANDOFF_LEGACY_2026-11-01\.md/);
-  assert.match(handoff, /CI_PENDING.*migawką|status: CI_PENDING/);
-  assert.match(handoff, /portrait|pion/i);
-  assert.match(handoff, /landscape|poziom/i);
+  for(const key of ['completed','remaining','known_failures','verification']) assert.ok(data[key], 'missing V3 checkpoint '+key);
+  assert.match(handoff, /CI_PENDING|SUCCESS|BLOCKED/);
 });
 
 test('handoff template supports a next-chat restart without copying the archive', () => {
-  for (const placeholder of ['task_id', 'workflow_mode', 'branch', 'observed_head_sha', 'base_sha', 'acceptance_source', 'required_ci', 'next_action', 'blockers']) {
+  for (const placeholder of ['task_id', 'workflow_mode', 'branch', 'observed_head_sha', 'base_sha', 'acceptance_source', 'required_ci', 'next_action', 'blockers', 'verification']) {
     assert.ok(template.includes('['+placeholder+']'), 'missing transfer field '+placeholder);
   }
   assert.match(template, /porównaj aktualny HEAD/);
   assert.match(template, /Bez merge, publicznego release/);
-  assert.match(template, /prywatny APK po zielonym CI/);
-  assert.match(template, /workflow.dispatch|uprawnionym dispatch/i);
+  assert.match(template, /APK_CHAT_GITHUB_REVIEW_TRIGGER\.md/);
+  assert.doesNotMatch(template, /uprawnionym dispatch/i);
   assert.doesNotMatch(handoff, /# P16\/16 —/);
 });

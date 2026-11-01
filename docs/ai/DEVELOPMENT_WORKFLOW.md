@@ -1,0 +1,9 @@
+# Zavro Clean V3 — jedna praca, sześć faz
+To wewnętrzna procedura `workflow_mode=autonomous_task`, nie sześć komunikatów użytkownika.
+1. **Stan:** rozpoznaj tryb, zakres, produkt, branch i pełny HEAD. Odczytaj AGENTS/handoff z ref. Ustal właściciela zapisu; lokalny status ≠ zdalny ref. Nie zakładaj main.
+2. **Diagnoza:** obserwowalna akceptacja w TASK_TEMPLATE, minimalny kontrprzykład i przyczyna; analizuj zależności, API, dane i ryzyka. Nie odczytuj całego archiwum, jeśli niepotrzebne.
+3. **Zmiana:** izolowany checkout i najmniejsza pełna poprawka. RED/GREEN według TEST_POLICY. Zachowuj profile, certyfikat, dane i stan. Używaj bash (nie fish); żadnych automatycznych stash/reset.
+4. **Triage:** po FAIL zapisz dowód, rozróżnij produkcję/test/środowisko, napraw przyczynę, uruchom dotknięte testy. Dwie identyczne porażki bez nowych danych → inna metoda. Nie osłabiaj asercji.
+5. **Review:** samodzielna kontrola diffu i wymagane odrębne review w obszarach wysokiego ryzyka, jeśli dostępne; brak recenzenta jawnie BLOCKED dla pełnej oceny ryzyka. Przy implementacji doc-only nie uruchamiaj APK.
+6. **Dostarczenie:** zapisz handoff przed pushem; commit/push na uprawnionej gałęzi, finalne SOURCE CI, w razie FAIL popraw i ponów właściwą bramkę. Autoryzacja APK wyłącznie przez właściciela PR według osobnego kanonu, tylko jeśli żądana. Krótki status i STOP.
+Preferuj zwykły ChatGPT + bezpośredni GitHub connector/Actions; Codex tylko gdy potrzebny. Bez TinyFish, dodatkowych Skills/MCP/hooks/config oraz importu gpt-instruct. Nie edytuj globalnego model_instructions_file. Model i effort dobieraj do ryzyka, nie zmieniaj w środku pomiaru A/B. Żaden cache ani ponowny czat nie zastępuje rzeczywistego odczytu źródła.

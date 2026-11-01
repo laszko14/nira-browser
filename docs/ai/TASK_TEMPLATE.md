@@ -1,27 +1,19 @@
 # Kontrakt zadania — jedno źródło wymagań
-
-Uzupełnij **raz** w zadaniu/Issue/opisie PR. Nie kopiuj do trzech plików.
+Wpisz raz w Issue/opisie PR/zadaniu, nie kopiuj procedur do innych dokumentów.
 
 ```text
-ID / cel:
-Linia produktu: Zavro Clean | Zavro x MPV
-Repo / branch / base SHA / zaobserwowany HEAD:
+ID / cel / acceptance_source:
+Produkt: Zavro Clean (bez x MPV)
+Repo / branch / base_sha / observed_head_sha:
 workflow_mode: autonomous_task
-Źródło wymagania:
-Objaw: minimalne wejście + rzeczywisty błędny wynik
-Wynik oczekiwany, obserwowalny przez test:
-Zakres i wyłączenia:
-Ryzyka: parser | UI | Kotlin/API | lifecycle | trwałe dane | prywatność | Gecko | CI/podpis
-Akceptacja:
-  1. Kontrprzykład przed i po poprawce (RED/GREEN, jeśli wykonalne).
-  2. Zwykła ścieżka nadal działa.
-  3. Sąsiednie dojście do stanu (np. History API/hashchange).
-  4. Jeśli dotyczy: owner, cancel, late callback, restart, transakcja, rollback.
-Dowody: JS/unit | JVM/Robolectric | AndroidTest compile | Gecko/urządzenie | APK/podpis
-Required CI: workflow, konkretne wymagane joby
-Znane NOT_TESTED, blokery i źródła dowodów:
-Poza upoważnieniem: publiczny release, merge, force-push, usuwanie danych; prywatny APK po IMPLEMENT i wymaganym CI
-Koniec IMPLEMENT: finalny SHA + zielone wymagane CI + zweryfikowany prywatny APK + status urządzenia; ANALYZE bez APK
+Tryb: ANALYZE | DOC_ONLY_IMPLEMENT | IMPLEMENT
+Objaw i minimalny kontrprzykład:
+Wynik oczekiwany:
+Granice: co zmieniamy / czego nie zmieniamy / bez APK:
+Ryzyka: API | JS | Kotlin | UI | lifecycle | dane | prywatność | Gecko | CI/podpis
+Scenariusze akceptacji i historyczny kontrprzykład:
+Required SOURCE CI i dodatkowe testy:
+Dane/profil/certyfikat niezmienne:
+Not tested / blokady / dowody:
 ```
-
-Po zmianie API wyszukaj wszystkie callsite i test mocks; po zmianie lifecycle sprawdź przerwanie, restart i późne wiadomości. Zasady w `AGENTS.md`; checklista i wzorce: [TEST_PATTERNS.md](TEST_PATTERNS.md).
+Testy, review, APK i statusy definiują TEST_POLICY, QUALITY_GATES oraz APK_CHAT_GITHUB_REVIEW_TRIGGER. Dokumentacyjna V3 bez APK i bez zmian aplikacji. Nie wymagaj osobnego APK jako testu dokumentacji.

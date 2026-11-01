@@ -1,5 +1,4 @@
-# Zavro Clean — instrukcje dla Copilota
-Jedyne główne zasady: [AGENTS.md](../AGENTS.md). Weryfikuj rzeczywisty branch i pełny SHA. Wskazówki implementacyjne: [docs/AGENT_REFERENCE.md](../docs/AGENT_REFERENCE.md) (czytaj potrzebne sekcje).
-Zavro Clean ≠ x MPV. Kotlin, GeckoView, Android Components, Compose/Views, Room/DataStore.
-Testy: `node --test app/src/test/js/*.test.cjs`, `./gradlew testDebugUnitTest`, `./gradlew lintDebug`, `./gradlew compileDebugAndroidTestKotlin`, plus `scripts/lint-regression.cjs` w shared CI.
-Nie buduj podpisanego APK na push/PR/tag. IMPLEMENT na gałęzi z CI v2 obejmuje uprawniony `workflow_dispatch` dla prywatnego APK; PUBLISH wymaga osobnej zgody. Zachowuj certyfikat, applicationId, profile, sesje i dane.
+# Zavro Clean — wejście Copilota
+Kanon polityki: [AGENTS.md](../AGENTS.md); bieżący stan wyłącznie w [AI_HANDOFF.md](../docs/AI_HANDOFF.md) odczytanym z prawidłowego live ref. Clean i x MPV są oddzielne. Weryfikuj pełny HEAD SHA, własność zmian i jawny zakres.
+Procedura implementacji: [DEVELOPMENT_WORKFLOW.md](../docs/ai/DEVELOPMENT_WORKFLOW.md); testy: [TEST_POLICY.md](../docs/ai/TEST_POLICY.md); bramki: [QUALITY_GATES.md](../docs/ai/QUALITY_GATES.md).
+Nie uruchamiaj podpisu przy push/PR/tag ani przez prywatny dispatch. Prywatny APK wyłącznie według [autoryzowanej recenzji PR](../docs/ai/APK_CHAT_GITHUB_REVIEW_TRIGGER.md), po końcowym zielonym CI i tylko gdy w zakresie zadania. Bez merge, release, force-push, usuwania profili i danych; zachowaj certyfikat.

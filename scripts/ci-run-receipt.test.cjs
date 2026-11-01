@@ -82,3 +82,11 @@ test('pagination gaps and untrusted run identity cannot yield PASS',async()=>{
   assert.equal(calls.length,1);
   assert.throws(()=>evaluate(run,jobs,branch,'not-a-sha'),/Expected exact/);
 });
+
+test('explicit supported Clean branch can be verified; arbitrary and main refs cannot',()=>{
+  const other='feat/zavro-clean-search-redesign-v2-20261101';
+  assert.equal(evaluate({...run,head_branch:other},jobs,branch,SHA,other).status,'CODE_VERIFIED');
+  assert.equal(evaluate({...run,head_branch:other},jobs,branch,SHA).status,'BLOCKED');
+  assert.throws(()=>evaluate(run,jobs,branch,SHA,'main'),/Unsupported/);
+  assert.throws(()=>evaluate(run,jobs,branch,SHA,'evil/other'),/Unsupported/);
+});

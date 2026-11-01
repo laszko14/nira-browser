@@ -30,8 +30,7 @@ podpisanie przy teście. Zwykłe zdarzenia nadal pozostawiają job `build` jako 
    niezmienionego certyfikatu z GitHub Secrets. `verify-update-apk.sh`
    sprawdza pakiet, versionCode, versionName, ABI i SHA-256 certyfikatu.
 6. Brak dowolnego warunku → fail closed, bez publikacji i bez zastępczego podpisu.
-7. `workflow_dispatch` nadal jest wspierany jako osobne ręczne wejście.
-   `publish-release` pozostaje **wyłącznie** ręcznym `workflow_dispatch`.
+7. Prywatnego `debug-apk` z `workflow_dispatch` nie wolno wykorzystywać jako alternatywy z czatu. Publiczny `publish-release` jest osobnym, ręcznym zakresem poza wdrożeniem V3.
 
 ## Kolejność dla agenta
 

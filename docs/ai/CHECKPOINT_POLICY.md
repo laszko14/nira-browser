@@ -1,0 +1,5 @@
+# Zavro Clean V3 — checkpointy i wznowienie
+Jedyny bieżący checkpoint **danej gałęzi**: `docs/AI_HANDOFF.md`. `docs/AI_PROGRESS.md` i `docs/ai/archive/` to historia, nie drugi bieżący stan.
+Pola: `task_id`, `workflow_mode`, `repo`, `product_line`, `branch`, `base_sha`, `observed_head_sha`, `status`, `acceptance_source`, `required_ci`, `device`, `apk`, `completed`, `remaining`, `known_failures`, `verification`, `next_action`, `changed_paths`, `verified_before_push`, `blockers`, `evidence_links`.
+Zapisuj przy materialnym postępie, blokadzie i przed końcowym CI, nie po każdej czynności. `observed_head_sha` jest odczytem sprzed zapisu; nie wymaga własnego przyszłego SHA. Numery runów i wynik końcowy w raporcie/summary, bez samoodnoszącego commita.
+Każdy `do_not_repeat` wymaga ważności: hash wejścia/źródła + komenda + środowisko. Po zmianie SHA test źródła może być nieważny. Przy nowym czacie odczytaj live HEAD i sprawdź, co już zakończono; nie nadpisuj pracy równoległego autora. Brak dostępu do CI oznacza `CI_PENDING`/BLOCKED bez obietnicy automatycznego wznowienia.

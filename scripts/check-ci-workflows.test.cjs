@@ -112,3 +112,19 @@ test('v2 negative controls fail on removed task, SHA, ref or verifier protection
     assert.throws(()=>contract(altered),assert.AssertionError);
   }
 });
+
+test('V3 active policy dependencies physically exist; a missing policy is blocking',()=>{
+  const paths=['docs/ai/APK_RELEASE.md','docs/ai/CHECKPOINT_POLICY.md',
+    'docs/ai/DEVELOPMENT_WORKFLOW.md','docs/ai/ERROR_LEARNING.md',
+    'docs/ai/EXCEPTIONS_AND_TOOLS.md','docs/ai/LEGACY_INSTRUCTIONS.md',
+    'docs/ai/MIGRATION_V2_CI.md','docs/ai/QUALITY_GATES.md',
+    'docs/ai/TEST_POLICY.md'];
+  const agents=read('AGENTS.md');
+  for(const file of paths){
+    assert.ok(fs.existsSync(path.join(root,file)),'Missing active policy '+file);
+    assert.ok(fs.statSync(path.join(root,file)).size>100,'Empty active policy '+file);
+    assert.ok(agents.includes(file),'AGENTS missing link '+file);
+  }
+  assert.match(agents,/exact|SHA/i);
+  assert.match(agents,/APK_CHAT_GITHUB_REVIEW_TRIGGER/);
+});

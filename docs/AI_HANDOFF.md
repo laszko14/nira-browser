@@ -1,40 +1,34 @@
-# AI_HANDOFF — Zavro Clean · v2.0 search redesign
-
-> Historia wcześniejszych przekazań: [archiwum](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md).
+# AI_HANDOFF — Zavro Clean · migracja Codex V3
+> Ta gałąź procesu jest odseparowana od linii funkcjonalnej v1207. Checkpoint redesignu pozostaje na `feat/zavro-clean-search-redesign-v2-20261101`. Historia: [archiwum](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md).
 
 ```yaml
-task_id: ZAVRO-CLEAN-SEARCH-REDESIGN-V2-20261101
+task_id: ZAVRO-CLEAN-CODEX-V3-20261101
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
-branch: feat/zavro-clean-search-redesign-v2-20261101
-base_sha: de8d893731471bd9ac78e4c6006ab34d567eef0d
-observed_head_sha: de8d893731471bd9ac78e4c6006ab34d567eef0d
+branch: chore/zavro-clean-codex-v3-20261101
+base_sha: b161b9403425435e106498c382da34b5e3cb3d58
+observed_head_sha: b161b9403425435e106498c382da34b5e3cb3d58
 status: CI_PENDING
-implementation_status: implemented and committed; CI verification pending
-acceptance_source: User request 2026-11-01 to migrate v1206 to CI v2.0 and redesign My sites and video search results from the attached portrait reference with a separate landscape adaptation
-required_ci: zavro-ai-process-docs (process-docs, four shared-tests jobs, quality-evidence); Android CI pull_request (four shared regression jobs); exact-SHA owner review for private APK
-device: DEVICE_NOT_TESTED; adb is unavailable in this environment
-apk: pending green final-SHA CI and exact-SHA authenticated PR review; expected com.prirai.android.nira.debug, arm64-v8a, versionCode 1207, versionName 0.5.22-alpha112-clean, signing certificate retained
+acceptance_source: Zatwierdzony plan Zavro Clean Codex V3 z 2026-11-01; doc-only IMPLEMENT, bazą aplikacji jest v1207, bez APK, bez zmian aplikacji
+required_ci: proces dokumentów, shared JS/JVM/AndroidTest compile/lint + lint-regression, SOURCE SHA i evidence na końcowym commicie
+device: NOT_TESTED
+apk: NOT_BUILT - jawny zakres BEZ APK
+completed: Rozpoznano stan v1207 na b161b940; izolowana gałąź procesu; przygotowano komplet polityk i kontrakty V3
+remaining: Walidacja i poprawki CI, neutralność testów wobec task_id i brancha, safety review, finalny push/PR i końcowe required CI, pomiar pilotażu tylko gdy możliwy
+known_failures: Historyczne F01-F12 wymagają ponownej oceny względem finalnego SHA; pilot A/B pozostaje NOT_MEASURED
+verification: Realny wynik każdego required joba oraz checkout SOURCE ma być sprawdzony na końcowym SHA; nie wyciągaj PASS z tego planowanego checkpointu
 changed_paths:
-  - AGENTS.md and v2.0 instruction set
-  - CI workflows and their regression tests
-  - MyVideoSitesActivity and its layout tests
-  - VideoSearchResultsScreen and UI state tests
+  - AGENTS.md i docs/ai/* polityki i bootstrap
+  - docs/AI_HANDOFF.md
+  - scripts/* testy procesu
 verified_before_push:
-  - Local starting checkout was clean and moved to a task branch from v1206
-  - GitHub connector confirmed source commit de8d893731471bd9ac78e4c6006ab34d567eef0d
-  - v1206 and v2.0 instruction branch share ancestor e496e141f97045f1a9d315e349a1666277547569
-  - Original v1206 owner-review APK trigger is retained alongside v2.0 dispatch guards
-  - Baseline handoff contract test failed because acceptance_source was missing
-  - Local Gradle bootstrap could not download Gradle 9.7.1; adb is unavailable
-  - Process and migration Node checks passed 45/45; full JavaScript suite passed 408/408
-  - Feature branch pushed and PR 117 opened against the v1206 branch; no merge
+  - Bazowy HEAD v1207 b161b9403425435e106498c382da34b5e3cb3d58 odczytany przez bezpośredni GitHub connector
+  - Plan Work przeanalizował F01-F12 i R01-R48; raport nie jest implementacją
 blockers:
-  - Android unit/UI tests require GitHub CI: Gradle 9.7.1 is cached, but the required JetBrains JDK 21 cannot be downloaded from Foojay in this environment
-  - Required GitHub CI and authenticated private APK review remain to be run on final SHA
-next_action: Verify and repair all required CI jobs on the final SHA; after green CI, submit only the exact authorized owner PR review trigger and verify the private APK. Do not merge.
+  - Brak lokalnego checkoutu/urządzenia; testy runtime wyłącznie przez CI, brak modelowego replay
+next_action: Zweryfikuj pełny diff V3 i uruchom required SOURCE CI na finalnym SHA; bez żadnego APK
 evidence_links:
-  - https://github.com/laszko14/nira-browser/commit/de8d893731471bd9ac78e4c6006ab34d567eef0d
-  - https://github.com/laszko14/nira-browser/tree/7a60fbcb8463afca3526675a8d47dd28ce89b9be
+  - https://github.com/laszko14/nira-browser/commit/b161b9403425435e106498c382da34b5e3cb3d58
+  - https://github.com/laszko14/nira-browser/pull/117
 ```
