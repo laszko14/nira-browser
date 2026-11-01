@@ -16,21 +16,21 @@ const { assertUpdateApkContract } = require("./helpers/update-apk-contract.cjs")
 
 test("stage19A current debug contract stays update-compatible", () => {
   const update = assertUpdateApkContract(gradle, workflow);
-  assert.equal(update.installCode, 1200);
-  assert.equal(update.versionName, "0.5.22-alpha105-clean");
+  assert.equal(update.installCode, 1201);
+  assert.equal(update.versionName, "0.5.22-alpha106-clean");
 });
 
 test("stage19A release version derives from actual Gradle checkout (not old release constants)", () => {
   const value = resolveReleaseContract(gradle);
   assert.deepEqual(value, {
     packageName: "com.prirai.android.nira",
-    versionCode: 1200,
-    versionName: "0.5.22-alpha105-clean",
+    versionCode: 1201,
+    versionName: "0.5.22-alpha106-clean",
   });
   // Simulate checkout at a DIFFERENT tag with a different Gradle version.
   const olderTag = gradle
     .replace("versionCode = 200", "versionCode = 182")
-    .replace('versionName = "0.5.22-alpha105-clean"', 'versionName = "0.5.22-alpha87-clean"');
+    .replace('versionName = "0.5.22-alpha106-clean"', 'versionName = "0.5.22-alpha87-clean"');
   assert.deepEqual(resolveReleaseContract(olderTag), {
     packageName: "com.prirai.android.nira",
     versionCode: 1182,
@@ -49,7 +49,7 @@ test("stage19A rejects unsupported ABI, package, malformed metadata and untruste
     gradle.replace("universalApk = false", "universalApk = true")),
     /ABI split/);
   assert.throws(() => resolveReleaseContract(
-    gradle.replace('versionName = "0.5.22-alpha105-clean"', 'versionName = "bad name"')),
+    gradle.replace('versionName = "0.5.22-alpha106-clean"', 'versionName = "bad name"')),
     /Unsafe/);
   assert.throws(() => resolveReleaseContract(gradle.replace(
     "versionCode = 200", "versionCode = 200\n        versionCode = 201")),
@@ -62,7 +62,7 @@ test("stage19A writes only version to GitHub env, not certificates, secrets or p
     const envFile = path.join(tempDir, "env");
     writeGitHubEnv(resolveReleaseContract(gradle), envFile);
     assert.equal(fs.readFileSync(envFile, "utf8"),
-      "EXPECTED_VERSION_CODE=1200\nEXPECTED_VERSION_NAME=0.5.22-alpha105-clean\n");
+      "EXPECTED_VERSION_CODE=1201\nEXPECTED_VERSION_NAME=0.5.22-alpha106-clean\n");
     assert.throws(() => writeGitHubEnv(resolveReleaseContract(gradle), ""), /GITHUB_ENV/);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
