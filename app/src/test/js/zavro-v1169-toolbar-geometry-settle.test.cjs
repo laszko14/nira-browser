@@ -20,7 +20,9 @@ test("v1169: toolbar animation always settles the Gecko viewport after its final
     assert.match(fragment, /isScrollAnimationRunning\(\) == true\)\s*\{\s*val offset = [^\n]+\s+binding\.swipeRefresh\.translationY = offset\s+binding\.videoSearchResultsComposeView\.translationY = offset/);
     assert.match(fragment, /binding\.swipeRefresh\.translationY = 0f[\s\S]*?publishChromeReservation\(topChrome, bottomChrome\)/);
     const manager = source("app/src/main/java/com/prirai/android/nira/browser/WebContentPositionManager.kt");
-    assert.match(manager, /private fun applyMargins\(\)[\s\S]*?applyMarginsTo\(swipeRefreshView, wanted\)[\s\S]*?internalPageView\?\.let \{ applyMarginsTo\(it, wanted\) \}[\s\S]*?lp\.topMargin = wanted\.top/);
+    assert.match(manager, /private fun applyMargins\(\)[\s\S]*?applyMarginsTo\(swipeRefreshView, wanted\)/);
+    assert.match(manager, /internalPageView\?\.let \{ page ->[\s\S]*?maxOf\(wanted\.top, statusBarTop\)[\s\S]*?applyMarginsTo\(page, wanted\.copy\(top = top\)\)/);
+    assert.match(manager, /private fun applyMarginsTo\(view: View, wanted: WebViewportReservation\.Margins\)[\s\S]*?lp\.topMargin = wanted\.top/);
 });
 
 test("v1169: duplicate in-flight toolbar animations are still skipped", () => {

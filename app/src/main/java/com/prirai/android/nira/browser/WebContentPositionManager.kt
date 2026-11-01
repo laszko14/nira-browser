@@ -8,7 +8,7 @@ import androidx.core.view.WindowInsetsCompat
 import mozilla.components.concept.engine.EngineView
 
 /**
- * Sole writer of SwipeRefreshLayout viewport margins for pinned chrome + IME.
+ * Sole writer of Gecko and internal-results viewport margins for pinned chrome + IME.
  * The Activity already reserves system navigation bars at the root level.
  */
 class WebContentPositionManager(
