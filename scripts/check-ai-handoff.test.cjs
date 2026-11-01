@@ -51,7 +51,7 @@ test('fresh chat reconstructs the task from the short current handoff alone', ()
   assert.match(handoff, /evidence_links:/);
   assert.match(handoff, /ai\/archive\/AI_HANDOFF_LEGACY_2026-11-01\.md/);
   assert.match(handoff, /CI_PENDING.*migawką|status: CI_PENDING/);
-  assert.match(handoff, /ETAP [1-9]\/9/);
+  assert.match(handoff, /V2-MIGRATION/);
 });
 
 test('handoff template supports a next-chat restart without copying the archive', () => {
@@ -59,6 +59,6 @@ test('handoff template supports a next-chat restart without copying the archive'
     assert.ok(template.includes('['+placeholder+']'), 'missing transfer field '+placeholder);
   }
   assert.match(template, /porównaj aktualny HEAD/);
-  assert.match(template, /Bez merge i APK/);
+  assert.match(template, /Bez merge, publicznego release/);
   assert.doesNotMatch(handoff, /# P16\/16 —/);
 });

@@ -6,7 +6,7 @@ Uzupełnij **raz** w zadaniu/Issue/opisie PR. Nie kopiuj do trzech plików.
 ID / cel:
 Linia produktu: Zavro Clean | Zavro x MPV
 Repo / branch / base SHA / zaobserwowany HEAD:
-workflow_mode: staged | autonomous_task
+workflow_mode: autonomous_task
 Źródło wymagania:
 Objaw: minimalne wejście + rzeczywisty błędny wynik
 Wynik oczekiwany, obserwowalny przez test:
@@ -20,8 +20,8 @@ Akceptacja:
 Dowody: JS/unit | JVM/Robolectric | AndroidTest compile | Gecko/urządzenie | APK/podpis
 Required CI: workflow, konkretne wymagane joby
 Znane NOT_TESTED, blokery i źródła dowodów:
-Poza upoważnieniem: APK, ryzykowny PR, merge, usuwanie danych
-Koniec: finalny SHA + zielone wszystkie required jobs + oddzielne statusy urządzenia/APK
+Poza upoważnieniem: publiczny release, merge, force-push, usuwanie danych; prywatny APK po IMPLEMENT i wymaganym CI
+Koniec IMPLEMENT: finalny SHA + zielone wymagane CI + zweryfikowany prywatny APK + status urządzenia; ANALYZE bez APK
 ```
 
 Po zmianie API wyszukaj wszystkie callsite i test mocks; po zmianie lifecycle sprawdź przerwanie, restart i późne wiadomości. Zasady w `AGENTS.md`; checklista i wzorce: [TEST_PATTERNS.md](TEST_PATTERNS.md).

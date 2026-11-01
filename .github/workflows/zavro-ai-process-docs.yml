@@ -50,13 +50,13 @@ jobs:
           const policy = fs.readFileSync('AGENTS.md', 'utf8');
           const entry = fs.readFileSync('docs/ai/CHATGPT_PROJECT_INSTRUCTIONS.md', 'utf8');
           const redirect = fs.readFileSync('.github/agents.md', 'utf8');
-          assert.match(policy, /workflow_mode=staged/);
+          assert.doesNotMatch(policy, /workflow_mode=staged/);
           assert.match(policy, /workflow_mode=autonomous_task/);
           assert.match(policy, /CI_PENDING/);
           assert.match(policy, /CODE_VERIFIED/);
           assert.match(policy, /DEVICE_VERIFIED/);
           assert.match(policy, /APK_VERIFIED/);
-          assert.match(policy, /bez osobne.*Kompiluj|osobne wyraźne polecenie/);
+          assert.match(policy, /prywatne APK|prywatnego APK|prywatne.*APK/i);
           assert.match(entry, /AGENTS\.md/);
           assert.match(entry, /AI_HANDOFF\.md/);
           assert.match(redirect, /\.\.\/AGENTS\.md/);

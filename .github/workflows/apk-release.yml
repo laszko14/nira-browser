@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       build_kind:
-        description: "Default: tests only. APK or publishing needs an explicit separate command."
+        description: "Default tests-only. Private signed update for authorized implementation; public publication separate."
         required: true
         default: tests-only
         type: choice
@@ -23,7 +23,23 @@ on:
           - debug-apk
           - publish-release
       approval_phrase:
-        description: "For debug-apk use Kompiluj; for publication use Publikuj"
+        description: "Only for explicit public publication: Publikuj"
+        required: false
+        type: string
+      task_kind:
+        description: "Authorized task category; signed private APK only for implementation"
+        required: true
+        default: none
+        type: choice
+        options:
+          - none
+          - implementation
+      task_id:
+        description: "Implementation task identifier"
+        required: false
+        type: string
+      source_sha:
+        description: "Exact 40-character source commit SHA"
         required: false
         type: string
       tag:
@@ -36,7 +52,7 @@ jobs:
     # Never build an APK on push, tag or PR. A separate explicitly
     # authorized workflow_dispatch builds only after shared tests pass.
     needs: regression-tests
-    if: github.event_name == 'workflow_dispatch' && inputs.build_kind == 'debug-apk' && inputs.approval_phrase == 'Kompiluj'
+    if: github.event_name == 'workflow_dispatch' && inputs.build_kind == 'debug-apk' && inputs.task_kind == 'implementation' && inputs.task_id != '' && inputs.source_sha == github.sha && startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -58,6 +74,22 @@ jobs:
           distribution: zulu
 
       - uses: gradle/actions/setup-gradle@v5
+
+      - name: Validate authorized implementation task, ref and exact source
+        shell: bash
+        env:
+          TASK_ID: ${{ inputs.task_id }}
+          TASK_KIND: ${{ inputs.task_kind }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$TASK_KIND" == "implementation" ]] || { echo '::error::Implementation required'; exit 1; }
+          [[ "$TASK_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{2,79}$ ]] || { echo '::error::Invalid task_id'; exit 1; }
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo '::error::Invalid source_sha'; exit 1; }
+          [[ "$GITHUB_REF" == refs/heads/* && "$GITHUB_REF" != refs/heads/main ]] || { echo '::error::Protected ref'; exit 1; }
+          [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]] || { echo '::error::Dispatch only'; exit 1; }
+          [[ "$SOURCE_SHA" == "$GITHUB_SHA" ]] || { echo '::error::Dispatch SHA mismatch'; exit 1; }
+          [[ "$(git rev-parse HEAD)" == "$SOURCE_SHA" ]] || { echo '::error::Checkout SHA mismatch'; exit 1; }
 
       # Do not publish an ephemeral Android debug signature as an update.
       # Reuse the stable signing key already used by the release workflow.
