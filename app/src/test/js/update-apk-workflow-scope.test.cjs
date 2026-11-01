@@ -13,7 +13,7 @@ test('debug update contract survives separate manual release and reusable test j
 });
 
 test('negative control: wrong version or cert in debug job still fails',()=>{
-  const wrongVersion=workflow.replace(/EXPECTED_VERSION_CODE: "1196"/,'EXPECTED_VERSION_CODE: "0"');
+  const wrongVersion=workflow.replace(/EXPECTED_VERSION_CODE: "1199"/,'EXPECTED_VERSION_CODE: "0"');
   assert.notEqual(wrongVersion, workflow);
   assert.throws(()=>assertUpdateApkContract(gradle,wrongVersion),assert.AssertionError);
   const wrongCert=workflow.replace(/EXPECTED_CERT_SHA256: df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00/,

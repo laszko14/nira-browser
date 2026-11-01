@@ -19,11 +19,14 @@ changed_paths:
   - app/build.gradle
   - .github/workflows/apk-release.yml
   - docs/AI_HANDOFF.md
+  - app/src/test/js/release-contract-stage19a.test.cjs
+  - app/src/test/js/update-apk-workflow-scope.test.cjs
 verified_before_push:
   - Active branch HEAD checked before updating
   - app/build.gradle base versionCode 199 plus arm64 offset 1000 => expected output versionCode 1199
   - Android CI expected code 1199, name 0.5.22-alpha104-clean and artifact zavro-arm64-update-apk-v1199
   - Unchanged signing certificate SHA256 df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
+  - Previous run 41271943477 failed 5 JS version-fixture assertions after intentional version bump; corrected affected tests, preserving invalid version/cert negative controls
   - No APK built on push; separate manual workflow_dispatch required by existing policy
 blockers:
   - Confirm completed success on final SHA for all required process and shared tests
@@ -33,6 +36,7 @@ blockers:
 next_action: Run explicit workflow_dispatch apk-release.yml on process branch with build_kind debug-apk, approval_phrase Kompiluj; verify CI and the signed arm64 artifact before distributing; then request phone report. Do not infer grey rectangle fixed.
 evidence_links:
   - https://github.com/laszko14/nira-browser/actions/runs/41271158549
+  - https://github.com/laszko14/nira-browser/actions/runs/41271943477
 ```
 
 ## Wznowienie
