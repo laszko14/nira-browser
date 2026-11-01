@@ -262,11 +262,11 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         sidePanelInfrastructure?.leftContentOwner = {
             val state = components.store.state
             val selected = state.tabs.firstOrNull { it.id == state.selectedTabId }
-            if (selected == null || selected.content.private || browsingModeManager.mode.isPrivate) null
+            val profiles = com.prirai.android.nira.browser.profile.ProfileManager
+                .getInstance(requireContext())
+            if (selected == null || selected.content.private || profiles.isPrivateMode()) null
             else com.prirai.android.nira.browser.panels.SidePanelNormalOwner(
-                selected.id, selected.contextId,
-                com.prirai.android.nira.browser.profile.ProfileManager
-                    .getInstance(requireContext()).getActiveProfile().id
+                selected.id, selected.contextId, profiles.getActiveProfile().id
             )
         }
         sidePanelInfrastructure?.prepareLeftOnGesture = { mountEmbeddedSideTabs() }
