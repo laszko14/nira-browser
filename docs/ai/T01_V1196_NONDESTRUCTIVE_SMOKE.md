@@ -1,9 +1,20 @@
 # T01/16 — niedestrukcyjny test Zavro Clean v1196 na telefonie
 
-**Status:** ACTIVE — awaiting user device observations; no physical steps run by an agent.
+**Status:** FOLLOWUP_PENDING — user's concise report: all three requested basic smoke checks worked. Report logged UTC `2026-11-01T01:05:55.350Z` (receipt timestamp, not a measured start/end of physical test). Follow-up not before `2026-11-15T01:05:55.350Z`. No physical steps run by an agent.
 **Pilot:** `docs/ai/PILOT_16.json`, T01 (`T01-GECKO-V1196`, GECKO/MEDIUM), started UTC `2026-11-01T00:53:46.368Z`.
 **Phone:** Nothing Phone (1), Android 15, 3-button navigation, existing installed Clean v1196 **reported by user**.
 **Build evidence:** branch `build/zavro-clean-post19-gecko-g4c-update-v1196-20261101` @ `717608d1af23638614499d25dae7682f16a7fd8a`; [G4C CI run 41250929267](https://github.com/laszko14/nira-browser/actions/runs/41250929267) completed/success on this SHA (push, attempt 1). That is **code/packaging evidence, not proof that this exact binary is installed**.
+
+## Wynik T01 — zgłoszenie użytkownika (bez niezależnych logów)
+
+Po zadaniu obejmującym **trzy** niedestrukcyjne próby z sekcji poniżej użytkownik odpowiedział: **„Wszystko działa”**. Zachowujemy to jako **USER_REPORTED_3_OF_3_OK**, nie jako niezależny pomiar w debuggerze ani test Gecko natywnie:
+- system Back po zmianie testowej strony: **OK według użytkownika**;
+- przełączanie dwóch zwykłych kart testowych: **OK według użytkownika**;
+- powrót z ekranu głównego przez ostatnie aplikacje: **OK według użytkownika**.
+
+**Brak osobnej obserwacji:** dokładny versionCode z ekranu urządzenia, opcjonalne gesty paneli, zbieranie logów, kompatybilność wszystkich profili, wewnętrzny restart WebExtension, izolacja P/Q, trwałe usuwanie danych i wyścig metadanych A→B. Wersja v1196 to uprzednie zgłoszenie użytkownika, a commit `717608d1af23638614499d25dae7682f16a7fd8a` odnosi się do źródła buildu G4C, nie do poświadczonego hasha zainstalowanego pakietu.
+
+**Werdykt:** podstawowy smoke użytkownika 3/3 PASS (self-report); pełne DEVICE_VERIFIED czterech ustaleń **NIE**. T01 zapisany jako `FOLLOWUP_PENDING` w 14-dniowym oknie obserwacji. Regresje, liczba ponownych otwarć i statystyki interwencji pozostają `null` (NOT_MEASURED), nie 0. Brak nieautoryzowanych działań destrukcyjnych.
 
 ## Acceptance — first device smoke (no logs, no account/private data)
 

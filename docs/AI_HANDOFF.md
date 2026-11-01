@@ -8,35 +8,35 @@ workflow_mode: staged
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: improve/zavro-clean-chatgpt-github-process-20261101
-base_sha: deb05f4b7e5a1e23625aa02dc5096cf0a91d53ad
-observed_head_sha: deb05f4b7e5a1e23625aa02dc5096cf0a91d53ad
+base_sha: 414b861d14ab03e769dca9b82727644e07a89169
+observed_head_sha: 414b861d14ab03e769dca9b82727644e07a89169
 status: CI_PENDING
-acceptance_source: ETAP 9/9 pilot T01/16 — docs/ai/T01_V1196_NONDESTRUCTIVE_SMOKE.md
+acceptance_source: pilot T01/16 — docs/ai/T01_V1196_NONDESTRUCTIVE_SMOKE.md
 required_ci: zavro-ai-process-docs.yml / process-docs + shared-tests/{javascript,unit,android-test-compile,lint} + quality-evidence
-device: AWAITING_USER_OBSERVATIONS
+device: USER_REPORTED_SMOKE_3_OF_3_OK; ZC-AUD-002/030/031/043 NOT_TESTED
 apk: NOT_BUILT
-pilot: T01/16 ACTIVE; completed 14-day followups 0/16; measurements NOT_MEASURED
+pilot: T01/16 FOLLOWUP_PENDING; completed 14-day followups 0/16; metrics NOT_MEASURED
+reported_at: 2026-11-01T01:05:55.350Z
+followup_not_before: 2026-11-15T01:05:55.350Z
+app_under_test_source_sha: 717608d1af23638614499d25dae7682f16a7fd8a
 changed_paths:
   - docs/ai/PILOT_16.json
-  - docs/ai/PILOT_MEASUREMENT_9.md
   - docs/ai/T01_V1196_NONDESTRUCTIVE_SMOKE.md
+  - docs/ai/PILOT_MEASUREMENT_9.md
   - scripts/ai-pilot-metrics.test.cjs
   - docs/AI_HANDOFF.md
 verified_before_push:
-  - Stage 9 final SHA deb05f4b7e5a1e23625aa02dc5096cf0a91d53ad run 41257993904 completed/success; six jobs
-  - G4C v1196 build source 717608d1af23638614499d25dae7682f16a7fd8a run 41250929267 completed/success
-  - User previously confirmed in-place install and preserved visible settings; no new device test in T01 yet
-  - T01 registered ACTIVE; counters remain unknown; no forced stop, erase or separate native Gecko probe
-blockers:
-  - Physical steps require a user-operated device; no remote phone access
-next_action: Verify final CI SHA then ask for brief v1196 smoke results; do not close T01 without real observations; no other task before STOP
+  - Previous process SHA 414b861d14ab03e769dca9b82727644e07a89169 run 41258788736 completed/success all 6 required jobs attempt 1
+  - G4C 1196 source 717608d1af23638614499d25dae7682f16a7fd8a run 41250929267 completed/success; installed APK digest not inspected
+  - User confirmed three non-destructive basic smoke checks worked; no native Gecko evidence collected
+  - T01 observation window 14 days; metrics unknown, no false zero; no change to audit 60 findings
+blockers: []
+next_action: Verify final SHA in CI (all six jobs) then STOP; T01 stays FOLLOWUP_PENDING until later real observation, no automatic check promised
 evidence_links:
-  - https://github.com/laszko14/nira-browser/actions/runs/41257993904
+  - https://github.com/laszko14/nira-browser/actions/runs/41258788736
   - https://github.com/laszko14/nira-browser/actions/runs/41250929267
 ```
 
 ## Wznowienie
 
-Odczytaj `AGENTS.md` i ten checkpoint na jawnym SHA, porównaj żywy HEAD. `observed_head_sha` i `CI_PENDING` to migawka sprzed push, nie aktualny werdykt po runie; **wszystkie** wymagane joby muszą mieć ukończony SUCCESS na finalnym SHA. Zapis T01 w [rejestrze](ai/PILOT_16.json), instrukcja dla telefonu w [T01](ai/T01_V1196_NONDESTRUCTIVE_SMOKE.md); nie zmieniaj audytu 60/60 na podstawie podstawowego smoke.
-
-Nie twórz osobnego commitu wyłącznie dla numeru CI. Po zielonym CI i przygotowaniu T01 STOP w oczekiwaniu na wyniki użytkownika. Nie wykonano APK, PR, merge, zmian telefonu, profili, sesji ani usuwania danych.
+Przed zadaniem porównaj bieżący HEAD, czytaj `AGENTS.md` i checkpoint na **jawnym SHA**. `status: CI_PENDING` oraz `observed_head_sha` to zapis sprzed push, nie wynik końcowego CI. Nie dopisuj run ID po pushu osobnym commitem. Stwierdzenie użytkownika **„Wszystko działa”** dotyczy tylko trzech podstawowych prób, a nie czterech otwartych audytowych ID. Nie wykonano dodatkowych prób Gecko, APK, merge ani czyszczenia danych. Po ukończeniu i zielonym CI **STOP**, kolejne zadanie wymaga osobnego polecenia.

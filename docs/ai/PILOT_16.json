@@ -5,16 +5,19 @@
   "records": [
     {
       "slot": "T01",
-      "state": "ACTIVE",
+      "state": "FOLLOWUP_PENDING",
       "task_ref": "T01-GECKO-V1196",
       "scope": "GECKO",
       "complexity": "MEDIUM",
       "started_at": "2026-11-01T00:53:46.368Z",
-      "completed_at": null,
-      "followup_due_at": null,
+      "completed_at": "2026-11-01T01:05:55.350Z",
+      "followup_due_at": "2026-11-15T01:05:55.350Z",
       "followup_checked_at": null,
-      "final_sha": null,
-      "evidence_links": [],
+      "final_sha": "717608d1af23638614499d25dae7682f16a7fd8a",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41250929267",
+        "https://github.com/laszko14/nira-browser/actions/runs/41258788736"
+      ],
       "metrics": {
         "regressions": null,
         "reopened": null,
