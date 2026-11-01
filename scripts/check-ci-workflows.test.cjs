@@ -3,7 +3,7 @@ const { test }=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path');
 const root=path.join(__dirname,'..');
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
-const {inventory}=require('./ci-workflow-inventory.cjs');
+const {inventory,enforceSingleSigningEntrypoint}=require('./ci-workflow-inventory.cjs');
 const shared=read('.github/workflows/zavro-tests-reusable.yml');
 const main=read('.github/workflows/apk-release.yml');
 const process=read('.github/workflows/zavro-ai-process-docs.yml');
@@ -80,14 +80,28 @@ test('process branch calls exactly the shared tests and keeps its safe doc gate'
   assert.match(process,/node --test scripts\/check-ai-handoff\.test\.cjs/);
   assert.doesNotMatch(process,/gradlew|secrets\.|\bassembleDebug\b/);
 });
-test('all legacy workflow files remain and are inventoried, never silently accepted as migrated',()=>{
+test('only exact owner-review workflow can access signing or assemble Android APK',()=>{
   const all=inventory();
-  assert.ok(all.length>=66,'legacy workflow files must be preserved');
-  assert.ok(all.some(x=>x.file==='zavro-audit60-gecko-update-g4c.yml'));
+  assert.ok(all.length>=60,'historical source-only checks are preserved');
+  assert.deepEqual(enforceSingleSigningEntrypoint(all),
+    {signedWorkflow:'apk-release.yml',activeLegacySigning:0});
+  const old=['video-search-build-once.yml','video-search-p3-regression.yml','zavro-audit60-gecko-build-g4b.yml','zavro-audit60-gecko-update-g4c.yml','zavro-t03-v1199-signed-update.yml','zavro-v1195-signed-arm64-build.yml','zavro-video-results-fuzzy-v1202-update.yml','zavro-video-results-v1200-update.yml','zavro-video-results-v1201-update.yml'];
+  for (const file of old)assert.ok(!all.some(x=>x.file===file),'legacy signing entrypoint is still active: '+file);
   assert.ok(all.some(x=>x.file==='zavro-audit60-stage19b-regression.yml'));
   assert.ok(all.some(x=>x.file==='zavro-tests-reusable.yml'&&x.events.includes('workflow_call')));
-  const risky=all.filter(x=>x.file!=='apk-release.yml'&&x.assembly&&x.events.includes('push'));
-  assert.ok(Array.isArray(risky),'legacy workflows must be inventoried, not authorized implicitly');
-  assert.ok(!all.find(x=>x.file==='apk-release.yml').assembly || main.includes('pull_request_review'));
 });
-
+test('reintroduced legacy signing, APK build or missing review event fail closed',()=>{
+  const all=inventory();
+  for (const payload of [
+    {file:'legacy-push-apk.yml',events:['push'],assembly:true,signing:true},
+    {file:'legacy-manual-apk.yml',events:['workflow_dispatch'],assembly:false,signing:true},
+    {file:'legacy-assemble-apk.yml',events:['push'],assembly:true,signing:false}
+  ]) {
+    assert.throws(()=>enforceSingleSigningEntrypoint([...all,payload]),/Extra active APK\/signing/);
+  }
+  assert.throws(()=>enforceSingleSigningEntrypoint(all.filter(x=>x.file!=='apk-release.yml')),
+    /Canonical signed workflow/);
+  assert.throws(()=>enforceSingleSigningEntrypoint(all.map(x=>
+    x.file==='apk-release.yml'?{...x,events:['workflow_dispatch']}:x)),
+    /Canonical signed workflow/);
+});

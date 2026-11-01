@@ -11,3 +11,21 @@ V2 historycznie wprowadzono na `7a60fbcb8463afca3526675a8d47dd28ce89b9be`. Nie p
 - Retrospektywne zapisy pilotów T01–T16 są nienaruszalne; pilot V3 wymaga oddzielnych rzeczywistych pomiarów.
 
 - Rejestr pomiarowy: `PILOT_16.json` schema v2 z nienaruszonymi T01–T16 i osobnym, początkowo pustym `instruction_experiments`; bez fikcyjnych wyników.
+
+## V3 cleanup — historyczne kompilacje i klasyfikacja duplikatów (2026-11-01)
+Audyt 71 workflow na SOURCE SHA `c30a21b834c46264187609c9039f9d0ed1e01ed5` wykazał 9 dodatkowych, historycznych ścieżek podpisywania APK (v1191–v1202). Usunięto z **aktywnego katalogu Actions na gałęzi V3**:
+- `.github/workflows/video-search-build-once.yml`
+- `.github/workflows/video-search-p3-regression.yml`
+- `.github/workflows/zavro-audit60-gecko-build-g4b.yml`
+- `.github/workflows/zavro-audit60-gecko-update-g4c.yml`
+- `.github/workflows/zavro-t03-v1199-signed-update.yml`
+- `.github/workflows/zavro-v1195-signed-arm64-build.yml`
+- `.github/workflows/zavro-video-results-fuzzy-v1202-update.yml`
+- `.github/workflows/zavro-video-results-v1200-update.yml`
+- `.github/workflows/zavro-video-results-v1201-update.yml`
+
+Zachowano zawartość w historii Git (SHA powyżej) i testy historyczne bez podpisywania, m.in. audit60 stage19B. Zmiany na tej gałęzi **nie wyłączają plików w starych refach ani na main**; przed wznowieniem starych branchy trzeba sprawdzić ich rzeczywiste workflow. Kanoniczny `apk-release.yml` nadal wymaga komentarzowej recenzji właściciela PR na dokładnym SHA. Samo `push`, `workflow_dispatch` i PR nie uruchamiają podpisywania.
+
+`scripts/ci-workflow-inventory.cjs` i testy negatywne w `scripts/check-ci-workflows.test.cjs` pilnują, że **tylko** `apk-release.yml` może mieć aktywny etap assemble lub dostęp do sekretów podpisu. Wyjątek dla publicznego release pozostaje wewnątrz tego kanonicznego workflow i wymaga osobnego jawnego polecenia.
+
+Dwa uruchomienia wspólnych testów, SOURCE (`push`) i PR (`pull_request`), nie są tożsame: pierwsze testuje HEAD gałęzi, drugie potencjalny commit integracyjny GitHub. Nie usuwaj żadnej z tych bramek bez sprawdzonego równoważnego dowodu SOURCE i INTEGRATION. Z tego powodu **nie uznano tej pary za bezpieczny duplikat do usunięcia**.
