@@ -1,7 +1,7 @@
 # Zavro Clean V3 — bramki jakości G0–G7
 Jedno miejsce decyzji o przyjęciu. Priorytety: nienaruszalność danych → poprawność → dowody → utrzymanie → wydajność.
 - **G0 / Zakres:** ANALYZE i doc-only bez aplikacji/APK. IMPLEMENT tylko w zatwierdzonym zakresie. Bez merge, release, force-push, destrukcji ani zmiany certyfikatu.
-- **G1 / Stan:** właściwy live branch, pełny SHA, AGENTS/handoff z jawnego ref, brak konfliktu równoległych zapisów.
+- **G1 / Stan V3.2:** właściwy live branch, pełny SHA, AGENTS/handoff z jawnego identycznego ref, selektywne instrukcje według `docs/ai/STARTUP_PREFLIGHT.md` i brak konfliktu równoległych zapisów. Brak dowodów = `PREFLIGHT_BLOCKED`. CI sprawdza checkout i pliki, ale nie może dowieść, że ChatGPT naprawdę je przeczytał.
 - **G2 / Przyczyna:** kontrprzykład, poprawna semantyka z TASK_TEMPLATE, dowód ryzyka i diagnoza.
 - **G3 / Zmiana:** najmniejszy kompletny diff, RED/GREEN gdy wykonalne, wszystkie callsite i regresje; brak osłabienia oracle lub lint.
 - **G4 / Review:** obowiązkowy krytyczny self-review. Dla wysokiego ryzyka (prywatność, dane, lifecycle, współbieżność, podpis, CI) wymagane odrębne review, gdy recenzent jest dostępny; jeśli wymagany recenzent niedostępny, oznacz ograniczenie i nie ogłaszaj pełnej akceptacji ryzyka.

@@ -1,6 +1,6 @@
 # Zavro Clean V3 — jedna praca, sześć faz
 To wewnętrzna procedura `workflow_mode=autonomous_task`, nie sześć komunikatów użytkownika.
-1. **Stan:** rozpoznaj tryb, zakres, produkt, branch i pełny HEAD. Odczytaj AGENTS/handoff z ref. Ustal właściciela zapisu; lokalny status ≠ zdalny ref. Nie zakładaj main.
+1. **Stan:** rozpoznaj tryb, zakres, produkt, branch i pełny HEAD. Wykonaj G1 według `docs/ai/STARTUP_PREFLIGHT.md`: AGENTS/handoff z tego samego ref, niezbędne dokumenty według zakresu, błędy oznacz `PREFLIGHT_BLOCKED`. Lokalnie opcjonalny `node scripts/ai-preflight.cjs` pomaga dowieść tożsamości checkoutu, nie faktycznych odczytów modelu. Ustal właściciela zapisu; lokalny status ≠ zdalny ref. Nie zakładaj main.
 2. **Diagnoza:** obserwowalna akceptacja w TASK_TEMPLATE, minimalny kontrprzykład i przyczyna; analizuj zależności, API, dane i ryzyka. Nie odczytuj całego archiwum, jeśli niepotrzebne.
 3. **Zmiana:** izolowany checkout i najmniejsza pełna poprawka. RED/GREEN według TEST_POLICY. Zachowuj profile, certyfikat, dane i stan. Używaj bash (nie fish); żadnych automatycznych stash/reset.
 4. **Triage:** po FAIL zapisz dowód, rozróżnij produkcję/test/środowisko, napraw przyczynę, uruchom dotknięte testy. Dwie identyczne porażki bez nowych danych → inna metoda. Nie osłabiaj asercji.
