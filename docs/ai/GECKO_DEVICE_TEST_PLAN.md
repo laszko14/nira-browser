@@ -15,7 +15,7 @@
 2. Przed przyszłym testem konieczna jest osobna autoryzacja odpowiedniego **testowego środowiska**, świadoma decyzja dotycząca instalacji i weryfikacji podpisu oraz plan odzyskania potrzebnego stanu. Android backup / eksport profilu G4D jest niepełny. Nie zakładaj, że zachowane ustawienia oznaczają backup. Preferuj izolowany profil/instalację testową, bez migracji realnych danych.
 3. Syntetyczne P/Q i A/B muszą pochodzić z kontrolowanego, naprawdę zaufanego HTTPS origin (G2). Nie importuj niezaufanego certyfikatu G2/localhost na telefon, nie wyłączaj weryfikacji TLS, nie używaj prawdziwych cookies, haseł, URL z tokenami ani kont.
 4. Pierwsze wykonanie: tylko scenariusze **niedestrukcyjne**. ZC-AUD-031 przeprowadź **jako ostatni** po oddzielnej jednoznacznej zgodzie na usunięcie *jednorazowego testowego profilu*, potwierdzeniu odtworzenia lub niezależnego środowiska i kontroli nieusuwalnego Q; w przeciwnym razie BLOCKED.
-5. Użyj istniejącego `tools/gecko-fixture-g3c/NOT_TESTED_TEMPLATE.json`, `extract-g2.cjs` i `check-evidence.cjs` — **oddzielnie dla każdego ID**, nigdy jako deklaracji PASS. `physicalDeviceObserved` ustawiaj na true wyłącznie po faktycznym pomiarze. Zachowaj tylko zredagowane pola z SHA-256 źródeł; surowe lokalne logi nie trafiają do repo.
+5. Użyj istniejącego `tools/gecko-fixture-g3c/NOT_TESTED_TEMPLATE.json`, `extract-g2.cjs` i `tools/gecko-fixture-g3c/check-evidence.cjs` — **oddzielnie dla każdego ID**, nigdy jako deklaracji PASS. `physicalDeviceObserved` ustawiaj na true wyłącznie po faktycznym pomiarze. Zachowaj tylko zredagowane pola z SHA-256 źródeł; surowe lokalne logi nie trafiają do repo.
 
 ## Macierz przyszłych prób (wszystkie NIE WYKONANE w ZC-PROC-07)
 
@@ -38,13 +38,13 @@
 ### ZC-AUD-030 — OPEN / SUSPECTED
 **CORE 19B:** BLOCKED. **Device:** NOT_TESTED. **Kolejność:** 3 (tylko syntetyczne P/Q).
 
-- **Wejście:** dwa **jednorazowe** profile P/Q, w tym kontrolny prywatny kontekst, ta sama poprawna domena HTTPS; `tools/gecko-fixture-g2/site/index.html` i `popup.html`. Testuj `window.open`, `target=_blank` i `noopener`, a także zamknięcie i cold restart.
+- **Wejście:** dwa **jednorazowe** profile P/Q, w tym kontrolny prywatny kontekst, ta sama poprawna domena HTTPS; `tools/gecko-fixture-g2/site/index.html` i `tools/gecko-fixture-g2/site/popup.html`. Testuj `window.open`, `target=_blank` i `noopener`, a także zamknięcie i cold restart.
 - **Obserwuj:** faktyczny wynik cookie / localStorage / IndexedDB odczytywany w P oraz Q; nowo otwarte okno, profil, prywatność i profil odbiorcy; zestawienie `BrowserStore.contextId` z `GeckoSession.settings.contextId` oraz niezależnym wynikiem behawioralnym.
 - **Oracle:** wartości P nie są czytelne w Q i odwrotnie, w żadnym wariancie otwarcia; prywatny zapis nie przechodzi do zwykłego profilu ani do kolejnej sesji. Dodatkowo sprawdź, że otwarcie z `noopener` nie odziedziczy właściciela błędnie.
 - **Granica:** ustawienia `GeckoSession.settings.contextId` **nie dowodzą** wewnętrznych `OriginAttributes`; bez rzeczywistych obserwacji wszystkich trzech magazynów nie twierdź, że izolacja jest naprawiona lub że wyciek występuje.
 
 ### ZC-AUD-031 — PARTIAL
-**CORE 19B:** FAIL warunku pełnego zamknięcia. **Device:** NOT_TESTED. **Kolejność:** 4 — wyłącznie po oddzielnej zgodzie na destrukcyjny test.
+**CORE 19B:** FAIL warunku pełnego zamknięcia. **Device:** NOT_TESTED. **Kolejność:** 4 — wyłącznie po osobnej zgodzie na destrukcyjny test.
 
 - **Wejście:** P-test, jednorazowy i pusty od prywatnych danych, i niezależne Q-control; zapisz tylko syntetyczne znaczniki cookie/localStorage/IndexedDB, otwórz i zamknij wszystkie sesje P-test. Zapisz identyfikator dawnego kontekstu wyłącznie lokalnie, bez eksportu do chatu.
 - **Obserwuj:** wyłącznie po zatwierdzonym usunięciu **P-test** stan tombstone/retry i rzeczywistą dostępność starych znaczników przez *dawny* `contextId`, po **dwóch** cold restartach; Q-control ma zachować swoje dane i żadnych niepowiązanych profili/kart nie dotknąć.
