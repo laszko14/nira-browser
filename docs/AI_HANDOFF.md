@@ -1,42 +1,40 @@
-# AI_HANDOFF — Zavro Clean / video search UI state v1200
-> Historia: [archiwum](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md).
+# AI_HANDOFF — Zavro Clean / scalanie wyników filmów v1201
 
 ```yaml
-task_id: VIDEO-RESULTS-STATE-V1200
+task_id: VIDEO-RESULTS-MERGE-V1201
 workflow_mode: staged
 repo: laszko14/nira-browser
 product_line: Zavro Clean
-branch: fix/zavro-clean-video-results-state-v1200-20261101
-base_sha: c6df406cb630660d26ef9d2a105d22768b1f7ad3
-observed_head_sha: c6df406cb630660d26ef9d2a105d22768b1f7ad3
+branch: fix/zavro-clean-video-results-merge-v1201-20261101
+base_sha: ec6584e07390f687e246cd8d25c934ba0b784123
+observed_head_sha: 19371548880629e16cfd62ab117b6d78ef285d76
 status: CI_PENDING
-acceptance_source: preserve flat grouping, duration sort, filter, expanded sites, loaded result pages and scroll when a film opens and browser returns to results; user authorized updated signed APK
-required_ci: .github/workflows/zavro-video-results-v1200-update.yml authorized-source shared-js shared-jvm shared-lint shared-androidtest-compile signed-update verify-all
-device: V1199 user feedback; V1200_NOT_TESTED
-apk: V1200_NOT_BUILT; arm64-v8a versionCode 1200 versionName 0.5.22-alpha105-clean com.prirai.android.nira.debug stable cert
+acceptance_source: Dwa przełączniki scalania wg nazwy i czasu trwania. Gdy włączone oba, logika LUB, także przechodnia. Jeden kafelek/listowy wynik na grupę, wybór konkretnego filmu i witryny, zachowanie oryginalnych linków i historii.
+required_ci: .github/workflows/zavro-video-results-v1201-update.yml authorized-source shared-javascript shared-unit shared-lint shared-androidtest-compile signed-update verify-all
+device: V1200_USER_VERIFIED; V1201_NOT_TESTED
+apk: V1201_CI_PENDING; arm64-v8a versionCode 1201 versionName 0.5.22-alpha106-clean com.prirai.android.nira.debug stable certificate
 changed_paths:
   - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsActivity.kt
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsTabContent.kt
   - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsTabUiMemory.kt
+  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsMerge.kt
   - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsTabUiMemoryTest.kt
+  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsMergeTest.kt
   - app/build.gradle
   - .github/workflows/apk-release.yml
   - app/src/test/js/release-contract-stage19a.test.cjs
   - app/src/test/js/update-apk-workflow-scope.test.cjs
-  - .github/workflows/zavro-video-results-v1200-update.yml
+  - .github/workflows/zavro-video-results-v1201-update.yml
   - docs/AI_HANDOFF.md
 verified_before_push:
-  - Read active HEAD c6df406cb630660d26ef9d2a105d22768b1f7ad3 and AGENTS.md at explicit SHA
-  - Sort/group/scroll state lost on Compose unmount when film tab becomes selected
-  - Per-tab/profile/run bounded RAM UI state, no film URLs, results or private storage
-  - Same package, arm64 ABI and signature checked on real APK
+  - AGENTS.md and previous checkpoint read at explicit SHA ec6584e07390f687e246cd8d25c934ba0b784123; original branch HEAD confirmed
+  - Pure UI merger reads only validated normal-profile run results; no DB migration, deletion or private exposure
+  - Full merged result set paginated by group, with per-tab/run/profile toggles retained on film navigation
+  - No merge to main, no force-push, unchanged package, certificate expectation and ABI
 blockers:
-  - Require complete green CI on final SHA and signed APK verification
-  - User device validation of navigation/scroll after installation
-next_action: Inspect v1200 workflow run and exact artifact checksum; code and device checks separate; no merge/install.
-evidence_links:
-  - https://github.com/laszko14/nira-browser/actions/runs/41273039027
+  - Need full CI completed/success on final SHA including exact signed update APK
+  - Device test of v1201 not yet performed
+next_action: Inspect last workflow run and artifact; fix CI if needed and verify final SHA before claiming completion; no installation on device.
 ```
 
 ## Wznowienie
-ETAP 1/1. Odczytaj AGENTS.md i ten checkpoint z jawnego SHA, zweryfikuj żywy HEAD. Napraw błędy CI i zweryfikuj podpisany APK bez zmieniania linii x MPV, publikacji i danych telefonu.
+ETAP 1/1. Sprawdź żywy HEAD gałęzi powyżej, AGENTS.md, ten checkpoint na jawnym SHA, wymagane joby CI oraz artefakt aktualizacji. Nie zmieniaj linii x MPV i nie instaluj na telefonie.
