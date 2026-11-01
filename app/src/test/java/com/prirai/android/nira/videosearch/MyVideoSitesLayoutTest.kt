@@ -86,11 +86,16 @@ class MyVideoSitesLayoutTest {
             }
             action.requestRectangleOnScreen(Rect(0, 0, action.width, action.height), true)
             val headerScroll = descendants(decor).filterIsInstance<ScrollView>().single()
-            headerScroll.scrollTo(0, headerScroll.getChildAt(0).measuredHeight)
-            val sitesList = ReflectionHelpers.getField<RecyclerView>(
-                controller.get(), "sitesList"
-            )
-            sitesList.scrollBy(0, 24)
+            val visibleHeader = Rect()
+            assertTrue("landscape form has a visible scroll viewport",
+                headerScroll.getGlobalVisibleRect(visibleHeader))
+            val actionLocation = IntArray(2).also(action::getLocationInWindow)
+            val targetTop = visibleHeader.top +
+                (visibleHeader.height() - action.height) / 2
+            val targetScroll = headerScroll.scrollY + actionLocation[1] - targetTop
+            val maxScroll = (headerScroll.getChildAt(0).measuredHeight -
+                headerScroll.height).coerceAtLeast(0)
+            headerScroll.scrollTo(0, targetScroll.coerceIn(0, maxScroll))
             layout(decor, 640, 280)
             val rect = Rect()
             assertTrue("last action reachable by scrolling", action.getGlobalVisibleRect(rect))
