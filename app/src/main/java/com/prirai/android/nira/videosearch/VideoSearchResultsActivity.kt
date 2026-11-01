@@ -242,6 +242,15 @@ internal fun VideoSearchResultsScreen(
     var byWebsite by remember(run?.id, retainedRun) {
         retainedRun?.byWebsite ?: mutableStateOf(true)
     }
+    var mergeByName by remember(run?.id, retainedRun) {
+        retainedRun?.mergeByName ?: mutableStateOf(false)
+    }
+    var mergeByDuration by remember(run?.id, retainedRun) {
+        retainedRun?.mergeByDuration ?: mutableStateOf(false)
+    }
+    var selectedMerge by remember(run?.id) {
+        mutableStateOf<VideoSearchMergedFilm?>(null)
+    }
     // null = all expanded; the expansion state is local to this exact run.
     var expandedSites by remember(run?.id, retainedRun) {
         retainedRun?.expandedSites ?: mutableStateOf<Set<String>?>(null)
@@ -264,19 +273,32 @@ internal fun VideoSearchResultsScreen(
         if (next != projectionState.value) projectionState.value = next
     }
     val results = projectionState.value?.first
-    // Keep Compose's active item/key graph bounded. Only 150 additional
-    // cards are activated on explicit demand; full sorting stays on Default.
-    var visibleCount by remember(run?.id, siteFilter, sort, retainedRun) {
-        retainedRun?.pageSizeFor(siteFilter, sort) ?: mutableIntStateOf(150)
+    // Merge the FULL sorted and selected result set before taking any page.
+    // The original films, URLs and website provenance remain unchanged in Room.
+    val merging = !byWebsite && (mergeByName || mergeByDuration)
+    val mergedEntries = remember(results, merging, mergeByName, mergeByDuration) {
+        if (results == null || !merging) emptyList()
+        else VideoSearchResultsMerge.group(results.visibleFilms, mergeByName, mergeByDuration)
     }
-    val visibleResults = remember(results, visibleCount) {
-        results?.copy(visibleFilms = results.visibleFilms.take(visibleCount))
+    val flatTotal = if (merging) mergedEntries.size else results?.visibleFilms?.size ?: 0
+    var visibleCount by remember(
+        run?.id, siteFilter, sort, mergeByName, mergeByDuration, byWebsite, retainedRun
+    ) {
+        retainedRun?.pageSizeFor(
+            siteFilter, sort, mergeByName, mergeByDuration, byWebsite
+        ) ?: mutableIntStateOf(150)
+    }
+    val shownEntries = remember(mergedEntries, visibleCount) {
+        mergedEntries.take(visibleCount)
+    }
+    val visibleResults = remember(results, visibleCount, merging, shownEntries) {
+        results?.copy(visibleFilms = if (merging) shownEntries.map { it.primary }
+            else results.visibleFilms.take(visibleCount))
     }
     val groups = remember(visibleResults, siteFilter) {
         visibleResults?.let { VideoSearchResultsPresenter.groups(it, siteFilter) }.orEmpty()
     }
-    val hasMoreResults = results != null &&
-        visibleCount < results.visibleFilms.size
+    val hasMoreResults = results != null && visibleCount < flatTotal
 
     // One Lazy state per run and layout. Keys are shared between both modes:
     // a view toggle resumes at the same source/film rather than scroll zero.
@@ -444,7 +466,7 @@ internal fun VideoSearchResultsScreen(
                 }) {
                     Text(if (state.view == VideoSearchView.TILES) "Lista" else "Kafelki")
                 }
-                Text("${minOf(visibleCount, results.visibleFilms.size)}/${results.visibleFilms.size}",
+                Text("${minOf(visibleCount, flatTotal)}/${flatTotal}",
                     style = MaterialTheme.typography.labelSmall)
             }
             // The grouping choice is intentionally session-only. It does not
@@ -483,6 +505,40 @@ internal fun VideoSearchResultsScreen(
                         }
                     }
                 }
+            }
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                item {
+                    FilterChip(
+                        selected = mergeByName,
+                        onClick = {
+                            mergeByName = !mergeByName
+                            if (mergeByName) byWebsite = false
+                            selectedMerge = null
+                        },
+                        label = { Text("Scalaj po nazwie") },
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = mergeByDuration,
+                        onClick = {
+                            mergeByDuration = !mergeByDuration
+                            if (mergeByDuration) byWebsite = false
+                            selectedMerge = null
+                        },
+                        label = { Text("Scalaj po długości") },
+                    )
+                }
+            }
+            if (byWebsite && (mergeByName || mergeByDuration)) {
+                Text("Scalanie działa w widoku „Wszystkie razem”.",
+                    Modifier.padding(horizontal = 14.dp),
+                    style = MaterialTheme.typography.labelSmall)
             }
             if (!byWebsite && results.visibleFilms.isEmpty() ||
                 byWebsite && groups.isEmpty()) {
@@ -533,15 +589,30 @@ internal fun VideoSearchResultsScreen(
                             val film = visibleResults.visibleFilms[index]
                             "film:${film.siteId}:${film.id}"
                         }) { index ->
-                            VideoSearchFilmTile(visibleResults!!.visibleFilms[index], onOpen, onLongPress)
+                            val entry = shownEntries.getOrNull(index).takeIf { merging }
+                            VideoSearchFilmTile(
+                                visibleResults!!.visibleFilms[index],
+                                onOpen = { film ->
+                                    if (entry != null && entry.films.size > 1)
+                                        selectedMerge = entry
+                                    else onOpen(film)
+                                },
+                                onLongPress = { film ->
+                                    if (entry != null && entry.films.size > 1)
+                                        selectedMerge = entry
+                                    else onLongPress(film)
+                                },
+                                mergedLabel = entry?.takeIf { it.films.size > 1 }
+                                    ?.let { "${it.films.size} scalonych filmów" },
+                            )
                         }
                     }
                     if (hasMoreResults) {
                         item(key = "more-results", span = { GridItemSpan(maxLineSpan) }) {
                             TextButton(onClick = {
-                                visibleCount = minOf(visibleCount + 150, results.visibleFilms.size)
+                                visibleCount = minOf(visibleCount + 150, flatTotal)
                             }, modifier = Modifier.fillMaxWidth()) {
-                                Text("Pokaż kolejne 150 · ${minOf(visibleCount, results.visibleFilms.size)}/${results.visibleFilms.size}")
+                                Text("Pokaż kolejne 150 · ${minOf(visibleCount, flatTotal)}/${flatTotal}")
                             }
                         }
                     }
@@ -584,21 +655,44 @@ internal fun VideoSearchResultsScreen(
                             val film = visibleResults.visibleFilms[index]
                             "film:${film.siteId}:${film.id}"
                         }) { index ->
-                            VideoSearchFilmRow(visibleResults!!.visibleFilms[index], onOpen, onLongPress)
+                            val entry = shownEntries.getOrNull(index).takeIf { merging }
+                            VideoSearchFilmRow(
+                                visibleResults!!.visibleFilms[index],
+                                onOpen = { film ->
+                                    if (entry != null && entry.films.size > 1)
+                                        selectedMerge = entry
+                                    else onOpen(film)
+                                },
+                                onLongPress = { film ->
+                                    if (entry != null && entry.films.size > 1)
+                                        selectedMerge = entry
+                                    else onLongPress(film)
+                                },
+                                mergedLabel = entry?.takeIf { it.films.size > 1 }
+                                    ?.let { "${it.films.size} scalonych filmów" },
+                            )
                         }
                     }
                     if (hasMoreResults) {
                         item(key = "more-results") {
                             TextButton(onClick = {
-                                visibleCount = minOf(visibleCount + 150, results.visibleFilms.size)
+                                visibleCount = minOf(visibleCount + 150, flatTotal)
                             }, modifier = Modifier.fillMaxWidth()) {
-                                Text("Pokaż kolejne 150 · ${minOf(visibleCount, results.visibleFilms.size)}/${results.visibleFilms.size}")
+                                Text("Pokaż kolejne 150 · ${minOf(visibleCount, flatTotal)}/${flatTotal}")
                             }
                         }
                     }
                 }
             }
         }
+    }
+    selectedMerge?.let { group ->
+        VideoSearchMergedFilmPicker(
+            group = group,
+            onDismiss = { selectedMerge = null },
+            onOpen = onOpen,
+            onLongPress = onLongPress,
+        )
     }
 }
 
@@ -675,6 +769,7 @@ private fun FilmPoster(film: VideoSearchFilm, modifier: Modifier = Modifier) {
 private fun VideoSearchFilmTile(
     film: VideoSearchFilm, onOpen: (VideoSearchFilm) -> Unit,
     onLongPress: (VideoSearchFilm) -> Unit,
+    mergedLabel: String? = null,
 ) {
     Card(modifier = Modifier.fillMaxWidth().combinedClickable(
         onClick = { onOpen(film) }, onLongClick = { onLongPress(film) }
@@ -687,7 +782,7 @@ private fun VideoSearchFilmTile(
                 maxLines = 2, overflow = TextOverflow.Ellipsis,
                 fontWeight = FontWeight.SemiBold,
                 style = MaterialTheme.typography.bodyMedium)
-            Text(film.siteName, maxLines = 1,
+            Text(mergedLabel ?: film.siteName, maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 color = Color(0xffa8c3d7),
                 style = MaterialTheme.typography.labelSmall)
@@ -700,6 +795,7 @@ private fun VideoSearchFilmTile(
 private fun VideoSearchFilmRow(
     film: VideoSearchFilm, onOpen: (VideoSearchFilm) -> Unit,
     onLongPress: (VideoSearchFilm) -> Unit,
+    mergedLabel: String? = null,
 ) {
     Card(modifier = Modifier.fillMaxWidth().combinedClickable(
         onClick = { onOpen(film) }, onLongClick = { onLongPress(film) }
@@ -715,13 +811,55 @@ private fun VideoSearchFilmRow(
                     fontWeight = FontWeight.SemiBold,
                     style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(4.dp))
-                Text(film.siteName, maxLines = 1,
+                Text(mergedLabel ?: film.siteName, maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     color = Color(0xffa8c3d7),
                     style = MaterialTheme.typography.labelSmall)
             }
         }
     }
+}
+
+@Composable
+private fun VideoSearchMergedFilmPicker(
+    group: VideoSearchMergedFilm,
+    onDismiss: () -> Unit,
+    onOpen: (VideoSearchFilm) -> Unit,
+    onLongPress: (VideoSearchFilm) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Scalone filmy (${group.films.size})") },
+        text = {
+            LazyColumn(Modifier.heightIn(max = 400.dp)) {
+                items(group.films.size, key = { idx ->
+                    val film = group.films[idx]
+                    "film:${film.siteId}:${film.id}"
+                }) { index ->
+                    val film = group.films[index]
+                    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f).clickable {
+                            onDismiss()
+                            onOpen(film)
+                        }.padding(vertical = 5.dp)) {
+                            Text(film.originalTitle ?: "Tytuł nieznany",
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            val duration = VideoSearchResultsPresenter.durationLabel(film.durationSeconds)
+                            Text(film.siteName + (duration?.let { " · $"+"it" } ?: ""),
+                                style = MaterialTheme.typography.labelSmall)
+                        }
+                        TextButton(onClick = {
+                            onDismiss()
+                            onLongPress(film)
+                        }) { Text("Opcje") }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Zamknij") } },
+    )
 }
 
 internal object VideoSearchRunLabels {
