@@ -23,12 +23,35 @@ test('T01 3/3 user-reported smoke is only pending follow-up, never full device v
   assert.equal(entry.followup_checked_at,null);
   assert.ok(FIELDS.every(k=>entry.metrics[k]===null));
   assert.ok(CAUSES.every(k=>entry.metrics.correction_causes[k]===null));
-  assert.ok(source.records.slice(1).every(r=>r.state==='NOT_STARTED'));
-  assert.deepEqual(validate(source),{started:1,finished:0});
+  assert.ok(source.records.slice(2).every(r=>r.state==='NOT_STARTED'));
+  assert.deepEqual(validate(source),{started:2,finished:0});
   assert.equal(summary.status,'NO_RESULTS_YET');
   assert.equal(summary.completed_14_day_followups,0);
   assert.equal(summary.totals_for_completed_followups_only,null);
   assert.equal(summary.improved_quality,'NOT_ESTABLISHED');
+});
+test('T02 panel gesture test is registered but not yet evaluated',()=>{
+  const entry=source.records[1],s=summarize(source);
+  assert.equal(entry.slot,'T02');
+  assert.equal(entry.task_ref,'T02-PANEL-GESTURES-V1196');
+  assert.equal(entry.state,'ACTIVE');
+  assert.equal(entry.scope,'UI_GESTURES');
+  assert.equal(entry.complexity,'MEDIUM');
+  assert.ok(entry.started_at);
+  assert.equal(entry.completed_at,null);
+  assert.equal(entry.final_sha,null);
+  assert.ok(FIELDS.every(k=>entry.metrics[k]===null));
+  assert.ok(CAUSES.every(k=>entry.metrics.correction_causes[k]===null));
+  assert.deepEqual(validate(source),{started:2,finished:0});
+  assert.equal(s.status,'NO_RESULTS_YET');
+  assert.equal(s.improved_quality,'NOT_ESTABLISHED');
+  assert.equal(s.completed_14_day_followups,0);
+});
+test('T02 must not claim early successful or complete device observation',()=>{
+  const state=copy();state.records[1].completed_at='2026-11-01T14:00:00.000Z';
+  assert.throws(()=>validate(state),/unearned completion/);
+  const other=copy();other.records[1].metrics.user_interventions=-1;
+  assert.throws(()=>validate(other),/invalid/);
 });
 test('pending smoke requires exact 14-day window and forbids premature verdict',()=>{
   let s=copy();
@@ -42,12 +65,12 @@ test('pending smoke requires exact 14-day window and forbids premature verdict',
 test('completed measured row accepts real zero and sums only eligible tasks',()=>{
   const o=complete(),s=summarize(o);
   assert.equal(s.status,'PARTIAL_PILOT');
-  assert.equal(s.started,1);assert.equal(s.completed_14_day_followups,1);
+  assert.equal(s.started,2);assert.equal(s.completed_14_day_followups,1);
   assert.equal(s.totals_for_completed_followups_only.regressions,0);
   assert.equal(s.totals_for_completed_followups_only.correction_rounds,0);
 });
 test('no false ZERO before data collection and no invented followup status',()=>{
-  let o=copy();o.records[1].metrics.user_interventions=0;
+  let o=copy();o.records[2].metrics.user_interventions=0;
   assert.throws(()=>validate(o),/NOT_STARTED/);
   o=complete();o.records[0].followup_checked_at='2026-11-04T00:00:00.000Z';
   assert.throws(()=>validate(o),/before observation window/);
@@ -63,7 +86,7 @@ test('cause accounting, negative counts and untrusted links fail closed',()=>{
   assert.throws(()=>validate(o),/invalid/);
   o=complete();o.records[0].evidence_links=['https://example.com/token'];
   assert.throws(()=>validate(o),/public repository URL/);
-  o=complete();o.records[1].slot='T01';
+  o=complete();o.records[2].slot='T01';
   assert.throws(()=>validate(o),/unique and ordered/);
 });
 test('pilot status never means causality, even after 12 followups',()=>{
