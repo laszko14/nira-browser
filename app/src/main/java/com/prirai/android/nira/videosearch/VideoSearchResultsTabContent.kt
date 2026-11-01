@@ -78,8 +78,16 @@ internal fun VideoSearchResultsTabContent(
     MaterialTheme(colorScheme = darkColorScheme(
         primary = Color(0xffd0b5ff),
         background = Color(0xff100d14),
-        surface = Color(0xff201c26),
+        surface = Color(0xff181329),
         onSurface = Color.White,
+        surfaceVariant = Color(0xff221c34),
+        onSurfaceVariant = Color(0xffeee7f9),
+        onBackground = Color.White,
+        onPrimary = Color.White,
+        onPrimaryContainer = Color.White,
+        onSecondaryContainer = Color.White,
+        secondaryContainer = Color(0xff48216f),
+        outline = Color(0xff8260ac),
     )) {
         if (!valid) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
