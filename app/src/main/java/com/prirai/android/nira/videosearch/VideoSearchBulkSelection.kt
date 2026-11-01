@@ -34,7 +34,7 @@ internal object VideoSearchBulkSelection {
 
     fun name(input: String?): String? =
         input?.trim()?.takeIf { it.isNotEmpty() && it.length <= 120 &&
-            it.none(Char::isISOControl) }
+            it.none { ch -> ch.isISOControl() } }
 
     /** Exact URLs: query strings, distinct sites and provenance are preserved. */
     fun uniqueLinks(films: List<VideoSearchFilm>): List<String> =
