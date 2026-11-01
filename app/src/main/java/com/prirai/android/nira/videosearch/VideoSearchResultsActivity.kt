@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -34,12 +35,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.prirai.android.nira.BrowserActivity
 import com.prirai.android.nira.browser.profile.ProfileManager
 import com.prirai.android.nira.ext.components
@@ -84,6 +87,14 @@ internal class VideoSearchResultsActivity : AppCompatActivity() {
                     background = Color(0xff090811),
                     surface = Color(0xff171521),
                     onSurface = Color.White,
+                    onSurfaceVariant = Color(0xffeee7f9),
+                    surfaceVariant = Color(0xff221c34),
+                    onBackground = Color.White,
+                    onPrimary = Color.White,
+                    onPrimaryContainer = Color.White,
+                    onSecondaryContainer = Color.White,
+                    secondaryContainer = Color(0xff48216f),
+                    outline = Color(0xff8260ac),
                 )) {
                     VideoSearchResultsScreen(
                         state = screen,
@@ -215,7 +226,7 @@ internal class VideoSearchResultsActivity : AppCompatActivity() {
 internal data class VideoSearchResultsScreenState(
     val runs: List<VideoSearchRun> = emptyList(),
     val snapshot: VideoSearchSavedResults? = null,
-    val view: VideoSearchView = VideoSearchView.TILES,
+    val view: VideoSearchView = VideoSearchView.LIST,
     val loading: Boolean = true,
     val error: String? = null,
 )
@@ -342,13 +353,13 @@ internal fun VideoSearchResultsScreen(
         retainedRun?.listState ?: LazyListState()
     }
     var controlsCollapsed by remember(run?.id, retainedRun) {
-        retainedRun?.controlsCollapsed ?: mutableStateOf(landscape)
+        retainedRun?.controlsCollapsed ?: mutableStateOf(true)
     }
     var controlsCollapsedTouched by remember(run?.id, retainedRun) {
         retainedRun?.controlsCollapsedTouched ?: mutableStateOf(false)
     }
     LaunchedEffect(run?.id, retainedRun, landscape) {
-        if (!controlsCollapsedTouched) controlsCollapsed = landscape
+        if (!controlsCollapsedTouched) controlsCollapsed = true
     }
     LaunchedEffect(run?.id, state.view, gridState, listState) {
         var previous: Long? = null
@@ -390,29 +401,71 @@ internal fun VideoSearchResultsScreen(
 
     Surface(modifier = Modifier.fillMaxSize(), color = Color(0xff090811)) {
         Column(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Wróć")
+            Row(
+                Modifier.fillMaxWidth().background(Color(0xff100b20))
+                    .padding(horizontal = 7.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onBack, modifier = Modifier.size(38.dp)) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Wróć",
+                        tint = Color.White)
                 }
-                Text("Wyniki wyszukiwania", modifier = Modifier.weight(1f),
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                if (bulkEnabled) TextButton(onClick = {
-                    selecting = !selecting
-                    if (!selecting) {
-                        selectedKeys = emptySet()
-                        bulkMenuOpen = false
+                Text("◎", fontSize = 25.sp, color = Color(0xffcc6fff),
+                    modifier = Modifier.padding(end = 5.dp))
+                Text("Wyniki", modifier = Modifier.weight(1f), maxLines = 1,
+                    color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("✓ ", color = Color(0xff09d5ed), fontWeight = FontWeight.Bold)
+                Text((state.snapshot?.films?.size ?: 0).toString() + " / " +
+                    (state.snapshot?.films?.size ?: 0).toString(),
+                    fontSize = 12.sp, color = Color.White, maxLines = 1)
+                if (bulkEnabled) {
+                    TextButton(onClick = {
+                        selecting = !selecting
+                        if (!selecting) {
+                            selectedKeys = emptySet()
+                            bulkMenuOpen = false
+                        }
+                    }, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)) {
+                        Text(if (selecting) "Anuluj" else "Zaznacz",
+                            color = Color(0xffdcc0ff), fontSize = 12.sp)
                     }
-                }) { Text(if (selecting) "Anuluj" else "Zaznacz") }
-                TextButton(onClick = onOpenSavedFolders) {
-                    Icon(Icons.Default.Folder, contentDescription = null)
-                    Spacer(Modifier.width(4.dp))
-                    Text("Foldery")
                 }
-                IconButton(onClick = onRefresh) {
-                    Icon(Icons.Default.Refresh, contentDescription = "Odśwież wyniki")
+                IconButton(onClick = onRefresh, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Odśwież wyniki",
+                        tint = Color.White)
                 }
+            }
+            Row(
+                Modifier.fillMaxWidth().background(Color(0xff090715))
+                    .padding(horizontal = 9.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                NeonResultAction("⌕ Filtry",
+                    onClick = { controlsCollapsedTouched = true; controlsCollapsed = !controlsCollapsed },
+                    modifier = Modifier.weight(2.1f), highlighted = true)
+                NeonResultAction(if (state.view == VideoSearchView.TILES) "☷" else "▦",
+                    onClick = {
+                        val target = if (state.view == VideoSearchView.TILES)
+                            VideoSearchView.LIST else VideoSearchView.TILES
+                        val currentIndex = if (state.view == VideoSearchView.TILES)
+                            gridState.firstVisibleItemIndex else listState.firstVisibleItemIndex
+                        visibleKeys.getOrNull(currentIndex)?.let { anchor ->
+                            pendingLayoutSwitch = target to anchor
+                        }
+                        onViewChange(target)
+                    }, modifier = Modifier.weight(1f))
+                NeonResultAction("↕", onClick = {
+                    controlsCollapsedTouched = true
+                    controlsCollapsed = false
+                    sortExpanded = true
+                }, modifier = Modifier.weight(1f))
+                NeonResultAction("⇄", onClick = {
+                    controlsCollapsedTouched = true
+                    controlsCollapsed = false
+                }, modifier = Modifier.weight(1f))
+                NeonResultAction("▱", onClick = onOpenSavedFolders,
+                    modifier = Modifier.weight(1f))
             }
             if (bulkEnabled && selecting && run != null && results != null) {
                 LazyRow(
@@ -470,12 +523,16 @@ internal fun VideoSearchResultsScreen(
                 enter = expandVertically(),
                 exit = shrinkVertically(),
             ) {
-              BoxWithConstraints(Modifier.fillMaxWidth()) {
+              BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 9.dp)) {
               Column(
-                modifier = if (landscape) Modifier.fillMaxWidth()
-                    .heightIn(max = maxHeight * 0.42f)
+                modifier = (if (landscape) Modifier.fillMaxWidth()
+                    .heightIn(max = maxHeight * 0.50f)
                     .verticalScroll(rememberScrollState())
-                else Modifier.fillMaxWidth(),
+                else Modifier.fillMaxWidth())
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color(0xff151027))
+                    .border(1.dp, Color(0xff9d42e8), RoundedCornerShape(16.dp))
+                    .padding(vertical = 6.dp),
               ) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically) {
@@ -518,7 +575,8 @@ internal fun VideoSearchResultsScreen(
                 style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = { statusesExpanded = !statusesExpanded },
                 modifier = Modifier.padding(start = 8.dp)) {
-                Text(if (statusesExpanded) "Ukryj stan witryn" else "Pokaż stan wszystkich witryn")
+                Text(if (statusesExpanded) "Ukryj stan witryn" else "Pokaż stan witryn",
+                    color = Color(0xffdbbaff), fontSize = 12.sp)
             }
             if (statusesExpanded) {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp)
@@ -676,9 +734,9 @@ internal fun VideoSearchResultsScreen(
                     columns = GridCells.Adaptive(150.dp),
                     state = gridState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 5.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     if (byWebsite) {
                         groups.forEach { group ->
@@ -757,8 +815,8 @@ internal fun VideoSearchResultsScreen(
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 5.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     if (byWebsite) {
                         groups.forEach { group ->
@@ -856,6 +914,32 @@ internal fun VideoSearchResultsScreen(
     }
 }
 
+@Composable
+private fun NeonResultAction(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    highlighted: Boolean = false,
+) {
+    val shape = RoundedCornerShape(12.dp)
+    val colors = if (highlighted) listOf(
+        Color(0xff00c8f7), Color(0xff4541fa), Color(0xffad1bf4)
+    ) else listOf(Color(0xff25203b), Color(0xff141025))
+    Box(
+        modifier = modifier.heightIn(min = 42.dp).clip(shape)
+            .background(Brush.horizontalGradient(colors), shape)
+            .border(1.dp, if (highlighted) Color(0xffc65bff) else Color(0xff715293), shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 5.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, color = Color.White,
+            fontSize = if (highlighted) 14.sp else 20.sp,
+            fontWeight = if (highlighted) FontWeight.SemiBold else FontWeight.Normal,
+            maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
 /**
  * The header stays visible with zero saved films and for failed/partial sites.
  * It never equates "limit 200" with actual result count.
@@ -869,12 +953,13 @@ private fun VideoSearchSourceHeader(
     val source = group.source
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle),
-        colors = CardDefaults.cardColors(containerColor = Color(0xff171521)),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xff35d9e2)),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xff18132b), contentColor = Color.White),
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xffa94cfa)),
     ) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(if (expanded) "▾" else "▸", Modifier.padding(end = 8.dp),
+                Text(if (expanded) "⌃" else "⌄", Modifier.padding(end = 8.dp),
                     style = MaterialTheme.typography.titleLarge)
                 Text(source.name, Modifier.weight(1f),
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -940,9 +1025,10 @@ private fun VideoSearchFilmTile(
         onLongClick = { onLongPress(film) }
     ),
         colors = CardDefaults.cardColors(containerColor =
-            if (selected) Color(0xff302344) else Color(0xff171521)),
+            if (selected) Color(0xff302344) else Color(0xff181429),
+            contentColor = Color.White),
         border = androidx.compose.foundation.BorderStroke(1.dp,
-            if (selected) Color(0xff35d9e2) else Color(0xff4a3a61))) {
+            if (selected) Color(0xff35d9e2) else Color(0xff634c85))) {
         Column(Modifier.padding(6.dp)) {
             if (selecting) Checkbox(checked = selected,
                 onCheckedChange = { onToggle(film) })
@@ -976,24 +1062,25 @@ private fun VideoSearchFilmRow(
         onLongClick = { onLongPress(film) }
     ),
         colors = CardDefaults.cardColors(containerColor =
-            if (selected) Color(0xff302344) else Color(0xff171521)),
+            if (selected) Color(0xff302344) else Color(0xff181429),
+            contentColor = Color.White),
         border = androidx.compose.foundation.BorderStroke(1.dp,
-            if (selected) Color(0xff35d9e2) else Color(0xff4a3a61))) {
-        Row(Modifier.fillMaxWidth().padding(8.dp),
+            if (selected) Color(0xff35d9e2) else Color(0xff634c85))) {
+        Row(Modifier.fillMaxWidth().padding(6.dp),
             verticalAlignment = Alignment.CenterVertically) {
             if (selecting) Checkbox(checked = selected,
                 onCheckedChange = { onToggle(film) })
-            FilmPoster(film, Modifier.width(118.dp).height(72.dp))
-            Spacer(Modifier.width(10.dp))
+            FilmPoster(film, Modifier.width(116.dp).height(70.dp))
+            Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {
                 Text(film.originalTitle ?: "Tytuł nieznany",
                     maxLines = 2, overflow = TextOverflow.Ellipsis,
                     fontWeight = FontWeight.SemiBold,
-                    style = MaterialTheme.typography.bodyMedium)
-                Spacer(Modifier.height(4.dp))
+                    style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                Spacer(Modifier.height(3.dp))
                 Text(mergedLabel ?: film.siteName, maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    color = Color(0xffa8c3d7),
+                    color = Color(0xff9fe9ef),
                     style = MaterialTheme.typography.labelSmall)
                 FilmPublishedDate(film)
             }
