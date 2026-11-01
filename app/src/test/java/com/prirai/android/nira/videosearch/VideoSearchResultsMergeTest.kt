@@ -236,4 +236,56 @@ class VideoSearchResultsMergeTest {
         assertEquals(2, VideoSearchResultsMerge.group(entries, true, false).size)
     }
 
+    @Test fun screenshotPairsAreMergedAcrossSitesByNameAndByBoth() {
+        val entries = listOf(
+            film("bond-1", "a", "HD 30K 24:35 Elle Marz – Our Special Bonding Time", 1475),
+            film("bond-2", "b", "Elle Marz – Our Special Bonding Time", 1474),
+            film("step-1", "a", "HD 4K 27:13 Elle Marz – Succubus Step Sister", 1633),
+            film("step-2", "b", "Elle Marz – Succubus Step-Sister", 1632),
+            film("lesson-1", "a", "Elle Marz – Sex Lesson With Mommy", 1925),
+            film("lesson-2", "b", "Elle Marz – Sex Lesson W Mommy", 1924),
+        )
+        for (byDuration in listOf(false, true)) {
+            val groups = VideoSearchResultsMerge.group(entries, true, byDuration)
+            assertEquals(3, groups.size)
+            assertEquals(listOf(
+                listOf("bond-1", "bond-2"),
+                listOf("step-1", "step-2"),
+                listOf("lesson-1", "lesson-2"),
+            ), groups.map { group -> group.films.map { it.id } })
+            assertEquals(entries, groups.flatMap { it.films })
+        }
+        assertEquals(6, VideoSearchResultsMerge.group(entries, false, true).size)
+    }
+
+    @Test fun screenshotDuplicateClustersUniteWithoutLosingAnyLink() {
+        val entries = listOf(
+            film("bond-hd-1", "a", "HD 30K 24:35 Elle Marz – Our Special Bonding Time", 1475),
+            film("bond-hd-2", "a", "HD 30K 24:35 Elle Marz – Our Special Bonding Time", 1475),
+            film("bond-plain-1", "b", "Elle Marz – Our Special Bonding Time", 1474),
+            film("bond-plain-2", "b", "Elle Marz – Our Special Bonding Time", 1474),
+            film("unrelated", "c", "Elle Marz – Another Entirely Different Scene", 1650),
+        )
+        val result = VideoSearchResultsMerge.group(entries, true, true)
+        assertEquals(listOf(4, 1), result.map { it.films.size })
+        assertEquals(entries.map { it.filmPageUrl },
+            result.flatMap { it.films }.map { it.filmPageUrl })
+    }
+
+    @Test fun viewCounterPrefixRequiresTimestampAndIsNotGenuineTitleText() {
+        assertEquals("ellemarzourspecialbondingtime",
+            VideoSearchResultsMerge.titleKey(
+                "HD 30K 24:35 Elle Marz – Our Special Bonding Time"))
+        assertEquals("30kreasons", VideoSearchResultsMerge.titleKey("30K Reasons"))
+        assertEquals("the30kproject", VideoSearchResultsMerge.titleKey("The 30K Project"))
+    }
+
+    @Test fun similarPerformerAndCloseRuntimeCannotOverrideDifferentSceneTitle() {
+        val entries = listOf(
+            film("one", "a", "HD 30K 24:35 Elle Marz – Our Special Bonding Time", 1475),
+            film("two", "b", "Elle Marz – Our Special Bonding Lesson", 1474),
+        )
+        assertEquals(2, VideoSearchResultsMerge.group(entries, true, false).size)
+    }
+
 }

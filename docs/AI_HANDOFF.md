@@ -1,19 +1,20 @@
-# AI_HANDOFF — Zavro Clean / inteligentne scalanie wyników v1202
+# AI_HANDOFF — Zavro Clean / scalanie wyników v1203
 
 ```yaml
-task_id: VIDEO-RESULTS-FUZZY-V1202
+task_id: VIDEO-RESULTS-MERGE-V1203
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
-branch: fix/zavro-clean-video-results-fuzzy-v1202-20261101
-base_sha: 659a2a469687b86e8ba778fa7e80de33a2c38cc5
-observed_head_sha: 659a2a469687b86e8ba778fa7e80de33a2c38cc5
+branch: fix/zavro-clean-video-results-merge-v1203-20261101
+base_sha: 5a8098e52a215c67940cb201a24326a6165755a0
+observed_head_sha: 5a8098e52a215c67940cb201a24326a6165755a0
 status: CI_PENDING
-acceptance_source: User asks for percent-like fuzzy comparison of film titles and duration, not only punctuation stripping, and a signed update APK.
-change_scope: Fuzzy character and word similarity with duration evidence; 95% strong title match, 85% with up to 2s and 75% with up to 1s and strong shared word core. Protect episode numbers. Preserve original strict duration and OR behavior of the two existing switches. Presentation-only with no Room changes.
-required_ci: .github/workflows/zavro-video-results-fuzzy-v1202-update.yml; authorized-source, shared javascript, JVM/Robolectric, androidTest compile, lint, signed-update, verify-all.
-device: V1201_USER_REPORTED_DUPLICATES; V1202_NOT_TESTED
-apk: V1202_CI_PENDING; arm64-v8a versionCode 1202 versionName 0.5.22-alpha107-clean com.prirai.android.nira.debug same certificate
+acceptance_source: Screenshot user 2026-11-01: 24:35/24:34, 27:13/27:12 and 32:05/32:04 remain separate despite matching titles.
+change_scope: Strip view-count prefixes only before timestamps; always compare nearby candidates even for an exact-key repeat; retain earliest candidates in bounded fuzzy buckets. Regression: three real screenshot pairs, 2+2 clusters, view-count genuine-title guard, unrelated near-duration control.
+required_ci: .github/workflows/apk-release.yml workflow_dispatch tests-only then authorized private debug-apk from same final SHA; JavaScript, JVM/Robolectric, AndroidTest compile, lint regression; signed update verification.
+apk: TARGET versionCode 1203, versionName 0.5.22-alpha108-clean, arm64-v8a, com.prirai.android.nira.debug; fixed certificate.
+device: NOT_TESTED; install on user's Nothing Phone (1) requires user action.
+safety: No merge to main, public release, force-push, database migration, changes to profiles/sessions/signature.
 changed_paths:
   - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsMerge.kt
   - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsMergeTest.kt
@@ -21,14 +22,9 @@ changed_paths:
   - .github/workflows/apk-release.yml
   - app/src/test/js/release-contract-stage19a.test.cjs
   - app/src/test/js/update-apk-workflow-scope.test.cjs
-  - .github/workflows/zavro-video-results-fuzzy-v1202-update.yml
   - docs/AI_HANDOFF.md
-safety:
-  - No main merge/force-push, no MPV, profile/session changes or database migrations.
-  - Signed APK only from CI GitHub Secrets, unchanged certificate, appId, arm64.
-  - Do not claim device verified before user installation.
-next_action: Check all required CI jobs and the verified signed artifact against final SHA. Fix test failures on same task only, avoid pointless repeated analysis.
+next_action: Verify required CI and signed private APK artifact on final commit SHA; fix failures in this one task only.
 ```
 
 ## Wznowienie
-Jedno zadanie 1/1. Odczytaj HEAD/AGENTS.md/checkpoint na konkretnym SHA. Sprawdź GitHub Actions i artefakt do aktualizacji, bez publikacji i bez instalacji na urządzeniu.
+Zawsze odczytaj bieżący HEAD gałęzi i AGENTS.md z tego samego SHA. To zadanie jednej poprawki 1/1; nie uznawaj CI_PENDING za PASS i nie przypisuj sobie testu telefonu.

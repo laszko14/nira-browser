@@ -15,7 +15,7 @@ internal object VideoSearchResultsMerge {
     // a genuine title. The remaining title is compared without punctuation
     // so apostrophes and hyphens do not split the same film.
     private val leadingMetadata = Regex(
-        """^\s*(?:[\[(]\s*)?(?:full\s*hd|ultra\s*hd|fhd|uhd|hd|4k|8k|2160p|1080p|720p|60fps|\d{1,2}:\d{2}(?::\d{2})?)(?=$|[^\p{L}\p{N}])[^\p{L}\p{N}]*""",
+        """^\s*(?:[\[(]\s*)?(?:full\s*hd|ultra\s*hd|fhd|uhd|hd|4k|8k|2160p|1080p|720p|60fps|\d{1,3}(?:[.,]\d+)?\s*[km](?=\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s|$))|\d{1,2}:\d{2}(?::\d{2})?)(?=$|[^\p{L}\p{N}])[^\p{L}\p{N}]*""",
         RegexOption.IGNORE_CASE,
     )
 
@@ -177,13 +177,22 @@ internal object VideoSearchResultsMerge {
                 // Exact cleaned names always match irrespective of runtime.
                 val previous = titles.putIfAbsent(name, index)
                 if (previous != null) union(previous, index)
-                else {
+                // Even if this entry exactly matches a previous title, it
+                // may bridge another already-merged group with a fuzzy title.
+                // Skipping this scan strands separate clusters of duplicates.
+                run {
                     // Only compare promising candidates. Bounded recency avoids
                     // repeated expensive edit-distance work on large site lists.
                     val blocks = blockingKeys(detail)
                     val candidates = LinkedHashSet<Int>()
                     blocks.forEach { block ->
-                        candidatesByBlock[block]?.takeLast(32)?.forEach { candidates.add(it) }
+                        candidatesByBlock[block]?.let { indexed ->
+                            // Keep original representatives as well as recent
+                            // entries: repeated titles can crowd out an older
+                            // matching cluster in large multi-site results.
+                            indexed.take(8).forEach { candidates.add(it) }
+                            indexed.takeLast(32).forEach { candidates.add(it) }
+                        }
                     }
                     for (candidate in candidates) {
                         if (plausibleFuzzyMatch(
