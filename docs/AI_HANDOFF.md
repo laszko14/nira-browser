@@ -30,7 +30,7 @@ blockers:
 next_action: sprawdź pełny wymagany CI na aktualnym HEAD; ręcznie zsynchronizuj ustawienia Projektu ChatGPT
 evidence_links:
   - https://github.com/laszko14/nira-browser/actions/runs/41284565319
-  - https://github.com/laszko14/nira-browser/actions/runs/41290802874
+  - https://github.com/laszko14/nira-browser/actions/runs/41291422242
 archive: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md
 ```
 
