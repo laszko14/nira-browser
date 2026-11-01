@@ -103,7 +103,7 @@ class ResourceAccumulator(
     private val maxOffsetNanos: Long = TestLabEngine.DURATION_NS,
 ) {
     // A future timestamp is invalid input, not an out-of-order callback.
-    init { require(maxOffsetNanos in TestLabEngine.DURATION_NS..TestLabEngine.FULL_DURATION_NS) }
+    init { require(maxOffsetNanos in TestLabEngine.DURATION_NS..TestLabEngine.PANEL_MANUAL_SAFETY_NS) }
     init { require(capacity in 1..180) }
     private val samples = ArrayDeque<ResourceSample>()
     private var total = 0L

@@ -23,6 +23,8 @@ changed_paths:
   - app/src/test/java/com/prirai/android/nira/diagnostics/testlab/TestLabRuntimeTest.kt
   - app/src/main/java/com/prirai/android/nira/diagnostics/testlab/TestLabEngine.kt
   - app/src/main/java/com/prirai/android/nira/diagnostics/testlab/TestLabContract.kt
+  - app/src/main/java/com/prirai/android/nira/diagnostics/testlab/TestLabMetrics.kt
+  - app/src/test/java/com/prirai/android/nira/diagnostics/testlab/TestLabReportTest.kt
   - app/src/main/java/com/prirai/android/nira/diagnostics/testlab/TestLabActivity.kt
   - app/src/main/java/com/prirai/android/nira/diagnostics/testlab/TestLabReportGenerator.kt
   - app/src/test/java/com/prirai/android/nira/diagnostics/testlab/TestLabEngineTest.kt
@@ -35,6 +37,7 @@ verified_before_push:
   - app v1196 installed per user; user set 60 Hz, no direct device measurement
   - reuse existing TestLab with manual Start/Stop and privacy-safe mount timings
   - browser-entry active window explicitly registered on start; regression test for already-resumed Activity
+  - five-minute ResourceAccumulator bound and 60/120 Hz text fixture aligned with new mode; previous SHA failed 7 unit tests
 blockers:
   - phone validation requires separately authorized signed APK (Kompiluj)
 next_action: Verify CI on final SHA then STOP. Await separate Kompiluj to test this feature on phone. No merge.

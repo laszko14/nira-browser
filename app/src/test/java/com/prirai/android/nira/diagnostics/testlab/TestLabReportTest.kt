@@ -110,7 +110,8 @@ class TestLabReportTest {
     @Test fun panelPerformanceSectionDoesNotInvent120HzOrJankWhenNoFrames() {
         val base=sample().copy(testType=TestType.PANELS_GESTURES)
         val output=TestLabReportGenerator.generate(base).text
-        assertTrue(output.contains("Cel 120 Hz: 8.333 ms"))
+        assertTrue(output.contains("60 Hz = 16.667 ms"))
+        assertTrue(output.contains("120 Hz = 8.333 ms"))
         assertTrue(output.contains("NIEPOTWIERDZONY"))
         assertTrue(output.contains("JankStats: NIEPRZETESTOWANY"))
         assertTrue(output.contains("LEFT_PANEL_SETTLE: NIEPRZETESTOWANY"))
