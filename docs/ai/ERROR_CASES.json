@@ -23,7 +23,7 @@
     },
     {
       "task_id": "ZC-V1208-NEON-REDESIGN",
-      "observed_count": 4,
+      "observed_count": 5,
       "state": "ACTIVE"
     }
   ],
@@ -251,6 +251,26 @@
       "regression_test": "app/src/test/js/video-search-neon-redesign.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41346404329"
+      ]
+    },
+    {
+      "id": "CI-41346783332-1-124968367788",
+      "task_id": "ZC-V1208-NEON-REDESIGN",
+      "kind": "CI_FAILURE",
+      "fingerprint": "v1208-address-hint-robolectric-fixture",
+      "summary": "SOURCE CI 41346783332: 1425 testow JVM, 1 test MyVideoSitesLayoutTest.addressAndAddAreFullyVisibleBelowTheToolbarAtEntry uzywal starego hintu pola adresu; nowy neonowy wyglad zmienil widoczny placeholder. Fixture zaktualizowana do nowego hintu bez oslabiania asercji widocznosci i geometrii.",
+      "source_sha": "142f85e57367b587532abd7539b2b40e6f9e7e55",
+      "observed_at": "2026-11-01T20:30:44Z",
+      "run_id": 41346783332,
+      "job_id": 124968367788,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "be14ead1fb3a4c753222d295d1814ebc28a12608",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/MyVideoSitesLayoutTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41346783332"
       ]
     }
   ]
