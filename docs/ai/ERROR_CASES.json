@@ -3,7 +3,7 @@
   "coverage": [
     {
       "task_id": "ZC-V31-ERROR-LEARNING",
-      "observed_count": 2,
+      "observed_count": 3,
       "state": "ACTIVE"
     }
   ],
@@ -38,12 +38,32 @@
       "job_id": 124932586787,
       "attempt": 1,
       "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "1d96a645469a2b923ba382b4ce283faf4ba2fd11",
+      "regression_test": "scripts/error-learning.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41334916448"
+      ]
+    },
+    {
+      "id": "CI-41335018971-1-124933016011",
+      "task_id": "ZC-V31-ERROR-LEARNING",
+      "kind": "CI_FAILURE",
+      "fingerprint": "v31-static-test-fixture",
+      "summary": "Drugi SOURCE CI V3.1: test rejestru miał stały licznik jednego wpisu, chociaż wcześniejszy błąd został już trwale zapisany.",
+      "source_sha": "1d96a645469a2b923ba382b4ce283faf4ba2fd11",
+      "observed_at": "2026-11-01T18:08:45Z",
+      "run_id": 41335018971,
+      "job_id": 124933016011,
+      "attempt": 1,
+      "cause": "test_harness",
       "state": "OPEN",
       "duplicate_of": null,
       "fix_sha": null,
       "regression_test": "scripts/error-learning.test.cjs",
       "evidence_links": [
-        "https://github.com/laszko14/nira-browser/actions/runs/41334916448"
+        "https://github.com/laszko14/nira-browser/actions/runs/41335018971"
       ]
     }
   ]

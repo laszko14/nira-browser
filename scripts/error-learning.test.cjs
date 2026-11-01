@@ -3,7 +3,9 @@ const {test}=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),{validate}=require('./error-learning.cjs');
 const {classify,readOnce}=require('./capture-ci-errors.cjs');
 const sha='7ea23d0de749a59f322d1735f12507b218b3c725';
-const copy=()=>JSON.parse(fs.readFileSync('docs/ai/ERROR_CASES.json','utf8'));
+const source=()=>JSON.parse(fs.readFileSync('docs/ai/ERROR_CASES.json','utf8'));
+// Isolate mutation fixtures from real growing ledger: registry growth must not break tests.
+const copy=()=>{const d=source();d.events=d.events.slice(0,1);d.coverage[0].observed_count=1;return d;};
 const event=(id,over={})=>({
  id,task_id:'ZC-V31-ERROR-LEARNING',kind:'USER_REPORT',
  fingerprint:'incomplete-error-capture',summary:'User reported another identical failure',
@@ -12,6 +14,7 @@ const event=(id,over={})=>({
  regression_test:null,evidence_links:[],...over
 });
 test('canonical registry validates without inventing missing historical reports',()=>{
+ const current=source();assert.equal(validate(current).recorded,current.events.length);
  const d=copy();assert.deepEqual(validate(d),{tasks:1,recorded:1,open:1});
  assert.match(d.events[0].summary,/2 z 10/);
 });
