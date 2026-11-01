@@ -16,6 +16,7 @@ internal class VideoSearchResultsRunUiState {
     val mergeByDuration: MutableState<Boolean> = mutableStateOf(false)
     /** Collapsed filter panel survives film navigation for this tab/profile/run only. */
     val controlsCollapsed: MutableState<Boolean> = mutableStateOf(false)
+    val controlsCollapsedTouched: MutableState<Boolean> = mutableStateOf(false)
     /** In-memory per-run selection survives opening other browser tabs. */
     val selecting: MutableState<Boolean> = mutableStateOf(false)
     val selectedFilmKeys: MutableState<Set<String>> = mutableStateOf(emptySet())

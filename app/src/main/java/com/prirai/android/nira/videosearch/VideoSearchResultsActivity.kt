@@ -343,6 +343,12 @@ internal fun VideoSearchResultsScreen(
     var controlsCollapsed by remember(run?.id, retainedRun) {
         retainedRun?.controlsCollapsed ?: mutableStateOf(landscape)
     }
+    var controlsCollapsedTouched by remember(run?.id, retainedRun) {
+        retainedRun?.controlsCollapsedTouched ?: mutableStateOf(false)
+    }
+    LaunchedEffect(run?.id, retainedRun, landscape) {
+        if (!controlsCollapsedTouched) controlsCollapsed = landscape
+    }
     LaunchedEffect(run?.id, state.view, gridState, listState) {
         var previous: Long? = null
         snapshotFlow {
@@ -355,7 +361,10 @@ internal fun VideoSearchResultsScreen(
             }
         }.collect { (position, scrolling) ->
             if (scrolling) previous?.let { before ->
-                if (position != before) controlsCollapsed = position > before
+                if (position != before) {
+                    controlsCollapsed = position > before
+                    controlsCollapsedTouched = true
+                }
             }
             previous = position
         }
@@ -638,7 +647,10 @@ internal fun VideoSearchResultsScreen(
               }
             }
             AnimatedVisibility(visible = controlsCollapsed, modifier = Modifier.fillMaxWidth()) {
-                TextButton(onClick = { controlsCollapsed = false },
+                TextButton(onClick = {
+                    controlsCollapsedTouched = true
+                    controlsCollapsed = false
+                },
                     modifier = Modifier.fillMaxWidth()) {
                     Text("⚙ Filtry · ${minOf(visibleCount, flatTotal)}/$flatTotal · " +
                         "${VideoSearchRunLabels.sort(sort)} · ${run.query}",

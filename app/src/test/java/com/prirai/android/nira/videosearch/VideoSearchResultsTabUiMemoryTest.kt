@@ -102,10 +102,14 @@ class VideoSearchResultsTabUiMemoryTest {
         val firstTab = VideoSearchResultsTabUiMemory.forTab(
             "results-a", "profile-a", activeTabs).forRun("run-a")
         firstTab.controlsCollapsed.value = true
+        firstTab.controlsCollapsedTouched.value = true
         assertTrue("returning to results retains the compact controls state",
             VideoSearchResultsTabUiMemory.forTab(
                 "results-a", "profile-a", activeTabs).forRun("run-a")
                 .controlsCollapsed.value)
+        assertTrue(VideoSearchResultsTabUiMemory.forTab(
+            "results-a", "profile-a", activeTabs).forRun("run-a")
+            .controlsCollapsedTouched.value)
         assertFalse("a different run starts with its own full filter panel",
             firstTabForDifferentRun(activeTabs).controlsCollapsed.value)
         assertFalse("another browser tab/profile has independent controls",
