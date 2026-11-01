@@ -22,6 +22,8 @@ class WebContentPositionManager(
 ) {
     private val reservation = WebViewportReservation()
     private var isDestroyed = false
+    private var fullscreen = false
+    private var statusBarTop = 0
 
     fun initialize() {
         ViewCompat.setOnApplyWindowInsetsListener(rootView) { _, insets ->
@@ -55,6 +57,7 @@ class WebContentPositionManager(
     /** Fullscreen hides both chrome and IME reservations until fullscreen exits. */
     fun setFullscreen(fullscreen: Boolean) {
         if (isDestroyed) return
+        this.fullscreen = fullscreen
         reservation.setFullscreen(fullscreen)
         applyMargins()
     }
@@ -67,6 +70,11 @@ class WebContentPositionManager(
 
     private fun handleWindowInsets(insets: WindowInsetsCompat) {
         if (isDestroyed) return
+        // Root reserves navigation but intentionally not the status bar. Internal
+        // controls must never slip beneath it when the address toolbar collapses.
+        statusBarTop = insets.getInsets(
+            WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout()
+        ).top
         val navBottom = insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom
         val imeBottom = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
         // IME and the navigation inset overlap, rather than add together.
@@ -79,7 +87,10 @@ class WebContentPositionManager(
         if (isDestroyed) return
         val wanted = reservation.margins()
         applyMarginsTo(swipeRefreshView, wanted)
-        internalPageView?.let { applyMarginsTo(it, wanted) }
+        internalPageView?.let { page ->
+            val top = if (fullscreen) wanted.top else maxOf(wanted.top, statusBarTop)
+            applyMarginsTo(page, wanted.copy(top = top))
+        }
     }
 
     private fun applyMarginsTo(view: View, wanted: WebViewportReservation.Margins) {
