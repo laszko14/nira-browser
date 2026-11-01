@@ -89,6 +89,12 @@ class MyVideoSitesLayoutTest {
             val visibleHeader = Rect()
             assertTrue("landscape form has a visible scroll viewport",
                 headerScroll.getGlobalVisibleRect(visibleHeader))
+            val sitesList = ReflectionHelpers.getField<RecyclerView>(controller.get(), "sitesList")
+            val visibleSitesList = Rect()
+            assertTrue("site list has a visible viewport",
+                sitesList.getGlobalVisibleRect(visibleSitesList))
+            assertTrue("header viewport is clipped by the site-list viewport",
+                visibleHeader.intersect(visibleSitesList))
             val actionLocation = IntArray(2).also(action::getLocationInWindow)
             val targetTop = visibleHeader.top +
                 (visibleHeader.height() - action.height) / 2
