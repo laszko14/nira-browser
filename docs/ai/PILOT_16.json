@@ -42,16 +42,20 @@
     },
     {
       "slot": "T02",
-      "state": "ACTIVE",
+      "state": "FOLLOWUP_PENDING",
       "task_ref": "T02-PANEL-GESTURES-V1196",
       "scope": "UI_GESTURES",
       "complexity": "MEDIUM",
       "started_at": "2026-11-01T01:16:48.378Z",
-      "completed_at": null,
-      "followup_due_at": null,
+      "completed_at": "2026-11-01T01:26:53.846Z",
+      "followup_due_at": "2026-11-15T01:26:53.846Z",
       "followup_checked_at": null,
-      "final_sha": null,
-      "evidence_links": [],
+      "final_sha": "717608d1af23638614499d25dae7682f16a7fd8a",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41250929267",
+        "https://github.com/laszko14/nira-browser/commit/f92957eb46bbf2540d84d0f8b112366fe4ab8e44",
+        "https://github.com/laszko14/nira-browser/commit/1ec57d47c19a3ecefa23db678b90cfa6f1bfae99"
+      ],
       "metrics": {
         "regressions": null,
         "reopened": null,

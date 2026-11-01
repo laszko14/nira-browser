@@ -30,28 +30,40 @@ test('T01 3/3 user-reported smoke is only pending follow-up, never full device v
   assert.equal(summary.totals_for_completed_followups_only,null);
   assert.equal(summary.improved_quality,'NOT_ESTABLISHED');
 });
-test('T02 panel gesture test is registered but not yet evaluated',()=>{
+test('T02 reported defects stay unresolved in 14-day follow-up',()=>{
   const entry=source.records[1],s=summarize(source);
-  assert.equal(entry.slot,'T02');
-  assert.equal(entry.task_ref,'T02-PANEL-GESTURES-V1196');
-  assert.equal(entry.state,'ACTIVE');
-  assert.equal(entry.scope,'UI_GESTURES');
-  assert.equal(entry.complexity,'MEDIUM');
-  assert.ok(entry.started_at);
-  assert.equal(entry.completed_at,null);
-  assert.equal(entry.final_sha,null);
+  assert.equal(entry.slot,'T02');assert.equal(entry.task_ref,'T02-PANEL-GESTURES-V1196');
+  assert.equal(entry.state,'FOLLOWUP_PENDING');
+  assert.equal(entry.scope,'UI_GESTURES');assert.equal(entry.complexity,'MEDIUM');
+  assert.equal(entry.final_sha,'717608d1af23638614499d25dae7682f16a7fd8a');
+  assert.ok(Date.parse(entry.completed_at)>=Date.parse(entry.started_at));
+  assert.ok(Date.parse(entry.followup_due_at)-Date.parse(entry.completed_at)>=14*86400000);
+  assert.equal(entry.followup_checked_at,null);
+  assert.ok(entry.evidence_links.some(x=>x.includes('/commit/f92957eb')));
+  assert.ok(entry.evidence_links.some(x=>x.includes('/commit/1ec57d47')));
   assert.ok(FIELDS.every(k=>entry.metrics[k]===null));
   assert.ok(CAUSES.every(k=>entry.metrics.correction_causes[k]===null));
+  assert.ok(source.records.slice(2).every(x=>x.state==='NOT_STARTED'));
   assert.deepEqual(validate(source),{started:2,finished:0});
   assert.equal(s.status,'NO_RESULTS_YET');
   assert.equal(s.improved_quality,'NOT_ESTABLISHED');
   assert.equal(s.completed_14_day_followups,0);
 });
-test('T02 must not claim early successful or complete device observation',()=>{
-  const state=copy();state.records[1].completed_at='2026-11-01T14:00:00.000Z';
-  assert.throws(()=>validate(state),/unearned completion/);
-  const other=copy();other.records[1].metrics.user_interventions=-1;
-  assert.throws(()=>validate(other),/invalid/);
+test('T02 does not silently convert user complaint or early follow-up into success',()=>{
+  const state=copy();state.records[1].followup_checked_at=state.records[1].completed_at;
+  assert.throws(()=>validate(state),/pending followup has final observation/);
+  const invalid=copy();invalid.records[1].followup_due_at=invalid.records[1].completed_at;
+  assert.throws(()=>validate(invalid),/at least 14 days/);
+  const noSha=copy();noSha.records[1].final_sha=null;
+  assert.throws(()=>validate(noSha),/final SHA missing/);
+});
+test('T02 evidence note includes negative result and no private screenshot',()=>{
+  const note=fs.readFileSync('docs/ai/T02_V1196_PANEL_GESTURES.md','utf8');
+  assert.match(note,/USER_REPORTED_ISSUES/);
+  assert.match(note,/jank lewego panelu/i);
+  assert.match(note,/fragment_bookmarks_bottom_sheet.xml/);
+  assert.match(note,/Nie kopiowano go/);
+  assert.match(note,/NOT_SEPARATELY_REPORTED/);
 });
 test('pending smoke requires exact 14-day window and forbids premature verdict',()=>{
   let s=copy();

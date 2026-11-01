@@ -25,7 +25,7 @@ Audyt wskazuje, że w każdym przypadku zmieniono wyłącznie `REPAIR_REGISTER_1
 
 ## Pilotaż 16 zadań — zapis prospektywny
 
-Źródłem bieżącego statusu jest wyłącznie [`PILOT_16.json`](PILOT_16.json), zawierający 16 slotów T01–T16. Po uzyskaniu wyniku podstawowego smoke pierwszy slot ma `FOLLOWUP_PENDING`; trzy próby zakończyły się powodzeniem **według użytkownika**, ale liczniki regresji i interwencji pozostają `null` (nie udawane zera), a 14-dniowe okno obserwacji jeszcze trwa. **T02:** osobne, rzeczywiste sprawdzenie gestów paneli w v1196 ma status `ACTIVE`; oczekujemy na wynik z telefonu, nie zaznaczamy z góry PASS. Poniższa tabela jest **planem**, a nie zapisanym wynikiem.
+Źródłem bieżącego statusu jest wyłącznie [`PILOT_16.json`](PILOT_16.json), zawierający 16 slotów T01–T16. Po uzyskaniu wyniku podstawowego smoke pierwszy slot ma `FOLLOWUP_PENDING`; trzy próby zakończyły się powodzeniem **według użytkownika**, ale liczniki regresji i interwencji pozostają `null` (nie udawane zera), a 14-dniowe okno obserwacji jeszcze trwa. **T02:** rzeczywisty test wykrył zgłaszane przycięcia lewego panelu i brak tła zakładek; prawy panel płynniejszy i Back działa według użytkownika. Status `FOLLOWUP_PENDING`, nie PASS; błędy pozostają otwarte i nie mają przypisanej bez dowodu liczby regresji. Poniższa tabela jest **planem**, a nie zapisanym wynikiem.
 
 | Zakres | Metoda | Kryterium |
 |---|---|---|
