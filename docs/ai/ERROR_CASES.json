@@ -134,9 +134,9 @@
       "job_id": null,
       "attempt": null,
       "cause": "workflow",
-      "state": "OPEN",
+      "state": "FIXED",
       "duplicate_of": null,
-      "fix_sha": null,
+      "fix_sha": "ccbed9f4c4ffcf7cbaaaa3959ab7079bfc2affbd",
       "regression_test": "scripts/error-learning.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41334916448",
