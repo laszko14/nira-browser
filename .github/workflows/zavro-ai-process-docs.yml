@@ -22,6 +22,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
+      - name: Prove checkout equals source event SHA
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
       - name: Validate byte-perfect archive and restartable checkpoint (no app build)
         run: node --test scripts/check-ai-handoff.test.cjs
       - name: Verify workflow safety and trigger contract

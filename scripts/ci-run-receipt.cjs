@@ -23,7 +23,7 @@ function evaluate(run, jobs, branch, expectedSha, expectedBranch = BRANCH) {
     const job = found.length === 1 ? found[0] : null;
     return {name, count: found.length, status: job?.status || 'missing',
       conclusion: job?.conclusion || null, attempt: job?.run_attempt || null,
-      url: job?.html_url || null};
+      url: job?.html_url || null, run_id: job?.run_id ?? null};
   });
   let status = 'CODE_VERIFIED', reason = 'All six jobs completed/success on the expected current SHA';
   if (run.repository?.full_name !== REPO || run.path !== WORKFLOW ||
@@ -38,11 +38,11 @@ function evaluate(run, jobs, branch, expectedSha, expectedBranch = BRANCH) {
   } else if (run.conclusion !== 'success') {
     status = 'BLOCKED'; reason = 'Workflow conclusion is not success';
   } else if (jobResults.some(j => j.count !== 1 || j.status !== 'completed' ||
-      j.conclusion !== 'success' || j.attempt !== run.run_attempt)) {
+      j.conclusion !== 'success' || j.run_id !== run.id || !Number.isSafeInteger(j.attempt) || j.attempt < 1 || j.attempt > run.run_attempt)) {
     status = 'BLOCKED'; reason = 'Missing, duplicated, skipped, failed or wrong-attempt required job';
   }
   const firstProblem = jobResults.find(j => j.count !== 1 || j.status !== 'completed' ||
-    j.conclusion !== 'success' || j.attempt !== run.run_attempt) || null;
+    j.conclusion !== 'success' || j.run_id !== run.id || !Number.isSafeInteger(j.attempt) || j.attempt < 1 || j.attempt > run.run_attempt) || null;
   return {
     status, reason, run_id: run.id, attempt: run.run_attempt,
     workflow: WORKFLOW, event: run.event, expected_sha: expectedSha,
