@@ -1,50 +1,42 @@
-# AI_HANDOFF — Zavro Clean / proces AI
+# AI_HANDOFF — Zavro Clean / T03 signed v1197 APK
 
-> Jedno źródło bieżącego stanu gałęzi procesu. Historia: [archiwum](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md).
+> Jedno bieżące źródło tego brancha. Historia procesu: [archiwum](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md).
 
 ```yaml
-task_id: T03-PANEL-DIAGNOSTIC-60HZ
+task_id: T03-BUILD-V1197
 workflow_mode: staged
 repo: laszko14/nira-browser
 product_line: Zavro Clean
-branch: improve/zavro-clean-chatgpt-github-process-20261101
-base_sha: 91e8a1083b549b838d63a1727bb1009d9b6ffdca
-observed_head_sha: 91e8a1083b549b838d63a1727bb1009d9b6ffdca
+branch: build/zavro-clean-t03-panels-v1197-20261101
+base_sha: 8dd4d59d85e280e350aaf9990556ead2dd8fd37b
+observed_head_sha: 8dd4d59d85e280e350aaf9990556ead2dd8fd37b
 status: CI_PENDING
-acceptance_source: ETAP 9/9 — T03/16 docs/ai/T03_PANEL_DIAGNOSTIC_60HZ.md
-required_ci: zavro-ai-process-docs.yml process-docs shared-js shared-jvm shared-lint shared-androidtest-compile quality-evidence
-device: NOT_TESTED (user switched setting to 60 Hz)
-apk: NOT_BUILT
-pilot: T01/T02 FOLLOWUP_PENDING; T03 ACTIVE; measured results unavailable
+acceptance_source: ETAP 9/9 — docs/ai/T03_SIGNED_BUILD_V1197.md
+required_ci: zavro-t03-panels-update-v1197.yml authorized-source / shared regressions / signed-update / verify-all
+device: NOT_TESTED
+apk: BUILD_PENDING
+pilot: T01/T02 FOLLOWUP_PENDING; T03 ACTIVE
+expected_package: com.prirai.android.nira.debug
+expected_version_code: 1197
+expected_version_name: 0.5.22-alpha102-clean
+signer_sha256: df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
 changed_paths:
-  - app/src/main/java/com/prirai/android/nira/BrowserFragment.kt
-  - app/src/main/java/com/prirai/android/nira/browser/panels/SidePanelInfrastructure.kt
-  - app/src/main/java/com/prirai/android/nira/diagnostics/testlab/TestLab.kt
-  - app/src/test/java/com/prirai/android/nira/diagnostics/testlab/TestLabRuntimeTest.kt
-  - app/src/main/java/com/prirai/android/nira/diagnostics/testlab/TestLabEngine.kt
-  - app/src/main/java/com/prirai/android/nira/diagnostics/testlab/TestLabContract.kt
-  - app/src/main/java/com/prirai/android/nira/diagnostics/testlab/TestLabMetrics.kt
-  - app/src/test/java/com/prirai/android/nira/diagnostics/testlab/TestLabReportTest.kt
-  - app/src/main/java/com/prirai/android/nira/diagnostics/testlab/TestLabActivity.kt
-  - app/src/main/java/com/prirai/android/nira/diagnostics/testlab/TestLabReportGenerator.kt
-  - app/src/test/java/com/prirai/android/nira/diagnostics/testlab/TestLabEngineTest.kt
-  - docs/ai/T03_PANEL_DIAGNOSTIC_60HZ.md
-  - docs/ai/PILOT_16.json
-  - scripts/ai-pilot-metrics.test.cjs
+  - app/build.gradle
+  - .github/workflows/apk-release.yml
+  - .github/workflows/zavro-t03-panels-update-v1197.yml
+  - app/src/test/js/release-contract-stage19a.test.cjs
+  - app/src/test/js/update-apk-workflow-scope.test.cjs
+  - docs/ai/T03_SIGNED_BUILD_V1197.md
   - docs/AI_HANDOFF.md
 verified_before_push:
-  - parent 91e8a1083b549b838d63a1727bb1009d9b6ffdca CI 41261140960 completed/success six jobs
-  - app v1196 installed per user; user set 60 Hz, no direct device measurement
-  - reuse existing TestLab with manual Start/Stop and privacy-safe mount timings
-  - browser-entry active window explicitly registered on start; regression test for already-resumed Activity
-  - five-minute ResourceAccumulator bound and 60/120 Hz text fixture aligned with new mode; previous SHA failed 7 unit tests
-blockers:
-  - phone validation requires separately authorized signed APK (Kompiluj)
-next_action: Verify CI on final SHA then STOP. Await separate Kompiluj to test this feature on phone. No merge.
+  - Base 8dd4d59d85e280e350aaf9990556ead2dd8fd37b CI 41262560676 success, six jobs, one attempt
+  - User explicitly authorized Kompiluj; version-only Gradle bump, stable signer required
+blockers: []
+next_action: Verify final SHA and all CI jobs, signed APK artifact; STOP before installation or further repairs
 evidence_links:
-  - https://github.com/laszko14/nira-browser/actions/runs/41261140960
+  - https://github.com/laszko14/nira-browser/actions/runs/41262560676
 ```
 
 ## Wznowienie
 
-Sprawdź aktywny branch i HEAD, czytaj AGENTS.md i ten checkpoint na jawnym SHA. `CI_PENDING` to migawka przed pushem; przed zakończeniem wymagane wszystkie zielone joby na finalnym SHA. Żadnych APK, resetów, danych, merge, dodatkowych commitów po CI. Nie uruchamiaj T04 bez osobnego polecenia.
+Odczytaj AGENTS.md oraz ten checkpoint z jawnego SHA, porównaj aktywny branch HEAD. `CI_PENDING` przed push nie oznacza rezultatu. Nie twórz commita wyłącznie po to, aby zapisać run ID. Bez merge, publikacji, instalacji, kasowania danych, zmian profili, klucza i sesji. Rzeczywiste testy telefonu należą do następnego etapu po ręcznej instalacji użytkownika.
