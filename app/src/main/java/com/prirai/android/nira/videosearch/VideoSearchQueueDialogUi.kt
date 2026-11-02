@@ -165,7 +165,7 @@ internal object VideoSearchQueueDialogUi {
             marginEnd = context.dp(8)
         })
         backdrop.addView(body, FrameLayout.LayoutParams(-1, -2))
-        scroll.addView(backdrop, ScrollView.LayoutParams(
+        scroll.addView(backdrop, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         return Controls(scroll, field, preview, cancel, execute)
     }
