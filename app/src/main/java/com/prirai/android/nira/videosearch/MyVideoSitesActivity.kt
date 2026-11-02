@@ -28,6 +28,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.content.withStyledAttributes
+import androidx.core.graphics.drawable.toDrawable
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ConcatAdapter
@@ -1195,7 +1196,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
         dialog.show()
         // Only the queue dialog is custom. Preserve the normal draft/owner lifecycle.
         dialog.window?.apply {
-            setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+            setBackgroundDrawable(android.graphics.Color.TRANSPARENT.toDrawable())
             setLayout(
                 minOf(resources.displayMetrics.widthPixels - dp(24), dp(440)),
                 ViewGroup.LayoutParams.WRAP_CONTENT,
