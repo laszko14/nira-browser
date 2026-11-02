@@ -1183,28 +1183,31 @@ class MyVideoSitesActivity : AppCompatActivity() {
      */
     private fun previewQueue(initialPhrase: String = "") {
         val owner = ownerIfCurrent() ?: return
-        val field = EditText(this).apply {
-            hint = "Fraza do wyszukania na wybranych witrynach"
-            setSingleLine(true)
-            inputType = InputType.TYPE_CLASS_TEXT
-            setText(initialPhrase)
-            isSaveEnabled = false
-        }
+        val ui = VideoSearchQueueDialogUi.create(this, initialPhrase)
+        val field = ui.phrase
         val dialog = MaterialAlertDialogBuilder(this)
-            .setTitle("Podgląd kolejki witryn")
-            .setView(field)
-            .setNegativeButton("Anuluj", null)
-            .setNeutralButton("Uruchom wyszukiwanie", null)
-            .setPositiveButton("Pokaż plan", null)
+            .setView(ui.view)
             .create()
         trackNormalDialog(dialog) {
             VideoSearchNormalDialogDraft(owner.profileId,
                 VideoSearchNormalDialogKind.QUEUE, primary = field.text.toString())
         }
         dialog.show()
+        // Only the queue dialog is custom. Preserve the normal draft/owner lifecycle.
+        dialog.window?.apply {
+            setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+            setLayout(
+                minOf(resources.displayMetrics.widthPixels - dp(24), dp(440)),
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            )
+            setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
+                android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)
+        }
+        ui.view.requestFocus()
+        ui.cancel.setOnClickListener { dialog.dismiss() }
         run {
-            val preview = dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)
-            val execute = dialog.getButton(android.app.AlertDialog.BUTTON_NEUTRAL)
+            val preview = ui.showPlan
+            val execute = ui.start
             var busy = false
             fun lock(value: Boolean) {
                 busy = value
