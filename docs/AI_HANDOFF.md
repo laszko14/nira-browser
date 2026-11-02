@@ -1,47 +1,44 @@
-# AI_HANDOFF — Zavro Clean · V3.2, neonowe UI wyszukiwarki filmów (Clean v1208)
-> Jedyny bieżący checkpoint gałęzi. Handoff jest snapshotem, a nie źródłem live HEAD. Poprzedni checkpoint V3.2: `4d7191ae288246ea3d4348eebabfb5f49a3a5149`. Archiwum: [AI_HANDOFF_LEGACY](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md).
+# AI_HANDOFF — Zavro Clean V3.2, tylko okno kolejki filmów (v1209)
+> Bieżący checkpoint gałęzi, NIE live HEAD. Poprzednia baza działająca v1208: `eef2c439290e9ce08118d1a192edf7db486cc16b`. Archiwum: [AI_HANDOFF_LEGACY](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md).
 
 ```yaml
-task_id: ZC-V1208-NEON-REDESIGN
+task_id: ZC-V1209-QUEUE-NEON
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: feat/zavro-clean-v3-20261101
-base_sha: 4d7191ae288246ea3d4348eebabfb5f49a3a5149
-observed_head_sha: bef7181c546992dc62319c310772c5367fe38ec3
+base_sha: eef2c439290e9ce08118d1a192edf7db486cc16b
+observed_head_sha: 17238a4b7e4a3c57d235d271dfb3b22943da030a
 status: CI_PENDING
-acceptance_source: Uzytkownik zamowil wierna implementacje 3-ekranowego wzoru neonowego Moje witryny / Wyniki / rozwijane filtry i prywatny podpisany APK do aktualizacji.
-required_ci: process-docs + shared-tests (JS, JVM/Robolectric, AndroidTest compile, lint+lint-regression) + quality-evidence na dokladnym koncowym SOURCE SHA; PR integration oddzielnie
+acceptance_source: Zmien tylko szare standardowe okno Podglad kolejki witryn na wierny ciemny neonowy wzor uzytkownika, pozostale ekrany i algorytmy niezmienione. Dostarcz podpisany prywatny arm64 APK do aktualizacji.
+required_ci: process-docs + shared-tests (JS, JVM/Robolectric, AndroidTest compile, lint+lint-regression) + final SOURCE quality-evidence na jednym SHA; oddzielne PR integration.
 device: NOT_TESTED
-apk: APK_BLOCKED until SOURCE CI success and owner COMMENT review PR 119
-completed: Zmieniono styl natywny strony witryn, palete i gesty rozwijania filtrow Compose, czytelnosc kafelkow/listy, motyw w osadzonej karcie. Zachowano istniejace handlery/wyszukiwanie/profile/foldery. Wersja arm64 1208, com.prirai.android.nira.debug, podpis z niezmienionych Secrets. Testy UI JS i uaktualniony rygorystyczny kontrakt podpisu.
-remaining: Finalne SOURCE CI / PR CI oraz bezpieczna recenzja PR do prywatnej budowy APK; niezalezny security review historycznego PR 119 nadal nierozwiazany, test urzadzenia poza tym srodowiskiem.
-known_failures: Dla zadania piec odrebnych zdarzen (1 USER_REPORT / 4 CI), wszystkie 5 zapisane w ERROR_CASES.json; USER_REPORT OPEN do testu urzadzenia; cztery CI oznaczone FIXED po usunieciu przyczyn, czekaja na finalna walidacje.
+apk: APK_BLOCKED until all SOURCE CI gates pass on final SHA and authorized owner COMMENT PR 119.
+completed: Dodano wyizolowane VideoSearchQueueDialogUi.kt (ciemne gradienty, łuki, symbol warstw, pole wyszukania, 3 przyciski, przewijanie przy klawiaturze); previewQueue w MyVideoSitesActivity uzywa nowego widoku. Zachowano pierwotne walidacje frazy, przywiazanie profilu, draft po odtworzeniu, bezpieczne callbacki plan/anuluj/uruchom. Dodano testy Robolectric. Numer podpisanej aktualizacji clean v1209 (0.5.22-alpha114-clean), synchronizacja istniejacego rygorystycznego kontraktu APK bez zmiany certyfikatu.
+remaining: Zielone SOURCE/PR CI finalnego SHA, kontrola podpisu i prywatny APK; recenzja security historycznego PR 119 nadal nierozstrzygnieta; test na rzeczywistym telefonie nie zostal wykonany.
+known_failures: Dla v1209 dwa odrebne zdarzenia, oba w ERROR_CASES.json: 1 USER_REPORT nadal OPEN do weryfikacji na urzadzeniu, 1 test harness FAIL (stary versionCode 208 w JS) oznaczony FIXED po zmianie na 209; kompletna regresja CI w toku.
 changed_paths:
   - app/src/main/java/com/prirai/android/nira/videosearch/MyVideoSitesActivity.kt
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsActivity.kt
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsTabContent.kt
-  - app/build.gradle
-  - .github/workflows/apk-release.yml (wzor 1208, tylko metadane build)
+  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUi.kt
+  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt
+  - app/build.gradle (tylko versionCode 209/versionName alpha114)
+  - .github/workflows/apk-release.yml (tylko expected update 1209/artifact)
   - app/src/test/js/release-contract-stage19a.test.cjs
   - app/src/test/js/update-apk-workflow-scope.test.cjs
   - app/src/test/js/video-search-neon-redesign.test.cjs
-  - app/src/test/java/com/prirai/android/nira/videosearch/MyVideoSitesLayoutTest.kt
   - docs/ai/ERROR_CASES.json
   - docs/AI_HANDOFF.md
 blockers:
-  - Dotychczasowe CI nie obejmuje wizualnego testu na fizycznym Nothing Phone (1).
-  - G4: niezalezny security review procesu PR 119 nadal niepotwierdzony; nie zastępuj go self-review.
-  - Signed APK nie istnieje przed zielonym finalnym SOURCE CI i autoryzowanym review trigger.
+  - Brak wizualnego testu na Nothing Phone (1); UI test na JVM nie zastepuje telefonu.
+  - Brak niezaleznego security review historycznej sciezki PR 119 (nienaruszona w tym zadaniu).
+  - Nie uruchamiac podpisanego APK przed green SOURCE CI i sprawdzeniem live PR HEAD.
 verified_before_push:
-  - Bezposredni GitHub connector potwierdzil source branch i pełny SHA, AGENTS oraz handoff.
-  - Strict update contract 1208, com.prirai.android.nira.debug, arm64-v8a i staly cert bez zmian, podpis Secrets.
-  - 5 z 5 zaobserwowanych odrebnych zdarzen zapisano do ERROR_CASES; 4 test/CI harness FIXED po triage.
+  - GitHub connector: head gałęzi, AGENTS i handoff z jawnego SHA, kontrakt owner review.
+  - Kod nie modyfikuje uruchamiania w wyszukiwarce, profili, wynikow, kart ani baz danych.
+  - Numer pakietu arm64 = 1209, com.prirai.android.nira.debug, certyfikat istniejący bez zmian.
 evidence_links:
   - https://github.com/laszko14/nira-browser/pull/119
-  - https://github.com/laszko14/nira-browser/actions/runs/41346184372
-  - https://github.com/laszko14/nira-browser/actions/runs/41346404329
-  - https://github.com/laszko14/nira-browser/actions/runs/41346783332
-verification: SOURCE/PR CI PENDING dla finalnego SHA po tym commicie. Na c2eeccdf JS, process-docs, AndroidTest compile, lint SUCCESS; JVM 1425 testow, 1 FAIL wskutek starego tekstu placeholdera, test fixture naprawiona na be14ead1. Poprzednie 12 niepowodzen JS (v1207 metadata) i 2 bledy test harness poprawiono.
-next_action: Sprawdz live SHA po zapisie, wszystkie required SOURCE i PR CI na tym SHA. Przy FAIL diagnozuj log, popraw przyczyne i wykonaj kolejny checkpoint. Gdy zielone CI i bezpieczny trigger potwierdzony, wyslij jeden COMMENT review PR #119 dokladnie wedlug docs/ai/APK_CHAT_GITHUB_REVIEW_TRIGGER.md. Potem zweryfikuj artefakt, certyfikat, package, ABI, versionCode/versionName. Bez merge/release/force push/zmiany certyfikatu.
+  - https://github.com/laszko14/nira-browser/actions/runs/41535669908
+verification: CI_PENDING; wczesny PR CI mial 411/412 JS PASS i 1 nieaktualna testowa asercje (versionCode 208 zamiast 209); fixture poprawiona, wymagane SOURCE CI na koncowym SHA do sprawdzenia.
+next_action: Po tym commicie sprawdz live HEAD, wymaganego finalnego SOURCE CI i PR CI. Przy FAIL popraw przyczyne z jawnego logu. Po green SOURCE CI wyslij jedna autoryzowana recenzje PR #119 COMMENT z trzywierszowym kontraktem (commit_id = live PR HEAD). Zweryfikuj job build, podpis, pakiet, ABI, numer 1209 i artefakt. Nie wykonuj merge/release/force-push ani resetu danych.
 ```
