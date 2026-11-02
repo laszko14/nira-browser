@@ -28,7 +28,7 @@
     },
     {
       "task_id": "ZC-V1209-QUEUE-NEON",
-      "observed_count": 11,
+      "observed_count": 12,
       "state": "ACTIVE"
     }
   ],
@@ -494,6 +494,26 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/MyVideoSitesDialogRegressionTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41537564625"
+      ]
+    },
+    {
+      "id": "CI-41538591682-1-125597736578",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "v1209-error-learning-summary-over-320-chars",
+      "summary": "SOURCE process-docs canonical registry test failed: two CI descriptions were 328 and 332 chars (allowed up to 320). Shortened both summaries without removing root cause, evidence or regression criteria.",
+      "source_sha": "c8ec296bd2334f7860dbc8b294c4629ec67479aa",
+      "observed_at": "2026-11-02T22:38:08Z",
+      "run_id": 41538591682,
+      "job_id": 125597736578,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "e89a9c68878440edbb3d7e56bcd195999fbf3575",
+      "regression_test": "scripts/error-learning.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41538591682"
       ]
     }
   ]
