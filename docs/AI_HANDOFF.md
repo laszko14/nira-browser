@@ -1,35 +1,46 @@
-# AI_HANDOFF — Zavro Clean · migracja Codex V3
-> Ta gałąź procesu jest odseparowana od linii funkcjonalnej v1207. Checkpoint redesignu pozostaje na `feat/zavro-clean-search-redesign-v2-20261101`. Historia: [archiwum](ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md).
+# AI_HANDOFF — Zavro Clean, Lista mini v1210
+> Archiwum historii: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md.
+> Snapshot, nie live HEAD. Poprzednie zadanie ZC-V1209-QUEUE-NEON: SOURCE run 41546456898 SUCCESS 6/6; PR run 41546465412 SUCCESS; prywatny APK run 41547469511 artifact 13188674701, APK_VERIFIED, DEVICE NOT_TESTED.
 
 ```yaml
-task_id: ZAVRO-CLEAN-CODEX-V3-20261101
+task_id: ZC-V1210-RESULTS-MINI-LIST
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
-branch: chore/zavro-clean-codex-v3-20261101
-base_sha: b161b9403425435e106498c382da34b5e3cb3d58
-observed_head_sha: c30a21b834c46264187609c9039f9d0ed1e01ed5
+branch: feat/zavro-clean-v3-20261101
+base_sha: e609b183d73c88c10bd3c4c885b358a0dbdfa6b4
+observed_head_sha: e609b183d73c88c10bd3c4c885b358a0dbdfa6b4
 status: CI_PENDING
-acceptance_source: Zatwierdzony plan Zavro Clean Codex V3 z 2026-11-01; doc-only IMPLEMENT, bazą aplikacji jest v1207, bez APK, bez zmian aplikacji
-required_ci: process-docs, shared-tests (JS/JVM/AndroidTest compile/lint + lint-regression), quality-evidence na finalnym SOURCE SHA
-device: NOT_TESTED
-apk: NOT_BUILT - jawny zakres BEZ APK
-completed: V3 na izolowanej gałęzi, wcześniejsze SOURCE i PR CI zielone na c30a21b; wykryto 9 starych workflow podpisujących; w bieżącym zadaniu usunięto ich aktywne definicje i dodano blokującą bramkę testową
-remaining: Weryfikacja CI po cleanup na końcowym SHA, niezależne review wysokiego ryzyka gdy dostępne, oddzielny pomiar pilotażu A/B; brak integracji PR bez zgody
-known_failures: Historyczne F01-F12 wymagają ponownej oceny względem finalnego SHA; pilot A/B pozostaje NOT_MEASURED
-verification: Realny wynik każdego required joba oraz checkout SOURCE ma być sprawdzony na końcowym SHA; nie wyciągaj PASS z tego planowanego checkpointu
-changed_paths:
-  - AGENTS.md i docs/ai/* polityki i bootstrap
-  - docs/AI_HANDOFF.md
-  - scripts/* testy procesu
-  - .github/workflows/ usunięcie 9 historycznych definicji podpisywania APK
-verified_before_push:
-  - Bazowy HEAD v1207 b161b9403425435e106498c382da34b5e3cb3d58 odczytany przez bezpośredni GitHub connector
-  - Plan Work przeanalizował F01-F12 i R01-R48; raport nie jest implementacją
+acceptance_source: Trzeci tryb "Lista mini" z wierszami okolo polowy wysokosci starej listy. Dotychczasowe kafelki i lista niezmienione. Zapis wyboru per profil, zachowaj otwieranie, zaznaczanie, grupy, sort, scroll i filtry.
+completed: Enum COMPACT, wybor 3 widokow w gornym pasku i filtrach, miniatura 62x36dp, tytul i metadane w dwoch liniach, niezmienione gesty. Rozszerzony test repozytorium i kontrakty JS. Bez migracji danych. Aktualizacja 1210 / alpha115-clean, certyfikat i pakiet bez zmian.
+required_ci: process-docs + shared-tests (JS, JVM/Robolectric, AndroidTest compile, lint-regression) + SOURCE quality-evidence na koncowym SHA; osobno PR integration.
+apk: APK_BLOCKED do czasu green SOURCE CI i autoryzowanej owner COMMENT review PR 119.
+remaining: Zielone CI SOURCE/PR i prywatna weryfikacja podpisanego APK v1210, test na telefonie wciaz NOT_TESTED.
+known_failures: SOURCE process-docs run 41549291438 wykryl brak wymaganych pol w krotkim handoff (test check-ai-handoff.test.cjs); uzupełniono kanoniczny checkpoint bez zmiany samego testu.
+verification: CI_PENDING. Pierwszy SOURCE process-docs FAIL (schema handoff), JS PASS; Kotlin, AndroidTest, lint wymagaja finalnego ponownego uruchomienia. Nie traktuj poprzedniego SHA jako CODE_VERIFIED.
 blockers:
-  - Brak lokalnego checkoutu/urządzenia; testy runtime wyłącznie przez CI, brak modelowego replay
-next_action: Zweryfikuj 9 usuniętych historycznych workflow, uruchom wymagane SOURCE i PR CI na końcowym SHA, nie buduj APK
+  - Niezalezny security review historycznego PR 119 nadal nierozstrzygniety.
+  - Test na fizycznym Nothing Phone (1) nie zostal wykonany.
+changed_paths:
+  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchModels.kt
+  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsActivity.kt
+  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsRepositoryTest.kt
+  - app/src/test/js/video-search-neon-redesign.test.cjs
+  - app/src/test/js/release-contract-stage19a.test.cjs
+  - app/src/test/js/update-apk-workflow-scope.test.cjs
+  - app/build.gradle
+  - .github/workflows/apk-release.yml
+  - docs/AI_HANDOFF.md
+  - docs/ai/ERROR_CASES.json
+verified_before_push:
+  - GitHub connector: aktualny branch i AGENTS/handoff z jawnego SHA przed zmianami.
+  - Dotychczasowe tryby TILES i LIST zachowuja pierwotne style, obsluge filmow i profile.
+  - Wersja 1210, arm64-v8a, com.prirai.android.nira.debug; bez zmian certyfikatu.
 evidence_links:
-  - https://github.com/laszko14/nira-browser/commit/b161b9403425435e106498c382da34b5e3cb3d58
-  - https://github.com/laszko14/nira-browser/pull/117
+  - https://github.com/laszko14/nira-browser/pull/119
+  - https://github.com/laszko14/nira-browser/actions/runs/41549291438
+  - https://github.com/laszko14/nira-browser/actions/runs/41549300802
+device: NOT_TESTED
+security: Bez merge, release, force-push, zmiany certyfikatu, usuwania profili. GitHub bez TinyFish.
+next_action: Po push zweryfikuj 6 SOURCE gates i PR tests; napraw FAIL i zapisz nowe bledy do ERROR_CASES. Po green dla final SHA i autoryzacji buduj podpisany prywatny arm64 APK 1210.
 ```

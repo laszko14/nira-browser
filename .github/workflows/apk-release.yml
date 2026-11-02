@@ -71,8 +71,8 @@ jobs:
       actions: read
     env:
       EXPECTED_PACKAGE: com.prirai.android.nira.debug
-      EXPECTED_VERSION_CODE: "1207"
-      EXPECTED_VERSION_NAME: 0.5.22-alpha112-clean
+      EXPECTED_VERSION_CODE: "1210"
+      EXPECTED_VERSION_NAME: 0.5.22-alpha115-clean
       EXPECTED_CERT_SHA256: df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
 
     steps:
@@ -174,7 +174,7 @@ jobs:
       - name: Upload only arm64 debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: zavro-arm64-update-apk-v1207
+          name: zavro-arm64-update-apk-v1210
           path: app/build/outputs/apk/debug/*arm64-v8a*.apk
           if-no-files-found: error
           retention-days: 30
@@ -186,6 +186,31 @@ jobs:
     uses: ./.github/workflows/zavro-tests-reusable.yml
     permissions:
       contents: read
+
+
+  error-learning-evidence:
+    if: always() && github.event_name != 'pull_request_review'
+    needs: regression-tests
+    name: Error learning evidence (NO APK)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Capture completed PR / dispatch regression failures
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: node scripts/capture-ci-errors.cjs "$GITHUB_RUN_ID" "$SOURCE_HEAD_SHA" "$RUNNER_TEMP/v31-ci-errors.json"
+      - name: Upload V3.1 CI failure metadata (NO APK)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v31-ci-errors-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/v31-ci-errors.json
+          retention-days: 30
+          if-no-files-found: error
 
   release:
     needs: regression-tests

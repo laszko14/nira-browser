@@ -48,6 +48,11 @@ class MyVideoSitesDialogRegressionTest {
             it.hint?.toString() == "Fraza do wyszukania na wybranych witrynach"
         }
 
+    private fun queueButton(dialog: AlertDialog, tag: String): Button =
+        descendants(dialog.window!!.decorView).filterIsInstance<Button>().single {
+            it.tag == tag
+        }
+
     @Test fun invalidQueuePhraseNeverDismissesAndCanBeEditedAgain() {
         val manager = ProfileManager.getInstance(RuntimeEnvironment.getApplication())
         manager.setPrivateMode(false)
@@ -56,16 +61,16 @@ class MyVideoSitesDialogRegressionTest {
             val d = queueDialog(c.get())
             val field = queueInput(d)
             field.setText("  ")
-            d.getButton(AlertDialog.BUTTON_NEUTRAL).performClick()
+            queueButton(d, "video-queue-start").performClick()
             assertTrue("execution validation must leave dialog open", d.isShowing)
             assertNotNull("invalid execution shows field-level error", field.error)
             field.setText("")
-            d.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+            queueButton(d, "video-queue-show-plan").performClick()
             assertTrue("preview validation must leave dialog open", d.isShowing)
             assertNotNull(field.error)
             assertTrue("button should not become stuck disabled",
-                d.getButton(AlertDialog.BUTTON_NEUTRAL).isEnabled)
-            assertTrue(d.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled)
+                queueButton(d, "video-queue-start").isEnabled)
+            assertTrue(queueButton(d, "video-queue-show-plan").isEnabled)
         } finally {c.pause().stop().destroy()}
     }
 
@@ -85,8 +90,8 @@ class MyVideoSitesDialogRegressionTest {
             assertNotNull(dialog)
             assertTrue(dialog.isShowing)
             assertEquals(phrase, queueInput(dialog).text.toString())
-            assertTrue(dialog.getButton(AlertDialog.BUTTON_NEUTRAL).isEnabled)
-            assertTrue(dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled)
+            assertTrue(queueButton(dialog, "video-queue-start").isEnabled)
+            assertTrue(queueButton(dialog, "video-queue-show-plan").isEnabled)
         } finally {restored.pause().stop().destroy()}
     }
 

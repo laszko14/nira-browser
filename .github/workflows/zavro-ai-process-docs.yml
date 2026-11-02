@@ -26,6 +26,8 @@ jobs:
       - name: Prove checkout equals source event SHA
         shell: bash
         run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: Verify V3.2 checkout, branch and scoped sources (NO APK)
+        run: node scripts/ai-preflight.cjs --ci "$GITHUB_REF_NAME" "$GITHUB_SHA" CI_TOOLING
       - name: Validate byte-perfect archive and restartable checkpoint (no app build)
         run: node --test scripts/check-ai-handoff.test.cjs
       - name: Verify workflow safety and trigger contract
@@ -38,6 +40,12 @@ jobs:
         run: node --test scripts/ci-run-receipt.test.cjs
       - name: Validate stage 9 pilot baseline and non-fabricating metrics (offline)
         run: node --test scripts/ai-pilot-metrics.test.cjs
+      - name: Validate V3.2 preflight and project source integrity (negative tests)
+        run: node --test scripts/ai-preflight.test.cjs scripts/project-sources.test.cjs
+      - name: Validate V3.1 persistent error learning and negative tests
+        run: |
+          node --test scripts/error-learning.test.cjs
+          node scripts/error-learning.cjs validate
       - name: Audit all workflow triggers and scopes
         run: node scripts/ci-workflow-inventory.cjs
       - name: Check changes for whitespace errors
@@ -81,8 +89,22 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v4
+      - name: Capture completed SOURCE CI job errors without write access
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/capture-ci-errors.cjs "$GITHUB_RUN_ID" "$GITHUB_SHA" "$RUNNER_TEMP/v31-ci-errors.json"
+      - name: Upload V3.1 CI evidence (NO APK, no repository mutation)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v31-ci-errors-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/v31-ci-errors.json
+          retention-days: 30
+          if-no-files-found: error
       - name: Check required results and publish run SHA / attempt summary
         env:
           DOCS_RESULT: ${{ needs.process-docs.result }}

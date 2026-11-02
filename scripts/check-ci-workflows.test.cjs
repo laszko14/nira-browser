@@ -80,6 +80,17 @@ test('process branch calls exactly the shared tests and keeps its safe doc gate'
   assert.match(process,/node --test scripts\/check-ai-handoff\.test\.cjs/);
   assert.doesNotMatch(process,/gradlew|secrets\.|\bassembleDebug\b/);
 });
+test('V3.1 SOURCE and PR capture uses read-only actions permission without signing',()=>{
+  assert.match(process,/node scripts\/capture-ci-errors\.cjs/);
+  assert.match(process,/node --test scripts\/error-learning\.test\.cjs/);
+  assert.match(process,/v31-ci-errors-/);
+  assert.match(main,/^  error-learning-evidence:/m);
+  assert.match(main,/if: always\(\) && github\.event_name != 'pull_request_review'/);
+  assert.match(main,/SOURCE_HEAD_SHA:/);
+  const collector=main.split(/^  error-learning-evidence:/m)[1].split(/^  release:/m)[0];
+  assert.match(collector,/actions: read/);
+  assert.doesNotMatch(collector,/secrets\.|assembleDebug|assembleRelease|contents: write/);
+});
 test('only exact owner-review workflow can access signing or assemble Android APK',()=>{
   const all=inventory();
   assert.ok(all.length>=60,'historical source-only checks are preserved');

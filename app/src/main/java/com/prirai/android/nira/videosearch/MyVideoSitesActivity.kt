@@ -28,6 +28,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.content.withStyledAttributes
+import androidx.core.graphics.drawable.toDrawable
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ConcatAdapter
@@ -125,7 +126,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(android.graphics.Color.rgb(9, 8, 17))
+            setBackgroundColor(0xff090715.toInt())
         }
         ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
             val safe = insets.getInsets(WindowInsetsCompat.Type.systemBars() or
@@ -141,12 +142,16 @@ class MyVideoSitesActivity : AppCompatActivity() {
             }
             title = "Moje witryny"
             subtitle = "Zavro Clean"
+            setTitleTextColor(android.graphics.Color.WHITE)
+            setSubtitleTextColor(0xffbab4d4.toInt())
+            setBackgroundColor(0xff0f0b20.toInt())
         }
         profileButton = Button(this).apply {
             val active = ProfileManager.getInstance(applicationContext).getActiveProfile()
             text = "${active.emoji}  ${active.name}"
             contentDescription = "Wybierz profil"
             setOnClickListener { chooseSearchProfile() }
+            styleNeonButton(this, height = 40)
         }
         toolbar.addView(profileButton, Toolbar.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -165,7 +170,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
 
         normalPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(12), dp(16), dp(12))
+            setPadding(dp(10), dp(8), dp(10), dp(8))
         }
         privatePanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -212,7 +217,12 @@ class MyVideoSitesActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_VERTICAL
         }
         input = EditText(this).apply {
-            hint = "🔗  Wpisz adres nowej witryny"
+            hint = "🔗  Adres witryny (np. example.org)"
+            setTextColor(android.graphics.Color.WHITE)
+            setHintTextColor(0xffa29ab8.toInt())
+            minHeight = dp(44)
+            setPadding(dp(10), dp(6), dp(10), dp(6))
+            background = neonBackground(false)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
             setSingleLine(true)
         }
@@ -225,31 +235,40 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 intArrayOf(0xff9d46f3.toInt(), 0xff672bd0.toInt())
             ).apply { cornerRadius = dp(16).toFloat() }
             setOnClickListener { addSite() }
+            styleNeonButton(this, accent = true, height = 44)
         }
         inputRow.addView(addButton)
         normalHeader.addView(inputRow)
 
-        selectionInfo = TextView(this).apply { text = "Wybrano 0 witryn"; textSize = 14f }
+        selectionInfo = TextView(this).apply {
+            text = "Wybrano 0 witryn"
+            textSize = 13f
+            setTextColor(0xffe7defa.toInt())
+            setPadding(dp(8), dp(8), dp(8), dp(3))
+        }
         normalHeader.addView(selectionInfo)
         val selectionActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         selectAllButton = Button(this).apply {
-            text = "Zaznacz wszystkie"
+            text = "☑ Wszystkie"
             setOnClickListener { bulkSelection(selectAll = true) }
+            styleNeonButton(this)
         }
         clearButton = Button(this).apply {
-            text = "Odznacz wszystkie"
+            text = "□ Odznacz"
             setOnClickListener { bulkSelection(selectAll = false) }
+            styleNeonButton(this)
         }
         selectionActions.addView(selectAllButton, LinearLayout.LayoutParams(0, -2, 1f))
         selectionActions.addView(clearButton, LinearLayout.LayoutParams(0, -2, 1f))
         normalHeader.addView(selectionActions)
 
         val dispatchControls = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
+            orientation = LinearLayout.VERTICAL
         }
         parallelismButton = Button(this).apply {
-            text = "Równoległość: 1"
+            text = "▱  Równoległość: 1  ⌄"
             setOnClickListener { chooseParallelism() }
+            styleNeonButton(this)
         }
         queuePreviewButton = Button(this).apply {
             text = "Wyszukaj na witrynach"
@@ -260,15 +279,19 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 intArrayOf(0xff18cde0.toInt(), 0xff913bea.toInt())
             ).apply { cornerRadius = dp(18).toFloat() }
             setOnClickListener { previewQueue() }
+            styleNeonButton(this, accent = true, height = 52)
         }
-        dispatchControls.addView(parallelismButton, LinearLayout.LayoutParams(0, -2, 1f))
-        dispatchControls.addView(queuePreviewButton, LinearLayout.LayoutParams(0, -2, 1f))
+        dispatchControls.addView(parallelismButton, LinearLayout.LayoutParams(-1, -2))
         normalHeader.addView(dispatchControls)
         defaultGroupButton = Button(this).apply {
-            text = "Filmy otwieraj: Bez grupy"
+            text = "▱  Filmy otwieraj: Bez grupy  ⌄"
             setOnClickListener { chooseDefaultVideoGroup() }
+            styleNeonButton(this)
         }
         normalHeader.addView(defaultGroupButton)
+        normalHeader.addView(queuePreviewButton, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = dp(5); bottomMargin = dp(5)
+        })
 
         val multiActions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -277,29 +300,33 @@ class MyVideoSitesActivity : AppCompatActivity() {
         }
         multiStatusButton = Button(this).apply {
             text = "⌁\nStatus"
-            minHeight = dp(72)
+            minHeight = dp(62)
+            styleNeonButton(this, height = 62)
             setOnClickListener { showMultiStatus() }
         }
         stopMultiButton = Button(this).apply {
             text = "□\nZatrzymaj"
-            minHeight = dp(72)
+            minHeight = dp(62)
+            styleNeonButton(this, height = 62)
             setOnClickListener { stopMultiSearch() }
         }
-        multiActions.addView(multiStatusButton, LinearLayout.LayoutParams(0, dp(76), 1f))
-        multiActions.addView(stopMultiButton, LinearLayout.LayoutParams(0, dp(76), 1f))
+        multiActions.addView(multiStatusButton, LinearLayout.LayoutParams(0, dp(64), 1f))
+        multiActions.addView(stopMultiButton, LinearLayout.LayoutParams(0, dp(64), 1f))
         normalHeader.addView(multiActions)
         multiHistoryButton = Button(this).apply {
             text = "◷\nHistoria filmów"
-            minHeight = dp(72)
+            minHeight = dp(62)
+            styleNeonButton(this, height = 62)
             setOnClickListener { showMultiHistory() }
         }
         savedFoldersButton = Button(this).apply {
             text = "▱\nFoldery"
-            minHeight = dp(72)
+            minHeight = dp(62)
+            styleNeonButton(this, height = 62)
             setOnClickListener { showSavedFilmFolders() }
         }
-        multiActions.addView(multiHistoryButton, LinearLayout.LayoutParams(0, dp(76), 1f))
-        multiActions.addView(savedFoldersButton, LinearLayout.LayoutParams(0, dp(76), 1f))
+        multiActions.addView(multiHistoryButton, LinearLayout.LayoutParams(0, dp(64), 1f))
+        multiActions.addView(savedFoldersButton, LinearLayout.LayoutParams(0, dp(64), 1f))
         normalHeader.addView(info, LinearLayout.LayoutParams(-1, -2))
 
         normalEmptyState = TextView(this).apply {
@@ -1157,28 +1184,31 @@ class MyVideoSitesActivity : AppCompatActivity() {
      */
     private fun previewQueue(initialPhrase: String = "") {
         val owner = ownerIfCurrent() ?: return
-        val field = EditText(this).apply {
-            hint = "Fraza do wyszukania na wybranych witrynach"
-            setSingleLine(true)
-            inputType = InputType.TYPE_CLASS_TEXT
-            setText(initialPhrase)
-            isSaveEnabled = false
-        }
+        val ui = VideoSearchQueueDialogUi.create(this, initialPhrase)
+        val field = ui.phrase
         val dialog = MaterialAlertDialogBuilder(this)
-            .setTitle("Podgląd kolejki witryn")
-            .setView(field)
-            .setNegativeButton("Anuluj", null)
-            .setNeutralButton("Uruchom wyszukiwanie", null)
-            .setPositiveButton("Pokaż plan", null)
+            .setView(ui.view)
             .create()
         trackNormalDialog(dialog) {
             VideoSearchNormalDialogDraft(owner.profileId,
                 VideoSearchNormalDialogKind.QUEUE, primary = field.text.toString())
         }
         dialog.show()
+        // Only the queue dialog is custom. Preserve the normal draft/owner lifecycle.
+        dialog.window?.apply {
+            setBackgroundDrawable(android.graphics.Color.TRANSPARENT.toDrawable())
+            setLayout(
+                minOf(resources.displayMetrics.widthPixels - dp(24), dp(440)),
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            )
+            setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
+                android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)
+        }
+        ui.view.requestFocus()
+        ui.cancel.setOnClickListener { dialog.dismiss() }
         run {
-            val preview = dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)
-            val execute = dialog.getButton(android.app.AlertDialog.BUTTON_NEUTRAL)
+            val preview = ui.showPlan
+            val execute = ui.start
             var busy = false
             fun lock(value: Boolean) {
                 busy = value
@@ -2099,6 +2129,26 @@ class MyVideoSitesActivity : AppCompatActivity() {
 
     private fun dp(px: Int) = (px * resources.displayMetrics.density).toInt()
 
+    private fun neonBackground(accent: Boolean): android.graphics.drawable.GradientDrawable =
+        android.graphics.drawable.GradientDrawable(
+            android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
+            if (accent) intArrayOf(0xff04c4f5.toInt(), 0xff243bf1.toInt(), 0xffa419f5.toInt())
+            else intArrayOf(0xff201b35.toInt(), 0xff100f22.toInt())
+        ).apply {
+            cornerRadius = dp(13).toFloat()
+            setStroke(dp(1).coerceAtLeast(1), 0xff70549e.toInt())
+        }
+
+    private fun styleNeonButton(button: Button, accent: Boolean = false, height: Int = 42) {
+        button.isAllCaps = false
+        button.textSize = if (height >= 60) 12f else 13f
+        button.minHeight = dp(height)
+        button.minimumHeight = dp(height)
+        button.setTextColor(android.graphics.Color.WHITE)
+        button.setPadding(dp(8), dp(3), dp(8), dp(3))
+        button.background = neonBackground(accent)
+    }
+
     private class SitesAdapter(
         private val scope: kotlinx.coroutines.CoroutineScope,
         private val onEdit: (VideoSearchSite) -> Unit,
@@ -2199,17 +2249,17 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 setPadding((12 * density).toInt(), (10 * density).toInt(),
                     (12 * density).toInt(), (10 * density).toInt())
                 background = android.graphics.drawable.GradientDrawable().apply {
-                    setColor(android.graphics.Color.rgb(22, 20, 29))
+                    setColor(0xff171328.toInt())
                     cornerRadius = 16 * density
                     setStroke((1 * density).toInt().coerceAtLeast(1),
-                        android.graphics.Color.rgb(65, 57, 79))
+                        0xff695285.toInt())
                 }
             }
             val first = LinearLayout(ctx).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
                 tag = "video-site-header"
-                minimumHeight = (48 * density).toInt()
+                minimumHeight = (44 * density).toInt()
             }
             val grip = TextView(ctx).apply {
                 text = "⠿"
@@ -2230,10 +2280,14 @@ class MyVideoSitesActivity : AppCompatActivity() {
             }
             val heading = TextView(ctx).apply {
                 textSize = 17f
-                setTextColor(android.graphics.Color.rgb(208, 181, 255))
+                setTextColor(android.graphics.Color.WHITE)
                 setPadding(0, 0, (8 * density).toInt(), 0)
             }
-            val toggle = SwitchCompat(ctx).apply { text = "Aktywna" }
+            val toggle = SwitchCompat(ctx).apply {
+                text = ""
+                showText = false
+                thumbTintList = android.content.res.ColorStateList.valueOf(0xffdffaff.toInt())
+            }
             val chevron = TextView(ctx).apply {
                 text = "⌄"
                 textSize = 20f
@@ -2251,7 +2305,10 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 maxLines = 3
                 setTextColor(android.graphics.Color.rgb(201, 192, 210))
             }
-            val select = CheckBox(ctx).apply { text = "Uwzględnij w wyszukiwaniu" }
+            val select = CheckBox(ctx).apply {
+                text = "Uwzględnij w wyszukiwaniu"
+                setTextColor(android.graphics.Color.WHITE)
+            }
             val actions = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
             val firstActions = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
             val crawlActions = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
@@ -2264,6 +2321,16 @@ class MyVideoSitesActivity : AppCompatActivity() {
             val showCrawl = Button(ctx).apply { text = "Zebrane" }
             val search = Button(ctx).apply { text = "Szukaj" }
             val delete = Button(ctx).apply { text = "Usuń" }
+            listOf(edit, inspect, check, manual, preview, crawl, showCrawl, search, delete).forEach { button ->
+                button.isAllCaps = false
+                button.textSize = 12f
+                button.setTextColor(android.graphics.Color.WHITE)
+                button.background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(0xff272039.toInt())
+                    cornerRadius = 10 * density
+                    setStroke((1 * density).toInt().coerceAtLeast(1), 0xff61427e.toInt())
+                }
+            }
             firstActions.addView(inspect, LinearLayout.LayoutParams(0, -2, 1f))
             firstActions.addView(check, LinearLayout.LayoutParams(0, -2, 1f))
             firstActions.addView(manual, LinearLayout.LayoutParams(0, -2, 1f))
@@ -2273,7 +2340,14 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 val header = Button(ctx).apply {
                     text = "$label  ▾"
                     textSize = 12f
-                    minHeight = (42 * density).toInt()
+                    minHeight = (38 * density).toInt()
+                    isAllCaps = false
+                    setTextColor(android.graphics.Color.WHITE)
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        setColor(0xff201a33.toInt())
+                        cornerRadius = 12 * density
+                        setStroke((1 * density).toInt().coerceAtLeast(1), 0xff61427e.toInt())
+                    }
                     setPadding((8 * density).toInt(), 0, (8 * density).toInt(), 0)
                 }
                 body.visibility = View.GONE
@@ -2349,7 +2423,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
             }
             holder.itemView.layoutParams = RecyclerView.LayoutParams(-1, -2).apply {
                 val margin = (5 * holder.itemView.resources.displayMetrics.density).toInt()
-                setMargins(margin, margin, margin, margin)
+                setMargins(margin, (3 * holder.itemView.resources.displayMetrics.density).toInt(),
+                    margin, (3 * holder.itemView.resources.displayMetrics.density).toInt())
             }
             val openGroup = expandedActionBySite[site.id]
             holder.actionGroups.forEachIndexed { index, (header, body) ->

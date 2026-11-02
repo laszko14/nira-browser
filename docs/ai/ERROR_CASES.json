@@ -1,0 +1,625 @@
+{
+  "schema": "zavro.error-learning/1",
+  "coverage": [
+    {
+      "task_id": "ZC-V31-ERROR-LEARNING",
+      "observed_count": 3,
+      "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V32-PREFLIGHT-SOURCES",
+      "observed_count": 2,
+      "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V32-CI-CAPTURE-FIDELITY",
+      "observed_count": 1,
+      "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V32-CHAT-ERROR-SMOKE",
+      "observed_count": 1,
+      "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V1208-NEON-REDESIGN",
+      "observed_count": 5,
+      "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "observed_count": 16,
+      "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V1210-RESULTS-MINI-LIST",
+      "observed_count": 1,
+      "state": "ACTIVE"
+    }
+  ],
+  "events": [
+    {
+      "id": "ERR-20261101-0001",
+      "task_id": "ZC-V31-ERROR-LEARNING",
+      "kind": "USER_REPORT",
+      "fingerprint": "incomplete-error-capture",
+      "summary": "Użytkownik zgłosił brak wielu zapisów błędów (szacunkowo 2 z 10); nie ma danych do odtworzenia pozostałych przypadków.",
+      "source_sha": "7ea23d0de749a59f322d1735f12507b218b3c725",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "workflow",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "scripts/error-learning.test.cjs",
+      "evidence_links": []
+    },
+    {
+      "id": "CI-41334916448-1-124932586787",
+      "task_id": "ZC-V31-ERROR-LEARNING",
+      "kind": "CI_FAILURE",
+      "fingerprint": "v31-capture-note-test-assertion",
+      "summary": "Pierwszy SOURCE CI V3.1: test błędnie traktował niesekretne słowo secrets w opisie raportu jako wyciek danych.",
+      "source_sha": "0821b3aa06d45f41c47ee9a1c99fd0ea895b47b2",
+      "observed_at": "2026-11-01T18:07:13Z",
+      "run_id": 41334916448,
+      "job_id": 124932586787,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "1d96a645469a2b923ba382b4ce283faf4ba2fd11",
+      "regression_test": "scripts/error-learning.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41334916448"
+      ]
+    },
+    {
+      "id": "CI-41335018971-1-124933016011",
+      "task_id": "ZC-V31-ERROR-LEARNING",
+      "kind": "CI_FAILURE",
+      "fingerprint": "v31-static-test-fixture",
+      "summary": "Drugi SOURCE CI V3.1: test rejestru miał stały licznik jednego wpisu, chociaż wcześniejszy błąd został już trwale zapisany.",
+      "source_sha": "1d96a645469a2b923ba382b4ce283faf4ba2fd11",
+      "observed_at": "2026-11-01T18:08:45Z",
+      "run_id": 41335018971,
+      "job_id": 124933016011,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "75d59b0ba47269b84e4e027556fd59dcbee66287",
+      "regression_test": "scripts/error-learning.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41335018971",
+        "https://github.com/laszko14/nira-browser/commit/75d59b0ba47269b84e4e027556fd59dcbee66287",
+        "https://github.com/laszko14/nira-browser/actions/runs/41335154679"
+      ]
+    },
+    {
+      "id": "CI-41337049270-1-124938975803",
+      "task_id": "ZC-V32-PREFLIGHT-SOURCES",
+      "kind": "CI_FAILURE",
+      "fingerprint": "v32-project-sources-missing-github-reference",
+      "summary": "Pierwszy SOURCE CI V3.2: statyczny plik ZAVRO_FUNKCJE.md nie wymienia GitHub, choć kontrakt wymaga jawnego wskazania bieżącego źródła.",
+      "source_sha": "0e8081c672b7260eb86b254771f6f768617bbcc0",
+      "observed_at": "2026-11-01T18:31:30Z",
+      "run_id": 41337049270,
+      "job_id": 124938975803,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "0138e1e73de2b3fd4677a774e6adea0cd608b717",
+      "regression_test": "scripts/project-sources.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41337049270",
+        "https://github.com/laszko14/nira-browser/commit/0138e1e73de2b3fd4677a774e6adea0cd608b717",
+        "https://github.com/laszko14/nira-browser/actions/runs/41337335979"
+      ]
+    },
+    {
+      "id": "CI-41337163423-1-124939468643",
+      "task_id": "ZC-V32-PREFLIGHT-SOURCES",
+      "kind": "CI_FAILURE",
+      "fingerprint": "v32-v31-registry-test-fixture-cross-task",
+      "summary": "SOURCE CI V3.2: test V3.1 zachował coverage nowego zadania przy ograniczeniu eventów do pierwszego przypadku, co fałszywie łamało kontrolę zgodności.",
+      "source_sha": "0138e1e73de2b3fd4677a774e6adea0cd608b717",
+      "observed_at": "2026-11-01T18:33:22Z",
+      "run_id": 41337163423,
+      "job_id": 124939468643,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "5458e884ebb5b135db1caa7f2f3f7a0f4ddfe43c",
+      "regression_test": "scripts/error-learning.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41337163423",
+        "https://github.com/laszko14/nira-browser/commit/5458e884ebb5b135db1caa7f2f3f7a0f4ddfe43c",
+        "https://github.com/laszko14/nira-browser/actions/runs/41337335979"
+      ]
+    },
+    {
+      "id": "ERR-20261101-0002",
+      "task_id": "ZC-V32-CI-CAPTURE-FIDELITY",
+      "kind": "REGRESSION",
+      "fingerprint": "v31-cancelled-jobs-misclassified",
+      "summary": "Cztery artefakty V3.1 zawieraja 12 anulowanych jobow z bledna etykieta CI_FAILURE obok 4 rzeczywistych nieudanych testow.",
+      "source_sha": "c387013ea6d4c3199eec896f568184702e9bcad8",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "ccbed9f4c4ffcf7cbaaaa3959ab7079bfc2affbd",
+      "regression_test": "scripts/error-learning.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41334916448",
+        "https://github.com/laszko14/nira-browser/actions/runs/41335018971",
+        "https://github.com/laszko14/nira-browser/actions/runs/41337049270",
+        "https://github.com/laszko14/nira-browser/actions/runs/41337163423"
+      ]
+    },
+    {
+      "id": "ERR-20261101-0003",
+      "task_id": "ZC-V32-CHAT-ERROR-SMOKE",
+      "kind": "REVIEW",
+      "fingerprint": "reviewer-request-without-confirmed-assignment",
+      "summary": "Po próbie zgłoszenia niezależnej recenzji Copilot w PR #119 GitHub nie potwierdził żadnego przypisanego recenzenta ani gotowej recenzji; przyczyna nieustalona.",
+      "source_sha": "c39c4edea3d598e050c134b166b9153a23c57e89",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "undetermined",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/pull/119"
+      ]
+    },
+    {
+      "id": "ERR-20261101-0004",
+      "task_id": "ZC-V1208-NEON-REDESIGN",
+      "kind": "USER_REPORT",
+      "fingerprint": "video-search-redesign-unreadable-oversized-ui",
+      "summary": "Uzytkownik zglosil, ze poprzednie przeprojektowanie Moje witryny i Wyniki filmow zepsulo czytelnosc i uklad; zalaczone zrzuty pokazaly czarny tekst na ciemnym tle, zbyt duze przyciski i zajmujace ekran filtry.",
+      "source_sha": "4d7191ae288246ea3d4348eebabfb5f49a3a5149",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/video-search-neon-redesign.test.cjs",
+      "evidence_links": []
+    },
+    {
+      "id": "CI-41346184372-1-124966435012",
+      "task_id": "ZC-V1208-NEON-REDESIGN",
+      "kind": "CI_FAILURE",
+      "fingerprint": "v1208-stale-apk-workflow-metadata",
+      "summary": "Pierwszy SOURCE CI po podniesieniu Gradle do v1208: 12 testow JS odrzucilo niezsynchronizowane v1207 w kontrakcie prywatnego APK i fixture negatywnej; poprawiono oczekiwania bez oslabiania walidatora.",
+      "source_sha": "088957cda4c1534a9a2bc7cd8e8563e41af85e70",
+      "observed_at": "2026-11-01T20:18:55Z",
+      "run_id": 41346184372,
+      "job_id": 124966435012,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "64613c3c8ab5ce2c12e655c9eba8ddbab2a63f39",
+      "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41346184372"
+      ]
+    },
+    {
+      "id": "CI-41346404329-1-124967036250",
+      "task_id": "ZC-V1208-NEON-REDESIGN",
+      "kind": "CI_FAILURE",
+      "fingerprint": "v1208-negative-control-stale-fixture",
+      "summary": "SOURCE CI 41346404329: test negatywny aktualizacji nadal zmienial stary literal v1207, przez co nie generowal zlego wariantu; odnowiono tylko wejscie wariantu negatywnego dla v1208.",
+      "source_sha": "63f8d01294b5f94d0e01d67e90eefb49474cdfd9",
+      "observed_at": "2026-11-01T20:21:13Z",
+      "run_id": 41346404329,
+      "job_id": 124967036250,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "37bd7e03083c99c3d66d6ae23ad6b2dfc8d05805",
+      "regression_test": "app/src/test/js/update-apk-workflow-scope.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41346404329"
+      ]
+    },
+    {
+      "id": "ERR-20261101-0005",
+      "task_id": "ZC-V1208-NEON-REDESIGN",
+      "kind": "CI_FAILURE",
+      "fingerprint": "neon-test-incorrect-callback-spelling",
+      "summary": "SOURCE CI 41346404329: nowy test UI zakladal bezposrednie wywolanie inspectSite(it), podczas gdy produkcja zachowuje poprawne przekazanie referencji onInspect = ::inspectSite; skorygowano asercje bez zmiany aplikacji.",
+      "source_sha": "63f8d01294b5f94d0e01d67e90eefb49474cdfd9",
+      "observed_at": "2026-11-01T20:21:13Z",
+      "run_id": 41346404329,
+      "job_id": 124967036250,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "867d6e3f418cc852d0097a5ed59d3548005bf16b",
+      "regression_test": "app/src/test/js/video-search-neon-redesign.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41346404329"
+      ]
+    },
+    {
+      "id": "CI-41346783332-1-124968367788",
+      "task_id": "ZC-V1208-NEON-REDESIGN",
+      "kind": "CI_FAILURE",
+      "fingerprint": "v1208-address-hint-robolectric-fixture",
+      "summary": "SOURCE CI 41346783332: 1425 testow JVM, 1 test MyVideoSitesLayoutTest.addressAndAddAreFullyVisibleBelowTheToolbarAtEntry uzywal starego hintu pola adresu; nowy neonowy wyglad zmienil widoczny placeholder. Fixture zaktualizowana do nowego hintu bez oslabiania asercji widocznosci i geometrii.",
+      "source_sha": "142f85e57367b587532abd7539b2b40e6f9e7e55",
+      "observed_at": "2026-11-01T20:30:44Z",
+      "run_id": 41346783332,
+      "job_id": 124968367788,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "be14ead1fb3a4c753222d295d1814ebc28a12608",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/MyVideoSitesLayoutTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41346783332"
+      ]
+    },
+    {
+      "id": "ERR-20261102-0001",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "USER_REPORT",
+      "fingerprint": "queue-preview-native-gray-dialog-after-neon-ui",
+      "summary": "Po instalacji v1208 uzytkownik pokazal szare systemowe okno Podglad kolejki witryn zamiast zatwierdzonego neonowego wzoru; inne ekrany uznal za poprawne. Przyczyna: previewQueue uzywa standardowych setTitle/setView(EditText)/set...Button w MaterialAlertDialogBuilder, ktore ignorowaly wzor UI.",
+      "source_sha": "eef2c439290e9ce08118d1a192edf7db486cc16b",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
+      "evidence_links": []
+    },
+    {
+      "id": "CI-41535669908-1-125586730519",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "v1209-versioncode-static-test-fixture",
+      "summary": "PR CI po podbiciu build.gradle do 1209 zawiodlo jeden test JS neonowego UI: /versionCode = 208/ w teście nie zostalo zsynchronizowane; zmieniono na 209 bez oslabienia wymagan podpisu.",
+      "source_sha": "1e7be3c68971dde584b21d755273b8e8d844e0b0",
+      "observed_at": "2026-11-02T22:15:30Z",
+      "run_id": 41535669908,
+      "job_id": 125586730519,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "69f833f68ecd0f1dc1b6fa9d41c36499c77f6dea",
+      "regression_test": "app/src/test/js/video-search-neon-redesign.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41535669908"
+      ]
+    },
+    {
+      "id": "CI-41535972657-1-125588178983",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "queue-dialog-scrollview-layoutparams-unresolved-reference",
+      "summary": "SOURCE JVM: Kotlin compileDebugKotlin cannot resolve ScrollView.LayoutParams at VideoSearchQueueDialogUi.kt:168, before job-specific test stage. Replaced with FrameLayout.LayoutParams, keeping dialog geometry and callbacks unchanged.",
+      "source_sha": "45dfa0f125f812da700af816e3669ecad67e39b5",
+      "observed_at": null,
+      "run_id": 41535972657,
+      "job_id": 125588178983,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "8506efed9e9573611467bb1ad8cf6f8ace02ed83",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41535972657"
+      ]
+    },
+    {
+      "id": "CI-41535972657-1-125588179140",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "queue-dialog-scrollview-layoutparams-unresolved-reference",
+      "summary": "SOURCE AndroidTest compile: Kotlin compileDebugKotlin cannot resolve ScrollView.LayoutParams at VideoSearchQueueDialogUi.kt:168, before job-specific test stage. Replaced with FrameLayout.LayoutParams, keeping dialog geometry and callbacks unchanged.",
+      "source_sha": "45dfa0f125f812da700af816e3669ecad67e39b5",
+      "observed_at": null,
+      "run_id": 41535972657,
+      "job_id": 125588179140,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-41535972657-1-125588178983",
+      "fix_sha": "8506efed9e9573611467bb1ad8cf6f8ace02ed83",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41535972657"
+      ]
+    },
+    {
+      "id": "CI-41535972657-1-125588179149",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "queue-dialog-scrollview-layoutparams-unresolved-reference",
+      "summary": "SOURCE lint: Kotlin compileDebugKotlin cannot resolve ScrollView.LayoutParams at VideoSearchQueueDialogUi.kt:168, before job-specific test stage. Replaced with FrameLayout.LayoutParams, keeping dialog geometry and callbacks unchanged.",
+      "source_sha": "45dfa0f125f812da700af816e3669ecad67e39b5",
+      "observed_at": null,
+      "run_id": 41535972657,
+      "job_id": 125588179149,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-41535972657-1-125588178983",
+      "fix_sha": "8506efed9e9573611467bb1ad8cf6f8ace02ed83",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41535972657"
+      ]
+    },
+    {
+      "id": "CI-41535985531-1-125587894526",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "queue-dialog-scrollview-layoutparams-unresolved-reference",
+      "summary": "PR JVM: Kotlin compileDebugKotlin cannot resolve ScrollView.LayoutParams at VideoSearchQueueDialogUi.kt:168, before job-specific test stage. Replaced with FrameLayout.LayoutParams, keeping dialog geometry and callbacks unchanged.",
+      "source_sha": "45dfa0f125f812da700af816e3669ecad67e39b5",
+      "observed_at": null,
+      "run_id": 41535985531,
+      "job_id": 125587894526,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-41535972657-1-125588178983",
+      "fix_sha": "8506efed9e9573611467bb1ad8cf6f8ace02ed83",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41535985531"
+      ]
+    },
+    {
+      "id": "CI-41535985531-1-125587894538",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "queue-dialog-scrollview-layoutparams-unresolved-reference",
+      "summary": "PR AndroidTest compile: Kotlin compileDebugKotlin cannot resolve ScrollView.LayoutParams at VideoSearchQueueDialogUi.kt:168, before job-specific test stage. Replaced with FrameLayout.LayoutParams, keeping dialog geometry and callbacks unchanged.",
+      "source_sha": "45dfa0f125f812da700af816e3669ecad67e39b5",
+      "observed_at": null,
+      "run_id": 41535985531,
+      "job_id": 125587894538,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-41535972657-1-125588178983",
+      "fix_sha": "8506efed9e9573611467bb1ad8cf6f8ace02ed83",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41535985531"
+      ]
+    },
+    {
+      "id": "CI-41535985531-1-125587894615",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "queue-dialog-scrollview-layoutparams-unresolved-reference",
+      "summary": "PR lint: Kotlin compileDebugKotlin cannot resolve ScrollView.LayoutParams at VideoSearchQueueDialogUi.kt:168, before job-specific test stage. Replaced with FrameLayout.LayoutParams, keeping dialog geometry and callbacks unchanged.",
+      "source_sha": "45dfa0f125f812da700af816e3669ecad67e39b5",
+      "observed_at": null,
+      "run_id": 41535985531,
+      "job_id": 125587894615,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-41535972657-1-125588178983",
+      "fix_sha": "8506efed9e9573611467bb1ad8cf6f8ace02ed83",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41535985531"
+      ]
+    },
+    {
+      "id": "CI-41536879882-1-125590976456",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "robolectric-test-getapplication-nongeneric",
+      "summary": "PR JVM Kotlin test compilation rejected RuntimeEnvironment.getApplication<Application>() in new VideoSearchQueueDialogUiTest (no type arguments accepted); fixed test to non-generic getApplication() without changing the visual component or assertions.",
+      "source_sha": "3d9f6449b57704ab8147f9e075ddd6bf1225eb56",
+      "observed_at": "2026-11-02T22:27:09Z",
+      "run_id": 41536879882,
+      "job_id": 125590976456,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "f1be27e32762dabd2b6cf151bbd535d013f79ed5",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41536879882"
+      ]
+    },
+    {
+      "id": "CI-41537572431-1-125593311107",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "queue-preview-robolectric-legacy-system-button-reference",
+      "summary": "PR JVM: Old MyVideoSitesDialogRegressionTest accessed AlertDialog.BUTTON_NEUTRAL/POSITIVE after migration to tagged custom neon buttons. Fixed test locators to real controls; preserved invalid-phrase validation, non-dismissal, enabled state and rotation checks.",
+      "source_sha": "57757838d51b3d69d9573ba07f5ff70c7b01674d",
+      "observed_at": null,
+      "run_id": 41537572431,
+      "job_id": 125593311107,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "09749f8b4a27f55d9d83b2f592a4f12900eef0e3",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/MyVideoSitesDialogRegressionTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41537572431"
+      ]
+    },
+    {
+      "id": "CI-41537564625-1-125593767099",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "queue-preview-robolectric-legacy-system-button-reference",
+      "summary": "SOURCE JVM: Old MyVideoSitesDialogRegressionTest accessed AlertDialog.BUTTON_NEUTRAL/POSITIVE after migration to tagged custom neon buttons. Fixed test locators to real controls; preserved invalid-phrase validation, non-dismissal, enabled state and rotation checks.",
+      "source_sha": "57757838d51b3d69d9573ba07f5ff70c7b01674d",
+      "observed_at": null,
+      "run_id": 41537564625,
+      "job_id": 125593767099,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": "CI-41537572431-1-125593311107",
+      "fix_sha": "09749f8b4a27f55d9d83b2f592a4f12900eef0e3",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/MyVideoSitesDialogRegressionTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41537564625"
+      ]
+    },
+    {
+      "id": "CI-41538591682-1-125597736578",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "v1209-error-learning-summary-over-320-chars",
+      "summary": "SOURCE process-docs canonical registry test failed: two CI descriptions were 328 and 332 chars (allowed up to 320). Shortened both summaries without removing root cause, evidence or regression criteria.",
+      "source_sha": "c8ec296bd2334f7860dbc8b294c4629ec67479aa",
+      "observed_at": "2026-11-02T22:38:08Z",
+      "run_id": 41538591682,
+      "job_id": 125597736578,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "e89a9c68878440edbb3d7e56bcd195999fbf3575",
+      "regression_test": "scripts/error-learning.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41538591682"
+      ]
+    },
+    {
+      "id": "CI-41539774510-1-125600952193",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "queue-preview-title-missingtranslation",
+      "summary": "SOURCE lint regression detected one new MissingTranslation on queue dialog title resource in strings.xml; preserve the Polish-only custom dialog by declaring its fixed label non-translatable.",
+      "source_sha": "7a9e4bf2a25de0f3e3d5f7cade8e439d02471105",
+      "observed_at": "2026-11-02T22:51:41Z",
+      "run_id": 41539774510,
+      "job_id": 125600952193,
+      "attempt": 1,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "scripts/lint-regression.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41539774510"
+      ]
+    },
+    {
+      "id": "CI-41539785113-1-125600844250",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "queue-preview-title-missingtranslation",
+      "summary": "PR integration lint independently detected the same new MissingTranslation on the custom queue title; same root cause and targeted resource fix as SOURCE lint.",
+      "source_sha": "7a9e4bf2a25de0f3e3d5f7cade8e439d02471105",
+      "observed_at": "2026-11-02T22:50:02Z",
+      "run_id": 41539785113,
+      "job_id": 125600844250,
+      "attempt": 1,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": "CI-41539774510-1-125600952193",
+      "fix_sha": null,
+      "regression_test": "scripts/lint-regression.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41539785113"
+      ]
+    },
+    {
+      "id": "CI-41539785113-1-125600843928",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "pr-robolectric-maven-artifact-fetcher-network",
+      "summary": "PR merge-ref JVM suite had 86 classMethod failures from Robolectric MavenArtifactFetcher HTTP IOException while SOURCE JVM passed on the same head. Network-dependent test resolution to recheck.",
+      "source_sha": "7a9e4bf2a25de0f3e3d5f7cade8e439d02471105",
+      "observed_at": "2026-11-02T22:47:53Z",
+      "run_id": 41539785113,
+      "job_id": 125600843928,
+      "attempt": 1,
+      "cause": "environment",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41539785113"
+      ]
+    },
+    {
+      "id": "CI-41539774510-1-125604090696",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "source-evidence-dependent-lint-failure",
+      "summary": "SOURCE quality-evidence gate reported FAIL because upstream lint regression failed; no separate application defect found in the summary job. Recheck after correcting lint on new source SHA.",
+      "source_sha": "7a9e4bf2a25de0f3e3d5f7cade8e439d02471105",
+      "observed_at": null,
+      "run_id": 41539774510,
+      "job_id": 125604090696,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "scripts/ci-run-receipt.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41539774510"
+      ]
+    },
+    {
+      "id": "CI-41549291438-1-125632527282",
+      "task_id": "ZC-V1210-RESULTS-MINI-LIST",
+      "kind": "CI_FAILURE",
+      "fingerprint": "v1210-handoff-missing-required-resume-fields",
+      "summary": "SOURCE process-docs rejected the new v1210 handoff: mandatory archive reference and restart fields were omitted. Restored the required checkpoint schema instead of weakening the existing validator.",
+      "source_sha": "c6ad64d407278ea833af92cd8ef25b14da008fc5",
+      "observed_at": null,
+      "run_id": 41549291438,
+      "job_id": 125632527282,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41549291438"
+      ]
+    }
+  ]
+}

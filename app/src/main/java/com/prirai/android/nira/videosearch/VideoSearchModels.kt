@@ -67,7 +67,7 @@ internal enum class VideoSearchParallelism(val maximumSites: Int?) {
     ONE(1), TWO(2), THREE(3), FOUR(4), FIVE(5), ALL(null)
 }
 
-internal enum class VideoSearchView { TILES, LIST }
+internal enum class VideoSearchView { TILES, LIST, COMPACT }
 internal enum class VideoSearchSort {
     ORIGINAL, TITLE_A_Z, TITLE_Z_A, DURATION_SHORTEST, DURATION_LONGEST,
     DATE_NEWEST, DATE_OLDEST

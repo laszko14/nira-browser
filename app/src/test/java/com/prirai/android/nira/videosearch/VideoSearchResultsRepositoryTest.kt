@@ -129,6 +129,22 @@ class VideoSearchResultsRepositoryTest {
         } finally { db.close() }
     }
 
+    @Test fun compactViewPersistsAndKeepsProfileSettings() = runBlocking {
+        val db = database()
+        try {
+            val repo = VideoSearchRepository(db.dao())
+            val site = repo.addSite(normal, "https://a.example.org", newId = "a")
+            repo.setSiteSelected(normal, site.id, true)
+            repo.setParallelism(normal, VideoSearchParallelism.FIVE)
+            repo.setResultsView(foreign, VideoSearchView.LIST)
+            repo.setResultsView(normal, VideoSearchView.COMPACT)
+            assertEquals(VideoSearchView.COMPACT, repo.settings(normal).view)
+            assertEquals(setOf("a"), repo.settings(normal).selectedSiteIds)
+            assertEquals(VideoSearchParallelism.FIVE, repo.settings(normal).parallelism)
+            assertEquals(VideoSearchView.LIST, repo.settings(foreign).view)
+        } finally { db.close() }
+    }
+
     @Test fun newProfileViewPreferenceCanBeCreatedWithoutSiteOrRun() = runBlocking {
         val db = database()
         try {
