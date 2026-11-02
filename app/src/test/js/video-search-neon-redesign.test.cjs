@@ -51,8 +51,21 @@ test('both result hosts keep high-contrast dark theme', () => {
 
 test('update remains on same debug package and strictly greater arm64 version', () => {
   const gradle = fs.readFileSync(path.resolve(__dirname, '../../../build.gradle'), 'utf8');
-  assert.match(gradle, /versionCode = 209/);
-  assert.match(gradle, /versionName = "0\.5\.22-alpha114-clean"/);
+  assert.match(gradle, /versionCode = 210/);
+  assert.match(gradle, /versionName = "0\.5\.22-alpha115-clean"/);
   assert.match(gradle, /applicationIdSuffix = '\.debug'/);
   assert.match(gradle, /include\(testAbi \?: 'arm64-v8a'\)/);
+});
+
+test('third view is selectable and mini rows keep both selection and poster', () => {
+  const models = fs.readFileSync(path.join(base, 'VideoSearchModels.kt'), 'utf8');
+  assert.match(models, /VideoSearchView \{ TILES, LIST, COMPACT \}/);
+  assert.match(results, /VideoSearchView\.values\(\)\.forEach/);
+  assert.match(results, /COMPACT -> "Lista mini"/);
+  assert.equal((results.match(/compact = state\.view == VideoSearchView\.COMPACT/g)||[]).length, 2);
+  assert.match(results, /Modifier\.width\(62\.dp\)\.height\(36\.dp\)/);
+  assert.match(results, /Modifier\.width\(116\.dp\)\.height\(70\.dp\)/);
+  assert.match(results, /onLongClick = \{ onLongPress\(film\) \}/);
+  assert.match(results, /onCheckedChange = \{ onToggle\(film\) \}/);
+  assert.match(results, /pendingLayoutSwitch = target to anchor/);
 });

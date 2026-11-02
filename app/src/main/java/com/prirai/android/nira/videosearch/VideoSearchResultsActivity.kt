@@ -399,6 +399,16 @@ internal fun VideoSearchResultsScreen(
         pendingLayoutSwitch = null
     }
 
+    fun selectView(target: VideoSearchView) {
+        if (target == state.view) return
+        val currentIndex = if (state.view == VideoSearchView.TILES)
+            gridState.firstVisibleItemIndex else listState.firstVisibleItemIndex
+        visibleKeys.getOrNull(currentIndex)?.let { anchor ->
+            pendingLayoutSwitch = target to anchor
+        }
+        onViewChange(target)
+    }
+
     Surface(modifier = Modifier.fillMaxSize(), color = Color(0xff090811)) {
         Column(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
             Row(
@@ -444,17 +454,8 @@ internal fun VideoSearchResultsScreen(
                 NeonResultAction("⌕ Filtry",
                     onClick = { controlsCollapsedTouched = true; controlsCollapsed = !controlsCollapsed },
                     modifier = Modifier.weight(2.1f), highlighted = true)
-                NeonResultAction(if (state.view == VideoSearchView.TILES) "☷" else "▦",
-                    onClick = {
-                        val target = if (state.view == VideoSearchView.TILES)
-                            VideoSearchView.LIST else VideoSearchView.TILES
-                        val currentIndex = if (state.view == VideoSearchView.TILES)
-                            gridState.firstVisibleItemIndex else listState.firstVisibleItemIndex
-                        visibleKeys.getOrNull(currentIndex)?.let { anchor ->
-                            pendingLayoutSwitch = target to anchor
-                        }
-                        onViewChange(target)
-                    }, modifier = Modifier.weight(1f))
+                VideoSearchViewPicker(state.view, compactTop = true,
+                    onChoose = ::selectView, modifier = Modifier.weight(1f))
                 NeonResultAction("↕", onClick = {
                     controlsCollapsedTouched = true
                     controlsCollapsed = false
@@ -623,18 +624,8 @@ internal fun VideoSearchResultsScreen(
                         }
                     }
                 }
-                TextButton(onClick = {
-                    val target = if (state.view == VideoSearchView.TILES)
-                        VideoSearchView.LIST else VideoSearchView.TILES
-                    val currentIndex = if (state.view == VideoSearchView.TILES)
-                        gridState.firstVisibleItemIndex else listState.firstVisibleItemIndex
-                    visibleKeys.getOrNull(currentIndex)?.let { anchor ->
-                        pendingLayoutSwitch = target to anchor
-                    }
-                    onViewChange(target)
-                }) {
-                    Text(if (state.view == VideoSearchView.TILES) "Lista" else "Kafelki")
-                }
+                VideoSearchViewPicker(state.view, compactTop = false,
+                    onChoose = ::selectView)
                 Text("${minOf(visibleCount, flatTotal)}/${flatTotal}",
                     style = MaterialTheme.typography.labelSmall)
             }
@@ -816,7 +807,8 @@ internal fun VideoSearchResultsScreen(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 5.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(
+                        if (state.view == VideoSearchView.COMPACT) 2.dp else 6.dp),
                 ) {
                     if (byWebsite) {
                         groups.forEach { group ->
@@ -845,6 +837,7 @@ internal fun VideoSearchResultsScreen(
                                         film, onOpen, onLongPress, selecting = selecting,
                                         selected = VideoSearchBulkSelection.key(film) in selectedKeys,
                                         onToggle = toggleFilm,
+                                        compact = state.view == VideoSearchView.COMPACT,
                                     )
                                 }
                             }
@@ -875,6 +868,7 @@ internal fun VideoSearchResultsScreen(
                                 selected = VideoSearchBulkSelection.key(
                                     visibleResults!!.visibleFilms[index]) in selectedKeys,
                                 onToggle = toggleFilm,
+                                compact = state.view == VideoSearchView.COMPACT,
                             )
                         }
                     }
@@ -911,6 +905,49 @@ internal fun VideoSearchResultsScreen(
                 onBulkAction(selectedFilms.toList(), action, argument)
             },
         )
+    }
+}
+
+@Composable
+private fun VideoSearchViewPicker(
+    view: VideoSearchView,
+    compactTop: Boolean,
+    onChoose: (VideoSearchView) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier) {
+        if (compactTop) {
+            NeonResultAction(
+                when (view) {
+                    VideoSearchView.TILES -> "▦"
+                    VideoSearchView.LIST -> "☷"
+                    VideoSearchView.COMPACT -> "≡"
+                },
+                onClick = { expanded = true },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+            TextButton(onClick = { expanded = true }) {
+                Text("Widok: " + when (view) {
+                    VideoSearchView.TILES -> "Kafelki"
+                    VideoSearchView.LIST -> "Lista"
+                    VideoSearchView.COMPACT -> "Lista mini"
+                })
+            }
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            VideoSearchView.values().forEach { choice ->
+                DropdownMenuItem(
+                    text = { Text(when (choice) {
+                        VideoSearchView.TILES -> "Kafelki"
+                        VideoSearchView.LIST -> "Lista"
+                        VideoSearchView.COMPACT -> "Lista mini"
+                    }) },
+                    onClick = { expanded = false; onChoose(choice) },
+                )
+            }
+        }
     }
 }
 
@@ -987,7 +1024,7 @@ private fun VideoSearchSourceHeader(
 }
 
 @Composable
-private fun FilmPoster(film: VideoSearchFilm, modifier: Modifier = Modifier) {
+private fun FilmPoster(film: VideoSearchFilm, modifier: Modifier = Modifier, showDuration: Boolean = true) {
     Box(modifier.clip(RoundedCornerShape(8.dp)).background(Color(0xff27323d)),
         contentAlignment = Alignment.Center) {
         Icon(Icons.Default.Movie, contentDescription = null,
@@ -999,7 +1036,7 @@ private fun FilmPoster(film: VideoSearchFilm, modifier: Modifier = Modifier) {
                 modifier = Modifier.fillMaxSize(),
             )
         }
-        VideoSearchResultsPresenter.durationLabel(film.durationSeconds)?.let { duration ->
+        if (showDuration) VideoSearchResultsPresenter.durationLabel(film.durationSeconds)?.let { duration ->
             Text(duration,
                 modifier = Modifier.align(Alignment.BottomEnd)
                     .padding(4.dp)
@@ -1056,6 +1093,7 @@ private fun VideoSearchFilmRow(
     selecting: Boolean = false,
     selected: Boolean = false,
     onToggle: (VideoSearchFilm) -> Unit = {},
+    compact: Boolean = false,
 ) {
     Card(modifier = Modifier.fillMaxWidth().combinedClickable(
         onClick = { if (selecting) onToggle(film) else onOpen(film) },
@@ -1066,8 +1104,31 @@ private fun VideoSearchFilmRow(
             contentColor = Color.White),
         border = androidx.compose.foundation.BorderStroke(1.dp,
             if (selected) Color(0xff35d9e2) else Color(0xff634c85))) {
-        Row(Modifier.fillMaxWidth().padding(6.dp),
-            verticalAlignment = Alignment.CenterVertically) {
+        if (compact) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                if (selecting) Checkbox(checked = selected,
+                    onCheckedChange = { onToggle(film) }, modifier = Modifier.size(40.dp))
+                FilmPoster(film, Modifier.width(62.dp).height(36.dp), showDuration = false)
+                Spacer(Modifier.width(6.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(film.originalTitle ?: "Tytuł nieznany",
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        fontWeight = FontWeight.SemiBold, fontSize = 13.sp, lineHeight = 15.sp,
+                        color = Color.White)
+                    val date = film.publishedAtMs?.let {
+                        DateFormat.getDateInstance(DateFormat.SHORT).format(Date(it))
+                    }
+                    val info = listOfNotNull(mergedLabel ?: film.siteName,
+                        VideoSearchResultsPresenter.durationLabel(film.durationSeconds),
+                        date).joinToString(" · ")
+                    Text(info, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        color = Color(0xff9fe9ef), fontSize = 10.sp, lineHeight = 12.sp)
+                }
+            }
+        } else {
+            Row(Modifier.fillMaxWidth().padding(6.dp),
+                verticalAlignment = Alignment.CenterVertically) {
             if (selecting) Checkbox(checked = selected,
                 onCheckedChange = { onToggle(film) })
             FilmPoster(film, Modifier.width(116.dp).height(70.dp))
@@ -1084,6 +1145,7 @@ private fun VideoSearchFilmRow(
                     style = MaterialTheme.typography.labelSmall)
                 FilmPublishedDate(film)
             }
+        }
         }
     }
 }
