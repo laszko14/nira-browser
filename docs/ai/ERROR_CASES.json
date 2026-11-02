@@ -28,7 +28,7 @@
     },
     {
       "task_id": "ZC-V1209-QUEUE-NEON",
-      "observed_count": 8,
+      "observed_count": 9,
       "state": "ACTIVE"
     }
   ],
@@ -434,6 +434,26 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41535985531"
+      ]
+    },
+    {
+      "id": "CI-41536879882-1-125590976456",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "robolectric-test-getapplication-nongeneric",
+      "summary": "PR JVM Kotlin test compilation rejected RuntimeEnvironment.getApplication<Application>() in new VideoSearchQueueDialogUiTest (no type arguments accepted); fixed test to non-generic getApplication() without changing the visual component or assertions.",
+      "source_sha": "3d9f6449b57704ab8147f9e075ddd6bf1225eb56",
+      "observed_at": "2026-11-02T22:27:09Z",
+      "run_id": 41536879882,
+      "job_id": 125590976456,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "f1be27e32762dabd2b6cf151bbd535d013f79ed5",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41536879882"
       ]
     }
   ]
