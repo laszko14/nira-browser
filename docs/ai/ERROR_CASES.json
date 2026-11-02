@@ -25,6 +25,11 @@
       "task_id": "ZC-V1208-NEON-REDESIGN",
       "observed_count": 5,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "observed_count": 1,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -272,6 +277,24 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41346783332"
       ]
+    },
+    {
+      "id": "ERR-20261102-0001",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "USER_REPORT",
+      "fingerprint": "queue-preview-native-gray-dialog-after-neon-ui",
+      "summary": "Po instalacji v1208 uzytkownik pokazal szare systemowe okno Podglad kolejki witryn zamiast zatwierdzonego neonowego wzoru; inne ekrany uznal za poprawne. Przyczyna: previewQueue uzywa standardowych setTitle/setView(EditText)/set...Button w MaterialAlertDialogBuilder, ktore ignorowaly wzor UI.",
+      "source_sha": "eef2c439290e9ce08118d1a192edf7db486cc16b",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
+      "evidence_links": []
     }
   ]
 }
