@@ -28,7 +28,7 @@
     },
     {
       "task_id": "ZC-V1209-QUEUE-NEON",
-      "observed_count": 2,
+      "observed_count": 8,
       "state": "ACTIVE"
     }
   ],
@@ -314,6 +314,126 @@
       "regression_test": "app/src/test/js/video-search-neon-redesign.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41535669908"
+      ]
+    },
+    {
+      "id": "CI-41535972657-1-125588178983",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "queue-dialog-scrollview-layoutparams-unresolved-reference",
+      "summary": "SOURCE JVM: Kotlin compileDebugKotlin cannot resolve ScrollView.LayoutParams at VideoSearchQueueDialogUi.kt:168, before job-specific test stage. Replaced with FrameLayout.LayoutParams, keeping dialog geometry and callbacks unchanged.",
+      "source_sha": "45dfa0f125f812da700af816e3669ecad67e39b5",
+      "observed_at": null,
+      "run_id": 41535972657,
+      "job_id": 125588178983,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "8506efed9e9573611467bb1ad8cf6f8ace02ed83",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41535972657"
+      ]
+    },
+    {
+      "id": "CI-41535972657-1-125588179140",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "queue-dialog-scrollview-layoutparams-unresolved-reference",
+      "summary": "SOURCE AndroidTest compile: Kotlin compileDebugKotlin cannot resolve ScrollView.LayoutParams at VideoSearchQueueDialogUi.kt:168, before job-specific test stage. Replaced with FrameLayout.LayoutParams, keeping dialog geometry and callbacks unchanged.",
+      "source_sha": "45dfa0f125f812da700af816e3669ecad67e39b5",
+      "observed_at": null,
+      "run_id": 41535972657,
+      "job_id": 125588179140,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-41535972657-1-125588178983",
+      "fix_sha": "8506efed9e9573611467bb1ad8cf6f8ace02ed83",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41535972657"
+      ]
+    },
+    {
+      "id": "CI-41535972657-1-125588179149",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "queue-dialog-scrollview-layoutparams-unresolved-reference",
+      "summary": "SOURCE lint: Kotlin compileDebugKotlin cannot resolve ScrollView.LayoutParams at VideoSearchQueueDialogUi.kt:168, before job-specific test stage. Replaced with FrameLayout.LayoutParams, keeping dialog geometry and callbacks unchanged.",
+      "source_sha": "45dfa0f125f812da700af816e3669ecad67e39b5",
+      "observed_at": null,
+      "run_id": 41535972657,
+      "job_id": 125588179149,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-41535972657-1-125588178983",
+      "fix_sha": "8506efed9e9573611467bb1ad8cf6f8ace02ed83",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41535972657"
+      ]
+    },
+    {
+      "id": "CI-41535985531-1-125587894526",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "queue-dialog-scrollview-layoutparams-unresolved-reference",
+      "summary": "PR JVM: Kotlin compileDebugKotlin cannot resolve ScrollView.LayoutParams at VideoSearchQueueDialogUi.kt:168, before job-specific test stage. Replaced with FrameLayout.LayoutParams, keeping dialog geometry and callbacks unchanged.",
+      "source_sha": "45dfa0f125f812da700af816e3669ecad67e39b5",
+      "observed_at": null,
+      "run_id": 41535985531,
+      "job_id": 125587894526,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-41535972657-1-125588178983",
+      "fix_sha": "8506efed9e9573611467bb1ad8cf6f8ace02ed83",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41535985531"
+      ]
+    },
+    {
+      "id": "CI-41535985531-1-125587894538",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "queue-dialog-scrollview-layoutparams-unresolved-reference",
+      "summary": "PR AndroidTest compile: Kotlin compileDebugKotlin cannot resolve ScrollView.LayoutParams at VideoSearchQueueDialogUi.kt:168, before job-specific test stage. Replaced with FrameLayout.LayoutParams, keeping dialog geometry and callbacks unchanged.",
+      "source_sha": "45dfa0f125f812da700af816e3669ecad67e39b5",
+      "observed_at": null,
+      "run_id": 41535985531,
+      "job_id": 125587894538,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-41535972657-1-125588178983",
+      "fix_sha": "8506efed9e9573611467bb1ad8cf6f8ace02ed83",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41535985531"
+      ]
+    },
+    {
+      "id": "CI-41535985531-1-125587894615",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "queue-dialog-scrollview-layoutparams-unresolved-reference",
+      "summary": "PR lint: Kotlin compileDebugKotlin cannot resolve ScrollView.LayoutParams at VideoSearchQueueDialogUi.kt:168, before job-specific test stage. Replaced with FrameLayout.LayoutParams, keeping dialog geometry and callbacks unchanged.",
+      "source_sha": "45dfa0f125f812da700af816e3669ecad67e39b5",
+      "observed_at": null,
+      "run_id": 41535985531,
+      "job_id": 125587894615,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-41535972657-1-125588178983",
+      "fix_sha": "8506efed9e9573611467bb1ad8cf6f8ace02ed83",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41535985531"
       ]
     }
   ]
