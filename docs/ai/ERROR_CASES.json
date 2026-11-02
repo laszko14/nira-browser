@@ -28,7 +28,7 @@
     },
     {
       "task_id": "ZC-V1209-QUEUE-NEON",
-      "observed_count": 9,
+      "observed_count": 11,
       "state": "ACTIVE"
     }
   ],
@@ -454,6 +454,46 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41536879882"
+      ]
+    },
+    {
+      "id": "CI-41537572431-1-125593311107",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "queue-preview-robolectric-legacy-system-button-reference",
+      "summary": "PR JVM: MyVideoSitesDialogRegressionTest.invalidQueuePhraseNeverDismissesAndCanBeEditedAgain attempted to call legacy AlertDialog getButton NEUTRAL/POSITIVE after queue modal migrated to custom buttons. Test adapted to find actual tagged neon start and plan controls; preserved validation, non-dismissal and rotation assertions.",
+      "source_sha": "57757838d51b3d69d9573ba07f5ff70c7b01674d",
+      "observed_at": null,
+      "run_id": 41537572431,
+      "job_id": 125593311107,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "09749f8b4a27f55d9d83b2f592a4f12900eef0e3",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/MyVideoSitesDialogRegressionTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41537572431"
+      ]
+    },
+    {
+      "id": "CI-41537564625-1-125593767099",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "queue-preview-robolectric-legacy-system-button-reference",
+      "summary": "SOURCE JVM: MyVideoSitesDialogRegressionTest.invalidQueuePhraseNeverDismissesAndCanBeEditedAgain attempted to call legacy AlertDialog getButton NEUTRAL/POSITIVE after queue modal migrated to custom buttons. Test adapted to find actual tagged neon start and plan controls; preserved validation, non-dismissal and rotation assertions.",
+      "source_sha": "57757838d51b3d69d9573ba07f5ff70c7b01674d",
+      "observed_at": null,
+      "run_id": 41537564625,
+      "job_id": 125593767099,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": "CI-41537572431-1-125593311107",
+      "fix_sha": "09749f8b4a27f55d9d83b2f592a4f12900eef0e3",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/MyVideoSitesDialogRegressionTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41537564625"
       ]
     }
   ]
