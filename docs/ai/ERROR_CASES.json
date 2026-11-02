@@ -28,7 +28,7 @@
     },
     {
       "task_id": "ZC-V1209-QUEUE-NEON",
-      "observed_count": 12,
+      "observed_count": 16,
       "state": "ACTIVE"
     }
   ],
@@ -514,6 +514,86 @@
       "regression_test": "scripts/error-learning.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41538591682"
+      ]
+    },
+    {
+      "id": "CI-41539774510-1-125600952193",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "queue-preview-title-missingtranslation",
+      "summary": "SOURCE lint regression detected one new MissingTranslation on queue dialog title resource in strings.xml; preserve the Polish-only custom dialog by declaring its fixed label non-translatable.",
+      "source_sha": "7a9e4bf2a25de0f3e3d5f7cade8e439d02471105",
+      "observed_at": "2026-11-02T22:51:41Z",
+      "run_id": 41539774510,
+      "job_id": 125600952193,
+      "attempt": 1,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "scripts/lint-regression.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41539774510"
+      ]
+    },
+    {
+      "id": "CI-41539785113-1-125600844250",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "queue-preview-title-missingtranslation",
+      "summary": "PR integration lint independently detected the same new MissingTranslation on the custom queue title; same root cause and targeted resource fix as SOURCE lint.",
+      "source_sha": "7a9e4bf2a25de0f3e3d5f7cade8e439d02471105",
+      "observed_at": "2026-11-02T22:50:02Z",
+      "run_id": 41539785113,
+      "job_id": 125600844250,
+      "attempt": 1,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": "CI-41539774510-1-125600952193",
+      "fix_sha": null,
+      "regression_test": "scripts/lint-regression.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41539785113"
+      ]
+    },
+    {
+      "id": "CI-41539785113-1-125600843928",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "pr-robolectric-maven-artifact-fetcher-network",
+      "summary": "PR merge-ref JVM suite had 86 classMethod failures from Robolectric MavenArtifactFetcher HTTP IOException while SOURCE JVM passed on the same head. Network-dependent test resolution to recheck.",
+      "source_sha": "7a9e4bf2a25de0f3e3d5f7cade8e439d02471105",
+      "observed_at": "2026-11-02T22:47:53Z",
+      "run_id": 41539785113,
+      "job_id": 125600843928,
+      "attempt": 1,
+      "cause": "environment",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41539785113"
+      ]
+    },
+    {
+      "id": "CI-41539774510-1-125604090696",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "source-evidence-dependent-lint-failure",
+      "summary": "SOURCE quality-evidence gate reported FAIL because upstream lint regression failed; no separate application defect found in the summary job. Recheck after correcting lint on new source SHA.",
+      "source_sha": "7a9e4bf2a25de0f3e3d5f7cade8e439d02471105",
+      "observed_at": null,
+      "run_id": 41539774510,
+      "job_id": 125604090696,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "scripts/ci-run-receipt.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41539774510"
       ]
     }
   ]
