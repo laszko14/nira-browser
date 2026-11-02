@@ -8,7 +8,7 @@ repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: feat/zavro-clean-v3-20261101
 base_sha: eef2c439290e9ce08118d1a192edf7db486cc16b
-observed_head_sha: 216b661a5bb0f3455ec593cbe7860c32da1f8384
+observed_head_sha: f7ad1a2e1f3d846319cd60c89fbb1d27d7ac7b21
 status: CI_PENDING
 acceptance_source: Zmien tylko szare standardowe okno Podglad kolejki witryn na wierny ciemny neonowy wzor uzytkownika, pozostale ekrany i algorytmy niezmienione. Dostarcz podpisany prywatny arm64 APK do aktualizacji.
 required_ci: process-docs + shared-tests (JS, JVM/Robolectric, AndroidTest compile, lint+lint-regression) + final SOURCE quality-evidence na jednym SHA; oddzielne PR integration.
@@ -16,11 +16,12 @@ device: NOT_TESTED
 apk: APK_BLOCKED until all SOURCE CI gates pass on final SHA and authorized owner COMMENT PR 119.
 completed: Dodano wyizolowane VideoSearchQueueDialogUi.kt (ciemne gradienty, łuki, symbol warstw, pole wyszukania, 3 przyciski, przewijanie przy klawiaturze); previewQueue w MyVideoSitesActivity uzywa nowego widoku. Zachowano pierwotne walidacje frazy, przywiazanie profilu, draft po odtworzeniu, bezpieczne callbacki plan/anuluj/uruchom. Dodano testy Robolectric. Numer podpisanej aktualizacji clean v1209 (0.5.22-alpha114-clean), synchronizacja istniejacego rygorystycznego kontraktu APK bez zmiany certyfikatu.
 remaining: Zielone SOURCE/PR CI finalnego SHA, kontrola podpisu i prywatny APK; recenzja security historycznego PR 119 nadal nierozstrzygnieta; test na rzeczywistym telefonie nie zostal wykonany.
-known_failures: Dla v1209 dziewiec odrebnych zdarzen w ERROR_CASES.json: 1 USER_REPORT nadal OPEN do weryfikacji na urzadzeniu, 1 test harness FAIL (stary versionCode 208 w JS), 6 CI jobs (Kotlin/AndroidTest/lint w SOURCE i PR) z jedna przyczyna: niedozwolone ScrollView.LayoutParams. Ponadto jeden nowy FAIL kompilacji testu Robolectric (niepotrzebny parametr typu getApplication<Application>); poprawiony w f1be27e3. Finalna regresja w toku.
+known_failures: Dla v1209 jedenascie odrebnych zdarzen w ERROR_CASES.json: 1 USER_REPORT nadal OPEN do weryfikacji na urzadzeniu, 1 test harness FAIL (stary versionCode 208 w JS), 6 CI jobs (Kotlin/AndroidTest/lint w SOURCE i PR) z jedna przyczyna: niedozwolone ScrollView.LayoutParams. Ponadto jeden nowy FAIL kompilacji testu Robolectric (niepotrzebny parametr typu getApplication<Application>); poprawiony w f1be27e3. PR/SOURCE JVM v1209 wykryl stary test uzywajacy systemowych przyciskow AlertDialog.BUTTON_* zamiast nowych wlasnych; zmieniono lokatory tylko w tescie, bez oslabiania walidacji/restore, commit 09749f8. Finalna regresja w toku.
 changed_paths:
   - app/src/main/java/com/prirai/android/nira/videosearch/MyVideoSitesActivity.kt
   - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUi.kt
   - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt
+  - app/src/test/java/com/prirai/android/nira/videosearch/MyVideoSitesDialogRegressionTest.kt
   - app/build.gradle (tylko versionCode 209/versionName alpha114)
   - .github/workflows/apk-release.yml (tylko expected update 1209/artifact)
   - app/src/test/js/release-contract-stage19a.test.cjs
@@ -42,6 +43,8 @@ evidence_links:
   - https://github.com/laszko14/nira-browser/actions/runs/41535972657
   - https://github.com/laszko14/nira-browser/actions/runs/41535985531
   - https://github.com/laszko14/nira-browser/actions/runs/41536879882
-verification: CI_PENDING; poprzedni PR test JS PASS po poprawce 208->209. SOURCE i PR CI na 45dfa0f trafily na wspolny blad compileDebugKotlin: ScrollView.LayoutParams; naprawiono go na 8506efed poprzez FrameLayout.LayoutParams. PR CI na 3d9f6449 mial AndroidTest SUCCESS, ale Kotlin test compile FAIL: getApplication<Application>(), poprawiono test w f1be27e3. 9/9 odrebnych zdarzen zapisanych; finalne CI wymagane ponownie.
+  - https://github.com/laszko14/nira-browser/actions/runs/41537564625
+  - https://github.com/laszko14/nira-browser/actions/runs/41537572431
+verification: CI_PENDING; poprzedni PR test JS PASS po poprawce 208->209. SOURCE i PR CI na 45dfa0f trafily na wspolny blad compileDebugKotlin: ScrollView.LayoutParams; naprawiono go na 8506efed poprzez FrameLayout.LayoutParams. PR CI na 3d9f6449 mial AndroidTest SUCCESS, ale Kotlin test compile FAIL: getApplication<Application>(), poprawiono test w f1be27e3. Na 57757838 AndroidTest SUCCESS, JVM mial 1427/1427 z jednym FAIL starego testu queue button; poprawiono test w 09749f8. 11/11 odrebnych zdarzen zapisanych; finalne CI wymagane ponownie.
 next_action: Po tym commicie sprawdz live HEAD, wymaganego finalnego SOURCE CI i PR CI. Przy FAIL popraw przyczyne z jawnego logu. Po green SOURCE CI wyslij jedna autoryzowana recenzje PR #119 COMMENT z trzywierszowym kontraktem (commit_id = live PR HEAD). Zweryfikuj job build, podpis, pakiet, ABI, numer 1209 i artefakt. Nie wykonuj merge/release/force-push ani resetu danych.
 ```
