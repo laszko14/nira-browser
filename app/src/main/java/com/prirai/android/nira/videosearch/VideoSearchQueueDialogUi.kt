@@ -7,6 +7,9 @@ import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Shader
+import androidx.core.graphics.withClip
+import androidx.core.graphics.withScale
+import com.prirai.android.nira.R
 import android.graphics.drawable.GradientDrawable
 import android.text.InputType
 import android.view.Gravity
@@ -77,7 +80,7 @@ internal object VideoSearchQueueDialogUi {
         }
         body.addView(symbol, LinearLayout.LayoutParams(context.dp(106), context.dp(92)))
         val title = TextView(context).apply {
-            text = "Podgląd kolejki witryn"
+            text = context.getString(R.string.video_search_queue_preview_title)
             setTextColor(Color.WHITE)
             textSize = 22f
             gravity = Gravity.CENTER
@@ -170,87 +173,109 @@ internal object VideoSearchQueueDialogUi {
         return Controls(scroll, field, preview, cancel, execute)
     }
 
-    /** Simple clipped cyan/violet arcs behind the content, no external image. */
+    /** Paths and shaders are built on size change, never during a frame. */
     private class QueueLightArcs(context: Context) : View(context) {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val clip = Path()
+        private val cyanArea = Path()
+        private val violetArea = Path()
+        private val cyanEdge = Path()
+        private val violetEdge = Path()
+        private var cyanShader: Shader? = null
+        private var violetShader: Shader? = null
+
+        override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+            super.onSizeChanged(w, h, oldw, oldh)
+            val x = w.toFloat()
+            val y = h.toFloat()
+            clip.reset()
+            clip.addRoundRect(0f, 0f, x, y, context.dp(30).toFloat(),
+                context.dp(30).toFloat(), Path.Direction.CW)
+            cyanArea.reset()
+            cyanArea.moveTo(0f, 0f)
+            cyanArea.lineTo(x * .62f, 0f)
+            cyanArea.quadTo(x * .12f, y * .04f, 0f, y * .29f)
+            cyanArea.close()
+            violetArea.reset()
+            violetArea.moveTo(x, y * .78f)
+            violetArea.lineTo(x, y)
+            violetArea.lineTo(x * .42f, y)
+            violetArea.quadTo(x * .87f, y * .96f, x, y * .78f)
+            violetArea.close()
+            cyanEdge.reset()
+            cyanEdge.moveTo(0f, y * .29f)
+            cyanEdge.quadTo(x * .12f, y * .04f, x * .62f, 0f)
+            violetEdge.reset()
+            violetEdge.moveTo(x * .42f, y)
+            violetEdge.quadTo(x * .87f, y * .96f, x, y * .78f)
+            cyanShader = LinearGradient(0f, 0f, x * .55f, y * .3f,
+                0xff06cff0.toInt(), 0x0006cff0, Shader.TileMode.CLAMP)
+            violetShader = LinearGradient(x, y, x * .58f, y * .7f,
+                0xff9439fa.toInt(), 0x009439fa, Shader.TileMode.CLAMP)
+        }
+
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
-            val w = width.toFloat()
-            val h = height.toFloat()
-            val clip = Path().apply {
-                addRoundRect(0f, 0f, w, h, context.dp(30).toFloat(),
-                    context.dp(30).toFloat(), Path.Direction.CW)
+            canvas.withClip(clip) {
+                paint.style = Paint.Style.FILL
+                paint.shader = cyanShader
+                drawPath(cyanArea, paint)
+                paint.shader = violetShader
+                drawPath(violetArea, paint)
+                paint.shader = null
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = context.dp(1).toFloat()
+                paint.color = 0xff64eaff.toInt()
+                drawPath(cyanEdge, paint)
+                paint.color = 0xffc071ff.toInt()
+                drawPath(violetEdge, paint)
             }
-            canvas.save()
-            canvas.clipPath(clip)
-            paint.style = Paint.Style.FILL
-            paint.shader = LinearGradient(0f, 0f, w * .55f, h * .3f,
-                0xff06cff0.toInt(), 0x0006cff0, Shader.TileMode.CLAMP)
-            canvas.drawPath(Path().apply {
-                moveTo(0f, 0f); lineTo(w * .62f, 0f)
-                quadTo(w * .12f, h * .04f, 0f, h * .29f); close()
-            }, paint)
-            paint.shader = LinearGradient(w, h, w * .58f, h * .7f,
-                0xff9439fa.toInt(), 0x009439fa, Shader.TileMode.CLAMP)
-            canvas.drawPath(Path().apply {
-                moveTo(w, h * .78f); lineTo(w, h)
-                lineTo(w * .42f, h)
-                quadTo(w * .87f, h * .96f, w, h * .78f); close()
-            }, paint)
-            paint.shader = null
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = context.dp(1).toFloat()
-            paint.color = 0xff64eaff.toInt()
-            canvas.drawPath(Path().apply {
-                moveTo(0f, h * .29f)
-                quadTo(w * .12f, h * .04f, w * .62f, 0f)
-            }, paint)
-            paint.color = 0xffc071ff.toInt()
-            canvas.drawPath(Path().apply {
-                moveTo(w * .42f, h)
-                quadTo(w * .87f, h * .96f, w, h * .78f)
-            }, paint)
-            canvas.restore()
         }
     }
 
-    /** Compact custom icon: three neon rhombi and a magnifier. */
+    /** Prebuilt neon rhombi and magnifier; no per-frame allocations. */
     private class QueueStackMark(context: Context) : View(context) {
-        private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        override fun onDraw(canvas: Canvas) {
-            val sx = width / 106f
-            val sy = height / 92f
-            canvas.save()
-            canvas.scale(sx, sy)
-            for (layer in 2 downTo 0) {
-                val cy = 38f + layer * 12f
-                val shape = Path().apply {
-                    moveTo(53f, cy - 26f)
-                    quadTo(57f, cy - 26f, 63f, cy - 22f)
-                    lineTo(91f, cy - 7f)
-                    quadTo(97f, cy - 3f, 91f, cy + 2f)
-                    lineTo(60f, cy + 22f)
-                    quadTo(53f, cy + 26f, 46f, cy + 22f)
-                    lineTo(15f, cy + 2f)
-                    quadTo(9f, cy - 3f, 15f, cy - 7f)
-                    close()
-                }
-                paint.style = Paint.Style.FILL
-                paint.shader = LinearGradient(9f, cy, 97f, cy,
-                    0xff00d9f5.toInt(), 0xffaf17f2.toInt(), Shader.TileMode.CLAMP)
-                canvas.drawPath(shape, paint)
-                paint.shader = null
-                paint.style = Paint.Style.STROKE
-                paint.strokeWidth = 2f
-                paint.color = 0xffd7b2ff.toInt()
-                canvas.drawPath(shape, paint)
+        private data class Layer(val path: Path, val shader: Shader)
+        private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+        private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 2f
+            color = 0xffd7b2ff.toInt()
+        }
+        private val magnifier = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 3.2f
+            color = Color.WHITE
+        }
+        private val layers = (2 downTo 0).map { layer ->
+            val cy = 38f + layer * 12f
+            val shape = Path().apply {
+                moveTo(53f, cy - 26f)
+                quadTo(57f, cy - 26f, 63f, cy - 22f)
+                lineTo(91f, cy - 7f)
+                quadTo(97f, cy - 3f, 91f, cy + 2f)
+                lineTo(60f, cy + 22f)
+                quadTo(53f, cy + 26f, 46f, cy + 22f)
+                lineTo(15f, cy + 2f)
+                quadTo(9f, cy - 3f, 15f, cy - 7f)
+                close()
             }
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = 3.2f
-            paint.color = Color.WHITE
-            canvas.drawCircle(52f, 34f, 10f, paint)
-            canvas.drawLine(59.5f, 41.5f, 69f, 51f, paint)
-            canvas.restore()
+            Layer(shape, LinearGradient(9f, cy, 97f, cy,
+                0xff00d9f5.toInt(), 0xffaf17f2.toInt(), Shader.TileMode.CLAMP))
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            canvas.withScale(width / 106f, height / 92f) {
+                for (layer in layers) {
+                    fill.shader = layer.shader
+                    drawPath(layer.path, fill)
+                    drawPath(layer.path, stroke)
+                }
+                fill.shader = null
+                drawCircle(52f, 34f, 10f, magnifier)
+                drawLine(59.5f, 41.5f, 69f, 51f, magnifier)
+            }
         }
     }
 }
