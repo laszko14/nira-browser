@@ -52,7 +52,7 @@ class VideoSearchQueueDialogUiTest {
 
     @Test fun dialogFitsNarrowScreenAndKeepsDraftOnRebuild() {
         RuntimeEnvironment.setQualifiers("w320dp-h580dp-port")
-        val ctx = RuntimeEnvironment.getApplication<Application>()
+        val ctx = RuntimeEnvironment.getApplication()
         val ui = VideoSearchQueueDialogUi.create(ctx, "test fraza")
         val width = (320f * ctx.resources.displayMetrics.density).toInt()
         val height = (430f * ctx.resources.displayMetrics.density).toInt()
