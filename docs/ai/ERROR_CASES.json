@@ -28,7 +28,7 @@
     },
     {
       "task_id": "ZC-V1209-QUEUE-NEON",
-      "observed_count": 1,
+      "observed_count": 2,
       "state": "ACTIVE"
     }
   ],
@@ -295,6 +295,26 @@
       "fix_sha": null,
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
       "evidence_links": []
+    },
+    {
+      "id": "CI-41535669908-1-125586730519",
+      "task_id": "ZC-V1209-QUEUE-NEON",
+      "kind": "CI_FAILURE",
+      "fingerprint": "v1209-versioncode-static-test-fixture",
+      "summary": "PR CI po podbiciu build.gradle do 1209 zawiodlo jeden test JS neonowego UI: /versionCode = 208/ w teście nie zostalo zsynchronizowane; zmieniono na 209 bez oslabienia wymagan podpisu.",
+      "source_sha": "1e7be3c68971dde584b21d755273b8e8d844e0b0",
+      "observed_at": "2026-11-02T22:15:30Z",
+      "run_id": 41535669908,
+      "job_id": 125586730519,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "69f833f68ecd0f1dc1b6fa9d41c36499c77f6dea",
+      "regression_test": "app/src/test/js/video-search-neon-redesign.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41535669908"
+      ]
     }
   ]
 }
