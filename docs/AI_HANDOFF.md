@@ -9,14 +9,14 @@ repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: fix/zavro-clean-video-search-structural-v4-20261103
 base_sha: 27bdabf155d5a409019574b966f118aef0cab122
-observed_head_sha: 27bdabf155d5a409019574b966f118aef0cab122
+observed_head_sha: 76c69e3ab651093773ea459eab8ddcc26b28c53d
 status: CI_PENDING
 acceptance_source: Stabilne automatyczne rozpoznawanie bezpiecznych formularzy wyszukiwania, powtarzalnych kart filmów i poprawnej paginacji w zróżnicowanych DOM, bez zależności od domen. Nie przetwarzać klikalnych reklam jako stron filmów.
 completed: Rozszerzono inspekcję powtarzalnych kart oraz ostrożny wybór akcji wyszukiwania i paginacji. Dodano testy rzeczywistego skryptu WebExtension oparte na zanonimizowanych kształtach DOM. Bez zmiany modelu danych/profili, bez zmian playbacku.
 required_ci: process-docs + shared-tests (JS, JVM/Robolectric, AndroidTest compile, lint-regression) + SOURCE quality-evidence na finalnym SHA; osobno PR integration.
 apk: APK_BLOCKED dopóki SOURCE CI nie jest zielone, nie ma zatwierdzonej owner COMMENT review PR i nie potwierdzono kontraktu wersji, ABI, certyfikatu.
 remaining: Potwierdzić wszystkie wymagane testy SOURCE, PR integration i bezpieczną recenzję, jeśli dostępna; sprawdzić wynik prawdziwego GeckoView na urządzeniu.
-known_failures: Nie ma dowodu zakończonego testu na prawdziwych witrynach/Gecko. Wybrane witryny korzystają z geoblokady lub zwracają ograniczone dane poza telefonem.
+known_failures: Pierwszy PR run 41554791864 JS FAIL przez brak closest() w testowym mocku; pierwszy SOURCE run 41554647363 process-docs FAIL przez historyczną sztywną gałąź w teście ai-preflight.test.cjs. Poprawiono przyczyny, potrzebny nowy CI. Realne Gecko NOT_TESTED.
 verification: CI_PENDING. Przed wysłaniem kod zweryfikowany przez odczyt źródła, brak dowodu testów SOURCE na nowym SHA.
 blockers:
   - Brak potwierdzonego uruchomienia wszystkich witryn w realnej sesji GeckoView.
@@ -24,6 +24,7 @@ blockers:
 changed_paths:
   - app/src/main/assets/extensions/zavro-video-search/content.js
   - app/src/test/js/video-search-structural-v4.test.cjs
+  - scripts/ai-preflight.test.cjs
   - docs/AI_HANDOFF.md
   - docs/ai/ERROR_CASES.json
 verified_before_push:

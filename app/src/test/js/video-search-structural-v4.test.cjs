@@ -36,6 +36,7 @@ function inspectFixture({cardsSelector, count=4, name='s', submitType='submit',
     tagName:'INPUT', id:'searchsubmit', name:'', value:'', className:'button',
     classList:['button'], disabled:false, form,
     getAttribute(key) {return ({type:submitType})[key] ?? null;},
+    closest() {return null;},
     matches(selector) {
       return selector === 'button,input[type="submit"],[role="button"]' ||
         selector === 'input[type="submit"],button[type="submit"]';
