@@ -50,6 +50,11 @@
       "task_id": "ZC-V4-ADAPTIVE-SITE-INTELLIGENCE-P1",
       "observed_count": 2,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P2-SEARCH-EVIDENCE-RUNTIME",
+      "observed_count": 2,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -944,6 +949,46 @@
       "duplicate_of": null,
       "fix_sha": null,
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP1RecognitionTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/pull/122"
+      ]
+    },
+    {
+      "id": "REVIEW-20261103-P2-0001",
+      "task_id": "ZC-V4-P2-SEARCH-EVIDENCE-RUNTIME",
+      "kind": "REVIEW",
+      "fingerprint": "navigation-only-card-proof",
+      "summary": "P2 review: new Gecko document with unrelated recommendations can be mistaken for verified search without query evidence.",
+      "source_sha": "b566546207bed0ad236dc5f5c28a8807cd4ea5a6",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchWorkerVerificationTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/pull/122"
+      ]
+    },
+    {
+      "id": "REVIEW-20261103-P2-0002",
+      "task_id": "ZC-V4-P2-SEARCH-EVIDENCE-RUNTIME",
+      "kind": "REVIEW",
+      "fingerprint": "global-dom-scan-cost",
+      "summary": "P2 review: full-document candidate query allocation and unthrottled SPA mutation observation can overload large sites.",
+      "source_sha": "b566546207bed0ad236dc5f5c28a8807cd4ea5a6",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/122"
       ]

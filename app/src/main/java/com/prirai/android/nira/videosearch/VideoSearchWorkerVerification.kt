@@ -1,5 +1,10 @@
 package com.prirai.android.nira.videosearch
 
+import java.net.URI
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
+import java.util.Locale
+
 /**
  * Search form ACK is never proof of results. A worker may begin harvesting
  * only after a different bound Gecko document yields actual film-page cards.
@@ -34,6 +39,58 @@ internal object VideoSearchWorkerVerification {
             beforePage.films.isNotEmpty()
         val previousUrls = beforePage.films.mapTo(HashSet()) { it.filmPageUrl }
         return page.films.any { it.filmPageUrl !in previousUrls }
+    }
+
+    /**
+     * New navigation is not proof of a query. Only a matching known search
+     * parameter or new exact film identities relative to the pre-submit
+     * snapshot may confirm another Gecko document. Query stays transient.
+     */
+    fun confirmedAfterQuery(
+        originalDocumentId: String,
+        currentDocumentId: String?,
+        page: VideoSearchExtractedPage?,
+        beforePage: VideoSearchExtractedPage?,
+        landingPageUrl: String?,
+        query: String,
+    ): Boolean {
+        if (!confirmed(originalDocumentId, currentDocumentId, page, beforePage))
+            return false
+        if (originalDocumentId == currentDocumentId) return true
+        if (landingMatchesQuery(landingPageUrl, query)) return true
+        if (beforePage?.status != "ok" || page?.status != "ok") return false
+        val oldUrls = beforePage.films.mapTo(HashSet()) { it.filmPageUrl }
+        return page.films.any { it.filmPageUrl !in oldUrls }
+    }
+
+    /** Only explicit search parameters count; never URL substring matches. */
+    internal fun landingMatchesQuery(pageUrl: String?, query: String): Boolean {
+        if (pageUrl.isNullOrBlank() || pageUrl.length > 2048 ||
+            query.isBlank() || query.length > 250) return false
+        val page = try { URI(pageUrl) } catch (_: Exception) { return false }
+        if (page.scheme?.lowercase(Locale.ROOT) !in setOf("https", "http") ||
+            page.userInfo != null) return false
+        val raw = page.rawQuery ?: return false
+        if (raw.length > 1500) return false
+        val normalize: (String) -> String = {
+            it.trim().replace(Regex("\\s+"), " ").lowercase(Locale.ROOT)
+        }
+        val expected = normalize(query)
+        val keys = setOf("q", "s", "query", "search", "keyword",
+            "keywords", "term", "search_query", "searchterm")
+        for (item in raw.split('&').take(32)) {
+            val separator = item.indexOf('=')
+            if (separator <= 0) continue
+            try {
+                val key = URLDecoder.decode(item.substring(0, separator),
+                    StandardCharsets.UTF_8).lowercase(Locale.ROOT)
+                if (key !in keys) continue
+                val value = URLDecoder.decode(item.substring(separator + 1),
+                    StandardCharsets.UTF_8)
+                if (normalize(value) == expected) return true
+            } catch (_: IllegalArgumentException) { return false }
+        }
+        return false
     }
 
     fun finalQueueStatus(snapshot: VideoSearchPaginationSnapshot?): VideoSearchQueueStatus =

@@ -526,8 +526,9 @@ internal class VideoSearchBridgeController(
             val beforeForSelector = beforePage?.takeIf {
                 baselineSelector == candidate.resultsCardSelector
             }
-            if (VideoSearchWorkerVerification.confirmed(
-                    originalDocument, live.second.documentId, page, beforeForSelector
+            if (VideoSearchWorkerVerification.confirmedAfterQuery(
+                    originalDocument, live.second.documentId, page, beforeForSelector,
+                    live.second.pageUrl, query
                 )) {
                 config = candidate
                 confirmed = true
@@ -1962,8 +1963,9 @@ internal class VideoSearchBridgeController(
                 val page = (request(site, "crawl") { doc, req ->
                     VideoSearchBridgeProtocol.extractCrawl(doc, req, afterConfig, 0)
                 } as? VideoSearchBridgeMessage.Results)?.page
-                if (VideoSearchWorkerVerification.confirmed(
-                        originalDocument, observed.documentId, page, baseline)) {
+                if (VideoSearchWorkerVerification.confirmedAfterQuery(
+                        originalDocument, observed.documentId, page, baseline,
+                        live.content.url, query)) {
                     val current = withContext(Dispatchers.IO) {
                         repository.site(owner, site.id)
                     }
@@ -2059,7 +2061,7 @@ internal class VideoSearchBridgeController(
      */
     private suspend fun awaitWorkerResults(
         site: VideoSearchSite, tabId: String, beforeDocument: String,
-        beforePage: VideoSearchExtractedPage?,
+        beforePage: VideoSearchExtractedPage?, query: String,
     ): Boolean {
         val scope = site.scope as? VideoSearchScope.Normal ?: return false
         val start = SystemClock.elapsedRealtime()
@@ -2075,8 +2077,9 @@ internal class VideoSearchBridgeController(
                 val answer = request(site, "crawl", workerTabId = tabId) { doc, req ->
                     VideoSearchBridgeProtocol.extractCrawl(doc, req, cfg, 0)
                 } as? VideoSearchBridgeMessage.Results
-                if (VideoSearchWorkerVerification.confirmed(
-                        beforeDocument, live.second.documentId, answer?.page, beforePage
+                if (VideoSearchWorkerVerification.confirmedAfterQuery(
+                        beforeDocument, live.second.documentId, answer?.page, beforePage,
+                        live.second.pageUrl, query
                     )) return true
                 if (answer?.page?.status == "stale") return false
             }
@@ -2195,7 +2198,7 @@ internal class VideoSearchBridgeController(
                                         outcome = submitWorker(current, tabId, plan.query, repository)
                                         if (outcome == VideoSearchQueueStatus.SUBMITTED) {
                                             val confirmed = awaitWorkerResults(
-                                                current, tabId, before, beforePage
+                                                current, tabId, before, beforePage, plan.query
                                             )
                                             if (!journal.hasCapacity()) {
                                                 outcome = VideoSearchQueueStatus.STOPPED

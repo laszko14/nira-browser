@@ -96,3 +96,39 @@ test('P1 structural read-only engine contains no form submission or network call
   for(const forbidden of [/\.click\s*\(/,/requestSubmit\s*\(/,/\.submit\s*\(/,/fetch\s*\(/,/XMLHttpRequest/,/sendBeacon/])
     assert.doesNotMatch(source,forbidden);
 });
+
+test('P2 TreeWalker candidates avoid a global document-wide card query',()=>{
+  const nodes=Array.from({length:3},(_,i)=>{
+    const parent={classList:['search-results'],id:'',className:'search-results',getAttribute(){return null;}};
+    const heading={textContent:'Video '+i,getAttribute(){return null;}};
+    const link={getAttribute(k){return k==='href'?'/video/'+i:null;},
+      hasAttribute(){return false;},textContent:'Video '+i,querySelector(){return heading;}};
+    return {tagName:'ARTICLE',classList:['video-card'],className:'video-card',
+      parentElement:parent,getAttribute(){return null;},closest(){return null;},
+      matches(s){return s==='article,li,figure,div,section';},
+      querySelectorAll(s){return s==='a[href]'?[link]:[];},
+      querySelector(s){if(/h1,h2,h3,h4/.test(s))return heading;
+        if(/img,picture,video/.test(s))return {tagName:'IMG'};return null;}};
+  });
+  let broadQueries=0;
+  const doc={
+    createTreeWalker(){let i=0;return {nextNode(){return nodes[i++]||null;}};},
+    querySelectorAll(s){
+      if(s==='article,li,figure,div,section'){broadQueries++;throw Error('global DOM allocation');}
+      if(s==='article.video-card'||s==='article')return nodes;
+      return [];
+    }
+  };
+  const win={};win.top=win;
+  vm.runInNewContext(source,{window:win,document:doc,URL,
+    location:new URL('https://films.example/search?q=book'),console});
+  const result=win.__zavroRecognition.scan(doc);
+  assert.equal(result.selector,'article.video-card');
+  assert.equal(broadQueries,0);
+  assert.ok(result.scannedElements<=260);
+});
+
+test('P2 single homepage recommendation remains unverified',()=>{
+  const result=fixture({resultPage:false,count:1});
+  assert.equal(result.selector,null);
+});

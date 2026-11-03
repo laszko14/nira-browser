@@ -201,6 +201,11 @@
     // pre-existing conservative selectors remain the compatibility fallback.
     const smart = window.__zavroRecognition?.scan(document);
     if (smart?.selector && smart.confidence >= 85) return smart.selector;
+    // Do not downgrade ambiguous/Shadow/frame evidence to unrelated
+    // homepage recommendations via the legacy CSS fallback.
+    if (smart && (smart.confidence > 0 ||
+        ["AMBIGUOUS_CARDS", "SHADOW_RESULTS", "FRAME_RESULTS"].includes(smart.reason)))
+      return null;
     // Discover repeated, card-local film links. Do not confuse arbitrary
     // site navigation with results or require a specific CSS theme.
     const candidates = [
@@ -1561,9 +1566,22 @@
     for (const event of ["popstate", "hashchange", "pageshow"])
       window.addEventListener(event, syncLocation);
     if (typeof MutationObserver === "function" && document.documentElement) {
-      const monitor = new MutationObserver(syncLocation);
+      // High-mutation SPAs can create hundreds of events per frame. Native
+      // url_sync and pre-request checks still protect navigation immediately.
+      let pendingCheck = null;
+      const monitor = new MutationObserver(function () {
+        if (pendingCheck !== null) return;
+        pendingCheck = setTimeout(function () {
+          pendingCheck = null;
+          syncLocation();
+        }, 90);
+      });
       monitor.observe(document.documentElement, {subtree: true, childList: true});
-      window.addEventListener("pagehide", function () { monitor.disconnect(); }, { once: true });
+      window.addEventListener("pagehide", function () {
+        monitor.disconnect();
+        if (pendingCheck !== null) clearTimeout(pendingCheck);
+        pendingCheck = null;
+      }, { once: true });
     }
     port.onMessage.addListener(function (message) {
       if (!message || typeof message !== "object" || Array.isArray(message) ||

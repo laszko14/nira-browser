@@ -7,6 +7,8 @@
   "use strict";
   if (window.top !== window || !/^https?:$/.test(location.protocol)) return;
   const MAX_NODES = 260, MAX_LINKS = 12, MAX_CONTEXTS = 12;
+  // Bound DOM visits as well as scored candidates on large dynamic pages.
+  const MAX_DOM_VISITS = 2400;
   const BAD_PATH = /(?:^|\/)(?:categor(?:y|ies)|genres?|tags?|topics?|channels?|authors?|playlists?|collections?|account|login|signin|register|checkout|ads?)(?:\/|$)/i;
   const MEDIA_FILE = /\.(?:mp4|webm|m3u8|mpd|mp3|m4a|ts)(?:$)/i;
   const BAD_HINT = /(?:^|[\s_-])(?:advert(?:isement)?|sponsored|promo|banner|navigation|menu|breadcrumb|sidebar|category|tag|login|checkout)(?:$|[\s_-])/i;
@@ -83,7 +85,23 @@
     }
     return contexts;
   }
-  function selectorForGroup(root, example) {
+  function candidates(root, selector, limit) {
+    const owner = root.ownerDocument || (typeof root.createTreeWalker === "function" ? root : null);
+    const walker = owner?.createTreeWalker?.(root, 1);
+    if (!walker) {
+      // Legacy synthetic DOM fixture compatibility; production uses TreeWalker.
+      return Array.from(root.querySelectorAll(selector)).slice(0, limit);
+    }
+    const found = [];
+    let visited = 0, node;
+    while (visited < MAX_DOM_VISITS && found.length < limit &&
+           (node = walker.nextNode())) {
+      visited++;
+      if (node.matches?.(selector)) found.push(node);
+    }
+    return found;
+  }
+  function selectorForGroup(root, example, cache) {
     if (!example?.tagName) return null;
     const tag = example.tagName.toLowerCase();
     const classes = Array.from(example.classList || []).filter(v => TOKEN.test(v) &&
@@ -99,9 +117,11 @@
     for (const candidate of candidates) {
       if (candidate.length > 160 || /:has\(|:not\(/.test(candidate)) continue;
       try {
-        const matches = root.querySelectorAll(candidate);
-        if (matches.length >= 1 && matches.length <= 320 &&
-            Array.from(matches).includes(example)) return candidate;
+        if (!cache.has(candidate)) {
+          const matches = root.querySelectorAll(candidate);
+          cache.set(candidate, matches.length <= 320 ? Array.from(matches) : []);
+        }
+        if (cache.get(candidate).includes(example)) return candidate;
       } catch (_) { /* invalid selector */ }
     }
     return null;
@@ -142,14 +162,15 @@
     for (const ctx of rootContexts) {
       checkedRoots++;
       let nodes;
-      try { nodes = ctx.root.querySelectorAll("article,li,figure,div,section"); }
+      try { nodes = candidates(ctx.root, "article,li,figure,div,section",
+        MAX_NODES - visited); }
       catch (_) { continue; }
-      const groups = new Map();
-      for (const node of Array.from(nodes).slice(0, MAX_NODES - visited)) {
+      const groups = new Map(), selectors = new Map();
+      for (const node of nodes) {
         visited++;
         const card = scoreCard(node, page, inResults);
         if (!card) continue;
-        const selector = selectorForGroup(ctx.root, node);
+        const selector = selectorForGroup(ctx.root, node, selectors);
         if (!selector) continue;
         const key = selector + "|" + ctx.surface + "|" +
           (card.parent ? nodeHint(card.parent).slice(0, 48) : "");
