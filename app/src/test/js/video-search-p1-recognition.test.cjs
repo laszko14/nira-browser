@@ -132,3 +132,89 @@ test('P2 single homepage recommendation remains unverified',()=>{
   const result=fixture({resultPage:false,count:1});
   assert.equal(result.selector,null);
 });
+
+function scopedFixture(surface = 'SHADOW') {
+  const link = i => ({
+    getAttribute(key) { return key === 'href' ? '/video/' + i : null; },
+    hasAttribute() { return false; }, textContent: 'Video ' + i,
+    querySelector() { return {textContent: 'Video ' + i, getAttribute() {return null;}}; }
+  });
+  const parent = {classList:['search-results'], className:'search-results',
+    getAttribute() {return null;}};
+  const cards = [1,2].map(i => ({
+    tagName:'ARTICLE', classList:['video-card'], className:'video-card',
+    parentElement:parent, getAttribute() {return null;}, closest() {return null;},
+    querySelectorAll(q) {return q === 'a[href]' ? [link(i)] : [];},
+    querySelector(q) {
+      if (q.includes('h1,h2,h3,h4')) return {textContent:'Video '+i,
+        getAttribute() {return null;}};
+      if (q.includes('img,picture')) return {tagName:'IMG'};
+      return null;
+    }
+  }));
+  const inner = {mode:'open', location:{origin:'https://films.example'},
+    baseURI:'https://films.example/search?q=book',
+    querySelectorAll(q) {
+      return q === 'article,li,figure,div,section' ||
+        q === '.search-results article.video-card' ? cards :
+        q === 'article,div,section,main,form,iframe,*' ? cards : [];
+    }};
+  const host = {tagName:surface === 'FRAME' ? 'IFRAME' : 'VIDEO-LIST',
+    id:'playerResults', classList:[], contentDocument:surface === 'FRAME' ? inner : null,
+    shadowRoot:surface === 'SHADOW' ? inner : null};
+  const outer = {querySelectorAll(q) {
+    if (q === 'article,div,section,main,form,iframe,*' || q === '#playerResults')
+      return [host];
+    return [];
+  }};
+  const win = {}; win.top = win;
+  vm.runInNewContext(source, {
+    window:win, document:outer, URL, location:new URL('https://films.example/search?q=book'),
+    console,
+    btoa:x => Buffer.from(x,'binary').toString('base64'),
+    atob:x => Buffer.from(x,'base64').toString('binary')
+  });
+  return {win,outer,host,inner};
+}
+test('P2 locates and resolves cards within an open shadow root', () => {
+  const f = scopedFixture();
+  const result = f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(result.reason,'CANDIDATE_FOUND');
+  assert.equal(result.surface,'SHADOW');
+  assert.match(result.selector,/^zcs1:[A-Za-z0-9_-]+$/);
+  assert.equal(f.win.__zavroRecognition.resolve(result.selector).length,2);
+  f.host.shadowRoot = null;
+  assert.equal(f.win.__zavroRecognition.resolve(result.selector),null);
+});
+test('P2 same-origin frame locator revokes access on origin change', () => {
+  const f = scopedFixture('FRAME');
+  const result = f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(result.surface,'FRAME');
+  assert.ok(result.selector?.startsWith('zcs1:'));
+  assert.equal(f.win.__zavroRecognition.resolve(result.selector).length,2);
+  f.inner.location.origin = 'https://elsewhere.example';
+  assert.equal(f.win.__zavroRecognition.resolve(result.selector),null);
+  assert.equal(f.win.__zavroRecognition.resolve('zcs1:garbage'),null);
+});
+test('P2 rejects ambiguous host and inaccessible frame without guessing', () => {
+  const f = scopedFixture('FRAME');
+  const other = {tagName:'IFRAME', id:'playerResults'};
+  const query = f.outer.querySelectorAll;
+  f.outer.querySelectorAll = q => q === '#playerResults' ? [f.host,other] : query(q);
+  const result = f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(result.selector,null);
+  assert.equal(result.reason,'FRAME_RESULTS');
+  Object.defineProperty(f.host,'contentDocument',{get(){throw new Error('SecurityError');}});
+  assert.equal(f.win.__zavroRecognition.scan(f.outer).selector,null);
+});
+test('P2 icon-only SVG search name is read without clicking the page',()=>{
+  const win={};win.top=win;
+  vm.runInNewContext(source,{window:win,document:{},URL,
+    location:new URL('https://films.example'),console});
+  const hint=win.__zavroRecognition.controlHint({
+    getAttribute(){return null;},
+    querySelector(){return {getAttribute(key){return key==='href'?'#search-icon':null;}};}
+  });
+  assert.match(hint,/search-icon/);
+  assert.doesNotMatch(source,/\\.click\\s*\\(/);
+});

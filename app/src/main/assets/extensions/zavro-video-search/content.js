@@ -196,6 +196,15 @@
       submitted.length > 1 ? null : null;
     return chosen ? selectorFor(chosen) : null;
   }
+  // A scoped card locator is resolved fresh on each extraction/check. Any
+  // detached host, closed root or cross-origin frame fails closed to STALE.
+  function resultNodes(selector) {
+    if (typeof selector !== "string" || selector.length > 160) return null;
+    if (selector.startsWith("zcs1:"))
+      return window.__zavroRecognition?.resolve(selector) || null;
+    try { return document.querySelectorAll(selector); }
+    catch (_) { return null; }
+  }
   function detectResults() {
     // P1 first checks independent structural and card-local evidence. The
     // pre-existing conservative selectors remain the compatibility fallback.
@@ -1030,7 +1039,7 @@
     function bySelector(selector) {
       if (typeof selector !== "string" || !selector || selector.length > 160)
         return null;
-      try { return Array.from(document.querySelectorAll(selector)).slice(0, 31); }
+      try { const found = resultNodes(selector); return found ? Array.from(found).slice(0, 31) : null; }
       catch (_) { return null; }
     }
     function result(status, reason, cards) {
@@ -1117,8 +1126,9 @@
     let cards;
     // Avoid materializing all 10k DOM nodes into another large JS array at
     // every 16-card checkpoint. NodeList is indexable without copying.
-    try { cards = document.querySelectorAll(command.resultsCardSelector); }
+    try { cards = resultNodes(command.resultsCardSelector); }
     catch (_) { return { status: "stale", films: [], inspectedCards: 0, moreOnPage: false }; }
+    if (!cards) return { status: "stale", films: [], inspectedCards: 0, moreOnPage: false };
     // Only an explicit, visible site-owned empty-state marker is proof
     // of zero results. A missing card/selector or loading page is not.
     if (cards.length === 0 && command.startIndex === 0 &&
@@ -1150,16 +1160,16 @@
       return shortText(element.getAttribute("content") ||
         element.getAttribute("data-title") || element.textContent, max);
     }
-    function safeUrl(value, filmPage) {
+    function safeUrl(value, filmPage, base = location.href) {
       if (typeof value !== "string" || !value || value.length > 1800 ||
           /^(?:data|blob|javascript|file|mailto|magnet):/i.test(value)) return null;
       try {
-        const parsed = new URL(value, location.href);
+        const parsed = new URL(value, base);
         if (!["http:", "https:"].includes(parsed.protocol) ||
             parsed.username || parsed.password ||
             parsed.href.length > (filmPage ? 2048 : 800)) return null;
         if (filmPage) {
-          if (parsed.origin !== location.origin || parsed.href === location.href ||
+          if (parsed.origin !== location.origin || (parsed.href === location.href || parsed.href === base) ||
               /\.(?:mp4|webm|m3u8|mpd|mp3|m4a|ts)(?:$)/i.test(parsed.pathname)) return null;
         }
         return parsed.href; // Full query is identity; never strip it.
@@ -1261,7 +1271,7 @@
       if (command.linkSelector) {
         const specific = scoped(card, command.linkSelector);
         if (specific?.matches("a[href]")) {
-          const filmUrl = safeUrl(specific.getAttribute("href"), true);
+          const filmUrl = safeUrl(specific.getAttribute("href"), true, specific.ownerDocument?.baseURI || location.href);
           if (filmUrl && !catalogLink(specific, filmUrl))
             return { anchor: specific, filmUrl };
         }
@@ -1274,7 +1284,7 @@
       const heading = nodeText(titleNode, 512)?.toLocaleLowerCase();
       const candidates = new Map(); // Exact URL, including query, is identity.
       for (const anchor of anchors) {
-        const filmUrl = safeUrl(anchor.getAttribute("href"), true);
+        const filmUrl = safeUrl(anchor.getAttribute("href"), true, anchor.ownerDocument?.baseURI || location.href);
         if (!filmUrl || catalogLink(anchor, filmUrl)) continue;
         const label = [nodeText(anchor, 512), anchor.getAttribute("title"),
           anchor.getAttribute("aria-label"),

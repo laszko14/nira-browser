@@ -44,16 +44,81 @@
       return ["q", "s", "query", "search", "keyword", "term"].some(k => path.searchParams.has(k));
     } catch (_) { return false; }
   }
+  // Scoped selectors are versioned, bounded locators, never executable CSS.
+  // They contain only stable host CSS paths and an inner card selector.
+  const LOCATOR = /^zcs1:[A-Za-z0-9_-]{6,152}$/;
+  const SIMPLE_CSS = /^[a-zA-Z0-9#_.\[\]="' >:*+-]{1,160}$/;
+  function safeCss(value) {
+    return typeof value === "string" && SIMPLE_CSS.test(value) &&
+      !/:has\(|:not\(|:nth|javascript|\*/i.test(value);
+  }
+  function stableHost(root, node) {
+    if (!node?.tagName || !root?.querySelectorAll) return null;
+    const tag = node.tagName.toLowerCase();
+    const choices = [];
+    if (TOKEN.test(node.id || "")) choices.push("#" + node.id);
+    const classes = Array.from(node.classList || []).filter(c => TOKEN.test(c)).slice(0, 4);
+    for (const c of classes) choices.push(tag + "." + c);
+    for (let i = 0; i < classes.length; i++) {
+      for (let j = i + 1; j < classes.length; j++)
+        choices.push(tag + "." + classes[i] + "." + classes[j]);
+    }
+    for (const selector of choices) {
+      if (!safeCss(selector)) continue;
+      try {
+        const matches = root.querySelectorAll(selector);
+        if (matches.length === 1 && matches[0] === node) return selector;
+      } catch (_) { /* malformed DOM or unstable host */ }
+    }
+    return null;
+  }
+  function encodeLocator(steps, leaf) {
+    if (!steps || !steps.length || !safeCss(leaf) ||
+        typeof btoa !== "function") return null;
+    const raw = [...steps, leaf].join("~");
+    if (raw.length > 112) return null;
+    try {
+      const locator = "zcs1:" + btoa(raw).replace(/\+/g, "-")
+        .replace(/\//g, "_").replace(/=+$/, "");
+      return LOCATOR.test(locator) ? locator : null;
+    } catch (_) { return null; }
+  }
+  function resolve(locator) {
+    if (!LOCATOR.test(locator || "") || typeof atob !== "function") return null;
+    try {
+      const payload = locator.slice(5).replace(/-/g, "+").replace(/_/g, "/");
+      const parts = atob(payload);
+      const items = parts.split("~");
+      if (items.length < 3 || items.length > 7 || items.length % 2 !== 1 ||
+          items.join("~") !== parts) return null;
+      let root = document;
+      for (let i = 0; i < items.length - 1; i += 2) {
+        if (!safeCss(items[i + 1])) return null;
+        const hosts = root.querySelectorAll(items[i + 1]);
+        if (hosts.length !== 1) return null;
+        const host = hosts[0];
+        if (items[i] === "S") {
+          if (!host.shadowRoot || host.shadowRoot.mode !== "open") return null;
+          root = host.shadowRoot;
+        } else if (items[i] === "F") {
+          if (host.tagName !== "IFRAME") return null;
+          const frame = host.contentDocument;
+          if (!frame || frame.location?.origin !== location.origin) return null;
+          root = frame;
+        } else return null;
+      }
+      if (!safeCss(items[items.length - 1])) return null;
+      return root.querySelectorAll(items[items.length - 1]);
+    } catch (_) { return null; } // Includes cross-origin and detached-frame access.
+  }
   function findContexts(documentRoot) {
-    const contexts = [{ root: documentRoot, surface: "MAIN" }];
-    const queue = [documentRoot];
+    const main = {root:documentRoot, surface:"MAIN", steps:[]};
+    const contexts = [main], queue = [main];
     let seen = 0;
     while (queue.length && contexts.length < MAX_CONTEXTS && seen < MAX_NODES) {
-      const root = queue.shift();
+      const ctx = queue.shift(), root = ctx.root;
       let nodes = [];
       try {
-        // A TreeWalker stops at the budget instead of allocating a NodeList
-        // containing the entire page just to examine its first few nodes.
         const owner = root.ownerDocument || documentRoot;
         const walker = owner.createTreeWalker?.(root, 1);
         if (walker) {
@@ -68,18 +133,24 @@
       for (const node of nodes) {
         seen++;
         if (contexts.length >= MAX_CONTEXTS) break;
-        if (node.shadowRoot && node.shadowRoot.mode === "open") {
-          contexts.push({root: node.shadowRoot, surface: "SHADOW"});
-          queue.push(node.shadowRoot);
+        if (node.shadowRoot?.mode === "open") {
+          const host = stableHost(root, node);
+          const next = {root:node.shadowRoot, surface:"SHADOW",
+            steps:ctx.steps && host ? [...ctx.steps, "S", host] : null};
+          contexts.push(next);
+          queue.push(next);
         }
-        if (node.tagName === "IFRAME") {
+        if (node.tagName === "IFRAME" && contexts.length < MAX_CONTEXTS) {
           try {
             const frame = node.contentDocument;
             if (frame && frame.location?.origin === location.origin) {
-              contexts.push({root: frame, surface: "FRAME"});
-              queue.push(frame);
+              const host = stableHost(root, node);
+              const next = {root:frame, surface:"FRAME",
+                steps:ctx.steps && host ? [...ctx.steps, "F", host] : null};
+              contexts.push(next);
+              queue.push(next);
             }
-          } catch (_) { /* cross-origin frames are never probed further */ }
+          } catch (_) { /* A cross-origin frame is never inspected. */ }
         }
       }
     }
@@ -168,7 +239,7 @@
       const groups = new Map(), selectors = new Map();
       for (const node of nodes) {
         visited++;
-        const card = scoreCard(node, page, inResults);
+        const card = scoreCard(node, ctx.root.baseURI || ctx.root.ownerDocument?.baseURI || page, inResults);
         if (!card) continue;
         const selector = selectorForGroup(ctx.root, node, selectors);
         if (!selector) continue;
@@ -188,7 +259,7 @@
           candidate.cards + repetition + structure));
         if (candidate.cards === 1 && confidence < 85) continue;
         if (candidate.cards >= 2 && confidence < 75) continue;
-        const result = {selector:candidate.selector, surface:candidate.surface,
+        const result = {selector:ctx.surface === "MAIN" ? candidate.selector :\n             encodeLocator(ctx.steps, candidate.selector), surface:candidate.surface,
           confidence, matchedCards:candidate.cards,
           evidence:["FILM_PAGE_LINK","CARD_LOCAL_METADATA",
             ...(repetition ? ["REPEATED_STRUCTURE"] : []),
@@ -200,26 +271,35 @@
       }
       if (visited >= MAX_NODES) break;
     }
-    return {selector: best && !ambiguous && best.surface === "MAIN" ? best.selector : null,
+    return {selector: best && !ambiguous ? best.selector : null,
       confidence: best?.confidence || 0,
-      reason: ambiguous ? "AMBIGUOUS_CARDS" : best?.surface === "SHADOW" ? "SHADOW_RESULTS" :
-        best?.surface === "FRAME" ? "FRAME_RESULTS" : best ? "CANDIDATE_FOUND" : "CARDS_NOT_FOUND",
+      reason: ambiguous ? "AMBIGUOUS_CARDS" : best?.selector ? "CANDIDATE_FOUND" :
+        best?.surface === "SHADOW" ? "SHADOW_RESULTS" :
+        best?.surface === "FRAME" ? "FRAME_RESULTS" : "CARDS_NOT_FOUND",
       surface:best?.surface || "MAIN", matchedCards:best?.matchedCards || 0,
       evidence:best?.evidence || [], scannedElements:visited,
       truncated:visited >= MAX_NODES, contextsChecked:checkedRoots};
   }
   function controlHint(control) {
     let svg = null;
-    try { svg = control?.querySelector?.("svg title,svg[aria-label],use"); }
+    try { svg = control?.querySelector?.("svg title,svg[aria-label],svg use,svg [data-icon]"); }
     catch (_) { /* no SVG */ }
-    const label = [control?.innerText, control?.value, control?.id,
+    const referenced = (control?.getAttribute?.("aria-labelledby") || "")
+      .split(/\s+/).filter(Boolean).slice(0, 3).map(id => {
+        if (!TOKEN.test(id)) return "";
+        return control.ownerDocument?.getElementById?.(id)?.textContent || "";
+      });
+    const iconName = [svg?.getAttribute?.("href"), svg?.getAttribute?.("xlink:href"),
+      svg?.getAttribute?.("data-icon")].find(x =>
+        typeof x === "string" && /^#?[a-zA-Z][a-zA-Z0-9_-]{1,48}$/.test(x));
+    return [control?.innerText, control?.value, control?.id,
       control?.getAttribute?.("aria-label"), control?.getAttribute?.("title"),
       control?.getAttribute?.("data-action"), control?.getAttribute?.("data-testid"),
-      textOf(svg)].filter(x => typeof x === "string").join(" ").slice(0, 280);
-    return label;
+      ...referenced, textOf(svg), iconName].filter(x => typeof x === "string")
+      .join(" ").slice(0, 280);
   }
   Object.defineProperty(window, "__zavroRecognition", {
-    value: Object.freeze({scan,controlHint}), configurable: false,
+    value: Object.freeze({scan,controlHint,resolve}), configurable: false,
     enumerable: false, writable: false
   });
 })();

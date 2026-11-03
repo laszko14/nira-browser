@@ -42,6 +42,25 @@ class VideoSearchP1RecognitionTest {
         assertNull(VideoSearchBridgeProtocol.decode(packet().put("reason", "any")))
     }
 
+
+    @Test fun scopedCardLocatorRequiresSurfaceAndCannotForgeMainCss() {
+        // An ASCII base64url locator: S~#playerResults~article.video-card.
+        val scoped = "zcs1:U34jcGxheWVyUmVzdWx0c35hcnRpY2xlLnZpZGVvLWNhcmQ"
+        assertTrue(VideoSearchBridgeProtocol.validSelector(scoped))
+        val parsed = VideoSearchBridgeProtocol.decode(
+            packet(scoped).put("surface", "SHADOW")
+        ) as VideoSearchBridgeMessage.Recognition
+        assertEquals(scoped, parsed.resultsCardSelector)
+        assertEquals("SHADOW", parsed.surface)
+        assertNull(VideoSearchBridgeProtocol.decode(packet(scoped)))
+        assertNull(VideoSearchBridgeProtocol.decode(
+            packet().put("surface", "FRAME")
+        ))
+        assertFalse(VideoSearchBridgeProtocol.validSelector("zcs1:bad/escape"))
+        assertFalse(VideoSearchBridgeProtocol.validSelector("zcs1:"))
+        assertFalse(VideoSearchBridgeProtocol.validSelector("zcs1:" + "a".repeat(160)))
+    }
+
     @Test fun readOnlyOutboundRecognitionIsMinimal() {
         val packet = VideoSearchBridgeProtocol.recognize("a".repeat(32), "b".repeat(32))
         assertEquals(4, packet.length())

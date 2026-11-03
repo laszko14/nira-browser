@@ -55,6 +55,11 @@
       "task_id": "ZC-V4-P2-SEARCH-EVIDENCE-RUNTIME",
       "observed_count": 5,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P2-COMPLETE",
+      "observed_count": 2,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -1051,6 +1056,46 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchWorkerVerificationTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41574910600"
+      ]
+    },
+    {
+      "id": "REVIEW-20261103-P2B-0001",
+      "task_id": "ZC-V4-P2-COMPLETE",
+      "kind": "REVIEW",
+      "fingerprint": "p2-shadow-iframe-detected-but-unresolvable-results",
+      "summary": "Audit: recognition returned a Shadow/iframe surface without an actionable context-bound card locator. CSS-only extraction could not reach those film cards and might keep stale rules.",
+      "source_sha": "bbb45f09f78c1ba456b274d5be7cacc653f1c429",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/pull/123"
+      ]
+    },
+    {
+      "id": "REVIEW-20261103-P2A-0001",
+      "task_id": "ZC-V4-P2-COMPLETE",
+      "kind": "REVIEW",
+      "fingerprint": "p2-svg-only-search-control-hint-missing",
+      "summary": "Audit: icon-only button can expose its search semantic via SVG use href while accessible text and title are absent; conservative native search binding should use this signal without guessing unrelated controls.",
+      "source_sha": "bbb45f09f78c1ba456b274d5be7cacc653f1c429",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/pull/123"
       ]
     }
   ]
