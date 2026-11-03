@@ -48,10 +48,22 @@
     let seen = 0;
     while (queue.length && contexts.length < MAX_CONTEXTS && seen < MAX_NODES) {
       const root = queue.shift();
-      let nodes;
-      try { nodes = root.querySelectorAll?.("article,div,section,main,form,iframe,*") || []; }
-      catch (_) { continue; }
-      for (const node of Array.from(nodes).slice(0, MAX_NODES - seen)) {
+      let nodes = [];
+      try {
+        // A TreeWalker stops at the budget instead of allocating a NodeList
+        // containing the entire page just to examine its first few nodes.
+        const owner = root.ownerDocument || documentRoot;
+        const walker = owner.createTreeWalker?.(root, 1);
+        if (walker) {
+          let node;
+          while (nodes.length < MAX_NODES - seen && (node = walker.nextNode()))
+            nodes.push(node);
+        } else {
+          nodes = Array.from(root.querySelectorAll?.("article,div,section,main,form,iframe,*") || [])
+            .slice(0, MAX_NODES - seen);
+        }
+      } catch (_) { continue; }
+      for (const node of nodes) {
         seen++;
         if (contexts.length >= MAX_CONTEXTS) break;
         if (node.shadowRoot && node.shadowRoot.mode === "open") {
