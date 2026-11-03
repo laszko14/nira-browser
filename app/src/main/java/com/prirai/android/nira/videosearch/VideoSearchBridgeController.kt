@@ -1987,7 +1987,7 @@ internal class VideoSearchBridgeController(
                                     form.submitSelector, observed.pagination,
                                     observed.nextPageSelector)
                                 withContext(Dispatchers.IO) {
-                                    repository.applyAutoConfiguration(site, merged)
+                                    repository.applyAutoConfiguration(site, merged, confirmedSearch = true)
                                 }
                             } ?: false
                         else -> false
