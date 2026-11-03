@@ -36,7 +36,7 @@ function fixture({count=3, links='film', ads=false, surface='MAIN', resultPage=t
     if (/article\.video-card/.test(s) || s==='article')return cards;
     return [];
   }
-  const sheet={querySelectorAll:rootNodes};
+  const sheet={mode:'open',location:{origin:'https://films.example'},querySelectorAll:rootNodes};
   const outer={location:{origin:'https://films.example'},querySelectorAll(s){
     if(s==='article,div,section,main,form,iframe,*') {
       if(surface==='SHADOW')return [{tagName:'VIDEO-LIST',shadowRoot:sheet}];
