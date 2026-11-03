@@ -48,7 +48,7 @@
     },
     {
       "task_id": "ZC-V4-ADAPTIVE-SITE-INTELLIGENCE-P1",
-      "observed_count": 1,
+      "observed_count": 2,
       "state": "ACTIVE"
     }
   ],
@@ -920,12 +920,32 @@
       "job_id": 125698882892,
       "attempt": 1,
       "cause": "production",
-      "state": "OPEN",
+      "state": "FIXED",
       "duplicate_of": null,
-      "fix_sha": null,
+      "fix_sha": "8e98152e756ce800cb239d5562d6a3ad989c8755",
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41569421409"
+      ]
+    },
+    {
+      "id": "REVIEW-20261103-P1-0001",
+      "task_id": "ZC-V4-ADAPTIVE-SITE-INTELLIGENCE-P1",
+      "kind": "REVIEW",
+      "fingerprint": "p1-inspect-incorrectly-confirms-unverified-homepage-cards",
+      "summary": "Code review identified that explicit Inspect could label homepage/recommendation cards as configured and auto rule evidence as verified before any search. Corrected UI to pending form and gated recognition memory on search confirmation.",
+      "source_sha": "5e0beb23d165284fb192679d12fafb89ac754967",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP1RecognitionTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/pull/122"
       ]
     }
   ]
