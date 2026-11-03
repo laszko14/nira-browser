@@ -53,6 +53,7 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
         inspection: VideoSearchBridgeMessage.Inspection,
         nowMs: Long = System.currentTimeMillis(),
         confirmedReplace: Boolean = false,
+        confirmedSearch: Boolean = false,
     ): Boolean {
         val scope = site.scope as? VideoSearchScope.Normal ?: return false
         // Never discard previously selected/confirmed selectors based solely
@@ -75,7 +76,7 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
             submitSelector = inspection.submitSelector,
             pagination = inspection.pagination,
             nextPageSelector = inspection.nextPageSelector,
-        ).let { VideoSearchRecognitionPolicy.verified(it, cards, nowMs) ?: it }
+        ).let { if (confirmedSearch) VideoSearchRecognitionPolicy.verified(it, cards, nowMs) ?: it else it }
         return dao.acceptAutoConfiguration(scope.profileId, site.id, site.siteUrl,
             site.updatedAtMs, VideoSearchRowCodec.configurationJson(config)!!, nowMs) == 1
     }
