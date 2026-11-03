@@ -75,7 +75,7 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
             submitSelector = inspection.submitSelector,
             pagination = inspection.pagination,
             nextPageSelector = inspection.nextPageSelector,
-        )
+        ).let { VideoSearchRecognitionPolicy.verified(it, cards, nowMs) ?: it }
         return dao.acceptAutoConfiguration(scope.profileId, site.id, site.siteUrl,
             site.updatedAtMs, VideoSearchRowCodec.configurationJson(config)!!, nowMs) == 1
     }
@@ -169,9 +169,33 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
             (pagination == VideoSearchPagination.NONE && next != null)) return false
         val updated = (site.configuration ?: return false).copy(
             resultsCardSelector = cards, pagination = pagination,
-            nextPageSelector = next)
+            nextPageSelector = next).let {
+                VideoSearchRecognitionPolicy.verified(it, cards, nowMs) ?: return false
+            }
         return dao.completePendingResults(normal.profileId, site.id, site.siteUrl,
             site.updatedAtMs, VideoSearchRowCodec.configurationJson(updated)!!, nowMs) == 1
+    }
+
+    /**
+     * Record the effect of an explicitly authorised, verified search.
+     * No automatic rule replacement: a different selector is only proposed as
+     * a backup. The existing atomic revision protects concurrent manual edits.
+     */
+    suspend fun rememberConfirmedResults(
+        site: VideoSearchSite,
+        resultSelector: String,
+        nowMs: Long = System.currentTimeMillis(),
+    ): Boolean {
+        val owner = site.scope as? VideoSearchScope.Normal ?: return false
+        if (site.configurationState != VideoSiteConfigurationState.CONFIGURED ||
+            !site.enabled) return false
+        val config = site.configuration ?: return false
+        val updated = VideoSearchRecognitionPolicy.verified(config, resultSelector, nowMs)
+            ?: return false
+        return dao.acceptAutoConfiguration(
+            owner.profileId, site.id, site.siteUrl, site.updatedAtMs,
+            VideoSearchRowCodec.configurationJson(updated)!!, nowMs
+        ) == 1
     }
 
     /** Failure has an explicit non-success status and never destroys selectors. */
