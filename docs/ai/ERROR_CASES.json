@@ -58,7 +58,7 @@
     },
     {
       "task_id": "ZC-V4-P2-COMPLETE",
-      "observed_count": 4,
+      "observed_count": 6,
       "state": "ACTIVE"
     }
   ],
@@ -1136,6 +1136,46 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41586107020"
+      ]
+    },
+    {
+      "id": "CI-41586333089-1-125752581737",
+      "task_id": "ZC-V4-P2-COMPLETE",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2-recognition-escaped-newline-token",
+      "summary": "SOURCE JS failed because a literal backslash-n sequence was inserted into a ternary expression in recognition.js.",
+      "source_sha": "baf58f3a896ab0fb003945759ab23e07955a4444",
+      "observed_at": "2026-11-03T05:51:41Z",
+      "run_id": 41586333089,
+      "job_id": 125752581737,
+      "attempt": 1,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41586333089"
+      ]
+    },
+    {
+      "id": "CI-41586339373-1-125752602376",
+      "task_id": "ZC-V4-P2-COMPLETE",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2-recognition-escaped-newline-token",
+      "summary": "PR integration JS failed for same recognition.js syntax error on same source SHA.",
+      "source_sha": "baf58f3a896ab0fb003945759ab23e07955a4444",
+      "observed_at": "2026-11-03T05:51:41Z",
+      "run_id": 41586339373,
+      "job_id": 125752602376,
+      "attempt": 1,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": "CI-41586333089-1-125752581737",
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41586339373"
       ]
     }
   ]

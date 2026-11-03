@@ -259,7 +259,8 @@
           candidate.cards + repetition + structure));
         if (candidate.cards === 1 && confidence < 85) continue;
         if (candidate.cards >= 2 && confidence < 75) continue;
-        const result = {selector:ctx.surface === "MAIN" ? candidate.selector :\n             encodeLocator(ctx.steps, candidate.selector), surface:candidate.surface,
+        const result = {selector:ctx.surface === "MAIN" ? candidate.selector :
+             encodeLocator(ctx.steps, candidate.selector), surface:candidate.surface,
           confidence, matchedCards:candidate.cards,
           evidence:["FILM_PAGE_LINK","CARD_LOCAL_METADATA",
             ...(repetition ? ["REPEATED_STRUCTURE"] : []),

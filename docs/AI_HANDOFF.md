@@ -16,7 +16,7 @@ remaining: Exact final SOURCE CI and separate PR integration evidence; full scop
 required_ci: SOURCE push process-docs, shared-tests JS/JVM-Robolectric/AndroidTest compile/lint regression, quality-evidence all SUCCESS on exact final source SHA; separate PR integration.
 apk: APK_BLOCKED pending green exact final SOURCE CI and owner COMMENT review; expected package com.prirai.android.nira.debug, ABI arm64-v8a, versionCode 1223, versionName 0.5.22-alpha119-clean, certificate SHA256 df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00 unchanged.
 device: NOT_TESTED
-known_failures: Previous P2 initial five observations recorded; new scoped-card and SVG review gaps recorded; SOURCE 41586101551 and PR 41586107020 failed the same new JS test syntax error; two distinct jobs logged, fix staged; final CI pending.
+known_failures: Previous P2 initial five observations recorded; new scoped-card and SVG review gaps recorded; SOURCE/PR runs 41586101551/41586107020 failed a test literal syntax issue; SOURCE/PR 41586333089/41586339373 failed a recognition source escaped-newline syntax issue; all four CI job observations recorded; final re-verification pending.
 verification: Existing P2 SOURCE 41575728798 and PR integration 41575733119 were reported green on bbb45f09f78c1ba456b274d5be7cacc653f1c429; not proof of this new change.
 blockers:
   - Scoped forms and pagination require separate full protocol and device review, not assumed by scoped result-card extraction.
