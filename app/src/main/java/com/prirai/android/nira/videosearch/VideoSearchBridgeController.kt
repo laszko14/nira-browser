@@ -1948,7 +1948,10 @@ internal class VideoSearchBridgeController(
                     if (current != site || !activeNormalOwner(owner))
                         return VideoSearchManualSearchOutcome.SUBMITTED_UNVERIFIED
                     val saved = when (site.configurationState) {
-                        VideoSiteConfigurationState.CONFIGURED -> true
+                        VideoSiteConfigurationState.CONFIGURED ->
+                            withContext(Dispatchers.IO) {
+                                repository.rememberConfirmedResults(site, cards)
+                            }
                         VideoSiteConfigurationState.SEARCH_READY_RESULTS_PENDING ->
                             withContext(Dispatchers.IO) {
                                 repository.completePendingResults(
