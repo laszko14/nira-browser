@@ -1763,7 +1763,11 @@ class MyVideoSitesActivity : AppCompatActivity() {
             if (ownerIfCurrent() != owner || current == null ||
                 !current.enabled || current.siteUrl != site.siteUrl) return@launch
             if (current.configuration?.resultsCardSelector.isNullOrBlank()) {
-                message("Wskaż karty wyników przed podglądem.")
+                val evidence = try {
+                    VideoSearchBridgeHost.instance()?.recognizeSite(current)
+                } catch (_: Exception) { null }
+                if (ownerIfCurrent() == owner)
+                    message(VideoSearchRecognitionDiagnostics.explain(evidence))
                 return@launch
             }
             val page = try {
