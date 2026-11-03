@@ -73,7 +73,7 @@
     },
     {
       "task_id": "ZC-V4-P2-D-RULE-REPAIR",
-      "observed_count": 8,
+      "observed_count": 17,
       "state": "ACTIVE"
     }
   ],
@@ -1511,6 +1511,186 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchConfigurationRevisionTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41714819448"
+      ]
+    },
+    {
+      "id": "CI-41716281572-1-126197571954",
+      "task_id": "ZC-V4-P2-D-RULE-REPAIR",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2d-nullable-crawl-result-page-access",
+      "summary": "SOURCE JVM on 0c214961af65ea9f5cdc1eb6ac34e603fe38b84d: Kotlin compileDebugKotlin failed at VideoSearchBridgeController.kt:2123 because nullable Results?.page was accessed without a safe check. Corrected to fail-closed nullable page retrieval; no APK was created.",
+      "source_sha": "0c214961af65ea9f5cdc1eb6ac34e603fe38b84d",
+      "observed_at": null,
+      "run_id": 41716281572,
+      "job_id": 126197571954,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "a713bb60afe5436f3467268719dcd202afbeeb35",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41716281572"
+      ]
+    },
+    {
+      "id": "CI-41716281572-1-126197571964",
+      "task_id": "ZC-V4-P2-D-RULE-REPAIR",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2d-nullable-crawl-result-page-access",
+      "summary": "SOURCE lint on 0c214961af65ea9f5cdc1eb6ac34e603fe38b84d: Kotlin compileDebugKotlin failed at VideoSearchBridgeController.kt:2123 because nullable Results?.page was accessed without a safe check. Corrected to fail-closed nullable page retrieval; no APK was created.",
+      "source_sha": "0c214961af65ea9f5cdc1eb6ac34e603fe38b84d",
+      "observed_at": null,
+      "run_id": 41716281572,
+      "job_id": 126197571964,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-41716281572-1-126197571954",
+      "fix_sha": "a713bb60afe5436f3467268719dcd202afbeeb35",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41716281572"
+      ]
+    },
+    {
+      "id": "CI-41716281572-1-126197572064",
+      "task_id": "ZC-V4-P2-D-RULE-REPAIR",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2d-nullable-crawl-result-page-access",
+      "summary": "SOURCE AndroidTest Kotlin compile on 0c214961af65ea9f5cdc1eb6ac34e603fe38b84d: Kotlin compileDebugKotlin failed at VideoSearchBridgeController.kt:2123 because nullable Results?.page was accessed without a safe check. Corrected to fail-closed nullable page retrieval; no APK was created.",
+      "source_sha": "0c214961af65ea9f5cdc1eb6ac34e603fe38b84d",
+      "observed_at": null,
+      "run_id": 41716281572,
+      "job_id": 126197572064,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-41716281572-1-126197571954",
+      "fix_sha": "a713bb60afe5436f3467268719dcd202afbeeb35",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41716281572"
+      ]
+    },
+    {
+      "id": "CI-41716281572-1-126199104379",
+      "task_id": "ZC-V4-P2-D-RULE-REPAIR",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2d-nullable-crawl-result-page-access",
+      "summary": "SOURCE quality summary on 0c214961af65ea9f5cdc1eb6ac34e603fe38b84d: Kotlin compileDebugKotlin failed at VideoSearchBridgeController.kt:2123 because nullable Results?.page was accessed without a safe check. Corrected to fail-closed nullable page retrieval; no APK was created.",
+      "source_sha": "0c214961af65ea9f5cdc1eb6ac34e603fe38b84d",
+      "observed_at": null,
+      "run_id": 41716281572,
+      "job_id": 126199104379,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": "CI-41716281572-1-126197571954",
+      "fix_sha": "a713bb60afe5436f3467268719dcd202afbeeb35",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41716281572"
+      ]
+    },
+    {
+      "id": "CI-41716291555-1-126197175392",
+      "task_id": "ZC-V4-P2-D-RULE-REPAIR",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2d-nullable-crawl-result-page-access",
+      "summary": "PR JVM on 0c214961af65ea9f5cdc1eb6ac34e603fe38b84d: Kotlin compileDebugKotlin failed at VideoSearchBridgeController.kt:2123 because nullable Results?.page was accessed without a safe check. Corrected to fail-closed nullable page retrieval; no APK was created.",
+      "source_sha": "0c214961af65ea9f5cdc1eb6ac34e603fe38b84d",
+      "observed_at": null,
+      "run_id": 41716291555,
+      "job_id": 126197175392,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-41716281572-1-126197571954",
+      "fix_sha": "a713bb60afe5436f3467268719dcd202afbeeb35",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41716291555"
+      ]
+    },
+    {
+      "id": "CI-41716291555-1-126197175477",
+      "task_id": "ZC-V4-P2-D-RULE-REPAIR",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2d-nullable-crawl-result-page-access",
+      "summary": "PR lint on 0c214961af65ea9f5cdc1eb6ac34e603fe38b84d: Kotlin compileDebugKotlin failed at VideoSearchBridgeController.kt:2123 because nullable Results?.page was accessed without a safe check. Corrected to fail-closed nullable page retrieval; no APK was created.",
+      "source_sha": "0c214961af65ea9f5cdc1eb6ac34e603fe38b84d",
+      "observed_at": null,
+      "run_id": 41716291555,
+      "job_id": 126197175477,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-41716281572-1-126197571954",
+      "fix_sha": "a713bb60afe5436f3467268719dcd202afbeeb35",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41716291555"
+      ]
+    },
+    {
+      "id": "CI-41716291555-1-126197175687",
+      "task_id": "ZC-V4-P2-D-RULE-REPAIR",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2d-nullable-crawl-result-page-access",
+      "summary": "PR AndroidTest Kotlin compile on 0c214961af65ea9f5cdc1eb6ac34e603fe38b84d: Kotlin compileDebugKotlin failed at VideoSearchBridgeController.kt:2123 because nullable Results?.page was accessed without a safe check. Corrected to fail-closed nullable page retrieval; no APK was created.",
+      "source_sha": "0c214961af65ea9f5cdc1eb6ac34e603fe38b84d",
+      "observed_at": null,
+      "run_id": 41716291555,
+      "job_id": 126197175687,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-41716281572-1-126197571954",
+      "fix_sha": "a713bb60afe5436f3467268719dcd202afbeeb35",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41716291555"
+      ]
+    },
+    {
+      "id": "ERR-20261103-P2D-0006",
+      "task_id": "ZC-V4-P2-D-RULE-REPAIR",
+      "kind": "REVIEW",
+      "fingerprint": "rollback-previous-stale-state-promoted-to-configured",
+      "summary": "Security review found that rollback restored a prior selector JSON without its prior configuration status; previously REPAIR_REQUIRED could be mislabeled CONFIGURED. Now persist previous state inside same existing JSON and restore exact state under CAS.",
+      "source_sha": "0c214961af65ea9f5cdc1eb6ac34e603fe38b84d",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "a713bb60afe5436f3467268719dcd202afbeeb35",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/pull/123"
+      ]
+    },
+    {
+      "id": "ERR-20261103-P2D-0007",
+      "task_id": "ZC-V4-P2-D-RULE-REPAIR",
+      "kind": "REVIEW",
+      "fingerprint": "known-verified-backup-candidates-not-considered",
+      "summary": "Review found that stored previously confirmed fallback selectors were retained but not considered in repair. Now a unique learned backup may be tried only when structural scan sees no group, and actual user-initiated search proves fresh film cards; ambiguous lists still fail closed.",
+      "source_sha": "0c214961af65ea9f5cdc1eb6ac34e603fe38b84d",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "a713bb60afe5436f3467268719dcd202afbeeb35",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/pull/123"
       ]
     }
   ]
