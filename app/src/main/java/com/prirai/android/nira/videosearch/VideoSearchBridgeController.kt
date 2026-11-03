@@ -2078,7 +2078,8 @@ internal class VideoSearchBridgeController(
                 resultsCardSelector = selector)
             (request(site, "crawl") { doc, req ->
                 VideoSearchBridgeProtocol.extractCrawl(doc, req, beforeConfig, 0)
-            } as? VideoSearchBridgeMessage.Results)?.page
+            } as? VideoSearchBridgeMessage.Results)
+                ?.takeIf { it.documentId == originalDocument }?.page
         }
         val submitted = request(site, "search") { document, req ->
             VideoSearchBridgeProtocol.search(document, req, query,
@@ -2101,6 +2102,8 @@ internal class VideoSearchBridgeController(
             val recognized = recognizeSite(site)
             val cards = VideoSearchRecognitionPolicy.repairCandidate(
                 recognized, analysis?.resultsCardSelector) ?: continue
+            if (analysis != null && analysis.documentId != recognized?.documentId)
+                continue
             val config = existing.copy(
                 searchInputSelector = form.inputSelector!!,
                 submission = form.submission,
@@ -2109,9 +2112,15 @@ internal class VideoSearchBridgeController(
                 pagination = analysis?.pagination ?: VideoSearchPagination.NONE,
                 nextPageSelector = analysis?.nextPageSelector,
             )
-            val page = (request(site, "crawl") { doc, req ->
+            val result = request(site, "crawl") { doc, req ->
                 VideoSearchBridgeProtocol.extractCrawl(doc, req, config, 0)
-            } as? VideoSearchBridgeMessage.Results)?.page
+            } as? VideoSearchBridgeMessage.Results
+            if (result?.documentId != recognized?.documentId) continue
+            val bound = existingSiteTab(site) ?: continue
+            if (bound.first !== source.first ||
+                bound.second.documentId != recognized?.documentId ||
+                bound.second.pageUrl != live.content.url) continue
+            val page = result.page
             val evidence = VideoSearchRepairEvidence(
                 originalDocument, recognized?.documentId, baseline, page,
                 source.second.pageUrl, live.content.url, query,

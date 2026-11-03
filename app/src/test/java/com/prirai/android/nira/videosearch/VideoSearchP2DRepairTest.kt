@@ -160,6 +160,62 @@ class VideoSearchP2DRepairTest {
         assertFalse(proof().toString().contains(query))
     }
 
+    @Test fun boundNewDocumentWithExactQueryCanBeConfirmedButRebindIsRejected() {
+        val nextDoc = "c".repeat(32)
+        val recognized = VideoSearchBridgeMessage.Recognition(nextDoc, "b".repeat(32),
+            "found", "CANDIDATE_FOUND", 96, "article.new", 3, 60, "MAIN")
+        val proper = VideoSearchRepairEvidence(doc, nextDoc, null, page("10"),
+            "https://films.example/", "https://films.example/search?q=Example+movie",
+            query, recognized, "article.new")
+        assertTrue(proper.confirms("article.new"))
+        assertFalse(proper.copy(landingPageUrl =
+            "https://films.example/recommendations").confirms("article.new"))
+        assertFalse(proper.copy(recognition = recognition()).confirms("article.new"))
+        assertFalse(proper.copy(analyzedCards = "article.other").confirms("article.new"))
+    }
+
+    @Test fun privateScopeCannotPersistOrRestoreRepair() = runBlocking {
+        val database = db()
+        try {
+            val repo = VideoSearchRepository(database.dao())
+            val owner = VideoSearchScope.Normal("main")
+            val site = configured(repo, owner, "normal")
+            val privateSite = site.copy(scope = VideoSearchScope.Private("main", "ephemeral"))
+            val proposed = privateSite.configuration!!.copy(resultsCardSelector = "article.new")
+            assertFalse(repo.applyVerifiedRepair(privateSite, proposed, proof(), true))
+            assertFalse(repo.rollbackVerifiedRepair(privateSite, true))
+            assertEquals(site, repo.site(owner, site.id))
+        } finally { database.close() }
+    }
+
+    @Test fun repairAndRollbackSnapshotSurviveClosingAndReopeningRoom() = runBlocking {
+        val context = RuntimeEnvironment.getApplication()
+        val name = "video-search-p2d-restart-fixture.db"
+        context.deleteDatabase(name)
+        val owner = VideoSearchScope.Normal("normal")
+        try {
+            val first = Room.databaseBuilder(context, VideoSearchDatabase::class.java, name).build()
+            try {
+                val repo = VideoSearchRepository(first.dao())
+                val site = configured(repo, owner, "resume")
+                val candidate = site.configuration!!.copy(resultsCardSelector = "article.new")
+                assertTrue(repo.applyVerifiedRepair(site, candidate, proof(), true, nowMs = 10))
+            } finally { first.close() }
+            val second = Room.databaseBuilder(context, VideoSearchDatabase::class.java, name).build()
+            try {
+                val repo = VideoSearchRepository(second.dao())
+                val current = repo.site(owner, "resume")!!
+                assertEquals("article.new", current.configuration?.resultsCardSelector)
+                assertNotNull(current.configuration?.recognition?.rollbackConfigurationJson)
+                assertTrue(repo.rollbackVerifiedRepair(current, true, nowMs = 11))
+                assertEquals("article.old", repo.site(owner, "resume")
+                    ?.configuration?.resultsCardSelector)
+                assertEquals(VideoSearchRuleOrigin.MANUAL,
+                    repo.site(owner, "resume")?.configuration?.recognition?.origin)
+            } finally { second.close() }
+        } finally { context.deleteDatabase(name) }
+    }
+
     @Test fun brokenRollbackMetadataNeverDestroysCurrentSelectors() {
         val old = VideoSiteConfiguration("#search", "article.old",
             recognition = VideoSearchRecognitionMemory(origin = VideoSearchRuleOrigin.MANUAL))

@@ -15,6 +15,8 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class, manifest = Config.NONE)
 class VideoSearchConfigurationHealthTest {
+    private fun manual(c: VideoSiteConfiguration) = c.copy(
+        recognition = VideoSearchRecognitionMemory(origin = VideoSearchRuleOrigin.MANUAL))
     private val owner = VideoSearchScope.Normal("default")
     private val foreign = VideoSearchScope.Normal("work")
     private val doc = "0123456789abcdef0123456789abcdef"
@@ -138,7 +140,7 @@ class VideoSearchConfigurationHealthTest {
             assertTrue(repo.applyManualConfiguration(site, configured(), nowMs = 2))
             val saved = repo.site(owner, "a")!!
             assertFalse(repo.applyAutoConfiguration(saved, inspection(), nowMs = 3))
-            assertEquals(configured(), repo.site(owner, "a")?.configuration)
+            assertEquals(manual(configured()), repo.site(owner, "a")?.configuration)
             assertEquals(VideoSiteConfigurationState.CONFIGURED,
                 repo.site(owner, "a")?.configurationState)
         } finally { db.close() }
@@ -151,10 +153,11 @@ class VideoSearchConfigurationHealthTest {
             val site = repo.addSite(owner, "https://example.org", nowMs = 1, newId = "a")
             assertTrue(repo.applyManualConfiguration(site, configured(), nowMs = 2))
             val before = repo.site(owner, "a")!!
-            assertTrue(repo.applyAutoConfiguration(before, inspection(),
+            // P2-D blocks inspection-only replacement, even after consent.
+            assertFalse(repo.applyAutoConfiguration(before, inspection(),
                 nowMs = 3, confirmedReplace = true))
-            assertEquals("input.search2",
-                repo.site(owner, "a")?.configuration?.searchInputSelector)
+            assertEquals(manual(configured()),
+                repo.site(owner, "a")?.configuration)
             assertFalse(repo.applyAutoConfiguration(before, inspection(),
                 nowMs = 4, confirmedReplace = true))
         } finally { db.close() }
@@ -171,7 +174,7 @@ class VideoSearchConfigurationHealthTest {
                 validation("unverified", "no_results", 3, 0), true, nowMs = 3))
             assertFalse(repo.flagValidatedBrokenConfiguration(configuredSite,
                 validation("stale", "input_missing", 3, 0), false, nowMs = 3))
-            assertEquals(configured(), repo.site(owner, "a")?.configuration)
+            assertEquals(manual(configured()), repo.site(owner, "a")?.configuration)
             assertEquals(VideoSiteConfigurationState.CONFIGURED,
                 repo.site(owner, "a")?.configurationState)
         } finally { db.close() }
@@ -188,7 +191,7 @@ class VideoSearchConfigurationHealthTest {
                 validation("stale", "input_missing", 3, 0), userConfirmed = true, nowMs = 3))
             val broken = repo.site(owner, "a")!!
             assertEquals(VideoSiteConfigurationState.REPAIR_REQUIRED, broken.configurationState)
-            assertEquals(configured(), broken.configuration)
+            assertEquals(manual(configured()), broken.configuration)
             assertEquals(1, repo.sites(owner).size)
         } finally { db.close() }
     }
@@ -224,7 +227,7 @@ class VideoSearchConfigurationHealthTest {
             assertTrue(repo.applyManualConfiguration(site, partial, nowMs = 2))
             val current = repo.site(owner, "a")!!
             assertFalse(repo.applyAutoConfiguration(current, inspection(), nowMs = 3))
-            assertEquals(partial, repo.site(owner, "a")?.configuration)
+            assertEquals(manual(partial), repo.site(owner, "a")?.configuration)
         } finally { db.close() }
     }
 }
