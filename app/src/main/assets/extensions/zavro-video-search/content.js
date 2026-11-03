@@ -155,34 +155,114 @@
   function searchButton(input) {
     const area = searchContext(input);
     if (!area) return null;
-    const candidates = Array.from(
-      area.querySelectorAll('button,input[type="submit"],[role="button"]')).slice(0, 15);
-    const valid = candidates.filter(b => manualSubmit(b, input));
-    const known = valid.filter(b => searchTerms.test(
-      (b.innerText || b.value || "") + " " + (b.getAttribute("aria-label") || "")));
-    const chosen = known.length === 1 ? known[0] : valid.length === 1 ? valid[0] : null;
+    const controls = Array.from(area.querySelectorAll(
+      'button,input[type="submit"],[role="button"]')).slice(0, 24);
+    const valid = controls.filter(b => manualSubmit(b, input));
+    // A form may contain reset, filter and navigation buttons as well.
+    // Prefer an explicitly named search action; otherwise a UNIQUE native
+    // submit control. Never guess among two equally likely search actions.
+    const named = valid.filter(b => searchTerms.test([
+      b.innerText, b.value, b.id, b.className,
+      b.getAttribute?.("aria-label"), b.getAttribute?.("title"),
+      b.getAttribute?.("data-action")
+    ].filter(v => typeof v === "string").join(" ")));
+    const submitted = valid.filter(b =>
+      b.matches?.('input[type="submit"],button[type="submit"]') ||
+      b.tagName === "BUTTON" && !b.getAttribute?.("type"));
+    const chosen = named.length === 1 ? named[0] :
+      named.length > 1 ? null :
+      submitted.length === 1 ? submitted[0] :
+      submitted.length > 1 ? null :
+      valid.length === 1 && input.form ? valid[0] : null;
     return chosen ? selectorFor(chosen) : null;
   }
   function detectResults() {
-    // Only propose a selector if two or more card-like elements contain page links.
-    const selectors = ['[data-testid="search-result"]', '.search-result',
-      '.movie-card', '.film-card', '.video-card', '.result-item', '.search-results article'];
-    const candidates = [];
-    for (const selector of selectors) {
-      const nodes = Array.from(document.querySelectorAll(selector)).slice(0, 12);
-      const valid = nodes.filter(n => n.querySelector('a[href]')).length;
-      if (valid >= 2) candidates.push(selector);
+    // Discover repeated, card-local film links. Do not confuse arbitrary
+    // site navigation with results or require a specific CSS theme.
+    const candidates = [
+      '[data-testid="search-result"]', '.search-result',
+      '.movie-card', '.film-card', '.video-card', '.result-item',
+      '.search-results article', '.list-videos .item',
+      '.videos-list article', '.videos-list .post',
+      '.video-grid article', 'article.video-card',
+      'article.post', '.results .item', '.listing .item',
+      '.row-item', '.item.thumb'
+    ];
+    const checks = new Set(candidates);
+    // Use repeated classes inside a clearly named results/list container.
+    // A dynamically generated post-id/class is never stored as the rule.
+    try {
+      const all = Array.from(document.querySelectorAll("article,div,li,figure")).slice(0, 260);
+      for (const node of all) {
+        const parent = node.parentElement;
+        if (!parent || !node.tagName || !parent.classList) continue;
+        const groups = Array.from(parent.classList).filter(c =>
+          /^[a-zA-Z_][a-zA-Z0-9_-]{1,45}$/.test(c) &&
+          /(?:results?|videos?|films?|movies?|posts?|listing|grid|thumbs?|tiles?)/i.test(c));
+        const local = Array.from(node.classList || []).filter(c =>
+          /^[a-zA-Z_][a-zA-Z0-9_-]{1,45}$/.test(c) &&
+          !/(?:^|[-_])\d+$/.test(c));
+        for (const group of groups.slice(0, 2))
+          for (const item of local.slice(0, 2))
+            checks.add("." + group + " " + node.tagName.toLowerCase() + "." + item);
+      }
+    } catch (_) { /* Some sites expose unusual DOM prototypes. */ }
+    let best = null;
+    for (const selector of checks) {
+      let nodes;
+      try { nodes = Array.from(document.querySelectorAll(selector)).slice(0, 64); }
+      catch (_) { continue; }
+      if (nodes.length < 2) continue;
+      let linked = 0, withMetadata = 0;
+      for (const node of nodes) {
+        if (!node.querySelector?.('a[href]')) continue;
+        linked++;
+        if (node.querySelector('img,picture,video,[data-src],[data-original],' +
+            'h2,h3,h4,[itemprop="name"],[data-title],.thumb')) withMetadata++;
+      }
+      // Repeated headings/posters + links are stronger evidence than a
+      // bare list of category, tag or navigation anchors.
+      if (linked < 2 || withMetadata < 2 ||
+          linked * 4 < nodes.length * 3) continue;
+      const contextual = /(?:search|result|video|film|movie|post|listing|grid|thumb)/i.test(selector);
+      const score = Math.min(withMetadata, 24) * 2 + Math.min(linked, 24) +
+        (contextual ? 16 : 0) + (selector.includes(" ") ? 4 : 0);
+      if (!best || score > best.score) best = {selector, score};
     }
-    return candidates.length === 1 ? candidates[0] : null;
+    return best?.selector || null;
   }
   function detectPagination() {
-    for (const [selector, kind] of [
-      ['a[rel="next"]', 'NEXT_LINK'],
-      ['.pagination a.next', 'NEXT_LINK'],
-      ['button.load-more', 'LOAD_MORE']
-    ]) if (document.querySelectorAll(selector).length === 1)
-      return { pagination: kind, nextPageSelector: selector };
-    return { pagination: "NONE", nextPageSelector: null };
+    // The next-page control must be unambiguous and pass the same
+    // structural/same-origin validation used by manual picking.
+    const paths = [
+      'a[rel="next"]', '.pagination a.next',
+      '.pagination .next a', 'button.load-more',
+      'a.next[aria-label]', '.pager a[rel="next"]'
+    ];
+    for (const selector of paths) {
+      let elements;
+      try { elements = document.querySelectorAll(selector); }
+      catch (_) { continue; }
+      if (elements.length !== 1) continue;
+      const next = manualNext(elements[0]);
+      if (next) return {pagination: next.pagination, nextPageSelector: next.selector};
+    }
+    // Broader candidates are considered only in recognized pagination
+    // containers; an unrelated carousel Next button must not qualify.
+    let controls;
+    try {
+      controls = Array.from(document.querySelectorAll(
+        '.pagination a,.pagination button,.pager a,.pager button,' +
+        'nav[aria-label="pagination"] a,nav[aria-label="pagination"] button'))
+        .slice(0, 50);
+    } catch (_) { controls = []; }
+    const candidates = controls.map(manualNext).filter(Boolean);
+    const unique = new Map(candidates.map(c => [c.pagination + ":" + c.selector, c]));
+    if (unique.size === 1) {
+      const match = unique.values().next().value;
+      return {pagination:match.pagination, nextPageSelector:match.selector};
+    }
+    return {pagination:"NONE", nextPageSelector:null};
   }
   function detect() {
     const candidates = Array.from(document.querySelectorAll("input")).slice(0, limited)

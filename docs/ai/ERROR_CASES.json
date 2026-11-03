@@ -35,6 +35,11 @@
       "task_id": "ZC-V1210-RESULTS-MINI-LIST",
       "observed_count": 1,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-STRUCTURAL-SITE-SEARCH",
+      "observed_count": 1,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -620,6 +625,24 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41549291438"
       ]
+    },
+    {
+      "id": "ERR-20261103-0001",
+      "task_id": "ZC-V4-STRUCTURAL-SITE-SEARCH",
+      "kind": "USER_REPORT",
+      "fingerprint": "video-search-dom-structure-detection-too-narrow",
+      "summary": "Wielowitrynowe wyszukiwanie wymaga rozpoznawania powtarzalnych kart, kontrolek wyszukiwania i paginacji bez zależności od kilku ręcznych klas CSS. Brak dowodu testu Gecko na prawdziwych sesjach.",
+      "source_sha": "27bdabf155d5a409019574b966f118aef0cab122",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/video-search-structural-v4.test.cjs",
+      "evidence_links": []
     }
   ]
 }
