@@ -12,7 +12,8 @@ internal object VideoSearchRecognitionDiagnostics {
         "FRAME_RESULTS" ->
             "Wyniki znajdują się w ramce. Automatyczny zapis wymaga osobnej weryfikacji."
         "CARDS_NOT_FOUND" ->
-            "Nie rozpoznano kart filmowych. Otwórz wyniki wyszukiwania lub użyj Wskaż."
+            "Brak pewnego kandydata. To może być pusta strona, opóźniony AJAX " +
+                "lub zmieniona struktura. Nie nadpisuj reguł bez testowego wyszukiwania."
         else -> "Nie można potwierdzić struktury strony. Otwórz witrynę i użyj Wskaż."
     }
 }

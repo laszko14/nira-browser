@@ -1,43 +1,51 @@
-# AI_HANDOFF — Zavro Clean V4 / P2-C dynamic pagination
+# AI_HANDOFF — Zavro Clean V4 / P2-D safe verified rule repair
 > Historia: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md.
 
 ```yaml
-task_id: ZC-V4-P2-C-DYNAMIC-PAGINATION
+task_id: ZC-V4-P2-D-RULE-REPAIR
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: fix/zavro-clean-v4-p2-evidence-runtime-20261103
-base_sha: b566546207bed0ad236dc5f5c28a8807cd4ea5a6
-observed_head_sha: 985757e915d3db61f75b0cf6d4f6c42c4e60641d
+base_sha: ed3adb4abec37291ec1b257153cae6aeabf23c12
+observed_head_sha: ed3adb4abec37291ec1b257153cae6aeabf23c12
 status: CI_PENDING
-acceptance_source: User IMPLEMENT P2-C; complete dynamic search, scroll pagination, virtual list regressions; explicit NO APK until P2 complete.
-completed: Bounded AJAX first-window hydration re-probes in normal and private worker; extended same-document AJAX progress wait; opt-in infinite scroll bound to configured result cards and consistent scroll owner; identity-revoked queued scroll; strict bridge selector for scroll; negative JS/Kotlin regressions. Preserve existing evidence-only terminal marker, exact-URL dedupe, verified replacement, owner/profile constraints and quotas.
-remaining: Required exact-final-SHA SOURCE and PR integration CI and triage; physical GeckoView/real-site corpus and restart/resume NOT_TESTED. Full site-specific virtualized grid diversity still requires device validation; P2-D rule repair and P2-E wider corpus remain pending.
-required_ci: SOURCE push process-docs, shared-tests JS/JVM-Robolectric/AndroidTest compile/lint regression, quality-evidence all SUCCESS on exact final SHA; separate PR integration.
-apk: NOT_BUILT by user instruction; no review trigger, no private APK workflow build. Preserve v1224 package/signature/ABI/version; do not bump until final P2 APK.
+acceptance_source: User IMPLEMENT P2-D diagnostics, evidence-only reversible repairs, provenance, profile isolation and regressions; absolutely NO APK.
+completed: Prepared P2-D1 results-only/AJAX/human-gate diagnostics; P2-D2 bounded candidate and ambiguity policy with unstable CSS filtering; P2-D3 user-phrase-search proof and context-bound controller refusing inspect-only writes; P2-D4 one-row Room CAS with monotonic revision, complete rollback snapshot in existing configuration JSON and manual-origin tagging; P2-D5 JS and Robolectric negative/positive regression tests.
+remaining: Verify the exact final SOURCE and PR CI, repair any failures; real GeckoView sites, async iframe/Shadow replacement, rotation, device and real private runs remain NOT_TESTED; after green CI proceed to P2-E separately.
+required_ci: SOURCE push process-docs, shared-tests JS/JVM-Robolectric/AndroidTest compile/lint and quality-evidence all SUCCESS at exact final SHA, plus separate PR integration for same head_sha.
+apk: NOT_BUILT; do not trigger private workflow or create any APK before whole P2 is complete.
 device: NOT_TESTED
-known_failures: Two review issues from static code inspection recorded under ZC-V4-P2-C-DYNAMIC-PAGINATION, no observed CI failures before push.
-verification: Source read with direct GitHub connector from observed exact SHA; test results pending Actions.
+known_failures: 4 P2-D observations (1 user report and 3 review findings) recorded in ERROR_CASES.json as OPEN until verified final fix SHA; no P2-D CI result before push.
+verification: Read live GitHub PR #123, head SHA and AGENTS.md, AI_HANDOFF.md, V3.2 STARTUP_PREFLIGHT, DEVELOPMENT_WORKFLOW, TEST_POLICY, QUALITY_GATES, ERROR_LEARNING, CHECKPOINT_POLICY, TASK_TEMPLATE, TEST_PATTERNS, EXCEPTIONS_AND_TOOLS from the original exact SHA. No local working tree or phone test.
 blockers:
-  - Cannot claim device-verified behavior from JS or JVM CI.
-  - Cross-origin iframes and closed Shadow DOM remain intentionally unsupported.
+  - Physical GeckoView/real site corpus and user-device interactions are untested.
+  - Cross-origin iframe and closed Shadow DOM are intentionally unsupported; ambiguous evidence fails closed.
+  - Independent security review is not yet confirmed.
 changed_paths:
   - app/src/main/assets/extensions/zavro-video-search/content.js
+  - app/src/main/assets/extensions/zavro-video-search/recognition.js
+  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchRecognitionMemory.kt
+  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchRecognitionDiagnostics.kt
+  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchRepairEvidence.kt
+  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchRowCodec.kt
+  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchDao.kt
+  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchRepository.kt
   - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchBridgeProtocol.kt
   - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchBridgeController.kt
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchPaginationCollector.kt
-  - app/src/test/js/video-search-p2c-dynamic-pagination.test.cjs
-  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchPaginationCollectorTest.kt
-  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchPaginationProtocolTest.kt
+  - app/src/main/java/com/prirai/android/nira/videosearch/MyVideoSitesActivity.kt
+  - app/src/test/js/video-search-p2d-diagnostics.test.cjs
+  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt
   - docs/ai/ERROR_CASES.json
   - docs/AI_HANDOFF.md
 verified_before_push:
-  - Live draft PR 123 verified to have HEAD 985757e915d3db61f75b0cf6d4f6c42c4e60641d.
-  - Read AGENTS.md, AI_HANDOFF.md, V3.2 STARTUP_PREFLIGHT, DEVELOPMENT_WORKFLOW, TEST_POLICY, QUALITY_GATES, ERROR_LEARNING, CHECKPOINT_POLICY and TASK_TEMPLATE.
-  - No local working tree or physical device was available.
+  - Live PR 123 open draft, correct branch, HEAD ed3adb4abec37291ec1b257153cae6aeabf23c12; source and integration CI for P2-C SUCCESS on that SHA.
+  - Existing Room schema v3 is unchanged; all repair and rollback state uses existing configurationJson.
+  - No APK, merge, release, force-push, secret/certificate change or MPV edits.
 evidence_links:
   - https://github.com/laszko14/nira-browser/pull/123
-security: No automatic unsafe control clicks, page-world monkeypatch, cross-origin scraping, TinyFish, merge, public release, force-push, signing or certificate changes.
-next_action: Inspect exact-final-SHA SOURCE and PR CI, repair failures, then report CODE_VERIFIED separately from NOT_BUILT and NOT_TESTED.
-
+  - https://github.com/laszko14/nira-browser/actions/runs/41706574420
+  - https://github.com/laszko14/nira-browser/actions/runs/41706587032
+security: Search evidence requires exact query/new film identity; no automatic CAPTCHA/login bypass; no raw user query in Room logs or repair metadata; normal-only Room with owner, session, tab and revision rechecks.
+next_action: Verify and repair SOURCE and PR CI on exact final SHA; then P2-E wider real-site evidence.
 ```

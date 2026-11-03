@@ -8,6 +8,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withTimeoutOrNull
 import android.widget.Toast
@@ -2031,6 +2032,105 @@ internal class VideoSearchBridgeController(
                 }
             }
             delay(350)
+        }
+        return VideoSearchManualSearchOutcome.SUBMITTED_UNVERIFIED
+    }
+
+
+    /**
+     * P2-D: a repair is a one-off, user-submitted search in the currently
+     * selected, bound normal tab. No inspect-only write is permitted.
+     * The result card selector must be independently recognized and the
+     * query must yield exact URL/new-film evidence before a Room CAS.
+     */
+    suspend fun repairSiteAfterVerifiedSearch(
+        site: VideoSearchSite, query: String,
+        repository: VideoSearchRepository,
+    ): VideoSearchManualSearchOutcome {
+        val owner = site.scope as? VideoSearchScope.Normal
+            ?: return VideoSearchManualSearchOutcome.FAILED
+        if (!site.enabled || site.configuration == null ||
+            !activeNormalOwner(owner) || !VideoSearchBridgeProtocol.validQuery(query))
+            return VideoSearchManualSearchOutcome.FAILED
+        val source = existingSiteTab(site) ?: return VideoSearchManualSearchOutcome.FAILED
+        val tabId = currentTab(source.first)?.tabId
+            ?: return VideoSearchManualSearchOutcome.FAILED
+        if (store.state.selectedTabId != tabId)
+            return VideoSearchManualSearchOutcome.FAILED
+        val originalDocument = source.second.documentId
+            ?: return VideoSearchManualSearchOutcome.FAILED
+        val form = inspectSite(site) ?: return VideoSearchManualSearchOutcome.FAILED
+        if (form.documentId != originalDocument ||
+            form.status !in setOf("ready", "partial") ||
+            !VideoSearchBridgeProtocol.validSelector(form.inputSelector) ||
+            form.submission == null ||
+            (form.submission == VideoSearchSubmission.CLICK_SUBMIT &&
+                !VideoSearchBridgeProtocol.validSelector(form.submitSelector)))
+            return VideoSearchManualSearchOutcome.FAILED
+
+        val existing = site.configuration ?: return VideoSearchManualSearchOutcome.FAILED
+        val baselineSelector = form.resultsCardSelector ?: existing.resultsCardSelector
+        val baseline = baselineSelector?.let { selector ->
+            val beforeConfig = existing.copy(
+                searchInputSelector = form.inputSelector!!,
+                submission = form.submission,
+                submitSelector = form.submitSelector,
+                resultsCardSelector = selector)
+            (request(site, "crawl") { doc, req ->
+                VideoSearchBridgeProtocol.extractCrawl(doc, req, beforeConfig, 0)
+            } as? VideoSearchBridgeMessage.Results)?.page
+        }
+        val submitted = request(site, "search") { document, req ->
+            VideoSearchBridgeProtocol.search(document, req, query,
+                form.inputSelector!!, form.submission, form.submitSelector)
+        } is VideoSearchBridgeMessage.Submitted
+        if (!submitted) return VideoSearchManualSearchOutcome.FAILED
+
+        val started = SystemClock.elapsedRealtime()
+        while (SystemClock.elapsedRealtime() - started < 12_000L) {
+            delay(450)
+            val live = store.state.tabs.singleOrNull { it.id == tabId }
+                ?: return VideoSearchManualSearchOutcome.SUBMITTED_UNVERIFIED
+            if (!activeNormalOwner(owner) || store.state.selectedTabId != tabId ||
+                !owner.ownsTab(live.contextId, live.content.private) ||
+                live.engineState.engineSession !== source.first ||
+                !VideoSearchBridgeProtocol.sameOrigin(live.content.url, site.siteUrl))
+                return VideoSearchManualSearchOutcome.SUBMITTED_UNVERIFIED
+            // Candidate results may live on a different /results page with no form.
+            val analysis = analyzeSite(site)
+            val recognized = recognizeSite(site)
+            val cards = VideoSearchRecognitionPolicy.repairCandidate(
+                recognized, analysis?.resultsCardSelector) ?: continue
+            val config = existing.copy(
+                searchInputSelector = form.inputSelector!!,
+                submission = form.submission,
+                submitSelector = form.submitSelector,
+                resultsCardSelector = cards,
+                pagination = analysis?.pagination ?: VideoSearchPagination.NONE,
+                nextPageSelector = analysis?.nextPageSelector,
+            )
+            val page = (request(site, "crawl") { doc, req ->
+                VideoSearchBridgeProtocol.extractCrawl(doc, req, config, 0)
+            } as? VideoSearchBridgeMessage.Results)?.page
+            val evidence = VideoSearchRepairEvidence(
+                originalDocument, recognized?.documentId, baseline, page,
+                source.second.pageUrl, live.content.url, query,
+                recognized, analysis?.resultsCardSelector)
+            if (!evidence.confirms(cards)) continue
+            val current = withContext(Dispatchers.IO) {
+                repository.site(owner, site.id)
+            }
+            if (current != site || !activeNormalOwner(owner) ||
+                store.state.selectedTabId != tabId) {
+                return VideoSearchManualSearchOutcome.SUBMITTED_UNVERIFIED
+            }
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            val saved = withContext(Dispatchers.IO) {
+                repository.applyVerifiedRepair(
+                    site, config, evidence, explicitConsent = true)
+            }
+            return if (saved) VideoSearchManualSearchOutcome.VERIFIED
+                else VideoSearchManualSearchOutcome.SUBMITTED_UNVERIFIED
         }
         return VideoSearchManualSearchOutcome.SUBMITTED_UNVERIFIED
     }

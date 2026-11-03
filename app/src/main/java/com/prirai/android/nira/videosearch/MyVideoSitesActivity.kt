@@ -1606,20 +1606,34 @@ class MyVideoSitesActivity : AppCompatActivity() {
             when (report.status) {
                 "valid" -> {
                     if (current.configurationState == VideoSiteConfigurationState.REPAIR_REQUIRED) {
-                        val confirmed = try {
-                            withContext(Dispatchers.IO) {
-                                repository.confirmRepairedConfiguration(current, report)
-                            }
-                        } catch (_: Exception) { false }
-                        if (ownerIfCurrent() == owner) message(if (confirmed)
-                            "Sprawdzono i przywrócono konfigurację dla nowego adresu."
-                            else "Witryna zmieniła się. Sprawdź ponownie.")
-                    } else message("Selektory działają. Znaleziono ${report.matchedCards} kart " +
-                        "(${report.attempts} próby).")
+                        message("Elementy istnieją, ale naprawa wymaga rzeczywistego wyszukiwania.")
+                        promptVerifiedRepair(owner, current, bridge)
+                    } else if (current.configuration?.recognition?.rollbackConfigurationJson != null) {
+                        offerRollback(owner, current)
+                    } else message("Selektory są obecne. Znaleziono ${report.matchedCards} kart " +
+                        "(${report.attempts} próby); samo sprawdzenie nie potwierdza zapytania.")
                 }
-                "unverified" -> message("Pole działa, ale wyniki/paginacja są niepotwierdzone. " +
-                    "Otwórz stronę wyników i ponów sprawdzenie.")
-                "stale", "unsafe" -> offerRepair(owner, current, report, bridge)
+                "unverified" -> message(when (report.reason) {
+                    "results_only" -> "To może być strona wyników bez formularza. " +
+                        "Nie oznaczono konfiguracji jako uszkodzonej."
+                    "no_results" -> "Brak wyników nie oznacza zepsutych reguł. " +
+                        "Sprawdź zapytanie i poczekaj na AJAX/SPA."
+                    else -> "Pole działa, ale wyniki/paginacja są niepotwierdzone. " +
+                        "Otwórz stronę wyników i ponów sprawdzenie."
+                })
+                "stale", "unsafe" -> {
+                    if (report.reason == "human_gate")
+                        message("Witryna wymaga logowania lub CAPTCHA. " +
+                            "Naprawa nie obchodzi zabezpieczeń.")
+                    else {
+                        val recognized = try { bridge?.recognizeSite(current) }
+                            catch (_: Exception) { null }
+                        if (recognized?.reason in setOf(
+                                "AMBIGUOUS_CARDS", "SHADOW_RESULTS", "FRAME_RESULTS"))
+                            message(VideoSearchRecognitionDiagnostics.explain(recognized))
+                        else offerRepair(owner, current, report, bridge)
+                    }
+                }
             }
         }
     }
@@ -1661,50 +1675,112 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 }
             }
             .setPositiveButton("Spróbuj naprawić") { _, _ ->
-                lifecycleScope.launch {
-                    if (ownerIfCurrent() != owner) return@launch
-                    val updated = try {
-                        withContext(Dispatchers.IO) { repository.site(owner, original.id) }
-                    } catch (_: Exception) { null }
-                    // No silent overwrite when user changed the site during
-                    // the dialog or the old validation became stale.
-                    if (updated == null || updated != original || !updated.enabled) {
-                        message("Konfiguracja zmieniła się. Sprawdź ponownie.")
+                promptVerifiedRepair(owner, original, bridge)
+            }
+            .show()
+    }
+
+    /** The query stays in this dialog and is never written into recognition. */
+    private fun promptVerifiedRepair(
+        owner: VideoSearchScope.Normal,
+        original: VideoSearchSite,
+        bridge: VideoSearchBridgeController?,
+    ) {
+        if (ownerIfCurrent() != owner || bridge == null) return
+        val queryInput = EditText(this).apply {
+            hint = "Fraza do rzeczywistego wyszukiwania"
+            inputType = InputType.TYPE_CLASS_TEXT
+            isSingleLine = true
+        }
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("Bezpieczna naprawa reguł")
+            .setMessage("Wyszukiwanie zostanie uruchomione w aktywnej karcie tej witryny. " +
+                "Reguły zostaną zastąpione tylko po potwierdzeniu nowych filmów. " +
+                "Dotychczasowe ręczne ustawienia zachowamy do cofnięcia. " +
+                "Zamianę zatwierdzasz przyciskiem poniżej.")
+            .setView(queryInput)
+            .setNegativeButton("Anuluj", null)
+            .setPositiveButton("Wyszukaj i zatwierdź", null)
+            .create()
+        var job: Job? = null
+        dialog.setOnDismissListener { job?.cancel() }
+        dialog.show()
+        val action = dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)
+        action.setOnClickListener {
+            val query = queryInput.text.toString().trim()
+            if (!VideoSearchBridgeProtocol.validQuery(query)) {
+                queryInput.error = "Podaj poprawną frazę wyszukiwania"
+                return@setOnClickListener
+            }
+            action.isEnabled = false
+            job = lifecycleScope.launch {
+                try {
+                    val current = withContext(Dispatchers.IO) {
+                        repository.site(owner, original.id)
+                    }
+                    if (ownerIfCurrent() != owner || current == null ||
+                        current != original || !current.enabled || !dialog.isShowing) {
+                        if (dialog.isShowing) message("Witryna lub profil się zmieniły.")
                         return@launch
                     }
-                    var matched: VideoSearchBridgeMessage.Inspection? = null
-                    // Two bounded, user-initiated retries. No periodic task.
-                    for (attempt in 1..2) {
-                        if (ownerIfCurrent() != owner) return@launch
-                        val next = try { bridge?.inspectSite(original) } catch (_: Exception) { null }
-                        if (next?.status == "ready") {
-                            matched = next
-                            break
+                    val result = bridge.repairSiteAfterVerifiedSearch(
+                        original, query, repository)
+                    if (ownerIfCurrent() == owner && dialog.isShowing) {
+                        when (result) {
+                            VideoSearchManualSearchOutcome.VERIFIED -> {
+                                dialog.dismiss()
+                                message("Naprawę zapisano po wyszukiwaniu. " +
+                                    "Poprzednie reguły można cofnąć przez „Sprawdź”.")
+                            }
+                            VideoSearchManualSearchOutcome.SUBMITTED_UNVERIFIED ->
+                                message("Wyszukiwanie wysłano, ale brak wystarczających " +
+                                    "dowodów. Stare ustawienia pozostają bez zmian.")
+                            VideoSearchManualSearchOutcome.FAILED ->
+                                message("Nie uruchomiono bezpiecznego wyszukiwania. " +
+                                    "Otwórz stronę z formularzem lub użyj „Wskaż”.")
                         }
-                        if (attempt == 1) delay(350)
                     }
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    if (ownerIfCurrent() == owner && dialog.isShowing)
+                        message("Naprawa przerwana. Zachowano poprzednie ustawienia.")
+                } finally {
+                    if (dialog.isShowing) action.isEnabled = true
+                }
+            }
+        }
+    }
+
+    /** The previous full JSON is committed atomically in the same site row. */
+    private fun offerRollback(owner: VideoSearchScope.Normal, original: VideoSearchSite) {
+        if (ownerIfCurrent() != owner) return
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Sprawdzenie reguł")
+            .setMessage("Zapisana konfiguracja jest dostępna. " +
+                "Możesz wrócić do reguł sprzed ostatniej naprawy.")
+            .setNegativeButton("Zachowaj", null)
+            .setPositiveButton("Cofnij ostatnią naprawę") { _, _ ->
+                lifecycleScope.launch {
                     try {
-                        if (ownerIfCurrent() != owner) return@launch
-                        val confirmedInspection = matched
-                        if (confirmedInspection != null) {
-                            val replaced = withContext(Dispatchers.IO) {
-                                repository.applyAutoConfiguration(
-                                    original, confirmedInspection, confirmedReplace = true
-                                )
-                            }
-                            message(if (replaced) "Wykryto i zapisano naprawione selektory."
-                                else "Zapis został odrzucony — witryna mogła się zmienić.")
-                        } else {
-                            withContext(Dispatchers.IO) {
-                                repository.flagValidatedBrokenConfiguration(
-                                    original, diagnosis, userConfirmed = true
-                                )
-                            }
-                            message("Automatyczna naprawa nie powiodła się. " +
-                                "Zachowano selektory. Możesz użyć „Wskaż”.")
+                        val latest = withContext(Dispatchers.IO) {
+                            repository.site(owner, original.id)
                         }
+                        if (ownerIfCurrent() != owner || latest == null ||
+                            latest != original || !latest.enabled) {
+                            if (ownerIfCurrent() == owner)
+                                message("Konfiguracja zmieniła się. Ponów sprawdzenie.")
+                            return@launch
+                        }
+                        val restored = withContext(Dispatchers.IO) {
+                            repository.rollbackVerifiedRepair(original, explicitConsent = true)
+                        }
+                        if (ownerIfCurrent() == owner) message(if (restored)
+                            "Przywrócono poprzednią konfigurację."
+                            else "Nie cofnięto: konfiguracja uległa zmianie.")
                     } catch (_: Exception) {
-                        message("Nie zapisano zmian. Dotychczasowe selektory zachowano.")
+                        if (ownerIfCurrent() == owner)
+                            message("Nie udało się cofnąć naprawy.")
                     }
                 }
             }

@@ -1076,9 +1076,30 @@
     function result(status, reason, cards) {
       return { status, reason, matchedCards: Math.min(30, cards || 0) };
     }
+    // A login gate or CAPTCHA is a human intervention, never a rule failure.
+    let protectedRoute = false;
+    try {
+      protectedRoute = /\/(?:login|signin|sign-in|register|captcha)(?:\/|$)/i
+        .test(new URL(location.href).pathname);
+    } catch (_) { /* Keep the existing read-only diagnosis. */ }
+    if (protectedRoute || document.querySelector?.(
+        'input[type="password"],[data-sitekey],iframe[src*="captcha"]'))
+      return result("unsafe", "human_gate", 0);
     const inputs = bySelector(command.inputSelector);
     if (!inputs) return result("stale", "invalid_selector", 0);
-    if (inputs.length === 0) return result("stale", "input_missing", 0);
+    if (inputs.length === 0) {
+      // A /results document often has no search form at all. Do not
+      // treat that as a broken form from the homepage configuration.
+      let resultsRoute = false;
+      try {
+        const url = new URL(location.href);
+        resultsRoute = /(?:search|results|szukaj|wyniki|find)/i.test(url.pathname) ||
+          ["q", "s", "query", "search", "keyword", "term"]
+            .some(k => url.searchParams.has(k));
+      } catch (_) { /* No guessed page identity. */ }
+      return resultsRoute ? result("unverified", "results_only", 0) :
+        result("stale", "input_missing", 0);
+    }
     if (inputs.length !== 1) return result("stale", "input_ambiguous", 0);
     const input = inputs[0];
     if (!input || !input.matches("input") ||
@@ -1117,7 +1138,7 @@
   }
   async function validateStored(command) {
     const issuedRevision = navigationRevision;
-    const timings = [0, 350, 800]; // 3 attempts, <= 1.2 seconds total
+    const timings = [0, 650, 1800]; // 3 bounded observations for delayed AJAX
     let last, attempts = 0;
     for (let i = 0; i < timings.length; i++) {
       if (!ready || issuedRevision !== navigationRevision ||

@@ -13,10 +13,14 @@ internal data class VideoSearchRecognitionMemory(
     val confirmations: Int = 0,
     val lastVerifiedAtMs: Long? = null,
     val backupResultsSelectors: List<String> = emptyList(),
+    /** One previous verified configuration, kept inside the existing Room JSON. */
+    val rollbackConfigurationJson: String? = null,
 ) {
     init {
         require(confidence in 0..100 && confirmations in 0..1000)
         require(lastVerifiedAtMs == null || lastVerifiedAtMs >= 0L)
+        require(rollbackConfigurationJson == null ||
+            rollbackConfigurationJson.length in 1..4096)
         require(backupResultsSelectors.size <= 3 &&
             backupResultsSelectors.distinct().size == backupResultsSelectors.size &&
             backupResultsSelectors.all(VideoSearchBridgeProtocol::validSelector))
@@ -62,4 +66,56 @@ internal object VideoSearchRecognitionPolicy {
             .filter { it != config.resultsCardSelector }
             .filter(VideoSearchBridgeProtocol::validSelector)
             .take(3)
+    /** A discovered DOM group is a candidate, not proof of working search. */
+    fun repairCandidate(
+        recognition: VideoSearchBridgeMessage.Recognition?,
+        analyzedCards: String?,
+    ): String? {
+        if (recognition?.status != "found" ||
+            recognition.reason != "CANDIDATE_FOUND" ||
+            recognition.confidence < 85 || recognition.matchedCards < 1) return null
+        val candidate = recognition.resultsCardSelector ?: return null
+        if (analyzedCards != null && analyzedCards != candidate) return null
+        return candidate.takeIf(VideoSearchBridgeProtocol::validSelector)
+    }
+
+    /** Only called after search evidence is checked at the repository boundary. */
+    fun repaired(
+        oldConfig: VideoSiteConfiguration,
+        candidate: VideoSiteConfiguration,
+        nowMs: Long,
+    ): VideoSiteConfiguration? {
+        if (nowMs < 0 || !VideoSearchBridgeProtocol.validSelector(candidate.searchInputSelector) ||
+            !VideoSearchBridgeProtocol.validSelector(candidate.resultsCardSelector)) return null
+        val old = oldConfig.recognition
+        // Never recursively nest revisions: the user can undo the LAST repair.
+        val previous = VideoSearchRowCodec.configurationJson(oldConfig.copy(
+            recognition = old.copy(rollbackConfigurationJson = null))) ?: return null
+        if (previous.length > 4096) return null
+        val backups = (old.backupResultsSelectors + listOfNotNull(oldConfig.resultsCardSelector))
+            .filter { it != candidate.resultsCardSelector }
+            .filter(VideoSearchBridgeProtocol::validSelector).distinct().takeLast(3)
+        return candidate.copy(recognition = old.copy(
+            origin = VideoSearchRuleOrigin.VERIFIED,
+            confidence = 90,
+            confirmations = (old.confirmations + 1).coerceAtMost(1000),
+            lastVerifiedAtMs = nowMs,
+            backupResultsSelectors = backups,
+            rollbackConfigurationJson = previous,
+        ))
+    }
+
+    /** A corrupt or stale backup must never replace a working rule. */
+    fun rollback(current: VideoSiteConfiguration): VideoSiteConfiguration? {
+        val previous = current.recognition.rollbackConfigurationJson ?: return null
+        return try {
+            VideoSearchRowCodec.readConfiguration(previous)?.takeIf {
+                it.recognition.rollbackConfigurationJson == null &&
+                    VideoSearchBridgeProtocol.validSelector(it.searchInputSelector) &&
+                    (it.resultsCardSelector == null ||
+                        VideoSearchBridgeProtocol.validSelector(it.resultsCardSelector))
+            }
+        } catch (_: Exception) { null }
+    }
+
 }

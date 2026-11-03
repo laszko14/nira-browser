@@ -257,8 +257,8 @@ internal object VideoSearchBridgeProtocol {
                     it in setOf("valid", "unverified", "stale", "unsafe")
                 } ?: return null
                 val reason = json.string("reason")?.takeIf {
-                    it in setOf("ok", "no_results", "pagination_unknown", "input_missing",
-                        "input_ambiguous", "invalid_selector", "unsafe_form",
+                    it in setOf("ok", "no_results", "results_only", "pagination_unknown", "input_missing",
+                        "input_ambiguous", "invalid_selector", "unsafe_form", "human_gate",
                         "submit_missing", "cards_invalid")
                 } ?: return null
                 val attempts = (json.opt("attempts") as? Int)?.takeIf { it in 1..3 }
@@ -266,10 +266,10 @@ internal object VideoSearchBridgeProtocol {
                 val cards = (json.opt("matchedCards") as? Int)?.takeIf { it in 0..30 }
                     ?: return null
                 if ((status == "valid" && (reason != "ok" || cards == 0)) ||
-                    (status == "unverified" && reason !in setOf("no_results", "pagination_unknown")) ||
+                    (status == "unverified" && reason !in setOf("no_results", "results_only", "pagination_unknown")) ||
                     (status == "stale" && reason !in setOf("input_missing", "input_ambiguous",
                             "submit_missing", "invalid_selector", "cards_invalid")) ||
-                    (status == "unsafe" && reason != "unsafe_form")) return null
+                    (status == "unsafe" && reason !in setOf("unsafe_form", "human_gate"))) return null
                 VideoSearchBridgeMessage.Validation(id, request, status, reason, attempts, cards)
             }
             "page_action" -> {

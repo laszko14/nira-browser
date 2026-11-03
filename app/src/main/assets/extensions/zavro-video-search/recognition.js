@@ -16,6 +16,9 @@
   const BAD_HINT = /(?:^|[\s_-])(?:advert(?:isement)?|sponsored|promo|banner|navigation|menu|breadcrumb|sidebar|category|tag|login|checkout)(?:$|[\s_-])/i;
   const CARD_HINT = /(?:video|film|movie|episode|search|result|card|tile|post|listing|thumb)/i;
   const TOKEN = /^[a-zA-Z_][a-zA-Z0-9_-]{1,42}$/;
+  // Avoid auto-learning generated build hashes and transient numeric CSS.
+  const STABLE_CLASS = c => TOKEN.test(c) &&
+    !/(?:[a-f0-9]{9,}|(?:^|[-_])[0-9]{5,}(?:$|[-_]))/i.test(c);
   const nodeHint = node => [node?.id, typeof node?.className === "string" ? node.className : "",
     node?.getAttribute?.("role"), node?.getAttribute?.("data-testid"),
     node?.getAttribute?.("aria-label"), node?.getAttribute?.("data-type")]
@@ -59,7 +62,7 @@
     const tag = node.tagName.toLowerCase();
     const choices = [];
     if (TOKEN.test(node.id || "")) choices.push("#" + node.id);
-    const classes = Array.from(node.classList || []).filter(c => TOKEN.test(c)).slice(0, 4);
+    const classes = Array.from(node.classList || []).filter(STABLE_CLASS).slice(0, 4);
     for (const c of classes) choices.push(tag + "." + c);
     for (let i = 0; i < classes.length; i++) {
       for (let j = i + 1; j < classes.length; j++)
@@ -230,11 +233,11 @@
   function selectorForGroup(root, example, cache) {
     if (!example?.tagName) return null;
     const tag = example.tagName.toLowerCase();
-    const classes = Array.from(example.classList || []).filter(v => TOKEN.test(v) &&
+    const classes = Array.from(example.classList || []).filter(v => STABLE_CLASS(v) &&
       !/(?:^|[-_])\d+$/.test(v)).slice(0, 5);
     const candidates = classes.map(c => tag + "." + c);
     const parent = example.parentElement;
-    for (const c of Array.from(parent?.classList || []).filter(x => TOKEN.test(x)).slice(0, 4)) {
+    for (const c of Array.from(parent?.classList || []).filter(STABLE_CLASS).slice(0, 4)) {
       if (CARD_HINT.test(c)) {
         for (const item of classes) candidates.unshift("." + c + " " + tag + "." + item);
       }
@@ -254,7 +257,7 @@
   }
   function scoreCard(node, base, inResults) {
     if (!node || !node.querySelectorAll || BAD_HINT.test(nodeHint(node)) ||
-        node.closest?.("nav,header,footer,aside,[role=navigation],[aria-hidden=true],[hidden],[inert]"))
+        node.closest?.("nav,header,footer,aside,[role=navigation],[aria-hidden=true],[hidden],[inert],.ad,.advertisement,.sponsored,[data-ad]"))
       return null;
     const links = Array.from(node.querySelectorAll("a[href]")).slice(0, MAX_LINKS);
     let winner = null, ties = 0;
