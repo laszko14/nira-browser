@@ -1545,11 +1545,20 @@ class MyVideoSitesActivity : AppCompatActivity() {
             }
             try {
                 if (inspected.status == "ready") {
+                    // A homepage can contain recommendations indistinguishable
+                    // from search results. User-triggered Inspect is still
+                    // read-only; save only the safe search form at this stage.
+                    val pending = VideoSearchBridgeMessage.Inspection(
+                        inspected.documentId, inspected.requestId, "partial",
+                        inspected.inputSelector, null, inspected.submission,
+                        inspected.submitSelector, VideoSearchPagination.NONE, null
+                    )
                     val saved = withContext(Dispatchers.IO) {
-                        repository.applyAutoConfiguration(current, inspected)
+                        repository.applyAutoPartialConfiguration(current, pending)
                     }
-                    message(if (saved) "Rozpoznano wyszukiwarkę i karty wyników"
-                        else "Witryna zmieniła się — ponów rozpoznawanie")
+                    message(if (saved)
+                        "Wyszukiwarka rozpoznana. Uruchom Szukaj, aby potwierdzić wyniki."
+                        else "Witryna ma już konfigurację lub zmieniła się — sprawdź ustawienia.")
                 } else {
                     val savedPartial = withContext(Dispatchers.IO) {
                         if (inspected.status == "partial")
