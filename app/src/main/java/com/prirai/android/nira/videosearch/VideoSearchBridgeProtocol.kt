@@ -32,6 +32,19 @@ internal sealed interface VideoSearchBridgeMessage {
     ) : VideoSearchBridgeMessage {
         override fun toString() = "VideoSearchBridgeMessage.Inspection(redacted)"
     }
+    class Recognition(
+        override val documentId: String,
+        val requestId: String,
+        val status: String,
+        val reason: String,
+        val confidence: Int,
+        val resultsCardSelector: String?,
+        val matchedCards: Int,
+        val scannedElements: Int,
+        val surface: String,
+    ) : VideoSearchBridgeMessage {
+        override fun toString(): String = "VideoSearchBridgeMessage.Recognition(redacted)"
+    }
     class Analysis(
         override val documentId: String,
         val requestId: String,
@@ -345,6 +358,35 @@ internal object VideoSearchBridgeProtocol {
                 } catch (_: IllegalArgumentException) { return null }
                 VideoSearchBridgeMessage.Results(id, request, page, event)
             }
+            "recognition" -> {
+                if (!json.strict("schemaVersion", "event", "documentId", "requestId",
+                        "status", "reason", "confidence", "resultsCardSelector",
+                        "matchedCards", "scannedElements", "surface")) return null
+                val req = json.string("requestId")?.takeIf(::validToken) ?: return null
+                val status = json.string("status")
+                    ?.takeIf { it in setOf("found", "partial", "missing") } ?: return null
+                val reason = json.string("reason")?.takeIf {
+                    it in setOf("AMBIGUOUS_CARDS", "SHADOW_RESULTS", "FRAME_RESULTS",
+                        "CANDIDATE_FOUND", "CARDS_NOT_FOUND")
+                } ?: return null
+                val confidence = (json.opt("confidence") as? Int)
+                    ?.takeIf { it in 0..100 } ?: return null
+                val selector = json.optSelector("resultsCardSelector")
+                if (json.opt("resultsCardSelector") != JSONObject.NULL &&
+                    selector == null) return null
+                val cards = (json.opt("matchedCards") as? Int)
+                    ?.takeIf { it in 0..260 } ?: return null
+                val scanned = (json.opt("scannedElements") as? Int)
+                    ?.takeIf { it in 0..260 } ?: return null
+                val surface = json.string("surface")
+                    ?.takeIf { it in setOf("MAIN", "SHADOW", "FRAME") } ?: return null
+                if ((status == "found") != (selector != null) ||
+                    (selector != null && (surface != "MAIN" || confidence < 85 ||
+                        cards < 1 || reason != "CANDIDATE_FOUND"))) return null
+                VideoSearchBridgeMessage.Recognition(
+                    id, req, status, reason, confidence, selector, cards, scanned, surface
+                )
+            }
             "analysis" -> {
                 if (!json.strict("schemaVersion", "event", "documentId", "requestId",
                         "status", "stage", "reason", "confidence", "evidence",
@@ -493,6 +535,9 @@ internal object VideoSearchBridgeProtocol {
         put("schemaVersion", SCHEMA_VERSION)
         put("event", "url_sync")
     }
+    fun recognize(documentId: String, requestId: String): JSONObject =
+        base("recognize", documentId, requestId)
+
     fun analyze(documentId: String, requestId: String): JSONObject =
         base("analyze", documentId, requestId)
 

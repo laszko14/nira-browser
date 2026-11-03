@@ -184,7 +184,8 @@
     const named = valid.filter(b => searchTerms.test([
       b.innerText, b.value, b.id, b.className,
       b.getAttribute?.("aria-label"), b.getAttribute?.("title"),
-      b.getAttribute?.("data-action")
+      b.getAttribute?.("data-action"),
+      window.__zavroRecognition?.controlHint(b)
     ].filter(v => typeof v === "string").join(" ")));
     const submitted = valid.filter(b =>
       b.matches?.('input[type="submit"],button[type="submit"]') ||
@@ -196,6 +197,10 @@
     return chosen ? selectorFor(chosen) : null;
   }
   function detectResults() {
+    // P1 first checks independent structural and card-local evidence. The
+    // pre-existing conservative selectors remain the compatibility fallback.
+    const smart = window.__zavroRecognition?.scan(document);
+    if (smart?.selector && smart.confidence >= 85) return smart.selector;
     // Discover repeated, card-local film links. Do not confuse arbitrary
     // site navigation with results or require a specific CSS theme.
     const candidates = [
@@ -373,7 +378,8 @@
     const hint = [button.innerText, button.value, button.id, button.className,
                   button.getAttribute?.("aria-label"), button.getAttribute?.("title"),
                   button.getAttribute?.("data-action"), button.getAttribute?.("data-testid")]
-      .filter(x => typeof x === "string").join(" ");
+      .filter(x => typeof x === "string").join(" ") + " " +
+      (window.__zavroRecognition?.controlHint(button) || "");
     if (blocked.test(hint) || unsafeControl.test(hint)) return false;
     // A form-less script button must explicitly identify a search action.
     if (!input.form && !searchTerms.test(hint)) return false;
@@ -1587,6 +1593,22 @@
           const found = detect();
           post("inspection", message.requestId, found);
           busy = false;
+        } else if (message.event === "recognize" &&
+            keys === "documentId,event,requestId,schemaVersion" && !picker) {
+          busy = true;
+          try {
+            const report = window.__zavroRecognition?.scan(document);
+            const selector = report?.selector || null;
+            post("recognition", message.requestId, {
+              status: selector ? "found" : report?.confidence > 0 ? "partial" : "missing",
+              reason: report?.reason || "CARDS_NOT_FOUND",
+              confidence: report?.confidence || 0,
+              resultsCardSelector: selector,
+              matchedCards: report?.matchedCards || 0,
+              scannedElements: report?.scannedElements || 0,
+              surface: report?.surface || "MAIN"
+            });
+          } finally { busy = false; }
         } else if (message.event === "analyze" &&
             keys === "documentId,event,requestId,schemaVersion" && !picker) {
           busy = true;

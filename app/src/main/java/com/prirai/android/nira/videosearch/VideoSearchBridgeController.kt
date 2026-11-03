@@ -296,6 +296,7 @@ internal class VideoSearchBridgeController(
                 }
                 is VideoSearchBridgeMessage.Inspection,
                 is VideoSearchBridgeMessage.Analysis,
+                is VideoSearchBridgeMessage.Recognition,
                 is VideoSearchBridgeMessage.Submitted,
                 is VideoSearchBridgeMessage.SearchFailed,
                 is VideoSearchBridgeMessage.Picked,
@@ -308,6 +309,7 @@ internal class VideoSearchBridgeController(
                     val req = when (parsed) {
                         is VideoSearchBridgeMessage.Inspection -> parsed.requestId
                         is VideoSearchBridgeMessage.Analysis -> parsed.requestId
+                        is VideoSearchBridgeMessage.Recognition -> parsed.requestId
                         is VideoSearchBridgeMessage.Submitted -> parsed.requestId
                         is VideoSearchBridgeMessage.SearchFailed -> parsed.requestId
                         is VideoSearchBridgeMessage.Picked -> parsed.requestId
@@ -323,6 +325,7 @@ internal class VideoSearchBridgeController(
                         tab.owner != job.owner || job.kind != when (parsed) {
                             is VideoSearchBridgeMessage.Inspection -> "inspect"
                             is VideoSearchBridgeMessage.Analysis -> "analyze"
+                            is VideoSearchBridgeMessage.Recognition -> "recognize"
                             is VideoSearchBridgeMessage.Validation -> "validate"
                             is VideoSearchBridgeMessage.Results -> when {
                                 job.kind == "crawl" &&
@@ -1155,7 +1158,8 @@ internal class VideoSearchBridgeController(
             else workerOwnedTab(site, workerTabId)
         }
             else if (kind.startsWith("pick:") ||
-                kind == "analyze" || kind == "validate" || kind == "extract" ||
+                kind == "analyze" || kind == "recognize" ||
+                kind == "validate" || kind == "extract" ||
                 kind == "extract_batch" || kind == "crawl" ||
                 kind == "paginate") manualSiteTab(site)
             else existingSiteTab(site)
@@ -1195,6 +1199,14 @@ internal class VideoSearchBridgeController(
         return !manager.isPrivateMode() &&
             manager.getActiveProfile().id == owner.profileId
     }
+
+    /** Read-only P1 recognition evidence for diagnostic and repair decisions. */
+    suspend fun recognizeSite(
+        site: VideoSearchSite, workerTabId: String? = null,
+    ): VideoSearchBridgeMessage.Recognition? =
+        request(site, "recognize", workerTabId = workerTabId) { document, req ->
+            VideoSearchBridgeProtocol.recognize(document, req)
+        } as? VideoSearchBridgeMessage.Recognition
 
     /** Typed bounded site discovery. No DOM writes, clicks or search phrase. */
     suspend fun analyzeSite(
@@ -1247,7 +1259,17 @@ internal class VideoSearchBridgeController(
                     true
                 } ?: false
                 if (!loaded || !activeNormalOwner(owner)) return@launch
-                val analysis = analyzeSite(site, createdId)
+                // Hydrating SPA pages can reveal their form shortly after
+                // the first document_idle. Retry reads only, never clicks.
+                var analysis: VideoSearchBridgeMessage.Analysis? = null
+                for (attempt in 0..2) {
+                    if (!activeNormalOwner(owner) ||
+                        !workerLease.canUse(store.state.selectedTabId)) break
+                    analysis = analyzeSite(site, createdId)
+                    if (analysis?.status != null &&
+                        analysis.status != VideoSearchAnalysisStatus.MISSING) break
+                    if (attempt < 2) delay(350)
+                }
                 if (!activeNormalOwner(owner) ||
                     !workerLease.canUse(store.state.selectedTabId) ||
                     withContext(Dispatchers.IO) { repository.site(owner, site.id) } != site)
@@ -1948,7 +1970,10 @@ internal class VideoSearchBridgeController(
                     if (current != site || !activeNormalOwner(owner))
                         return VideoSearchManualSearchOutcome.SUBMITTED_UNVERIFIED
                     val saved = when (site.configurationState) {
-                        VideoSiteConfigurationState.CONFIGURED -> true
+                        VideoSiteConfigurationState.CONFIGURED ->
+                            withContext(Dispatchers.IO) {
+                                repository.rememberConfirmedResults(site, cards)
+                            }
                         VideoSiteConfigurationState.SEARCH_READY_RESULTS_PENDING ->
                             withContext(Dispatchers.IO) {
                                 repository.completePendingResults(
@@ -1962,7 +1987,7 @@ internal class VideoSearchBridgeController(
                                     form.submitSelector, observed.pagination,
                                     observed.nextPageSelector)
                                 withContext(Dispatchers.IO) {
-                                    repository.applyAutoConfiguration(site, merged)
+                                    repository.applyAutoConfiguration(site, merged, confirmedSearch = true)
                                 }
                             } ?: false
                         else -> false
