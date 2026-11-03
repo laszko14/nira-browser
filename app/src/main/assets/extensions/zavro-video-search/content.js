@@ -184,7 +184,8 @@
     const named = valid.filter(b => searchTerms.test([
       b.innerText, b.value, b.id, b.className,
       b.getAttribute?.("aria-label"), b.getAttribute?.("title"),
-      b.getAttribute?.("data-action")
+      b.getAttribute?.("data-action"),
+      window.__zavroRecognition?.controlHint(b)
     ].filter(v => typeof v === "string").join(" ")));
     const submitted = valid.filter(b =>
       b.matches?.('input[type="submit"],button[type="submit"]') ||
