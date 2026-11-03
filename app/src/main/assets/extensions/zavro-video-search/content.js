@@ -33,8 +33,9 @@
       .map(n => (n.textContent || "").slice(0, 80));
     const named = (input.getAttribute?.("aria-labelledby") || "").split(/\s+/).slice(0, 3);
     for (const id of named) {
-      if (!id || !document.getElementById) continue;
-      const text = document.getElementById(id)?.textContent;
+      const owner = input.getRootNode?.() || input.ownerDocument || document;
+      if (!id || !owner.getElementById) continue;
+      const text = owner.getElementById(id)?.textContent;
       if (typeof text === "string") labels.push(text.slice(0, 80));
     }
     return [input.getAttribute?.("aria-label"), input.getAttribute?.("title"),
@@ -49,13 +50,14 @@
     const method = (form.getAttribute("method") || "GET").toUpperCase();
     if (method !== "GET") return false; // Never submit POST forms.
     try {
-      const action = new URL(form.getAttribute("action") || location.href, location.href);
+      const base = form.ownerDocument?.baseURI || location.href;
+      const action = new URL(form.getAttribute("action") || base, base);
       return action.origin === location.origin &&
         /^https?:$/.test(action.protocol) && !action.username && !action.password;
     } catch (_) { return false; }
   }
   function visible(input) {
-    if (!input || input.disabled || input.readOnly ||
+    if (!input || input.isConnected === false || input.disabled || input.readOnly ||
         input.closest('[aria-hidden="true"],[hidden],[inert]')) return false;
     const rect = input.getBoundingClientRect();
     return rect.width > 0 && rect.height > 0;
@@ -96,13 +98,17 @@
   // Locator V2 is compatible with existing CSS-only Room configuration.
   // Prefer stable semantic hints; no invented nth-child or unsafe CSS programs.
   function selectorFor(element) {
-    if (!element || !element.tagName) return null;
+    if (!element || !element.tagName || element.isConnected === false) return null;
+    const root = element.getRootNode?.() || element.ownerDocument || document;
+    if (!root.querySelectorAll) return null;
+    const scoped = candidate => root === document ? candidate :
+      window.__zavroRecognition?.scope(element, candidate) || null;
     const tag = element.tagName.toLowerCase();
     function unique(candidate) {
       if (typeof candidate !== "string" || candidate.length > 160 ||
           !/^[\p{L}\p{N}#_.\[\]=\\"' >:*+-]+$/u.test(candidate)) return false;
       try {
-        const found = document.querySelectorAll(candidate);
+        const found = root.querySelectorAll(candidate);
         return found.length === 1 && found[0] === element;
       } catch (_) { return false; }
     }
@@ -133,10 +139,10 @@
     }
     if (element.id) {
       const byId = "#" + CSS.escape(element.id);
-      if (unique(byId)) return byId;
+      if (unique(byId)) return scoped(byId);
     }
     for (const candidate of [...attributes(element), ...classes(element)])
-      if (unique(candidate)) return candidate;
+      if (unique(candidate)) return scoped(candidate);
     let ancestor = element.parentElement;
     for (let depth = 0; ancestor && depth < 4; depth++, ancestor = ancestor.parentElement) {
       const bases = [];
@@ -144,10 +150,10 @@
       bases.push(...attributes(ancestor), ...classes(ancestor));
       for (const base of bases) {
         let found;
-        try { found = document.querySelectorAll(base); } catch (_) { continue; }
+        try { found = root.querySelectorAll(base); } catch (_) { continue; }
         if (found.length !== 1 || found[0] !== ancestor) continue;
         for (const suffix of [tag, ...attributes(element), ...classes(element)])
-          if (unique(base + " " + suffix)) return base + " " + suffix;
+          if (unique(base + " " + suffix)) return scoped(base + " " + suffix);
       }
     }
     return null; // Ambiguous controls must never be saved as the wrong button.
@@ -270,40 +276,49 @@
     return best?.selector || null;
   }
   function detectPagination() {
-    // The next-page control must be unambiguous and pass the same
-    // structural/same-origin validation used by manual picking.
+    // Collect every trustworthy control across accessible document contexts.
+    const roots = window.__zavroRecognition?.roots?.() || [document];
     const paths = [
       'a[rel="next"]', '.pagination a.next',
       '.pagination .next a', 'button.load-more',
       'a.next[aria-label]', '.pager a[rel="next"]'
     ];
-    for (const selector of paths) {
-      let elements;
-      try { elements = document.querySelectorAll(selector); }
-      catch (_) { continue; }
-      if (elements.length !== 1) continue;
-      const next = manualNext(elements[0]);
-      if (next) return {pagination: next.pagination, nextPageSelector: next.selector};
+    const matches = [];
+    for (const root of roots) {
+      for (const path of paths) {
+        let elements;
+        try { elements = root.querySelectorAll(path); }
+        catch (_) { continue; }
+        if (elements.length !== 1) continue;
+        const next = manualNext(elements[0]);
+        if (next) matches.push(next);
+      }
+      let controls;
+      try {
+        controls = Array.from(root.querySelectorAll(
+          '.pagination a,.pagination button,.pager a,.pager button,' +
+          'nav[aria-label="pagination"] a,nav[aria-label="pagination"] button'))
+          .slice(0, 50);
+      } catch (_) { controls = []; }
+      for (const control of controls) {
+        const next = manualNext(control);
+        if (next) matches.push(next);
+      }
     }
-    // Broader candidates are considered only in recognized pagination
-    // containers; an unrelated carousel Next button must not qualify.
-    let controls;
-    try {
-      controls = Array.from(document.querySelectorAll(
-        '.pagination a,.pagination button,.pager a,.pager button,' +
-        'nav[aria-label="pagination"] a,nav[aria-label="pagination"] button'))
-        .slice(0, 50);
-    } catch (_) { controls = []; }
-    const candidates = controls.map(manualNext).filter(Boolean);
-    const unique = new Map(candidates.map(c => [c.pagination + ":" + c.selector, c]));
+    const unique = new Map(matches.map(x => [x.pagination + ":" + x.selector, x]));
     if (unique.size === 1) {
       const match = unique.values().next().value;
       return {pagination:match.pagination, nextPageSelector:match.selector};
     }
     return {pagination:"NONE", nextPageSelector:null};
   }
+  function inputCandidates() {
+    const discovered = window.__zavroRecognition?.inputs?.();
+    return Array.isArray(discovered) ? discovered.slice(0, limited) :
+      Array.from(document.querySelectorAll("input")).slice(0, limited);
+  }
   function detect() {
-    const candidates = Array.from(document.querySelectorAll("input")).slice(0, limited)
+    const candidates = inputCandidates()
       .filter(validInput).map(input => ({ input, score: score(input) }))
       .filter(c => c.score >= 8).sort((a, b) => b.score - a.score);
     if (!candidates.length || (candidates[1] && candidates[1].score === candidates[0].score))
@@ -328,7 +343,7 @@
   // Typed discovery: bounded evidence tokens, never raw DOM, cookies or queries.
   // The native side binds this to a site, owner, session and document revision.
   function siteAnalysis() {
-    const inputs = Array.from(document.querySelectorAll("input")).slice(0, limited)
+    const inputs = inputCandidates()
       .filter(validInput).map(input => ({input, points:score(input)}))
       .filter(x => x.points >= 8).sort((a,b) => b.points-a.points);
     const tie = inputs.length > 1 && inputs[0].points === inputs[1].points;
@@ -423,6 +438,8 @@
   // and page-number buttons. Generate a unique, reusable CSS selector for
   // the actual touched element, without brittle page-number/nth-child paths.
   function paginationSelector(element) {
+    const root = element.getRootNode?.() || element.ownerDocument || document;
+    if (root !== document) return selectorFor(element);
     const tag = element.tagName.toLowerCase();
     function unique(candidate) {
       if (!candidate || candidate.length > 160 ||
@@ -482,7 +499,8 @@
     return [el.id, typeof el.className === "string" ? el.className : "",
       el.getAttribute?.("rel"), el.getAttribute?.("aria-label"),
       el.getAttribute?.("title"), el.getAttribute?.("data-action"),
-      el.getAttribute?.("data-testid"), el.innerText, el.textContent]
+      el.getAttribute?.("data-testid"), el.innerText, el.textContent,
+      window.__zavroRecognition?.controlHint(el)]
       .filter(x => typeof x === "string").map(x => x.slice(0, 90)).join(" ");
   }
   function forbiddenPager(el) {
@@ -590,12 +608,14 @@
         const href = el.getAttribute("href");
         if (!href || href.length > 2048 || el.hasAttribute("download") ||
             (el.target && !["_self", ""].includes(el.target))) return null;
-        const url = new URL(href, location.href);
+        const base = el.ownerDocument?.baseURI || location.href;
+        const url = new URL(href, base);
         if (!["https:", "http:"].includes(url.protocol) ||
             url.origin !== location.origin || url.username || url.password ||
             blocked.test(url.pathname)) return null;
-        const samePage = url.pathname === location.pathname &&
-          url.search === location.search;
+        const current = new URL(el.ownerDocument?.location?.href || location.href);
+        const samePage = url.pathname === current.pathname &&
+          url.search === current.search;
         if (!samePage) pagination = "NEXT_LINK";
         else if (href.startsWith("#") && safeSamePageAction(el))
           pagination = "LOAD_MORE";
@@ -1001,14 +1021,17 @@
     const query = command.query;
     if (typeof query !== "string" || !query.trim() || query.length > 250 ||
         /[\u0000-\u001f\u007f]/.test(query)) return "rejected";
-    const field = document.querySelector(command.inputSelector);
-    if ((!validInput(field) && !manualInput(field)) ||
-        document.querySelectorAll(command.inputSelector).length !== 1) return "stale";
+    const fields = resultNodes(command.inputSelector);
+    if (!fields || fields.length !== 1) return "stale";
+    const field = fields[0];
+    if (!validInput(field) && !manualInput(field)) return "stale";
     const form = field.form;
     if (!safeForm(form) && command.submission !== "CLICK_SUBMIT") return "unsafe";
     let button = null;
     if (command.submission === "CLICK_SUBMIT") {
-      button = document.querySelector(command.submitSelector);
+      const controls = resultNodes(command.submitSelector);
+      if (!controls || controls.length !== 1) return "stale";
+      button = controls[0];
       if (!button || button.disabled ||
           (searchButton(field) !== command.submitSelector &&
            !manualSubmit(button, field))) return "stale";
@@ -1023,8 +1046,16 @@
     const issuedRevision = navigationRevision;
     post("submitted", command.requestId, {});
     setTimeout(function () {
-      if (issuedRevision !== navigationRevision ||
-          location.href !== startUrl || !document.contains(field)) return;
+      if (issuedRevision !== navigationRevision || !ready ||
+          location.href !== startUrl) return;
+      const activeInput = resultNodes(command.inputSelector);
+      if (!activeInput || activeInput.length !== 1 || activeInput[0] !== field ||
+          (!validInput(field) && !manualInput(field))) return;
+      if (button) {
+        const activeButton = resultNodes(command.submitSelector);
+        if (!activeButton || activeButton.length !== 1 ||
+            activeButton[0] !== button || !manualSubmit(button, field)) return;
+      } else if (!safeForm(form) || field.form !== form) return;
       try {
         if (button) button.click();
         else if (form.requestSubmit) form.requestSubmit();
@@ -1498,7 +1529,8 @@
     if (typeof selector !== "string" || !selector || selector.length > 160)
       return "unsafe";
     let matches;
-    try { matches = document.querySelectorAll(selector); } catch (_) { return "unsafe"; }
+    try { matches = resultNodes(selector); } catch (_) { return "unsafe"; }
+    if (!matches) return "unsafe";
     if (matches.length === 0) return terminal();
     if (matches.length !== 1) return "unsafe";
     let target = matches[0], resolvedNumeric = false;
@@ -1529,13 +1561,15 @@
     if (kind === "NEXT_LINK") {
       if (!target.matches("a[href]")) return "unsafe";
       let destination;
-      try { destination = new URL(target.getAttribute("href"), location.href); }
+      try { destination = new URL(target.getAttribute("href"),
+        target.ownerDocument?.baseURI || location.href); }
       catch (_) { return "unsafe"; }
       if (destination.origin !== location.origin ||
           destination.username || destination.password ||
           blocked.test(destination.pathname) ||
           !["http:", "https:"].includes(destination.protocol) ||
-          destination.href === location.href || destination.href.length > 2048)
+          destination.href === (target.ownerDocument?.location?.href || location.href) ||
+          destination.href.length > 2048)
         return "unsafe";
       if (target.hasAttribute("download") ||
           (target.target && !["_self", ""].includes(target.target))) return "unsafe";
@@ -1561,8 +1595,13 @@
     const issuedRevision = navigationRevision;
     setTimeout(function () {
       if (issuedRevision === navigationRevision && ready &&
-          location.href === startUrl && document.contains(target))
-        target.click();
+          location.href === startUrl) {
+        const fresh = resultNodes(selector);
+        if (fresh?.length !== 1) return;
+        const active = fresh[0] === target ? target : nextInContainer(fresh[0], kind);
+        if (active === target && !forbiddenPager(target) && visible(target) &&
+            !target.disabled && !target.closest?.("form")) target.click();
+      }
     }, 70);
     return "dispatched";
   }

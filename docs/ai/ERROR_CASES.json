@@ -60,6 +60,11 @@
       "task_id": "ZC-V4-P2-COMPLETE",
       "observed_count": 6,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P2-A-B-SCOPED-CONTROLS",
+      "observed_count": 2,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -1176,6 +1181,46 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41586339373"
+      ]
+    },
+    {
+      "id": "REVIEW-20261103-P2AB-0001",
+      "task_id": "ZC-V4-P2-A-B-SCOPED-CONTROLS",
+      "kind": "REVIEW",
+      "fingerprint": "p2-scoped-control-discovery-missing",
+      "summary": "Result cards support scoped locators but fields, buttons and pagination were limited to the top document; nested open Shadow DOM and same-origin iframe controls could not run.",
+      "source_sha": "661491515e624226240b606db837f141dc786fe8",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/video-search-p2-scoped-controls.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/pull/123"
+      ]
+    },
+    {
+      "id": "REVIEW-20261103-P2AB-0002",
+      "task_id": "ZC-V4-P2-A-B-SCOPED-CONTROLS",
+      "kind": "REVIEW",
+      "fingerprint": "p2-delayed-actions-and-iframe-document-invalid",
+      "summary": "Delayed actions checked document.contains, excluding valid nested controls; revalidation and identity checks must prevent stale iframe and detached host clicks.",
+      "source_sha": "661491515e624226240b606db837f141dc786fe8",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/video-search-p2-scoped-controls.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/pull/123"
       ]
     }
   ]

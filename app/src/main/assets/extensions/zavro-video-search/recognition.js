@@ -9,6 +9,8 @@
   const MAX_NODES = 260, MAX_LINKS = 12, MAX_CONTEXTS = 12;
   // Bound DOM visits as well as scored candidates on large dynamic pages.
   const MAX_DOM_VISITS = 2400;
+  // A replaced same-origin iframe document invalidates its prior locators.
+  const observedFrames = new WeakMap();
   const BAD_PATH = /(?:^|\/)(?:categor(?:y|ies)|genres?|tags?|topics?|channels?|authors?|playlists?|collections?|account|login|signin|register|checkout|ads?)(?:\/|$)/i;
   const MEDIA_FILE = /\.(?:mp4|webm|m3u8|mpd|mp3|m4a|ts)(?:$)/i;
   const BAD_HINT = /(?:^|[\s_-])(?:advert(?:isement)?|sponsored|promo|banner|navigation|menu|breadcrumb|sidebar|category|tag|login|checkout)(?:$|[\s_-])/i;
@@ -97,13 +99,16 @@
         const hosts = root.querySelectorAll(items[i + 1]);
         if (hosts.length !== 1) return null;
         const host = hosts[0];
+        if (host.isConnected === false) return null;
         if (items[i] === "S") {
           if (!host.shadowRoot || host.shadowRoot.mode !== "open") return null;
           root = host.shadowRoot;
         } else if (items[i] === "F") {
           if (host.tagName !== "IFRAME") return null;
           const frame = host.contentDocument;
-          if (!frame || frame.location?.origin !== location.origin) return null;
+          if (!frame || frame.location?.origin !== location.origin ||
+              (observedFrames.has(host) && observedFrames.get(host) !== frame)) return null;
+          observedFrames.set(host, frame);
           root = frame;
         } else return null;
       }
@@ -143,7 +148,10 @@
         if (node.tagName === "IFRAME" && contexts.length < MAX_CONTEXTS) {
           try {
             const frame = node.contentDocument;
-            if (frame && frame.location?.origin === location.origin) {
+            if (frame && frame.location?.origin === location.origin &&
+                (!observedFrames.has(node) || observedFrames.get(node) === frame) &&
+                node.isConnected !== false) {
+              observedFrames.set(node, frame);
               const host = stableHost(root, node);
               const next = {root:frame, surface:"FRAME",
                 steps:ctx.steps && host ? [...ctx.steps, "F", host] : null};
@@ -155,6 +163,53 @@
       }
     }
     return contexts;
+  }
+
+  // The existing bounded context graph serves results, inputs and controls.
+  function roots() {
+    return findContexts(document).filter(ctx => ctx.steps !== null)
+      .map(ctx => ctx.root);
+  }
+  function inputs() {
+    const found = [];
+    let visited = 0;
+    for (const root of roots()) {
+      if (found.length >= 80 || visited >= MAX_DOM_VISITS) break;
+      try {
+        const owner = root.ownerDocument || root;
+        const walker = owner.createTreeWalker?.(root, 1);
+        if (walker) {
+          let node;
+          while (found.length < 80 && visited < MAX_DOM_VISITS &&
+                 (node = walker.nextNode())) {
+            visited++;
+            if (node.tagName === "INPUT") found.push(node);
+          }
+        } else {
+          const candidates = root.querySelectorAll?.("input") || [];
+          for (let i = 0; i < candidates.length && found.length < 80 &&
+               visited < MAX_DOM_VISITS; i++) {
+            visited++;
+            found.push(candidates[i]);
+          }
+        }
+      } catch (_) { /* Inaccessible or replaced context is never trusted. */ }
+    }
+    return found;
+  }
+  function scope(element, leaf) {
+    if (!element || element.isConnected === false || !safeCss(leaf)) return null;
+    for (const ctx of findContexts(document)) {
+      if (!ctx.steps?.length) continue;
+      try {
+        const matches = ctx.root.querySelectorAll(leaf);
+        if (matches.length !== 1 || matches[0] !== element) continue;
+        const locator = encodeLocator(ctx.steps, leaf);
+        const resolved = locator && resolve(locator);
+        if (resolved?.length === 1 && resolved[0] === element) return locator;
+      } catch (_) { /* Detached, unstable and ambiguous roots fail closed. */ }
+    }
+    return null;
   }
   function candidates(root, selector, limit) {
     const owner = root.ownerDocument || (typeof root.createTreeWalker === "function" ? root : null);
@@ -300,7 +355,7 @@
       .join(" ").slice(0, 280);
   }
   Object.defineProperty(window, "__zavroRecognition", {
-    value: Object.freeze({scan,controlHint,resolve}), configurable: false,
+    value: Object.freeze({scan,controlHint,resolve,roots,inputs,scope}), configurable: false,
     enumerable: false, writable: false
   });
 })();

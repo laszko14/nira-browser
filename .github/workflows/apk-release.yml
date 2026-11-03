@@ -71,8 +71,8 @@ jobs:
       actions: read
     env:
       EXPECTED_PACKAGE: com.prirai.android.nira.debug
-      EXPECTED_VERSION_CODE: "1223"
-      EXPECTED_VERSION_NAME: 0.5.22-alpha119-clean
+      EXPECTED_VERSION_CODE: "1224"
+      EXPECTED_VERSION_NAME: 0.5.22-alpha120-clean
       EXPECTED_CERT_SHA256: df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
 
     steps:
