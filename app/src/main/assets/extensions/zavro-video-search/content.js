@@ -196,6 +196,10 @@
     return chosen ? selectorFor(chosen) : null;
   }
   function detectResults() {
+    // P1 first checks independent structural and card-local evidence. The
+    // pre-existing conservative selectors remain the compatibility fallback.
+    const smart = window.__zavroRecognition?.scan(document);
+    if (smart?.selector && smart.confidence >= 85) return smart.selector;
     // Discover repeated, card-local film links. Do not confuse arbitrary
     // site navigation with results or require a specific CSS theme.
     const candidates = [
