@@ -2,6 +2,10 @@ package com.prirai.android.nira.videosearch
 
 import org.json.JSONObject
 
+/** Finite, redacted discovery vocabulary. No raw site text crosses the bridge. */
+internal enum class VideoSearchAnalysisStatus { READY, PARTIAL, MISSING, AMBIGUOUS, UNSAFE }
+internal enum class VideoSearchAnalysisStage { SEARCH_FORM, RESULTS_PAGE, PAGINATION, UNKNOWN }
+
 /**
  * Schema 1, strict transport-only protocol. No profile/tab IDs arrive from JS.
  * Input fields and document URLs never enter logs/toString.
@@ -28,6 +32,32 @@ internal sealed interface VideoSearchBridgeMessage {
     ) : VideoSearchBridgeMessage {
         override fun toString() = "VideoSearchBridgeMessage.Inspection(redacted)"
     }
+    class Analysis(
+        override val documentId: String,
+        val requestId: String,
+        val status: VideoSearchAnalysisStatus,
+        val stage: VideoSearchAnalysisStage,
+        val reason: String,
+        val confidence: Int,
+        val evidence: List<String>,
+        val inputSelector: String?,
+        val resultsCardSelector: String?,
+        val submission: VideoSearchSubmission?,
+        val submitSelector: String?,
+        val pagination: VideoSearchPagination,
+        val nextPageSelector: String?,
+    ) : VideoSearchBridgeMessage {
+        fun formInspection(): Inspection? {
+            if (status !in setOf(VideoSearchAnalysisStatus.READY,
+                    VideoSearchAnalysisStatus.PARTIAL)) return null
+            return Inspection(documentId, requestId,
+                if (status == VideoSearchAnalysisStatus.READY) "ready" else "partial",
+                inputSelector, resultsCardSelector, submission, submitSelector,
+                pagination, nextPageSelector)
+        }
+        override fun toString(): String = "VideoSearchBridgeMessage.Analysis(redacted)"
+    }
+
     class Submitted(override val documentId: String, val requestId: String) : VideoSearchBridgeMessage
     class SearchFailed(
         override val documentId: String,
@@ -315,6 +345,89 @@ internal object VideoSearchBridgeProtocol {
                 } catch (_: IllegalArgumentException) { return null }
                 VideoSearchBridgeMessage.Results(id, request, page, event)
             }
+            "analysis" -> {
+                if (!json.strict("schemaVersion", "event", "documentId", "requestId",
+                        "status", "stage", "reason", "confidence", "evidence",
+                        "inputSelector", "resultsCardSelector", "submission",
+                        "submitSelector", "pagination", "nextPageSelector")) return null
+                val request = json.string("requestId")?.takeIf(::validToken) ?: return null
+                val status = when (json.string("status")) {
+                    "ready" -> VideoSearchAnalysisStatus.READY
+                    "partial" -> VideoSearchAnalysisStatus.PARTIAL
+                    "missing" -> VideoSearchAnalysisStatus.MISSING
+                    "ambiguous" -> VideoSearchAnalysisStatus.AMBIGUOUS
+                    "unsafe" -> VideoSearchAnalysisStatus.UNSAFE
+                    else -> return null
+                }
+                val stage = when (json.string("stage")) {
+                    "SEARCH_FORM" -> VideoSearchAnalysisStage.SEARCH_FORM
+                    "RESULTS_PAGE" -> VideoSearchAnalysisStage.RESULTS_PAGE
+                    "PAGINATION" -> VideoSearchAnalysisStage.PAGINATION
+                    "UNKNOWN" -> VideoSearchAnalysisStage.UNKNOWN
+                    else -> return null
+                }
+                val reason = json.string("reason")?.takeIf {
+                    it in setOf("complete", "search_only", "results_only", "not_found",
+                        "ambiguous_input", "unsafe_form")
+                } ?: return null
+                val confidence = (json.opt("confidence") as? Int)?.takeIf {
+                    it in 0..100
+                } ?: return null
+                val allowedEvidence = setOf("GET_FORM", "SEARCH_INPUT",
+                    "ACCESSIBLE_NAME", "BOUND_SUBMIT", "REPEATED_CARDS",
+                    "PAGER_SEMANTIC", "AMBIGUOUS", "UNSAFE_FORM")
+                val raw = json.optJSONArray("evidence") ?: return null
+                if (raw.length() > 8) return null
+                val evidence = (0 until raw.length()).map { index ->
+                    raw.optString(index).takeIf { it in allowedEvidence } ?: return null
+                }
+                if (evidence.toSet().size != evidence.size) return null
+                val input = json.optSelector("inputSelector")
+                val cards = json.optSelector("resultsCardSelector")
+                val submit = json.optSelector("submitSelector")
+                val next = json.optSelector("nextPageSelector")
+                for ((key, value) in listOf("inputSelector" to input,
+                        "resultsCardSelector" to cards, "submitSelector" to submit,
+                        "nextPageSelector" to next)) {
+                    if (json.opt(key) != JSONObject.NULL && value == null) return null
+                }
+                val method = when (json.opt("submission")) {
+                    JSONObject.NULL -> null
+                    "FORM_SUBMIT" -> VideoSearchSubmission.FORM_SUBMIT
+                    "CLICK_SUBMIT" -> VideoSearchSubmission.CLICK_SUBMIT
+                    else -> return null
+                }
+                val pagination = when (json.string("pagination")) {
+                    "NONE" -> VideoSearchPagination.NONE
+                    "NEXT_LINK" -> VideoSearchPagination.NEXT_LINK
+                    "LOAD_MORE" -> VideoSearchPagination.LOAD_MORE
+                    else -> return null
+                }
+                if ((pagination == VideoSearchPagination.NONE) != (next == null) ||
+                    (method == VideoSearchSubmission.CLICK_SUBMIT && submit == null) ||
+                    (input == null) != (method == null)) return null
+                when (status) {
+                    VideoSearchAnalysisStatus.READY ->
+                        if (reason != "complete" || cards == null || input == null ||
+                            confidence < 60) return null
+                    VideoSearchAnalysisStatus.PARTIAL ->
+                        if (reason != "search_only" || cards != null || input == null ||
+                            confidence < 60 || pagination != VideoSearchPagination.NONE)
+                            return null
+                    VideoSearchAnalysisStatus.MISSING ->
+                        if (reason !in setOf("results_only", "not_found") ||
+                            input != null || confidence > 45) return null
+                    VideoSearchAnalysisStatus.AMBIGUOUS ->
+                        if (reason != "ambiguous_input" || input != null ||
+                            confidence != 0) return null
+                    VideoSearchAnalysisStatus.UNSAFE ->
+                        if (reason != "unsafe_form" || input != null ||
+                            confidence != 0) return null
+                }
+                VideoSearchBridgeMessage.Analysis(id, request, status, stage,
+                    reason, confidence, evidence, input, cards, method, submit,
+                    pagination, next)
+            }
             "inspection" -> {
                 val request = json.string("requestId")?.takeIf(::validToken) ?: return null
                 val status = json.string("status")?.takeIf { it in setOf("ready", "partial", "missing") }
@@ -380,6 +493,9 @@ internal object VideoSearchBridgeProtocol {
         put("schemaVersion", SCHEMA_VERSION)
         put("event", "url_sync")
     }
+    fun analyze(documentId: String, requestId: String): JSONObject =
+        base("analyze", documentId, requestId)
+
     fun inspect(documentId: String, requestId: String): JSONObject =
         base("inspect", documentId, requestId)
 

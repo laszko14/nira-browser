@@ -124,4 +124,50 @@ class VideoSearchBridgeProtocolTest {
         assertFalse(content.getBoolean("all_frames"))
         assertEquals("document_idle", content.getString("run_at"))
     }
+
+    private fun siteAnalysisPacket() = JSONObject().apply {
+        put("schemaVersion", 1)
+        put("event", "analysis")
+        put("documentId", validId)
+        put("requestId", "a".repeat(32))
+        put("status", "partial")
+        put("stage", "SEARCH_FORM")
+        put("reason", "search_only")
+        put("confidence", 75)
+        put("evidence", org.json.JSONArray().put("GET_FORM").put("SEARCH_INPUT"))
+        put("inputSelector", "input[name=\"q\"]")
+        put("resultsCardSelector", JSONObject.NULL)
+        put("submission", "FORM_SUBMIT")
+        put("submitSelector", JSONObject.NULL)
+        put("pagination", "NONE")
+        put("nextPageSelector", JSONObject.NULL)
+    }
+
+    @Test fun P0AcceptsBoundedRedactedSiteAnalysis() {
+        val command = VideoSearchBridgeProtocol.analyze(validId, "a".repeat(32))
+        assertEquals("analyze", command.getString("event"))
+        assertFalse(command.has("siteUrl"))
+        val answer = VideoSearchBridgeProtocol.decode(siteAnalysisPacket())
+        assertTrue(answer is VideoSearchBridgeMessage.Analysis)
+        val analysis = answer as VideoSearchBridgeMessage.Analysis
+        assertEquals(VideoSearchAnalysisStage.SEARCH_FORM, analysis.stage)
+        assertEquals(VideoSearchAnalysisStatus.PARTIAL, analysis.status)
+        assertEquals("search_only", analysis.reason)
+        assertNotNull(analysis.formInspection())
+        assertNull(analysis.resultsCardSelector)
+        assertFalse(analysis.toString().contains("input[name"))
+    }
+
+    @Test fun P0RejectsInjectedOrIncoherentAnalysis() {
+        for (invalid in listOf(
+            siteAnalysisPacket().put("cookie", "secret"),
+            siteAnalysisPacket().put("evidence", org.json.JSONArray().put("RAW_HTML")),
+            siteAnalysisPacket().put("confidence", 120),
+            siteAnalysisPacket().put("resultsCardSelector", "a[href]").put("status", "partial"),
+            siteAnalysisPacket().put("status", "ready"),
+            siteAnalysisPacket().put("submission", "POST"),
+            siteAnalysisPacket().put("requestId", "wrong"),
+        )) assertNull(VideoSearchBridgeProtocol.decode(invalid))
+    }
+
 }

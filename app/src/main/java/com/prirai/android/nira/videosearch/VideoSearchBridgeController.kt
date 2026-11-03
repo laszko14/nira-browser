@@ -79,6 +79,9 @@ internal class VideoSearchBridgeController(
         val inspection: VideoSearchBridgeMessage.Inspection,
     )
     private val manualScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    // Process-scope, bounded read-only discovery; Activity recreation does not
+    // own the job. Nothing is persisted as AUTO_CONFIGURING across a restart.
+    private val activeAutoAnalysis = LinkedHashSet<String>()
     private var manualBusy = false
     private var crawlBusy = false
     private val normalRunGate = VideoSearchNormalRunGate()
@@ -292,6 +295,7 @@ internal class VideoSearchBridgeController(
                         parsed.documentId == entry.documentId) entry.lastPong = true
                 }
                 is VideoSearchBridgeMessage.Inspection,
+                is VideoSearchBridgeMessage.Analysis,
                 is VideoSearchBridgeMessage.Submitted,
                 is VideoSearchBridgeMessage.SearchFailed,
                 is VideoSearchBridgeMessage.Picked,
@@ -303,6 +307,7 @@ internal class VideoSearchBridgeController(
                     val job = pending[session] ?: return
                     val req = when (parsed) {
                         is VideoSearchBridgeMessage.Inspection -> parsed.requestId
+                        is VideoSearchBridgeMessage.Analysis -> parsed.requestId
                         is VideoSearchBridgeMessage.Submitted -> parsed.requestId
                         is VideoSearchBridgeMessage.SearchFailed -> parsed.requestId
                         is VideoSearchBridgeMessage.Picked -> parsed.requestId
@@ -317,6 +322,7 @@ internal class VideoSearchBridgeController(
                         !isFresh(session, entry) || job.pageUrl != tab.pageUrl ||
                         tab.owner != job.owner || job.kind != when (parsed) {
                             is VideoSearchBridgeMessage.Inspection -> "inspect"
+                            is VideoSearchBridgeMessage.Analysis -> "analyze"
                             is VideoSearchBridgeMessage.Validation -> "validate"
                             is VideoSearchBridgeMessage.Results -> when {
                                 job.kind == "crawl" &&
@@ -341,6 +347,14 @@ internal class VideoSearchBridgeController(
                         parsed.inputSelector != null && parsed.submission != null) {
                         proposals[job.owner.profileId to job.siteId] =
                             Proposal(session, parsed.documentId, SystemClock.elapsedRealtime(), parsed)
+                    }
+                    if (job.owner is VideoSearchScope.Normal &&
+                        parsed is VideoSearchBridgeMessage.Analysis) {
+                        parsed.formInspection()?.let { inspected ->
+                            proposals[job.owner.profileId to job.siteId] =
+                                Proposal(session, parsed.documentId,
+                                    SystemClock.elapsedRealtime(), inspected)
+                        }
                     }
                     job.result.complete(parsed)
                 }
@@ -1141,7 +1155,7 @@ internal class VideoSearchBridgeController(
             else workerOwnedTab(site, workerTabId)
         }
             else if (kind.startsWith("pick:") ||
-                kind == "validate" || kind == "extract" ||
+                kind == "analyze" || kind == "validate" || kind == "extract" ||
                 kind == "extract_batch" || kind == "crawl" ||
                 kind == "paginate") manualSiteTab(site)
             else existingSiteTab(site)
@@ -1174,6 +1188,120 @@ internal class VideoSearchBridgeController(
         } finally {
             if (pending[session] === work) pending.remove(session)
         }
+    }
+
+    private fun activeNormalOwner(owner: VideoSearchScope.Normal): Boolean {
+        val manager = ProfileManager.getInstance(applicationContext)
+        return !manager.isPrivateMode() &&
+            manager.getActiveProfile().id == owner.profileId
+    }
+
+    /** Typed bounded site discovery. No DOM writes, clicks or search phrase. */
+    suspend fun analyzeSite(
+        site: VideoSearchSite, workerTabId: String? = null,
+    ): VideoSearchBridgeMessage.Analysis? =
+        request(site, "analyze", workerTabId = workerTabId) { document, req ->
+            VideoSearchBridgeProtocol.analyze(document, req)
+        } as? VideoSearchBridgeMessage.Analysis
+
+    /**
+     * A newly added normal site triggers one bounded, read-only Gecko visit.
+     * Never reanalyze an existing configured site or a private site. The
+     * background tab is borrowed only under a revocable normal-worker lease.
+     */
+    fun scheduleAutoAnalysis(
+        site: VideoSearchSite, repository: VideoSearchRepository,
+    ): Boolean {
+        val owner = site.scope as? VideoSearchScope.Normal ?: return false
+        if (!site.enabled || site.configuration != null ||
+            !activeNormalOwner(owner)) return false
+        val key = owner.profileId + "/" + site.id
+        if (key in activeAutoAnalysis || activeAutoAnalysis.size >= 2) return false
+        activeAutoAnalysis.add(key)
+        manualScope.launch {
+            var tabId: String? = null
+            var lease: VideoSearchNormalWorkerLease? = null
+            try {
+                val current = withContext(Dispatchers.IO) {
+                    repository.site(owner, site.id)
+                }
+                if (current != site || !activeNormalOwner(owner)) return@launch
+                val createdId = applicationContext.components.tabsUseCases.addTab.invoke(
+                    site.siteUrl, selectTab = false, private = false,
+                    contextId = owner.contextId,
+                )
+                tabId = createdId
+                val workerLease = VideoSearchNormalWorkerLease(createdId, owner)
+                lease = workerLease
+                VideoSearchNormalWorkerSelectionHost.registry.register(
+                    workerLease, store.state.selectedTabId)
+                val loaded = withTimeoutOrNull(10_000L) {
+                    while (workerSiteTab(site, createdId) == null || !extensionReady) {
+                        if (!activeNormalOwner(owner) ||
+                            !workerLease.canUse(store.state.selectedTabId) ||
+                            store.state.tabs.none { it.id == createdId }) {
+                            return@withTimeoutOrNull false
+                        }
+                        delay(160)
+                    }
+                    true
+                } ?: false
+                if (!loaded || !activeNormalOwner(owner)) return@launch
+                val analysis = analyzeSite(site, createdId)
+                if (!activeNormalOwner(owner) ||
+                    !workerLease.canUse(store.state.selectedTabId) ||
+                    withContext(Dispatchers.IO) { repository.site(owner, site.id) } != site)
+                    return@launch
+                withContext(Dispatchers.IO) {
+                    val inspection = analysis?.formInspection()
+                    when {
+                        analysis?.status == VideoSearchAnalysisStatus.READY &&
+                            analysis.confidence >= 70 && inspection != null ->
+                            repository.applyAutoConfiguration(site, inspection)
+                        analysis?.status == VideoSearchAnalysisStatus.PARTIAL &&
+                            analysis.confidence >= 60 && inspection != null ->
+                            repository.applyAutoPartialConfiguration(site, inspection)
+                        else -> repository.markAutoAnalysisIssue(site,
+                            analysis?.status == VideoSearchAnalysisStatus.UNSAFE)
+                    }
+                }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                if (activeNormalOwner(owner)) {
+                    try {
+                        withContext(Dispatchers.IO) {
+                            repository.markAutoAnalysisIssue(site, unsafe = false)
+                        }
+                    } catch (_: Exception) { /* No fake success. */ }
+                }
+            } finally {
+                val id = tabId
+                val token = lease
+                if (id != null && token != null) {
+                    val live = store.state.tabs.singleOrNull { it.id == id }
+                    val safeOrigin = live?.content?.url?.let {
+                        VideoSearchBridgeProtocol.sameOrigin(it, site.siteUrl)
+                    } == true
+                    try {
+                        if (activeNormalOwner(owner) && token.mayReclaim(
+                            live?.let { VideoSearchNormalWorkerTab(
+                                it.id, it.contextId, it.content.private) },
+                            store.state.selectedTabId,
+                            if (live != null && owner.ownsTab(
+                                    live.contextId, live.content.private)) owner else null,
+                            live?.engineState?.engineSession, safeOrigin,
+                        )) applicationContext.components.tabsUseCases.removeTab(id)
+                    } catch (_: Exception) {
+                        // An adopted or uncertain tab is the user's tab forever.
+                    } finally {
+                        VideoSearchNormalWorkerSelectionHost.registry.release(token)
+                    }
+                }
+                activeAutoAnalysis.remove(key)
+            }
+        }
+        return true
     }
 
     /** Inspection is read-only and only runs when user taps Rozpoznaj. */
@@ -1760,6 +1888,95 @@ internal class VideoSearchBridgeController(
         } is VideoSearchBridgeMessage.Submitted
     }
 
+    /**
+     * A deliberately submitted phrase is the only path permitted to learn
+     * result-page selectors. ACK alone never proves a successful search.
+     * Same-document SPA must show a new film URL versus a real baseline.
+     */
+    suspend fun searchSiteAndVerify(
+        site: VideoSearchSite, query: String,
+        repository: VideoSearchRepository,
+    ): VideoSearchManualSearchOutcome {
+        val owner = site.scope as? VideoSearchScope.Normal
+            ?: return VideoSearchManualSearchOutcome.FAILED
+        if (!activeNormalOwner(owner) || !VideoSearchBridgeProtocol.validQuery(query))
+            return VideoSearchManualSearchOutcome.FAILED
+        val source = existingSiteTab(site) ?: return VideoSearchManualSearchOutcome.FAILED
+        val tabId = currentTab(source.first)?.tabId
+            ?: return VideoSearchManualSearchOutcome.FAILED
+        if (store.state.selectedTabId != tabId)
+            return VideoSearchManualSearchOutcome.FAILED
+        val originalDocument = source.second.documentId
+            ?: return VideoSearchManualSearchOutcome.FAILED
+        val before = analyzeSite(site)
+        val originalConfig = site.configuration ?: before?.formInspection()?.let { form ->
+            val field = form.inputSelector ?: return@let null
+            val submission = form.submission ?: return@let null
+            VideoSiteConfiguration(field, null, submission, form.submitSelector)
+        }
+        val baseline = if (before?.resultsCardSelector != null && originalConfig != null) {
+            val config = originalConfig.copy(resultsCardSelector = before.resultsCardSelector)
+            (request(site, "crawl") { doc, req ->
+                VideoSearchBridgeProtocol.extractCrawl(doc, req, config, 0)
+            } as? VideoSearchBridgeMessage.Results)?.page
+        } else null
+        if (!searchSite(site, query)) return VideoSearchManualSearchOutcome.FAILED
+
+        val startedAt = SystemClock.elapsedRealtime()
+        while (SystemClock.elapsedRealtime() - startedAt < 10_000L) {
+            val live = store.state.tabs.singleOrNull { it.id == tabId }
+                ?: return VideoSearchManualSearchOutcome.SUBMITTED_UNVERIFIED
+            val session = live.engineState.engineSession
+            if (!activeNormalOwner(owner) || store.state.selectedTabId != tabId ||
+                !owner.ownsTab(live.contextId, live.content.private) ||
+                session == null ||
+                !VideoSearchBridgeProtocol.sameOrigin(live.content.url, site.siteUrl))
+                return VideoSearchManualSearchOutcome.SUBMITTED_UNVERIFIED
+            val observed = analyzeSite(site)
+            val cards = observed?.resultsCardSelector
+            if (cards != null && originalConfig != null) {
+                val afterConfig = originalConfig.copy(
+                    resultsCardSelector = cards, pagination = observed.pagination,
+                    nextPageSelector = observed.nextPageSelector)
+                val page = (request(site, "crawl") { doc, req ->
+                    VideoSearchBridgeProtocol.extractCrawl(doc, req, afterConfig, 0)
+                } as? VideoSearchBridgeMessage.Results)?.page
+                if (VideoSearchWorkerVerification.confirmed(
+                        originalDocument, observed.documentId, page, baseline)) {
+                    val current = withContext(Dispatchers.IO) {
+                        repository.site(owner, site.id)
+                    }
+                    if (current != site || !activeNormalOwner(owner))
+                        return VideoSearchManualSearchOutcome.SUBMITTED_UNVERIFIED
+                    val saved = when (site.configurationState) {
+                        VideoSiteConfigurationState.CONFIGURED -> true
+                        VideoSiteConfigurationState.SEARCH_READY_RESULTS_PENDING ->
+                            withContext(Dispatchers.IO) {
+                                repository.completePendingResults(
+                                    site, cards, observed.pagination, observed.nextPageSelector)
+                            }
+                        VideoSiteConfigurationState.NEEDS_CONFIGURATION ->
+                            before?.formInspection()?.let { form ->
+                                val merged = VideoSearchBridgeMessage.Inspection(
+                                    observed.documentId, observed.requestId, "ready",
+                                    form.inputSelector, cards, form.submission,
+                                    form.submitSelector, observed.pagination,
+                                    observed.nextPageSelector)
+                                withContext(Dispatchers.IO) {
+                                    repository.applyAutoConfiguration(site, merged)
+                                }
+                            } ?: false
+                        else -> false
+                    }
+                    return if (saved) VideoSearchManualSearchOutcome.VERIFIED
+                        else VideoSearchManualSearchOutcome.SUBMITTED_UNVERIFIED
+                }
+            }
+            delay(350)
+        }
+        return VideoSearchManualSearchOutcome.SUBMITTED_UNVERIFIED
+    }
+
     /** Site-specific per-tab search: verifies trusted context, exact saved
      * URL, engine identity and document port. Never selects the worker tab. */
     private suspend fun submitWorker(
@@ -2093,6 +2310,10 @@ internal class VideoSearchBridgeController(
         val entry = ports[session] ?: return false
         return isFresh(session, entry) && entry.lastPong
     }
+}
+
+internal enum class VideoSearchManualSearchOutcome {
+    FAILED, SUBMITTED_UNVERIFIED, VERIFIED
 }
 
 /** Starts only on user access to the feature; never during app cold-start. */

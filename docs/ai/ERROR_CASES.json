@@ -40,6 +40,11 @@
       "task_id": "ZC-V4-STRUCTURAL-SITE-SEARCH",
       "observed_count": 3,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
+      "observed_count": 3,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -683,6 +688,60 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41554647363"
       ]
+    },
+    {
+      "id": "ERR-20261103-0002",
+      "kind": "REVIEW",
+      "fingerprint": "p0-reset-submit-candidate",
+      "summary": "Przegląd kodu ujawnił możliwość wybrania reset jako akcji Search przy semantyce formularza GET. Reproduktor DOM dodano; efekt na urządzeniu niepotwierdzony.",
+      "regression_test": "app/src/test/js/video-search-structural-v4.test.cjs",
+      "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
+      "source_sha": "85101f8b06e958c85433614bb40c6dc9e9052641",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "evidence_links": []
+    },
+    {
+      "id": "ERR-20261103-0003",
+      "kind": "REVIEW",
+      "fingerprint": "p0-unnamed-pager-button",
+      "summary": "Przegląd kodu ujawnił możliwość wybrania jedynego nienazwanego przycisku paginacji bez pozytywnego dowodu Next. Reproduktor DOM dodano; efekt na urządzeniu niepotwierdzony.",
+      "regression_test": "app/src/test/js/video-search-structural-v4.test.cjs",
+      "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
+      "source_sha": "85101f8b06e958c85433614bb40c6dc9e9052641",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "evidence_links": []
+    },
+    {
+      "id": "ERR-20261103-0004",
+      "kind": "USER_REPORT",
+      "fingerprint": "p0-no-automatic-site-discovery",
+      "summary": "Użytkownik oczekuje wykrycia kontrolek wyszukiwania bez ręcznej inspekcji po dodaniu witryny. Dotychczasowe addSite zapisywało stan NEEDS_CONFIGURATION, bez analizy Gecko.",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchAutoConfigurationTest.kt",
+      "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
+      "source_sha": "85101f8b06e958c85433614bb40c6dc9e9052641",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "evidence_links": []
     }
   ]
 }

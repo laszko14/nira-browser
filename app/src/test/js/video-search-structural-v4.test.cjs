@@ -11,14 +11,16 @@ const content = fs.readFileSync(path.join(__dirname,
 // Sanitized DOM shapes model real-world GET search forms and repeated grids.
 // Run the production WebExtension script, not a copied detection function.
 function inspectFixture({cardsSelector, count=4, name='s', submitType='submit',
-    method='get', next=false, metadata=true}={}) {
+    method='get', next=false, metadata=true, analyze=false,
+    anonymousPager=false, secondInput=false, inputId='s', formRole='search',
+    ariaLabel=null, placeholder='Search'}={}) {
   const posted = [], selectors = new Map();
   let onMessage;
   const url = new URL('https://films.example/');
   const form = {
     tagName:'FORM', id:'searchform', className:'',
     getAttribute(key) { return ({
-      method, action:'https://films.example/', role:'search'
+      method, action:'https://films.example/', role:formRole
     })[key] ?? null; },
     querySelector() { return null; },
     querySelectorAll(key) {
@@ -26,9 +28,10 @@ function inspectFixture({cardsSelector, count=4, name='s', submitType='submit',
     }
   };
   const input = {
-    tagName:'INPUT', id:'s', name, type:'text', placeholder:'Search',
+    tagName:'INPUT', id:inputId, name, type:'text', placeholder,
     form, disabled:false, readOnly:false,
-    getAttribute(key) {return ({type:'text',id:'s',name,placeholder:'Search'})[key] ?? null;},
+    getAttribute(key) {return ({type:'text',id:inputId,name,placeholder,
+      'aria-label':ariaLabel})[key] ?? null;},
     closest() { return null; },
     getBoundingClientRect() { return {width:180,height:30}; }
   };
@@ -63,13 +66,39 @@ function inspectFixture({cardsSelector, count=4, name='s', submitType='submit',
     },
     getBoundingClientRect(){return {width:30,height:20};},
   };
-  selectors.set('input',[input]); selectors.set('#s',[input]);
+  const input2 = secondInput ? {
+    ...input, id:'secondary', getAttribute(key) {
+      return ({type:'text',id:'secondary',name,placeholder,
+        'aria-label':ariaLabel})[key] ?? null;
+    }
+  } : null;
+  selectors.set('input',input2 ? [input,input2] : [input]);
+  selectors.set('#'+inputId,[input]);
+  if (input2) selectors.set('#secondary',[input2]);
   selectors.set('#searchsubmit',[submit]); selectors.set('a[rel="next"]',next ? [nextLink] : []);
   selectors.set('#next-page',[nextLink]);
   if (cardsSelector) selectors.set(cardsSelector,list);
+  if (anonymousPager) {
+    const unlabeled = {
+      tagName:'BUTTON', id:'pager-action', className:'', classList:[],
+      disabled:false, parentElement:null, form:null, innerText:'',
+      textContent:'', getAttribute(){return null;},
+      getBoundingClientRect(){return {width:35,height:24};},
+      closest(sel) {
+        return sel === 'a[href],button,[role="button"]' ? this : null;
+      }, matches(sel){ return sel === 'button'; },
+      hasAttribute(){return false;}
+    };
+    selectors.set('.pagination a,.pagination button,.pager a,.pager button,' +
+      'nav[aria-label="pagination"] a,nav[aria-label="pagination"] button', [unlabeled]);
+    selectors.set('#pager-action',[unlabeled]);
+  }
   const document = {
     documentElement:{},
-    querySelector(){return null;},
+    querySelector(query){
+      return method.toLowerCase() === 'post' &&
+        query.includes('form[method="post"]') ? input : null;
+    },
     querySelectorAll(key){return selectors.get(key) || [];},
     contains(){return true;}
   };
@@ -88,9 +117,9 @@ function inspectFixture({cardsSelector, count=4, name='s', submitType='submit',
   });
   const id = posted[0].documentId;
   onMessage({schemaVersion:1,event:'bound',documentId:id});
-  onMessage({schemaVersion:1,event:'inspect',documentId:id,
+  onMessage({schemaVersion:1,event:analyze?'analyze':'inspect',documentId:id,
     requestId:'1'.padStart(32,'0')});
-  return posted.find(p=>p.event==='inspection');
+  return posted.find(p=>p.event===(analyze?'analysis':'inspection'));
 }
 
 test('recognizes repeated article cards under a video list and GET search form',()=>{
@@ -125,4 +154,61 @@ test('does not treat links without card-local metadata as film cards',()=>{
 test('rejects unsafe POST search forms before selecting any control',()=>{
   const result = inspectFixture({cardsSelector:'.list-videos .item',method:'post'});
   assert.equal(result.status,'missing');
+});
+
+test('P0 never chooses a reset button called Search as a submit action',()=>{
+  const result=inspectFixture({submitType:'reset'});
+  assert.equal(result.inputSelector,'#s');
+  assert.equal(result.submitSelector,null);
+  assert.equal(result.submission,'FORM_SUBMIT');
+});
+
+test('P0 rejects a unique unlabeled pager control without forward evidence',()=>{
+  const result=inspectFixture({anonymousPager:true});
+  assert.equal(result.pagination,'NONE');
+  assert.equal(result.nextPageSelector,null);
+});
+
+test('P0 analysis has separate stage and bounded, non-DOM evidence',()=>{
+  const result=inspectFixture({cardsSelector:'.videos-list article',
+    next:true,analyze:true});
+  assert.equal(result.event,'analysis');
+  assert.equal(result.status,'ready');
+  assert.equal(result.stage,'PAGINATION');
+  assert.equal(result.reason,'complete');
+  assert.ok(result.confidence>=70);
+  assert.ok(result.evidence.includes('REPEATED_CARDS'));
+  assert.ok(result.evidence.includes('PAGER_SEMANTIC'));
+  assert.equal(JSON.stringify(result).includes('https://films.example'),false);
+});
+
+test('P0 analyzes a search-only homepage without requiring results yet',()=>{
+  const result=inspectFixture({analyze:true});
+  assert.equal(result.status,'partial');
+  assert.equal(result.stage,'SEARCH_FORM');
+  assert.equal(result.reason,'search_only');
+  assert.equal(result.resultsCardSelector,null);
+});
+
+test('P0 detects a semantic aria-label on a nonstandard search input',()=>{
+  const result=inspectFixture({name:'term',inputId:'entry',placeholder:'Type',
+    formRole:'',ariaLabel:'Search videos',analyze:true});
+  assert.equal(result.status,'partial');
+  assert.equal(result.inputSelector,'#entry');
+  assert.ok(result.evidence.includes('ACCESSIBLE_NAME'));
+});
+
+test('P0 refuses tied search fields rather than sending an ambiguous command',()=>{
+  const result=inspectFixture({secondInput:true,analyze:true});
+  assert.equal(result.status,'ambiguous');
+  assert.equal(result.reason,'ambiguous_input');
+  assert.equal(result.confidence,0);
+  assert.equal(result.inputSelector,null);
+});
+
+test('P0 classifies POST-only search as unsafe and does not choose a control',()=>{
+  const result=inspectFixture({method:'post',analyze:true});
+  assert.equal(result.status,'unsafe');
+  assert.equal(result.reason,'unsafe_form');
+  assert.equal(result.inputSelector,null);
 });

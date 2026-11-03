@@ -9,7 +9,8 @@ internal object VideoSearchManualStages {
     /** Only incomplete, preserved search controls are eligible for results-only picking. */
     fun pendingResults(site: VideoSearchSite): VideoSiteConfiguration? =
         site.configuration?.takeIf { config ->
-            site.configurationState == VideoSiteConfigurationState.REPAIR_REQUIRED &&
+            site.configurationState in setOf(VideoSiteConfigurationState.REPAIR_REQUIRED,
+                    VideoSiteConfigurationState.SEARCH_READY_RESULTS_PENDING) &&
                 config.resultsCardSelector == null &&
                 VideoSearchBridgeProtocol.validSelector(config.searchInputSelector) &&
                 (config.submission != VideoSearchSubmission.CLICK_SUBMIT ||
