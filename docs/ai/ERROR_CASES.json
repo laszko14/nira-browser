@@ -43,7 +43,7 @@
     },
     {
       "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
-      "observed_count": 3,
+      "observed_count": 5,
       "state": "ACTIVE"
     }
   ],
@@ -742,6 +742,46 @@
       "duplicate_of": null,
       "fix_sha": null,
       "evidence_links": []
+    },
+    {
+      "id": "CI-41563078120-1-125678007205-A",
+      "fingerprint": "p0-navigation-shortcut-static-callsite",
+      "summary": "SOURCE JS 333/425: test strukturalny oczekiwał starego searchSite i odrzucił poprawnie rozdzielone searchSiteAndVerify. Zaktualizować oracle do nowego wejścia, dowodu statusu i zachowania ekranu.",
+      "cause": "test_harness",
+      "regression_test": "app/src/test/js/video-search-navigation-shortcut.test.cjs",
+      "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
+      "kind": "CI_FAILURE",
+      "source_sha": "0529e9272f112dbef940b34d0e8ac3a313657337",
+      "observed_at": "2026-11-03T01:57:46Z",
+      "run_id": 41563078120,
+      "job_id": 125678007205,
+      "attempt": 1,
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41563078120"
+      ]
+    },
+    {
+      "id": "CI-41563078120-1-125678007205-B",
+      "fingerprint": "p0-nested-next-pager-gate-regression",
+      "summary": "SOURCE JS 343/425: restrykcja nie przyjęła prawidłowego li.next a wewnątrz nav.pages, jeżeli mock pagera nie implementował querySelectorAll. Potrzebny pozytywny dowód potomka paginacji bez wybierania obcego Next.",
+      "cause": "production",
+      "regression_test": "app/src/test/js/video-search-next-picker.test.cjs",
+      "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
+      "kind": "CI_FAILURE",
+      "source_sha": "0529e9272f112dbef940b34d0e8ac3a313657337",
+      "observed_at": "2026-11-03T01:57:46Z",
+      "run_id": 41563078120,
+      "job_id": 125678007205,
+      "attempt": 1,
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41563078120"
+      ]
     }
   ]
 }

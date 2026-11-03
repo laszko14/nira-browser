@@ -534,6 +534,25 @@
         el.matches?.('button,[role="button"]')));
     return next.length === 1 ? next[0] : null;
   }
+  // Semantic parent 'li.next' is only evidence inside a pager ancestor.
+  // This does not require the ancestor to itself be a clickable control.
+  function explicitNextParent(el) {
+    const parent = el?.parentElement;
+    if (!parent) return false;
+    const label = [parent.id, parent.className]
+      .filter(v => typeof v === "string").join(" ");
+    if (!/(?:^|[\s_-])next(?:$|[\s_-])|nast[eę]pn|load[\s_-]?more/i.test(label))
+      return false;
+    let node = parent.parentElement;
+    for (let depth = 0; node && depth < 5; depth++, node = node.parentElement) {
+      const hint = [node.id, node.className, node.getAttribute?.("role"),
+        node.getAttribute?.("aria-label")]
+        .filter(v => typeof v === "string").join(" ");
+      if (/pagination|pager|pages|pag(e|ing)|stron|nawigac/i.test(hint))
+        return true;
+    }
+    return false;
+  }
   function manualNext(node) {
     const el = node.closest('a[href],button,[role="button"]');
     if (!el || !visible(el) || el.disabled ||
@@ -572,10 +591,7 @@
     const directSelector = paginationSelector(el);
     // Mere membership of ".pagination", or one unique button, proves nothing.
     // A parent li.next is accepted only inside a recognized pager.
-    const semanticParent = pager &&
-      /(?:^|[\s_-])next(?:$|[\s_-])|nast[eę]pn|load[\s_-]?more/i.test(
-        [el.parentElement?.id, el.parentElement?.className]
-          .filter(v => typeof v === "string").join(" "));
+    const semanticParent = explicitNextParent(el);
     if (number == null && !safeSamePageAction(el) && !semanticParent) return null;
     // Pager root is reusable as page numbers rotate (2,3,4...), unlike a
     // locator for one specific numbered link. Explicitly selected Next in
@@ -1485,10 +1501,7 @@
     if (!visible(target) || target.disabled ||
         target.getAttribute("aria-disabled") === "true" || loading())
       return terminal();
-    const semanticParent = !!pagerContainer(target) &&
-      /(?:^|[\s_-])next(?:$|[\s_-])|nast[eę]pn|load[\s_-]?more/i.test(
-        [target.parentElement?.id, target.parentElement?.className]
-          .filter(v => typeof v === "string").join(" "));
+    const semanticParent = explicitNextParent(target);
     if (!resolvedNumeric && !safeSamePageAction(target) && !semanticParent)
       return "unsafe";
     endProbe = null;
