@@ -3,8 +3,13 @@ const {test}=require('node:test'),assert=require('node:assert/strict');
 const {inspect,selectedPaths,SCOPE}=require('./ai-preflight.cjs');
 const fs=require('node:fs'),path=require('node:path');
 const root=path.join(__dirname,'..');
-const branch='feat/zavro-clean-v3-20261101',sha='75d59b0ba47269b84e4e027556fd59dcbee66287';
 const source=p=>fs.readFileSync(path.join(root,p),'utf8');
+// This fixture is deliberately branch-aware: the handoff belongs to the
+// checked-out feature branch, not to a permanently hardcoded V3 branch.
+const handoffBranch=/^branch: ((?:feat|fix|chore)\/zavro-clean-[a-z0-9-]+)$/m
+  .exec(source('docs/AI_HANDOFF.md'));
+assert.ok(handoffBranch, 'a valid checked-out handoff branch is required');
+const branch=handoffBranch[1],sha='75d59b0ba47269b84e4e027556fd59dcbee66287';
 const run=(override={},read=source)=>inspect({branch,sha,checkoutBranch:branch,checkoutSha:sha,
   scope:'CI_TOOLING',...override},read);
 test('read-only source snapshot verifies all required bytes and scoped docs',()=>{

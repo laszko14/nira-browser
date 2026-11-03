@@ -1,46 +1,39 @@
-# AI_HANDOFF — Zavro Clean, Lista mini v1210
+# AI_HANDOFF — Zavro Clean, Structural Site Recognition V4
 > Archiwum historii: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md.
-> Snapshot, nie live HEAD. Poprzednie zadanie ZC-V1209-QUEUE-NEON: SOURCE run 41546456898 SUCCESS 6/6; PR run 41546465412 SUCCESS; prywatny APK run 41547469511 artifact 13188674701, APK_VERIFIED, DEVICE NOT_TESTED.
+> Bazowy checkpoint v1210: branch feat/zavro-clean-v3-20261101, SHA 27bdabf155d5a409019574b966f118aef0cab122. Testów wcześniejszego zadania nie przypisuje się temu zadaniu.
 
 ```yaml
-task_id: ZC-V1210-RESULTS-MINI-LIST
+task_id: ZC-V4-STRUCTURAL-SITE-SEARCH
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
-branch: feat/zavro-clean-v3-20261101
-base_sha: e609b183d73c88c10bd3c4c885b358a0dbdfa6b4
-observed_head_sha: e609b183d73c88c10bd3c4c885b358a0dbdfa6b4
+branch: fix/zavro-clean-video-search-structural-v4-20261103
+base_sha: 27bdabf155d5a409019574b966f118aef0cab122
+observed_head_sha: 76c69e3ab651093773ea459eab8ddcc26b28c53d
 status: CI_PENDING
-acceptance_source: Trzeci tryb "Lista mini" z wierszami okolo polowy wysokosci starej listy. Dotychczasowe kafelki i lista niezmienione. Zapis wyboru per profil, zachowaj otwieranie, zaznaczanie, grupy, sort, scroll i filtry.
-completed: Enum COMPACT, wybor 3 widokow w gornym pasku i filtrach, miniatura 62x36dp, tytul i metadane w dwoch liniach, niezmienione gesty. Rozszerzony test repozytorium i kontrakty JS. Bez migracji danych. Aktualizacja 1210 / alpha115-clean, certyfikat i pakiet bez zmian.
-required_ci: process-docs + shared-tests (JS, JVM/Robolectric, AndroidTest compile, lint-regression) + SOURCE quality-evidence na koncowym SHA; osobno PR integration.
-apk: APK_BLOCKED do czasu green SOURCE CI i autoryzowanej owner COMMENT review PR 119.
-remaining: Zielone CI SOURCE/PR i prywatna weryfikacja podpisanego APK v1210, test na telefonie wciaz NOT_TESTED.
-known_failures: SOURCE process-docs run 41549291438 wykryl brak wymaganych pol w krotkim handoff (test check-ai-handoff.test.cjs); uzupełniono kanoniczny checkpoint bez zmiany samego testu.
-verification: CI_PENDING. Pierwszy SOURCE process-docs FAIL (schema handoff), JS PASS; Kotlin, AndroidTest, lint wymagaja finalnego ponownego uruchomienia. Nie traktuj poprzedniego SHA jako CODE_VERIFIED.
+acceptance_source: Stabilne automatyczne rozpoznawanie bezpiecznych formularzy wyszukiwania, powtarzalnych kart filmów i poprawnej paginacji w zróżnicowanych DOM, bez zależności od domen. Nie przetwarzać klikalnych reklam jako stron filmów.
+completed: Rozszerzono inspekcję powtarzalnych kart oraz ostrożny wybór akcji wyszukiwania i paginacji. Dodano testy rzeczywistego skryptu WebExtension oparte na zanonimizowanych kształtach DOM. Bez zmiany modelu danych/profili, bez zmian playbacku.
+required_ci: process-docs + shared-tests (JS, JVM/Robolectric, AndroidTest compile, lint-regression) + SOURCE quality-evidence na finalnym SHA; osobno PR integration.
+apk: APK_BLOCKED dopóki SOURCE CI nie jest zielone, nie ma zatwierdzonej owner COMMENT review PR i nie potwierdzono kontraktu wersji, ABI, certyfikatu.
+remaining: Potwierdzić wszystkie wymagane testy SOURCE, PR integration i bezpieczną recenzję, jeśli dostępna; sprawdzić wynik prawdziwego GeckoView na urządzeniu.
+known_failures: Pierwszy PR run 41554791864 JS FAIL przez brak closest() w testowym mocku; pierwszy SOURCE run 41554647363 process-docs FAIL przez historyczną sztywną gałąź w teście ai-preflight.test.cjs. Poprawiono przyczyny, potrzebny nowy CI. Realne Gecko NOT_TESTED.
+verification: CI_PENDING. Przed wysłaniem kod zweryfikowany przez odczyt źródła, brak dowodu testów SOURCE na nowym SHA.
 blockers:
-  - Niezalezny security review historycznego PR 119 nadal nierozstrzygniety.
-  - Test na fizycznym Nothing Phone (1) nie zostal wykonany.
+  - Brak potwierdzonego uruchomienia wszystkich witryn w realnej sesji GeckoView.
+  - Kontrolowane strony zewnętrzne nie są dowodem identycznego działania na Androidzie.
 changed_paths:
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchModels.kt
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsActivity.kt
-  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsRepositoryTest.kt
-  - app/src/test/js/video-search-neon-redesign.test.cjs
-  - app/src/test/js/release-contract-stage19a.test.cjs
-  - app/src/test/js/update-apk-workflow-scope.test.cjs
-  - app/build.gradle
-  - .github/workflows/apk-release.yml
+  - app/src/main/assets/extensions/zavro-video-search/content.js
+  - app/src/test/js/video-search-structural-v4.test.cjs
+  - scripts/ai-preflight.test.cjs
   - docs/AI_HANDOFF.md
   - docs/ai/ERROR_CASES.json
 verified_before_push:
-  - GitHub connector: aktualny branch i AGENTS/handoff z jawnego SHA przed zmianami.
-  - Dotychczasowe tryby TILES i LIST zachowuja pierwotne style, obsluge filmow i profile.
-  - Wersja 1210, arm64-v8a, com.prirai.android.nira.debug; bez zmian certyfikatu.
+  - GitHub connector: branch bazowy, HEAD, AGENTS.md i AI_HANDOFF.md z jawnego SHA 27bdabf155d5a409019574b966f118aef0cab122.
+  - Ochrona URL HTTP(S), tego samego origin dla akcji i zakaz niebezpiecznych formularzy pozostają.
+  - Brak migracji danych, zmian package, ABI, versionCode lub signing Secrets.
 evidence_links:
-  - https://github.com/laszko14/nira-browser/pull/119
-  - https://github.com/laszko14/nira-browser/actions/runs/41549291438
-  - https://github.com/laszko14/nira-browser/actions/runs/41549300802
+  - https://github.com/laszko14/nira-browser/commit/27bdabf155d5a409019574b966f118aef0cab122
 device: NOT_TESTED
-security: Bez merge, release, force-push, zmiany certyfikatu, usuwania profili. GitHub bez TinyFish.
-next_action: Po push zweryfikuj 6 SOURCE gates i PR tests; napraw FAIL i zapisz nowe bledy do ERROR_CASES. Po green dla final SHA i autoryzacji buduj podpisany prywatny arm64 APK 1210.
+security: Bez TinyFish, merge, release, force-push, zmiany certyfikatu i usuwania profili.
+next_action: Zbadaj wymagane SOURCE CI i JS testy, popraw regresje; po green sprawdź możliwość autoryzowanej recenzji PR i prywatnego APK bez obchodzenia zabezpieczeń.
 ```
