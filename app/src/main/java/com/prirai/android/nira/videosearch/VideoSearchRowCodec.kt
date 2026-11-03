@@ -29,8 +29,30 @@ internal object VideoSearchRowCodec {
                 .put("duration", c.durationSelector)
                 .put("pagination", c.pagination.name)
                 .put("next", c.nextPageSelector)
+                .put("recognition", JSONObject().put("origin", c.recognition.origin.name)
+                    .put("confidence", c.recognition.confidence)
+                    .put("confirmations", c.recognition.confirmations)
+                    .put("lastVerifiedAtMs", c.recognition.lastVerifiedAtMs)
+                    .put("backups", JSONArray(c.recognition.backupResultsSelectors)))
                 .toString()
         }
+
+    private fun readRecognition(record: JSONObject?): VideoSearchRecognitionMemory {
+        if (record == null) return VideoSearchRecognitionMemory()
+        return try {
+            val list = record.optJSONArray("backups") ?: JSONArray()
+            require(list.length() <= 3)
+            VideoSearchRecognitionMemory(
+                origin = VideoSearchRuleOrigin.valueOf(record.getString("origin")),
+                confidence = record.getInt("confidence"),
+                confirmations = record.getInt("confirmations"),
+                lastVerifiedAtMs = (record.opt("lastVerifiedAtMs") as? Number)?.toLong(),
+                backupResultsSelectors = (0 until list.length()).map { list.getString(it) },
+            )
+        } catch (_: Exception) {
+            VideoSearchRecognitionMemory() // Keep the last valid working selectors.
+        }
+    }
 
     internal fun readConfiguration(raw: String?): VideoSiteConfiguration? =
         raw?.let {
@@ -46,6 +68,7 @@ internal object VideoSearchRowCodec {
                 durationSelector = j.optional("duration"),
                 pagination = enumValueOf(j.getString("pagination")),
                 nextPageSelector = j.optional("next"),
+                recognition = readRecognition(j.optJSONObject("recognition")),
             )
         }
 
