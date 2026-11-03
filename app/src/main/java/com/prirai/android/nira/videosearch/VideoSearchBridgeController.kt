@@ -1258,9 +1258,7 @@ internal class VideoSearchBridgeController(
                     // form at add; await explicit verified user query.
                     val pendingForm = VideoSearchAutoDiscoveryPolicy.pendingForm(analysis)
                     when {
-                        analysis?.status in setOf(VideoSearchAnalysisStatus.READY,
-                                VideoSearchAnalysisStatus.PARTIAL) &&
-                            analysis.confidence >= 60 && pendingForm != null ->
+                        pendingForm != null ->
                             repository.applyAutoPartialConfiguration(site, pendingForm)
                         else -> repository.markAutoAnalysisIssue(site,
                             analysis?.status == VideoSearchAnalysisStatus.UNSAFE)

@@ -43,7 +43,7 @@
     },
     {
       "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
-      "observed_count": 5,
+      "observed_count": 11,
       "state": "ACTIVE"
     }
   ],
@@ -756,9 +756,9 @@
       "run_id": 41563078120,
       "job_id": 125678007205,
       "attempt": 1,
-      "state": "OPEN",
+      "state": "FIXED",
       "duplicate_of": null,
-      "fix_sha": null,
+      "fix_sha": "f402a2c5084bfcf3818b4a98b705f9c8e5ece826",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41563078120"
       ]
@@ -776,11 +776,131 @@
       "run_id": 41563078120,
       "job_id": 125678007205,
       "attempt": 1,
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "f402a2c5084bfcf3818b4a98b705f9c8e5ece826",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41563078120"
+      ]
+    },
+    {
+      "id": "CI-41564153989-1-125681499550-1",
+      "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
+      "kind": "CI_FAILURE",
+      "fingerprint": "release-contract-current-debug-stale-version",
+      "summary": "PR #121 run 41564153989, JS test 1/6 w niezgodnej statycznej asercji historycznej wersji 1210/alpha115 po bezpiecznym podwyższeniu do 1214/alpha116; poprawić oczekiwanie, zachować testy negatywne pakietu, ABI i podpisu.",
+      "source_sha": "29ce875b9b042c4195ebfe91e704c211602a6fd2",
+      "observed_at": "2026-11-03T02:07:51Z",
+      "run_id": 41564153989,
+      "job_id": 125681499550,
+      "attempt": 1,
+      "cause": "test_harness",
       "state": "OPEN",
       "duplicate_of": null,
       "fix_sha": null,
+      "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs",
       "evidence_links": [
-        "https://github.com/laszko14/nira-browser/actions/runs/41563078120"
+        "https://github.com/laszko14/nira-browser/actions/runs/41564153989"
+      ]
+    },
+    {
+      "id": "CI-41564153989-1-125681499550-2",
+      "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
+      "kind": "CI_FAILURE",
+      "fingerprint": "release-contract-resolve-tag-stale-version",
+      "summary": "PR #121 run 41564153989, JS test 2/6 w niezgodnej statycznej asercji historycznej wersji 1210/alpha115 po bezpiecznym podwyższeniu do 1214/alpha116; poprawić oczekiwanie, zachować testy negatywne pakietu, ABI i podpisu.",
+      "source_sha": "29ce875b9b042c4195ebfe91e704c211602a6fd2",
+      "observed_at": "2026-11-03T02:07:51Z",
+      "run_id": 41564153989,
+      "job_id": 125681499550,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41564153989"
+      ]
+    },
+    {
+      "id": "CI-41564153989-1-125681499550-3",
+      "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
+      "kind": "CI_FAILURE",
+      "fingerprint": "release-contract-negative-fixture-stale-version",
+      "summary": "PR #121 run 41564153989, JS test 3/6 w niezgodnej statycznej asercji historycznej wersji 1210/alpha115 po bezpiecznym podwyższeniu do 1214/alpha116; poprawić oczekiwanie, zachować testy negatywne pakietu, ABI i podpisu.",
+      "source_sha": "29ce875b9b042c4195ebfe91e704c211602a6fd2",
+      "observed_at": "2026-11-03T02:07:51Z",
+      "run_id": 41564153989,
+      "job_id": 125681499550,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41564153989"
+      ]
+    },
+    {
+      "id": "CI-41564153989-1-125681499550-4",
+      "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
+      "kind": "CI_FAILURE",
+      "fingerprint": "release-contract-env-stale-version",
+      "summary": "PR #121 run 41564153989, JS test 4/6 w niezgodnej statycznej asercji historycznej wersji 1210/alpha115 po bezpiecznym podwyższeniu do 1214/alpha116; poprawić oczekiwanie, zachować testy negatywne pakietu, ABI i podpisu.",
+      "source_sha": "29ce875b9b042c4195ebfe91e704c211602a6fd2",
+      "observed_at": "2026-11-03T02:07:51Z",
+      "run_id": 41564153989,
+      "job_id": 125681499550,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41564153989"
+      ]
+    },
+    {
+      "id": "CI-41564153989-1-125681499550-5",
+      "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
+      "kind": "CI_FAILURE",
+      "fingerprint": "update-apk-negative-fixture-stale-version",
+      "summary": "PR #121 run 41564153989, JS test 5/6 w niezgodnej statycznej asercji historycznej wersji 1210/alpha115 po bezpiecznym podwyższeniu do 1214/alpha116; poprawić oczekiwanie, zachować testy negatywne pakietu, ABI i podpisu.",
+      "source_sha": "29ce875b9b042c4195ebfe91e704c211602a6fd2",
+      "observed_at": "2026-11-03T02:07:51Z",
+      "run_id": 41564153989,
+      "job_id": 125681499550,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/update-apk-workflow-scope.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41564153989"
+      ]
+    },
+    {
+      "id": "CI-41564153989-1-125681499550-6",
+      "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
+      "kind": "CI_FAILURE",
+      "fingerprint": "neon-ui-update-version-fixture-stale",
+      "summary": "PR #121 run 41564153989, JS test 6/6 w niezgodnej statycznej asercji historycznej wersji 1210/alpha115 po bezpiecznym podwyższeniu do 1214/alpha116; poprawić oczekiwanie, zachować testy negatywne pakietu, ABI i podpisu.",
+      "source_sha": "29ce875b9b042c4195ebfe91e704c211602a6fd2",
+      "observed_at": "2026-11-03T02:07:51Z",
+      "run_id": 41564153989,
+      "job_id": 125681499550,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/video-search-neon-redesign.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41564153989"
       ]
     }
   ]

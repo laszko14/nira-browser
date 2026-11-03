@@ -9,15 +9,15 @@ repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: fix/zavro-clean-v4-p0-site-intelligence-20261103
 base_sha: 85101f8b06e958c85433614bb40c6dc9e9052641
-observed_head_sha: f402a2c5084bfcf3818b4a98b705f9c8e5ece826
+observed_head_sha: 29ce875b9b042c4195ebfe91e704c211602a6fd2
 status: CI_PENDING
 acceptance_source: Automatyczne read-only odkrywanie formularza GET po nowym dodaniu URL, bez wysyłania zapytania lub przypadkowych kliknięć; rozdzielenie formularza/wyników/paginacji, dowód zmian po jawnie zleconym wyszukiwaniu, bezpieczne profile i CAS.
 completed: Wdrożono typowany read-only site_analysis, procesowy worker Gecko z lease, stan SEARCH_READY_RESULTS_PENDING, CAS wyników po świadomym wyszukiwaniu, blokady błędnych przycisków i pagerów. Testy JS 425/425 PASS na f402a2c; SOURCE Kotlin/Robolectric i AndroidTest compile SUCCESS, lint jeszcze w toku. Dodatkowo wydzielono testowalną politykę: homepage/recommended cards nigdy same nie tworzą CONFIGURED. Podniesiono arm64 versionCode 1210→1214 i alpha115→alpha116, bez zmiany certyfikatu/ABI/package.
 required_ci: SOURCE push process-docs, shared-tests JS/JVM-Robolectric/AndroidTest compile/lint-regression i quality-evidence na finalnym źródłowym SHA; osobno pull_request integration.
 apk: APK_BLOCKED do czasu zielonego finalnego SOURCE CI, poprawnego PR i zatwierdzonego owner COMMENT review przy tym samym SHA, a następnie weryfikacji wersji/ABI/package/certyfikatu.
 remaining: Zweryfikować kompilację i testy w SOURCE CI, PR integration, regresje i niezależne review; zweryfikować rzeczywiste GeckoView na Androidzie. Bezpośredniego testu device dotąd nie było.
-known_failures: Pierwszy SOURCE run 41563078120 i PR run 41563101121 JS FAIL 2/425: historyczny test na sztywno searchSite oraz brak akceptacji poprawnego li.next a wewnątrz nav.pages. Poprawki i regresje dodane do następnego commita; 5/5 zdarzeń ujęte w ERROR_CASES, ponowny SOURCE CI jeszcze niezweryfikowany.
-verification: SOURCE 41563365725 na f402a2c: process-docs, JS 425/425, Kotlin/Robolectric oraz AndroidTest compile SUCCESS, lint i quality-evidence jeszcze CI_PENDING. PR 41563369521 JS/Kotlin/AndroidTest compile SUCCESS, lint pending. Dodatkowa poprawka i podniesienie wersji wymagają ponownej weryfikacji na nowym finalnym SHA.
+known_failures: SOURCE 41563078120 i PR 41563101121 JS 2/425 FAIL (naprawione na f402a2c). PR run 41564153989 na 29ce875 JS 6/425 FAIL: testy statyczne miały wersję 1210/alpha115 przy nowej 1214/alpha116. Dodano poprawkę oczekiwań 3 testów i zachowano kontrole negatywne pakietu/certyfikatu/ABI. ERROR_CASES: 11/11 odrębnych zdarzeń w zadaniu, 9 OPEN przed następnym CI.
+verification: PR 41564153989 na 29ce875 FAIL (6 sztywnych asercji wersji), SOURCE 41564147963 pending. Poprawione oczekiwania wersji i zredukowana redundancja kontroli polityki auto-odkrywania wymagają nowego CI na końcowym SHA. CODE_VERIFIED jeszcze nie.
 blockers:
   - Rzeczywiste sesje GeckoView i 15 stron zewnętrznych NOT_TESTED.
   - APK wymaga recenzji PR, zielonego CI i osobnej weryfikacji podpisu.
@@ -34,6 +34,9 @@ changed_paths:
   - app/src/main/java/com/prirai/android/nira/videosearch/MyVideoSitesActivity.kt
   - app/src/test/js/video-search-structural-v4.test.cjs
   - app/src/test/js/video-search-navigation-shortcut.test.cjs
+  - app/src/test/js/release-contract-stage19a.test.cjs
+  - app/src/test/js/update-apk-workflow-scope.test.cjs
+  - app/src/test/js/video-search-neon-redesign.test.cjs
   - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchBridgeProtocolTest.kt
   - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchAutoConfigurationTest.kt
   - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchManualConfigurationTest.kt
