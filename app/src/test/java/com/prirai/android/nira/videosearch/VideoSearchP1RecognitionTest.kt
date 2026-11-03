@@ -1,6 +1,9 @@
 package com.prirai.android.nira.videosearch
 
 import android.app.Application
+import androidx.room.Room
+import kotlinx.coroutines.runBlocking
+import org.robolectric.RuntimeEnvironment
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.*
@@ -88,5 +91,28 @@ class VideoSearchP1RecognitionTest {
         val parsed = VideoSearchRowCodec.readConfiguration(json.toString())!!
         assertEquals("article.card", parsed.resultsCardSelector)
         assertEquals(VideoSearchRecognitionMemory(), parsed.recognition)
+    }
+    @Test fun confirmedEvidenceIsAtomicAndNeverOverwritesStaleEdits() = runBlocking {
+        val db = Room.inMemoryDatabaseBuilder(
+            RuntimeEnvironment.getApplication(), VideoSearchDatabase::class.java
+        ).build()
+        try {
+            val scope = VideoSearchScope.Normal("normal")
+            val other = VideoSearchScope.Normal("other")
+            val repo = VideoSearchRepository(db.dao())
+            val first = repo.addSite(scope, "https://films.example", newId="site", nowMs=1)
+            val config = VideoSiteConfiguration("#q", "article.original",
+                VideoSearchSubmission.FORM_SUBMIT)
+            assertTrue(repo.applyManualConfiguration(first, config, nowMs=2))
+            val saved = repo.site(scope, "site")!!
+            assertTrue(repo.rememberConfirmedResults(saved, "article.candidate", nowMs=3))
+            val new = repo.site(scope, "site")!!
+            assertEquals("article.original", new.configuration?.resultsCardSelector)
+            assertEquals(listOf("article.candidate"),
+                new.configuration?.recognition?.backupResultsSelectors)
+            assertFalse(repo.rememberConfirmedResults(saved, "article.malicious", nowMs=4))
+            assertEquals(new, repo.site(scope, "site"))
+            assertNull(repo.site(other, "site"))
+        } finally { db.close() }
     }
 }
