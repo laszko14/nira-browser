@@ -1513,16 +1513,63 @@
       return endProbe.hits >= 2 && now - endProbe.since >= 650 ? "end" : "pending";
     }
     if (kind === "INFINITE_SCROLL") {
-      if (selector !== null) return "unsafe";
+      if (selector !== null || typeof command.resultsCardSelector !== "string" ||
+          !command.resultsCardSelector || command.resultsCardSelector.length > 160)
+        return "unsafe";
       if (document.querySelector('[data-pagination-end="true"],[data-last-page="true"],[data-has-next="false"]'))
         return terminal();
       if (loading()) return "pending";
+      // User opted into scroll, but only the configured results area may
+      // determine its scroll owner. A virtual list often scrolls a DIV, not
+      // window. Never scroll a random scrollable/sidebar container.
+      function scrollPlan() {
+        const cards = resultNodes(command.resultsCardSelector);
+        if (!cards || !cards.length) return null; // SPA may still be hydrating.
+        const first = cards[0], second = cards.length > 1 ? cards[1] : first;
+        if (!first || !second || first.isConnected === false ||
+            second.isConnected === false) return null;
+        const doc = first.ownerDocument || document;
+        if ((second.ownerDocument || document) !== doc) return null;
+        const view = doc.defaultView || window;
+        function scrollOwner(card) {
+          let ancestor = card.parentElement;
+          for (let depth = 0; ancestor && depth < 7;
+               depth++, ancestor = ancestor.parentElement) {
+            if (ancestor.closest?.('[data-zavro-picker],[inert],[aria-hidden="true"]'))
+              return null;
+            const height = ancestor.clientHeight, full = ancestor.scrollHeight;
+            if (Number.isFinite(height) && Number.isFinite(full) &&
+                height >= 120 && full > height + 60 &&
+                /^(auto|scroll)$/.test(view.getComputedStyle?.(ancestor)?.overflowY || ""))
+              return ancestor;
+          }
+          return null;
+        }
+        const owner = scrollOwner(first);
+        if (owner !== scrollOwner(second)) return null;
+        if (owner ? typeof owner.scrollBy !== "function" :
+            typeof view.scrollBy !== "function") return null;
+        return {first, doc, view, owner};
+      }
+      const planned = scrollPlan();
+      if (!planned) return "pending";
       endProbe = null;
       const issuedRevision = navigationRevision;
       setTimeout(function () {
-        if (issuedRevision === navigationRevision &&
-            location.href === startUrl && ready)
-          window.scrollBy({ top: Math.max(360, window.innerHeight), behavior: "instant" });
+        if (issuedRevision !== navigationRevision ||
+            location.href !== startUrl || !ready) return;
+        const fresh = scrollPlan();
+        // The owner/document must not be replaced while this action is queued.
+        if (!fresh || fresh.first !== planned.first ||
+            fresh.doc !== planned.doc || fresh.view !== planned.view ||
+            fresh.owner !== planned.owner) return;
+        if (fresh.owner) fresh.owner.scrollBy({
+          top: Math.max(180, Math.floor(fresh.owner.clientHeight * 0.8)),
+          behavior: "instant"
+        });
+        else fresh.view.scrollBy({
+          top: Math.max(360, fresh.view.innerHeight || 0), behavior: "instant"
+        });
       }, 70);
       return "dispatched";
     }
@@ -1734,7 +1781,10 @@
               { status: "stale", films: [], inspectedCards: 0, moreOnPage: false });
           } finally { busy = false; }
         } else if (message.event === "paginate" && !picker &&
-            keys === "documentId,event,nextPageSelector,pagination,requestId,schemaVersion") {
+            (keys === "documentId,event,nextPageSelector,pagination,requestId,schemaVersion" ||
+             (keys === "documentId,event,nextPageSelector,pagination,requestId," +
+                     "resultsCardSelector,schemaVersion" &&
+              message.pagination === "INFINITE_SCROLL"))) {
           busy = true;
           const status = pageAction(message);
           post("page_action", message.requestId,

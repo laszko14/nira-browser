@@ -72,6 +72,8 @@ class VideoSearchPaginationProtocolTest {
             config(VideoSearchPagination.INFINITE_SCROLL))
         assertEquals("INFINITE_SCROLL", msg.getString("pagination"))
         assertTrue(msg.isNull("nextPageSelector"))
+        assertEquals(".film-card", msg.getString("resultsCardSelector"))
+        assertEquals(7, msg.length())
         val invalid = config(VideoSearchPagination.INFINITE_SCROLL)
             .copy(nextPageSelector = "a.next")
         try {

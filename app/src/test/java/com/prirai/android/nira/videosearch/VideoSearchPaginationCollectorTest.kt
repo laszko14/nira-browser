@@ -21,6 +21,20 @@ class VideoSearchPaginationCollectorTest {
             films, count, more
         )
 
+    @Test fun hydrationRetriesOnlyAnUnprovenMissingFirstWindow() {
+        assertTrue(VideoSearchHydrationPolicy.shouldRetry(0,
+            VideoSearchExtractedPage("empty", emptyList(), 0, false)))
+        assertFalse(VideoSearchHydrationPolicy.shouldRetry(16,
+            VideoSearchExtractedPage("empty", emptyList(), 0, false)))
+        assertFalse(VideoSearchHydrationPolicy.shouldRetry(0,
+            VideoSearchExtractedPage("no_results", emptyList(), 0, false)))
+        assertFalse(VideoSearchHydrationPolicy.shouldRetry(0,
+            VideoSearchExtractedPage("empty", emptyList(), 3, false)))
+        assertFalse(VideoSearchHydrationPolicy.shouldRetry(0,
+            VideoSearchExtractedPage("stale", emptyList(), 0, false)))
+        assertEquals(listOf(320L, 650L), VideoSearchHydrationPolicy.retryDelaysMs)
+    }
+
     @Test fun collectsTenThousandUniqueResultsWithoutHidden200Cap() {
         val collector = VideoSearchPaginationCollector(site, 10_000)
         assertEquals(10_000, collector.limit)

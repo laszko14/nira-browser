@@ -887,11 +887,28 @@ internal class VideoSearchBridgeController(
                     return stop(VideoSearchPaginationStop.RESOURCE_LIMIT)
                 if (!authorized()) return stop(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
                 val cursor = collector.nextCardIndex
-                val result = privateRequest(site, tabId, "crawl", false, requireSelected) { doc, request ->
+                var result = privateRequest(site, tabId, "crawl", false, requireSelected) { doc, request ->
                     VideoSearchBridgeProtocol.extractCrawl(doc, request, config, cursor,
                         VideoSearchResultBudgets.documentCards(site.resultLimit))
                 } as? VideoSearchBridgeMessage.Results
                     ?: return stop(VideoSearchPaginationStop.ERROR)
+                // An empty, unproven first window during AJAX hydration is not
+                // a completed result page. Retry within a fixed, small budget.
+                if (VideoSearchHydrationPolicy.shouldRetry(cursor, result.page)) {
+                    for (pauseMs in VideoSearchHydrationPolicy.retryDelaysMs) {
+                        if (SystemClock.elapsedRealtime() >= deadline)
+                            return stop(VideoSearchPaginationStop.RESOURCE_LIMIT)
+                        delay(pauseMs)
+                        if (!authorized())
+                            return stop(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
+                        result = privateRequest(site, tabId, "crawl", false, requireSelected) { doc, request ->
+                            VideoSearchBridgeProtocol.extractCrawl(doc, request, config, cursor,
+                                VideoSearchResultBudgets.documentCards(site.resultLimit))
+                        } as? VideoSearchBridgeMessage.Results
+                            ?: return stop(VideoSearchPaginationStop.ERROR)
+                        if (!VideoSearchHydrationPolicy.shouldRetry(cursor, result.page)) break
+                    }
+                }
                 if (result.page.status == "no_results") {
                     return if (collector.uniqueCount == 0 && collector.nextCardIndex == 0 &&
                         collector.visitedPages == 1)
@@ -1011,8 +1028,8 @@ internal class VideoSearchBridgeController(
                 collector.armSameDocumentContinuation()
                 var advanced = false
                 var reloadedDocument = false
-                for (attempt in 0..2) {
-                    delay(if (attempt == 0) 400L else 650L)
+                for (pauseMs in listOf(400L, 650L, 900L, 1_200L, 1_300L)) {
+                    delay(pauseMs)
                     if (SystemClock.elapsedRealtime() >= deadline)
                         return stop(VideoSearchPaginationStop.RESOURCE_LIMIT)
                     if (!authorized()) return stop(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
@@ -1505,11 +1522,26 @@ internal class VideoSearchBridgeController(
                 if (!stillAuthorized())
                     return collector.snapshot(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
                 val offset = collector.nextCardIndex
-                val reply = request(site, "crawl", workerTabId = workerTabId) { doc, id ->
+                var reply = request(site, "crawl", workerTabId = workerTabId) { doc, id ->
                     VideoSearchBridgeProtocol.extractCrawl(doc, id, config, offset,
                         VideoSearchResultBudgets.documentCards(site.resultLimit))
                 } as? VideoSearchBridgeMessage.Results
                     ?: return collector.snapshot(VideoSearchPaginationStop.ERROR)
+                if (VideoSearchHydrationPolicy.shouldRetry(offset, reply.page)) {
+                    for (pauseMs in VideoSearchHydrationPolicy.retryDelaysMs) {
+                        if (SystemClock.elapsedRealtime() >= deadline)
+                            return collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT)
+                        delay(pauseMs)
+                        if (!stillAuthorized())
+                            return collector.snapshot(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
+                        reply = request(site, "crawl", workerTabId = workerTabId) { doc, id ->
+                            VideoSearchBridgeProtocol.extractCrawl(doc, id, config, offset,
+                                VideoSearchResultBudgets.documentCards(site.resultLimit))
+                        } as? VideoSearchBridgeMessage.Results
+                            ?: return collector.snapshot(VideoSearchPaginationStop.ERROR)
+                        if (!VideoSearchHydrationPolicy.shouldRetry(offset, reply.page)) break
+                    }
+                }
                 if (reply.page.status == "no_results") {
                     return collector.snapshot(if (collector.uniqueCount == 0 &&
                         collector.nextCardIndex == 0 && collector.visitedPages == 1)
@@ -1638,10 +1670,10 @@ internal class VideoSearchBridgeController(
                 collector.armSameDocumentContinuation()
                 var advanced = false
                 var reloadedDocument = false
-                for (attempt in 0..2) {
+                for (pauseMs in listOf(400L, 650L, 900L, 1_200L, 1_300L)) {
                     if (SystemClock.elapsedRealtime() >= deadline)
                         return collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT)
-                    delay(if (attempt == 0) 400L else 650L)
+                    delay(pauseMs)
                     if (!stillAuthorized())
                         return collector.snapshot(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
                     val live = matchingTab()

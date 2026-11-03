@@ -65,6 +65,11 @@
       "task_id": "ZC-V4-P2-A-B-SCOPED-CONTROLS",
       "observed_count": 4,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P2-C-DYNAMIC-PAGINATION",
+      "observed_count": 2,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -1261,6 +1266,46 @@
       "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41700236345"
+      ]
+    },
+    {
+      "id": "REVIEW-20261103-P2C-0001",
+      "task_id": "ZC-V4-P2-C-DYNAMIC-PAGINATION",
+      "kind": "REVIEW",
+      "fingerprint": "p2c-scroll-wrong-window",
+      "summary": "Infinite Scroll always called top-level window.scrollBy even when a virtualized results list owns its own overflow container; unbound scrolling can make no progress or scroll unrelated content.",
+      "source_sha": "985757e915d3db61f75b0cf6d4f6c42c4e60641d",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/video-search-p2c-dynamic-pagination.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/pull/123"
+      ]
+    },
+    {
+      "id": "REVIEW-20261103-P2C-0002",
+      "task_id": "ZC-V4-P2-C-DYNAMIC-PAGINATION",
+      "kind": "REVIEW",
+      "fingerprint": "p2c-ajax-first-empty-window",
+      "summary": "The first zero-card crawl window was accepted before deferred AJAX/SPA hydration, potentially reaching pagination before results appeared; same-document progress wait was also too short for slower AJAX.",
+      "source_sha": "985757e915d3db61f75b0cf6d4f6c42c4e60641d",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchPaginationCollectorTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/pull/123"
       ]
     }
   ]

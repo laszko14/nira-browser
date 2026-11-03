@@ -648,6 +648,10 @@ internal object VideoSearchBridgeProtocol {
         return base("paginate", documentId, requestId).apply {
             put("pagination", config.pagination.name)
             put("nextPageSelector", config.nextPageSelector ?: JSONObject.NULL)
+            if (config.pagination == VideoSearchPagination.INFINITE_SCROLL) {
+                require(validSelector(config.resultsCardSelector))
+                put("resultsCardSelector", config.resultsCardSelector)
+            }
         }
     }
 
