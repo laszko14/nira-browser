@@ -73,7 +73,7 @@
     },
     {
       "task_id": "ZC-V4-P2-D-RULE-REPAIR",
-      "observed_count": 4,
+      "observed_count": 8,
       "state": "ACTIVE"
     }
   ],
@@ -1365,9 +1365,9 @@
       "job_id": null,
       "attempt": null,
       "cause": "production",
-      "state": "OPEN",
+      "state": "FIXED",
       "duplicate_of": null,
-      "fix_sha": null,
+      "fix_sha": "5991de7fb04a4078ac6c121a59ef19cd03510caa",
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
@@ -1385,9 +1385,9 @@
       "job_id": null,
       "attempt": null,
       "cause": "production",
-      "state": "OPEN",
+      "state": "FIXED",
       "duplicate_of": null,
-      "fix_sha": null,
+      "fix_sha": "5991de7fb04a4078ac6c121a59ef19cd03510caa",
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
@@ -1405,9 +1405,9 @@
       "job_id": null,
       "attempt": null,
       "cause": "production",
-      "state": "OPEN",
+      "state": "FIXED",
       "duplicate_of": null,
-      "fix_sha": null,
+      "fix_sha": "5991de7fb04a4078ac6c121a59ef19cd03510caa",
       "regression_test": "app/src/test/js/video-search-p2d-diagnostics.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
@@ -1425,12 +1425,92 @@
       "job_id": null,
       "attempt": null,
       "cause": "production",
-      "state": "OPEN",
+      "state": "FIXED",
       "duplicate_of": null,
-      "fix_sha": null,
+      "fix_sha": "5991de7fb04a4078ac6c121a59ef19cd03510caa",
       "regression_test": "app/src/test/js/video-search-p2d-diagnostics.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
+      ]
+    },
+    {
+      "task_id": "ZC-V4-P2-D-RULE-REPAIR",
+      "id": "ERR-20261103-P2D-0005",
+      "kind": "REVIEW",
+      "fingerprint": "repair-navigation-rebind-cross-document-proof",
+      "summary": "Self-review found a gap between recognition, crawl and Room CAS: navigation could replace the bound Gecko document. Bound document, session, route and crawl to the same generation before persistence.",
+      "source_sha": "5991de7fb04a4078ac6c121a59ef19cd03510caa",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "5a25dffb08a786060188cc9479a5970bb34cbb2e",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/pull/123"
+      ]
+    },
+    {
+      "task_id": "ZC-V4-P2-D-RULE-REPAIR",
+      "id": "CI-41714819448-1-126192095404",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2d-manual-origin-legacy-expectation-jvm",
+      "summary": "SOURCE JVM on 5991: 14 of 1453 tests failed; historical configuration equality checks still expected UNVERIFIED metadata after an explicit manual save, and one old repair test expected inspection-only replacement.",
+      "source_sha": "5991de7fb04a4078ac6c121a59ef19cd03510caa",
+      "observed_at": "2026-11-03T20:46:11Z",
+      "run_id": 41714819448,
+      "job_id": 126192095404,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "5a25dffb08a786060188cc9479a5970bb34cbb2e",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchConfigurationHealthTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41714819448"
+      ]
+    },
+    {
+      "task_id": "ZC-V4-P2-D-RULE-REPAIR",
+      "id": "CI-41714825819-1-126192303772",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2d-manual-origin-legacy-expectation-jvm",
+      "summary": "PR integration JVM separately failed the same 14 manual-provenance assertions on 5991; existing checks updated to expect MANUAL while retaining strict selector and revision comparisons.",
+      "source_sha": "5991de7fb04a4078ac6c121a59ef19cd03510caa",
+      "observed_at": "2026-11-03T20:46:00Z",
+      "run_id": 41714825819,
+      "job_id": 126192303772,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": "CI-41714819448-1-126192095404",
+      "fix_sha": "5a25dffb08a786060188cc9479a5970bb34cbb2e",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchManualConfigurationTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41714825819"
+      ]
+    },
+    {
+      "task_id": "ZC-V4-P2-D-RULE-REPAIR",
+      "id": "CI-41714819448-1-126194992526",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2d-source-summary-rejects-jvm-gate",
+      "summary": "SOURCE quality summary on 5991 failed because required JVM/Robolectric job failed; it is not an independent production failure. The affected legacy tests have been corrected without disabling JVM gate.",
+      "source_sha": "5991de7fb04a4078ac6c121a59ef19cd03510caa",
+      "observed_at": null,
+      "run_id": 41714819448,
+      "job_id": 126194992526,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "5a25dffb08a786060188cc9479a5970bb34cbb2e",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchConfigurationRevisionTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41714819448"
       ]
     }
   ]
