@@ -68,7 +68,7 @@
     },
     {
       "task_id": "ZC-V4-P2-C-DYNAMIC-PAGINATION",
-      "observed_count": 2,
+      "observed_count": 4,
       "state": "ACTIVE"
     }
   ],
@@ -1306,6 +1306,46 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchPaginationCollectorTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
+      ]
+    },
+    {
+      "id": "CI-41706339537-1-126162536360",
+      "task_id": "ZC-V4-P2-C-DYNAMIC-PAGINATION",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2c-legacy-spa-fixture-scroll-without-cards",
+      "summary": "SOURCE JS regression: legacy SPA rebind fixture omitted result-card selector and DOM cards, but P2-C infinite scroll now requires evidenced cards before dispatch. Production code safety contract remains unchanged.",
+      "source_sha": "62c70387e91ccca50db9f26e71791b98b060727a",
+      "observed_at": null,
+      "run_id": 41706339537,
+      "job_id": 126162536360,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/video-search-p14-spa-rebind.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41706339537"
+      ]
+    },
+    {
+      "id": "CI-41706349279-1-126162567753",
+      "task_id": "ZC-V4-P2-C-DYNAMIC-PAGINATION",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2c-legacy-spa-fixture-scroll-without-cards",
+      "summary": "PR integration JS independently failed identical legacy SPA fixture on same SHA; update test to exercise configured cards and preserve queued-scroll revocation assertions.",
+      "source_sha": "62c70387e91ccca50db9f26e71791b98b060727a",
+      "observed_at": null,
+      "run_id": 41706349279,
+      "job_id": 126162567753,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": "CI-41706339537-1-126162536360",
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/video-search-p14-spa-rebind.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41706349279"
       ]
     }
   ]
