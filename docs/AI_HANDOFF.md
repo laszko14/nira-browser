@@ -13,11 +13,11 @@ status: CI_PENDING
 acceptance_source: V4 P2 user-approved audit of 2026-11-03; strengthen proof of searched results, bound DOM costs, avoid stale SPA handling, preserve profile isolation and signed update compatibility.
 completed: P2 query-evidence verification for normal, private and worker searches; bounded candidate TreeWalker and selector caching; fail-closed ambiguous result fallback; coalesced SPA observation; regression tests; arm64 debug versionCode 1222 alpha118.
 remaining: Verify final SOURCE and PR integration CI, triage and repair failures; scoped Shadow/iframe extraction, dynamic list validation and physical-device measurements not completed in this checkpoint.
-required_ci: SOURCE push process-docs, reusable JS/JVM-Robolectric/AndroidTest compile/lint regression, quality-evidence all SUCCESS on final source SHA; separate PR integration.
+required_ci: SOURCE push process-docs, shared-tests JS/JVM-Robolectric/AndroidTest compile/lint regression, quality-evidence all SUCCESS on final source SHA; separate PR integration.
 apk: APK_BLOCKED until green final SOURCE CI and authorized exact SHA owner COMMENT review; expected package com.prirai.android.nira.debug, ABI arm64-v8a, versionCode 1222, versionName 0.5.22-alpha118-clean, unchanged cert SHA256 df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00.
 device: NOT_TESTED
-known_failures: Two P2 review risks registered; P2 CI not yet run.
-verification: P1 SOURCE 41570599754, PR 41570607241 and signed APK 41571433323 PASS at base; P2 CI_PENDING.
+known_failures: Three distinct CI job FAIL observations (SOURCE process-docs and SOURCE/PR lint NewApi) in addition to two review risks. Fixed literal shared-tests token and replaced NewApi decoder overload; final CI re-verification pending.
+verification: P2 first SOURCE 41574885520 JS/JVM/AndroidTest PASS, process-docs and lint-regression FAIL; PR 41574910600 lint-regression FAIL; final CI must repeat exact source SHA. P1 previously verified at base.
 blockers:
   - Scoped Shadow/iframe extraction is not yet supported; do not treat read-only surface recognition as full extraction.
   - Physical Android GeckoView and 15-site corpus NOT_TESTED.

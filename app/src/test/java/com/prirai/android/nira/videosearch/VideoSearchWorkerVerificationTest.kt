@@ -129,6 +129,15 @@ class VideoSearchWorkerVerificationTest {
             "https://films.example.org/results", "chosen film"))
     }
 
+    @Test fun p2SameSearchUrlReloadWithoutNewFilmsIsNotProof() {
+        val url = "https://films.example.org/search?q=chosen+film"
+        assertFalse(VideoSearchWorkerVerification.confirmedAfterQuery(
+            initial, newer, page(), null, url, "chosen film", url))
+        assertTrue(VideoSearchWorkerVerification.confirmedAfterQuery(
+            initial, newer, page(), null, url, "chosen film",
+            "https://films.example.org/"))
+    }
+
     @Test fun p2MalformedOrUnrelatedUrlParametersCannotProveSearch() {
         for (url in listOf(
             "https://films.example.org/?redirect=chosen+film",

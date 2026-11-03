@@ -528,7 +528,7 @@ internal class VideoSearchBridgeController(
             }
             if (VideoSearchWorkerVerification.confirmedAfterQuery(
                     originalDocument, live.second.documentId, page, beforeForSelector,
-                    live.second.pageUrl, query
+                    live.second.pageUrl, query, before.second.pageUrl
                 )) {
                 config = candidate
                 confirmed = true
@@ -1965,7 +1965,7 @@ internal class VideoSearchBridgeController(
                 } as? VideoSearchBridgeMessage.Results)?.page
                 if (VideoSearchWorkerVerification.confirmedAfterQuery(
                         originalDocument, observed.documentId, page, baseline,
-                        live.content.url, query)) {
+                        live.content.url, query, source.second.pageUrl)) {
                     val current = withContext(Dispatchers.IO) {
                         repository.site(owner, site.id)
                     }
@@ -2062,6 +2062,7 @@ internal class VideoSearchBridgeController(
     private suspend fun awaitWorkerResults(
         site: VideoSearchSite, tabId: String, beforeDocument: String,
         beforePage: VideoSearchExtractedPage?, query: String,
+        initialPageUrl: String?,
     ): Boolean {
         val scope = site.scope as? VideoSearchScope.Normal ?: return false
         val start = SystemClock.elapsedRealtime()
@@ -2079,7 +2080,7 @@ internal class VideoSearchBridgeController(
                 } as? VideoSearchBridgeMessage.Results
                 if (VideoSearchWorkerVerification.confirmedAfterQuery(
                         beforeDocument, live.second.documentId, answer?.page, beforePage,
-                        live.second.pageUrl, query
+                        live.second.pageUrl, query, initialPageUrl
                     )) return true
                 if (answer?.page?.status == "stale") return false
             }
@@ -2198,7 +2199,8 @@ internal class VideoSearchBridgeController(
                                         outcome = submitWorker(current, tabId, plan.query, repository)
                                         if (outcome == VideoSearchQueueStatus.SUBMITTED) {
                                             val confirmed = awaitWorkerResults(
-                                                current, tabId, before, beforePage, plan.query
+                                                current, tabId, before, beforePage,
+                                                plan.query, current.siteUrl
                                             )
                                             if (!journal.hasCapacity()) {
                                                 outcome = VideoSearchQueueStatus.STOPPED

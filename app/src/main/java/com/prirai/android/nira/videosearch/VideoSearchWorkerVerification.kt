@@ -2,7 +2,6 @@ package com.prirai.android.nira.videosearch
 
 import java.net.URI
 import java.net.URLDecoder
-import java.nio.charset.StandardCharsets
 import java.util.Locale
 
 /**
@@ -53,11 +52,14 @@ internal object VideoSearchWorkerVerification {
         beforePage: VideoSearchExtractedPage?,
         landingPageUrl: String?,
         query: String,
+        initialPageUrl: String? = null,
     ): Boolean {
         if (!confirmed(originalDocumentId, currentDocumentId, page, beforePage))
             return false
         if (originalDocumentId == currentDocumentId) return true
-        if (landingMatchesQuery(landingPageUrl, query)) return true
+        // A same-URL reload is not proof of a new search result generation.
+        if (landingPageUrl != initialPageUrl &&
+            landingMatchesQuery(landingPageUrl, query)) return true
         if (beforePage?.status != "ok" || page?.status != "ok") return false
         val oldUrls = beforePage.films.mapTo(HashSet()) { it.filmPageUrl }
         return page.films.any { it.filmPageUrl !in oldUrls }
@@ -83,10 +85,10 @@ internal object VideoSearchWorkerVerification {
             if (separator <= 0) continue
             try {
                 val key = URLDecoder.decode(item.substring(0, separator),
-                    StandardCharsets.UTF_8).lowercase(Locale.ROOT)
+                    "UTF-8").lowercase(Locale.ROOT)
                 if (key !in keys) continue
                 val value = URLDecoder.decode(item.substring(separator + 1),
-                    StandardCharsets.UTF_8)
+                    "UTF-8")
                 if (normalize(value) == expected) return true
             } catch (_: IllegalArgumentException) { return false }
         }

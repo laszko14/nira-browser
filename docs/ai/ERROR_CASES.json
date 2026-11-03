@@ -53,7 +53,7 @@
     },
     {
       "task_id": "ZC-V4-P2-SEARCH-EVIDENCE-RUNTIME",
-      "observed_count": 2,
+      "observed_count": 5,
       "state": "ACTIVE"
     }
   ],
@@ -991,6 +991,66 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/122"
+      ]
+    },
+    {
+      "id": "CI-41574885520-1-125715970231",
+      "task_id": "ZC-V4-P2-SEARCH-EVIDENCE-RUNTIME",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2-handoff-missing-shared-tests-token",
+      "summary": "SOURCE process-docs 41574885520 rejected P2 required_ci lacking shared-tests token; JS and Android test compilations were not the cause.",
+      "source_sha": "a0cc57b6d03cc4f3a8140532b99483ca39252594",
+      "observed_at": "2026-11-03T03:53:50Z",
+      "run_id": 41574885520,
+      "job_id": 125715970231,
+      "attempt": 1,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41574885520"
+      ]
+    },
+    {
+      "id": "CI-41574885520-1-125716025290",
+      "task_id": "ZC-V4-P2-SEARCH-EVIDENCE-RUNTIME",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2-newapi-urldecoder-charset-overload",
+      "summary": "SOURCE lint regression found two NewApi findings in VideoSearchWorkerVerification.kt from URLDecoder.decode(String, Charset).",
+      "source_sha": "a0cc57b6d03cc4f3a8140532b99483ca39252594",
+      "observed_at": null,
+      "run_id": 41574885520,
+      "job_id": 125716025290,
+      "attempt": 1,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchWorkerVerificationTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41574885520"
+      ]
+    },
+    {
+      "id": "CI-41574910600-1-125716153325",
+      "task_id": "ZC-V4-P2-SEARCH-EVIDENCE-RUNTIME",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2-newapi-urldecoder-charset-overload",
+      "summary": "PR integration lint regression independently found the same two NewApi findings on the same source SHA.",
+      "source_sha": "a0cc57b6d03cc4f3a8140532b99483ca39252594",
+      "observed_at": null,
+      "run_id": 41574910600,
+      "job_id": 125716153325,
+      "attempt": 1,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": "CI-41574885520-1-125716025290",
+      "fix_sha": null,
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchWorkerVerificationTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41574910600"
       ]
     }
   ]
