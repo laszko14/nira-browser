@@ -40,3 +40,22 @@ internal object VideoSearchManualStages {
         )
     }
 }
+
+/**
+ * Auto-discovery must never trust homepage cards as proof of a new query.
+ * Only the bounded search form is a safe persisted discovery result.
+ */
+internal object VideoSearchAutoDiscoveryPolicy {
+    fun pendingForm(
+        report: VideoSearchBridgeMessage.Analysis?,
+    ): VideoSearchBridgeMessage.Inspection? {
+        if (report == null || report.confidence < 60 ||
+            report.status !in setOf(VideoSearchAnalysisStatus.READY,
+                VideoSearchAnalysisStatus.PARTIAL)) return null
+        val form = report.formInspection() ?: return null
+        return VideoSearchBridgeMessage.Inspection(
+            form.documentId, form.requestId, "partial",
+            form.inputSelector, null, form.submission, form.submitSelector,
+            VideoSearchPagination.NONE, null)
+    }
+}

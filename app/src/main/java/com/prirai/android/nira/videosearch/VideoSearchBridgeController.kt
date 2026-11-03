@@ -1253,14 +1253,15 @@ internal class VideoSearchBridgeController(
                     withContext(Dispatchers.IO) { repository.site(owner, site.id) } != site)
                     return@launch
                 withContext(Dispatchers.IO) {
-                    val inspection = analysis?.formInspection()
+                    // Repeated homepage cards may be recommendations, not
+                    // results of this search phrase. Save only the search
+                    // form at add; await explicit verified user query.
+                    val pendingForm = VideoSearchAutoDiscoveryPolicy.pendingForm(analysis)
                     when {
-                        analysis?.status == VideoSearchAnalysisStatus.READY &&
-                            analysis.confidence >= 70 && inspection != null ->
-                            repository.applyAutoConfiguration(site, inspection)
-                        analysis?.status == VideoSearchAnalysisStatus.PARTIAL &&
-                            analysis.confidence >= 60 && inspection != null ->
-                            repository.applyAutoPartialConfiguration(site, inspection)
+                        analysis?.status in setOf(VideoSearchAnalysisStatus.READY,
+                                VideoSearchAnalysisStatus.PARTIAL) &&
+                            analysis.confidence >= 60 && pendingForm != null ->
+                            repository.applyAutoPartialConfiguration(site, pendingForm)
                         else -> repository.markAutoAnalysisIssue(site,
                             analysis?.status == VideoSearchAnalysisStatus.UNSAFE)
                     }

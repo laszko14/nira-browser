@@ -218,4 +218,40 @@ class VideoSearchAutoConfigurationTest {
         } finally { db.close() }
     }
 
+
+    @Test fun P0ReadyHomepageCardsRemainPendingUntilUserSearchProof() = runBlocking {
+        val db = Room.inMemoryDatabaseBuilder(
+            RuntimeEnvironment.getApplication(), VideoSearchDatabase::class.java
+        ).build()
+        try {
+            val repo = VideoSearchRepository(db.dao())
+            val added = repo.addSite(scope, "https://example.org",
+                nowMs = 50, newId = "home")
+            val suggestion = VideoSearchBridgeMessage.Analysis(
+                document, request, VideoSearchAnalysisStatus.READY,
+                VideoSearchAnalysisStage.RESULTS_PAGE, "complete", 95,
+                listOf("GET_FORM", "REPEATED_CARDS"),
+                "input[name=\"q\"]", ".recommendations",
+                VideoSearchSubmission.FORM_SUBMIT, null,
+                VideoSearchPagination.NONE, null
+            )
+            val pending = VideoSearchAutoDiscoveryPolicy.pendingForm(suggestion)!!
+            assertEquals("partial", pending.status)
+            assertNull(pending.resultsCardSelector)
+            assertEquals(VideoSearchPagination.NONE, pending.pagination)
+            assertTrue(repo.applyAutoPartialConfiguration(added, pending, nowMs = 51))
+            val saved = repo.site(scope, added.id)!!
+            assertEquals(VideoSiteConfigurationState.SEARCH_READY_RESULTS_PENDING,
+                saved.configurationState)
+            assertNull(saved.configuration?.resultsCardSelector)
+            assertEquals("input[name=\"q\"]", saved.configuration?.searchInputSelector)
+            assertNull(VideoSearchAutoDiscoveryPolicy.pendingForm(
+                VideoSearchBridgeMessage.Analysis(
+                    document, request, VideoSearchAnalysisStatus.UNSAFE,
+                    VideoSearchAnalysisStage.UNKNOWN, "unsafe_form", 0,
+                    listOf("UNSAFE_FORM"), null, null, null, null,
+                    VideoSearchPagination.NONE, null)))
+        } finally { db.close() }
+    }
+
 }
