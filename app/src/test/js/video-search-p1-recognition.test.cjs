@@ -216,5 +216,5 @@ test('P2 icon-only SVG search name is read without clicking the page',()=>{
     querySelector(){return {getAttribute(key){return key==='href'?'#search-icon':null;}};}
   });
   assert.match(hint,/search-icon/);
-  assert.doesNotMatch(source,/\\.click\\s*\\(/);
+  assert.doesNotMatch(source,/\.click\s*\(/);
 });

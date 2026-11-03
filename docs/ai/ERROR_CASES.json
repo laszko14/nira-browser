@@ -58,7 +58,7 @@
     },
     {
       "task_id": "ZC-V4-P2-COMPLETE",
-      "observed_count": 2,
+      "observed_count": 4,
       "state": "ACTIVE"
     }
   ],
@@ -1096,6 +1096,46 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
+      ]
+    },
+    {
+      "id": "CI-41586101551-1-125751842443",
+      "task_id": "ZC-V4-P2-COMPLETE",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2-scoped-test-escaped-regex-syntax",
+      "summary": "SOURCE JS regression failed to parse new P2 SVG negative test: literal regex contained double escaped backslashes, producing unterminated group.",
+      "source_sha": "4322205f0aadf51c5352eff6bb8a5f36699b7769",
+      "observed_at": "2026-11-03T05:49:12Z",
+      "run_id": 41586101551,
+      "job_id": 125751842443,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41586101551"
+      ]
+    },
+    {
+      "id": "CI-41586107020-1-125751858499",
+      "task_id": "ZC-V4-P2-COMPLETE",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2-scoped-test-escaped-regex-syntax",
+      "summary": "PR integration JS independently failed to parse same new P2 SVG negative test on identical source SHA.",
+      "source_sha": "4322205f0aadf51c5352eff6bb8a5f36699b7769",
+      "observed_at": "2026-11-03T05:49:12Z",
+      "run_id": 41586107020,
+      "job_id": 125751858499,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": "CI-41586101551-1-125751842443",
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41586107020"
       ]
     }
   ]
