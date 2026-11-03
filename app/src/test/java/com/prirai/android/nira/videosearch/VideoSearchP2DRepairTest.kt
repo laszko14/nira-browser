@@ -216,6 +216,71 @@ class VideoSearchP2DRepairTest {
         } finally { context.deleteDatabase(name) }
     }
 
+    @Test fun rollbackRestoresRepairRequiredStatusInsteadOfClaimingBrokenRulesWork() = runBlocking {
+        val database = db()
+        try {
+            val repo = VideoSearchRepository(database.dao())
+            val owner = VideoSearchScope.Normal("normal")
+            val good = configured(repo, owner, "broken")
+            val invalid = VideoSearchBridgeMessage.Validation(
+                doc, "b".repeat(32), "stale", "input_missing", 1, 0)
+            assertTrue(repo.flagValidatedBrokenConfiguration(
+                good, invalid, userConfirmed = true, nowMs = 3))
+            val broken = repo.site(owner, "broken")!!
+            assertEquals(VideoSiteConfigurationState.REPAIR_REQUIRED, broken.configurationState)
+            val candidate = broken.configuration!!.copy(resultsCardSelector = "article.new")
+            assertTrue(repo.applyVerifiedRepair(broken, candidate, proof(),
+                explicitConsent = true, nowMs = 4))
+            val repaired = repo.site(owner, "broken")!!
+            assertEquals(VideoSiteConfigurationState.CONFIGURED, repaired.configurationState)
+            assertEquals(VideoSiteConfigurationState.REPAIR_REQUIRED,
+                repaired.configuration?.recognition?.rollbackState)
+            assertTrue(repo.rollbackVerifiedRepair(repaired, true, nowMs = 5))
+            val restored = repo.site(owner, "broken")!!
+            assertEquals(VideoSiteConfigurationState.REPAIR_REQUIRED, restored.configurationState)
+            assertEquals(broken.configuration, restored.configuration)
+        } finally { database.close() }
+    }
+
+    @Test fun onePreviouslyVerifiedBackupCanRecoverOnlyAfterFreshSearchProof() = runBlocking {
+        val database = db()
+        try {
+            val repo = VideoSearchRepository(database.dao())
+            val owner = VideoSearchScope.Normal("normal")
+            val site = configured(repo, owner, "backup")
+            assertTrue(repo.rememberConfirmedResults(site, "article.known", nowMs = 3))
+            val withBackup = repo.site(owner, "backup")!!
+            val missing = VideoSearchBridgeMessage.Recognition(doc, "b".repeat(32),
+                "missing", "CARDS_NOT_FOUND", 0, null, 0, 60, "MAIN")
+            val selected = VideoSearchRecognitionPolicy.uniqueVerifiedFallback(
+                withBackup.configuration!!, missing, null)
+            assertEquals("article.known", selected)
+            val recognized = proof(detected = missing, observed = null)
+                .copy(verifiedFallbackSelector = selected)
+            val candidate = withBackup.configuration!!.copy(
+                resultsCardSelector = "article.known")
+            assertFalse(repo.applyVerifiedRepair(withBackup, candidate,
+                recognized.copy(afterPage = page("1")), true, nowMs = 4))
+            assertTrue(repo.applyVerifiedRepair(withBackup, candidate,
+                recognized, true, nowMs = 5))
+            val committed = repo.site(owner, "backup")!!
+            assertEquals("article.known", committed.configuration?.resultsCardSelector)
+            assertFalse(repo.applyVerifiedRepair(withBackup, candidate,
+                recognized, true, nowMs = 6))
+            assertTrue(repo.rollbackVerifiedRepair(committed, true, nowMs = 7))
+            val prior = repo.site(owner, "backup")!!
+            assertEquals("article.old", prior.configuration?.resultsCardSelector)
+            val second = prior.configuration!!.copy(recognition =
+                prior.configuration!!.recognition.copy(
+                    backupResultsSelectors = listOf("article.known", "article.alternate")))
+            assertNull(VideoSearchRecognitionPolicy.uniqueVerifiedFallback(second, missing, null))
+            assertNull(VideoSearchRecognitionPolicy.uniqueVerifiedFallback(
+                prior.configuration!!, VideoSearchBridgeMessage.Recognition(
+                    doc, "b".repeat(32), "partial", "AMBIGUOUS_CARDS", 90, null, 2, 60, "MAIN"),
+                null))
+        } finally { database.close() }
+    }
+
     @Test fun brokenRollbackMetadataNeverDestroysCurrentSelectors() {
         val old = VideoSiteConfiguration("#search", "article.old",
             recognition = VideoSearchRecognitionMemory(origin = VideoSearchRuleOrigin.MANUAL))

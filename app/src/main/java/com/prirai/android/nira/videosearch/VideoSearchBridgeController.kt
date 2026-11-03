@@ -2100,10 +2100,17 @@ internal class VideoSearchBridgeController(
             // Candidate results may live on a different /results page with no form.
             val analysis = analyzeSite(site)
             val recognized = recognizeSite(site)
-            val cards = VideoSearchRecognitionPolicy.repairCandidate(
-                recognized, analysis?.resultsCardSelector) ?: continue
             if (analysis != null && analysis.documentId != recognized?.documentId)
                 continue
+            val discovered = VideoSearchRecognitionPolicy.repairCandidate(
+                recognized, analysis?.resultsCardSelector)
+            // A single learned fallback is eligible only after a fresh user
+            // query, never by historical memory alone or on ambiguous pages.
+            val fallback = if (discovered == null) {
+                VideoSearchRecognitionPolicy.uniqueVerifiedFallback(
+                    existing, recognized, analysis?.resultsCardSelector)
+            } else null
+            val cards = discovered ?: fallback ?: continue
             val config = existing.copy(
                 searchInputSelector = form.inputSelector!!,
                 submission = form.submission,
@@ -2120,11 +2127,12 @@ internal class VideoSearchBridgeController(
             if (bound.first !== source.first ||
                 bound.second.documentId != recognized?.documentId ||
                 bound.second.pageUrl != live.content.url) continue
-            val page = result.page
+            val page = result?.page ?: continue
             val evidence = VideoSearchRepairEvidence(
                 originalDocument, recognized?.documentId, baseline, page,
                 source.second.pageUrl, live.content.url, query,
-                recognized, analysis?.resultsCardSelector)
+                recognized, analysis?.resultsCardSelector,
+                verifiedFallbackSelector = fallback)
             if (!evidence.confirms(cards)) continue
             val current = withContext(Dispatchers.IO) {
                 repository.site(owner, site.id)

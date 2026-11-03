@@ -1613,16 +1613,22 @@ class MyVideoSitesActivity : AppCompatActivity() {
                     } else message("Selektory są obecne. Znaleziono ${report.matchedCards} kart " +
                         "(${report.attempts} próby); samo sprawdzenie nie potwierdza zapytania.")
                 }
-                "unverified" -> message(when (report.reason) {
-                    "results_only" -> "To może być strona wyników bez formularza. " +
-                        "Nie oznaczono konfiguracji jako uszkodzonej."
-                    "no_results" -> "Brak wyników nie oznacza zepsutych reguł. " +
-                        "Sprawdź zapytanie i poczekaj na AJAX/SPA."
-                    else -> "Pole działa, ale wyniki/paginacja są niepotwierdzone. " +
-                        "Otwórz stronę wyników i ponów sprawdzenie."
-                })
+                "unverified" -> {
+                    if (current.configuration?.recognition?.rollbackConfigurationJson != null)
+                        offerRollback(owner, current)
+                    else message(when (report.reason) {
+                        "results_only" -> "To może być strona wyników bez formularza. " +
+                            "Nie oznaczono konfiguracji jako uszkodzonej."
+                        "no_results" -> "Brak wyników nie oznacza zepsutych reguł. " +
+                            "Sprawdź zapytanie i poczekaj na AJAX/SPA."
+                        else -> "Pole działa, ale wyniki/paginacja są niepotwierdzone. " +
+                            "Otwórz stronę wyników i ponów sprawdzenie."
+                    })
+                }
                 "stale", "unsafe" -> {
-                    if (report.reason == "human_gate")
+                    if (current.configuration?.recognition?.rollbackConfigurationJson != null)
+                        offerRollback(owner, current)
+                    else if (report.reason == "human_gate")
                         message("Witryna wymaga logowania lub CAPTCHA. " +
                             "Naprawa nie obchodzi zabezpieczeń.")
                     else {

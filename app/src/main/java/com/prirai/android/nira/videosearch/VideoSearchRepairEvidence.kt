@@ -14,11 +14,18 @@ internal data class VideoSearchRepairEvidence(
     val query: String,
     val recognition: VideoSearchBridgeMessage.Recognition?,
     val analyzedCards: String?,
+    /** Only for a previously verified, unique Room backup selector. */
+    val verifiedFallbackSelector: String? = null,
 ) {
     fun confirms(candidateCards: String?): Boolean {
         val selected = VideoSearchRecognitionPolicy.repairCandidate(
             recognition, analyzedCards)
-        if (candidateCards == null || candidateCards != selected ||
+        val fallbackAllowed = candidateCards != null &&
+            candidateCards == verifiedFallbackSelector &&
+            recognition?.status == "missing" &&
+            recognition?.reason == "CARDS_NOT_FOUND" && analyzedCards == null
+        if (candidateCards == null ||
+            (candidateCards != selected && !fallbackAllowed) ||
             recognition?.documentId != currentDocumentId ||
             afterPage?.status != "ok" || afterPage.films.isEmpty()) return false
         return VideoSearchWorkerVerification.confirmedAfterQuery(

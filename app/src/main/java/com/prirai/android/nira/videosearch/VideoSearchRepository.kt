@@ -221,8 +221,13 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
             site.configurationState !in setOf(
                 VideoSiteConfigurationState.CONFIGURED,
                 VideoSiteConfigurationState.REPAIR_REQUIRED) ||
+            (evidence.verifiedFallbackSelector != null &&
+                evidence.verifiedFallbackSelector !=
+                    VideoSearchRecognitionPolicy.uniqueVerifiedFallback(
+                        before, evidence.recognition, evidence.analyzedCards)) ||
             !evidence.confirms(candidate.resultsCardSelector)) return false
-        val updated = VideoSearchRecognitionPolicy.repaired(before, candidate, nowMs)
+        val updated = VideoSearchRecognitionPolicy.repaired(
+            before, candidate, nowMs, site.configurationState)
             ?: return false
         val priorJson = VideoSearchRowCodec.configurationJson(before) ?: return false
         val newJson = VideoSearchRowCodec.configurationJson(updated) ?: return false
@@ -243,9 +248,9 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
         val previous = VideoSearchRecognitionPolicy.rollback(current) ?: return false
         val previousJson = VideoSearchRowCodec.configurationJson(previous) ?: return false
         val currentJson = VideoSearchRowCodec.configurationJson(current) ?: return false
-        val state = if (previous.resultsCardSelector == null)
-            VideoSiteConfigurationState.REPAIR_REQUIRED
-        else VideoSiteConfigurationState.CONFIGURED
+        val state = current.recognition.rollbackState ?: return false
+        if (state == VideoSiteConfigurationState.CONFIGURED &&
+            previous.resultsCardSelector.isNullOrBlank()) return false
         return dao.commitVerifiedRepair(owner.profileId, site.id, site.siteUrl,
             site.updatedAtMs, currentJson, state.name, previousJson, nowMs) == 1
     }

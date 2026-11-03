@@ -15,12 +15,17 @@ internal data class VideoSearchRecognitionMemory(
     val backupResultsSelectors: List<String> = emptyList(),
     /** One previous verified configuration, kept inside the existing Room JSON. */
     val rollbackConfigurationJson: String? = null,
+    /** Restore REPAIR_REQUIRED as REPAIR_REQUIRED, never silently CONFIGURED. */
+    val rollbackState: VideoSiteConfigurationState? = null,
 ) {
     init {
         require(confidence in 0..100 && confirmations in 0..1000)
         require(lastVerifiedAtMs == null || lastVerifiedAtMs >= 0L)
         require(rollbackConfigurationJson == null ||
             rollbackConfigurationJson.length in 1..4096)
+        require(rollbackState == null || (rollbackConfigurationJson != null &&
+            rollbackState in setOf(VideoSiteConfigurationState.CONFIGURED,
+                VideoSiteConfigurationState.REPAIR_REQUIRED)))
         require(backupResultsSelectors.size <= 3 &&
             backupResultsSelectors.distinct().size == backupResultsSelectors.size &&
             backupResultsSelectors.all(VideoSearchBridgeProtocol::validSelector))
@@ -79,18 +84,33 @@ internal object VideoSearchRecognitionPolicy {
         return candidate.takeIf(VideoSearchBridgeProtocol::validSelector)
     }
 
+    /**
+     * A fallback may be tried only if exactly ONE independently verified
+     * alternative was learned and no competing structural group was found.
+     */
+    fun uniqueVerifiedFallback(
+        previous: VideoSiteConfiguration,
+        recognition: VideoSearchBridgeMessage.Recognition?,
+        analyzedCards: String?,
+    ): String? = if (recognition?.status == "missing" &&
+        recognition?.reason == "CARDS_NOT_FOUND" && analyzedCards == null)
+        fallbackCandidates(previous).singleOrNull() else null
+
     /** Only called after search evidence is checked at the repository boundary. */
     fun repaired(
         oldConfig: VideoSiteConfiguration,
         candidate: VideoSiteConfiguration,
         nowMs: Long,
+        previousState: VideoSiteConfigurationState = VideoSiteConfigurationState.CONFIGURED,
     ): VideoSiteConfiguration? {
-        if (nowMs < 0 || !VideoSearchBridgeProtocol.validSelector(candidate.searchInputSelector) ||
+        if (previousState !in setOf(VideoSiteConfigurationState.CONFIGURED,
+                VideoSiteConfigurationState.REPAIR_REQUIRED) || nowMs < 0 || !VideoSearchBridgeProtocol.validSelector(candidate.searchInputSelector) ||
             !VideoSearchBridgeProtocol.validSelector(candidate.resultsCardSelector)) return null
         val old = oldConfig.recognition
         // Never recursively nest revisions: the user can undo the LAST repair.
         val previous = VideoSearchRowCodec.configurationJson(oldConfig.copy(
-            recognition = old.copy(rollbackConfigurationJson = null))) ?: return null
+            recognition = old.copy(
+                rollbackConfigurationJson = null, rollbackState = null))) ?: return null
         if (previous.length > 4096) return null
         val backups = (old.backupResultsSelectors + listOfNotNull(oldConfig.resultsCardSelector))
             .filter { it != candidate.resultsCardSelector }
@@ -102,15 +122,18 @@ internal object VideoSearchRecognitionPolicy {
             lastVerifiedAtMs = nowMs,
             backupResultsSelectors = backups,
             rollbackConfigurationJson = previous,
+            rollbackState = previousState,
         ))
     }
 
     /** A corrupt or stale backup must never replace a working rule. */
     fun rollback(current: VideoSiteConfiguration): VideoSiteConfiguration? {
         val previous = current.recognition.rollbackConfigurationJson ?: return null
+        if (current.recognition.rollbackState == null) return null
         return try {
             VideoSearchRowCodec.readConfiguration(previous)?.takeIf {
                 it.recognition.rollbackConfigurationJson == null &&
+                    it.recognition.rollbackState == null &&
                     VideoSearchBridgeProtocol.validSelector(it.searchInputSelector) &&
                     (it.resultsCardSelector == null ||
                         VideoSearchBridgeProtocol.validSelector(it.resultsCardSelector))
