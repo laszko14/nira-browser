@@ -1259,7 +1259,17 @@ internal class VideoSearchBridgeController(
                     true
                 } ?: false
                 if (!loaded || !activeNormalOwner(owner)) return@launch
-                val analysis = analyzeSite(site, createdId)
+                // Hydrating SPA pages can reveal their form shortly after
+                // the first document_idle. Retry reads only, never clicks.
+                var analysis: VideoSearchBridgeMessage.Analysis? = null
+                for (attempt in 0..2) {
+                    if (!activeNormalOwner(owner) ||
+                        !workerLease.canUse(store.state.selectedTabId)) break
+                    analysis = analyzeSite(site, createdId)
+                    if (analysis?.status != null &&
+                        analysis.status != VideoSearchAnalysisStatus.MISSING) break
+                    if (attempt < 2) delay(350)
+                }
                 if (!activeNormalOwner(owner) ||
                     !workerLease.canUse(store.state.selectedTabId) ||
                     withContext(Dispatchers.IO) { repository.site(owner, site.id) } != site)
