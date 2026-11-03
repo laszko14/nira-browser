@@ -115,4 +115,24 @@ class VideoSearchP1RecognitionTest {
             assertNull(repo.site(other, "site"))
         } finally { db.close() }
     }
+
+    @Test fun bareInspectionDoesNotFabricateVerifiedSearchEvidence() = runBlocking {
+        val db = Room.inMemoryDatabaseBuilder(
+            RuntimeEnvironment.getApplication(), VideoSearchDatabase::class.java
+        ).build()
+        try {
+            val owner = VideoSearchScope.Normal("normal")
+            val repo = VideoSearchRepository(db.dao())
+            val saved = repo.addSite(owner, "https://films.example", newId = "raw", nowMs = 1)
+            val seen = VideoSearchBridgeMessage.Inspection(
+                "a".repeat(32), "b".repeat(32), "ready", "#q", "article.card",
+                VideoSearchSubmission.FORM_SUBMIT, null, VideoSearchPagination.NONE, null
+            )
+            assertTrue(repo.applyAutoConfiguration(saved, seen, nowMs = 2))
+            assertEquals(0, repo.site(owner, saved.id)?.configuration?.recognition?.confirmations)
+            val next = repo.site(owner, saved.id)!!
+            assertTrue(repo.rememberConfirmedResults(next, "article.card", nowMs = 3))
+            assertEquals(1, repo.site(owner, saved.id)?.configuration?.recognition?.confirmations)
+        } finally { db.close() }
+    }
 }
