@@ -1,0 +1,92 @@
+package com.prirai.android.nira.videosearch
+
+import android.app.Application
+import org.json.JSONArray
+import org.json.JSONObject
+import org.junit.Assert.*
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35], application = Application::class, manifest = Config.NONE)
+class VideoSearchP1RecognitionTest {
+    private fun packet(selector: Any = ".results article.card"): JSONObject =
+        JSONObject().put("schemaVersion", 1).put("event", "recognition")
+            .put("documentId", "a".repeat(32)).put("requestId", "b".repeat(32))
+            .put("status", "found").put("reason", "CANDIDATE_FOUND")
+            .put("confidence", 91).put("resultsCardSelector", selector)
+            .put("matchedCards", 3).put("scannedElements", 210)
+            .put("surface", "MAIN")
+
+    @Test fun acceptsOnlyBoundedRecognitionEvidence() {
+        val parsed = VideoSearchBridgeProtocol.decode(packet())
+                as VideoSearchBridgeMessage.Recognition
+        assertEquals(91, parsed.confidence)
+        assertEquals(210, parsed.scannedElements)
+        assertEquals(".results article.card", parsed.resultsCardSelector)
+        assertFalse(parsed.toString().contains(".results"))
+    }
+
+    @Test fun rejectsCrossProfileForgedUnsafeOrUnboundedEvidence() {
+        assertNull(VideoSearchBridgeProtocol.decode(packet().put("profileId", "foreign")))
+        assertNull(VideoSearchBridgeProtocol.decode(packet().put("scannedElements", 9999)))
+        assertNull(VideoSearchBridgeProtocol.decode(packet().put("confidence", 101)))
+        assertNull(VideoSearchBridgeProtocol.decode(packet().put("surface", "FRAME")))
+        assertNull(VideoSearchBridgeProtocol.decode(packet().put("resultsCardSelector", "a:has(script)")))
+        assertNull(VideoSearchBridgeProtocol.decode(packet().put("requestId", "invalid")))
+        assertNull(VideoSearchBridgeProtocol.decode(packet().put("reason", "any")))
+    }
+
+    @Test fun readOnlyOutboundRecognitionIsMinimal() {
+        val packet = VideoSearchBridgeProtocol.recognize("a".repeat(32), "b".repeat(32))
+        assertEquals(4, packet.length())
+        assertEquals("recognize", packet.getString("event"))
+        assertFalse(packet.toString().contains("profile"))
+        assertFalse(packet.toString().contains("query"))
+    }
+
+    @Test fun oldConfigurationJsonRemainsReadable() {
+        val legacy = JSONObject().put("input", "#q").put("cards", "article.card")
+            .put("submission", "FORM_SUBMIT").put("submit", JSONObject.NULL)
+            .put("title", JSONObject.NULL).put("link", JSONObject.NULL)
+            .put("image", JSONObject.NULL).put("duration", JSONObject.NULL)
+            .put("pagination", "NONE").put("next", JSONObject.NULL).toString()
+        val config = VideoSearchRowCodec.readConfiguration(legacy)!!
+        assertEquals(VideoSearchRecognitionMemory(), config.recognition)
+        assertEquals("article.card", config.resultsCardSelector)
+    }
+
+    @Test fun verifiedEvidenceIsRoundTrippedWithoutSchemaMigration() {
+        val initial = VideoSiteConfiguration("#q", null, VideoSearchSubmission.FORM_SUBMIT)
+        val once = VideoSearchRecognitionPolicy.verified(initial, "article.card", 100)!!
+        val twice = VideoSearchRecognitionPolicy.verified(once, "article.card", 110)!!
+        assertEquals(2, twice.recognition.confirmations)
+        assertEquals(VideoSearchRuleOrigin.VERIFIED, twice.recognition.origin)
+        val encoded = VideoSearchRowCodec.configurationJson(twice)
+        assertEquals(twice, VideoSearchRowCodec.readConfiguration(encoded))
+    }
+
+    @Test fun manualRulesAreNeverSilentlyReplacedByAlternatives() {
+        val manual = VideoSiteConfiguration("#q", "article.original",
+            recognition = VideoSearchRecognitionMemory(origin = VideoSearchRuleOrigin.MANUAL))
+        val verified = VideoSearchRecognitionPolicy.verified(manual, "article.candidate", 100)!!
+        assertEquals("article.original", verified.resultsCardSelector)
+        assertEquals(VideoSearchRuleOrigin.MANUAL, verified.recognition.origin)
+        assertEquals(listOf("article.candidate"),
+            VideoSearchRecognitionPolicy.fallbackCandidates(verified))
+    }
+
+    @Test fun invalidFallbackMetadataDoesNotDeleteWorkingSelectors() {
+        val json = JSONObject(VideoSearchRowCodec.configurationJson(
+            VideoSiteConfiguration("#q", "article.card"))!!)
+        val malformed = JSONObject().put("origin", "VERIFIED")
+            .put("confidence", 90).put("confirmations", 3)
+            .put("backups", JSONArray().put("script:has(input)"))
+        json.put("recognition", malformed)
+        val parsed = VideoSearchRowCodec.readConfiguration(json.toString())!!
+        assertEquals("article.card", parsed.resultsCardSelector)
+        assertEquals(VideoSearchRecognitionMemory(), parsed.recognition)
+    }
+}
