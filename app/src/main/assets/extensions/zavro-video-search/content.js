@@ -1593,6 +1593,22 @@
           const found = detect();
           post("inspection", message.requestId, found);
           busy = false;
+        } else if (message.event === "recognize" &&
+            keys === "documentId,event,requestId,schemaVersion" && !picker) {
+          busy = true;
+          try {
+            const report = window.__zavroRecognition?.scan(document);
+            const selector = report?.selector || null;
+            post("recognition", message.requestId, {
+              status: selector ? "found" : report?.confidence > 0 ? "partial" : "missing",
+              reason: report?.reason || "CARDS_NOT_FOUND",
+              confidence: report?.confidence || 0,
+              resultsCardSelector: selector,
+              matchedCards: report?.matchedCards || 0,
+              scannedElements: report?.scannedElements || 0,
+              surface: report?.surface || "MAIN"
+            });
+          } finally { busy = false; }
         } else if (message.event === "analyze" &&
             keys === "documentId,event,requestId,schemaVersion" && !picker) {
           busy = true;
