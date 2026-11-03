@@ -63,7 +63,7 @@
     },
     {
       "task_id": "ZC-V4-P2-A-B-SCOPED-CONTROLS",
-      "observed_count": 2,
+      "observed_count": 4,
       "state": "ACTIVE"
     }
   ],
@@ -1221,6 +1221,46 @@
       "regression_test": "app/src/test/js/video-search-p2-scoped-controls.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
+      ]
+    },
+    {
+      "id": "CI-41700223274-1-126141241473",
+      "task_id": "ZC-V4-P2-A-B-SCOPED-CONTROLS",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2-v1224-apk-artifact-name-stale",
+      "summary": "SOURCE JS 41700223274: nine version-contract tests rejected APK artifact name v1223 while current debug metadata was v1224; update workflow artifact name without weakening the signature or version contract.",
+      "source_sha": "954096f4c1ce84487b929490940824d148ab5a94",
+      "observed_at": null,
+      "run_id": 41700223274,
+      "job_id": 126141241473,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41700223274"
+      ]
+    },
+    {
+      "id": "CI-41700236345-1-126141287456",
+      "task_id": "ZC-V4-P2-A-B-SCOPED-CONTROLS",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2-v1224-apk-artifact-name-stale",
+      "summary": "PR integration JS 41700236345 independently failed the same stale v1223 artifact name against v1224 Gradle metadata on the identical SHA; no separate code regression found.",
+      "source_sha": "954096f4c1ce84487b929490940824d148ab5a94",
+      "observed_at": null,
+      "run_id": 41700236345,
+      "job_id": 126141287456,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "OPEN",
+      "duplicate_of": "CI-41700223274-1-126141241473",
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41700236345"
       ]
     }
   ]
