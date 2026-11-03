@@ -378,7 +378,8 @@
     const hint = [button.innerText, button.value, button.id, button.className,
                   button.getAttribute?.("aria-label"), button.getAttribute?.("title"),
                   button.getAttribute?.("data-action"), button.getAttribute?.("data-testid")]
-      .filter(x => typeof x === "string").join(" ");
+      .filter(x => typeof x === "string").join(" ") + " " +
+      (window.__zavroRecognition?.controlHint(button) || "");
     if (blocked.test(hint) || unsafeControl.test(hint)) return false;
     // A form-less script button must explicitly identify a search action.
     if (!input.form && !searchTerms.test(hint)) return false;
