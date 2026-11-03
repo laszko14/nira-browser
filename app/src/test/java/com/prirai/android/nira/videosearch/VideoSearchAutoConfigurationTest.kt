@@ -168,4 +168,90 @@ class VideoSearchAutoConfigurationTest {
                 repo.site(scope, "s")?.configurationState)
         } finally { db.close() }
     }
+
+    @Test fun P0SearchReadyIsNotConfiguredAndOnlyCASCanFinishAfterResults() = runBlocking {
+        val db = Room.inMemoryDatabaseBuilder(
+            RuntimeEnvironment.getApplication(), VideoSearchDatabase::class.java
+        ).build()
+        try {
+            val repo = VideoSearchRepository(db.dao())
+            val start = repo.addSite(scope, "https://example.org/?a=1&a=2",
+                nowMs = 11, newId = "p0")
+            assertTrue(repo.applyAutoPartialConfiguration(start, inspection(false), nowMs = 12))
+            val pending = repo.site(scope, "p0")!!
+            assertEquals(VideoSiteConfigurationState.SEARCH_READY_RESULTS_PENDING,
+                pending.configurationState)
+            assertNull(pending.configuration?.resultsCardSelector)
+            assertFalse(repo.completePendingResults(start, ".films",
+                VideoSearchPagination.NONE, null, nowMs = 13))
+            assertTrue(repo.completePendingResults(pending, ".films",
+                VideoSearchPagination.NEXT_LINK, "a[rel=\"next\"]", nowMs = 13))
+            val complete = repo.site(scope, "p0")!!
+            assertEquals(VideoSiteConfigurationState.CONFIGURED, complete.configurationState)
+            assertEquals("input[name=\"q\"]", complete.configuration?.searchInputSelector)
+            assertEquals(".films", complete.configuration?.resultsCardSelector)
+            assertEquals("https://example.org/?a=1&a=2", complete.siteUrl)
+            assertFalse(repo.completePendingResults(pending, ".other",
+                VideoSearchPagination.NONE, null, nowMs = 14))
+            assertEquals(".films", repo.site(scope, "p0")?.configuration?.resultsCardSelector)
+        } finally { db.close() }
+    }
+
+    @Test fun P0FailedDiscoveryCannotClobberManualConfigOrStaleSite() = runBlocking {
+        val db = Room.inMemoryDatabaseBuilder(
+            RuntimeEnvironment.getApplication(), VideoSearchDatabase::class.java
+        ).build()
+        try {
+            val repo = VideoSearchRepository(db.dao())
+            val site = repo.addSite(scope, "https://example.org",
+                newId = "issue", nowMs = 21)
+            assertTrue(repo.markAutoAnalysisIssue(site, unsafe = true, nowMs = 22))
+            val flagged = repo.site(scope, "issue")!!
+            assertEquals(VideoSiteConfigurationState.UNSAFE, flagged.configurationState)
+            assertFalse(repo.markAutoAnalysisIssue(site, unsafe = false, nowMs = 23))
+            assertTrue(repo.applyManualConfiguration(flagged,
+                VideoSiteConfiguration("input.search", ".films"), nowMs = 24))
+            val restored = repo.site(scope, "issue")!!
+            assertEquals(VideoSiteConfigurationState.CONFIGURED, restored.configurationState)
+            assertFalse(repo.markAutoAnalysisIssue(restored, unsafe = true, nowMs = 25))
+            assertEquals(".films", repo.site(scope, "issue")?.configuration?.resultsCardSelector)
+        } finally { db.close() }
+    }
+
+
+    @Test fun P0ReadyHomepageCardsRemainPendingUntilUserSearchProof() = runBlocking {
+        val db = Room.inMemoryDatabaseBuilder(
+            RuntimeEnvironment.getApplication(), VideoSearchDatabase::class.java
+        ).build()
+        try {
+            val repo = VideoSearchRepository(db.dao())
+            val added = repo.addSite(scope, "https://example.org",
+                nowMs = 50, newId = "home")
+            val suggestion = VideoSearchBridgeMessage.Analysis(
+                document, request, VideoSearchAnalysisStatus.READY,
+                VideoSearchAnalysisStage.RESULTS_PAGE, "complete", 95,
+                listOf("GET_FORM", "REPEATED_CARDS"),
+                "input[name=\"q\"]", ".recommendations",
+                VideoSearchSubmission.FORM_SUBMIT, null,
+                VideoSearchPagination.NONE, null
+            )
+            val pending = VideoSearchAutoDiscoveryPolicy.pendingForm(suggestion)!!
+            assertEquals("partial", pending.status)
+            assertNull(pending.resultsCardSelector)
+            assertEquals(VideoSearchPagination.NONE, pending.pagination)
+            assertTrue(repo.applyAutoPartialConfiguration(added, pending, nowMs = 51))
+            val saved = repo.site(scope, added.id)!!
+            assertEquals(VideoSiteConfigurationState.SEARCH_READY_RESULTS_PENDING,
+                saved.configurationState)
+            assertNull(saved.configuration?.resultsCardSelector)
+            assertEquals("input[name=\"q\"]", saved.configuration?.searchInputSelector)
+            assertNull(VideoSearchAutoDiscoveryPolicy.pendingForm(
+                VideoSearchBridgeMessage.Analysis(
+                    document, request, VideoSearchAnalysisStatus.UNSAFE,
+                    VideoSearchAnalysisStage.UNKNOWN, "unsafe_form", 0,
+                    listOf("UNSAFE_FORM"), null, null, null, null,
+                    VideoSearchPagination.NONE, null)))
+        } finally { db.close() }
+    }
+
 }

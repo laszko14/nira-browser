@@ -224,7 +224,7 @@ class VideoSearchManualConfigurationTest {
                 nowMs = 10, newId = "s")
             assertTrue(repo.applyAutoPartialConfiguration(site, inspectedPartial(), nowMs = 11))
             val checkpoint = VideoSearchRepository(database.dao()).site(owner, site.id)!!
-            assertEquals(VideoSiteConfigurationState.REPAIR_REQUIRED, checkpoint.configurationState)
+            assertEquals(VideoSiteConfigurationState.SEARCH_READY_RESULTS_PENDING, checkpoint.configurationState)
             assertNull(checkpoint.configuration!!.resultsCardSelector)
             val controls = VideoSearchManualStages.pendingResults(checkpoint)!!
             assertEquals("input[name=\"q\"]", controls.searchInputSelector)
@@ -342,7 +342,7 @@ class VideoSearchManualConfigurationTest {
             assertNull(repo.site(owner, original.id)!!.configuration)
             assertTrue(repo.applyAutoPartialConfiguration(original, inspectedPartial()))
             assertFalse(repo.applyAutoPartialConfiguration(original, inspectedPartial()))
-            assertEquals(VideoSiteConfigurationState.REPAIR_REQUIRED,
+            assertEquals(VideoSiteConfigurationState.SEARCH_READY_RESULTS_PENDING,
                 repo.site(owner, original.id)!!.configurationState)
         } finally { database.close() }
     }

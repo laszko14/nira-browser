@@ -1118,10 +1118,25 @@ class MyVideoSitesActivity : AppCompatActivity() {
         addButton.isEnabled = false
         lifecycleScope.launch {
             try {
-                withContext(Dispatchers.IO) { repository.addSite(owner, typed) }
+                // Only a truly new row schedules one read-only Gecko visit.
+                val proposedId = java.util.UUID.randomUUID().toString()
+                val saved = withContext(Dispatchers.IO) {
+                    repository.addSite(owner, typed, newId = proposedId)
+                }
                 if (ownerIfCurrent() == owner) {
                     input.text.clear()
-                    message("Witryna zapisana — wymaga konfiguracji")
+                    if (saved.id != proposedId) {
+                        message("Witryna już istnieje — zachowano jej ustawienia")
+                    } else {
+                        val browser = applicationContext.components
+                        VideoSearchBridgeHost.start(
+                            applicationContext, browser.engine, browser.store)
+                        val started = VideoSearchBridgeHost.instance()
+                            ?.scheduleAutoAnalysis(saved, repository) == true
+                        message(if (started) "Witryna dodana — trwa bezpieczna analiza"
+                            else "Witryna dodana — automatyczna analiza niedostępna. " +
+                                "Możesz użyć „Rozpoznaj”.")
+                    }
                 }
             } catch (_: IllegalArgumentException) {
                 if (ownerIfCurrent() == owner) input.error = "Nieprawidłowy adres witryny"
@@ -1900,11 +1915,19 @@ class MyVideoSitesActivity : AppCompatActivity() {
                         val current = withContext(Dispatchers.IO) { repository.site(owner, site.id) }
                         if (ownerIfCurrent() != owner || current == null || !current.enabled ||
                             current.siteUrl != site.siteUrl) return@launch
-                        val success = VideoSearchBridgeHost.instance()?.searchSite(current, query) == true
-                        if (ownerIfCurrent() == owner) message(if (success)
-                            "Wysłano wyszukiwanie do witryny. Sprawdź jej kartę."
-                            else "Nie wysłano. Otwórz witrynę i użyj „Rozpoznaj”.")
-                        if (success) dialog.dismiss()
+                        val outcome = VideoSearchBridgeHost.instance()
+                            ?.searchSiteAndVerify(current, query, repository)
+                            ?: VideoSearchManualSearchOutcome.FAILED
+                        if (ownerIfCurrent() == owner) message(when (outcome) {
+                            VideoSearchManualSearchOutcome.VERIFIED ->
+                                "Nowe wyniki potwierdzone; reguły wyników zapisane"
+                            VideoSearchManualSearchOutcome.SUBMITTED_UNVERIFIED ->
+                                "Wyszukiwanie wysłane, lecz brak dowodu nowych wyników. " +
+                                    "Użyj „Wskaż”, jeśli witryna wymaga pomocy."
+                            VideoSearchManualSearchOutcome.FAILED ->
+                                "Nie wysłano. Otwórz witrynę lub użyj „Rozpoznaj”."
+                        })
+                        if (outcome != VideoSearchManualSearchOutcome.FAILED) dialog.dismiss()
                     } catch (_: Exception) {
                         if (ownerIfCurrent() == owner) message("Nie udało się wysłać wyszukiwania")
                     } finally {
@@ -2410,6 +2433,12 @@ class MyVideoSitesActivity : AppCompatActivity() {
             val state = when (site.configurationState) {
                 VideoSiteConfigurationState.NEEDS_CONFIGURATION -> "Wymaga konfiguracji"
                 VideoSiteConfigurationState.AUTO_CONFIGURING -> "Konfiguracja w toku"
+                VideoSiteConfigurationState.SEARCH_READY_RESULTS_PENDING ->
+                    "Formularz gotowy — wyniki po pierwszym wyszukiwaniu"
+                VideoSiteConfigurationState.NEEDS_ATTENTION ->
+                    "Wymaga uwagi — użyj „Wskaż”"
+                VideoSiteConfigurationState.UNSAFE ->
+                    "Wykryto niebezpieczny formularz — bez automatycznych akcji"
                 VideoSiteConfigurationState.CONFIGURED -> "Skonfigurowana"
                 VideoSiteConfigurationState.REPAIR_REQUIRED -> "Wymaga naprawy konfiguracji"
             }

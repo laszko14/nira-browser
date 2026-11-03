@@ -4,7 +4,8 @@ package com.prirai.android.nira.videosearch
 internal const val DEFAULT_VIDEO_SEARCH_SITE_LIMIT = 200
 
 internal enum class VideoSiteConfigurationState {
-    NEEDS_CONFIGURATION, AUTO_CONFIGURING, CONFIGURED, REPAIR_REQUIRED
+    NEEDS_CONFIGURATION, AUTO_CONFIGURING, SEARCH_READY_RESULTS_PENDING,
+    NEEDS_ATTENTION, UNSAFE, CONFIGURED, REPAIR_REQUIRED
 }
 
 internal enum class VideoSearchSubmission { ENTER, CLICK_SUBMIT, FORM_SUBMIT }

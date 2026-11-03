@@ -47,7 +47,9 @@ test('confirmed multi-site search opens live results tab rather than previous br
 
 test('single-site search does not close settings on successful submission', () => {
   const single = between(sites, 'private fun searchSite(', 'private fun editSite(');
-  assert.match(single, /VideoSearchBridgeHost\.instance\(\)\?\.searchSite/);
+  assert.match(single, /\.searchSiteAndVerify\(current, query, repository\)/);
+  assert.match(single, /SUBMITTED_UNVERIFIED/);
+  assert.match(single, /outcome != VideoSearchManualSearchOutcome\.FAILED\) dialog\.dismiss\(\)/);
   assert.doesNotMatch(single, /finish\(\)/);
 });
 

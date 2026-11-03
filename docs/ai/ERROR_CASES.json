@@ -40,6 +40,11 @@
       "task_id": "ZC-V4-STRUCTURAL-SITE-SEARCH",
       "observed_count": 3,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
+      "observed_count": 11,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -682,6 +687,220 @@
       "regression_test": "scripts/ai-preflight.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41554647363"
+      ]
+    },
+    {
+      "id": "ERR-20261103-0002",
+      "kind": "REVIEW",
+      "fingerprint": "p0-reset-submit-candidate",
+      "summary": "Przegląd kodu ujawnił możliwość wybrania reset jako akcji Search przy semantyce formularza GET. Reproduktor DOM dodano; efekt na urządzeniu niepotwierdzony.",
+      "regression_test": "app/src/test/js/video-search-structural-v4.test.cjs",
+      "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
+      "source_sha": "85101f8b06e958c85433614bb40c6dc9e9052641",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "evidence_links": []
+    },
+    {
+      "id": "ERR-20261103-0003",
+      "kind": "REVIEW",
+      "fingerprint": "p0-unnamed-pager-button",
+      "summary": "Przegląd kodu ujawnił możliwość wybrania jedynego nienazwanego przycisku paginacji bez pozytywnego dowodu Next. Reproduktor DOM dodano; efekt na urządzeniu niepotwierdzony.",
+      "regression_test": "app/src/test/js/video-search-structural-v4.test.cjs",
+      "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
+      "source_sha": "85101f8b06e958c85433614bb40c6dc9e9052641",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "evidence_links": []
+    },
+    {
+      "id": "ERR-20261103-0004",
+      "kind": "USER_REPORT",
+      "fingerprint": "p0-no-automatic-site-discovery",
+      "summary": "Użytkownik oczekuje wykrycia kontrolek wyszukiwania bez ręcznej inspekcji po dodaniu witryny. Dotychczasowe addSite zapisywało stan NEEDS_CONFIGURATION, bez analizy Gecko.",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchAutoConfigurationTest.kt",
+      "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
+      "source_sha": "85101f8b06e958c85433614bb40c6dc9e9052641",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "evidence_links": []
+    },
+    {
+      "id": "CI-41563078120-1-125678007205-A",
+      "fingerprint": "p0-navigation-shortcut-static-callsite",
+      "summary": "SOURCE JS 333/425: test strukturalny oczekiwał starego searchSite i odrzucił poprawnie rozdzielone searchSiteAndVerify. Zaktualizować oracle do nowego wejścia, dowodu statusu i zachowania ekranu.",
+      "cause": "test_harness",
+      "regression_test": "app/src/test/js/video-search-navigation-shortcut.test.cjs",
+      "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
+      "kind": "CI_FAILURE",
+      "source_sha": "0529e9272f112dbef940b34d0e8ac3a313657337",
+      "observed_at": "2026-11-03T01:57:46Z",
+      "run_id": 41563078120,
+      "job_id": 125678007205,
+      "attempt": 1,
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "f402a2c5084bfcf3818b4a98b705f9c8e5ece826",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41563078120"
+      ]
+    },
+    {
+      "id": "CI-41563078120-1-125678007205-B",
+      "fingerprint": "p0-nested-next-pager-gate-regression",
+      "summary": "SOURCE JS 343/425: restrykcja nie przyjęła prawidłowego li.next a wewnątrz nav.pages, jeżeli mock pagera nie implementował querySelectorAll. Potrzebny pozytywny dowód potomka paginacji bez wybierania obcego Next.",
+      "cause": "production",
+      "regression_test": "app/src/test/js/video-search-next-picker.test.cjs",
+      "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
+      "kind": "CI_FAILURE",
+      "source_sha": "0529e9272f112dbef940b34d0e8ac3a313657337",
+      "observed_at": "2026-11-03T01:57:46Z",
+      "run_id": 41563078120,
+      "job_id": 125678007205,
+      "attempt": 1,
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "f402a2c5084bfcf3818b4a98b705f9c8e5ece826",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41563078120"
+      ]
+    },
+    {
+      "id": "CI-41564153989-1-125681499550-1",
+      "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
+      "kind": "CI_FAILURE",
+      "fingerprint": "release-contract-current-debug-stale-version",
+      "summary": "PR #121 run 41564153989, JS test 1/6 w niezgodnej statycznej asercji historycznej wersji 1210/alpha115 po bezpiecznym podwyższeniu do 1214/alpha116; poprawić oczekiwanie, zachować testy negatywne pakietu, ABI i podpisu.",
+      "source_sha": "29ce875b9b042c4195ebfe91e704c211602a6fd2",
+      "observed_at": "2026-11-03T02:07:51Z",
+      "run_id": 41564153989,
+      "job_id": 125681499550,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41564153989"
+      ]
+    },
+    {
+      "id": "CI-41564153989-1-125681499550-2",
+      "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
+      "kind": "CI_FAILURE",
+      "fingerprint": "release-contract-resolve-tag-stale-version",
+      "summary": "PR #121 run 41564153989, JS test 2/6 w niezgodnej statycznej asercji historycznej wersji 1210/alpha115 po bezpiecznym podwyższeniu do 1214/alpha116; poprawić oczekiwanie, zachować testy negatywne pakietu, ABI i podpisu.",
+      "source_sha": "29ce875b9b042c4195ebfe91e704c211602a6fd2",
+      "observed_at": "2026-11-03T02:07:51Z",
+      "run_id": 41564153989,
+      "job_id": 125681499550,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41564153989"
+      ]
+    },
+    {
+      "id": "CI-41564153989-1-125681499550-3",
+      "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
+      "kind": "CI_FAILURE",
+      "fingerprint": "release-contract-negative-fixture-stale-version",
+      "summary": "PR #121 run 41564153989, JS test 3/6 w niezgodnej statycznej asercji historycznej wersji 1210/alpha115 po bezpiecznym podwyższeniu do 1214/alpha116; poprawić oczekiwanie, zachować testy negatywne pakietu, ABI i podpisu.",
+      "source_sha": "29ce875b9b042c4195ebfe91e704c211602a6fd2",
+      "observed_at": "2026-11-03T02:07:51Z",
+      "run_id": 41564153989,
+      "job_id": 125681499550,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41564153989"
+      ]
+    },
+    {
+      "id": "CI-41564153989-1-125681499550-4",
+      "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
+      "kind": "CI_FAILURE",
+      "fingerprint": "release-contract-env-stale-version",
+      "summary": "PR #121 run 41564153989, JS test 4/6 w niezgodnej statycznej asercji historycznej wersji 1210/alpha115 po bezpiecznym podwyższeniu do 1214/alpha116; poprawić oczekiwanie, zachować testy negatywne pakietu, ABI i podpisu.",
+      "source_sha": "29ce875b9b042c4195ebfe91e704c211602a6fd2",
+      "observed_at": "2026-11-03T02:07:51Z",
+      "run_id": 41564153989,
+      "job_id": 125681499550,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41564153989"
+      ]
+    },
+    {
+      "id": "CI-41564153989-1-125681499550-5",
+      "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
+      "kind": "CI_FAILURE",
+      "fingerprint": "update-apk-negative-fixture-stale-version",
+      "summary": "PR #121 run 41564153989, JS test 5/6 w niezgodnej statycznej asercji historycznej wersji 1210/alpha115 po bezpiecznym podwyższeniu do 1214/alpha116; poprawić oczekiwanie, zachować testy negatywne pakietu, ABI i podpisu.",
+      "source_sha": "29ce875b9b042c4195ebfe91e704c211602a6fd2",
+      "observed_at": "2026-11-03T02:07:51Z",
+      "run_id": 41564153989,
+      "job_id": 125681499550,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/update-apk-workflow-scope.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41564153989"
+      ]
+    },
+    {
+      "id": "CI-41564153989-1-125681499550-6",
+      "task_id": "ZC-V4-SITE-INTELLIGENCE-P0",
+      "kind": "CI_FAILURE",
+      "fingerprint": "neon-ui-update-version-fixture-stale",
+      "summary": "PR #121 run 41564153989, JS test 6/6 w niezgodnej statycznej asercji historycznej wersji 1210/alpha115 po bezpiecznym podwyższeniu do 1214/alpha116; poprawić oczekiwanie, zachować testy negatywne pakietu, ABI i podpisu.",
+      "source_sha": "29ce875b9b042c4195ebfe91e704c211602a6fd2",
+      "observed_at": "2026-11-03T02:07:51Z",
+      "run_id": 41564153989,
+      "job_id": 125681499550,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/video-search-neon-redesign.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41564153989"
       ]
     }
   ]

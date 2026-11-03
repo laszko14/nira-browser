@@ -1,7 +1,7 @@
 /*
  * Zavro Video Search — stage 3B. Runs only in top-level HTTP(S) documents.
- * No automatic DOM scans, no network interception, no playback, no downloads.
- * User explicitly invokes inspect, then (only if configured) search.
+ * Bounded, native-requested read-only site analysis is permitted on add.
+ * No autonomous form submissions, interception, playback or downloads.
  */
 (function () {
   "use strict";
@@ -26,6 +26,20 @@
   const idPattern = /^[0-9a-f]{32}$/;
   const blocked = /login|log-in|signin|sign-in|password|register|checkout|payment|purchase|captcha/i;
   const searchTerms = /search|szukaj|find|query|wyszuk|buscar|suche|recherche/i;
+  // Negative evidence always beats a keyword that happens to say "search".
+  const unsafeControl = /reset|clear|cancel|anuluj|filter|filtr|sort|login|sign.?in|register|payment|checkout|delete|remove|usuń|usun|close|zamkn/i;
+  function inputHint(input) {
+    const labels = Array.from(input.labels || []).slice(0, 3)
+      .map(n => (n.textContent || "").slice(0, 80));
+    const named = (input.getAttribute?.("aria-labelledby") || "").split(/\s+/).slice(0, 3);
+    for (const id of named) {
+      if (!id || !document.getElementById) continue;
+      const text = document.getElementById(id)?.textContent;
+      if (typeof text === "string") labels.push(text.slice(0, 80));
+    }
+    return [input.getAttribute?.("aria-label"), input.getAttribute?.("title"),
+      ...labels].filter(v => typeof v === "string").join(" ");
+  }
   let port;
 
   function safeForm(form) {
@@ -53,11 +67,14 @@
     const form = input.form;
     if (form && !safeForm(form)) return false;
     const name = input.name || "", id = input.id || "",
-      placeholder = input.placeholder || "";
-    if (blocked.test(name + " " + id + " " + placeholder)) return false;
-    const role = (form?.getAttribute("role") || "") === "search";
+      placeholder = input.placeholder || "", semantic = inputHint(input);
+    if (blocked.test(name + " " + id + " " + placeholder + " " + semantic))
+      return false;
+    const role = (form?.getAttribute("role") || "") === "search" ||
+      input.closest?.('[role="search"]') != null;
     return type === "search" || role ||
-      searchTerms.test(name + " " + id + " " + placeholder) ||
+      input.getAttribute?.("role") === "searchbox" ||
+      searchTerms.test(name + " " + id + " " + placeholder + " " + semantic) ||
       /^(q|s)$/i.test(name);
   }
   function score(input) {
@@ -69,6 +86,9 @@
     if (searchTerms.test(name + " " + id)) n += 5;
     if (/^(q|s)$/i.test(name)) n += 4;
     if (searchTerms.test(placeholder)) n += 3;
+    if (input.getAttribute?.("role") === "searchbox") n += 6;
+    if (searchTerms.test(inputHint(input))) n += 6;
+    if (input.closest?.('[role="search"]')) n += 3;
     if (safeForm(form)) n += 3;
     if (!form) n -= 3;
     return n;
@@ -172,8 +192,7 @@
     const chosen = named.length === 1 ? named[0] :
       named.length > 1 ? null :
       submitted.length === 1 ? submitted[0] :
-      submitted.length > 1 ? null :
-      valid.length === 1 && input.form ? valid[0] : null;
+      submitted.length > 1 ? null : null;
     return chosen ? selectorFor(chosen) : null;
   }
   function detectResults() {
@@ -287,6 +306,48 @@
       pagination: page.pagination, nextPageSelector: page.nextPageSelector
     };
   }
+  // Typed discovery: bounded evidence tokens, never raw DOM, cookies or queries.
+  // The native side binds this to a site, owner, session and document revision.
+  function siteAnalysis() {
+    const inputs = Array.from(document.querySelectorAll("input")).slice(0, limited)
+      .filter(validInput).map(input => ({input, points:score(input)}))
+      .filter(x => x.points >= 8).sort((a,b) => b.points-a.points);
+    const tie = inputs.length > 1 && inputs[0].points === inputs[1].points;
+    const inspection = tie ? {status:"missing"} : detect();
+    const cards = inspection.resultsCardSelector || detectResults();
+    const page = cards ? detectPagination() : {pagination:"NONE",nextPageSelector:null};
+    const formReady = !!inspection.inputSelector && !!inspection.submission;
+    const unsafe = !inputs.length && !!document.querySelector?.(
+      'form[method="post"] input[type="search"],input[type="password"]');
+    const status = tie ? "ambiguous" : formReady ?
+      (cards ? "ready" : "partial") : unsafe ? "unsafe" : "missing";
+    const stage = cards ?
+      (page.pagination !== "NONE" ? "PAGINATION" : "RESULTS_PAGE") :
+      formReady ? "SEARCH_FORM" : "UNKNOWN";
+    const reason = tie ? "ambiguous_input" : unsafe ? "unsafe_form" :
+      formReady && cards ? "complete" :
+      formReady ? "search_only" : cards ? "results_only" : "not_found";
+    const evidence = [];
+    if (inputs[0]?.input.form && safeForm(inputs[0].input.form)) evidence.push("GET_FORM");
+    if (inputs[0]?.input.type === "search") evidence.push("SEARCH_INPUT");
+    if (inputs[0] && searchTerms.test(inputHint(inputs[0].input))) evidence.push("ACCESSIBLE_NAME");
+    if (inspection.submitSelector) evidence.push("BOUND_SUBMIT");
+    if (cards) evidence.push("REPEATED_CARDS");
+    if (page.pagination !== "NONE") evidence.push("PAGER_SEMANTIC");
+    if (tie) evidence.push("AMBIGUOUS");
+    if (unsafe) evidence.push("UNSAFE_FORM");
+    const confidence = tie || unsafe ? 0 : formReady ?
+      Math.min(100, Math.max(60, inputs[0]?.points || 0) +
+        (cards ? 15 : 0)) : cards ? 45 : 0;
+    return {
+      status, stage, reason, confidence, evidence:evidence.slice(0, 8),
+      inputSelector:formReady ? inspection.inputSelector : null,
+      resultsCardSelector:cards || null,
+      submission:formReady ? inspection.submission : null,
+      submitSelector:formReady ? inspection.submitSelector : null,
+      pagination:page.pagination, nextPageSelector:page.nextPageSelector
+    };
+  }
   // The optional, user-operated selector picker is active only while a
   // specific native "pick" request is pending. No global DOM listeners idle.
   function manualInput(input) {
@@ -307,10 +368,17 @@
       // HTML "form" attribute may associate a submit control outside <form>.
       if (!safeForm(input.form) || button.form !== input.form) return false;
     } else if (!area.contains(button) || button.form || button.closest?.("form")) return false;
+    const type = (button.getAttribute?.("type") || "").toLowerCase();
+    if (type === "reset" || type === "image") return false;
     const hint = [button.innerText, button.value, button.id, button.className,
-                  button.getAttribute?.("aria-label"), button.getAttribute?.("title")]
+                  button.getAttribute?.("aria-label"), button.getAttribute?.("title"),
+                  button.getAttribute?.("data-action"), button.getAttribute?.("data-testid")]
       .filter(x => typeof x === "string").join(" ");
-    return !blocked.test(hint) && !!selectorFor(button);
+    if (blocked.test(hint) || unsafeControl.test(hint)) return false;
+    // A form-less script button must explicitly identify a search action.
+    if (!input.form && !searchTerms.test(hint)) return false;
+    if (type === "button" && !searchTerms.test(hint)) return false;
+    return !!selectorFor(button);
   }
   function manualCard(node) {
     let element = node;
@@ -394,7 +462,7 @@
     return [el.id, typeof el.className === "string" ? el.className : "",
       el.getAttribute?.("rel"), el.getAttribute?.("aria-label"),
       el.getAttribute?.("title"), el.getAttribute?.("data-action"),
-      el.innerText, el.textContent]
+      el.getAttribute?.("data-testid"), el.innerText, el.textContent]
       .filter(x => typeof x === "string").map(x => x.slice(0, 90)).join(" ");
   }
   function forbiddenPager(el) {
@@ -466,6 +534,25 @@
         el.matches?.('button,[role="button"]')));
     return next.length === 1 ? next[0] : null;
   }
+  // Semantic parent 'li.next' is only evidence inside a pager ancestor.
+  // This does not require the ancestor to itself be a clickable control.
+  function explicitNextParent(el) {
+    const parent = el?.parentElement;
+    if (!parent) return false;
+    const label = [parent.id, parent.className]
+      .filter(v => typeof v === "string").join(" ");
+    if (!/(?:^|[\s_-])next(?:$|[\s_-])|nast[eę]pn|load[\s_-]?more/i.test(label))
+      return false;
+    let node = parent.parentElement;
+    for (let depth = 0; node && depth < 5; depth++, node = node.parentElement) {
+      const hint = [node.id, node.className, node.getAttribute?.("role"),
+        node.getAttribute?.("aria-label")]
+        .filter(v => typeof v === "string").join(" ");
+      if (/pagination|pager|pages|pag(e|ing)|stron|nawigac/i.test(hint))
+        return true;
+    }
+    return false;
+  }
   function manualNext(node) {
     const el = node.closest('a[href],button,[role="button"]');
     if (!el || !visible(el) || el.disabled ||
@@ -502,8 +589,10 @@
       pagination = "LOAD_MORE";
     } else return null;
     const directSelector = paginationSelector(el);
-    if (number == null && !safeSamePageAction(el) && !pager &&
-        !directSelector && el.tagName !== "BUTTON") return null;
+    // Mere membership of ".pagination", or one unique button, proves nothing.
+    // A parent li.next is accepted only inside a recognized pager.
+    const semanticParent = explicitNextParent(el);
+    if (number == null && !safeSamePageAction(el) && !semanticParent) return null;
     // Pager root is reusable as page numbers rotate (2,3,4...), unlike a
     // locator for one specific numbered link. Explicitly selected Next in
     // a uniquely identified "li.next" remains backwards compatible.
@@ -1412,6 +1501,9 @@
     if (!visible(target) || target.disabled ||
         target.getAttribute("aria-disabled") === "true" || loading())
       return terminal();
+    const semanticParent = explicitNextParent(target);
+    if (!resolvedNumeric && !safeSamePageAction(target) && !semanticParent)
+      return "unsafe";
     endProbe = null;
     if (kind === "NEXT_LINK") {
       if (!target.matches("a[href]")) return "unsafe";
@@ -1495,6 +1587,11 @@
           const found = detect();
           post("inspection", message.requestId, found);
           busy = false;
+        } else if (message.event === "analyze" &&
+            keys === "documentId,event,requestId,schemaVersion" && !picker) {
+          busy = true;
+          try { post("analysis", message.requestId, siteAnalysis()); }
+          finally { busy = false; }
         } else if (message.event === "pick" &&
             keys === "documentId,event,pickKind,requestId,schemaVersion") {
           pick(message);

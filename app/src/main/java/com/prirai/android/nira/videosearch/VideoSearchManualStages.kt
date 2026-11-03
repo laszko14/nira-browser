@@ -9,7 +9,8 @@ internal object VideoSearchManualStages {
     /** Only incomplete, preserved search controls are eligible for results-only picking. */
     fun pendingResults(site: VideoSearchSite): VideoSiteConfiguration? =
         site.configuration?.takeIf { config ->
-            site.configurationState == VideoSiteConfigurationState.REPAIR_REQUIRED &&
+            site.configurationState in setOf(VideoSiteConfigurationState.REPAIR_REQUIRED,
+                    VideoSiteConfigurationState.SEARCH_READY_RESULTS_PENDING) &&
                 config.resultsCardSelector == null &&
                 VideoSearchBridgeProtocol.validSelector(config.searchInputSelector) &&
                 (config.submission != VideoSearchSubmission.CLICK_SUBMIT ||
@@ -37,5 +38,24 @@ internal object VideoSearchManualStages {
             nextPageSelector = if (next?.pagination == VideoSearchPagination.INFINITE_SCROLL)
                 null else next?.selector,
         )
+    }
+}
+
+/**
+ * Auto-discovery must never trust homepage cards as proof of a new query.
+ * Only the bounded search form is a safe persisted discovery result.
+ */
+internal object VideoSearchAutoDiscoveryPolicy {
+    fun pendingForm(
+        report: VideoSearchBridgeMessage.Analysis?,
+    ): VideoSearchBridgeMessage.Inspection? {
+        if (report == null || report.confidence < 60 ||
+            report.status !in setOf(VideoSearchAnalysisStatus.READY,
+                VideoSearchAnalysisStatus.PARTIAL)) return null
+        val form = report.formInspection() ?: return null
+        return VideoSearchBridgeMessage.Inspection(
+            form.documentId, form.requestId, "partial",
+            form.inputSelector, null, form.submission, form.submitSelector,
+            VideoSearchPagination.NONE, null)
     }
 }

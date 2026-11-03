@@ -149,9 +149,42 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
         )
         return dao.acceptManualConfiguration(
             owner.profileId, site.id, site.siteUrl, site.updatedAtMs,
-            VideoSiteConfigurationState.REPAIR_REQUIRED.name,
+            VideoSiteConfigurationState.SEARCH_READY_RESULTS_PENDING.name,
             VideoSearchRowCodec.configurationJson(config)!!, nowMs
         ) == 1
+    }
+
+    /** Never overwrite a newer picker, manual edit, disabled or deleted site. */
+    suspend fun completePendingResults(
+        site: VideoSearchSite,
+        cards: String, pagination: VideoSearchPagination, next: String?,
+        nowMs: Long = System.currentTimeMillis(),
+    ): Boolean {
+        val normal = site.scope as? VideoSearchScope.Normal ?: return false
+        if (site.configurationState != VideoSiteConfigurationState.SEARCH_READY_RESULTS_PENDING ||
+            site.configuration?.resultsCardSelector != null ||
+            !VideoSearchBridgeProtocol.validSelector(cards) ||
+            (pagination in setOf(VideoSearchPagination.NEXT_LINK, VideoSearchPagination.LOAD_MORE) &&
+                !VideoSearchBridgeProtocol.validSelector(next)) ||
+            (pagination == VideoSearchPagination.NONE && next != null)) return false
+        val updated = (site.configuration ?: return false).copy(
+            resultsCardSelector = cards, pagination = pagination,
+            nextPageSelector = next)
+        return dao.completePendingResults(normal.profileId, site.id, site.siteUrl,
+            site.updatedAtMs, VideoSearchRowCodec.configurationJson(updated)!!, nowMs) == 1
+    }
+
+    /** Failure has an explicit non-success status and never destroys selectors. */
+    suspend fun markAutoAnalysisIssue(
+        site: VideoSearchSite, unsafe: Boolean,
+        nowMs: Long = System.currentTimeMillis(),
+    ): Boolean {
+        val normal = site.scope as? VideoSearchScope.Normal ?: return false
+        if (site.configuration != null) return false
+        val state = if (unsafe) VideoSiteConfigurationState.UNSAFE else
+            VideoSiteConfigurationState.NEEDS_ATTENTION
+        return dao.markAutoAnalysisIssue(normal.profileId, site.id, site.siteUrl,
+            site.updatedAtMs, state.name, nowMs) == 1
     }
 
     /** Incomplete detection must not delete/disable a site or erase good selectors. */

@@ -92,6 +92,16 @@ internal interface VideoSearchDao {
     suspend fun acceptAutoConfiguration(profileId: String, id: String, url: String,
                                         expectedUpdatedMs: Long, json: String, nowMs: Long): Int
 
+    /** Finalize only the pending auto-search form, never a manual configuration. */
+    @Query("UPDATE video_search_sites SET configurationState = 'CONFIGURED', configurationJson = :json, updatedAtMs = CASE WHEN updatedAtMs >= :nowMs THEN updatedAtMs + 1 ELSE :nowMs END WHERE profileId = :profileId AND id = :id AND siteUrl = :url AND updatedAtMs = :expectedUpdatedMs AND configurationState = 'SEARCH_READY_RESULTS_PENDING' AND configurationJson IS NOT NULL AND enabled = 1")
+    suspend fun completePendingResults(profileId: String, id: String, url: String,
+                                       expectedUpdatedMs: Long, json: String, nowMs: Long): Int
+
+    /** Scan failure is recorded without deleting good or manually selected rules. */
+    @Query("UPDATE video_search_sites SET configurationState = :state, updatedAtMs = CASE WHEN updatedAtMs >= :nowMs THEN updatedAtMs + 1 ELSE :nowMs END WHERE profileId = :profileId AND id = :id AND siteUrl = :url AND updatedAtMs = :expectedUpdatedMs AND configurationState IN ('NEEDS_CONFIGURATION', 'AUTO_CONFIGURING') AND configurationJson IS NULL AND enabled = 1 AND :state IN ('NEEDS_ATTENTION', 'UNSAFE')")
+    suspend fun markAutoAnalysisIssue(profileId: String, id: String, url: String,
+                                      expectedUpdatedMs: Long, state: String, nowMs: Long): Int
+
     @Query("UPDATE video_search_sites SET configurationState = 'REPAIR_REQUIRED', updatedAtMs = CASE WHEN updatedAtMs >= :nowMs THEN updatedAtMs + 1 ELSE :nowMs END WHERE profileId = :profileId AND id = :id AND siteUrl = :url AND updatedAtMs = :expectedUpdatedMs AND configurationState != 'CONFIGURED'")
     suspend fun markAutoConfigurationIncomplete(profileId: String, id: String, url: String,
                                                expectedUpdatedMs: Long, nowMs: Long): Int
