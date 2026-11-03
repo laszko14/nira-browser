@@ -27,6 +27,7 @@ internal data class VideoSiteConfiguration(
     val durationSelector: String? = null,
     val pagination: VideoSearchPagination = VideoSearchPagination.NONE,
     val nextPageSelector: String? = null,
+    val recognition: VideoSearchRecognitionMemory = VideoSearchRecognitionMemory(),
 ) {
     init {
         require(searchInputSelector.isNotBlank())
