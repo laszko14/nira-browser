@@ -295,17 +295,24 @@
   function scan(root, opts) {
     const page = opts?.pageUrl || location.href;
     const inResults = opts?.resultsContext === true || hintSearch(root);
-    let visited = 0, domVisits = 0, checkedRoots = 0, best = null, ambiguous = false;
+    let visited = 0, domVisits = 0, checkedRoots = 0, quotaLimited = false;
+    let best = null, ambiguous = false;
     const observation = {frameReplaced:false};
     const rootContexts = findContexts(root, observation);
     for (const ctx of rootContexts) {
       checkedRoots++;
       let nodes;
       try {
+        // Reserve capacity for later accessible Shadow/frame roots, rather
+        // than letting a dense MAIN document starve them of all observations.
+        const left = MAX_DOM_VISITS - domVisits;
+        const rootCount = rootContexts.length - checkedRoots + 1;
+        const quota = Math.ceil(left / rootCount);
         const batch = candidates(ctx.root, "article,li,figure,div,section",
-          MAX_NODES - visited, MAX_DOM_VISITS - domVisits);
+          MAX_NODES - visited, quota);
         nodes = batch.nodes;
         domVisits += batch.visits;
+        if (quota < left && batch.visits >= quota) quotaLimited = true;
       } catch (_) { continue; }
       const groups = new Map(), selectors = new Map();
       for (const node of nodes) {
@@ -345,7 +352,8 @@
     }
     // Native rejects found selectors with confidence below 85. Weak
     // evidence must be diagnostic, never an optimistic found response.
-    const exhausted = visited >= MAX_NODES || domVisits >= MAX_DOM_VISITS;
+    const exhausted = quotaLimited || visited >= MAX_NODES ||
+      domVisits >= MAX_DOM_VISITS;
     const accepted = best && !ambiguous && !exhausted &&
       best.selector && best.confidence >= 85;
     const reason = ambiguous ? "AMBIGUOUS_CARDS" :

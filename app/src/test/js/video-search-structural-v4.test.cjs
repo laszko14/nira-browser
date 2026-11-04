@@ -104,7 +104,9 @@ function inspectFixture({cardsSelector, count=4, name='s', submitType='submit',
     contains(){return true;}
   };
   const window = {addEventListener(){},
-    __zavroRecognition: recognitionReport ? {scan(){return recognitionReport;}} : undefined};
+    __zavroRecognition: recognitionReport ? {
+      scan(){return recognitionReport;},controlHint(){return '';}
+    } : undefined};
   window.top=window;
   const port = {
     onMessage:{addListener(fn){onMessage=fn;}},
