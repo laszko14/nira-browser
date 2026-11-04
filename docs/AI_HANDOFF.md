@@ -8,7 +8,7 @@ repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: fix/zavro-clean-v4-p2-evidence-runtime-20261103
 base_sha: b3173f0b7492296d664ad525c9b649ea91234a6a
-observed_head_sha: 905c9124e8f739d9def24e606dd3c7b4f84072b1
+observed_head_sha: 1ed7569cd2aa186010104096abf19b527fb029a0
 status: CI_PENDING
 acceptance_source: User IMPLEMENT P2-E on current V4 branch; diagnose, implement, regressions, commit/push and green SOURCE/PR integration CI in one task; absolutely NO APK, merge or MPV.
 completed: P2-E robust bounded recognition over MAIN/open Shadow/same-origin iframe contexts; shared 2400 DOM visit budget fairly apportioned among context roots; SCAN_LIMIT explicitly fails closed on partial scan; same-origin iframe document substitution invalidates stored scoped locator and reports FRAME_REPLACED; weak confidence 75-84 reports LOW_CONFIDENCE instead of protocol-invalid found; generated hashed/numeric IDs/classes/data attributes avoided in saved selectors; legacy homepage fallback refuses stale/ambiguous/weak/truncated context. New JS and Robolectric protocol regressions. No Room migration or persisted-data changes.
@@ -16,7 +16,7 @@ remaining: Verify mandatory SOURCE and PR integration CI on final SHA; fix error
 required_ci: SOURCE process-docs and shared-tests (JavaScript WebExtension, Kotlin/Robolectric, AndroidTest Kotlin compile, Android lint with regression baseline) and evidence summary all SUCCESS on the exact final source SHA; separate PR integration workflow with required jobs SUCCESS. Build/release may be SKIPPED; do not create APK.
 device: NOT_TESTED
 apk: NOT_BUILT; no private workflow trigger is authorized by this task.
-known_failures: 5 review findings and 5 SOURCE CI failures observed and recorded (3 JS tests and their dependent summary from run 41872440694, plus process-docs checkpoint-contract test in 41873225326). JS fixed at 7629e8de75e96bf55bb6a664f7ed7c00d5ede6f1; process-docs handoff contract fixed in current task, final CI to verify.
+known_failures: 5 review findings and 5 SOURCE CI failures observed and recorded (3 JS tests and their dependent summary from run 41872440694, plus process-docs checkpoint-contract test in 41873225326). JS fixed at 7629e8de75e96bf55bb6a664f7ed7c00d5ede6f1; process-docs handoff contract fixed at 1ed7569cd2aa186010104096abf19b527fb029a0 (awaiting final SOURCE and PR CI).
 verification: Live PR #123 HEAD b3173f0b7492296d664ad525c9b649ea91234a6a before start; AGENTS.md, AI_HANDOFF.md, STARTUP_PREFLIGHT, DEVELOPMENT_WORKFLOW, TEST_POLICY, QUALITY_GATES, CHECKPOINT_POLICY, ERROR_LEARNING, TASK_TEMPLATE, TEST_PATTERNS, EXCEPTIONS_AND_TOOLS and registry read from that exact SHA. After two P2-E commits remote HEAD 7629e8de75e96bf55bb6a664f7ed7c00d5ede6f1. Local checkout, full real-site Gecko and device evidence unavailable.
 changed_paths:
   - app/src/main/assets/extensions/zavro-video-search/recognition.js

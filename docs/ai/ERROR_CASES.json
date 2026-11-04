@@ -1890,9 +1890,9 @@
       "job_id": 126726641615,
       "attempt": 1,
       "cause": "workflow",
-      "state": "OPEN",
+      "state": "FIXED",
       "duplicate_of": null,
-      "fix_sha": null,
+      "fix_sha": "1ed7569cd2aa186010104096abf19b527fb029a0",
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41873225326"
