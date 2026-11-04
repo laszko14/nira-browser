@@ -14,11 +14,11 @@ function fixture({count=3, links='film', ads=false, surface='MAIN', resultPage=t
     getAttribute(){return null;}};
   function makeCard(i) {
     const url=links==='film'?'/video/'+(i+1):links==='category'?'/category/'+(i+1):
-      'javascript:alert(1)';
+      links==='weak'?'/item/'+(i+1):'javascript:alert(1)';
     const heading={textContent:'Video '+(i+1),getAttribute(){return null;}};
     const link={getAttribute(k){return k==='href'?url:null;},
-      hasAttribute(){return false;}, querySelector(){return heading;},
-      textContent:'Video '+(i+1)};
+      hasAttribute(){return false;}, querySelector(){return links==='weak'?null:heading;},
+      textContent:links==='weak'?'Read more':'Video '+(i+1)};
     return {tagName:'ARTICLE',className:ads?'sponsored':'video-card',
       classList:ads?['sponsored']:['video-card'], parentElement:parent,
       getAttribute(){return null;},closest(){return null;},
@@ -217,4 +217,61 @@ test('P2 icon-only SVG search name is read without clicking the page',()=>{
   });
   assert.match(hint,/search-icon/);
   assert.doesNotMatch(source,/\.click\s*\(/);
+});
+
+test('P2-E low-confidence repeated cards are diagnostic, not a native-rejected found claim',()=>{
+  const result=fixture({links:'weak',count:3});
+  assert.equal(result.selector,null);
+  assert.equal(result.reason,'LOW_CONFIDENCE');
+  assert.ok(result.confidence>=75 && result.confidence<85);
+  assert.equal(result.matchedCards,3);
+});
+test('P2-E replacing a same-origin iframe invalidates its old locator and reports replacement',()=>{
+  const f=scopedFixture('FRAME');
+  const initial=f.win.__zavroRecognition.scan(f.outer);
+  assert.ok(initial.selector?.startsWith('zcs1:'));
+  const replacement={...f.inner,location:{origin:'https://films.example'}};
+  f.host.contentDocument=replacement;
+  assert.equal(f.win.__zavroRecognition.resolve(initial.selector),null);
+  const again=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(again.selector,null);
+  assert.equal(again.reason,'FRAME_REPLACED');
+  assert.equal(again.surface,'FRAME');
+});
+test('P2-E generated numeric iframe host IDs cannot become persisted scoped locators',()=>{
+  const f=scopedFixture('FRAME');
+  f.host.id='results_1234567890';
+  const report=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(report.selector,null);
+  assert.equal(report.reason,'FRAME_RESULTS');
+});
+test('P2-E dense and sparse nested DOM roots share one capped candidate-visit budget',()=>{
+  let visited=0;
+  const ordinary={tagName:'DIV',classList:[],getAttribute(){return null;},
+    matches(){return false;}};
+  const leaf={mode:'open',ownerDocument:null,querySelectorAll(){return [];}};
+  const host={tagName:'VIDEO-LIST',id:'stableRoot',classList:[],
+    getAttribute(){return null;},shadowRoot:leaf};
+  const mainNodes=[host,...Array(3000).fill(ordinary)];
+  const innerNodes=Array(3000).fill(ordinary);
+  const outer={
+    querySelectorAll(q){return q==='#stableRoot'?[host]:[];},
+    createTreeWalker(root){
+      let index=0;
+      const nodes=root===leaf?innerNodes:mainNodes;
+      return {nextNode(){visited++;return nodes[index++]||null;}};
+    }
+  };
+  leaf.ownerDocument=outer;
+  const win={};win.top=win;
+  vm.runInNewContext(source,{window:win,document:outer,URL,
+    location:new URL('https://films.example/search?q=book'),console});
+  const result=win.__zavroRecognition.scan(outer);
+  assert.equal(result.selector,null);
+  assert.ok(result.contextsChecked>=2);
+  // 260 visits for context discovery, 2400 for card candidates plus EOF.
+  assert.ok(visited<=2662,'bounded DOM visits including context discovery');
+  assert.equal(result.truncated,true);
+  assert.equal(result.reason,'SCAN_LIMIT');
+  assert.equal(result.selector,null);
 });

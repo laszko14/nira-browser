@@ -104,6 +104,10 @@
     const scoped = candidate => root === document ? candidate :
       window.__zavroRecognition?.scope(element, candidate) || null;
     const tag = element.tagName.toLowerCase();
+    // Hashed CSS and long numeric IDs are transient across SPA hydration.
+    const stableToken = value => typeof value === "string" &&
+      value.length <= 64 &&
+      !/(?:[a-f0-9]{9,}|(?:^|[-_])[0-9]{5,}(?:$|[-_]))/i.test(value);
     function unique(candidate) {
       if (typeof candidate !== "string" || candidate.length > 160 ||
           !/^[\p{L}\p{N}#_.\[\]=\\"' >:*+-]+$/u.test(candidate)) return false;
@@ -118,7 +122,9 @@
                          "data-action", "aria-label", "title", "placeholder"]) {
         const value = node.getAttribute?.(key);
         if (typeof value !== "string" || value.length < 1 || value.length > 64 ||
-            !/^[\p{L}\p{N} ._-]+$/u.test(value)) continue;
+            !/^[\p{L}\p{N} ._-]+$/u.test(value) ||
+            (["name", "data-testid", "data-test", "data-qa", "data-action"].includes(key) &&
+              !stableToken(value))) continue;
         choices.push(tagName + "[" + key + '="' + value + '"]');
       }
       if (node.getAttribute?.("role") === "button")
@@ -130,14 +136,15 @@
     function classes(node) {
       const tagName = node.tagName.toLowerCase();
       const names = Array.from(node.classList || []).filter(x => x.length > 0 &&
-        x.length <= 45 && /^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(x)).slice(0, 6);
+        x.length <= 45 && /^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(x) &&
+        stableToken(x)).slice(0, 6);
       const options = names.map(x => tagName + "." + x);
       for (let i = 0; i < names.length; i++)
         for (let j = i + 1; j < names.length; j++)
           options.push(tagName + "." + names[i] + "." + names[j]);
       return options;
     }
-    if (element.id) {
+    if (element.id && stableToken(element.id)) {
       const byId = "#" + CSS.escape(element.id);
       if (unique(byId)) return scoped(byId);
     }
@@ -146,7 +153,7 @@
     let ancestor = element.parentElement;
     for (let depth = 0; ancestor && depth < 4; depth++, ancestor = ancestor.parentElement) {
       const bases = [];
-      if (ancestor.id) bases.push("#" + CSS.escape(ancestor.id));
+      if (ancestor.id && stableToken(ancestor.id)) bases.push("#" + CSS.escape(ancestor.id));
       bases.push(...attributes(ancestor), ...classes(ancestor));
       for (const base of bases) {
         let found;
@@ -219,7 +226,8 @@
     // Do not downgrade ambiguous/Shadow/frame evidence to unrelated
     // homepage recommendations via the legacy CSS fallback.
     if (smart && (smart.confidence > 0 ||
-        ["AMBIGUOUS_CARDS", "SHADOW_RESULTS", "FRAME_RESULTS"].includes(smart.reason)))
+        ["AMBIGUOUS_CARDS", "SHADOW_RESULTS", "FRAME_RESULTS",
+          "FRAME_REPLACED", "LOW_CONFIDENCE", "SCAN_LIMIT"].includes(smart.reason)))
       return null;
     // Discover repeated, card-local film links. Do not confuse arbitrary
     // site navigation with results or require a specific CSS theme.

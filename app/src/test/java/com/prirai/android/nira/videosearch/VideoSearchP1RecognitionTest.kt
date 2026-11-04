@@ -61,6 +61,34 @@ class VideoSearchP1RecognitionTest {
         assertFalse(VideoSearchBridgeProtocol.validSelector("zcs1:" + "a".repeat(160)))
     }
 
+    @Test fun p2eWeakAndReplacedFrameEvidenceIsNonRepairable() {
+        val weak = packet(JSONObject.NULL).put("status", "partial")
+            .put("reason", "LOW_CONFIDENCE").put("confidence", 78)
+        val parsed = VideoSearchBridgeProtocol.decode(weak)
+            as VideoSearchBridgeMessage.Recognition
+        assertEquals("LOW_CONFIDENCE", parsed.reason)
+        assertNull(parsed.resultsCardSelector)
+        assertNull(VideoSearchRecognitionPolicy.repairCandidate(parsed, null))
+
+        val replaced = packet(JSONObject.NULL).put("status", "missing")
+            .put("reason", "FRAME_REPLACED").put("confidence", 0)
+            .put("matchedCards", 0).put("surface", "FRAME")
+        val stale = VideoSearchBridgeProtocol.decode(replaced)
+            as VideoSearchBridgeMessage.Recognition
+        assertEquals("FRAME_REPLACED", stale.reason)
+        assertNull(VideoSearchRecognitionPolicy.repairCandidate(stale, null))
+        val limited = VideoSearchBridgeProtocol.decode(
+            packet(JSONObject.NULL).put("status", "missing")
+                .put("reason", "SCAN_LIMIT").put("confidence", 0)
+                .put("matchedCards", 0)
+        ) as VideoSearchBridgeMessage.Recognition
+        assertNull(VideoSearchRecognitionPolicy.repairCandidate(limited, null))
+        assertNull(VideoSearchBridgeProtocol.decode(
+            packet().put("reason", "LOW_CONFIDENCE")
+        ))
+        assertTrue(VideoSearchRecognitionDiagnostics.explain(stale).contains("podmieniona"))
+    }
+
     @Test fun readOnlyOutboundRecognitionIsMinimal() {
         val packet = VideoSearchBridgeProtocol.recognize("a".repeat(32), "b".repeat(32))
         assertEquals(4, packet.length())

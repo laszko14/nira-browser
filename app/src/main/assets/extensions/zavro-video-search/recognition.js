@@ -61,7 +61,7 @@
     if (!node?.tagName || !root?.querySelectorAll) return null;
     const tag = node.tagName.toLowerCase();
     const choices = [];
-    if (TOKEN.test(node.id || "")) choices.push("#" + node.id);
+    if (TOKEN.test(node.id || "") && STABLE_CLASS(node.id)) choices.push("#" + node.id);
     const classes = Array.from(node.classList || []).filter(STABLE_CLASS).slice(0, 4);
     for (const c of classes) choices.push(tag + "." + c);
     for (let i = 0; i < classes.length; i++) {
@@ -119,7 +119,7 @@
       return root.querySelectorAll(items[items.length - 1]);
     } catch (_) { return null; } // Includes cross-origin and detached-frame access.
   }
-  function findContexts(documentRoot) {
+  function findContexts(documentRoot, observation) {
     const main = {root:documentRoot, surface:"MAIN", steps:[]};
     const contexts = [main], queue = [main];
     let seen = 0;
@@ -152,8 +152,13 @@
           try {
             const frame = node.contentDocument;
             if (frame && frame.location?.origin === location.origin &&
-                (!observedFrames.has(node) || observedFrames.get(node) === frame) &&
                 node.isConnected !== false) {
+              // A replaced iframe keeps its CSS host but not its document.
+              // The saved locator must remain stale, not silently rebind.
+              if (observedFrames.has(node) && observedFrames.get(node) !== frame) {
+                if (observation) observation.frameReplaced = true;
+                continue;
+              }
               observedFrames.set(node, frame);
               const host = stableHost(root, node);
               const next = {root:frame, surface:"FRAME",
@@ -214,21 +219,25 @@
     }
     return null;
   }
-  function candidates(root, selector, limit) {
+  // A sparse dynamic page may contain thousands of non-card nodes.
+  // Share one bounded visit budget across all accessible root contexts.
+  function candidates(root, selector, limit, budget) {
+    if (budget <= 0 || limit <= 0) return {nodes:[], visits:0};
     const owner = root.ownerDocument || (typeof root.createTreeWalker === "function" ? root : null);
     const walker = owner?.createTreeWalker?.(root, 1);
     if (!walker) {
-      // Legacy synthetic DOM fixture compatibility; production uses TreeWalker.
-      return Array.from(root.querySelectorAll(selector)).slice(0, limit);
+      // Synthetic fixture fallback; production uses bounded TreeWalker.
+      const nodes = Array.from(root.querySelectorAll(selector)).slice(0, Math.min(limit, budget));
+      return {nodes, visits:nodes.length};
     }
-    const found = [];
-    let visited = 0, node;
-    while (visited < MAX_DOM_VISITS && found.length < limit &&
+    const nodes = [];
+    let visits = 0, node;
+    while (visits < budget && nodes.length < limit &&
            (node = walker.nextNode())) {
-      visited++;
-      if (node.matches?.(selector)) found.push(node);
+      visits++;
+      if (node.matches?.(selector)) nodes.push(node);
     }
-    return found;
+    return {nodes, visits};
   }
   function selectorForGroup(root, example, cache) {
     if (!example?.tagName) return null;
@@ -286,14 +295,18 @@
   function scan(root, opts) {
     const page = opts?.pageUrl || location.href;
     const inResults = opts?.resultsContext === true || hintSearch(root);
-    let visited = 0, checkedRoots = 0, best = null, ambiguous = false;
-    const rootContexts = findContexts(root);
+    let visited = 0, domVisits = 0, checkedRoots = 0, best = null, ambiguous = false;
+    const observation = {frameReplaced:false};
+    const rootContexts = findContexts(root, observation);
     for (const ctx of rootContexts) {
       checkedRoots++;
       let nodes;
-      try { nodes = candidates(ctx.root, "article,li,figure,div,section",
-        MAX_NODES - visited); }
-      catch (_) { continue; }
+      try {
+        const batch = candidates(ctx.root, "article,li,figure,div,section",
+          MAX_NODES - visited, MAX_DOM_VISITS - domVisits);
+        nodes = batch.nodes;
+        domVisits += batch.visits;
+      } catch (_) { continue; }
       const groups = new Map(), selectors = new Map();
       for (const node of nodes) {
         visited++;
@@ -328,16 +341,27 @@
         } else if (Math.abs(result.confidence-best.confidence) < 15 &&
                    result.selector !== best.selector) ambiguous=true;
       }
-      if (visited >= MAX_NODES) break;
+      if (visited >= MAX_NODES || domVisits >= MAX_DOM_VISITS) break;
     }
-    return {selector: best && !ambiguous ? best.selector : null,
-      confidence: best?.confidence || 0,
-      reason: ambiguous ? "AMBIGUOUS_CARDS" : best?.selector ? "CANDIDATE_FOUND" :
-        best?.surface === "SHADOW" ? "SHADOW_RESULTS" :
-        best?.surface === "FRAME" ? "FRAME_RESULTS" : "CARDS_NOT_FOUND",
-      surface:best?.surface || "MAIN", matchedCards:best?.matchedCards || 0,
+    // Native rejects found selectors with confidence below 85. Weak
+    // evidence must be diagnostic, never an optimistic found response.
+    const exhausted = visited >= MAX_NODES || domVisits >= MAX_DOM_VISITS;
+    const accepted = best && !ambiguous && !exhausted &&
+      best.selector && best.confidence >= 85;
+    const reason = ambiguous ? "AMBIGUOUS_CARDS" :
+      exhausted ? "SCAN_LIMIT" :
+      accepted ? "CANDIDATE_FOUND" :
+      best?.confidence < 85 && best?.confidence > 0 ? "LOW_CONFIDENCE" :
+      best?.surface === "SHADOW" ? "SHADOW_RESULTS" :
+      best?.surface === "FRAME" ? "FRAME_RESULTS" :
+      observation.frameReplaced ? "FRAME_REPLACED" : "CARDS_NOT_FOUND";
+    return {selector: accepted ? best.selector : null,
+      confidence: best?.confidence || 0, reason,
+      surface:best?.surface || (observation.frameReplaced ? "FRAME" : "MAIN"),
+      matchedCards:best?.matchedCards || 0,
       evidence:best?.evidence || [], scannedElements:visited,
-      truncated:visited >= MAX_NODES, contextsChecked:checkedRoots};
+      truncated:exhausted,
+      contextsChecked:checkedRoots};
   }
   function controlHint(control) {
     let svg = null;

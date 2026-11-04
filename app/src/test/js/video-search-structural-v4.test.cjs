@@ -13,7 +13,7 @@ const content = fs.readFileSync(path.join(__dirname,
 function inspectFixture({cardsSelector, count=4, name='s', submitType='submit',
     method='get', next=false, metadata=true, analyze=false,
     anonymousPager=false, secondInput=false, inputId='s', formRole='search',
-    ariaLabel=null, placeholder='Search'}={}) {
+    ariaLabel=null, placeholder='Search', recognitionReport=null}={}) {
   const posted = [], selectors = new Map();
   let onMessage;
   const url = new URL('https://films.example/');
@@ -74,6 +74,7 @@ function inspectFixture({cardsSelector, count=4, name='s', submitType='submit',
   } : null;
   selectors.set('input',input2 ? [input,input2] : [input]);
   selectors.set('#'+inputId,[input]);
+  selectors.set('input[name="'+name+'"]',input2 ? [input,input2] : [input]);
   if (input2) selectors.set('#secondary',[input2]);
   selectors.set('#searchsubmit',[submit]); selectors.set('a[rel="next"]',next ? [nextLink] : []);
   selectors.set('#next-page',[nextLink]);
@@ -102,7 +103,8 @@ function inspectFixture({cardsSelector, count=4, name='s', submitType='submit',
     querySelectorAll(key){return selectors.get(key) || [];},
     contains(){return true;}
   };
-  const window = {addEventListener(){}};
+  const window = {addEventListener(){},
+    __zavroRecognition: recognitionReport ? {scan(){return recognitionReport;}} : undefined};
   window.top=window;
   const port = {
     onMessage:{addListener(fn){onMessage=fn;}},
@@ -211,4 +213,22 @@ test('P0 classifies POST-only search as unsafe and does not choose a control',()
   assert.equal(result.status,'unsafe');
   assert.equal(result.reason,'unsafe_form');
   assert.equal(result.inputSelector,null);
+});
+
+test('P2-E replaced iframe evidence cannot fall back to unrelated legacy homepage cards',()=>{
+  const found=inspectFixture({cardsSelector:'.movie-card',
+    recognitionReport:{selector:null,confidence:0,reason:'FRAME_REPLACED'}});
+  assert.equal(found.status,'partial');
+  assert.equal(found.resultsCardSelector,null);
+});
+test('P2-E low-confidence cards cannot silently become a legacy result selector',()=>{
+  const found=inspectFixture({cardsSelector:'.movie-card',
+    recognitionReport:{selector:null,confidence:78,reason:'LOW_CONFIDENCE'}});
+  assert.equal(found.resultsCardSelector,null);
+});
+test('P2-E dynamic input ID is rejected in favor of unique stable form name',()=>{
+  const found=inspectFixture({inputId:'search_1234567890',name:'s',
+    cardsSelector:'.videos-list article'});
+  assert.equal(found.inputSelector,'input[name="s"]');
+  assert.equal(found.status,'ready');
 });

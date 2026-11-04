@@ -371,6 +371,7 @@ internal object VideoSearchBridgeProtocol {
                     ?.takeIf { it in setOf("found", "partial", "missing") } ?: return null
                 val reason = json.string("reason")?.takeIf {
                     it in setOf("AMBIGUOUS_CARDS", "SHADOW_RESULTS", "FRAME_RESULTS",
+                        "FRAME_REPLACED", "LOW_CONFIDENCE", "SCAN_LIMIT",
                         "CANDIDATE_FOUND", "CARDS_NOT_FOUND")
                 } ?: return null
                 val confidence = (json.opt("confidence") as? Int)
