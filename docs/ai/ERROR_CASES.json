@@ -1930,9 +1930,9 @@
       "job_id": 126737652855,
       "attempt": 1,
       "cause": "workflow",
-      "state": "OPEN",
+      "state": "FIXED",
       "duplicate_of": null,
-      "fix_sha": null,
+      "fix_sha": "85d7503316ff5d76c95daba742a7629953112536",
       "regression_test": "scripts/error-learning.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41876626372"
