@@ -78,7 +78,7 @@
     },
     {
       "task_id": "ZC-V4-P2-E-DYNAMIC-RESILIENCE",
-      "observed_count": 9,
+      "observed_count": 10,
       "state": "ACTIVE"
     }
   ],
@@ -1876,6 +1876,26 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41872440694"
+      ]
+    },
+    {
+      "id": "CI-41873225326-1-126726641615",
+      "task_id": "ZC-V4-P2-E-DYNAMIC-RESILIENCE",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2e-handoff-required-ci-contract",
+      "summary": "SOURCE process-docs on final checkpoint 905c9124 failed scripts/check-ai-handoff.test.cjs: required_ci used capitalized Process-docs and omitted exact token shared-tests. Correct checkpoint without weakening regression test.",
+      "source_sha": "905c9124e8f739d9def24e606dd3c7b4f84072b1",
+      "observed_at": null,
+      "run_id": 41873225326,
+      "job_id": 126726641615,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41873225326"
       ]
     }
   ]
