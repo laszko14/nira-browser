@@ -78,7 +78,7 @@
     },
     {
       "task_id": "ZC-V4-P2-E-DYNAMIC-RESILIENCE",
-      "observed_count": 10,
+      "observed_count": 11,
       "state": "ACTIVE"
     }
   ],
@@ -1896,6 +1896,26 @@
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41873225326"
+      ]
+    },
+    {
+      "id": "CI-41873979868-1-126728390535",
+      "task_id": "ZC-V4-P2-E-DYNAMIC-RESILIENCE",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2e-pr-maven-central-robolectric-http429",
+      "summary": "PR Android lint attempt 1 on 3e85d74679d64bdae53dc9ae700278e36d04929d could not resolve org.robolectric:nativeruntime-dist-compat:1.0.18 due to Maven Central HTTP 429. The existing lint step was retried without code/workflow changes and succeeded in run attempt 2. External transient throttling remains an accepted environmental risk, not a code fix.",
+      "source_sha": "3e85d74679d64bdae53dc9ae700278e36d04929d",
+      "observed_at": null,
+      "run_id": 41873979868,
+      "job_id": 126728390535,
+      "attempt": 1,
+      "cause": "environment",
+      "state": "ACCEPTED_RISK",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/41873979868"
       ]
     }
   ]
