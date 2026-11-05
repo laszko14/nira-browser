@@ -58,7 +58,8 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
         val scope = site.scope as? VideoSearchScope.Normal ?: return false
         // Never discard previously selected/confirmed selectors based solely
         // on automatic inspection, even after a partial manual configuration.
-        if (site.configuration != null && !confirmedReplace) return false
+        // A repair may never use the inspection-only auto-configuration path.
+        if (confirmedReplace || site.configuration != null) return false
         if (inspection.status != "ready") return false
         val input = inspection.inputSelector ?: return false
         val cards = inspection.resultsCardSelector ?: return false
@@ -118,9 +119,12 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
         val complete = !configuration.resultsCardSelector.isNullOrBlank()
         val state = if (complete) VideoSiteConfigurationState.CONFIGURED
             else VideoSiteConfigurationState.REPAIR_REQUIRED
+        val manual = configuration.copy(recognition = VideoSearchRecognitionMemory(
+            origin = VideoSearchRuleOrigin.MANUAL,
+        ))
         return dao.acceptManualConfiguration(
             scope.profileId, site.id, site.siteUrl, site.updatedAtMs,
-            state.name, VideoSearchRowCodec.configurationJson(configuration)!!, nowMs
+            state.name, VideoSearchRowCodec.configurationJson(manual)!!, nowMs
         ) == 1
     }
 
@@ -197,6 +201,58 @@ internal class VideoSearchRepository(private val dao: VideoSearchDao) {
             owner.profileId, site.id, site.siteUrl, site.updatedAtMs,
             VideoSearchRowCodec.configurationJson(updated)!!, nowMs
         ) == 1
+    }
+
+    /**
+     * P2-D: inspect/recognition are proposals. Commit only after a bound,
+     * user-initiated query yields independently verified film-page evidence.
+     * This enforces revision CAS and keeps the last full configuration for undo.
+     */
+    suspend fun applyVerifiedRepair(
+        site: VideoSearchSite,
+        candidate: VideoSiteConfiguration,
+        evidence: VideoSearchRepairEvidence,
+        explicitConsent: Boolean,
+        nowMs: Long = System.currentTimeMillis(),
+    ): Boolean {
+        val owner = site.scope as? VideoSearchScope.Normal ?: return false
+        val before = site.configuration ?: return false
+        if (!explicitConsent || !site.enabled ||
+            site.configurationState !in setOf(
+                VideoSiteConfigurationState.CONFIGURED,
+                VideoSiteConfigurationState.REPAIR_REQUIRED) ||
+            (evidence.verifiedFallbackSelector != null &&
+                evidence.verifiedFallbackSelector !=
+                    VideoSearchRecognitionPolicy.uniqueVerifiedFallback(
+                        before, evidence.recognition, evidence.analyzedCards)) ||
+            !evidence.confirms(candidate.resultsCardSelector)) return false
+        val updated = VideoSearchRecognitionPolicy.repaired(
+            before, candidate, nowMs, site.configurationState)
+            ?: return false
+        val priorJson = VideoSearchRowCodec.configurationJson(before) ?: return false
+        val newJson = VideoSearchRowCodec.configurationJson(updated) ?: return false
+        return dao.commitVerifiedRepair(owner.profileId, site.id, site.siteUrl,
+            site.updatedAtMs, priorJson,
+            VideoSiteConfigurationState.CONFIGURED.name, newJson, nowMs) == 1
+    }
+
+    /** Explicitly undo ONE prior repair; never touch other records or profiles. */
+    suspend fun rollbackVerifiedRepair(
+        site: VideoSearchSite,
+        explicitConsent: Boolean,
+        nowMs: Long = System.currentTimeMillis(),
+    ): Boolean {
+        val owner = site.scope as? VideoSearchScope.Normal ?: return false
+        val current = site.configuration ?: return false
+        if (!explicitConsent || !site.enabled) return false
+        val previous = VideoSearchRecognitionPolicy.rollback(current) ?: return false
+        val previousJson = VideoSearchRowCodec.configurationJson(previous) ?: return false
+        val currentJson = VideoSearchRowCodec.configurationJson(current) ?: return false
+        val state = current.recognition.rollbackState ?: return false
+        if (state == VideoSiteConfigurationState.CONFIGURED &&
+            previous.resultsCardSelector.isNullOrBlank()) return false
+        return dao.commitVerifiedRepair(owner.profileId, site.id, site.siteUrl,
+            site.updatedAtMs, currentJson, state.name, previousJson, nowMs) == 1
     }
 
     /** Failure has an explicit non-success status and never destroys selectors. */

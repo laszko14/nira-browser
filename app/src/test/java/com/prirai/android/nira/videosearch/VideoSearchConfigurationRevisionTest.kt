@@ -15,6 +15,8 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class, manifest = Config.NONE)
 class VideoSearchConfigurationRevisionTest {
+    private fun manual(c: VideoSiteConfiguration) = c.copy(
+        recognition = VideoSearchRecognitionMemory(origin = VideoSearchRuleOrigin.MANUAL))
     private val scope = VideoSearchScope.Normal("default")
     private val alternate = VideoSearchScope.Normal("work")
 
@@ -53,7 +55,7 @@ class VideoSearchConfigurationRevisionTest {
                 nowMs = 1000, confirmedReplace = true))
             assertFalse(repo.applyManualConfiguration(original,
                 configuration("stale"), nowMs = 1001))
-            assertEquals(chosen, repo.site(scope, "a")!!.configuration)
+            assertEquals(manual(chosen), repo.site(scope, "a")!!.configuration)
         } finally { db.close() }
     }
 
@@ -82,7 +84,7 @@ class VideoSearchConfigurationRevisionTest {
             val latest = repo.site(scope, "a")!!
             assertTrue(latest.updatedAtMs > changed.updatedAtMs)
             assertFalse(repo.applyManualConfiguration(changed, configuration("stale"), nowMs = 600))
-            assertEquals(configuration("good"), latest.configuration)
+            assertEquals(manual(configuration("good")), latest.configuration)
         } finally { db.close() }
     }
 
@@ -109,15 +111,20 @@ class VideoSearchConfigurationRevisionTest {
             assertTrue(repo.applyManualConfiguration(original,
                 configuration("first"), nowMs = 70))
             val before = repo.site(scope, "a")!!
-            assertTrue(repo.applyAutoConfiguration(before, inspection(),
-                nowMs = 70, confirmedReplace = true))
-            val latest = repo.site(scope, "a")!!
+            // Inspection-only replacement was previously authorized by a flag.
+            // That old path is now deliberately rejected until a search proves it.
             assertFalse(repo.applyAutoConfiguration(before, inspection(),
                 nowMs = 70, confirmedReplace = true))
+            val latest = repo.site(scope, "a")!!
+            assertEquals(before, latest)
+            assertEquals(manual(configuration("first")), latest.configuration)
+            assertTrue(repo.applyManualConfiguration(before,
+                configuration("selected"), nowMs = 71))
+            val changed = repo.site(scope, "a")!!
             assertFalse(repo.applyManualConfiguration(before,
-                configuration("stale"), nowMs = 70))
-            assertTrue(latest.updatedAtMs > before.updatedAtMs)
-            assertEquals(".cards-auto", latest.configuration?.resultsCardSelector)
+                configuration("stale"), nowMs = 72))
+            assertTrue(changed.updatedAtMs > before.updatedAtMs)
+            assertEquals(manual(configuration("selected")), changed.configuration)
         } finally { db.close() }
     }
 
@@ -146,8 +153,8 @@ class VideoSearchConfigurationRevisionTest {
                 configuration("a"), nowMs = 100))
             assertTrue(repo.applyManualConfiguration(b,
                 configuration("b"), nowMs = 100))
-            assertEquals(configuration("a"), repo.site(scope, "shared")!!.configuration)
-            assertEquals(configuration("b"), repo.site(alternate, "shared")!!.configuration)
+            assertEquals(manual(configuration("a")), repo.site(scope, "shared")!!.configuration)
+            assertEquals(manual(configuration("b")), repo.site(alternate, "shared")!!.configuration)
             assertFalse(repo.applyAutoConfiguration(a, inspection(), nowMs = 100))
         } finally { db.close() }
     }

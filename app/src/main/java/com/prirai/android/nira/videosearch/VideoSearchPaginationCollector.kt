@@ -31,6 +31,15 @@ internal data class VideoSearchPaginationSnapshot(
  * document; it is reset only after verifying a new same-origin document.
  * A load-more/scroll action keeps the cursor, so old cards aren't re-scanned.
  */
+/** Bounded wait for SPA hydration only when the first card window is absent.
+ * Explicit site-owned no_results proof must never be delayed or overwritten. */
+internal object VideoSearchHydrationPolicy {
+    val retryDelaysMs = listOf(320L, 650L)
+    fun shouldRetry(startIndex: Int, page: VideoSearchExtractedPage): Boolean =
+        startIndex == 0 && page.status == "empty" && page.inspectedCards == 0 &&
+            page.films.isEmpty() && !page.moreOnPage
+}
+
 internal class VideoSearchPaginationCollector(
     siteUrl: String,
     requestedLimit: Int,

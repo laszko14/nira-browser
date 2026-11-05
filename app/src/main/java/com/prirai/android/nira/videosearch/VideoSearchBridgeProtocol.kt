@@ -157,10 +157,14 @@ internal object VideoSearchBridgeProtocol {
         value.isNotBlank() && value.length <= 250 &&
             value.none { it.isISOControl() }
 
+    // Scoped read-only result locators are resolved inside Gecko at request
+    // time, not evaluated as CSS or trusted as a path across document changes.
+    private val scopedLocator = Regex("zcs1:[A-Za-z0-9_-]{6,152}")
     fun validSelector(value: String?): Boolean =
         value != null && value.length in 1..160 &&
-            value.all { it.isLetterOrDigit() || it in selectorChars } &&
-            !value.contains(":has(") && !value.contains(":not(")
+            (if (value.startsWith("zcs1:")) scopedLocator.matches(value)
+             else value.all { it.isLetterOrDigit() || it in selectorChars } &&
+                 !value.contains(":has(") && !value.contains(":not("))
 
     private fun JSONObject.strict(vararg names: String): Boolean {
         val actual = mutableSetOf<String>()
@@ -253,8 +257,8 @@ internal object VideoSearchBridgeProtocol {
                     it in setOf("valid", "unverified", "stale", "unsafe")
                 } ?: return null
                 val reason = json.string("reason")?.takeIf {
-                    it in setOf("ok", "no_results", "pagination_unknown", "input_missing",
-                        "input_ambiguous", "invalid_selector", "unsafe_form",
+                    it in setOf("ok", "no_results", "results_only", "pagination_unknown", "input_missing",
+                        "input_ambiguous", "invalid_selector", "unsafe_form", "human_gate",
                         "submit_missing", "cards_invalid")
                 } ?: return null
                 val attempts = (json.opt("attempts") as? Int)?.takeIf { it in 1..3 }
@@ -262,10 +266,10 @@ internal object VideoSearchBridgeProtocol {
                 val cards = (json.opt("matchedCards") as? Int)?.takeIf { it in 0..30 }
                     ?: return null
                 if ((status == "valid" && (reason != "ok" || cards == 0)) ||
-                    (status == "unverified" && reason !in setOf("no_results", "pagination_unknown")) ||
+                    (status == "unverified" && reason !in setOf("no_results", "results_only", "pagination_unknown")) ||
                     (status == "stale" && reason !in setOf("input_missing", "input_ambiguous",
                             "submit_missing", "invalid_selector", "cards_invalid")) ||
-                    (status == "unsafe" && reason != "unsafe_form")) return null
+                    (status == "unsafe" && reason !in setOf("unsafe_form", "human_gate"))) return null
                 VideoSearchBridgeMessage.Validation(id, request, status, reason, attempts, cards)
             }
             "page_action" -> {
@@ -367,6 +371,7 @@ internal object VideoSearchBridgeProtocol {
                     ?.takeIf { it in setOf("found", "partial", "missing") } ?: return null
                 val reason = json.string("reason")?.takeIf {
                     it in setOf("AMBIGUOUS_CARDS", "SHADOW_RESULTS", "FRAME_RESULTS",
+                        "FRAME_REPLACED", "CONTEXT_REPLACED", "LOW_CONFIDENCE", "SCAN_LIMIT",
                         "CANDIDATE_FOUND", "CARDS_NOT_FOUND")
                 } ?: return null
                 val confidence = (json.opt("confidence") as? Int)
@@ -381,8 +386,10 @@ internal object VideoSearchBridgeProtocol {
                 val surface = json.string("surface")
                     ?.takeIf { it in setOf("MAIN", "SHADOW", "FRAME") } ?: return null
                 if ((status == "found") != (selector != null) ||
-                    (selector != null && (surface != "MAIN" || confidence < 85 ||
-                        cards < 1 || reason != "CANDIDATE_FOUND"))) return null
+                    (selector != null && (confidence < 85 || cards < 1 ||
+                        reason != "CANDIDATE_FOUND" ||
+                        (surface == "MAIN" && selector.startsWith("zcs1:")) ||
+                        (surface != "MAIN" && !selector.startsWith("zcs1:"))))) return null
                 VideoSearchBridgeMessage.Recognition(
                     id, req, status, reason, confidence, selector, cards, scanned, surface
                 )
@@ -642,6 +649,10 @@ internal object VideoSearchBridgeProtocol {
         return base("paginate", documentId, requestId).apply {
             put("pagination", config.pagination.name)
             put("nextPageSelector", config.nextPageSelector ?: JSONObject.NULL)
+            if (config.pagination == VideoSearchPagination.INFINITE_SCROLL) {
+                require(validSelector(config.resultsCardSelector))
+                put("resultsCardSelector", config.resultsCardSelector)
+            }
         }
     }
 

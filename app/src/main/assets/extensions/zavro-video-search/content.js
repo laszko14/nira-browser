@@ -22,6 +22,9 @@
   let pickerPosition = null;
   // Consecutive trusted terminal observations are limited to this document.
   let endProbe = null;
+  // Per-document, short-lived cursor guards. Only node identity and offsets
+  // are retained; nothing from the DOM is stored or sent to native.
+  const continuationAnchors = { extract_batch: null, extract_crawl: null };
   const limited = 80;
   const idPattern = /^[0-9a-f]{32}$/;
   const blocked = /login|log-in|signin|sign-in|password|register|checkout|payment|purchase|captcha/i;
@@ -33,8 +36,9 @@
       .map(n => (n.textContent || "").slice(0, 80));
     const named = (input.getAttribute?.("aria-labelledby") || "").split(/\s+/).slice(0, 3);
     for (const id of named) {
-      if (!id || !document.getElementById) continue;
-      const text = document.getElementById(id)?.textContent;
+      const owner = input.getRootNode?.() || input.ownerDocument || document;
+      if (!id || !owner.getElementById) continue;
+      const text = owner.getElementById(id)?.textContent;
       if (typeof text === "string") labels.push(text.slice(0, 80));
     }
     return [input.getAttribute?.("aria-label"), input.getAttribute?.("title"),
@@ -49,13 +53,14 @@
     const method = (form.getAttribute("method") || "GET").toUpperCase();
     if (method !== "GET") return false; // Never submit POST forms.
     try {
-      const action = new URL(form.getAttribute("action") || location.href, location.href);
+      const base = form.ownerDocument?.baseURI || location.href;
+      const action = new URL(form.getAttribute("action") || base, base);
       return action.origin === location.origin &&
         /^https?:$/.test(action.protocol) && !action.username && !action.password;
     } catch (_) { return false; }
   }
   function visible(input) {
-    if (!input || input.disabled || input.readOnly ||
+    if (!input || input.isConnected === false || input.disabled || input.readOnly ||
         input.closest('[aria-hidden="true"],[hidden],[inert]')) return false;
     const rect = input.getBoundingClientRect();
     return rect.width > 0 && rect.height > 0;
@@ -96,13 +101,21 @@
   // Locator V2 is compatible with existing CSS-only Room configuration.
   // Prefer stable semantic hints; no invented nth-child or unsafe CSS programs.
   function selectorFor(element) {
-    if (!element || !element.tagName) return null;
+    if (!element || !element.tagName || element.isConnected === false) return null;
+    const root = element.getRootNode?.() || element.ownerDocument || document;
+    if (!root.querySelectorAll) return null;
+    const scoped = candidate => root === document ? candidate :
+      window.__zavroRecognition?.scope(element, candidate) || null;
     const tag = element.tagName.toLowerCase();
+    // Hashed CSS and long numeric IDs are transient across SPA hydration.
+    const stableToken = value => typeof value === "string" &&
+      value.length <= 64 &&
+      !/(?:[a-f0-9]{9,}|(?:^|[-_])[0-9]{5,}(?:$|[-_]))/i.test(value);
     function unique(candidate) {
       if (typeof candidate !== "string" || candidate.length > 160 ||
           !/^[\p{L}\p{N}#_.\[\]=\\"' >:*+-]+$/u.test(candidate)) return false;
       try {
-        const found = document.querySelectorAll(candidate);
+        const found = root.querySelectorAll(candidate);
         return found.length === 1 && found[0] === element;
       } catch (_) { return false; }
     }
@@ -112,7 +125,9 @@
                          "data-action", "aria-label", "title", "placeholder"]) {
         const value = node.getAttribute?.(key);
         if (typeof value !== "string" || value.length < 1 || value.length > 64 ||
-            !/^[\p{L}\p{N} ._-]+$/u.test(value)) continue;
+            !/^[\p{L}\p{N} ._-]+$/u.test(value) ||
+            (["name", "data-testid", "data-test", "data-qa", "data-action"].includes(key) &&
+              !stableToken(value))) continue;
         choices.push(tagName + "[" + key + '="' + value + '"]');
       }
       if (node.getAttribute?.("role") === "button")
@@ -124,30 +139,31 @@
     function classes(node) {
       const tagName = node.tagName.toLowerCase();
       const names = Array.from(node.classList || []).filter(x => x.length > 0 &&
-        x.length <= 45 && /^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(x)).slice(0, 6);
+        x.length <= 45 && /^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(x) &&
+        stableToken(x)).slice(0, 6);
       const options = names.map(x => tagName + "." + x);
       for (let i = 0; i < names.length; i++)
         for (let j = i + 1; j < names.length; j++)
           options.push(tagName + "." + names[i] + "." + names[j]);
       return options;
     }
-    if (element.id) {
+    if (element.id && stableToken(element.id)) {
       const byId = "#" + CSS.escape(element.id);
-      if (unique(byId)) return byId;
+      if (unique(byId)) return scoped(byId);
     }
     for (const candidate of [...attributes(element), ...classes(element)])
-      if (unique(candidate)) return candidate;
+      if (unique(candidate)) return scoped(candidate);
     let ancestor = element.parentElement;
     for (let depth = 0; ancestor && depth < 4; depth++, ancestor = ancestor.parentElement) {
       const bases = [];
-      if (ancestor.id) bases.push("#" + CSS.escape(ancestor.id));
+      if (ancestor.id && stableToken(ancestor.id)) bases.push("#" + CSS.escape(ancestor.id));
       bases.push(...attributes(ancestor), ...classes(ancestor));
       for (const base of bases) {
         let found;
-        try { found = document.querySelectorAll(base); } catch (_) { continue; }
+        try { found = root.querySelectorAll(base); } catch (_) { continue; }
         if (found.length !== 1 || found[0] !== ancestor) continue;
         for (const suffix of [tag, ...attributes(element), ...classes(element)])
-          if (unique(base + " " + suffix)) return base + " " + suffix;
+          if (unique(base + " " + suffix)) return scoped(base + " " + suffix);
       }
     }
     return null; // Ambiguous controls must never be saved as the wrong button.
@@ -196,11 +212,27 @@
       submitted.length > 1 ? null : null;
     return chosen ? selectorFor(chosen) : null;
   }
+  // A scoped card locator is resolved fresh on each extraction/check. Any
+  // detached host, closed root or cross-origin frame fails closed to STALE.
+  function resultNodes(selector) {
+    if (typeof selector !== "string" || selector.length > 160) return null;
+    if (selector.startsWith("zcs1:"))
+      return window.__zavroRecognition?.resolve(selector) || null;
+    try { return document.querySelectorAll(selector); }
+    catch (_) { return null; }
+  }
   function detectResults() {
     // P1 first checks independent structural and card-local evidence. The
     // pre-existing conservative selectors remain the compatibility fallback.
     const smart = window.__zavroRecognition?.scan(document);
     if (smart?.selector && smart.confidence >= 85) return smart.selector;
+    // Do not downgrade ambiguous/Shadow/frame evidence to unrelated
+    // homepage recommendations via the legacy CSS fallback.
+    if (smart && (smart.confidence > 0 ||
+        ["AMBIGUOUS_CARDS", "SHADOW_RESULTS", "FRAME_RESULTS",
+          "FRAME_REPLACED", "CONTEXT_REPLACED",
+          "LOW_CONFIDENCE", "SCAN_LIMIT"].includes(smart.reason)))
+      return null;
     // Discover repeated, card-local film links. Do not confuse arbitrary
     // site navigation with results or require a specific CSS theme.
     const candidates = [
@@ -216,7 +248,22 @@
     // Use repeated classes inside a clearly named results/list container.
     // A dynamically generated post-id/class is never stored as the rule.
     try {
-      const all = Array.from(document.querySelectorAll("article,div,li,figure")).slice(0, 260);
+      const all = [];
+      const walker = document.createTreeWalker?.(document, 1);
+      if (walker) {
+        // The old querySelectorAll materialized the entire DOM match list
+        // before slice(0,260); bound traversal even on very dense pages.
+        let node, visits = 0;
+        while (all.length < 260 && visits < 2400 &&
+               (node = walker.nextNode())) {
+          visits++;
+          if (node.matches?.("article,div,li,figure")) all.push(node);
+        }
+      } else {
+        // Synthetic test DOMs without TreeWalker use a bounded prefix.
+        const nodes = document.querySelectorAll("article,div,li,figure");
+        for (let i = 0; i < Math.min(260, nodes.length); i++) all.push(nodes[i]);
+      }
       for (const node of all) {
         const parent = node.parentElement;
         if (!parent || !node.tagName || !parent.classList) continue;
@@ -256,41 +303,50 @@
     return best?.selector || null;
   }
   function detectPagination() {
-    // The next-page control must be unambiguous and pass the same
-    // structural/same-origin validation used by manual picking.
+    // Collect every trustworthy control across accessible document contexts.
+    const roots = window.__zavroRecognition?.roots?.() || [document];
     const paths = [
       'a[rel="next"]', '.pagination a.next',
       '.pagination .next a', 'button.load-more',
       'a.next[aria-label]', '.pager a[rel="next"]'
     ];
-    for (const selector of paths) {
-      let elements;
-      try { elements = document.querySelectorAll(selector); }
-      catch (_) { continue; }
-      if (elements.length !== 1) continue;
-      const next = manualNext(elements[0]);
-      if (next) return {pagination: next.pagination, nextPageSelector: next.selector};
+    const matches = [];
+    for (const root of roots) {
+      for (const path of paths) {
+        let elements;
+        try { elements = root.querySelectorAll(path); }
+        catch (_) { continue; }
+        if (elements.length !== 1) continue;
+        const next = manualNext(elements[0]);
+        if (next) matches.push(next);
+      }
+      let controls;
+      try {
+        controls = Array.from(root.querySelectorAll(
+          '.pagination a,.pagination button,.pager a,.pager button,' +
+          'nav[aria-label="pagination"] a,nav[aria-label="pagination"] button'))
+          .slice(0, 50);
+      } catch (_) { controls = []; }
+      for (const control of controls) {
+        const next = manualNext(control);
+        if (next) matches.push(next);
+      }
     }
-    // Broader candidates are considered only in recognized pagination
-    // containers; an unrelated carousel Next button must not qualify.
-    let controls;
-    try {
-      controls = Array.from(document.querySelectorAll(
-        '.pagination a,.pagination button,.pager a,.pager button,' +
-        'nav[aria-label="pagination"] a,nav[aria-label="pagination"] button'))
-        .slice(0, 50);
-    } catch (_) { controls = []; }
-    const candidates = controls.map(manualNext).filter(Boolean);
-    const unique = new Map(candidates.map(c => [c.pagination + ":" + c.selector, c]));
+    const unique = new Map(matches.map(x => [x.pagination + ":" + x.selector, x]));
     if (unique.size === 1) {
       const match = unique.values().next().value;
       return {pagination:match.pagination, nextPageSelector:match.selector};
     }
     return {pagination:"NONE", nextPageSelector:null};
   }
-  function detect() {
-    const candidates = Array.from(document.querySelectorAll("input")).slice(0, limited)
-      .filter(validInput).map(input => ({ input, score: score(input) }))
+  function inputCandidates() {
+    const discovered = window.__zavroRecognition?.inputs?.();
+    return Array.isArray(discovered) ? discovered.slice(0, limited) :
+      Array.from(document.querySelectorAll("input")).slice(0, limited);
+  }
+  function detect(getCards = detectResults, preparedCandidates = null) {
+    const candidates = (preparedCandidates || inputCandidates()
+      .filter(validInput).map(input => ({ input, score: score(input) })))
       .filter(c => c.score >= 8).sort((a, b) => b.score - a.score);
     if (!candidates.length || (candidates[1] && candidates[1].score === candidates[0].score))
       return { status: "missing" };
@@ -301,7 +357,7 @@
     const form = input.form;
     // Search only with a safe GET form or an explicitly detected search button.
     if (!safeForm(form) && !button) return { status: "partial" };
-    const result = detectResults();
+    const result = getCards();
     const submit = button ? "CLICK_SUBMIT" : "FORM_SUBMIT";
     const page = detectPagination();
     return {
@@ -314,12 +370,21 @@
   // Typed discovery: bounded evidence tokens, never raw DOM, cookies or queries.
   // The native side binds this to a site, owner, session and document revision.
   function siteAnalysis() {
-    const inputs = Array.from(document.querySelectorAll("input")).slice(0, limited)
+    const inputs = inputCandidates()
       .filter(validInput).map(input => ({input, points:score(input)}))
       .filter(x => x.points >= 8).sort((a,b) => b.points-a.points);
     const tie = inputs.length > 1 && inputs[0].points === inputs[1].points;
-    const inspection = tie ? {status:"missing"} : detect();
-    const cards = inspection.resultsCardSelector || detectResults();
+    let checkedCards = false, cachedCards = null;
+    const getCards = () => {
+      if (!checkedCards) {
+        cachedCards = detectResults();
+        checkedCards = true;
+      }
+      return cachedCards;
+    };
+    const inspection = tie ? {status:"missing"} :
+      detect(getCards, inputs.map(x => ({input:x.input, score:x.points})));
+    const cards = inspection.resultsCardSelector || getCards();
     const page = cards ? detectPagination() : {pagination:"NONE",nextPageSelector:null};
     const formReady = !!inspection.inputSelector && !!inspection.submission;
     const unsafe = !inputs.length && !!document.querySelector?.(
@@ -389,18 +454,22 @@
   function manualCard(node) {
     let element = node;
     for (let level = 0; element && level < 6; level++, element = element.parentElement) {
-      if (!element.querySelector || !element.querySelector("a[href]")) continue;
+      if (!element.tagName || !element.querySelector ||
+          !element.querySelector("a[href]") || element.isConnected === false) continue;
+      const root = element.getRootNode?.() || element.ownerDocument || document;
+      if (!root?.querySelectorAll) continue;
       const tag = element.tagName.toLowerCase();
       for (const cls of Array.from(element.classList || []).slice(0, 5)) {
         if (cls.length > 60) continue;
-        const selector = tag + "." + CSS.escape(cls);
+        const leaf = tag + "." + CSS.escape(cls);
         try {
-          const matches = Array.from(document.querySelectorAll(selector)).slice(0, 25);
-          // Manual choice may legitimately point to the only film card
-          // visible on a sparsely populated results page.
-          if (matches.length >= 1 && matches.filter(e => e.querySelector("a[href]")).length >= 1)
-            return selector;
-        } catch (_) {}
+          const matches = root.querySelectorAll(leaf);
+          // Only the actual clicked card may authorize the selected group.
+          if (!matches.length || !Array.prototype.includes.call(matches, element)) continue;
+          const selector = root === document ? leaf :
+            window.__zavroRecognition?.scope(element, leaf, true);
+          if (selector) return {selector, element};
+        } catch (_) { /* Detached/inaccessible groups fail closed. */ }
       }
     }
     return null;
@@ -409,6 +478,8 @@
   // and page-number buttons. Generate a unique, reusable CSS selector for
   // the actual touched element, without brittle page-number/nth-child paths.
   function paginationSelector(element) {
+    const root = element.getRootNode?.() || element.ownerDocument || document;
+    if (root !== document) return selectorFor(element);
     const tag = element.tagName.toLowerCase();
     function unique(candidate) {
       if (!candidate || candidate.length > 160 ||
@@ -468,7 +539,8 @@
     return [el.id, typeof el.className === "string" ? el.className : "",
       el.getAttribute?.("rel"), el.getAttribute?.("aria-label"),
       el.getAttribute?.("title"), el.getAttribute?.("data-action"),
-      el.getAttribute?.("data-testid"), el.innerText, el.textContent]
+      el.getAttribute?.("data-testid"), el.innerText, el.textContent,
+      window.__zavroRecognition?.controlHint(el)]
       .filter(x => typeof x === "string").map(x => x.slice(0, 90)).join(" ");
   }
   function forbiddenPager(el) {
@@ -576,12 +648,14 @@
         const href = el.getAttribute("href");
         if (!href || href.length > 2048 || el.hasAttribute("download") ||
             (el.target && !["_self", ""].includes(el.target))) return null;
-        const url = new URL(href, location.href);
+        const base = el.ownerDocument?.baseURI || location.href;
+        const url = new URL(href, base);
         if (!["https:", "http:"].includes(url.protocol) ||
             url.origin !== location.origin || url.username || url.password ||
             blocked.test(url.pathname)) return null;
-        const samePage = url.pathname === location.pathname &&
-          url.search === location.search;
+        const current = new URL(el.ownerDocument?.location?.href || location.href);
+        const samePage = url.pathname === current.pathname &&
+          url.search === current.search;
         if (!samePage) pagination = "NEXT_LINK";
         else if (href.startsWith("#") && safeSamePageAction(el))
           pagination = "LOAD_MORE";
@@ -765,23 +839,20 @@
         if (manualSubmit(element, manuallySelectedInput))
           selector = selectorFor(element);
       } else if (kind === "cards") {
-        selector = manualCard(node);
-        if (selector) {
-          try { element = document.querySelectorAll(selector)[0] || null; }
-          catch (_) { selector = null; }
-        }
+        const chosen = manualCard(node);
+        if (chosen) { selector = chosen.selector; element = chosen.element; }
       } else if (kind === "next") {
         element = node.closest('a[href],button,[role="button"]');
         const next = manualNext(node);
         if (next) { selector = next.selector; pagination = next.pagination; }
       }
       if (!selector || selector.length > 160) return null;
-      if (kind !== "cards") {
-        let found;
-        try { found = document.querySelectorAll(selector); } catch (_) { return null; }
-        if (found.length !== 1 || (found[0] !== element &&
-            !(kind === "next" && found[0].contains?.(element)))) return null;
-      } else if (!element) return null;
+      let found;
+      try { found = resultNodes(selector); } catch (_) { return null; }
+      if (!found || (kind === "cards" ?
+          !Array.prototype.includes.call(found, element) :
+          found.length !== 1 || (found[0] !== element &&
+            !(kind === "next" && found[0].contains?.(element))))) return null;
       return { element, selector, formSafe, pagination, kind };
     }
     function reasonFor(node) {
@@ -822,15 +893,16 @@
     function confirm() {
       const candidate = options[optionIndex];
       if (!candidate || location.href !== startUrl || !ready ||
-          (kind !== "cards" && !document.contains(candidate.element))) {
+          candidate.element?.isConnected === false) {
         feedback.textContent = "Strona się zmieniła. Wskaż element ponownie.";
         return;
       }
       try {
-        const found = document.querySelectorAll(candidate.selector);
-        if (kind === "cards" ? !found.length : found.length !== 1 ||
-            (found[0] !== candidate.element &&
-             !(kind === "next" && found[0].contains?.(candidate.element)))) {
+        const found = resultNodes(candidate.selector);
+        if (!found || (kind === "cards" ?
+            !Array.prototype.includes.call(found, candidate.element) :
+            found.length !== 1 || (found[0] !== candidate.element &&
+             !(kind === "next" && found[0].contains?.(candidate.element))))) {
           feedback.textContent = "Lokator przestał pasować. Wskaż element ponownie.";
           return;
         }
@@ -972,6 +1044,8 @@
     cancelPicker();
     manuallySelectedInput = null;
     endProbe = null;
+    continuationAnchors.extract_batch = null;
+    continuationAnchors.extract_crawl = null;
     try { documentId = newDocumentId(); } catch (_) { originRevoked = true; return; }
     navigationRevision++;
     startUrl = current;
@@ -987,14 +1061,17 @@
     const query = command.query;
     if (typeof query !== "string" || !query.trim() || query.length > 250 ||
         /[\u0000-\u001f\u007f]/.test(query)) return "rejected";
-    const field = document.querySelector(command.inputSelector);
-    if ((!validInput(field) && !manualInput(field)) ||
-        document.querySelectorAll(command.inputSelector).length !== 1) return "stale";
+    const fields = resultNodes(command.inputSelector);
+    if (!fields || fields.length !== 1) return "stale";
+    const field = fields[0];
+    if (!validInput(field) && !manualInput(field)) return "stale";
     const form = field.form;
     if (!safeForm(form) && command.submission !== "CLICK_SUBMIT") return "unsafe";
     let button = null;
     if (command.submission === "CLICK_SUBMIT") {
-      button = document.querySelector(command.submitSelector);
+      const controls = resultNodes(command.submitSelector);
+      if (!controls || controls.length !== 1) return "stale";
+      button = controls[0];
       if (!button || button.disabled ||
           (searchButton(field) !== command.submitSelector &&
            !manualSubmit(button, field))) return "stale";
@@ -1009,8 +1086,16 @@
     const issuedRevision = navigationRevision;
     post("submitted", command.requestId, {});
     setTimeout(function () {
-      if (issuedRevision !== navigationRevision ||
-          location.href !== startUrl || !document.contains(field)) return;
+      if (issuedRevision !== navigationRevision || !ready ||
+          location.href !== startUrl) return;
+      const activeInput = resultNodes(command.inputSelector);
+      if (!activeInput || activeInput.length !== 1 || activeInput[0] !== field ||
+          (!validInput(field) && !manualInput(field))) return;
+      if (button) {
+        const activeButton = resultNodes(command.submitSelector);
+        if (!activeButton || activeButton.length !== 1 ||
+            activeButton[0] !== button || !manualSubmit(button, field)) return;
+      } else if (!safeForm(form) || field.form !== form) return;
       try {
         if (button) button.click();
         else if (form.requestSubmit) form.requestSubmit();
@@ -1025,15 +1110,36 @@
     function bySelector(selector) {
       if (typeof selector !== "string" || !selector || selector.length > 160)
         return null;
-      try { return Array.from(document.querySelectorAll(selector)).slice(0, 31); }
+      try { const found = resultNodes(selector); return found ? Array.from(found).slice(0, 31) : null; }
       catch (_) { return null; }
     }
     function result(status, reason, cards) {
       return { status, reason, matchedCards: Math.min(30, cards || 0) };
     }
+    // A login gate or CAPTCHA is a human intervention, never a rule failure.
+    let protectedRoute = false;
+    try {
+      protectedRoute = /\/(?:login|signin|sign-in|register|captcha)(?:\/|$)/i
+        .test(new URL(location.href).pathname);
+    } catch (_) { /* Keep the existing read-only diagnosis. */ }
+    if (protectedRoute || document.querySelector?.(
+        'input[type="password"],[data-sitekey],iframe[src*="captcha"]'))
+      return result("unsafe", "human_gate", 0);
     const inputs = bySelector(command.inputSelector);
     if (!inputs) return result("stale", "invalid_selector", 0);
-    if (inputs.length === 0) return result("stale", "input_missing", 0);
+    if (inputs.length === 0) {
+      // A /results document often has no search form at all. Do not
+      // treat that as a broken form from the homepage configuration.
+      let resultsRoute = false;
+      try {
+        const url = new URL(location.href);
+        resultsRoute = /(?:search|results|szukaj|wyniki|find)/i.test(url.pathname) ||
+          ["q", "s", "query", "search", "keyword", "term"]
+            .some(k => url.searchParams.has(k));
+      } catch (_) { /* No guessed page identity. */ }
+      return resultsRoute ? result("unverified", "results_only", 0) :
+        result("stale", "input_missing", 0);
+    }
     if (inputs.length !== 1) return result("stale", "input_ambiguous", 0);
     const input = inputs[0];
     if (!input || !input.matches("input") ||
@@ -1072,7 +1178,7 @@
   }
   async function validateStored(command) {
     const issuedRevision = navigationRevision;
-    const timings = [0, 350, 800]; // 3 attempts, <= 1.2 seconds total
+    const timings = [0, 650, 1800]; // 3 bounded observations for delayed AJAX
     let last, attempts = 0;
     for (let i = 0; i < timings.length; i++) {
       if (!ready || issuedRevision !== navigationRevision ||
@@ -1112,8 +1218,9 @@
     let cards;
     // Avoid materializing all 10k DOM nodes into another large JS array at
     // every 16-card checkpoint. NodeList is indexable without copying.
-    try { cards = document.querySelectorAll(command.resultsCardSelector); }
+    try { cards = resultNodes(command.resultsCardSelector); }
     catch (_) { return { status: "stale", films: [], inspectedCards: 0, moreOnPage: false }; }
+    if (!cards) return { status: "stale", films: [], inspectedCards: 0, moreOnPage: false };
     // Only an explicit, visible site-owned empty-state marker is proof
     // of zero results. A missing card/selector or loading page is not.
     if (cards.length === 0 && command.startIndex === 0 &&
@@ -1145,16 +1252,16 @@
       return shortText(element.getAttribute("content") ||
         element.getAttribute("data-title") || element.textContent, max);
     }
-    function safeUrl(value, filmPage) {
+    function safeUrl(value, filmPage, base = location.href) {
       if (typeof value !== "string" || !value || value.length > 1800 ||
           /^(?:data|blob|javascript|file|mailto|magnet):/i.test(value)) return null;
       try {
-        const parsed = new URL(value, location.href);
+        const parsed = new URL(value, base);
         if (!["http:", "https:"].includes(parsed.protocol) ||
             parsed.username || parsed.password ||
             parsed.href.length > (filmPage ? 2048 : 800)) return null;
         if (filmPage) {
-          if (parsed.origin !== location.origin || parsed.href === location.href ||
+          if (parsed.origin !== location.origin || (parsed.href === location.href || parsed.href === base) ||
               /\.(?:mp4|webm|m3u8|mpd|mp3|m4a|ts)(?:$)/i.test(parsed.pathname)) return null;
         }
         return parsed.href; // Full query is identity; never strip it.
@@ -1241,9 +1348,12 @@
     // A safe same-origin address is not proof that it leads to a film.
     // Never combine a card heading with an arbitrary category/navigation URL.
     function catalogLink(anchor, filmUrl) {
+      if (anchor.hasAttribute?.("download")) return true;
       let pathname;
       try { pathname = new URL(filmUrl).pathname; } catch (_) { return true; }
-      if (/(?:^|\/)(?:categor(?:y|ies)|genres?|tags?|topics?|channels?|authors?|playlists?|collections?)(?:\/|$)/i.test(pathname))
+      // These routes can have cards/posters/headings, but they are not film
+      // pages. Never use them as persisted search-result identities.
+      if (/(?:^|\/)(?:categor(?:y|ies)|genres?|tags?|topics?|channels?|authors?|playlists?|collections?|account|login|log-in|signin|sign-in|register|signup|sign-up|checkout|cart|payment|purchase|ads?)(?:\/|$)/i.test(pathname))
         return true;
       const relation = anchor.getAttribute("rel") || "";
       if (/(?:^|\s)tag(?:\s|$)/i.test(relation)) return true;
@@ -1256,7 +1366,7 @@
       if (command.linkSelector) {
         const specific = scoped(card, command.linkSelector);
         if (specific?.matches("a[href]")) {
-          const filmUrl = safeUrl(specific.getAttribute("href"), true);
+          const filmUrl = safeUrl(specific.getAttribute("href"), true, specific.ownerDocument?.baseURI || location.href);
           if (filmUrl && !catalogLink(specific, filmUrl))
             return { anchor: specific, filmUrl };
         }
@@ -1269,7 +1379,7 @@
       const heading = nodeText(titleNode, 512)?.toLocaleLowerCase();
       const candidates = new Map(); // Exact URL, including query, is identity.
       for (const anchor of anchors) {
-        const filmUrl = safeUrl(anchor.getAttribute("href"), true);
+        const filmUrl = safeUrl(anchor.getAttribute("href"), true, anchor.ownerDocument?.baseURI || location.href);
         if (!filmUrl || catalogLink(anchor, filmUrl)) continue;
         const label = [nodeText(anchor, 512), anchor.getAttribute("title"),
           anchor.getAttribute("aria-label"),
@@ -1355,10 +1465,27 @@
     const maximumIndex = crawl ? cardCap - 1 : 79;
     if (!Number.isInteger(start) || start < 0 || start > maximumIndex)
       return { status: "stale", films: [], inspectedCards: 0, moreOnPage: false };
-    // Dynamic pages may remove/replace cards while a crawl is in progress.
-    // Never produce a negative inspectedCards count for a stale cursor.
-    if (start > cards.length)
-      return { status:"empty", films:[], inspectedCards:0, moreOnPage:false };
+    const stream = command.event === "extract_crawl" ||
+      command.event === "extract_batch" ? command.event : null;
+    if (stream && start === 0) continuationAnchors[stream] = null;
+    const prior = stream && start > 0 ? continuationAnchors[stream] : null;
+    // A vanished cursor is NOT proof of an empty result page. Also reject a
+    // shifted/virtualized window when the next offset follows a prior batch.
+    // The native collector will stop with ERROR, never completed success.
+    const contiguous = prior && prior.selector === command.resultsCardSelector &&
+      prior.next === start;
+    if (start > cards.length) {
+      if (stream) continuationAnchors[stream] = null;
+      // A stand-alone high offset (without an observed prior batch) retains
+      // the legacy empty result. Only an ACTIVE lost cursor is demonstrably
+      // stale; neither case advances native progress or invents film cards.
+      return { status:contiguous ? "stale" : "empty",
+        films:[], inspectedCards:0, moreOnPage:false };
+    }
+    if (contiguous && cards[start - 1] !== prior.anchor) {
+      if (stream) continuationAnchors[stream] = null;
+      return { status:"stale", films:[], inspectedCards:0, moreOnPage:false };
+    }
     const end = Math.min(cards.length, cardCap, start + 16);
     const found = new Map(), maximum = 16;
     const encoder = new TextEncoder();
@@ -1430,6 +1557,11 @@
     }
     if (end < Math.min(cards.length, cardCap) || cards.length >= cardCap) more = true;
     const films = Array.from(found.values());
+    if (stream) continuationAnchors[stream] = consumed > 0 && more ? {
+      selector: command.resultsCardSelector,
+      next: start + consumed,
+      anchor: cards[start + consumed - 1]
+    } : null;
     return { status: films.length ? "ok" : "empty",
       films, inspectedCards: consumed, moreOnPage: more };
   }
@@ -1467,23 +1599,71 @@
       return endProbe.hits >= 2 && now - endProbe.since >= 650 ? "end" : "pending";
     }
     if (kind === "INFINITE_SCROLL") {
-      if (selector !== null) return "unsafe";
+      if (selector !== null || typeof command.resultsCardSelector !== "string" ||
+          !command.resultsCardSelector || command.resultsCardSelector.length > 160)
+        return "unsafe";
       if (document.querySelector('[data-pagination-end="true"],[data-last-page="true"],[data-has-next="false"]'))
         return terminal();
       if (loading()) return "pending";
+      // User opted into scroll, but only the configured results area may
+      // determine its scroll owner. A virtual list often scrolls a DIV, not
+      // window. Never scroll a random scrollable/sidebar container.
+      function scrollPlan() {
+        const cards = resultNodes(command.resultsCardSelector);
+        if (!cards || !cards.length) return null; // SPA may still be hydrating.
+        const first = cards[0], second = cards.length > 1 ? cards[1] : first;
+        if (!first || !second || first.isConnected === false ||
+            second.isConnected === false) return null;
+        const doc = first.ownerDocument || document;
+        if ((second.ownerDocument || document) !== doc) return null;
+        const view = doc.defaultView || window;
+        function scrollOwner(card) {
+          let ancestor = card.parentElement;
+          for (let depth = 0; ancestor && depth < 7;
+               depth++, ancestor = ancestor.parentElement) {
+            if (ancestor.closest?.('[data-zavro-picker],[inert],[aria-hidden="true"]'))
+              return null;
+            const height = ancestor.clientHeight, full = ancestor.scrollHeight;
+            if (Number.isFinite(height) && Number.isFinite(full) &&
+                height >= 120 && full > height + 60 &&
+                /^(auto|scroll)$/.test(view.getComputedStyle?.(ancestor)?.overflowY || ""))
+              return ancestor;
+          }
+          return null;
+        }
+        const owner = scrollOwner(first);
+        if (owner !== scrollOwner(second)) return null;
+        if (owner ? typeof owner.scrollBy !== "function" :
+            typeof view.scrollBy !== "function") return null;
+        return {first, doc, view, owner};
+      }
+      const planned = scrollPlan();
+      if (!planned) return "pending";
       endProbe = null;
       const issuedRevision = navigationRevision;
       setTimeout(function () {
-        if (issuedRevision === navigationRevision &&
-            location.href === startUrl && ready)
-          window.scrollBy({ top: Math.max(360, window.innerHeight), behavior: "instant" });
+        if (issuedRevision !== navigationRevision ||
+            location.href !== startUrl || !ready) return;
+        const fresh = scrollPlan();
+        // The owner/document must not be replaced while this action is queued.
+        if (!fresh || fresh.first !== planned.first ||
+            fresh.doc !== planned.doc || fresh.view !== planned.view ||
+            fresh.owner !== planned.owner) return;
+        if (fresh.owner) fresh.owner.scrollBy({
+          top: Math.max(180, Math.floor(fresh.owner.clientHeight * 0.8)),
+          behavior: "instant"
+        });
+        else fresh.view.scrollBy({
+          top: Math.max(360, fresh.view.innerHeight || 0), behavior: "instant"
+        });
       }, 70);
       return "dispatched";
     }
     if (typeof selector !== "string" || !selector || selector.length > 160)
       return "unsafe";
     let matches;
-    try { matches = document.querySelectorAll(selector); } catch (_) { return "unsafe"; }
+    try { matches = resultNodes(selector); } catch (_) { return "unsafe"; }
+    if (!matches) return "unsafe";
     if (matches.length === 0) return terminal();
     if (matches.length !== 1) return "unsafe";
     let target = matches[0], resolvedNumeric = false;
@@ -1514,13 +1694,15 @@
     if (kind === "NEXT_LINK") {
       if (!target.matches("a[href]")) return "unsafe";
       let destination;
-      try { destination = new URL(target.getAttribute("href"), location.href); }
+      try { destination = new URL(target.getAttribute("href"),
+        target.ownerDocument?.baseURI || location.href); }
       catch (_) { return "unsafe"; }
       if (destination.origin !== location.origin ||
           destination.username || destination.password ||
           blocked.test(destination.pathname) ||
           !["http:", "https:"].includes(destination.protocol) ||
-          destination.href === location.href || destination.href.length > 2048)
+          destination.href === (target.ownerDocument?.location?.href || location.href) ||
+          destination.href.length > 2048)
         return "unsafe";
       if (target.hasAttribute("download") ||
           (target.target && !["_self", ""].includes(target.target))) return "unsafe";
@@ -1546,8 +1728,13 @@
     const issuedRevision = navigationRevision;
     setTimeout(function () {
       if (issuedRevision === navigationRevision && ready &&
-          location.href === startUrl && document.contains(target))
-        target.click();
+          location.href === startUrl) {
+        const fresh = resultNodes(selector);
+        if (fresh?.length !== 1) return;
+        const active = fresh[0] === target ? target : nextInContainer(fresh[0], kind);
+        if (active === target && !forbiddenPager(target) && visible(target) &&
+            !target.disabled && !target.closest?.("form")) target.click();
+      }
     }, 70);
     return "dispatched";
   }
@@ -1561,9 +1748,22 @@
     for (const event of ["popstate", "hashchange", "pageshow"])
       window.addEventListener(event, syncLocation);
     if (typeof MutationObserver === "function" && document.documentElement) {
-      const monitor = new MutationObserver(syncLocation);
+      // High-mutation SPAs can create hundreds of events per frame. Native
+      // url_sync and pre-request checks still protect navigation immediately.
+      let pendingCheck = null;
+      const monitor = new MutationObserver(function () {
+        if (pendingCheck !== null) return;
+        pendingCheck = setTimeout(function () {
+          pendingCheck = null;
+          syncLocation();
+        }, 90);
+      });
       monitor.observe(document.documentElement, {subtree: true, childList: true});
-      window.addEventListener("pagehide", function () { monitor.disconnect(); }, { once: true });
+      window.addEventListener("pagehide", function () {
+        monitor.disconnect();
+        if (pendingCheck !== null) clearTimeout(pendingCheck);
+        pendingCheck = null;
+      }, { once: true });
     }
     port.onMessage.addListener(function (message) {
       if (!message || typeof message !== "object" || Array.isArray(message) ||
@@ -1667,7 +1867,10 @@
               { status: "stale", films: [], inspectedCards: 0, moreOnPage: false });
           } finally { busy = false; }
         } else if (message.event === "paginate" && !picker &&
-            keys === "documentId,event,nextPageSelector,pagination,requestId,schemaVersion") {
+            (keys === "documentId,event,nextPageSelector,pagination,requestId,schemaVersion" ||
+             (keys === "documentId,event,nextPageSelector,pagination,requestId," +
+                     "resultsCardSelector,schemaVersion" &&
+              message.pagination === "INFINITE_SCROLL"))) {
           busy = true;
           const status = pageAction(message);
           post("page_action", message.requestId,

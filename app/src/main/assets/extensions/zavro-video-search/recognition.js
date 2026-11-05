@@ -7,11 +7,48 @@
   "use strict";
   if (window.top !== window || !/^https?:$/.test(location.protocol)) return;
   const MAX_NODES = 260, MAX_LINKS = 12, MAX_CONTEXTS = 12;
+  // Bound DOM visits as well as scored candidates on large dynamic pages.
+  const MAX_DOM_VISITS = 2400;
+  // A replaced same-origin iframe document invalidates its prior locators.
+  const observedFrames = new WeakMap();
+  // P2-F: a scoped locator must not rebind to a new host reusing its CSS.
+  // Identity is per content-script document; full reload gets a fresh map.
+  const observedHosts = new WeakMap();
+  const observedShadowRoots = new WeakMap();
+  // Previous accepted DOM context belongs only to this isolated document.
+  // Never expose a root/node reference or serialize it to native.
+  let lastAccepted = null;
+  function rememberHost(root, selector, host, observation) {
+    let slots = observedHosts.get(root);
+    if (!slots) {
+      slots = new Map();
+      observedHosts.set(root, slots);
+    }
+    const previous = slots.get(selector);
+    if (previous && previous !== host) {
+      if (observation) observation.contextReplaced = true;
+      return false;
+    }
+    slots.set(selector, host);
+    return true;
+  }
+  function rememberShadow(host, shadow, observation) {
+    const previous = observedShadowRoots.get(host);
+    if (previous && previous !== shadow) {
+      if (observation) observation.contextReplaced = true;
+      return false;
+    }
+    observedShadowRoots.set(host, shadow);
+    return true;
+  }
   const BAD_PATH = /(?:^|\/)(?:categor(?:y|ies)|genres?|tags?|topics?|channels?|authors?|playlists?|collections?|account|login|signin|register|checkout|ads?)(?:\/|$)/i;
   const MEDIA_FILE = /\.(?:mp4|webm|m3u8|mpd|mp3|m4a|ts)(?:$)/i;
   const BAD_HINT = /(?:^|[\s_-])(?:advert(?:isement)?|sponsored|promo|banner|navigation|menu|breadcrumb|sidebar|category|tag|login|checkout)(?:$|[\s_-])/i;
   const CARD_HINT = /(?:video|film|movie|episode|search|result|card|tile|post|listing|thumb)/i;
   const TOKEN = /^[a-zA-Z_][a-zA-Z0-9_-]{1,42}$/;
+  // Avoid auto-learning generated build hashes and transient numeric CSS.
+  const STABLE_CLASS = c => TOKEN.test(c) &&
+    !/(?:[a-f0-9]{9,}|(?:^|[-_])[0-9]{5,}(?:$|[-_]))/i.test(c);
   const nodeHint = node => [node?.id, typeof node?.className === "string" ? node.className : "",
     node?.getAttribute?.("role"), node?.getAttribute?.("data-testid"),
     node?.getAttribute?.("aria-label"), node?.getAttribute?.("data-type")]
@@ -42,16 +79,88 @@
       return ["q", "s", "query", "search", "keyword", "term"].some(k => path.searchParams.has(k));
     } catch (_) { return false; }
   }
-  function findContexts(documentRoot) {
-    const contexts = [{ root: documentRoot, surface: "MAIN" }];
-    const queue = [documentRoot];
+  // Scoped selectors are versioned, bounded locators, never executable CSS.
+  // They contain only stable host CSS paths and an inner card selector.
+  const LOCATOR = /^zcs1:[A-Za-z0-9_-]{6,152}$/;
+  const SIMPLE_CSS = /^[a-zA-Z0-9#_.\[\]="' >:*+-]{1,160}$/;
+  function safeCss(value) {
+    return typeof value === "string" && SIMPLE_CSS.test(value) &&
+      !/:has\(|:not\(|:nth|javascript|\*/i.test(value);
+  }
+  function stableHost(root, node, observation) {
+    if (!node?.tagName || !root?.querySelectorAll) return null;
+    const tag = node.tagName.toLowerCase();
+    const choices = [];
+    if (TOKEN.test(node.id || "") && STABLE_CLASS(node.id)) choices.push("#" + node.id);
+    const classes = Array.from(node.classList || []).filter(STABLE_CLASS).slice(0, 4);
+    for (const c of classes) choices.push(tag + "." + c);
+    for (let i = 0; i < classes.length; i++) {
+      for (let j = i + 1; j < classes.length; j++)
+        choices.push(tag + "." + classes[i] + "." + classes[j]);
+    }
+    for (const selector of choices) {
+      if (!safeCss(selector)) continue;
+      try {
+        const matches = root.querySelectorAll(selector);
+        if (matches.length === 1 && matches[0] === node &&
+            rememberHost(root, selector, node, observation)) return selector;
+      } catch (_) { /* malformed DOM or unstable host */ }
+    }
+    return null;
+  }
+  function encodeLocator(steps, leaf) {
+    if (!steps || !steps.length || !safeCss(leaf) ||
+        typeof btoa !== "function") return null;
+    const raw = [...steps, leaf].join("~");
+    if (raw.length > 112) return null;
+    try {
+      const locator = "zcs1:" + btoa(raw).replace(/\+/g, "-")
+        .replace(/\//g, "_").replace(/=+$/, "");
+      return LOCATOR.test(locator) ? locator : null;
+    } catch (_) { return null; }
+  }
+  function resolve(locator) {
+    if (!LOCATOR.test(locator || "") || typeof atob !== "function") return null;
+    try {
+      const payload = locator.slice(5).replace(/-/g, "+").replace(/_/g, "/");
+      const parts = atob(payload);
+      const items = parts.split("~");
+      if (items.length < 3 || items.length > 7 || items.length % 2 !== 1 ||
+          items.join("~") !== parts) return null;
+      let root = document;
+      for (let i = 0; i < items.length - 1; i += 2) {
+        if (!safeCss(items[i + 1])) return null;
+        const hosts = root.querySelectorAll(items[i + 1]);
+        if (hosts.length !== 1) return null;
+        const host = hosts[0];
+        if (host.isConnected === false ||
+            !rememberHost(root, items[i + 1], host)) return null;
+        if (items[i] === "S") {
+          const shadow = host.shadowRoot;
+          if (!shadow || shadow.mode !== "open" ||
+              !rememberShadow(host, shadow)) return null;
+          root = shadow;
+        } else if (items[i] === "F") {
+          if (host.tagName !== "IFRAME") return null;
+          const frame = host.contentDocument;
+          if (!frame || frame.location?.origin !== location.origin ||
+              (observedFrames.has(host) && observedFrames.get(host) !== frame)) return null;
+          observedFrames.set(host, frame);
+          root = frame;
+        } else return null;
+      }
+      if (!safeCss(items[items.length - 1])) return null;
+      return root.querySelectorAll(items[items.length - 1]);
+    } catch (_) { return null; } // Includes cross-origin and detached-frame access.
+  }
+  function findContexts(documentRoot, observation) {
+    const main = {root:documentRoot, surface:"MAIN", steps:[]};
+    const contexts = [main], queue = [main];
     let seen = 0;
     while (queue.length && contexts.length < MAX_CONTEXTS && seen < MAX_NODES) {
-      const root = queue.shift();
+      const ctx = queue.shift(), root = ctx.root;
       let nodes = [];
       try {
-        // A TreeWalker stops at the budget instead of allocating a NodeList
-        // containing the entire page just to examine its first few nodes.
         const owner = root.ownerDocument || documentRoot;
         const walker = owner.createTreeWalker?.(root, 1);
         if (walker) {
@@ -66,31 +175,118 @@
       for (const node of nodes) {
         seen++;
         if (contexts.length >= MAX_CONTEXTS) break;
-        if (node.shadowRoot && node.shadowRoot.mode === "open") {
-          contexts.push({root: node.shadowRoot, surface: "SHADOW"});
-          queue.push(node.shadowRoot);
+        const shadow = node.shadowRoot;
+        if (shadow?.mode === "open" && rememberShadow(node, shadow, observation)) {
+          const host = stableHost(root, node, observation);
+          const next = {root:shadow, surface:"SHADOW",
+            steps:ctx.steps && host ? [...ctx.steps, "S", host] : null};
+          contexts.push(next);
+          queue.push(next);
         }
-        if (node.tagName === "IFRAME") {
+        if (node.tagName === "IFRAME" && contexts.length < MAX_CONTEXTS) {
           try {
             const frame = node.contentDocument;
-            if (frame && frame.location?.origin === location.origin) {
-              contexts.push({root: frame, surface: "FRAME"});
-              queue.push(frame);
+            if (frame && frame.location?.origin === location.origin &&
+                node.isConnected !== false) {
+              // A replaced iframe keeps its CSS host but not its document.
+              // The saved locator must remain stale, not silently rebind.
+              if (observedFrames.has(node) && observedFrames.get(node) !== frame) {
+                if (observation) observation.frameReplaced = true;
+                continue;
+              }
+              observedFrames.set(node, frame);
+              const host = stableHost(root, node, observation);
+              const next = {root:frame, surface:"FRAME",
+                steps:ctx.steps && host ? [...ctx.steps, "F", host] : null};
+              contexts.push(next);
+              queue.push(next);
             }
-          } catch (_) { /* cross-origin frames are never probed further */ }
+          } catch (_) { /* A cross-origin frame is never inspected. */ }
         }
       }
     }
     return contexts;
   }
-  function selectorForGroup(root, example) {
+
+  // The existing bounded context graph serves results, inputs and controls.
+  function roots() {
+    return findContexts(document).filter(ctx => ctx.steps !== null)
+      .map(ctx => ctx.root);
+  }
+  function inputs() {
+    const found = [];
+    let visited = 0;
+    for (const root of roots()) {
+      if (found.length >= 80 || visited >= MAX_DOM_VISITS) break;
+      try {
+        const owner = root.ownerDocument || root;
+        const walker = owner.createTreeWalker?.(root, 1);
+        if (walker) {
+          let node;
+          while (found.length < 80 && visited < MAX_DOM_VISITS &&
+                 (node = walker.nextNode())) {
+            visited++;
+            if (node.tagName === "INPUT") found.push(node);
+          }
+        } else {
+          const candidates = root.querySelectorAll?.("input") || [];
+          for (let i = 0; i < candidates.length && found.length < 80 &&
+               visited < MAX_DOM_VISITS; i++) {
+            visited++;
+            found.push(candidates[i]);
+          }
+        }
+      } catch (_) { /* Inaccessible or replaced context is never trusted. */ }
+    }
+    return found;
+  }
+  function scope(element, leaf, allowGroup = false) {
+    if (!element || element.isConnected === false || !safeCss(leaf)) return null;
+    for (const ctx of findContexts(document)) {
+      if (!ctx.steps?.length) continue;
+      try {
+        const matches = ctx.root.querySelectorAll(leaf);
+        if (!matches.length || !Array.prototype.includes.call(matches, element) ||
+            (!allowGroup && matches.length !== 1)) continue;
+        const locator = encodeLocator(ctx.steps, leaf);
+        const resolved = locator && resolve(locator);
+        // Bind the actual selected card within the original host/root, not
+        // merely a CSS group that may also exist in another DOM context.
+        if (resolved?.length === matches.length &&
+            Array.prototype.every.call(resolved, (node, i) => node === matches[i]))
+          return locator;
+      } catch (_) { /* Detached, unstable and ambiguous roots fail closed. */ }
+    }
+    return null;
+  }
+  // A sparse dynamic page may contain thousands of non-card nodes.
+  // Share one bounded visit budget across all accessible root contexts.
+  function candidates(root, selector, limit, budget) {
+    if (budget <= 0 || limit <= 0) return {nodes:[], visits:0};
+    const owner = root.ownerDocument || (typeof root.createTreeWalker === "function" ? root : null);
+    const walker = owner?.createTreeWalker?.(root, 1);
+    if (!walker) {
+      // Synthetic fixture fallback; production uses bounded TreeWalker.
+      const nodes = Array.from(root.querySelectorAll(selector)).slice(0, Math.min(limit, budget));
+      return {nodes, visits:nodes.length};
+    }
+    const nodes = [];
+    let visits = 0, node;
+    while (visits < budget && nodes.length < limit &&
+           (node = walker.nextNode())) {
+      visits++;
+      if (node.matches?.(selector)) nodes.push(node);
+    }
+    return {nodes, visits};
+  }
+  function selectorForGroup(root, example, cache) {
     if (!example?.tagName) return null;
     const tag = example.tagName.toLowerCase();
-    const classes = Array.from(example.classList || []).filter(v => TOKEN.test(v) &&
+    const classes = Array.from(example.classList || []).filter(v => STABLE_CLASS(v) &&
       !/(?:^|[-_])\d+$/.test(v)).slice(0, 5);
     const candidates = classes.map(c => tag + "." + c);
     const parent = example.parentElement;
-    for (const c of Array.from(parent?.classList || []).filter(x => TOKEN.test(x)).slice(0, 4)) {
+    for (const c of Array.from(parent?.classList || []).filter(STABLE_CLASS).slice(0, 4)) {
       if (CARD_HINT.test(c)) {
         for (const item of classes) candidates.unshift("." + c + " " + tag + "." + item);
       }
@@ -99,16 +295,18 @@
     for (const candidate of candidates) {
       if (candidate.length > 160 || /:has\(|:not\(/.test(candidate)) continue;
       try {
-        const matches = root.querySelectorAll(candidate);
-        if (matches.length >= 1 && matches.length <= 320 &&
-            Array.from(matches).includes(example)) return candidate;
+        if (!cache.has(candidate)) {
+          const matches = root.querySelectorAll(candidate);
+          cache.set(candidate, matches.length <= 320 ? Array.from(matches) : []);
+        }
+        if (cache.get(candidate).includes(example)) return candidate;
       } catch (_) { /* invalid selector */ }
     }
     return null;
   }
   function scoreCard(node, base, inResults) {
     if (!node || !node.querySelectorAll || BAD_HINT.test(nodeHint(node)) ||
-        node.closest?.("nav,header,footer,aside,[role=navigation],[aria-hidden=true],[hidden],[inert]"))
+        node.closest?.("nav,header,footer,aside,[role=navigation],[aria-hidden=true],[hidden],[inert],.ad,.advertisement,.sponsored,[data-ad]"))
       return null;
     const links = Array.from(node.querySelectorAll("a[href]")).slice(0, MAX_LINKS);
     let winner = null, ties = 0;
@@ -137,19 +335,31 @@
   function scan(root, opts) {
     const page = opts?.pageUrl || location.href;
     const inResults = opts?.resultsContext === true || hintSearch(root);
-    let visited = 0, checkedRoots = 0, best = null, ambiguous = false;
-    const rootContexts = findContexts(root);
+    let visited = 0, domVisits = 0, checkedRoots = 0, quotaLimited = false;
+    let best = null, bestRoot = null, ambiguous = false;
+    const observation = {frameReplaced:false, contextReplaced:false};
+    const rootContexts = findContexts(root, observation);
     for (const ctx of rootContexts) {
       checkedRoots++;
       let nodes;
-      try { nodes = ctx.root.querySelectorAll("article,li,figure,div,section"); }
-      catch (_) { continue; }
-      const groups = new Map();
-      for (const node of Array.from(nodes).slice(0, MAX_NODES - visited)) {
+      try {
+        // Reserve capacity for later accessible Shadow/frame roots, rather
+        // than letting a dense MAIN document starve them of all observations.
+        const left = MAX_DOM_VISITS - domVisits;
+        const rootCount = rootContexts.length - checkedRoots + 1;
+        const quota = Math.ceil(left / rootCount);
+        const batch = candidates(ctx.root, "article,li,figure,div,section",
+          MAX_NODES - visited, quota);
+        nodes = batch.nodes;
+        domVisits += batch.visits;
+        if (quota < left && batch.visits >= quota) quotaLimited = true;
+      } catch (_) { continue; }
+      const groups = new Map(), selectors = new Map();
+      for (const node of nodes) {
         visited++;
-        const card = scoreCard(node, page, inResults);
+        const card = scoreCard(node, ctx.root.baseURI || ctx.root.ownerDocument?.baseURI || page, inResults);
         if (!card) continue;
-        const selector = selectorForGroup(ctx.root, node);
+        const selector = selectorForGroup(ctx.root, node, selectors);
         if (!selector) continue;
         const key = selector + "|" + ctx.surface + "|" +
           (card.parent ? nodeHint(card.parent).slice(0, 48) : "");
@@ -167,38 +377,79 @@
           candidate.cards + repetition + structure));
         if (candidate.cards === 1 && confidence < 85) continue;
         if (candidate.cards >= 2 && confidence < 75) continue;
-        const result = {selector:candidate.selector, surface:candidate.surface,
+        const result = {selector:ctx.surface === "MAIN" ? candidate.selector :
+             encodeLocator(ctx.steps, candidate.selector), surface:candidate.surface,
           confidence, matchedCards:candidate.cards,
           evidence:["FILM_PAGE_LINK","CARD_LOCAL_METADATA",
             ...(repetition ? ["REPEATED_STRUCTURE"] : []),
             ...(inResults ? ["RESULTS_CONTEXT"] : [])]};
         if (!best || result.confidence > best.confidence + 14) {
-          best=result; ambiguous=false;
+          best=result; bestRoot=ctx.root; ambiguous=false;
         } else if (Math.abs(result.confidence-best.confidence) < 15 &&
                    result.selector !== best.selector) ambiguous=true;
       }
-      if (visited >= MAX_NODES) break;
+      if (visited >= MAX_NODES || domVisits >= MAX_DOM_VISITS) break;
     }
-    return {selector: best && !ambiguous && best.surface === "MAIN" ? best.selector : null,
-      confidence: best?.confidence || 0,
-      reason: ambiguous ? "AMBIGUOUS_CARDS" : best?.surface === "SHADOW" ? "SHADOW_RESULTS" :
-        best?.surface === "FRAME" ? "FRAME_RESULTS" : best ? "CANDIDATE_FOUND" : "CARDS_NOT_FOUND",
-      surface:best?.surface || "MAIN", matchedCards:best?.matchedCards || 0,
+    // Native rejects found selectors with confidence below 85. Weak
+    // evidence must be diagnostic, never an optimistic found response.
+    const exhausted = quotaLimited || visited >= MAX_NODES ||
+      domVisits >= MAX_DOM_VISITS;
+    // A changed sidebar must not revoke a verified, unaffected result root.
+    // Replacing the active host remains fail-closed even with the same CSS.
+    const replaced = observation.contextReplaced || observation.frameReplaced;
+    const stableBest = !!(lastAccepted && best &&
+      lastAccepted.root === bestRoot &&
+      lastAccepted.selector === best.selector &&
+      lastAccepted.surface === best.surface);
+    const unchangedLocator = stableBest && (best.surface === "MAIN" ||
+      (() => {
+        const found = resolve(best.selector);
+        return !!found && found.length > 0;
+      })());
+    const accepted = !!(best && !ambiguous && !exhausted &&
+      (!replaced || unchangedLocator) &&
+      best.selector && best.confidence >= 85);
+    if (accepted) lastAccepted = {
+      root:bestRoot, selector:best.selector, surface:best.surface
+    };
+    const reason = observation.contextReplaced && !unchangedLocator ?
+      "CONTEXT_REPLACED" :
+      observation.frameReplaced && !unchangedLocator ? "FRAME_REPLACED" :
+      ambiguous ? "AMBIGUOUS_CARDS" :
+      exhausted ? "SCAN_LIMIT" :
+      accepted ? "CANDIDATE_FOUND" :
+      best?.confidence < 85 && best?.confidence > 0 ? "LOW_CONFIDENCE" :
+      best?.surface === "SHADOW" ? "SHADOW_RESULTS" :
+      best?.surface === "FRAME" ? "FRAME_RESULTS" :
+      observation.frameReplaced ? "FRAME_REPLACED" : "CARDS_NOT_FOUND";
+    return {selector: accepted ? best.selector : null,
+      confidence: best?.confidence || 0, reason,
+      surface:best?.surface || (observation.frameReplaced ? "FRAME" : "MAIN"),
+      matchedCards:best?.matchedCards || 0,
       evidence:best?.evidence || [], scannedElements:visited,
-      truncated:visited >= MAX_NODES, contextsChecked:checkedRoots};
+      truncated:exhausted,
+      contextsChecked:checkedRoots};
   }
   function controlHint(control) {
     let svg = null;
-    try { svg = control?.querySelector?.("svg title,svg[aria-label],use"); }
+    try { svg = control?.querySelector?.("svg title,svg[aria-label],svg use,svg [data-icon]"); }
     catch (_) { /* no SVG */ }
-    const label = [control?.innerText, control?.value, control?.id,
+    const referenced = (control?.getAttribute?.("aria-labelledby") || "")
+      .split(/\s+/).filter(Boolean).slice(0, 3).map(id => {
+        if (!TOKEN.test(id)) return "";
+        return control.ownerDocument?.getElementById?.(id)?.textContent || "";
+      });
+    const iconName = [svg?.getAttribute?.("href"), svg?.getAttribute?.("xlink:href"),
+      svg?.getAttribute?.("data-icon")].find(x =>
+        typeof x === "string" && /^#?[a-zA-Z][a-zA-Z0-9_-]{1,48}$/.test(x));
+    return [control?.innerText, control?.value, control?.id,
       control?.getAttribute?.("aria-label"), control?.getAttribute?.("title"),
       control?.getAttribute?.("data-action"), control?.getAttribute?.("data-testid"),
-      textOf(svg)].filter(x => typeof x === "string").join(" ").slice(0, 280);
-    return label;
+      ...referenced, textOf(svg), iconName].filter(x => typeof x === "string")
+      .join(" ").slice(0, 280);
   }
   Object.defineProperty(window, "__zavroRecognition", {
-    value: Object.freeze({scan,controlHint}), configurable: false,
+    value: Object.freeze({scan,controlHint,resolve,roots,inputs,scope}), configurable: false,
     enumerable: false, writable: false
   });
 })();

@@ -17,8 +17,10 @@ function harness(initial = 'https://films.example/home') {
   const page={
     documentElement:{},
     querySelector() {return null;},
-    querySelectorAll() {return [];}
+    querySelectorAll(selector) {return selector === '.cards' ? [card] : [];}
   };
+  // A configured, attached result card is mandatory before an opt-in scroll.
+  const card={ownerDocument:page,parentElement:null,isConnected:true};
   const win={
     top:null, innerHeight:800,
     addEventListener(type, fn) {callbacks.set(type, fn);},
@@ -66,7 +68,8 @@ function harness(initial = 'https://films.example/home') {
     },
     scroll() {
       let n=messages.length;
-      send(commands('paginate',{pagination:'INFINITE_SCROLL',nextPageSelector:null}));
+      send(commands('paginate',{pagination:'INFINITE_SCROLL',nextPageSelector:null,
+        resultsCardSelector:'.cards'}));
       return messages.slice(n);
     },
     flush() {for(const fn of timers.splice(0))fn();},

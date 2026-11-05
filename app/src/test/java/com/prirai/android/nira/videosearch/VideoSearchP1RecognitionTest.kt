@@ -42,6 +42,74 @@ class VideoSearchP1RecognitionTest {
         assertNull(VideoSearchBridgeProtocol.decode(packet().put("reason", "any")))
     }
 
+
+    @Test fun scopedCardLocatorRequiresSurfaceAndCannotForgeMainCss() {
+        // An ASCII base64url locator: S~#playerResults~article.video-card.
+        val scoped = "zcs1:U34jcGxheWVyUmVzdWx0c35hcnRpY2xlLnZpZGVvLWNhcmQ"
+        assertTrue(VideoSearchBridgeProtocol.validSelector(scoped))
+        val parsed = VideoSearchBridgeProtocol.decode(
+            packet(scoped).put("surface", "SHADOW")
+        ) as VideoSearchBridgeMessage.Recognition
+        assertEquals(scoped, parsed.resultsCardSelector)
+        assertEquals("SHADOW", parsed.surface)
+        assertNull(VideoSearchBridgeProtocol.decode(packet(scoped)))
+        assertNull(VideoSearchBridgeProtocol.decode(
+            packet().put("surface", "FRAME")
+        ))
+        assertFalse(VideoSearchBridgeProtocol.validSelector("zcs1:bad/escape"))
+        assertFalse(VideoSearchBridgeProtocol.validSelector("zcs1:"))
+        assertFalse(VideoSearchBridgeProtocol.validSelector("zcs1:" + "a".repeat(160)))
+    }
+
+    @Test fun p2eWeakAndReplacedFrameEvidenceIsNonRepairable() {
+        val weak = packet(JSONObject.NULL).put("status", "partial")
+            .put("reason", "LOW_CONFIDENCE").put("confidence", 78)
+        val parsed = VideoSearchBridgeProtocol.decode(weak)
+            as VideoSearchBridgeMessage.Recognition
+        assertEquals("LOW_CONFIDENCE", parsed.reason)
+        assertNull(parsed.resultsCardSelector)
+        assertNull(VideoSearchRecognitionPolicy.repairCandidate(parsed, null))
+
+        val replaced = packet(JSONObject.NULL).put("status", "missing")
+            .put("reason", "FRAME_REPLACED").put("confidence", 0)
+            .put("matchedCards", 0).put("surface", "FRAME")
+        val stale = VideoSearchBridgeProtocol.decode(replaced)
+            as VideoSearchBridgeMessage.Recognition
+        assertEquals("FRAME_REPLACED", stale.reason)
+        assertNull(VideoSearchRecognitionPolicy.repairCandidate(stale, null))
+        val limited = VideoSearchBridgeProtocol.decode(
+            packet(JSONObject.NULL).put("status", "missing")
+                .put("reason", "SCAN_LIMIT").put("confidence", 0)
+                .put("matchedCards", 0)
+        ) as VideoSearchBridgeMessage.Recognition
+        assertNull(VideoSearchRecognitionPolicy.repairCandidate(limited, null))
+        assertNull(VideoSearchBridgeProtocol.decode(
+            packet().put("reason", "LOW_CONFIDENCE")
+        ))
+        assertTrue(VideoSearchRecognitionDiagnostics.explain(stale).contains("podmieniona"))
+    }
+
+    @Test fun p2fContextReplacementEvidenceCannotRepairOrForgeRecognition() {
+        val stale = packet(JSONObject.NULL)
+            .put("status", "missing")
+            .put("reason", "CONTEXT_REPLACED")
+            .put("confidence", 0)
+            .put("matchedCards", 0)
+            .put("surface", "SHADOW")
+        val parsed = VideoSearchBridgeProtocol.decode(stale)
+            as VideoSearchBridgeMessage.Recognition
+        assertNull(parsed.resultsCardSelector)
+        assertEquals("CONTEXT_REPLACED", parsed.reason)
+        assertNull(VideoSearchRecognitionPolicy.repairCandidate(parsed, null))
+        assertTrue(VideoSearchRecognitionDiagnostics.explain(parsed).contains("podmieniony"))
+        assertNull(VideoSearchBridgeProtocol.decode(
+            packet().put("reason", "CONTEXT_REPLACED")
+        ))
+        assertNull(VideoSearchBridgeProtocol.decode(
+            stale.put("extra", "untrusted")
+        ))
+    }
+
     @Test fun readOnlyOutboundRecognitionIsMinimal() {
         val packet = VideoSearchBridgeProtocol.recognize("a".repeat(32), "b".repeat(32))
         assertEquals(4, packet.length())

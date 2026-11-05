@@ -157,3 +157,56 @@ test('preview accepts non-aligned continuation after the first budget-limited pa
   assert.ok(second.films.length > 0);
   assert.equal(second.films[0].originalIndex, first.inspectedCards);
 });
+
+test('P2-G3 continuing after a DOM shrink returns STALE, never a false empty terminal page',()=>{
+  const cards=Array.from({length:20},(_,i)=>card(i));
+  const request=start(cards);
+  const first=request(0);
+  assert.equal(first.status,'ok');
+  assert.equal(first.inspectedCards,16);
+  assert.equal(first.moreOnPage,true);
+  cards.splice(8);
+  const second=request(first.inspectedCards);
+  assert.equal(second.status,'stale');
+  assert.equal(second.inspectedCards,0);
+  assert.equal(second.moreOnPage,false);
+  assert.equal(second.films.length,0);
+});
+
+test('P2-G3 insertion before an active cursor cannot silently skip a film',()=>{
+  const cards=Array.from({length:20},(_,i)=>card(i));
+  const request=start(cards);
+  const first=request(0);
+  assert.equal(first.inspectedCards,16);
+  cards.unshift(card(100));
+  const next=request(first.inspectedCards);
+  assert.equal(next.status,'stale');
+  assert.equal(next.films.length,0);
+});
+
+test('P2-G3 append after cursor and explicit new page restart keep contiguous film IDs',()=>{
+  const cards=Array.from({length:20},(_,i)=>card(i));
+  const request=start(cards);
+  const first=request(0);
+  cards.push(card(20));
+  const second=request(first.inspectedCards);
+  assert.equal(second.status,'ok');
+  assert.equal(second.films[0].filmPageUrl,cards[16].filmUrl);
+  cards.splice(0,cards.length,card(200),card(201));
+  const replacement=request(0);
+  assert.equal(replacement.status,'ok');
+  assert.equal(replacement.films[0].filmPageUrl,cards[0].filmUrl);
+  assert.equal(replacement.inspectedCards,2);
+});
+
+test('P2-G3 preview and crawl offsets do not share cursor anchors',()=>{
+  const cards=Array.from({length:25},(_,i)=>card(i));
+  const request=start(cards);
+  const first=request(0,'extract_crawl');
+  const preview=request(0,'extract_batch');
+  assert.equal(first.status,'ok');
+  assert.equal(preview.status,'ok');
+  const more=request(first.inspectedCards,'extract_crawl');
+  assert.equal(more.status,'ok');
+  assert.equal(more.films[0].filmPageUrl,cards[16].filmUrl);
+});

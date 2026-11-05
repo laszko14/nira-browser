@@ -135,4 +135,34 @@ class VideoSearchPageBatchProtocolTest {
             as VideoSearchBridgeMessage.Results
         assertNull(result.page.films.single().originalTitle)
     }
+
+    @Test fun p2g3StaleContinuationCannotBeCommittedOrCalledDone() {
+        val c = VideoSearchPaginationCollector("https://films.example/search?q=test", 80)
+        assertTrue(c.beginDocument("https://films.example/search?q=test"))
+        val first = response(0, count = 16, more = true).apply {
+            put("event", "crawl_results")
+        }
+        val firstPage = (VideoSearchBridgeProtocol.decode(first)
+            as VideoSearchBridgeMessage.Results).page
+        assertEquals(1, c.appendWindow(0, firstPage))
+        val stale = response(16).apply {
+            put("event", "crawl_results")
+            put("status", "stale")
+            put("films", JSONArray())
+            put("inspectedCards", 0)
+            put("moreOnPage", false)
+        }
+        val stalePage = (VideoSearchBridgeProtocol.decode(stale)
+            as VideoSearchBridgeMessage.Results).page
+        assertEquals("stale", stalePage.status)
+        try {
+            c.appendWindow(16, stalePage)
+            fail("Stale DOM cursor accepted as a valid terminal batch")
+        } catch (_: IllegalArgumentException) {}
+        assertEquals(16, c.nextCardIndex)
+        assertEquals(1, c.uniqueCount)
+        assertEquals(VideoSearchQueueStatus.FAILED,
+            VideoSearchWorkerVerification.finalQueueStatus(
+                c.snapshot(VideoSearchPaginationStop.ERROR)))
+    }
 }

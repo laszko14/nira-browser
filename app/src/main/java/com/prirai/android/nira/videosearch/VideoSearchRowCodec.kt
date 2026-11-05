@@ -33,7 +33,9 @@ internal object VideoSearchRowCodec {
                     .put("confidence", c.recognition.confidence)
                     .put("confirmations", c.recognition.confirmations)
                     .put("lastVerifiedAtMs", c.recognition.lastVerifiedAtMs)
-                    .put("backups", JSONArray(c.recognition.backupResultsSelectors)))
+                    .put("backups", JSONArray(c.recognition.backupResultsSelectors))
+                    .put("rollback", c.recognition.rollbackConfigurationJson)
+                    .put("rollbackState", c.recognition.rollbackState?.name))
                 .toString()
         }
 
@@ -48,6 +50,11 @@ internal object VideoSearchRowCodec {
                 confirmations = record.getInt("confirmations"),
                 lastVerifiedAtMs = (record.opt("lastVerifiedAtMs") as? Number)?.toLong(),
                 backupResultsSelectors = (0 until list.length()).map { list.getString(it) },
+                rollbackConfigurationJson = (record.opt("rollback") as? String)
+                    ?.takeIf { it.isNotBlank() && it.length <= 4096 },
+                rollbackState = (record.opt("rollbackState") as? String)
+                    ?.let { runCatching { VideoSiteConfigurationState.valueOf(it) }
+                        .getOrNull() },
             )
         } catch (_: Exception) {
             VideoSearchRecognitionMemory() // Keep the last valid working selectors.

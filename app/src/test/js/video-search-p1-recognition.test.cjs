@@ -14,11 +14,11 @@ function fixture({count=3, links='film', ads=false, surface='MAIN', resultPage=t
     getAttribute(){return null;}};
   function makeCard(i) {
     const url=links==='film'?'/video/'+(i+1):links==='category'?'/category/'+(i+1):
-      'javascript:alert(1)';
+      links==='weak'?'/item/'+(i+1):'javascript:alert(1)';
     const heading={textContent:'Video '+(i+1),getAttribute(){return null;}};
     const link={getAttribute(k){return k==='href'?url:null;},
-      hasAttribute(){return false;}, querySelector(){return heading;},
-      textContent:'Video '+(i+1)};
+      hasAttribute(){return false;}, querySelector(){return links==='weak'?null:heading;},
+      textContent:links==='weak'?'Read more':'Video '+(i+1)};
     return {tagName:'ARTICLE',className:ads?'sponsored':'video-card',
       classList:ads?['sponsored']:['video-card'], parentElement:parent,
       getAttribute(){return null;},closest(){return null;},
@@ -95,4 +95,346 @@ test('P1 limits scanned DOM candidates per analysis',()=>{
 test('P1 structural read-only engine contains no form submission or network calls',()=>{
   for(const forbidden of [/\.click\s*\(/,/requestSubmit\s*\(/,/\.submit\s*\(/,/fetch\s*\(/,/XMLHttpRequest/,/sendBeacon/])
     assert.doesNotMatch(source,forbidden);
+});
+
+test('P2 TreeWalker candidates avoid a global document-wide card query',()=>{
+  const nodes=Array.from({length:3},(_,i)=>{
+    const parent={classList:['search-results'],id:'',className:'search-results',getAttribute(){return null;}};
+    const heading={textContent:'Video '+i,getAttribute(){return null;}};
+    const link={getAttribute(k){return k==='href'?'/video/'+i:null;},
+      hasAttribute(){return false;},textContent:'Video '+i,querySelector(){return heading;}};
+    return {tagName:'ARTICLE',classList:['video-card'],className:'video-card',
+      parentElement:parent,getAttribute(){return null;},closest(){return null;},
+      matches(s){return s==='article,li,figure,div,section';},
+      querySelectorAll(s){return s==='a[href]'?[link]:[];},
+      querySelector(s){if(/h1,h2,h3,h4/.test(s))return heading;
+        if(/img,picture,video/.test(s))return {tagName:'IMG'};return null;}};
+  });
+  let broadQueries=0;
+  const doc={
+    createTreeWalker(){let i=0;return {nextNode(){return nodes[i++]||null;}};},
+    querySelectorAll(s){
+      if(s==='article,li,figure,div,section'){broadQueries++;throw Error('global DOM allocation');}
+      if(s==='article.video-card'||s==='article')return nodes;
+      return [];
+    }
+  };
+  const win={};win.top=win;
+  vm.runInNewContext(source,{window:win,document:doc,URL,
+    location:new URL('https://films.example/search?q=book'),console});
+  const result=win.__zavroRecognition.scan(doc);
+  assert.equal(result.selector,'article.video-card');
+  assert.equal(broadQueries,0);
+  assert.ok(result.scannedElements<=260);
+});
+
+test('P2 single homepage recommendation remains unverified',()=>{
+  const result=fixture({resultPage:false,count:1});
+  assert.equal(result.selector,null);
+});
+
+function scopedFixture(surface = 'SHADOW') {
+  const link = i => ({
+    getAttribute(key) { return key === 'href' ? '/video/' + i : null; },
+    hasAttribute() { return false; }, textContent: 'Video ' + i,
+    querySelector() { return {textContent: 'Video ' + i, getAttribute() {return null;}}; }
+  });
+  const parent = {classList:['search-results'], className:'search-results',
+    getAttribute() {return null;}};
+  const cards = [1,2].map(i => ({
+    tagName:'ARTICLE', classList:['video-card'], className:'video-card',
+    parentElement:parent, getAttribute() {return null;}, closest() {return null;},
+    querySelectorAll(q) {return q === 'a[href]' ? [link(i)] : [];},
+    querySelector(q) {
+      if (q.includes('h1,h2,h3,h4')) return {textContent:'Video '+i,
+        getAttribute() {return null;}};
+      if (q.includes('img,picture')) return {tagName:'IMG'};
+      return null;
+    }
+  }));
+  const inner = {mode:'open', location:{origin:'https://films.example'},
+    baseURI:'https://films.example/search?q=book',
+    querySelectorAll(q) {
+      return q === 'article,li,figure,div,section' ||
+        q === '.search-results article.video-card' ? cards :
+        q === 'article,div,section,main,form,iframe,*' ? cards : [];
+    }};
+  const host = {tagName:surface === 'FRAME' ? 'IFRAME' : 'VIDEO-LIST',
+    id:'playerResults', classList:[], contentDocument:surface === 'FRAME' ? inner : null,
+    shadowRoot:surface === 'SHADOW' ? inner : null};
+  const outer = {querySelectorAll(q) {
+    if (q === 'article,div,section,main,form,iframe,*' || q === '#playerResults')
+      return [host];
+    return [];
+  }};
+  const win = {}; win.top = win;
+  vm.runInNewContext(source, {
+    window:win, document:outer, URL, location:new URL('https://films.example/search?q=book'),
+    console,
+    btoa:x => Buffer.from(x,'binary').toString('base64'),
+    atob:x => Buffer.from(x,'base64').toString('binary')
+  });
+  return {win,outer,host,inner};
+}
+test('P2 locates and resolves cards within an open shadow root', () => {
+  const f = scopedFixture();
+  const result = f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(result.reason,'CANDIDATE_FOUND');
+  assert.equal(result.surface,'SHADOW');
+  assert.match(result.selector,/^zcs1:[A-Za-z0-9_-]+$/);
+  assert.equal(f.win.__zavroRecognition.resolve(result.selector).length,2);
+  f.host.shadowRoot = null;
+  assert.equal(f.win.__zavroRecognition.resolve(result.selector),null);
+});
+test('P2 same-origin frame locator revokes access on origin change', () => {
+  const f = scopedFixture('FRAME');
+  const result = f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(result.surface,'FRAME');
+  assert.ok(result.selector?.startsWith('zcs1:'));
+  assert.equal(f.win.__zavroRecognition.resolve(result.selector).length,2);
+  f.inner.location.origin = 'https://elsewhere.example';
+  assert.equal(f.win.__zavroRecognition.resolve(result.selector),null);
+  assert.equal(f.win.__zavroRecognition.resolve('zcs1:garbage'),null);
+});
+test('P2 rejects ambiguous host and inaccessible frame without guessing', () => {
+  const f = scopedFixture('FRAME');
+  const other = {tagName:'IFRAME', id:'playerResults'};
+  const query = f.outer.querySelectorAll;
+  f.outer.querySelectorAll = q => q === '#playerResults' ? [f.host,other] : query(q);
+  const result = f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(result.selector,null);
+  assert.equal(result.reason,'FRAME_RESULTS');
+  Object.defineProperty(f.host,'contentDocument',{get(){throw new Error('SecurityError');}});
+  assert.equal(f.win.__zavroRecognition.scan(f.outer).selector,null);
+});
+test('P2 icon-only SVG search name is read without clicking the page',()=>{
+  const win={};win.top=win;
+  vm.runInNewContext(source,{window:win,document:{},URL,
+    location:new URL('https://films.example'),console});
+  const hint=win.__zavroRecognition.controlHint({
+    getAttribute(){return null;},
+    querySelector(){return {getAttribute(key){return key==='href'?'#search-icon':null;}};}
+  });
+  assert.match(hint,/search-icon/);
+  assert.doesNotMatch(source,/\.click\s*\(/);
+});
+
+test('P2-E low-confidence repeated cards are diagnostic, not a native-rejected found claim',()=>{
+  const result=fixture({links:'weak',count:3});
+  assert.equal(result.selector,null);
+  assert.equal(result.reason,'LOW_CONFIDENCE');
+  assert.ok(result.confidence>=75 && result.confidence<85);
+  assert.equal(result.matchedCards,3);
+});
+test('P2-E replacing a same-origin iframe invalidates its old locator and reports replacement',()=>{
+  const f=scopedFixture('FRAME');
+  const initial=f.win.__zavroRecognition.scan(f.outer);
+  assert.ok(initial.selector?.startsWith('zcs1:'));
+  const replacement={...f.inner,location:{origin:'https://films.example'}};
+  f.host.contentDocument=replacement;
+  assert.equal(f.win.__zavroRecognition.resolve(initial.selector),null);
+  const again=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(again.selector,null);
+  assert.equal(again.reason,'FRAME_REPLACED');
+  assert.equal(again.surface,'FRAME');
+});
+test('P2-E generated numeric iframe host IDs cannot become persisted scoped locators',()=>{
+  const f=scopedFixture('FRAME');
+  f.host.id='results_1234567890';
+  const report=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(report.selector,null);
+  assert.equal(report.reason,'FRAME_RESULTS');
+});
+test('P2-E dense and sparse nested DOM roots share one capped candidate-visit budget',()=>{
+  let visited=0;
+  const ordinary={tagName:'DIV',classList:[],getAttribute(){return null;},
+    matches(){return false;}};
+  const leaf={mode:'open',ownerDocument:null,querySelectorAll(){return [];}};
+  const host={tagName:'VIDEO-LIST',id:'stableRoot',classList:[],
+    getAttribute(){return null;},shadowRoot:leaf};
+  const mainNodes=[host,...Array(3000).fill(ordinary)];
+  const innerNodes=Array(3000).fill(ordinary);
+  const outer={
+    querySelectorAll(q){return q==='#stableRoot'?[host]:[];},
+    createTreeWalker(root){
+      let index=0;
+      const nodes=root===leaf?innerNodes:mainNodes;
+      return {nextNode(){visited++;return nodes[index++]||null;}};
+    }
+  };
+  leaf.ownerDocument=outer;
+  const win={};win.top=win;
+  vm.runInNewContext(source,{window:win,document:outer,URL,
+    location:new URL('https://films.example/search?q=book'),console});
+  const result=win.__zavroRecognition.scan(outer);
+  assert.equal(result.selector,null);
+  assert.ok(result.contextsChecked>=2);
+  // 260 visits for context discovery, 2400 for card candidates plus EOF.
+  assert.ok(visited<=2662,'bounded DOM visits including context discovery');
+  assert.equal(result.truncated,true);
+  assert.equal(result.reason,'SCAN_LIMIT');
+  assert.equal(result.selector,null);
+});
+
+test('P2-F replaces a Shadow host with identical CSS: old saved locator stays stale',()=>{
+  const f=scopedFixture('SHADOW');
+  const initial=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(initial.reason,'CANDIDATE_FOUND');
+  assert.equal(f.win.__zavroRecognition.resolve(initial.selector).length,2);
+  const other={...f.host,shadowRoot:{...f.inner}};
+  const original=f.outer.querySelectorAll;
+  f.outer.querySelectorAll=q =>
+    q==='#playerResults'||q==='article,div,section,main,form,iframe,*' ?
+      [other]:original(q);
+  assert.equal(f.win.__zavroRecognition.resolve(initial.selector),null);
+  const report=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(report.reason,'CONTEXT_REPLACED');
+  assert.equal(report.selector,null);
+});
+
+test('P2-F swaps an open shadow root on the SAME host: scoped locator is revoked',()=>{
+  const f=scopedFixture('SHADOW');
+  const initial=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(f.win.__zavroRecognition.resolve(initial.selector).length,2);
+  f.host.shadowRoot={...f.inner};
+  assert.equal(f.win.__zavroRecognition.resolve(initial.selector),null);
+  const report=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(report.reason,'CONTEXT_REPLACED');
+  assert.equal(report.selector,null);
+});
+
+test('P2-F replaces the entire same-origin iframe with identical host CSS',()=>{
+  const f=scopedFixture('FRAME');
+  const initial=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(initial.reason,'CANDIDATE_FOUND');
+  const other={...f.host,contentDocument:{...f.inner}};
+  const original=f.outer.querySelectorAll;
+  f.outer.querySelectorAll=q =>
+    q==='#playerResults'||q==='article,div,section,main,form,iframe,*' ?
+      [other]:original(q);
+  assert.equal(f.win.__zavroRecognition.resolve(initial.selector),null);
+  assert.equal(f.win.__zavroRecognition.scan(f.outer).reason,'CONTEXT_REPLACED');
+});
+
+test('P2-F normal results AJAX rerender within stable root preserves selector',()=>{
+  const f=scopedFixture('SHADOW');
+  const initial=f.win.__zavroRecognition.scan(f.outer);
+  const updated=Array.from({length:3},(_,i)=>({id:'new-card-'+i}));
+  const lookup=f.inner.querySelectorAll;
+  f.inner.querySelectorAll=q => q==='.search-results article.video-card' ?
+    updated:lookup(q);
+  const cards=f.win.__zavroRecognition.resolve(initial.selector);
+  assert.equal(cards.length,3);
+  assert.equal(cards[0],updated[0]);
+});
+
+test('P2-F fresh content-script realm after full document reload can use stored locator',()=>{
+  const before=scopedFixture('FRAME');
+  const locator=before.win.__zavroRecognition.scan(before.outer).selector;
+  const after=scopedFixture('FRAME');
+  assert.equal(after.win.__zavroRecognition.resolve(locator).length,2);
+  assert.equal(after.win.__zavroRecognition.scan(after.outer).reason,'CANDIDATE_FOUND');
+});
+
+test('P2-F scoped recognition remains read-only and never clicks or posts',()=>{
+  for(const forbidden of [/\.click\s*\(/,/requestSubmit\s*\(/,/\.submit\s*\(/,/fetch\s*\(/,/XMLHttpRequest/,/sendBeacon/])
+    assert.doesNotMatch(source,forbidden);
+});
+
+test('P2-G1 scoped card groups require the selected DOM node and stable host',()=>{
+  const f=scopedFixture('SHADOW');
+  const leaf='.search-results article.video-card';
+  const selected=f.inner.querySelectorAll(leaf)[1];
+  assert.equal(f.win.__zavroRecognition.scope(selected,leaf),null);
+  const locator=f.win.__zavroRecognition.scope(selected,leaf,true);
+  assert.match(locator,/^zcs1:/);
+  assert.equal(f.win.__zavroRecognition.resolve(locator)[1],selected);
+  f.host.shadowRoot={...f.inner};
+  assert.equal(f.win.__zavroRecognition.resolve(locator),null);
+});
+
+test('P2-G2 unrelated Shadow widget replacement preserves known scoped results',()=>{
+  const f=scopedFixture('SHADOW');
+  const previous=f.outer.querySelectorAll;
+  const widget={tagName:'FILTER-WIDGET',id:'filters',classList:[],
+    shadowRoot:{mode:'open',querySelectorAll(){return [];}}};
+  f.outer.querySelectorAll=q=>q==='article,div,section,main,form,iframe,*'?
+    [f.host,widget]:q==='#filters'?[widget]:previous(q);
+  const first=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(first.reason,'CANDIDATE_FOUND');
+  widget.shadowRoot={mode:'open',querySelectorAll(){return [];}};
+  const second=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(second.reason,'CANDIDATE_FOUND');
+  assert.equal(second.selector,first.selector);
+  assert.equal(f.win.__zavroRecognition.resolve(first.selector).length,2);
+});
+
+test('P2-G2 replaced unrelated Shadow root cannot mask replaced result host',()=>{
+  const f=scopedFixture('SHADOW');
+  const previous=f.outer.querySelectorAll;
+  const widget={tagName:'FILTER-WIDGET',id:'filters',classList:[],
+    shadowRoot:{mode:'open',querySelectorAll(){return [];}}};
+  f.outer.querySelectorAll=q=>q==='article,div,section,main,form,iframe,*'?
+    [f.host,widget]:q==='#filters'?[widget]:previous(q);
+  const first=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(first.reason,'CANDIDATE_FOUND');
+  widget.shadowRoot={mode:'open',querySelectorAll(){return [];}};
+  f.host.shadowRoot={...f.inner};
+  const result=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(result.reason,'CONTEXT_REPLACED');
+  assert.equal(result.selector,null);
+});
+
+test('P2-G2 unrelated open Shadow widget replacement keeps MAIN cards',()=>{
+  const parent={className:'search-results',classList:['search-results'],getAttribute(){return null;}};
+  const cards=[1,2].map(i=>{
+    const heading={textContent:'Film '+i,getAttribute(){return null;}};
+    const link={getAttribute(k){return k==='href'?'/video/'+i:null;},
+      hasAttribute(){return false;},textContent:'Film '+i,querySelector(){return heading;}};
+    return {tagName:'ARTICLE',classList:['video-card'],parentElement:parent,
+      getAttribute(){return null;},closest(){return null;},
+      querySelectorAll(q){return q==='a[href]'?[link]:[];},
+      querySelector(q){return /h1,h2,h3,h4/.test(q)?heading:
+        /img,picture,video/.test(q)?{tagName:'IMG'}:null;}};
+  });
+  const widget={tagName:'FILTER-WIDGET',id:'filters',classList:[],
+    shadowRoot:{mode:'open',querySelectorAll(){return [];}}};
+  const doc={querySelectorAll(q){
+    if(q==='article,div,section,main,form,iframe,*')return [widget,...cards];
+    if(q==='#filters')return [widget];
+    if(['article,li,figure,div,section','article.video-card','article',
+        '.search-results article.video-card'].includes(q))return cards;
+    return [];
+  }};
+  const win={};win.top=win;
+  vm.runInNewContext(source,{window:win,document:doc,URL,
+    location:new URL('https://films.example/search?q=book'),
+    btoa:x=>Buffer.from(x,'binary').toString('base64'),
+    atob:x=>Buffer.from(x,'base64').toString('binary')});
+  const first=win.__zavroRecognition.scan(doc);
+  assert.equal(first.reason,'CANDIDATE_FOUND');
+  assert.equal(first.surface,'MAIN');
+  widget.shadowRoot={mode:'open',querySelectorAll(){return [];}};
+  const again=win.__zavroRecognition.scan(doc);
+  assert.equal(again.reason,'CANDIDATE_FOUND');
+  assert.equal(again.selector,first.selector);
+});
+
+test('P2-G2 stable Shadow result root accepts AJAX card reordering',()=>{
+  const f=scopedFixture('SHADOW');
+  const first=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(first.reason,'CANDIDATE_FOUND');
+  const initial=f.inner.querySelectorAll('.search-results article.video-card');
+  const updated=initial.slice().reverse();
+  const originalQuery=f.inner.querySelectorAll;
+  f.inner.querySelectorAll=q=>[
+    'article,li,figure,div,section',
+    'article,div,section,main,form,iframe,*',
+    '.search-results article.video-card'
+  ].includes(q)?updated:originalQuery(q);
+  const second=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(second.reason,'CANDIDATE_FOUND');
+  assert.equal(second.selector,first.selector);
+  assert.equal(second.matchedCards,2);
+  assert.equal(f.win.__zavroRecognition.resolve(first.selector)[0],updated[0]);
 });

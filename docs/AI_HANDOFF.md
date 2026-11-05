@@ -1,51 +1,45 @@
-# AI_HANDOFF — Zavro Clean V4 / Adaptive Site Intelligence P1
-> Archive: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md
+# AI_HANDOFF — Zavro Clean V4 / P2-G3 end-to-end integration
+> History: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md. P2-G2 completed at dfef9c383a5a347bbb226585605305fe6fa86c1c; SOURCE 42092884956 / PR 42092896183 SUCCESS, attempt 1. This task finishes the three-level P2-G implementation; the live CI result belongs to final workflow runs, not this source snapshot.
 
 ```yaml
-task_id: ZC-V4-ADAPTIVE-SITE-INTELLIGENCE-P1
+task_id: ZC-V4-P2-G3-END-TO-END-INTEGRITY
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
-branch: fix/zavro-clean-v4-p1-adaptive-site-intelligence-20261103
-base_sha: d48fdff8a6e5e46e68ec4b2c329e32927a6c10a4
-observed_head_sha: ecba01711822ee61faa20c500da7197fb3eac571
+branch: fix/zavro-clean-v4-p2-evidence-runtime-20261103
+base_sha: dfef9c383a5a347bbb226585605305fe6fa86c1c
+observed_head_sha: dfef9c383a5a347bbb226585605305fe6fa86c1c
 status: CI_PENDING
-acceptance_source: P1 structural multi-signal film cards; safe icon/search control recognition; dynamic SPA retry; read-only Shadow/iframe detection; typed bounded bridge; remembered verified rule evidence without manual overwrite; diagnostic reasons.
-completed: Added independent bounded recognition.js with local film-link+title+thumbnail evidence, negative ad/category link filters, structural scoring, open-shadow/same-origin iframe read-only surface detection; connected to existing WebExtension content.js. SVG accessible-icon search hints; typed owner-bound recognition bridge; SPA hydration read-only retry; backward-compatible optional Room JSON recognition metadata and CAS-based memory of verified user searches; diagnostics and JS/Kotlin/Room tests. Incremented signed arm64 debug update from v1214 alpha116 to v1218 alpha117.
-remaining: Verify all SOURCE and PR integration CI, fix actual failures. P1 deep extraction from Shadow DOM/iframe remains deliberately unsupported until typed scoped locator and safe frame ownership is implemented; do not treat surface detection as full support. No actual 15-site Gecko verification.
-required_ci: SOURCE push process-docs, shared-tests JS/JVM-Robolectric/AndroidTest compile/lint-regression, quality-evidence on final source SHA; separate PR integration. No pass without live evidence.
-apk: APK_BLOCKED until authorized exact-SHA owner COMMENT review after completed green final SOURCE CI; then verify package com.prirai.android.nira.debug, ABI arm64-v8a, versionCode 1218, versionName 0.5.22-alpha117-clean and unchanged cert SHA256 df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00.
+acceptance_source: User said "dalej" after verified P2-G2; implement last P2-G3 level, end-to-end search, pagination, persistence and security verification, with code, tests, review, commit/push and final CI. No merge, public release, APK, signing changes or MPV.
+completed: Code commit ef711d573459f3a5eb689b1f0d1cf961ecca48b6 adds safe same-origin result-link classification for account/login/checkout/payment/download paths; rejects a shrunk/shifted DOM continuation with stale rather than false empty completion; independently tracks extract_batch/extract_crawl cursor node identity and resets on route change or new page generation. Test commit dde2b5f24fba336a6e8dc63b6df027c0050c4f35 adds a native bridge decode + collector + queue-status end-to-end regression for stale continuation. Seven JS behavior tests cover shrink, insertion, append, fresh generation, preview/crawl independence, non-film links and retained safe film identity. Existing worker search verification, revision-based Room CAS, private profile isolation, multi-site queue, cancellation, memory/repair and pagination tests remain intact and are required in full CI.
+remaining: Run SOURCE and PR CI on exact final pushed SHA after follow-up fix 04defa7750e06364bc4b58b77f893ed890c065f6. Investigate any failure; no PASS before job success. Physical GeckoView/real websites, device orientations, background suspension and live search interactions still NOT_TESTED.
+required_ci: SOURCE process-docs and shared-tests JavaScript WebExtension, Kotlin/JVM Robolectric, AndroidTest Kotlin compile, Android lint regression baseline and checkout/evidence summary SUCCESS on exact final SHA. Separate PR integration JS/JVM/AndroidTest/lint/evidence SUCCESS; build/release SKIPPED acceptable only for tests-only.
 device: NOT_TESTED
-known_failures: SOURCE 41569421409 process-docs FAIL from missing handoff fields fixed at 8e98152e (PASS in later SOURCE); review finding false verified result on raw Inspect fixed in P1 code and regression test, final CI pending. ERROR_CASES P1 2 OBSERVED / 2 RECORDED / 1 OPEN.
-verification: GitHub connector confirmed P0 HEAD, live PR 122, exact SHA files, required V3.2 instructions. JS 434/434 PASS in prior P1 run, SOURCE process-docs PASS after repaired handoff; these results are not a substitute for final SOURCE CI.
-blockers:
-  - Shadow/iframe extraction needs additional scoped locator and lifecycle security proof.
-  - Physical Android GeckoView real-world sites NOT_TESTED.
+apk: NOT_BUILT; no signing or private APK requested for these three P2-G levels.
+known_failures: Two initial review defects corrected in ef711d573459f3a5eb689b1f0d1cf961ecca48b6. Initial SOURCE 42095577733 and PR 42095583300 JS suites each failed one EXISTING high-offset standalone test (489/490 PASS), plus the expected SOURCE required-gates summary failure; all three CI occurrences registered in ERROR_CASES. Fix commit 04defa7750e06364bc4b58b77f893ed890c065f6 distinguishes legacy independent high offsets (empty) from witnessed contiguous stale cursors (stale), without changing tests. Final CI must reverify.
+verification: Preflight at dfef9c383a5a347bbb226585605305fe6fa86c1c via direct GitHub connector: branch/PR #123 live SHA matched; AGENTS.md and docs/AI_HANDOFF.md plus STARTUP_PREFLIGHT.md, TEST_POLICY.md, TEST_PATTERNS.md, QUALITY_GATES.md, ERROR_LEARNING.md, DEVELOPMENT_WORKFLOW.md, CHECKPOINT_POLICY.md, TASK_TEMPLATE.md and EXCEPTIONS_AND_TOOLS.md all read from same explicit SHA. Repository tree contains only root AGENTS.md; P2-G1 and G2 SOURCE+PR CI on their own final SHAs green. P2-G3 JavaScript and added tests syntax checked in V8; full RED on old production source and local JDK/ADB NOT_TESTED, GitHub Actions must execute integration regressions. Code/diff self-reviewed before branch update. Initial source and PR JavaScript suite failure root cause confirmed at test #399; original assertion preserved, production behavior repaired in 04defa7750e06364bc4b58b77f893ed890c065f6.
 changed_paths:
-  - app/src/main/assets/extensions/zavro-video-search/recognition.js
-  - app/src/main/assets/extensions/zavro-video-search/manifest.json
   - app/src/main/assets/extensions/zavro-video-search/content.js
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchRecognitionMemory.kt
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchRecognitionDiagnostics.kt
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchModels.kt
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchRowCodec.kt
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchRepository.kt
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchBridgeProtocol.kt
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchBridgeController.kt
-  - app/src/main/java/com/prirai/android/nira/videosearch/MyVideoSitesActivity.kt
-  - app/src/test/js/video-search-p1-recognition.test.cjs
-  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP1RecognitionTest.kt
-  - app/src/test/js/release-contract-stage19a.test.cjs
-  - app/src/test/js/video-search-neon-redesign.test.cjs
-  - app/build.gradle
-  - .github/workflows/apk-release.yml
+  - app/src/test/js/video-search-p6-batches.test.cjs
+  - app/src/test/js/video-search-p9-link-identity.test.cjs
+  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchPageBatchProtocolTest.kt
+  - docs/AI_HANDOFF.md
+  - docs/ai/ERROR_CASES.json
 verified_before_push:
-  - GitHub P0 live head d48fdff8a6e5e46e68ec4b2c329e32927a6c10a4; read AGENTS.md and handoff from exactly that SHA.
-  - Read V3.2 STARTUP_PREFLIGHT, TEST_POLICY, QUALITY_GATES, ERROR_LEARNING and approved APK owner-review trigger.
-  - PR 122 draft stacked on P0; repository permissions admin, pull and push confirmed, no merge.
+  - No Gecko engine bridges, Room schema, persisted JSON format, production Kotlin behavior, worker permissions, lifecycle/selection logic or signing workflow changed.
+  - One existing JS protocol status 'stale' is reused; the Kotlin decoder and collector already reject stale windows.
+  - A new crawl generation starts only at explicit index 0; trusted page action and genuine append remain possible.
+  - Login/payment/download URLs are not film identities; genuine same-origin film links keep full query parameters and metadata.
+  - No automatic user interaction, query logging, raw DOM persistence, profile/session changes, destructive operations or force push.
+blockers:
+  - Independent lifecycle/security reviewer unavailable; own review and CI do not prove complete real-device acceptance.
+  - Device, real third-party sites, physical Gecko, private profile switching under actual load NOT_TESTED.
 evidence_links:
-  - https://github.com/laszko14/nira-browser/pull/122
-  - https://github.com/laszko14/nira-browser/actions/runs/41569421409
-security: No TinyFish, merge, public release, force-push, destructive migration or certificate changes.
-next_action: Verify complete final SOURCE and PR integration CI, triage failures and verify exact final HEAD; only afterward trigger owner COMMENT PR review for signed private APK.
+  - https://github.com/laszko14/nira-browser/pull/123
+  - https://github.com/laszko14/nira-browser/commit/ef711d573459f3a5eb689b1f0d1cf961ecca48b6
+  - https://github.com/laszko14/nira-browser/commit/dde2b5f24fba336a6e8dc63b6df027c0050c4f35
+  - https://github.com/laszko14/nira-browser/actions/runs/42092884956
+  - https://github.com/laszko14/nira-browser/actions/runs/42092896183
+security: No APK and no private data read/write; stale DOM never becomes a completed run, unsafe navigation never becomes a film URL. Original profile/Room CAS and native owner/epoch proof remain unchanged.
+next_action: Check final pushed SHA, SOURCE process-docs/shared-tests and separate PR integration CI, record and fix any failures without weakening tests; after success stop. P2-G complete in code; real-device verification remains separate.
 ```

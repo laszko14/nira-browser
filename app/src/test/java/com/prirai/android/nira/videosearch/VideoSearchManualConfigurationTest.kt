@@ -15,6 +15,8 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class, manifest = Config.NONE)
 class VideoSearchManualConfigurationTest {
+    private fun manual(c: VideoSiteConfiguration) = c.copy(
+        recognition = VideoSearchRecognitionMemory(origin = VideoSearchRuleOrigin.MANUAL))
     private val doc = "0123456789abcdef0123456789abcdef"
     private val request = "fedcba9876543210fedcba9876543210"
     private val owner = VideoSearchScope.Normal("default")
@@ -123,7 +125,7 @@ class VideoSearchManualConfigurationTest {
             assertTrue(repo.applyManualConfiguration(site, config, nowMs = 11))
             val restored = repo.site(owner, "s")!!
             assertEquals(VideoSiteConfigurationState.CONFIGURED, restored.configurationState)
-            assertEquals(config, restored.configuration)
+            assertEquals(manual(config), restored.configuration)
             assertEquals(site.siteUrl, restored.siteUrl)
             assertEquals(site.displayName, restored.displayName)
             assertEquals(site.resultLimit, restored.resultLimit)
@@ -143,7 +145,7 @@ class VideoSearchManualConfigurationTest {
             assertTrue(repo.applyManualConfiguration(site, partial, nowMs = 11))
             val reloaded = VideoSearchRepository(database.dao()).site(owner, "s")!!
             assertEquals(VideoSiteConfigurationState.REPAIR_REQUIRED, reloaded.configurationState)
-            assertEquals(partial, reloaded.configuration)
+            assertEquals(manual(partial), reloaded.configuration)
             assertTrue(reloaded.enabled)
             assertEquals(1, repo.sites(owner).size)
         } finally { database.close() }
@@ -178,7 +180,7 @@ class VideoSearchManualConfigurationTest {
             // steps. Skip/cancel protocol messages must not persist anything.
             assertTrue(VideoSearchBridgeProtocol.decode(
                 reply("pick_cancelled", "cards")) is VideoSearchBridgeMessage.PickCancelled)
-            assertEquals(config, repo.site(owner, "id")?.configuration)
+            assertEquals(manual(config), repo.site(owner, "id")?.configuration)
             assertEquals(VideoSiteConfigurationState.CONFIGURED,
                 repo.site(owner, "id")?.configurationState)
         } finally { database.close() }
@@ -249,7 +251,7 @@ class VideoSearchManualConfigurationTest {
             assertTrue(repo.applyManualConfiguration(checkpoint, complete, nowMs = 12))
             val restored = VideoSearchRepository(database.dao()).site(owner, site.id)!!
             assertEquals(VideoSiteConfigurationState.CONFIGURED, restored.configurationState)
-            assertEquals(complete, restored.configuration)
+            assertEquals(manual(complete), restored.configuration)
             assertEquals(site.siteUrl, restored.siteUrl)
             assertEquals(site.id, restored.id)
             assertEquals(1, repo.sites(owner).size)
@@ -361,7 +363,7 @@ class VideoSearchManualConfigurationTest {
                 complete.copy(scope = VideoSearchScope.Private("default", "session")),
                 ready
             ))
-            assertEquals(ready, repo.site(owner, original.id)!!.configuration)
+            assertEquals(manual(ready), repo.site(owner, original.id)!!.configuration)
         } finally { database.close() }
     }
 

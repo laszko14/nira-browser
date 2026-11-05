@@ -8,6 +8,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withTimeoutOrNull
 import android.widget.Toast
@@ -526,8 +527,9 @@ internal class VideoSearchBridgeController(
             val beforeForSelector = beforePage?.takeIf {
                 baselineSelector == candidate.resultsCardSelector
             }
-            if (VideoSearchWorkerVerification.confirmed(
-                    originalDocument, live.second.documentId, page, beforeForSelector
+            if (VideoSearchWorkerVerification.confirmedAfterQuery(
+                    originalDocument, live.second.documentId, page, beforeForSelector,
+                    live.second.pageUrl, query, before.second.pageUrl
                 )) {
                 config = candidate
                 confirmed = true
@@ -886,11 +888,28 @@ internal class VideoSearchBridgeController(
                     return stop(VideoSearchPaginationStop.RESOURCE_LIMIT)
                 if (!authorized()) return stop(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
                 val cursor = collector.nextCardIndex
-                val result = privateRequest(site, tabId, "crawl", false, requireSelected) { doc, request ->
+                var result = privateRequest(site, tabId, "crawl", false, requireSelected) { doc, request ->
                     VideoSearchBridgeProtocol.extractCrawl(doc, request, config, cursor,
                         VideoSearchResultBudgets.documentCards(site.resultLimit))
                 } as? VideoSearchBridgeMessage.Results
                     ?: return stop(VideoSearchPaginationStop.ERROR)
+                // An empty, unproven first window during AJAX hydration is not
+                // a completed result page. Retry within a fixed, small budget.
+                if (VideoSearchHydrationPolicy.shouldRetry(cursor, result.page)) {
+                    for (pauseMs in VideoSearchHydrationPolicy.retryDelaysMs) {
+                        if (SystemClock.elapsedRealtime() >= deadline)
+                            return stop(VideoSearchPaginationStop.RESOURCE_LIMIT)
+                        delay(pauseMs)
+                        if (!authorized())
+                            return stop(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
+                        result = privateRequest(site, tabId, "crawl", false, requireSelected) { doc, request ->
+                            VideoSearchBridgeProtocol.extractCrawl(doc, request, config, cursor,
+                                VideoSearchResultBudgets.documentCards(site.resultLimit))
+                        } as? VideoSearchBridgeMessage.Results
+                            ?: return stop(VideoSearchPaginationStop.ERROR)
+                        if (!VideoSearchHydrationPolicy.shouldRetry(cursor, result.page)) break
+                    }
+                }
                 if (result.page.status == "no_results") {
                     return if (collector.uniqueCount == 0 && collector.nextCardIndex == 0 &&
                         collector.visitedPages == 1)
@@ -1010,8 +1029,8 @@ internal class VideoSearchBridgeController(
                 collector.armSameDocumentContinuation()
                 var advanced = false
                 var reloadedDocument = false
-                for (attempt in 0..2) {
-                    delay(if (attempt == 0) 400L else 650L)
+                for (pauseMs in listOf(400L, 650L, 900L, 1_200L, 1_300L)) {
+                    delay(pauseMs)
                     if (SystemClock.elapsedRealtime() >= deadline)
                         return stop(VideoSearchPaginationStop.RESOURCE_LIMIT)
                     if (!authorized()) return stop(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
@@ -1504,11 +1523,26 @@ internal class VideoSearchBridgeController(
                 if (!stillAuthorized())
                     return collector.snapshot(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
                 val offset = collector.nextCardIndex
-                val reply = request(site, "crawl", workerTabId = workerTabId) { doc, id ->
+                var reply = request(site, "crawl", workerTabId = workerTabId) { doc, id ->
                     VideoSearchBridgeProtocol.extractCrawl(doc, id, config, offset,
                         VideoSearchResultBudgets.documentCards(site.resultLimit))
                 } as? VideoSearchBridgeMessage.Results
                     ?: return collector.snapshot(VideoSearchPaginationStop.ERROR)
+                if (VideoSearchHydrationPolicy.shouldRetry(offset, reply.page)) {
+                    for (pauseMs in VideoSearchHydrationPolicy.retryDelaysMs) {
+                        if (SystemClock.elapsedRealtime() >= deadline)
+                            return collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT)
+                        delay(pauseMs)
+                        if (!stillAuthorized())
+                            return collector.snapshot(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
+                        reply = request(site, "crawl", workerTabId = workerTabId) { doc, id ->
+                            VideoSearchBridgeProtocol.extractCrawl(doc, id, config, offset,
+                                VideoSearchResultBudgets.documentCards(site.resultLimit))
+                        } as? VideoSearchBridgeMessage.Results
+                            ?: return collector.snapshot(VideoSearchPaginationStop.ERROR)
+                        if (!VideoSearchHydrationPolicy.shouldRetry(offset, reply.page)) break
+                    }
+                }
                 if (reply.page.status == "no_results") {
                     return collector.snapshot(if (collector.uniqueCount == 0 &&
                         collector.nextCardIndex == 0 && collector.visitedPages == 1)
@@ -1637,10 +1671,10 @@ internal class VideoSearchBridgeController(
                 collector.armSameDocumentContinuation()
                 var advanced = false
                 var reloadedDocument = false
-                for (attempt in 0..2) {
+                for (pauseMs in listOf(400L, 650L, 900L, 1_200L, 1_300L)) {
                     if (SystemClock.elapsedRealtime() >= deadline)
                         return collector.snapshot(VideoSearchPaginationStop.RESOURCE_LIMIT)
-                    delay(if (attempt == 0) 400L else 650L)
+                    delay(pauseMs)
                     if (!stillAuthorized())
                         return collector.snapshot(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
                     val live = matchingTab()
@@ -1962,8 +1996,9 @@ internal class VideoSearchBridgeController(
                 val page = (request(site, "crawl") { doc, req ->
                     VideoSearchBridgeProtocol.extractCrawl(doc, req, afterConfig, 0)
                 } as? VideoSearchBridgeMessage.Results)?.page
-                if (VideoSearchWorkerVerification.confirmed(
-                        originalDocument, observed.documentId, page, baseline)) {
+                if (VideoSearchWorkerVerification.confirmedAfterQuery(
+                        originalDocument, observed.documentId, page, baseline,
+                        live.content.url, query, source.second.pageUrl)) {
                     val current = withContext(Dispatchers.IO) {
                         repository.site(owner, site.id)
                     }
@@ -1997,6 +2032,122 @@ internal class VideoSearchBridgeController(
                 }
             }
             delay(350)
+        }
+        return VideoSearchManualSearchOutcome.SUBMITTED_UNVERIFIED
+    }
+
+
+    /**
+     * P2-D: a repair is a one-off, user-submitted search in the currently
+     * selected, bound normal tab. No inspect-only write is permitted.
+     * The result card selector must be independently recognized and the
+     * query must yield exact URL/new-film evidence before a Room CAS.
+     */
+    suspend fun repairSiteAfterVerifiedSearch(
+        site: VideoSearchSite, query: String,
+        repository: VideoSearchRepository,
+    ): VideoSearchManualSearchOutcome {
+        val owner = site.scope as? VideoSearchScope.Normal
+            ?: return VideoSearchManualSearchOutcome.FAILED
+        if (!site.enabled || site.configuration == null ||
+            !activeNormalOwner(owner) || !VideoSearchBridgeProtocol.validQuery(query))
+            return VideoSearchManualSearchOutcome.FAILED
+        val source = existingSiteTab(site) ?: return VideoSearchManualSearchOutcome.FAILED
+        val tabId = currentTab(source.first)?.tabId
+            ?: return VideoSearchManualSearchOutcome.FAILED
+        if (store.state.selectedTabId != tabId)
+            return VideoSearchManualSearchOutcome.FAILED
+        val originalDocument = source.second.documentId
+            ?: return VideoSearchManualSearchOutcome.FAILED
+        val form = inspectSite(site) ?: return VideoSearchManualSearchOutcome.FAILED
+        if (form.documentId != originalDocument ||
+            form.status !in setOf("ready", "partial") ||
+            !VideoSearchBridgeProtocol.validSelector(form.inputSelector) ||
+            form.submission == null ||
+            (form.submission == VideoSearchSubmission.CLICK_SUBMIT &&
+                !VideoSearchBridgeProtocol.validSelector(form.submitSelector)))
+            return VideoSearchManualSearchOutcome.FAILED
+
+        val existing = site.configuration ?: return VideoSearchManualSearchOutcome.FAILED
+        val baselineSelector = form.resultsCardSelector ?: existing.resultsCardSelector
+        val baseline = baselineSelector?.let { selector ->
+            val beforeConfig = existing.copy(
+                searchInputSelector = form.inputSelector!!,
+                submission = form.submission,
+                submitSelector = form.submitSelector,
+                resultsCardSelector = selector)
+            (request(site, "crawl") { doc, req ->
+                VideoSearchBridgeProtocol.extractCrawl(doc, req, beforeConfig, 0)
+            } as? VideoSearchBridgeMessage.Results)
+                ?.takeIf { it.documentId == originalDocument }?.page
+        }
+        val submitted = request(site, "search") { document, req ->
+            VideoSearchBridgeProtocol.search(document, req, query,
+                form.inputSelector!!, form.submission, form.submitSelector)
+        } is VideoSearchBridgeMessage.Submitted
+        if (!submitted) return VideoSearchManualSearchOutcome.FAILED
+
+        val started = SystemClock.elapsedRealtime()
+        while (SystemClock.elapsedRealtime() - started < 12_000L) {
+            delay(450)
+            val live = store.state.tabs.singleOrNull { it.id == tabId }
+                ?: return VideoSearchManualSearchOutcome.SUBMITTED_UNVERIFIED
+            if (!activeNormalOwner(owner) || store.state.selectedTabId != tabId ||
+                !owner.ownsTab(live.contextId, live.content.private) ||
+                live.engineState.engineSession !== source.first ||
+                !VideoSearchBridgeProtocol.sameOrigin(live.content.url, site.siteUrl))
+                return VideoSearchManualSearchOutcome.SUBMITTED_UNVERIFIED
+            // Candidate results may live on a different /results page with no form.
+            val analysis = analyzeSite(site)
+            val recognized = recognizeSite(site)
+            if (analysis != null && analysis.documentId != recognized?.documentId)
+                continue
+            val discovered = VideoSearchRecognitionPolicy.repairCandidate(
+                recognized, analysis?.resultsCardSelector)
+            // A single learned fallback is eligible only after a fresh user
+            // query, never by historical memory alone or on ambiguous pages.
+            val fallback = if (discovered == null) {
+                VideoSearchRecognitionPolicy.uniqueVerifiedFallback(
+                    existing, recognized, analysis?.resultsCardSelector)
+            } else null
+            val cards = discovered ?: fallback ?: continue
+            val config = existing.copy(
+                searchInputSelector = form.inputSelector!!,
+                submission = form.submission,
+                submitSelector = form.submitSelector,
+                resultsCardSelector = cards,
+                pagination = analysis?.pagination ?: VideoSearchPagination.NONE,
+                nextPageSelector = analysis?.nextPageSelector,
+            )
+            val result = request(site, "crawl") { doc, req ->
+                VideoSearchBridgeProtocol.extractCrawl(doc, req, config, 0)
+            } as? VideoSearchBridgeMessage.Results
+            if (result?.documentId != recognized?.documentId) continue
+            val bound = existingSiteTab(site) ?: continue
+            if (bound.first !== source.first ||
+                bound.second.documentId != recognized?.documentId ||
+                bound.second.pageUrl != live.content.url) continue
+            val page = result?.page ?: continue
+            val evidence = VideoSearchRepairEvidence(
+                originalDocument, recognized?.documentId, baseline, page,
+                source.second.pageUrl, live.content.url, query,
+                recognized, analysis?.resultsCardSelector,
+                verifiedFallbackSelector = fallback)
+            if (!evidence.confirms(cards)) continue
+            val current = withContext(Dispatchers.IO) {
+                repository.site(owner, site.id)
+            }
+            if (current != site || !activeNormalOwner(owner) ||
+                store.state.selectedTabId != tabId) {
+                return VideoSearchManualSearchOutcome.SUBMITTED_UNVERIFIED
+            }
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            val saved = withContext(Dispatchers.IO) {
+                repository.applyVerifiedRepair(
+                    site, config, evidence, explicitConsent = true)
+            }
+            return if (saved) VideoSearchManualSearchOutcome.VERIFIED
+                else VideoSearchManualSearchOutcome.SUBMITTED_UNVERIFIED
         }
         return VideoSearchManualSearchOutcome.SUBMITTED_UNVERIFIED
     }
@@ -2059,7 +2210,8 @@ internal class VideoSearchBridgeController(
      */
     private suspend fun awaitWorkerResults(
         site: VideoSearchSite, tabId: String, beforeDocument: String,
-        beforePage: VideoSearchExtractedPage?,
+        beforePage: VideoSearchExtractedPage?, query: String,
+        initialPageUrl: String?,
     ): Boolean {
         val scope = site.scope as? VideoSearchScope.Normal ?: return false
         val start = SystemClock.elapsedRealtime()
@@ -2075,8 +2227,9 @@ internal class VideoSearchBridgeController(
                 val answer = request(site, "crawl", workerTabId = tabId) { doc, req ->
                     VideoSearchBridgeProtocol.extractCrawl(doc, req, cfg, 0)
                 } as? VideoSearchBridgeMessage.Results
-                if (VideoSearchWorkerVerification.confirmed(
-                        beforeDocument, live.second.documentId, answer?.page, beforePage
+                if (VideoSearchWorkerVerification.confirmedAfterQuery(
+                        beforeDocument, live.second.documentId, answer?.page, beforePage,
+                        live.second.pageUrl, query, initialPageUrl
                     )) return true
                 if (answer?.page?.status == "stale") return false
             }
@@ -2195,7 +2348,8 @@ internal class VideoSearchBridgeController(
                                         outcome = submitWorker(current, tabId, plan.query, repository)
                                         if (outcome == VideoSearchQueueStatus.SUBMITTED) {
                                             val confirmed = awaitWorkerResults(
-                                                current, tabId, before, beforePage
+                                                current, tabId, before, beforePage,
+                                                plan.query, current.siteUrl
                                             )
                                             if (!journal.hasCapacity()) {
                                                 outcome = VideoSearchQueueStatus.STOPPED

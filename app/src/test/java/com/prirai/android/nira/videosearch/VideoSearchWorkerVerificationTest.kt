@@ -100,6 +100,56 @@ class VideoSearchWorkerVerificationTest {
         assertFalse(VideoSearchWorkerVerification.confirmed(initial, null, page()))
     }
 
+    @Test fun p2UnrelatedRecommendationsAfterNavigationRemainUnverified() {
+        val staticCards = page()
+        assertFalse(VideoSearchWorkerVerification.confirmedAfterQuery(
+            initial, newer, staticCards, null,
+            "https://films.example.org/recommendations", "chosen film"))
+        assertFalse(VideoSearchWorkerVerification.confirmedAfterQuery(
+            initial, newer, staticCards, staticCards,
+            "https://films.example.org/?sort=latest", "chosen film"))
+        assertFalse(VideoSearchWorkerVerification.confirmedAfterQuery(
+            initial, newer, staticCards, page("empty", 0),
+            "https://films.example.org/", "chosen film"))
+    }
+
+    @Test fun p2ExactQueryAndNewFilmIdentityCanConfirm() {
+        assertTrue(VideoSearchWorkerVerification.confirmedAfterQuery(
+            initial, newer, page(), null,
+            "https://films.example.org/search?query=Chosen+Film", "chosen film"))
+        assertFalse(VideoSearchWorkerVerification.confirmedAfterQuery(
+            initial, newer, page(), null,
+            "https://films.example.org/search?query=another+film", "chosen film"))
+        val newFilms = VideoSearchExtractedPage("ok", listOf(
+            VideoSearchExtractedFilm("https://films.example.org/film?id=99",
+                "Film 99", null, null, VideoResultTitleSource.CARD,
+                VideoResultImageSource.UNKNOWN, 0)), 1, false)
+        assertTrue(VideoSearchWorkerVerification.confirmedAfterQuery(
+            initial, newer, newFilms, page(),
+            "https://films.example.org/results", "chosen film"))
+    }
+
+    @Test fun p2SameSearchUrlReloadWithoutNewFilmsIsNotProof() {
+        val url = "https://films.example.org/search?q=chosen+film"
+        assertFalse(VideoSearchWorkerVerification.confirmedAfterQuery(
+            initial, newer, page(), null, url, "chosen film", url))
+        assertTrue(VideoSearchWorkerVerification.confirmedAfterQuery(
+            initial, newer, page(), null, url, "chosen film",
+            "https://films.example.org/"))
+    }
+
+    @Test fun p2MalformedOrUnrelatedUrlParametersCannotProveSearch() {
+        for (url in listOf(
+            "https://films.example.org/?redirect=chosen+film",
+            "https://films.example.org/?q=wrong&q2=chosen+film",
+            "https://films.example.org/?s=chosen+filmish",
+            "https://films.example.org/?query=%GG",
+            "javascript:chosen+film",
+        )) assertFalse(VideoSearchWorkerVerification.landingMatchesQuery(url, "chosen film"))
+        assertTrue(VideoSearchWorkerVerification.landingMatchesQuery(
+            "https://films.example.org/?s=chosen%20film", "Chosen Film"))
+    }
+
     @Test fun newDocumentStillRequiresAtLeastOneRealFilm() {
         assertFalse(VideoSearchWorkerVerification.confirmed(initial, newer, page("empty", 0)))
         assertFalse(VideoSearchWorkerVerification.confirmed(initial, newer, null))

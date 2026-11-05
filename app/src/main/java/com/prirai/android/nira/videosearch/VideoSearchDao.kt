@@ -166,6 +166,17 @@ internal interface VideoSearchDao {
         revision: Long, nowMs: Long,
     ): Int
 
+    /**
+     * A repaired selector set is applied in ONE conditional SQLite update.
+     * Exact configuration JSON and revision prevent stale search evidence from
+     * overwriting concurrent manual edits, deletion, disable or profile switch.
+     */
+    @Query("UPDATE video_search_sites SET configurationState = :state, configurationJson = :json, updatedAtMs = CASE WHEN updatedAtMs >= :nowMs THEN updatedAtMs + 1 ELSE :nowMs END WHERE profileId = :profileId AND id = :id AND siteUrl = :url AND updatedAtMs = :revision AND configurationJson = :previousJson AND enabled = 1 AND configurationState IN ('CONFIGURED', 'REPAIR_REQUIRED')")
+    suspend fun commitVerifiedRepair(
+        profileId: String, id: String, url: String, revision: Long,
+        previousJson: String, state: String, json: String, nowMs: Long,
+    ): Int
+
     @Query("UPDATE video_search_sites SET enabled = :enabled, updatedAtMs = CASE WHEN updatedAtMs >= :nowMs THEN updatedAtMs + 1 ELSE :nowMs END WHERE profileId = :profileId AND id = :id")
     suspend fun setSiteEnabled(profileId: String, id: String, enabled: Boolean, nowMs: Long): Int
 
