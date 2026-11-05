@@ -255,3 +255,30 @@ test('extract preview and paginated crawl use identical safe identity resolution
   assert.equal(run(sample, {}, 'extract_batch').films[0].filmPageUrl,
     run(sample).films[0].filmPageUrl);
 });
+
+test('P2-G3 account, checkout and login links never masquerade as film identities',()=>{
+  for(const path of ['/account/profile','/login','/signin','/register','/checkout','/cart','/payment','/ads']) {
+    const result=run([card([anchor(origin+path,'A film with poster',{poster:true})],
+      'A film with poster')]);
+    assert.equal(result.films.length,0,'blocked route: '+path);
+    assert.equal(result.status,'empty');
+  }
+});
+
+test('P2-G3 download-marked film anchor is not accepted as a film page',()=>{
+  const hidden=anchor(origin+'/watch/feature','Feature');
+  hidden.hasAttribute=function(name){return name==='download';};
+  const result=run([card([hidden],'Feature')]);
+  assert.equal(result.films.length,0);
+  assert.equal(result.status,'empty');
+});
+
+test('P2-G3 safe film link survives unsafe companion routes with exact title evidence',()=>{
+  const result=run([card([
+    anchor(origin+'/account/profile','Feature'),
+    anchor(origin+'/watch/feature','Feature')
+  ],'Feature')]);
+  assert.equal(result.status,'ok');
+  assert.equal(result.films.length,1);
+  assert.equal(result.films[0].filmPageUrl,origin+'/watch/feature');
+});

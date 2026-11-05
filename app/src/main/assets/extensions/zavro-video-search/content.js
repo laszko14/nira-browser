@@ -22,6 +22,9 @@
   let pickerPosition = null;
   // Consecutive trusted terminal observations are limited to this document.
   let endProbe = null;
+  // Per-document, short-lived cursor guards. Only node identity and offsets
+  // are retained; nothing from the DOM is stored or sent to native.
+  const continuationAnchors = { extract_batch: null, extract_crawl: null };
   const limited = 80;
   const idPattern = /^[0-9a-f]{32}$/;
   const blocked = /login|log-in|signin|sign-in|password|register|checkout|payment|purchase|captcha/i;
@@ -1041,6 +1044,8 @@
     cancelPicker();
     manuallySelectedInput = null;
     endProbe = null;
+    continuationAnchors.extract_batch = null;
+    continuationAnchors.extract_crawl = null;
     try { documentId = newDocumentId(); } catch (_) { originRevoked = true; return; }
     navigationRevision++;
     startUrl = current;
@@ -1343,9 +1348,12 @@
     // A safe same-origin address is not proof that it leads to a film.
     // Never combine a card heading with an arbitrary category/navigation URL.
     function catalogLink(anchor, filmUrl) {
+      if (anchor.hasAttribute?.("download")) return true;
       let pathname;
       try { pathname = new URL(filmUrl).pathname; } catch (_) { return true; }
-      if (/(?:^|\/)(?:categor(?:y|ies)|genres?|tags?|topics?|channels?|authors?|playlists?|collections?)(?:\/|$)/i.test(pathname))
+      // These routes can have cards/posters/headings, but they are not film
+      // pages. Never use them as persisted search-result identities.
+      if (/(?:^|\/)(?:categor(?:y|ies)|genres?|tags?|topics?|channels?|authors?|playlists?|collections?|account|login|log-in|signin|sign-in|register|signup|sign-up|checkout|cart|payment|purchase|ads?)(?:\/|$)/i.test(pathname))
         return true;
       const relation = anchor.getAttribute("rel") || "";
       if (/(?:^|\s)tag(?:\s|$)/i.test(relation)) return true;
@@ -1457,10 +1465,19 @@
     const maximumIndex = crawl ? cardCap - 1 : 79;
     if (!Number.isInteger(start) || start < 0 || start > maximumIndex)
       return { status: "stale", films: [], inspectedCards: 0, moreOnPage: false };
-    // Dynamic pages may remove/replace cards while a crawl is in progress.
-    // Never produce a negative inspectedCards count for a stale cursor.
-    if (start > cards.length)
-      return { status:"empty", films:[], inspectedCards:0, moreOnPage:false };
+    const stream = command.event === "extract_crawl" ||
+      command.event === "extract_batch" ? command.event : null;
+    if (stream && start === 0) continuationAnchors[stream] = null;
+    const prior = stream && start > 0 ? continuationAnchors[stream] : null;
+    // A vanished cursor is NOT proof of an empty result page. Also reject a
+    // shifted/virtualized window when the next offset follows a prior batch.
+    // The native collector will stop with ERROR, never completed success.
+    if (start > cards.length ||
+        (prior && prior.selector === command.resultsCardSelector &&
+          prior.next === start && cards[start - 1] !== prior.anchor)) {
+      if (stream) continuationAnchors[stream] = null;
+      return { status:"stale", films:[], inspectedCards:0, moreOnPage:false };
+    }
     const end = Math.min(cards.length, cardCap, start + 16);
     const found = new Map(), maximum = 16;
     const encoder = new TextEncoder();
@@ -1532,6 +1549,11 @@
     }
     if (end < Math.min(cards.length, cardCap) || cards.length >= cardCap) more = true;
     const films = Array.from(found.values());
+    if (stream) continuationAnchors[stream] = consumed > 0 && more ? {
+      selector: command.resultsCardSelector,
+      next: start + consumed,
+      anchor: cards[start + consumed - 1]
+    } : null;
     return { status: films.length ? "ok" : "empty",
       films, inspectedCards: consumed, moreOnPage: more };
   }
