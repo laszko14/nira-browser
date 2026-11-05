@@ -85,6 +85,11 @@
       "task_id": "ZC-V4-P2-F-SCOPED-CONTEXT-IDENTITY",
       "observed_count": 3,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P2-G1-SCOPED-MANUAL-PICKER",
+      "observed_count": 3,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -2001,6 +2006,66 @@
       "regression_test": "app/src/test/js/video-search-structural-v4.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/25501af603b2c71f0e7b6b6dc831298993a58245"
+      ]
+    },
+    {
+      "id": "ERR-20261105-P2G1-0001",
+      "task_id": "ZC-V4-P2-G1-SCOPED-MANUAL-PICKER",
+      "kind": "REVIEW",
+      "fingerprint": "shadow-picker-uses-document-selector",
+      "summary": "The manual input, submit and pagination picker validated zcs1 locators through document.querySelectorAll, which cannot resolve Shadow DOM paths. Use the existing scoped resolver at selection and confirmation.",
+      "source_sha": "7059e011a5d7af0de88ce835302ebbccb40cec05",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "79aef695fb44b0e0a3262c4917586ca99f944cfd",
+      "regression_test": "app/src/test/js/video-search-picker-v2.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/79aef695fb44b0e0a3262c4917586ca99f944cfd"
+      ]
+    },
+    {
+      "id": "ERR-20261105-P2G1-0002",
+      "task_id": "ZC-V4-P2-G1-SCOPED-MANUAL-PICKER",
+      "kind": "REVIEW",
+      "fingerprint": "manual-cards-accept-unrelated-css-group",
+      "summary": "The manual card picker took the first global CSS match rather than the actually touched element and could save unrelated cards. Require membership of the chosen node and support scoped multi-card groups.",
+      "source_sha": "7059e011a5d7af0de88ce835302ebbccb40cec05",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "79aef695fb44b0e0a3262c4917586ca99f944cfd",
+      "regression_test": "app/src/test/js/video-search-picker-v2.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/79aef695fb44b0e0a3262c4917586ca99f944cfd"
+      ]
+    },
+    {
+      "id": "ERR-20261105-P2G1-0003",
+      "task_id": "ZC-V4-P2-G1-SCOPED-MANUAL-PICKER",
+      "kind": "REVIEW",
+      "fingerprint": "shadow-picker-document-contains-false",
+      "summary": "Manual selection confirmation rejected connected ShadowRoot children because document.contains does not describe a composed-tree connection. Validate the selected DOM node via its exact scoped locator and host identity.",
+      "source_sha": "7059e011a5d7af0de88ce835302ebbccb40cec05",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "79aef695fb44b0e0a3262c4917586ca99f944cfd",
+      "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/79aef695fb44b0e0a3262c4917586ca99f944cfd"
       ]
     }
   ]

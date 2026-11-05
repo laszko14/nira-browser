@@ -1,47 +1,44 @@
-# AI_HANDOFF — Zavro Clean V4 / P2-F scoped DOM context identity
-> History: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md. P2-E completed on b173b47ee4f703b408088057bd9bc01c50175e2f (SOURCE 41876991486 / PR 41877001413, attempt 2 SUCCESS).
+# AI_HANDOFF — Zavro Clean V4 / P2-G1 scoped manual picker
+> Previous P2-F completed at 7059e011a5d7af0de88ce835302ebbccb40cec05; SOURCE 42074787626 / PR 42074798942 SUCCESS (attempt 1). Remaining P2-G2/G3 work is separate.
 
 ```yaml
-task_id: ZC-V4-P2-F-SCOPED-CONTEXT-IDENTITY
+task_id: ZC-V4-P2-G1-SCOPED-MANUAL-PICKER
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: fix/zavro-clean-v4-p2-evidence-runtime-20261103
-base_sha: b173b47ee4f703b408088057bd9bc01c50175e2f
-observed_head_sha: b173b47ee4f703b408088057bd9bc01c50175e2f
+base_sha: 7059e011a5d7af0de88ce835302ebbccb40cec05
+observed_head_sha: 7059e011a5d7af0de88ce835302ebbccb40cec05
 status: CI_PENDING
-acceptance_source: User IMPLEMENT next unfinished P2 after P2-E; determine scope from live repo and finish diagnosis, changes, regressions, review, commit/push and green SOURCE/PR CI. Explicitly no APK, merge or MPV.
-completed: P2-F chosen from code gap (not a pre-existing named milestone). A zcs1 locator could be rebound after SPA replaced an entire iframe/Shadow DOM host while keeping its CSS selector, or the same host got a different open shadowRoot. Bind host CSS slot identity to observed node per document and open ShadowRoot identity to host. Refuse to confirm/rebind after same-document replacement. CONTEXT_REPLACED reason is validated by native protocol, explained in Polish UI, and blocks legacy fallback. Regular leaf-card AJAX rerender within same root stays valid. Fresh full navigation gets a new content-script scope and can resolve persisted selectors. No new network, clicks, storage schema, DB migration or profile change.
-remaining: Final SOURCE and PR integration CI on final pushed SHA; investigate failures if any. Physical GeckoView/Android 15, live third-party sites, closed Shadow DOM and cross-origin iframes NOT_TESTED. A previously unseen host before first observation cannot be correlated with prior runtime identity.
-required_ci: SOURCE process-docs and shared-tests JS WebExtension, Kotlin/Robolectric, AndroidTest compile, Android lint regression baseline and evidence summary SUCCESS on exact final SHA; separate PR integration required jobs SUCCESS. Never build APK for this task.
+acceptance_source: User requested P2-G in three thorough levels and approved implementation starting with level 1. G1 handles scoped/manual DOM selection; G2 recognition accuracy/performance and context invalidation; G3 end-to-end search/pagination/persistence/security. No APK or merge in G1.
+completed: P2-G1 prepared code 79aef695fb44b0e0a3262c4917586ca99f944cfd for shared zcs1 picker resolution, genuine touched-node membership for grouped film cards, scoped ShadowRoot group selectors, and prevention of stale/swap host confirmation. 6 new JS regression tests added across two existing test suites, including open Shadow input, submit, cards, next link, swapped root and unrelated CSS group. Previous automatic recognition remains compatible. No changes to Room, signing, profiles, MPV, network permissions or workflows.
+remaining: Verify final SOURCE and PR CI at the pushed SHA; triage any failing checks. P2-G2 and P2-G3 intentionally not implemented in this level. Independent GeckoView real-device validation remains NOT_TESTED.
+required_ci: SOURCE process-docs and shared-tests JavaScript, JVM/Robolectric, AndroidTest compile, Android lint baseline and evidence summary SUCCESS on exact final SHA; separate PR integration CI JavaScript/JVM/AndroidTest/lint/evidence SUCCESS. Build/release SKIPPED permitted; APK prohibited.
 device: NOT_TESTED
-apk: NOT_BUILT; user explicitly prohibited APK.
-known_failures: 3 independent review defects in this task, all corrected by 25501af603b2c71f0e7b6b6dc831298993a58245, each with a regression in docs/ai/ERROR_CASES.json. No CI failures observed yet for P2-F. Prior P2-E external Maven Central HTTP 429 remains an accepted environmental risk, not an application defect.
-verification: Live PR #123 branch/head b173b47ee4f703b408088057bd9bc01c50175e2f with admin/push permission; AGENTS.md, docs/AI_HANDOFF.md, STARTUP_PREFLIGHT.md, DEVELOPMENT_WORKFLOW.md, TASK_TEMPLATE.md, TEST_POLICY.md, QUALITY_GATES.md, CHECKPOINT_POLICY.md, ERROR_LEARNING.md, TEST_PATTERNS.md, EXCEPTIONS_AND_TOOLS.md and ERROR_CASES.json fetched from identical explicit SHA. Source and tests examined at same ref. Remote-only code changes; local checkout, device and site integrations not tested. Code changes in 25501af603b2c71f0e7b6b6dc831298993a58245 with self-reviewed scope.
+apk: NOT_BUILT; no signing workflow requested or authorized.
+known_failures: Three P2-G1 review findings recorded as ERR-20261105-P2G1-0001 through 0003, with source SHA 7059e011a5d7af0de88ce835302ebbccb40cec05, code fix commit 79aef695fb44b0e0a3262c4917586ca99f944cfd and regression paths. No P2-G1 CI failures observed before push. Do not claim completed CI until live verification.
+verification: GitHub PR #123 confirmed open/draft at initial source HEAD 7059e011a5d7af0de88ce835302ebbccb40cec05; AGENTS.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md, TEST_POLICY.md, TEST_PATTERNS.md, QUALITY_GATES.md, DEVELOPMENT_WORKFLOW.md, CHECKPOINT_POLICY.md, ERROR_LEARNING.md, TASK_TEMPLATE.md and EXCEPTIONS_AND_TOOLS.md fetched from this explicit SHA. JavaScript source/test syntax checked in V8 before creating prepared Git objects. Historical RED execution and local JDK/ADB tests NOT_TESTED; final GitHub Actions must verify behavior.
 changed_paths:
   - app/src/main/assets/extensions/zavro-video-search/recognition.js
   - app/src/main/assets/extensions/zavro-video-search/content.js
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchBridgeProtocol.kt
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchRecognitionDiagnostics.kt
+  - app/src/test/js/video-search-picker-v2.test.cjs
   - app/src/test/js/video-search-p1-recognition.test.cjs
-  - app/src/test/js/video-search-structural-v4.test.cjs
-  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP1RecognitionTest.kt
   - docs/ai/ERROR_CASES.json
   - docs/AI_HANDOFF.md
 verified_before_push:
-  - P2-E SOURCE and PR workflows both SUCCESS attempt 2 at b173b47ee4f703b408088057bd9bc01c50175e2f; no requirement to rerun completed P2-E audit.
-  - P2-F code self-review via compare_commits found only seven scoped source/test files. No signing, workflows, MPV or Room changes.
-  - Three regression families: new host with old CSS, swapped ShadowRoot on old host, legacy fallback after replacement. Also unchanged-host AJAX rerender and full document reload.
-  - RED execution on historical source not performed; new tests are source-level regression cases. Final CI must prove them.
-  - No APK build, merge, release, force-push, certificate or MPV operations.
+  - Scope restricted to manual picker, shared locator identity and behavior regressions for P2-G1.
+  - Source tree and two prepared commits have linear ancestry; no merge/force-push.
+  - Open Shadow inputs, buttons, groups and next controls use zcs1 through the existing resolver; iframe manual picking remains unsupported from top-level content script, not silently enabled.
+  - Document main picker rules retained; profile, session, persistence and signing paths unchanged.
+  - New regression scenarios added without weakening existing assertions or lint.
 blockers:
-  - Separate independent privacy/lifecycle reviewer unavailable; self-review and CI do not replace independent risk acceptance.
-  - Real GeckoView third-party sites, device, runtime navigation, closed Shadow and cross-origin frames remain NOT_TESTED.
+  - Independent security/lifecycle reviewer not yet performed; own review cannot substitute for independent acceptance.
+  - Physical Android/GeckoView, real third-party site selection and iframe click retargeting remain NOT_TESTED.
 evidence_links:
   - https://github.com/laszko14/nira-browser/pull/123
-  - https://github.com/laszko14/nira-browser/commit/25501af603b2c71f0e7b6b6dc831298993a58245
-  - https://github.com/laszko14/nira-browser/actions/runs/41876991486
-  - https://github.com/laszko14/nira-browser/actions/runs/41877001413
-security: Per-document WeakMap host and shadow-root identity, only CSS selectors sent to native, no raw DOM or search query logging, no new network or user interaction, no silent automated repair.
-next_action: Check final SOURCE and PR integration jobs on the pushed exact SHA; triage and fix failures if any, then stop. No APK.
+  - https://github.com/laszko14/nira-browser/commit/79aef695fb44b0e0a3262c4917586ca99f944cfd
+  - https://github.com/laszko14/nira-browser/actions/runs/42074787626
+  - https://github.com/laszko14/nira-browser/actions/runs/42074798942
+security: The picker does not submit searches, follow links, or persist raw DOM. It binds user-selected nodes to the same DOM context via a bounded zcs1 locator, and rejects stale contexts before sending selectors to native.
+next_action: Verify SOURCE and PR CI on final pushed P2-G1 SHA, record and fix any failures. Stop after P2-G1 success; next user instruction can start P2-G2. Never build APK in this task.
 ```
