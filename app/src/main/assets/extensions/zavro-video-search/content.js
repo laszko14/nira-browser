@@ -1472,9 +1472,17 @@
     // A vanished cursor is NOT proof of an empty result page. Also reject a
     // shifted/virtualized window when the next offset follows a prior batch.
     // The native collector will stop with ERROR, never completed success.
-    if (start > cards.length ||
-        (prior && prior.selector === command.resultsCardSelector &&
-          prior.next === start && cards[start - 1] !== prior.anchor)) {
+    const contiguous = prior && prior.selector === command.resultsCardSelector &&
+      prior.next === start;
+    if (start > cards.length) {
+      if (stream) continuationAnchors[stream] = null;
+      // A stand-alone high offset (without an observed prior batch) retains
+      // the legacy empty result. Only an ACTIVE lost cursor is demonstrably
+      // stale; neither case advances native progress or invents film cards.
+      return { status:contiguous ? "stale" : "empty",
+        films:[], inspectedCards:0, moreOnPage:false };
+    }
+    if (contiguous && cards[start - 1] !== prior.anchor) {
       if (stream) continuationAnchors[stream] = null;
       return { status:"stale", films:[], inspectedCards:0, moreOnPage:false };
     }
