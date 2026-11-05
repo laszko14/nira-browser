@@ -95,6 +95,11 @@
       "task_id": "ZC-V4-P2-G2-CONTEXT-AND-BOUNDED-SCANS",
       "observed_count": 5,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P2-G3-END-TO-END-INTEGRITY",
+      "observed_count": 2,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -2194,6 +2199,46 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42091593763",
         "https://github.com/laszko14/nira-browser/pull/123"
+      ]
+    },
+    {
+      "id": "ERR-20261105-P2G3-0001",
+      "task_id": "ZC-V4-P2-G3-END-TO-END-INTEGRITY",
+      "kind": "REVIEW",
+      "fingerprint": "unstable-extraction-cursor-after-dom-mutation",
+      "summary": "The JS crawl previously reported an empty final window after the card list shrank, and did not detect insertion/replacement before an active cursor. Return stale for a vanished/shifted contiguous cursor; native collector must reject it without completing the run.",
+      "source_sha": "dfef9c383a5a347bbb226585605305fe6fa86c1c",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "ef711d573459f3a5eb689b1f0d1cf961ecca48b6",
+      "regression_test": "app/src/test/js/video-search-p6-batches.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/ef711d573459f3a5eb689b1f0d1cf961ecca48b6"
+      ]
+    },
+    {
+      "id": "ERR-20261105-P2G3-0002",
+      "task_id": "ZC-V4-P2-G3-END-TO-END-INTEGRITY",
+      "kind": "REVIEW",
+      "fingerprint": "non-film-account-payment-download-links-in-card-extraction",
+      "summary": "Explicit result-card extraction could accept same-origin account/login/payment/navigation routes or download anchors as film identities when cards carried local headings. Reject these candidates without dropping the genuine film link beside them.",
+      "source_sha": "dfef9c383a5a347bbb226585605305fe6fa86c1c",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "ef711d573459f3a5eb689b1f0d1cf961ecca48b6",
+      "regression_test": "app/src/test/js/video-search-p9-link-identity.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/ef711d573459f3a5eb689b1f0d1cf961ecca48b6"
       ]
     }
   ]
