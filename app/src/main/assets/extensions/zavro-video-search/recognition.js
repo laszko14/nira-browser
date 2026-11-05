@@ -15,6 +15,9 @@
   // Identity is per content-script document; full reload gets a fresh map.
   const observedHosts = new WeakMap();
   const observedShadowRoots = new WeakMap();
+  // Previous accepted DOM context belongs only to this isolated document.
+  // Never expose a root/node reference or serialize it to native.
+  let lastAccepted = null;
   function rememberHost(root, selector, host, observation) {
     let slots = observedHosts.get(root);
     if (!slots) {
@@ -333,7 +336,7 @@
     const page = opts?.pageUrl || location.href;
     const inResults = opts?.resultsContext === true || hintSearch(root);
     let visited = 0, domVisits = 0, checkedRoots = 0, quotaLimited = false;
-    let best = null, ambiguous = false;
+    let best = null, bestRoot = null, ambiguous = false;
     const observation = {frameReplaced:false, contextReplaced:false};
     const rootContexts = findContexts(root, observation);
     for (const ctx of rootContexts) {
@@ -381,7 +384,7 @@
             ...(repetition ? ["REPEATED_STRUCTURE"] : []),
             ...(inResults ? ["RESULTS_CONTEXT"] : [])]};
         if (!best || result.confidence > best.confidence + 14) {
-          best=result; ambiguous=false;
+          best=result; bestRoot=ctx.root; ambiguous=false;
         } else if (Math.abs(result.confidence-best.confidence) < 15 &&
                    result.selector !== best.selector) ambiguous=true;
       }
@@ -391,11 +394,27 @@
     // evidence must be diagnostic, never an optimistic found response.
     const exhausted = quotaLimited || visited >= MAX_NODES ||
       domVisits >= MAX_DOM_VISITS;
-    const accepted = best && !ambiguous && !exhausted &&
-      !observation.contextReplaced && !observation.frameReplaced &&
-      best.selector && best.confidence >= 85;
-    const reason = observation.contextReplaced ? "CONTEXT_REPLACED" :
-      observation.frameReplaced ? "FRAME_REPLACED" :
+    // A changed sidebar must not revoke a verified, unaffected result root.
+    // Replacing the active host remains fail-closed even with the same CSS.
+    const replaced = observation.contextReplaced || observation.frameReplaced;
+    const stableBest = !!(lastAccepted && best &&
+      lastAccepted.root === bestRoot &&
+      lastAccepted.selector === best.selector &&
+      lastAccepted.surface === best.surface);
+    const unchangedLocator = stableBest && (best.surface === "MAIN" ||
+      (() => {
+        const found = resolve(best.selector);
+        return !!found && found.length > 0;
+      })());
+    const accepted = !!(best && !ambiguous && !exhausted &&
+      (!replaced || unchangedLocator) &&
+      best.selector && best.confidence >= 85);
+    if (accepted) lastAccepted = {
+      root:bestRoot, selector:best.selector, surface:best.surface
+    };
+    const reason = observation.contextReplaced && !unchangedLocator ?
+      "CONTEXT_REPLACED" :
+      observation.frameReplaced && !unchangedLocator ? "FRAME_REPLACED" :
       ambiguous ? "AMBIGUOUS_CARDS" :
       exhausted ? "SCAN_LIMIT" :
       accepted ? "CANDIDATE_FOUND" :

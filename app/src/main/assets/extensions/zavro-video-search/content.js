@@ -245,7 +245,22 @@
     // Use repeated classes inside a clearly named results/list container.
     // A dynamically generated post-id/class is never stored as the rule.
     try {
-      const all = Array.from(document.querySelectorAll("article,div,li,figure")).slice(0, 260);
+      const all = [];
+      const walker = document.createTreeWalker?.(document, 1);
+      if (walker) {
+        // The old querySelectorAll materialized the entire DOM match list
+        // before slice(0,260); bound traversal even on very dense pages.
+        let node, visits = 0;
+        while (all.length < 260 && visits < 2400 &&
+               (node = walker.nextNode())) {
+          visits++;
+          if (node.matches?.("article,div,li,figure")) all.push(node);
+        }
+      } else {
+        // Synthetic test DOMs without TreeWalker use a bounded prefix.
+        const nodes = document.querySelectorAll("article,div,li,figure");
+        for (let i = 0; i < Math.min(260, nodes.length); i++) all.push(nodes[i]);
+      }
       for (const node of all) {
         const parent = node.parentElement;
         if (!parent || !node.tagName || !parent.classList) continue;
@@ -326,9 +341,9 @@
     return Array.isArray(discovered) ? discovered.slice(0, limited) :
       Array.from(document.querySelectorAll("input")).slice(0, limited);
   }
-  function detect() {
-    const candidates = inputCandidates()
-      .filter(validInput).map(input => ({ input, score: score(input) }))
+  function detect(getCards = detectResults, preparedCandidates = null) {
+    const candidates = (preparedCandidates || inputCandidates()
+      .filter(validInput).map(input => ({ input, score: score(input) })))
       .filter(c => c.score >= 8).sort((a, b) => b.score - a.score);
     if (!candidates.length || (candidates[1] && candidates[1].score === candidates[0].score))
       return { status: "missing" };
@@ -339,7 +354,7 @@
     const form = input.form;
     // Search only with a safe GET form or an explicitly detected search button.
     if (!safeForm(form) && !button) return { status: "partial" };
-    const result = detectResults();
+    const result = getCards();
     const submit = button ? "CLICK_SUBMIT" : "FORM_SUBMIT";
     const page = detectPagination();
     return {
@@ -356,8 +371,17 @@
       .filter(validInput).map(input => ({input, points:score(input)}))
       .filter(x => x.points >= 8).sort((a,b) => b.points-a.points);
     const tie = inputs.length > 1 && inputs[0].points === inputs[1].points;
-    const inspection = tie ? {status:"missing"} : detect();
-    const cards = inspection.resultsCardSelector || detectResults();
+    let checkedCards = false, cachedCards = null;
+    const getCards = () => {
+      if (!checkedCards) {
+        cachedCards = detectResults();
+        checkedCards = true;
+      }
+      return cachedCards;
+    };
+    const inspection = tie ? {status:"missing"} :
+      detect(getCards, inputs.map(x => ({input:x.input, score:x.points})));
+    const cards = inspection.resultsCardSelector || getCards();
     const page = cards ? detectPagination() : {pagination:"NONE",nextPageSelector:null};
     const formReady = !!inspection.inputSelector && !!inspection.submission;
     const unsafe = !inputs.length && !!document.querySelector?.(

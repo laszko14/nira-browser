@@ -13,7 +13,8 @@ const content = fs.readFileSync(path.join(__dirname,
 function inspectFixture({cardsSelector, count=4, name='s', submitType='submit',
     method='get', next=false, metadata=true, analyze=false,
     anonymousPager=false, secondInput=false, inputId='s', formRole='search',
-    ariaLabel=null, placeholder='Search', recognitionReport=null}={}) {
+    ariaLabel=null, placeholder='Search', recognitionReport=null,
+    onScan=null, treeNodes=null, onWideQuery=null}={}) {
   const posted = [], selectors = new Map();
   let onMessage;
   const url = new URL('https://films.example/');
@@ -100,12 +101,19 @@ function inspectFixture({cardsSelector, count=4, name='s', submitType='submit',
       return method.toLowerCase() === 'post' &&
         query.includes('form[method="post"]') ? input : null;
     },
-    querySelectorAll(key){return selectors.get(key) || [];},
+    querySelectorAll(key){
+      if (key==='article,div,li,figure' && onWideQuery) onWideQuery();
+      return selectors.get(key) || [];
+    },
+    createTreeWalker:treeNodes ? function() {
+      let i=0;
+      return {nextNode(){return treeNodes[i++]||null;}};
+    } : undefined,
     contains(){return true;}
   };
   const window = {addEventListener(){},
     __zavroRecognition: recognitionReport ? {
-      scan(){return recognitionReport;},controlHint(){return '';}
+      scan(){onScan?.();return recognitionReport;},controlHint(){return '';}
     } : undefined};
   window.top=window;
   const port = {
@@ -240,4 +248,37 @@ test('P2-F replaced Shadow/iframe host cannot fall back to unrelated legacy card
     recognitionReport:{selector:null,confidence:0,reason:'CONTEXT_REPLACED'}});
   assert.equal(report.resultsCardSelector,null);
   assert.equal(report.status,'partial');
+});
+
+test('P2-G2 analyze performs a single failed structural discovery',()=>{
+  let scans=0;
+  const result=inspectFixture({analyze:true,recognitionReport:{
+    selector:null,confidence:0,reason:'CARDS_NOT_FOUND'
+  },onScan(){scans++;}});
+  assert.equal(result.status,'partial');
+  assert.equal(scans,1);
+});
+
+test('P2-G2 result-only unsafe-form page still detects cards once',()=>{
+  let scans=0;
+  const result=inspectFixture({analyze:true,method:'post',
+    cardsSelector:'.videos-list article',recognitionReport:{
+      selector:null,confidence:0,reason:'CARDS_NOT_FOUND'
+    },onScan(){scans++;}});
+  assert.equal(result.resultsCardSelector,'.videos-list article');
+  assert.equal(scans,1);
+});
+
+test('P2-G2 large legacy DOM fallback avoids global matching-NodeList allocation',()=>{
+  let scans=0, wide=0, visits=0;
+  const nodes=Array.from({length:4000},()=>({
+    matches(){visits++;return false;}
+  }));
+  const result=inspectFixture({cardsSelector:'.videos-list article',analyze:true,
+    recognitionReport:{selector:null,confidence:0,reason:'CARDS_NOT_FOUND'},
+    onScan(){scans++;},treeNodes:nodes,onWideQuery(){wide++;}});
+  assert.equal(result.resultsCardSelector,'.videos-list article');
+  assert.equal(scans,1);
+  assert.equal(wide,0);
+  assert.equal(visits,2400);
 });

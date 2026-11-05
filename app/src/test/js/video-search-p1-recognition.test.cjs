@@ -352,3 +352,70 @@ test('P2-G1 scoped card groups require the selected DOM node and stable host',()
   f.host.shadowRoot={...f.inner};
   assert.equal(f.win.__zavroRecognition.resolve(locator),null);
 });
+
+test('P2-G2 unrelated Shadow widget replacement preserves known scoped results',()=>{
+  const f=scopedFixture('SHADOW');
+  const previous=f.outer.querySelectorAll;
+  const widget={tagName:'FILTER-WIDGET',id:'filters',classList:[],
+    shadowRoot:{mode:'open',querySelectorAll(){return [];}}};
+  f.outer.querySelectorAll=q=>q==='article,div,section,main,form,iframe,*'?
+    [f.host,widget]:q==='#filters'?[widget]:previous(q);
+  const first=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(first.reason,'CANDIDATE_FOUND');
+  widget.shadowRoot={mode:'open',querySelectorAll(){return [];}};
+  const second=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(second.reason,'CANDIDATE_FOUND');
+  assert.equal(second.selector,first.selector);
+  assert.equal(f.win.__zavroRecognition.resolve(first.selector).length,2);
+});
+
+test('P2-G2 replaced unrelated Shadow root cannot mask replaced result host',()=>{
+  const f=scopedFixture('SHADOW');
+  const previous=f.outer.querySelectorAll;
+  const widget={tagName:'FILTER-WIDGET',id:'filters',classList:[],
+    shadowRoot:{mode:'open',querySelectorAll(){return [];}}};
+  f.outer.querySelectorAll=q=>q==='article,div,section,main,form,iframe,*'?
+    [f.host,widget]:q==='#filters'?[widget]:previous(q);
+  const first=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(first.reason,'CANDIDATE_FOUND');
+  widget.shadowRoot={mode:'open',querySelectorAll(){return [];}};
+  f.host.shadowRoot={...f.inner};
+  const result=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(result.reason,'CONTEXT_REPLACED');
+  assert.equal(result.selector,null);
+});
+
+test('P2-G2 unrelated open Shadow widget replacement keeps MAIN cards',()=>{
+  const parent={className:'search-results',classList:['search-results'],getAttribute(){return null;}};
+  const cards=[1,2].map(i=>{
+    const heading={textContent:'Film '+i,getAttribute(){return null;}};
+    const link={getAttribute(k){return k==='href'?'/video/'+i:null;},
+      hasAttribute(){return false;},textContent:'Film '+i,querySelector(){return heading;}};
+    return {tagName:'ARTICLE',classList:['video-card'],parentElement:parent,
+      getAttribute(){return null;},closest(){return null;},
+      querySelectorAll(q){return q==='a[href]'?[link]:[];},
+      querySelector(q){return /h1,h2,h3,h4/.test(q)?heading:
+        /img,picture,video/.test(q)?{tagName:'IMG'}:null;}};
+  });
+  const widget={tagName:'FILTER-WIDGET',id:'filters',classList:[],
+    shadowRoot:{mode:'open',querySelectorAll(){return [];}}};
+  const doc={querySelectorAll(q){
+    if(q==='article,div,section,main,form,iframe,*')return [widget,...cards];
+    if(q==='#filters')return [widget];
+    if(['article,li,figure,div,section','article.video-card','article',
+        '.search-results article.video-card'].includes(q))return cards;
+    return [];
+  }};
+  const win={};win.top=win;
+  vm.runInNewContext(source,{window:win,document:doc,URL,
+    location:new URL('https://films.example/search?q=book'),
+    btoa:x=>Buffer.from(x,'binary').toString('base64'),
+    atob:x=>Buffer.from(x,'base64').toString('binary')});
+  const first=win.__zavroRecognition.scan(doc);
+  assert.equal(first.reason,'CANDIDATE_FOUND');
+  assert.equal(first.surface,'MAIN');
+  widget.shadowRoot={mode:'open',querySelectorAll(){return [];}};
+  const again=win.__zavroRecognition.scan(doc);
+  assert.equal(again.reason,'CANDIDATE_FOUND');
+  assert.equal(again.selector,first.selector);
+});
