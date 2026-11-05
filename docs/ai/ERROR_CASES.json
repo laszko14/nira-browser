@@ -93,7 +93,7 @@
     },
     {
       "task_id": "ZC-V4-P2-G2-CONTEXT-AND-BOUNDED-SCANS",
-      "observed_count": 4,
+      "observed_count": 5,
       "state": "ACTIVE"
     }
   ],
@@ -2173,6 +2173,27 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42091382260",
         "https://github.com/laszko14/nira-browser/commit/99fe2d09a0d3ce8b65fca70dbf00b719da02ddf3"
+      ]
+    },
+    {
+      "id": "ERR-20261105-P2G2-0005",
+      "task_id": "ZC-V4-P2-G2-CONTEXT-AND-BOUNDED-SCANS",
+      "kind": "CI_FAILURE",
+      "fingerprint": "maven-central-http429-javax-inject-androidtest-source",
+      "summary": "SOURCE AndroidTest compile could not resolve javax.inject:javax.inject:1 because Maven Central returned HTTP 429 Too Many Requests; PR AndroidTest compile succeeded on identical source. External dependency service throttling, not P2-G2 app regression; leave sources/dependencies unchanged.",
+      "source_sha": "27b999799f3cf4ca3c33552c38754dc260f3ec85",
+      "observed_at": "2026-11-05T19:14:06Z",
+      "run_id": 42091593763,
+      "job_id": 127471225921,
+      "attempt": 1,
+      "cause": "environment",
+      "state": "ACCEPTED_RISK",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42091593763",
+        "https://github.com/laszko14/nira-browser/pull/123"
       ]
     }
   ]
