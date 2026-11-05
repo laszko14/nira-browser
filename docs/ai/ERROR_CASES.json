@@ -93,7 +93,7 @@
     },
     {
       "task_id": "ZC-V4-P2-G2-CONTEXT-AND-BOUNDED-SCANS",
-      "observed_count": 3,
+      "observed_count": 4,
       "state": "ACTIVE"
     }
   ],
@@ -2152,6 +2152,27 @@
       "regression_test": "app/src/test/js/video-search-structural-v4.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/ef5d0e84e984d46def534f8b9148fa477ecfebad"
+      ]
+    },
+    {
+      "id": "ERR-20261105-P2G2-0004",
+      "task_id": "ZC-V4-P2-G2-CONTEXT-AND-BOUNDED-SCANS",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2g2-handoff-missing-shared-tests-ci-identifier",
+      "summary": "SOURCE process-docs check-ai-handoff.test.cjs failed because the P2-G2 checkpoint required_ci omitted the exact shared-tests identifier. Restore it in docs/AI_HANDOFF.md without relaxing the validator.",
+      "source_sha": "df7bbc2373e1155a84bcdaa171e6fddd9ef33b4b",
+      "observed_at": "2026-11-05T19:10:50Z",
+      "run_id": 42091382260,
+      "job_id": 127470004891,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "99fe2d09a0d3ce8b65fca70dbf00b719da02ddf3",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42091382260",
+        "https://github.com/laszko14/nira-browser/commit/99fe2d09a0d3ce8b65fca70dbf00b719da02ddf3"
       ]
     }
   ]
