@@ -419,3 +419,22 @@ test('P2-G2 unrelated open Shadow widget replacement keeps MAIN cards',()=>{
   assert.equal(again.reason,'CANDIDATE_FOUND');
   assert.equal(again.selector,first.selector);
 });
+
+test('P2-G2 stable Shadow result root accepts AJAX card reordering',()=>{
+  const f=scopedFixture('SHADOW');
+  const first=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(first.reason,'CANDIDATE_FOUND');
+  const initial=f.inner.querySelectorAll('.search-results article.video-card');
+  const updated=initial.slice().reverse();
+  const originalQuery=f.inner.querySelectorAll;
+  f.inner.querySelectorAll=q=>[
+    'article,li,figure,div,section',
+    'article,div,section,main,form,iframe,*',
+    '.search-results article.video-card'
+  ].includes(q)?updated:originalQuery(q);
+  const second=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(second.reason,'CANDIDATE_FOUND');
+  assert.equal(second.selector,first.selector);
+  assert.equal(second.matchedCards,2);
+  assert.equal(f.win.__zavroRecognition.resolve(first.selector)[0],updated[0]);
+});
