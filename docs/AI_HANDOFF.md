@@ -1,23 +1,23 @@
-# AI_HANDOFF — Zavro Clean V4 / P2-E dynamic context resilience
-> Historia: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md. P2-D zakończono na b3173f0b7492296d664ad525c9b649ea91234a6a.
+# AI_HANDOFF — Zavro Clean V4 / P2-F scoped DOM context identity
+> History: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md. P2-E completed on b173b47ee4f703b408088057bd9bc01c50175e2f (SOURCE 41876991486 / PR 41877001413, attempt 2 SUCCESS).
 
 ```yaml
-task_id: ZC-V4-P2-E-DYNAMIC-RESILIENCE
+task_id: ZC-V4-P2-F-SCOPED-CONTEXT-IDENTITY
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: fix/zavro-clean-v4-p2-evidence-runtime-20261103
-base_sha: b3173f0b7492296d664ad525c9b649ea91234a6a
-observed_head_sha: 85d7503316ff5d76c95daba742a7629953112536
+base_sha: b173b47ee4f703b408088057bd9bc01c50175e2f
+observed_head_sha: b173b47ee4f703b408088057bd9bc01c50175e2f
 status: CI_PENDING
-acceptance_source: User IMPLEMENT P2-E on current V4 branch; diagnose, implement, regressions, commit/push and green SOURCE/PR integration CI in one task; absolutely NO APK, merge or MPV.
-completed: P2-E robust bounded recognition over MAIN/open Shadow/same-origin iframe contexts; shared 2400 DOM visit budget fairly apportioned among context roots; SCAN_LIMIT explicitly fails closed on partial scan; same-origin iframe document substitution invalidates stored scoped locator and reports FRAME_REPLACED; weak confidence 75-84 reports LOW_CONFIDENCE instead of protocol-invalid found; generated hashed/numeric IDs/classes/data attributes avoided in saved selectors; legacy homepage fallback refuses stale/ambiguous/weak/truncated context. New JS and Robolectric protocol regressions. No Room migration or persisted-data changes.
-remaining: Verify mandatory SOURCE and PR integration CI on final SHA; fix errors if any; real sites, cross-origin iframe/closed Shadow roots, GeckoView, rotation, phone and true live navigation remain NOT_TESTED.
-required_ci: SOURCE process-docs and shared-tests (JavaScript WebExtension, Kotlin/Robolectric, AndroidTest Kotlin compile, Android lint with regression baseline) and evidence summary all SUCCESS on the exact final source SHA; separate PR integration workflow with required jobs SUCCESS. Build/release may be SKIPPED; do not create APK.
+acceptance_source: User IMPLEMENT next unfinished P2 after P2-E; determine scope from live repo and finish diagnosis, changes, regressions, review, commit/push and green SOURCE/PR CI. Explicitly no APK, merge or MPV.
+completed: P2-F chosen from code gap (not a pre-existing named milestone). A zcs1 locator could be rebound after SPA replaced an entire iframe/Shadow DOM host while keeping its CSS selector, or the same host got a different open shadowRoot. Bind host CSS slot identity to observed node per document and open ShadowRoot identity to host. Refuse to confirm/rebind after same-document replacement. CONTEXT_REPLACED reason is validated by native protocol, explained in Polish UI, and blocks legacy fallback. Regular leaf-card AJAX rerender within same root stays valid. Fresh full navigation gets a new content-script scope and can resolve persisted selectors. No new network, clicks, storage schema, DB migration or profile change.
+remaining: Final SOURCE and PR integration CI on final pushed SHA; investigate failures if any. Physical GeckoView/Android 15, live third-party sites, closed Shadow DOM and cross-origin iframes NOT_TESTED. A previously unseen host before first observation cannot be correlated with prior runtime identity.
+required_ci: SOURCE process-docs and shared-tests JS WebExtension, Kotlin/Robolectric, AndroidTest compile, Android lint regression baseline and evidence summary SUCCESS on exact final SHA; separate PR integration required jobs SUCCESS. Never build APK for this task.
 device: NOT_TESTED
-apk: NOT_BUILT; no private workflow trigger is authorized by this task.
-known_failures: 5 review findings, 5 SOURCE CI failures and 1 external PR lint HTTP 429 failure (Maven Central Robolectric dependency) recorded. JS fixed at 7629e8de75e96bf55bb6a664f7ed7c00d5ede6f1; checkpoint fixed at 1ed7569cd2aa186010104096abf19b527fb029a0. SOURCE run 41873968828 SUCCESS; PR 41873979868 lint retry attempt 2 SUCCESS. Maven throttling remains a documented external risk; no application change. Additional SOURCE process-docs 41876626372 rejected a 350-character new registry summary (limit 320); shortened description at 85d7503316ff5d76c95daba742a7629953112536; final CI pending.
-verification: Live PR #123 HEAD b3173f0b7492296d664ad525c9b649ea91234a6a before start; AGENTS.md, AI_HANDOFF.md, STARTUP_PREFLIGHT, DEVELOPMENT_WORKFLOW, TEST_POLICY, QUALITY_GATES, CHECKPOINT_POLICY, ERROR_LEARNING, TASK_TEMPLATE, TEST_PATTERNS, EXCEPTIONS_AND_TOOLS and registry read from that exact SHA. After two P2-E commits remote HEAD 7629e8de75e96bf55bb6a664f7ed7c00d5ede6f1. Local checkout, full real-site Gecko and device evidence unavailable.
+apk: NOT_BUILT; user explicitly prohibited APK.
+known_failures: 3 independent review defects in this task, all corrected by 25501af603b2c71f0e7b6b6dc831298993a58245, each with a regression in docs/ai/ERROR_CASES.json. No CI failures observed yet for P2-F. Prior P2-E external Maven Central HTTP 429 remains an accepted environmental risk, not an application defect.
+verification: Live PR #123 branch/head b173b47ee4f703b408088057bd9bc01c50175e2f with admin/push permission; AGENTS.md, docs/AI_HANDOFF.md, STARTUP_PREFLIGHT.md, DEVELOPMENT_WORKFLOW.md, TASK_TEMPLATE.md, TEST_POLICY.md, QUALITY_GATES.md, CHECKPOINT_POLICY.md, ERROR_LEARNING.md, TEST_PATTERNS.md, EXCEPTIONS_AND_TOOLS.md and ERROR_CASES.json fetched from identical explicit SHA. Source and tests examined at same ref. Remote-only code changes; local checkout, device and site integrations not tested. Code changes in 25501af603b2c71f0e7b6b6dc831298993a58245 with self-reviewed scope.
 changed_paths:
   - app/src/main/assets/extensions/zavro-video-search/recognition.js
   - app/src/main/assets/extensions/zavro-video-search/content.js
@@ -29,29 +29,19 @@ changed_paths:
   - docs/ai/ERROR_CASES.json
   - docs/AI_HANDOFF.md
 verified_before_push:
-  - PR #123 remains open/draft on the correct V4 P2 branch; permission admin/push confirmed.
-  - First SOURCE 41872440694 process-docs success, JS 460/463 with 3 failures, dependent summary failed; remaining matrix skipped.
-  - Failures diagnosed via direct GitHub job logs: 1 root starvation on dense MAIN, 2 incomplete test stubs. Corrected budget fairness and fixture and pushed 7629e8de75e96bf55bb6a664f7ed7c00d5ede6f1.
-  - SOURCE 41872740292 JS regressions success on corrected commit; Kotlin/Robolectric, AndroidTest compile and lint were in progress at handoff time. Results must be rechecked via API.
-  - SOURCE run 41873225326 on 905c9124 failed process-docs because checkpoint lacked exact required_ci tokens process-docs and shared-tests; test remained unchanged, handoff corrected.
-  - SOURCE 41873968828 on 3e85d74679d64bdae53dc9ae700278e36d04929d SUCCESS all required jobs; PR 41873979868 SUCCESS after lint job retry (attempt 2); first PR attempt failed only with Maven Central HTTP 429 downloading Robolectric nativeruntime-dist-compat, not application lint findings.
-  - SOURCE 41876626372 process-docs failed in error-learning schema because prior HTTP 429 incident summary was 350 chars (>320); shortened without weakening validator.
-  - No APK, merge, public release, force-push, signing/certificate or MPV changes.
+  - P2-E SOURCE and PR workflows both SUCCESS attempt 2 at b173b47ee4f703b408088057bd9bc01c50175e2f; no requirement to rerun completed P2-E audit.
+  - P2-F code self-review via compare_commits found only seven scoped source/test files. No signing, workflows, MPV or Room changes.
+  - Three regression families: new host with old CSS, swapped ShadowRoot on old host, legacy fallback after replacement. Also unchanged-host AJAX rerender and full document reload.
+  - RED execution on historical source not performed; new tests are source-level regression cases. Final CI must prove them.
+  - No APK build, merge, release, force-push, certificate or MPV operations.
 blockers:
-  - Live third-party site and Gecko/Android 15 behavior cannot be certified by headless JS/JVM fixtures; DEVICE NOT_TESTED.
-  - Cross-origin iframes and closed Shadow DOM intentionally unsupported; any unsupported context fails closed.
-  - Independent privacy/lifecycle security reviewer not yet confirmed; self-review and CI do not replace it.
+  - Separate independent privacy/lifecycle reviewer unavailable; self-review and CI do not replace independent risk acceptance.
+  - Real GeckoView third-party sites, device, runtime navigation, closed Shadow and cross-origin frames remain NOT_TESTED.
 evidence_links:
   - https://github.com/laszko14/nira-browser/pull/123
-  - https://github.com/laszko14/nira-browser/commit/b230410f89baac391aba21fb66f85f8cab36cea5
-  - https://github.com/laszko14/nira-browser/commit/7629e8de75e96bf55bb6a664f7ed7c00d5ede6f1
-  - https://github.com/laszko14/nira-browser/actions/runs/41872440694
-  - https://github.com/laszko14/nira-browser/actions/runs/41872740292
-  - https://github.com/laszko14/nira-browser/actions/runs/41873225326
-  - https://github.com/laszko14/nira-browser/actions/runs/41873237130
-  - https://github.com/laszko14/nira-browser/actions/runs/41873968828
-  - https://github.com/laszko14/nira-browser/actions/runs/41873979868
-  - https://github.com/laszko14/nira-browser/actions/runs/41876626372
-security: No new network actions, user clicks or auto-submission; only user-authorized existing search flow. No raw query, profiles or DOM saved to telemetry. Replaced frames/ambiguous selectors, incomplete scans and weak evidence fail closed, with no silent repair.
-next_action: Green SOURCE and PR integration for final checkpoint SHA; triage if needed and do not build any APK.
+  - https://github.com/laszko14/nira-browser/commit/25501af603b2c71f0e7b6b6dc831298993a58245
+  - https://github.com/laszko14/nira-browser/actions/runs/41876991486
+  - https://github.com/laszko14/nira-browser/actions/runs/41877001413
+security: Per-document WeakMap host and shadow-root identity, only CSS selectors sent to native, no raw DOM or search query logging, no new network or user interaction, no silent automated repair.
+next_action: Check final SOURCE and PR integration jobs on the pushed exact SHA; triage and fix failures if any, then stop. No APK.
 ```
