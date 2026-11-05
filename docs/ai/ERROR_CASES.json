@@ -98,7 +98,7 @@
     },
     {
       "task_id": "ZC-V4-P2-G3-END-TO-END-INTEGRITY",
-      "observed_count": 2,
+      "observed_count": 5,
       "state": "ACTIVE"
     }
   ],
@@ -2239,6 +2239,69 @@
       "regression_test": "app/src/test/js/video-search-p9-link-identity.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/ef711d573459f3a5eb689b1f0d1cf961ecca48b6"
+      ]
+    },
+    {
+      "id": "ERR-20261105-P2G3-0003",
+      "task_id": "ZC-V4-P2-G3-END-TO-END-INTEGRITY",
+      "kind": "CI_FAILURE",
+      "fingerprint": "legacy-standalone-high-offset-crawl-regression",
+      "summary": "SOURCE JS suite failed existing extended 640-card standalone high-offset test: expected empty at offset 320 without prior window, got stale. Fix confines stale to a witnessed contiguous cursor; preserve legacy contract and new mutation protection.",
+      "source_sha": "5429f7435ae50b7ed74c501b556d894f35c384bc",
+      "observed_at": "2026-11-05T19:37:05Z",
+      "run_id": 42095577733,
+      "job_id": 127484586611,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "04defa7750e06364bc4b58b77f893ed890c065f6",
+      "regression_test": "app/src/test/js/video-search-p11-pagination-evidence.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42095577733",
+        "https://github.com/laszko14/nira-browser/commit/04defa7750e06364bc4b58b77f893ed890c065f6"
+      ]
+    },
+    {
+      "id": "ERR-20261105-P2G3-0004",
+      "task_id": "ZC-V4-P2-G3-END-TO-END-INTEGRITY",
+      "kind": "CI_FAILURE",
+      "fingerprint": "legacy-standalone-high-offset-crawl-regression",
+      "summary": "PR JavaScript suite independently failed the same existing standalone high-offset regression on the same source commit. Regression fix is shared, with no assertion weakening.",
+      "source_sha": "5429f7435ae50b7ed74c501b556d894f35c384bc",
+      "observed_at": "2026-11-05T19:37:09Z",
+      "run_id": 42095583300,
+      "job_id": 127484599895,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "ERR-20261105-P2G3-0003",
+      "fix_sha": "04defa7750e06364bc4b58b77f893ed890c065f6",
+      "regression_test": "app/src/test/js/video-search-p11-pagination-evidence.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42095583300",
+        "https://github.com/laszko14/nira-browser/commit/04defa7750e06364bc4b58b77f893ed890c065f6"
+      ]
+    },
+    {
+      "id": "ERR-20261105-P2G3-0005",
+      "task_id": "ZC-V4-P2-G3-END-TO-END-INTEGRITY",
+      "kind": "CI_FAILURE",
+      "fingerprint": "source-required-evidence-summary-failed-after-shared-js",
+      "summary": "SOURCE required-jobs summary correctly failed because shared-tests JavaScript had failed and Android child jobs were skipped. Downstream reporting worked as designed; the repaired JavaScript gate must restore complete CI.",
+      "source_sha": "5429f7435ae50b7ed74c501b556d894f35c384bc",
+      "observed_at": "2026-11-05T19:37:40Z",
+      "run_id": 42095577733,
+      "job_id": 127484787893,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "04defa7750e06364bc4b58b77f893ed890c065f6",
+      "regression_test": "app/src/test/js/video-search-p11-pagination-evidence.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42095577733",
+        "https://github.com/laszko14/nira-browser/commit/04defa7750e06364bc4b58b77f893ed890c065f6"
       ]
     }
   ]
