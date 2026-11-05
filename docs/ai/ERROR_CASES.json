@@ -88,7 +88,7 @@
     },
     {
       "task_id": "ZC-V4-P2-G1-SCOPED-MANUAL-PICKER",
-      "observed_count": 3,
+      "observed_count": 4,
       "state": "ACTIVE"
     }
   ],
@@ -2066,6 +2066,27 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/79aef695fb44b0e0a3262c4917586ca99f944cfd"
+      ]
+    },
+    {
+      "id": "ERR-20261105-P2G1-0004",
+      "task_id": "ZC-V4-P2-G1-SCOPED-MANUAL-PICKER",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p2g1-handoff-missing-legacy-archive-pointer",
+      "summary": "SOURCE documentation gate failed because the current P2-G1 checkpoint omitted the legacy AI_HANDOFF archive pointer required by check-ai-handoff.test.cjs. Restore the pointer; keep the original assertion.",
+      "source_sha": "f2734ed109853b357213816aa9bfa22ae2e9e22a",
+      "observed_at": "2026-11-05T18:40:09Z",
+      "run_id": 42086427757,
+      "job_id": 127452658720,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "9ae4d3f500ff222103f4dbee7e8438f2f3440504",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42086427757",
+        "https://github.com/laszko14/nira-browser/commit/9ae4d3f500ff222103f4dbee7e8438f2f3440504"
       ]
     }
   ]
