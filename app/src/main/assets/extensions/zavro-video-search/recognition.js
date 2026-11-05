@@ -237,16 +237,21 @@
     }
     return found;
   }
-  function scope(element, leaf) {
+  function scope(element, leaf, allowGroup = false) {
     if (!element || element.isConnected === false || !safeCss(leaf)) return null;
     for (const ctx of findContexts(document)) {
       if (!ctx.steps?.length) continue;
       try {
         const matches = ctx.root.querySelectorAll(leaf);
-        if (matches.length !== 1 || matches[0] !== element) continue;
+        if (!matches.length || !Array.prototype.includes.call(matches, element) ||
+            (!allowGroup && matches.length !== 1)) continue;
         const locator = encodeLocator(ctx.steps, leaf);
         const resolved = locator && resolve(locator);
-        if (resolved?.length === 1 && resolved[0] === element) return locator;
+        // Bind the actual selected card within the original host/root, not
+        // merely a CSS group that may also exist in another DOM context.
+        if (resolved?.length === matches.length &&
+            Array.prototype.every.call(resolved, (node, i) => node === matches[i]))
+          return locator;
       } catch (_) { /* Detached, unstable and ambiguous roots fail closed. */ }
     }
     return null;

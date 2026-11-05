@@ -340,3 +340,15 @@ test('P2-F scoped recognition remains read-only and never clicks or posts',()=>{
   for(const forbidden of [/\.click\s*\(/,/requestSubmit\s*\(/,/\.submit\s*\(/,/fetch\s*\(/,/XMLHttpRequest/,/sendBeacon/])
     assert.doesNotMatch(source,forbidden);
 });
+
+test('P2-G1 scoped card groups require the selected DOM node and stable host',()=>{
+  const f=scopedFixture('SHADOW');
+  const leaf='.search-results article.video-card';
+  const selected=f.inner.querySelectorAll(leaf)[1];
+  assert.equal(f.win.__zavroRecognition.scope(selected,leaf),null);
+  const locator=f.win.__zavroRecognition.scope(selected,leaf,true);
+  assert.match(locator,/^zcs1:/);
+  assert.equal(f.win.__zavroRecognition.resolve(locator)[1],selected);
+  f.host.shadowRoot={...f.inner};
+  assert.equal(f.win.__zavroRecognition.resolve(locator),null);
+});

@@ -427,18 +427,22 @@
   function manualCard(node) {
     let element = node;
     for (let level = 0; element && level < 6; level++, element = element.parentElement) {
-      if (!element.querySelector || !element.querySelector("a[href]")) continue;
+      if (!element.tagName || !element.querySelector ||
+          !element.querySelector("a[href]") || element.isConnected === false) continue;
+      const root = element.getRootNode?.() || element.ownerDocument || document;
+      if (!root?.querySelectorAll) continue;
       const tag = element.tagName.toLowerCase();
       for (const cls of Array.from(element.classList || []).slice(0, 5)) {
         if (cls.length > 60) continue;
-        const selector = tag + "." + CSS.escape(cls);
+        const leaf = tag + "." + CSS.escape(cls);
         try {
-          const matches = Array.from(document.querySelectorAll(selector)).slice(0, 25);
-          // Manual choice may legitimately point to the only film card
-          // visible on a sparsely populated results page.
-          if (matches.length >= 1 && matches.filter(e => e.querySelector("a[href]")).length >= 1)
-            return selector;
-        } catch (_) {}
+          const matches = root.querySelectorAll(leaf);
+          // Only the actual clicked card may authorize the selected group.
+          if (!matches.length || !Array.prototype.includes.call(matches, element)) continue;
+          const selector = root === document ? leaf :
+            window.__zavroRecognition?.scope(element, leaf, true);
+          if (selector) return {selector, element};
+        } catch (_) { /* Detached/inaccessible groups fail closed. */ }
       }
     }
     return null;
@@ -808,23 +812,20 @@
         if (manualSubmit(element, manuallySelectedInput))
           selector = selectorFor(element);
       } else if (kind === "cards") {
-        selector = manualCard(node);
-        if (selector) {
-          try { element = document.querySelectorAll(selector)[0] || null; }
-          catch (_) { selector = null; }
-        }
+        const chosen = manualCard(node);
+        if (chosen) { selector = chosen.selector; element = chosen.element; }
       } else if (kind === "next") {
         element = node.closest('a[href],button,[role="button"]');
         const next = manualNext(node);
         if (next) { selector = next.selector; pagination = next.pagination; }
       }
       if (!selector || selector.length > 160) return null;
-      if (kind !== "cards") {
-        let found;
-        try { found = document.querySelectorAll(selector); } catch (_) { return null; }
-        if (found.length !== 1 || (found[0] !== element &&
-            !(kind === "next" && found[0].contains?.(element)))) return null;
-      } else if (!element) return null;
+      let found;
+      try { found = resultNodes(selector); } catch (_) { return null; }
+      if (!found || (kind === "cards" ?
+          !Array.prototype.includes.call(found, element) :
+          found.length !== 1 || (found[0] !== element &&
+            !(kind === "next" && found[0].contains?.(element))))) return null;
       return { element, selector, formSafe, pagination, kind };
     }
     function reasonFor(node) {
@@ -865,15 +866,16 @@
     function confirm() {
       const candidate = options[optionIndex];
       if (!candidate || location.href !== startUrl || !ready ||
-          (kind !== "cards" && !document.contains(candidate.element))) {
+          candidate.element?.isConnected === false) {
         feedback.textContent = "Strona się zmieniła. Wskaż element ponownie.";
         return;
       }
       try {
-        const found = document.querySelectorAll(candidate.selector);
-        if (kind === "cards" ? !found.length : found.length !== 1 ||
-            (found[0] !== candidate.element &&
-             !(kind === "next" && found[0].contains?.(candidate.element)))) {
+        const found = resultNodes(candidate.selector);
+        if (!found || (kind === "cards" ?
+            !Array.prototype.includes.call(found, candidate.element) :
+            found.length !== 1 || (found[0] !== candidate.element &&
+             !(kind === "next" && found[0].contains?.(candidate.element))))) {
           feedback.textContent = "Lokator przestał pasować. Wskaż element ponownie.";
           return;
         }
