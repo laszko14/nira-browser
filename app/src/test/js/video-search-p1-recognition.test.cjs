@@ -275,3 +275,68 @@ test('P2-E dense and sparse nested DOM roots share one capped candidate-visit bu
   assert.equal(result.reason,'SCAN_LIMIT');
   assert.equal(result.selector,null);
 });
+
+test('P2-F replaces a Shadow host with identical CSS: old saved locator stays stale',()=>{
+  const f=scopedFixture('SHADOW');
+  const initial=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(initial.reason,'CANDIDATE_FOUND');
+  assert.equal(f.win.__zavroRecognition.resolve(initial.selector).length,2);
+  const other={...f.host,shadowRoot:{...f.inner}};
+  const original=f.outer.querySelectorAll;
+  f.outer.querySelectorAll=q =>
+    q==='#playerResults'||q==='article,div,section,main,form,iframe,*' ?
+      [other]:original(q);
+  assert.equal(f.win.__zavroRecognition.resolve(initial.selector),null);
+  const report=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(report.reason,'CONTEXT_REPLACED');
+  assert.equal(report.selector,null);
+});
+
+test('P2-F swaps an open shadow root on the SAME host: scoped locator is revoked',()=>{
+  const f=scopedFixture('SHADOW');
+  const initial=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(f.win.__zavroRecognition.resolve(initial.selector).length,2);
+  f.host.shadowRoot={...f.inner};
+  assert.equal(f.win.__zavroRecognition.resolve(initial.selector),null);
+  const report=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(report.reason,'CONTEXT_REPLACED');
+  assert.equal(report.selector,null);
+});
+
+test('P2-F replaces the entire same-origin iframe with identical host CSS',()=>{
+  const f=scopedFixture('FRAME');
+  const initial=f.win.__zavroRecognition.scan(f.outer);
+  assert.equal(initial.reason,'CANDIDATE_FOUND');
+  const other={...f.host,contentDocument:{...f.inner}};
+  const original=f.outer.querySelectorAll;
+  f.outer.querySelectorAll=q =>
+    q==='#playerResults'||q==='article,div,section,main,form,iframe,*' ?
+      [other]:original(q);
+  assert.equal(f.win.__zavroRecognition.resolve(initial.selector),null);
+  assert.equal(f.win.__zavroRecognition.scan(f.outer).reason,'CONTEXT_REPLACED');
+});
+
+test('P2-F normal results AJAX rerender within stable root preserves selector',()=>{
+  const f=scopedFixture('SHADOW');
+  const initial=f.win.__zavroRecognition.scan(f.outer);
+  const updated=Array.from({length:3},(_,i)=>({id:'new-card-'+i}));
+  const lookup=f.inner.querySelectorAll;
+  f.inner.querySelectorAll=q => q==='.search-results article.video-card' ?
+    updated:lookup(q);
+  const cards=f.win.__zavroRecognition.resolve(initial.selector);
+  assert.equal(cards.length,3);
+  assert.equal(cards[0],updated[0]);
+});
+
+test('P2-F fresh content-script realm after full document reload can use stored locator',()=>{
+  const before=scopedFixture('FRAME');
+  const locator=before.win.__zavroRecognition.scan(before.outer).selector;
+  const after=scopedFixture('FRAME');
+  assert.equal(after.win.__zavroRecognition.resolve(locator).length,2);
+  assert.equal(after.win.__zavroRecognition.scan(after.outer).reason,'CANDIDATE_FOUND');
+});
+
+test('P2-F scoped recognition remains read-only and never clicks or posts',()=>{
+  for(const forbidden of [/\.click\s*\(/,/requestSubmit\s*\(/,/\.submit\s*\(/,/fetch\s*\(/,/XMLHttpRequest/,/sendBeacon/])
+    assert.doesNotMatch(source,forbidden);
+});

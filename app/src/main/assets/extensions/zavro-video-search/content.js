@@ -227,7 +227,8 @@
     // homepage recommendations via the legacy CSS fallback.
     if (smart && (smart.confidence > 0 ||
         ["AMBIGUOUS_CARDS", "SHADOW_RESULTS", "FRAME_RESULTS",
-          "FRAME_REPLACED", "LOW_CONFIDENCE", "SCAN_LIMIT"].includes(smart.reason)))
+          "FRAME_REPLACED", "CONTEXT_REPLACED",
+          "LOW_CONFIDENCE", "SCAN_LIMIT"].includes(smart.reason)))
       return null;
     // Discover repeated, card-local film links. Do not confuse arbitrary
     // site navigation with results or require a specific CSS theme.

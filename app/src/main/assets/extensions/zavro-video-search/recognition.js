@@ -11,6 +11,33 @@
   const MAX_DOM_VISITS = 2400;
   // A replaced same-origin iframe document invalidates its prior locators.
   const observedFrames = new WeakMap();
+  // P2-F: a scoped locator must not rebind to a new host reusing its CSS.
+  // Identity is per content-script document; full reload gets a fresh map.
+  const observedHosts = new WeakMap();
+  const observedShadowRoots = new WeakMap();
+  function rememberHost(root, selector, host, observation) {
+    let slots = observedHosts.get(root);
+    if (!slots) {
+      slots = new Map();
+      observedHosts.set(root, slots);
+    }
+    const previous = slots.get(selector);
+    if (previous && previous !== host) {
+      if (observation) observation.contextReplaced = true;
+      return false;
+    }
+    slots.set(selector, host);
+    return true;
+  }
+  function rememberShadow(host, shadow, observation) {
+    const previous = observedShadowRoots.get(host);
+    if (previous && previous !== shadow) {
+      if (observation) observation.contextReplaced = true;
+      return false;
+    }
+    observedShadowRoots.set(host, shadow);
+    return true;
+  }
   const BAD_PATH = /(?:^|\/)(?:categor(?:y|ies)|genres?|tags?|topics?|channels?|authors?|playlists?|collections?|account|login|signin|register|checkout|ads?)(?:\/|$)/i;
   const MEDIA_FILE = /\.(?:mp4|webm|m3u8|mpd|mp3|m4a|ts)(?:$)/i;
   const BAD_HINT = /(?:^|[\s_-])(?:advert(?:isement)?|sponsored|promo|banner|navigation|menu|breadcrumb|sidebar|category|tag|login|checkout)(?:$|[\s_-])/i;
@@ -57,7 +84,7 @@
     return typeof value === "string" && SIMPLE_CSS.test(value) &&
       !/:has\(|:not\(|:nth|javascript|\*/i.test(value);
   }
-  function stableHost(root, node) {
+  function stableHost(root, node, observation) {
     if (!node?.tagName || !root?.querySelectorAll) return null;
     const tag = node.tagName.toLowerCase();
     const choices = [];
@@ -72,7 +99,8 @@
       if (!safeCss(selector)) continue;
       try {
         const matches = root.querySelectorAll(selector);
-        if (matches.length === 1 && matches[0] === node) return selector;
+        if (matches.length === 1 && matches[0] === node &&
+            rememberHost(root, selector, node, observation)) return selector;
       } catch (_) { /* malformed DOM or unstable host */ }
     }
     return null;
@@ -102,10 +130,13 @@
         const hosts = root.querySelectorAll(items[i + 1]);
         if (hosts.length !== 1) return null;
         const host = hosts[0];
-        if (host.isConnected === false) return null;
+        if (host.isConnected === false ||
+            !rememberHost(root, items[i + 1], host)) return null;
         if (items[i] === "S") {
-          if (!host.shadowRoot || host.shadowRoot.mode !== "open") return null;
-          root = host.shadowRoot;
+          const shadow = host.shadowRoot;
+          if (!shadow || shadow.mode !== "open" ||
+              !rememberShadow(host, shadow)) return null;
+          root = shadow;
         } else if (items[i] === "F") {
           if (host.tagName !== "IFRAME") return null;
           const frame = host.contentDocument;
@@ -141,9 +172,10 @@
       for (const node of nodes) {
         seen++;
         if (contexts.length >= MAX_CONTEXTS) break;
-        if (node.shadowRoot?.mode === "open") {
-          const host = stableHost(root, node);
-          const next = {root:node.shadowRoot, surface:"SHADOW",
+        const shadow = node.shadowRoot;
+        if (shadow?.mode === "open" && rememberShadow(node, shadow, observation)) {
+          const host = stableHost(root, node, observation);
+          const next = {root:shadow, surface:"SHADOW",
             steps:ctx.steps && host ? [...ctx.steps, "S", host] : null};
           contexts.push(next);
           queue.push(next);
@@ -160,7 +192,7 @@
                 continue;
               }
               observedFrames.set(node, frame);
-              const host = stableHost(root, node);
+              const host = stableHost(root, node, observation);
               const next = {root:frame, surface:"FRAME",
                 steps:ctx.steps && host ? [...ctx.steps, "F", host] : null};
               contexts.push(next);
@@ -297,7 +329,7 @@
     const inResults = opts?.resultsContext === true || hintSearch(root);
     let visited = 0, domVisits = 0, checkedRoots = 0, quotaLimited = false;
     let best = null, ambiguous = false;
-    const observation = {frameReplaced:false};
+    const observation = {frameReplaced:false, contextReplaced:false};
     const rootContexts = findContexts(root, observation);
     for (const ctx of rootContexts) {
       checkedRoots++;
@@ -355,8 +387,11 @@
     const exhausted = quotaLimited || visited >= MAX_NODES ||
       domVisits >= MAX_DOM_VISITS;
     const accepted = best && !ambiguous && !exhausted &&
+      !observation.contextReplaced && !observation.frameReplaced &&
       best.selector && best.confidence >= 85;
-    const reason = ambiguous ? "AMBIGUOUS_CARDS" :
+    const reason = observation.contextReplaced ? "CONTEXT_REPLACED" :
+      observation.frameReplaced ? "FRAME_REPLACED" :
+      ambiguous ? "AMBIGUOUS_CARDS" :
       exhausted ? "SCAN_LIMIT" :
       accepted ? "CANDIDATE_FOUND" :
       best?.confidence < 85 && best?.confidence > 0 ? "LOW_CONFIDENCE" :

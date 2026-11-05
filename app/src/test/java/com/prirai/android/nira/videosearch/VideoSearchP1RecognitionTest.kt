@@ -89,6 +89,27 @@ class VideoSearchP1RecognitionTest {
         assertTrue(VideoSearchRecognitionDiagnostics.explain(stale).contains("podmieniona"))
     }
 
+    @Test fun p2fContextReplacementEvidenceCannotRepairOrForgeRecognition() {
+        val stale = packet(JSONObject.NULL)
+            .put("status", "missing")
+            .put("reason", "CONTEXT_REPLACED")
+            .put("confidence", 0)
+            .put("matchedCards", 0)
+            .put("surface", "SHADOW")
+        val parsed = VideoSearchBridgeProtocol.decode(stale)
+            as VideoSearchBridgeMessage.Recognition
+        assertNull(parsed.resultsCardSelector)
+        assertEquals("CONTEXT_REPLACED", parsed.reason)
+        assertNull(VideoSearchRecognitionPolicy.repairCandidate(parsed, null))
+        assertTrue(VideoSearchRecognitionDiagnostics.explain(parsed).contains("podmieniony"))
+        assertNull(VideoSearchBridgeProtocol.decode(
+            packet().put("reason", "CONTEXT_REPLACED")
+        ))
+        assertNull(VideoSearchBridgeProtocol.decode(
+            stale.put("extra", "untrusted")
+        ))
+    }
+
     @Test fun readOnlyOutboundRecognitionIsMinimal() {
         val packet = VideoSearchBridgeProtocol.recognize("a".repeat(32), "b".repeat(32))
         assertEquals(4, packet.length())

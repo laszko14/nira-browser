@@ -234,3 +234,10 @@ test('P2-E dynamic input ID is rejected in favor of unique stable form name',()=
   assert.equal(found.inputSelector,'input[name="s"]');
   assert.equal(found.status,'ready');
 });
+
+test('P2-F replaced Shadow/iframe host cannot fall back to unrelated legacy cards',()=>{
+  const report=inspectFixture({cardsSelector:'.movie-card',
+    recognitionReport:{selector:null,confidence:0,reason:'CONTEXT_REPLACED'}});
+  assert.equal(report.resultsCardSelector,null);
+  assert.equal(report.status,'partial');
+});

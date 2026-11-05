@@ -13,6 +13,9 @@ internal object VideoSearchRecognitionDiagnostics {
             "Wyniki znajdują się w ramce. Automatyczny zapis wymaga osobnej weryfikacji."
         "FRAME_REPLACED" ->
             "Ramka strony została podmieniona. Odśwież witrynę i ponownie sprawdź wyszukiwanie."
+        "CONTEXT_REPLACED" ->
+            "Element witryny lub Shadow DOM został podmieniony. Odśwież stronę i " +
+                "ponownie zweryfikuj wyniki, zanim zapiszesz regułę."
         "LOW_CONFIDENCE" ->
             "Znaleziono karty, ale podobieństwo jest zbyt słabe. Wskaż właściwe wyniki ręcznie."
         "SCAN_LIMIT" ->
