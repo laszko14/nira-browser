@@ -1,5 +1,5 @@
 # AI_HANDOFF — Zavro Clean V4 / P2-G1 scoped manual picker
-> Previous P2-F completed at 7059e011a5d7af0de88ce835302ebbccb40cec05; SOURCE 42074787626 / PR 42074798942 SUCCESS (attempt 1). Remaining P2-G2/G3 work is separate.
+> History: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md. Previous P2-F completed at 7059e011a5d7af0de88ce835302ebbccb40cec05; SOURCE 42074787626 / PR 42074798942 SUCCESS (attempt 1). Remaining P2-G2/G3 work is separate.
 
 ```yaml
 task_id: ZC-V4-P2-G1-SCOPED-MANUAL-PICKER
@@ -16,8 +16,8 @@ remaining: Verify final SOURCE and PR CI at the pushed SHA; triage any failing c
 required_ci: SOURCE process-docs and shared-tests JavaScript, JVM/Robolectric, AndroidTest compile, Android lint baseline and evidence summary SUCCESS on exact final SHA; separate PR integration CI JavaScript/JVM/AndroidTest/lint/evidence SUCCESS. Build/release SKIPPED permitted; APK prohibited.
 device: NOT_TESTED
 apk: NOT_BUILT; no signing workflow requested or authorized.
-known_failures: Three P2-G1 review findings recorded as ERR-20261105-P2G1-0001 through 0003, with source SHA 7059e011a5d7af0de88ce835302ebbccb40cec05, code fix commit 79aef695fb44b0e0a3262c4917586ca99f944cfd and regression paths. No P2-G1 CI failures observed before push. Do not claim completed CI until live verification.
-verification: GitHub PR #123 confirmed open/draft at initial source HEAD 7059e011a5d7af0de88ce835302ebbccb40cec05; AGENTS.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md, TEST_POLICY.md, TEST_PATTERNS.md, QUALITY_GATES.md, DEVELOPMENT_WORKFLOW.md, CHECKPOINT_POLICY.md, ERROR_LEARNING.md, TASK_TEMPLATE.md and EXCEPTIONS_AND_TOOLS.md fetched from this explicit SHA. JavaScript source/test syntax checked in V8 before creating prepared Git objects. Historical RED execution and local JDK/ADB tests NOT_TESTED; final GitHub Actions must verify behavior.
+known_failures: Three P2-G1 review findings recorded as ERR-20261105-P2G1-0001 through 0003, with source SHA 7059e011a5d7af0de88ce835302ebbccb40cec05, code fix commit 79aef695fb44b0e0a3262c4917586ca99f944cfd and regression paths. SOURCE 42086427757 process-docs failed at check-ai-handoff.test.cjs because this checkpoint omitted the required archive pointer; PR JS and SOURCE JS 476/476 PASS. Archive reference restored without weakening validator. Final SOURCE and PR CI must verify the fix.
+verification: GitHub PR #123 confirmed open/draft at initial source HEAD 7059e011a5d7af0de88ce835302ebbccb40cec05; AGENTS.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md, TEST_POLICY.md, TEST_PATTERNS.md, QUALITY_GATES.md, DEVELOPMENT_WORKFLOW.md, CHECKPOINT_POLICY.md, ERROR_LEARNING.md, TASK_TEMPLATE.md and EXCEPTIONS_AND_TOOLS.md fetched from this explicit SHA. JavaScript source/test syntax checked in V8 before creating prepared Git objects. Historical RED execution and local JDK/ADB tests NOT_TESTED. First SOURCE and PR JavaScript suites 476/476 PASS on f2734ed109853b357213816aa9bfa22ae2e9e22a; SOURCE process-docs reported one missing archive-pointer assertion. Final GitHub Actions must reverify.
 changed_paths:
   - app/src/main/assets/extensions/zavro-video-search/recognition.js
   - app/src/main/assets/extensions/zavro-video-search/content.js
