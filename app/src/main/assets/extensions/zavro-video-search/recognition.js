@@ -9,6 +9,24 @@
   const MAX_NODES = 260, MAX_LINKS = 12, MAX_CONTEXTS = 12;
   // Bound DOM visits as well as scored candidates on large dynamic pages.
   const MAX_DOM_VISITS = 2400;
+  // Budget all nested CSS queries, not just TreeWalker candidates.
+  const MAX_SELECTOR_QUERIES = 1600;
+  function query(root, selector, budget) {
+    if (budget && budget.queries >= MAX_SELECTOR_QUERIES) {
+      budget.exhausted = true;
+      return [];
+    }
+    if (budget) budget.queries++;
+    return root.querySelectorAll(selector);
+  }
+  function first(root, selector, budget) {
+    if (budget && budget.queries >= MAX_SELECTOR_QUERIES) {
+      budget.exhausted = true;
+      return null;
+    }
+    if (budget) budget.queries++;
+    return root.querySelector?.(selector) || null;
+  }
   // A replaced same-origin iframe document invalidates its prior locators.
   const observedFrames = new WeakMap();
   // P2-F: a scoped locator must not rebind to a new host reusing its CSS.
@@ -87,7 +105,7 @@
     return typeof value === "string" && SIMPLE_CSS.test(value) &&
       !/:has\(|:not\(|:nth|javascript|\*/i.test(value);
   }
-  function stableHost(root, node, observation) {
+  function stableHost(root, node, observation, budget) {
     if (!node?.tagName || !root?.querySelectorAll) return null;
     const tag = node.tagName.toLowerCase();
     const choices = [];
@@ -101,7 +119,7 @@
     for (const selector of choices) {
       if (!safeCss(selector)) continue;
       try {
-        const matches = root.querySelectorAll(selector);
+        const matches = query(root, selector, budget);
         if (matches.length === 1 && matches[0] === node &&
             rememberHost(root, selector, node, observation)) return selector;
       } catch (_) { /* malformed DOM or unstable host */ }
@@ -153,7 +171,7 @@
       return root.querySelectorAll(items[items.length - 1]);
     } catch (_) { return null; } // Includes cross-origin and detached-frame access.
   }
-  function findContexts(documentRoot, observation) {
+  function findContexts(documentRoot, observation, budget) {
     const main = {root:documentRoot, surface:"MAIN", steps:[]};
     const contexts = [main], queue = [main];
     let seen = 0;
@@ -168,7 +186,7 @@
           while (nodes.length < MAX_NODES - seen && (node = walker.nextNode()))
             nodes.push(node);
         } else {
-          nodes = Array.from(root.querySelectorAll?.("article,div,section,main,form,iframe,*") || [])
+          nodes = Array.from(root.querySelectorAll ? query(root, "article,div,section,main,form,iframe,*", budget) : [])
             .slice(0, MAX_NODES - seen);
         }
       } catch (_) { continue; }
@@ -177,7 +195,7 @@
         if (contexts.length >= MAX_CONTEXTS) break;
         const shadow = node.shadowRoot;
         if (shadow?.mode === "open" && rememberShadow(node, shadow, observation)) {
-          const host = stableHost(root, node, observation);
+          const host = stableHost(root, node, observation, budget);
           const next = {root:shadow, surface:"SHADOW",
             steps:ctx.steps && host ? [...ctx.steps, "S", host] : null};
           contexts.push(next);
@@ -195,7 +213,7 @@
                 continue;
               }
               observedFrames.set(node, frame);
-              const host = stableHost(root, node, observation);
+              const host = stableHost(root, node, observation, budget);
               const next = {root:frame, surface:"FRAME",
                 steps:ctx.steps && host ? [...ctx.steps, "F", host] : null};
               contexts.push(next);
@@ -261,25 +279,25 @@
   }
   // A sparse dynamic page may contain thousands of non-card nodes.
   // Share one bounded visit budget across all accessible root contexts.
-  function candidates(root, selector, limit, budget) {
-    if (budget <= 0 || limit <= 0) return {nodes:[], visits:0};
+  function candidates(root, selector, limit, visitBudget, queryBudget) {
+    if (visitBudget <= 0 || limit <= 0) return {nodes:[], visits:0};
     const owner = root.ownerDocument || (typeof root.createTreeWalker === "function" ? root : null);
     const walker = owner?.createTreeWalker?.(root, 1);
     if (!walker) {
       // Synthetic fixture fallback; production uses bounded TreeWalker.
-      const nodes = Array.from(root.querySelectorAll(selector)).slice(0, Math.min(limit, budget));
+      const nodes = Array.from(query(root, selector, queryBudget)).slice(0, Math.min(limit, visitBudget));
       return {nodes, visits:nodes.length};
     }
     const nodes = [];
     let visits = 0, node;
-    while (visits < budget && nodes.length < limit &&
+    while (visits < visitBudget && nodes.length < limit &&
            (node = walker.nextNode())) {
       visits++;
       if (node.matches?.(selector)) nodes.push(node);
     }
     return {nodes, visits};
   }
-  function selectorForGroup(root, example, cache) {
+  function selectorForGroup(root, example, cache, budget) {
     if (!example?.tagName) return null;
     const tag = example.tagName.toLowerCase();
     const classes = Array.from(example.classList || []).filter(v => STABLE_CLASS(v) &&
@@ -296,7 +314,7 @@
       if (candidate.length > 160 || /:has\(|:not\(/.test(candidate)) continue;
       try {
         if (!cache.has(candidate)) {
-          const matches = root.querySelectorAll(candidate);
+          const matches = query(root, candidate, budget);
           cache.set(candidate, matches.length <= 320 ? Array.from(matches) : []);
         }
         if (cache.get(candidate).includes(example)) return candidate;
@@ -304,31 +322,47 @@
     }
     return null;
   }
-  function scoreCard(node, base, inResults) {
+  function resultRegion(node) {
+    let results = false;
+    let parent = node?.parentElement;
+    for (let depth = 0; parent && depth < 6; depth++, parent = parent.parentElement) {
+      const hint = nodeHint(parent);
+      // Negative region evidence overrides a /search URL or attractive poster.
+      if (/(?:^|[\s_-])(?:recommend(?:ed|ations?)?|related|suggest(?:ed|ions?)?|trending|popular|featured|sidebar|advert(?:s|isements?)?|sponsored|promotions?|playlist|categories|genres)(?:$|[\s_-])/i.test(hint))
+        return { results:false, excluded:true };
+      if (/(?:^|[\s_-])(?:search[\s_-]?results?|results?|wyniki|film[\s_-]?list|movie[\s_-]?grid|video[\s_-]?list)(?:$|[\s_-])/i.test(hint))
+        results = true;
+    }
+    return { results, excluded:false };
+  }
+  function scoreCard(node, base, inResults, budget) {
     if (!node || !node.querySelectorAll || BAD_HINT.test(nodeHint(node)) ||
         node.closest?.("nav,header,footer,aside,[role=navigation],[aria-hidden=true],[hidden],[inert],.ad,.advertisement,.sponsored,[data-ad]"))
       return null;
-    const links = Array.from(node.querySelectorAll("a[href]")).slice(0, MAX_LINKS);
+    const region = resultRegion(node);
+    if (region.excluded) return null;
+    const links = Array.from(query(node, "a[href]", budget)).slice(0, MAX_LINKS);
     let winner = null, ties = 0;
-    const heading = textOf(node.querySelector?.("h1,h2,h3,h4,[itemprop=name],.video-title,.movie-title,.film-title,.title"));
-    const image = node.querySelector?.("img,picture,video,[itemprop=thumbnailUrl]");
-    const duration = node.querySelector?.("time[datetime],[data-duration],.duration,.runtime");
+    const heading = textOf(first(node, "h1,h2,h3,h4,[itemprop=name],.video-title,.movie-title,.film-title,.title", budget));
+    const image = first(node, "img,picture,video,[itemprop=thumbnailUrl]", budget);
+    const duration = first(node, "time[datetime],[data-duration],.duration,.runtime", budget);
     for (const a of links) {
       const url = href(a, base);
       if (!url || BAD_HINT.test(nodeHint(a))) continue;
       const label = textOf(a);
       const titleRelation = !!heading && !!label && (heading.toLowerCase() === label.toLowerCase() ||
         label.toLowerCase().includes(heading.toLowerCase()));
-      const semantic = !!a.querySelector?.("h1,h2,h3,h4,[itemprop=name],.title,img");
+      const semantic = !!first(a, "h1,h2,h3,h4,[itemprop=name],.title,img", budget);
       const path = /(?:^|\/)(?:watch|movie|film|video|episode|title|play)(?:\/|$)/i.test(new URL(url).pathname);
       const points = 25 + (titleRelation ? 20 : heading && semantic ? 14 : 0) +
         (image ? 15 : 0) + (duration ? 5 : 0) + (path ? 10 : 0) +
-        (inResults ? 10 : 0);
+        (inResults ? 10 : 0) + (inResults && region.results ? 8 : 0);
       if (!winner || points > winner.points) { winner = {url,points}; ties = 0; }
       else if (points === winner.points && url !== winner.url) ties++;
     }
     if (!winner || ties > 0 || (!heading && !image)) return null;
-    return {points: winner.points, fingerprint: node.tagName + "/" +
+    return {points: winner.points, inResultRegion:region.results,
+      fingerprint: node.tagName + "/" +
       Array.from(node.classList || []).filter(c => TOKEN.test(c)).slice(0, 2).join("."),
       parent: node.parentElement, node};
   }
@@ -338,7 +372,8 @@
     let visited = 0, domVisits = 0, checkedRoots = 0, quotaLimited = false;
     let best = null, bestRoot = null, ambiguous = false;
     const observation = {frameReplaced:false, contextReplaced:false};
-    const rootContexts = findContexts(root, observation);
+    const budget = {queries:0, exhausted:false};
+    const rootContexts = findContexts(root, observation, budget);
     for (const ctx of rootContexts) {
       checkedRoots++;
       let nodes;
@@ -349,7 +384,7 @@
         const rootCount = rootContexts.length - checkedRoots + 1;
         const quota = Math.ceil(left / rootCount);
         const batch = candidates(ctx.root, "article,li,figure,div,section",
-          MAX_NODES - visited, quota);
+          MAX_NODES - visited, quota, budget);
         nodes = batch.nodes;
         domVisits += batch.visits;
         if (quota < left && batch.visits >= quota) quotaLimited = true;
@@ -357,16 +392,17 @@
       const groups = new Map(), selectors = new Map();
       for (const node of nodes) {
         visited++;
-        const card = scoreCard(node, ctx.root.baseURI || ctx.root.ownerDocument?.baseURI || page, inResults);
+        const card = scoreCard(node, ctx.root.baseURI || ctx.root.ownerDocument?.baseURI || page, inResults, budget);
         if (!card) continue;
-        const selector = selectorForGroup(ctx.root, node, selectors);
+        const selector = selectorForGroup(ctx.root, node, selectors, budget);
         if (!selector) continue;
         const key = selector + "|" + ctx.surface + "|" +
           (card.parent ? nodeHint(card.parent).slice(0, 48) : "");
         const existing = groups.get(key) || {selector, surface:ctx.surface,
-          cards:0, points:0, parent:card.parent, fingerprints:new Set()};
+          cards:0, points:0, regions:0, parent:card.parent, fingerprints:new Set()};
         existing.cards++;
         existing.points += card.points;
+        if (card.inResultRegion) existing.regions++;
         existing.fingerprints.add(card.fingerprint);
         groups.set(key, existing);
       }
@@ -382,17 +418,18 @@
           confidence, matchedCards:candidate.cards,
           evidence:["FILM_PAGE_LINK","CARD_LOCAL_METADATA",
             ...(repetition ? ["REPEATED_STRUCTURE"] : []),
-            ...(inResults ? ["RESULTS_CONTEXT"] : [])]};
+            ...(inResults ? ["RESULTS_CONTEXT"] : []),
+            ...(candidate.regions ? ["RESULT_REGION"] : [])]};
         if (!best || result.confidence > best.confidence + 14) {
           best=result; bestRoot=ctx.root; ambiguous=false;
         } else if (Math.abs(result.confidence-best.confidence) < 15 &&
                    result.selector !== best.selector) ambiguous=true;
       }
-      if (visited >= MAX_NODES || domVisits >= MAX_DOM_VISITS) break;
+      if (budget.exhausted || visited >= MAX_NODES || domVisits >= MAX_DOM_VISITS) break;
     }
     // Native rejects found selectors with confidence below 85. Weak
     // evidence must be diagnostic, never an optimistic found response.
-    const exhausted = quotaLimited || visited >= MAX_NODES ||
+    const exhausted = budget.exhausted || quotaLimited || visited >= MAX_NODES ||
       domVisits >= MAX_DOM_VISITS;
     // A changed sidebar must not revoke a verified, unaffected result root.
     // Replacing the active host remains fail-closed even with the same CSS.
@@ -449,7 +486,7 @@
       .join(" ").slice(0, 280);
   }
   Object.defineProperty(window, "__zavroRecognition", {
-    value: Object.freeze({scan,controlHint,resolve,roots,inputs,scope}), configurable: false,
+    value: Object.freeze({scan,controlHint,resolve,roots,inputs,scope,resultRegion}), configurable: false,
     enumerable: false, writable: false
   });
 })();

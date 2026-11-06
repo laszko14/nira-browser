@@ -13,6 +13,7 @@ const content = fs.readFileSync(path.join(__dirname,
 function inspectFixture({cardsSelector, count=4, name='s', submitType='submit',
     method='get', next=false, metadata=true, analyze=false,
     anonymousPager=false, secondInput=false, inputId='s', formRole='search',
+    excludeResultRegion=false,
     ariaLabel=null, placeholder='Search', recognitionReport=null,
     onScan=null, treeNodes=null, onWideQuery=null}={}) {
   const posted = [], selectors = new Map();
@@ -113,7 +114,8 @@ function inspectFixture({cardsSelector, count=4, name='s', submitType='submit',
   };
   const window = {addEventListener(){},
     __zavroRecognition: recognitionReport ? {
-      scan(){onScan?.();return recognitionReport;},controlHint(){return '';}
+      scan(){onScan?.();return recognitionReport;},controlHint(){return '';},
+      resultRegion(){return {excluded:excludeResultRegion};}
     } : undefined};
   window.top=window;
   const port = {
@@ -281,4 +283,22 @@ test('P2-G2 large legacy DOM fallback avoids global matching-NodeList allocation
   assert.equal(scans,1);
   assert.equal(wide,0);
   assert.equal(visits,2400);
+});
+
+test('P3-B legacy fallback refuses recommendation cards even with familiar CSS',()=>{
+  const report=inspectFixture({
+    cardsSelector:'.videos-list article',analyze:true,
+    recognitionReport:{selector:null,confidence:0,reason:'CARDS_NOT_FOUND'},
+    excludeResultRegion:true,
+  });
+  assert.equal(report.status,'partial');
+  assert.equal(report.resultsCardSelector,null);
+});
+test('P3-B legacy compatibility remains for a valid unobstructed results list',()=>{
+  const report=inspectFixture({
+    cardsSelector:'.videos-list article',
+    recognitionReport:{selector:null,confidence:0,reason:'CARDS_NOT_FOUND'},
+  });
+  assert.equal(report.status,'ready');
+  assert.equal(report.resultsCardSelector,'.videos-list article');
 });

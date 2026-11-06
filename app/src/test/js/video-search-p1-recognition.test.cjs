@@ -8,9 +8,10 @@ const root=path.resolve(__dirname,'../../main/assets/extensions/zavro-video-sear
 const source=fs.readFileSync(path.join(root,'recognition.js'),'utf8');
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));
 
-function fixture({count=3, links='film', ads=false, surface='MAIN', resultPage=true}={}) {
+function fixture({count=3, links='film', ads=false, surface='MAIN', resultPage=true,
+    parentClass='search-results', linksPerCard=1}={}) {
   const base='https://films.example/'+(resultPage?'search?q=book':'');
-  const parent={id:'',className:'search-results',classList:['search-results'],
+  const parent={id:'',className:parentClass,classList:[parentClass],
     getAttribute(){return null;}};
   function makeCard(i) {
     const url=links==='film'?'/video/'+(i+1):links==='category'?'/category/'+(i+1):
@@ -22,7 +23,7 @@ function fixture({count=3, links='film', ads=false, surface='MAIN', resultPage=t
     return {tagName:'ARTICLE',className:ads?'sponsored':'video-card',
       classList:ads?['sponsored']:['video-card'], parentElement:parent,
       getAttribute(){return null;},closest(){return null;},
-      querySelectorAll(s){return s==='a[href]'?[link]:[];},
+      querySelectorAll(s){return s==='a[href]'?Array.from({length:linksPerCard},()=>link):[];},
       querySelector(s){
         if (/h1,h2,h3,h4/.test(s))return heading;
         if (/img,picture,video/.test(s))return {tagName:'IMG'};
@@ -437,4 +438,24 @@ test('P2-G2 stable Shadow result root accepts AJAX card reordering',()=>{
   assert.equal(second.selector,first.selector);
   assert.equal(second.matchedCards,2);
   assert.equal(f.win.__zavroRecognition.resolve(first.selector)[0],updated[0]);
+});
+
+test('P3-B rejects recommendations even on a valid search-results route',()=>{
+  const report=fixture({parentClass:'related-videos'});
+  assert.equal(report.selector,null);
+  assert.equal(report.reason,'CARDS_NOT_FOUND');
+  assert.equal(report.confidence,0);
+});
+test('P3-B attaches positive region evidence only to real result containers',()=>{
+  const result=fixture({parentClass:'search-results'});
+  const other=fixture({parentClass:'video-grid',resultPage:false});
+  assert.ok(result.evidence.includes('RESULT_REGION'));
+  assert.ok(!other.evidence.includes('RESULT_REGION'));
+});
+test('P3-B nested selector budget fails closed rather than accepting a partial group',()=>{
+  const report=fixture({count:150,linksPerCard:12});
+  assert.equal(report.selector,null);
+  assert.equal(report.reason,'SCAN_LIMIT');
+  assert.equal(report.truncated,true);
+  assert.ok(report.scannedElements<=260);
 });
