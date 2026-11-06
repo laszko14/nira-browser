@@ -44,7 +44,11 @@ function fixture(surface='SHADOW') {
   const port={onMessage:{addListener(fn){receive=fn;}},
     onDisconnect:{addListener(){}},postMessage(m){posted.push(m);}};
   class Input {}
-  Object.defineProperty(Input.prototype,'value',{set(value){this._value=value;}});
+  // Real HTMLInputElement.value has BOTH accessors. The query integrity
+  // guard must read back the same value after the native setter runs.
+  Object.defineProperty(Input.prototype,'value',{
+    set(value){this._value=value;},get(){return this._value;}
+  });
   Object.setPrototypeOf(input,Input.prototype);
   const context={window,document,URL,location,console,Uint8Array,HTMLInputElement:Input,
     Event:class Event{},CSS:{escape:x=>x},
