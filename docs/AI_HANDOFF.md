@@ -16,7 +16,7 @@ remaining: Run all required SOURCE and stacked PR integration CI on exact final 
 required_ci: SOURCE process-docs + shared-tests (JS WebExtension, Kotlin/JVM Robolectric, AndroidTest compilation, Android lint-regression), checkout/evidence summary all SUCCESS on exact HEAD. Stacked PR integration JS/JVM/AndroidTest/lint/evidence SUCCESS. Missing/pending/skipped required job is NOT PASS.
 device: NOT_TESTED; user-confirmed v1224 startup is historical P2 smoke only
 apk: NOT_BUILT; no separate explicit request for private signed APK in this P3-B step
-known_failures: Initial PR 42257993545 JS (494/495 PASS) and SOURCE 42257964558 JS both failed the existing single-homepage-recommendation test because positive region bonus promoted homepage cards. SOURCE process-docs failed check-ai-handoff because required_ci omitted shared-tests and archive path. SOURCE summary failed because required jobs failed. All four occurrences must be registered and repaired in this task; no baseline tests weakened.
+known_failures: Initial PR 42257993545 JS (494/495 PASS) and SOURCE 42257964558 JS both failed the existing single-homepage-recommendation test because positive region bonus promoted homepage cards. SOURCE process-docs failed check-ai-handoff because required_ci omitted shared-tests and archive path. SOURCE summary failed because required jobs failed. All four occurrences registered in ERROR_CASES.json and corrected in candidate fix f03e79388a083ba2caa8b0a2224625286c17ca89; final CI still required before verified success. No baseline tests weakened.
 verification: Direct GitHub preflight read AGENTS.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md, docs/AGENT_REFERENCE.md, docs/VIDEO_SEARCH_AUDIT.md, TASK_TEMPLATE, DEVELOPMENT_WORKFLOW, TEST_POLICY, TEST_PATTERNS, QUALITY_GATES, ERROR_LEARNING, CHECKPOINT_POLICY and APK trigger at exact P2 base SHA. Existing PR 123 open/unmerged, matching full head. A new branch was created from exact P2 SHA. Local JavaScript/Gradle/ADB execution unavailable via this connector; required CI pending.
 changed_paths:
   - app/src/main/assets/extensions/zavro-video-search/recognition.js
@@ -38,5 +38,5 @@ evidence_links:
   - https://github.com/laszko14/nira-browser/pull/123
   - https://github.com/laszko14/nira-browser/actions/runs/42095971084
   - https://github.com/laszko14/nira-browser/actions/runs/42095981503
-next_action: Complete SOURCE and stacked PR integration CI on P3-B final SHA, fix any real regression without weakening tests; then STOP pending separate P3-C implementation instruction.
+next_action: Validate fixed regression and recorded 4/4 CI error occurrences via new SOURCE and stacked PR CI at final SHA; handle any new failures without weakening tests; then STOP before P3-C.
 ```

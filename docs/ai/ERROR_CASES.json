@@ -100,6 +100,11 @@
       "task_id": "ZC-V4-P2-G3-END-TO-END-INTEGRITY",
       "observed_count": 5,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P3-B-SEMANTIC-RECOGNITION",
+      "observed_count": 4,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -2302,6 +2307,86 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42095577733",
         "https://github.com/laszko14/nira-browser/commit/04defa7750e06364bc4b58b77f893ed890c065f6"
+      ]
+    },
+    {
+      "task_id": "ZC-V4-P3-B-SEMANTIC-RECOGNITION",
+      "kind": "CI_FAILURE",
+      "source_sha": "4b86e50ac9829f9b33954c23043dfb8adb60bd00",
+      "observed_at": null,
+      "attempt": 1,
+      "fix_sha": "f03e79388a083ba2caa8b0a2224625286c17ca89",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "id": "CI-42257993545-1-128030192981",
+      "run_id": 42257993545,
+      "job_id": 128030192981,
+      "fingerprint": "p3b-homepage-recommendation-overconfidence",
+      "summary": "PR JS regression rejected new P3-B region boost: an isolated homepage recommendation was incorrectly promoted to a results card.",
+      "cause": "production",
+      "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42257993545"
+      ]
+    },
+    {
+      "task_id": "ZC-V4-P3-B-SEMANTIC-RECOGNITION",
+      "kind": "CI_FAILURE",
+      "source_sha": "4b86e50ac9829f9b33954c23043dfb8adb60bd00",
+      "observed_at": null,
+      "attempt": 1,
+      "fix_sha": "f03e79388a083ba2caa8b0a2224625286c17ca89",
+      "state": "FIXED",
+      "duplicate_of": "CI-42257993545-1-128030192981",
+      "id": "CI-42257964558-1-128030323421",
+      "run_id": 42257964558,
+      "job_id": 128030323421,
+      "fingerprint": "p3b-homepage-recommendation-overconfidence",
+      "summary": "SOURCE JS independently reproduced the same single-homepage-recommendation false positive (494/495 PASS).",
+      "cause": "production",
+      "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42257964558"
+      ]
+    },
+    {
+      "task_id": "ZC-V4-P3-B-SEMANTIC-RECOGNITION",
+      "kind": "CI_FAILURE",
+      "source_sha": "4b86e50ac9829f9b33954c23043dfb8adb60bd00",
+      "observed_at": null,
+      "attempt": 1,
+      "fix_sha": "f03e79388a083ba2caa8b0a2224625286c17ca89",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "id": "CI-42257964558-1-128030322840",
+      "run_id": 42257964558,
+      "job_id": 128030322840,
+      "fingerprint": "p3b-handoff-missing-ci-and-archive",
+      "summary": "SOURCE process-docs rejected P3-B handoff missing the shared-tests label and archival continuity path.",
+      "cause": "workflow",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42257964558"
+      ]
+    },
+    {
+      "task_id": "ZC-V4-P3-B-SEMANTIC-RECOGNITION",
+      "kind": "CI_FAILURE",
+      "source_sha": "4b86e50ac9829f9b33954c23043dfb8adb60bd00",
+      "observed_at": null,
+      "attempt": 1,
+      "fix_sha": "f03e79388a083ba2caa8b0a2224625286c17ca89",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "id": "CI-42257964558-1-128030421644",
+      "run_id": 42257964558,
+      "job_id": 128030421644,
+      "fingerprint": "p3b-required-gates-upstream-failed",
+      "summary": "SOURCE required-gates evidence summary failed because process-docs and JS regression jobs had failed; the skipped dependent jobs were not PASS.",
+      "cause": "workflow",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42257964558"
       ]
     }
   ]
