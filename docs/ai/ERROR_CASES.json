@@ -113,7 +113,7 @@
     },
     {
       "task_id": "ZC-V4-P3-D-SMART-METADATA",
-      "observed_count": 0,
+      "observed_count": 3,
       "state": "ACTIVE"
     }
   ],
@@ -2457,6 +2457,66 @@
       "regression_test": "app/src/test/js/video-search-p2-scoped-controls.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42269539303"
+      ]
+    },
+    {
+      "kind": "CI_FAILURE",
+      "task_id": "ZC-V4-P3-D-SMART-METADATA",
+      "source_sha": "65f32c91a094114619e3e3b8abfdaab9468b0223",
+      "observed_at": null,
+      "attempt": 1,
+      "state": "FIXED",
+      "fix_sha": "56934d0c48fd9eb14edae7ef5e91e585ef42bc28",
+      "duplicate_of": null,
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsMergeTest.kt",
+      "id": "CI-42272620819-1-128080881706",
+      "run_id": 42272620819,
+      "job_id": 128080881706,
+      "fingerprint": "p3d-stress-test-int-not-long",
+      "cause": "test_harness",
+      "summary": "PR Kotlin compileDebugUnitTestKotlin failed: VideoSearchResultsMergeTest.kt:374 passed Int expression 1200 + i%2 to Long? runtime test helper.",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42272620819"
+      ]
+    },
+    {
+      "kind": "CI_FAILURE",
+      "task_id": "ZC-V4-P3-D-SMART-METADATA",
+      "source_sha": "65f32c91a094114619e3e3b8abfdaab9468b0223",
+      "observed_at": null,
+      "attempt": 1,
+      "state": "FIXED",
+      "fix_sha": "56934d0c48fd9eb14edae7ef5e91e585ef42bc28",
+      "duplicate_of": "CI-42272620819-1-128080881706",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsMergeTest.kt",
+      "id": "CI-42272583480-1-128080838982",
+      "run_id": 42272583480,
+      "job_id": 128080838982,
+      "fingerprint": "p3d-stress-test-int-not-long",
+      "cause": "test_harness",
+      "summary": "SOURCE Kotlin/JVM reproduced the same P3-D test-only Int versus Long? type mismatch; production Kotlin main compilation had succeeded.",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42272583480"
+      ]
+    },
+    {
+      "kind": "CI_FAILURE",
+      "task_id": "ZC-V4-P3-D-SMART-METADATA",
+      "source_sha": "65f32c91a094114619e3e3b8abfdaab9468b0223",
+      "observed_at": null,
+      "attempt": 1,
+      "state": "FIXED",
+      "fix_sha": "56934d0c48fd9eb14edae7ef5e91e585ef42bc28",
+      "duplicate_of": null,
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsMergeTest.kt",
+      "id": "CI-42272583480-1-128083604716",
+      "run_id": 42272583480,
+      "job_id": 128083604716,
+      "fingerprint": "p3d-required-summary-upstream-kotlin-failed",
+      "cause": "workflow",
+      "summary": "SOURCE evidence summary correctly failed because mandatory Kotlin/JVM test compilation failed; green JS, docs, AndroidTest and lint did not override it.",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42272583480"
       ]
     }
   ]
