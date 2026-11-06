@@ -371,7 +371,7 @@ class VideoSearchResultsMergeTest {
     @Test fun p3dSmartGroupingHandlesLargeDuplicateRunWithoutQuadraticScan() {
         val many = (0 until 2200).map { i ->
             film("film-$i", if (i % 2 == 0) "a" else "b",
-                "Beautiful Mountain Documentary", 1200 + i % 2)
+                "Beautiful Mountain Documentary", 1200L + (i % 2).toLong())
         }
         val grouped = VideoSearchResultsMerge.smartGroup(many)
         assertEquals(1, grouped.size)
