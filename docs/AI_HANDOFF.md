@@ -1,45 +1,41 @@
-# AI_HANDOFF — Zavro Clean V4 / P2-G3 end-to-end integration
-> History: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md. P2-G2 completed at dfef9c383a5a347bbb226585605305fe6fa86c1c; SOURCE 42092884956 / PR 42092896183 SUCCESS, attempt 1. This task finishes the three-level P2-G implementation; the live CI result belongs to final workflow runs, not this source snapshot.
+# AI_HANDOFF — Zavro Clean V4 / P3-B safe semantic recognition
+> P3-A analysis completed in ChatGPT. Base P2 SOURCE 42095971084 and PR 42095981503 were SUCCESS on bbb57d58456b1afa458b13811b018859400824f3. Those are historical P2 receipts, not CI for P3-B.
 
 ```yaml
-task_id: ZC-V4-P2-G3-END-TO-END-INTEGRITY
+task_id: ZC-V4-P3-B-SEMANTIC-RECOGNITION
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
-branch: fix/zavro-clean-v4-p2-evidence-runtime-20261103
-base_sha: dfef9c383a5a347bbb226585605305fe6fa86c1c
-observed_head_sha: dfef9c383a5a347bbb226585605305fe6fa86c1c
+branch: feat/zavro-clean-v4-p3b-recognition-20261106
+base_sha: bbb57d58456b1afa458b13811b018859400824f3
+observed_head_sha: bbb57d58456b1afa458b13811b018859400824f3
 status: CI_PENDING
-acceptance_source: User said "dalej" after verified P2-G2; implement last P2-G3 level, end-to-end search, pagination, persistence and security verification, with code, tests, review, commit/push and final CI. No merge, public release, APK, signing changes or MPV.
-completed: Code commit ef711d573459f3a5eb689b1f0d1cf961ecca48b6 adds safe same-origin result-link classification for account/login/checkout/payment/download paths; rejects a shrunk/shifted DOM continuation with stale rather than false empty completion; independently tracks extract_batch/extract_crawl cursor node identity and resets on route change or new page generation. Test commit dde2b5f24fba336a6e8dc63b6df027c0050c4f35 adds a native bridge decode + collector + queue-status end-to-end regression for stale continuation. Seven JS behavior tests cover shrink, insertion, append, fresh generation, preview/crawl independence, non-film links and retained safe film identity. Existing worker search verification, revision-based Room CAS, private profile isolation, multi-site queue, cancellation, memory/repair and pagination tests remain intact and are required in full CI.
-remaining: Run SOURCE and PR CI on exact final pushed SHA after follow-up fix 04defa7750e06364bc4b58b77f893ed890c065f6. Investigate any failure; no PASS before job success. Physical GeckoView/real websites, device orientations, background suspension and live search interactions still NOT_TESTED.
-required_ci: SOURCE process-docs and shared-tests JavaScript WebExtension, Kotlin/JVM Robolectric, AndroidTest Kotlin compile, Android lint regression baseline and checkout/evidence summary SUCCESS on exact final SHA. Separate PR integration JS/JVM/AndroidTest/lint/evidence SUCCESS; build/release SKIPPED acceptable only for tests-only.
-device: NOT_TESTED
-apk: NOT_BUILT; no signing or private APK requested for these three P2-G levels.
-known_failures: Two initial review defects corrected in ef711d573459f3a5eb689b1f0d1cf961ecca48b6. Initial SOURCE 42095577733 and PR 42095583300 JS suites each failed one EXISTING high-offset standalone test (489/490 PASS), plus the expected SOURCE required-gates summary failure; all three CI occurrences registered in ERROR_CASES. Fix commit 04defa7750e06364bc4b58b77f893ed890c065f6 distinguishes legacy independent high offsets (empty) from witnessed contiguous stale cursors (stale), without changing tests. Final CI must reverify.
-verification: Preflight at dfef9c383a5a347bbb226585605305fe6fa86c1c via direct GitHub connector: branch/PR #123 live SHA matched; AGENTS.md and docs/AI_HANDOFF.md plus STARTUP_PREFLIGHT.md, TEST_POLICY.md, TEST_PATTERNS.md, QUALITY_GATES.md, ERROR_LEARNING.md, DEVELOPMENT_WORKFLOW.md, CHECKPOINT_POLICY.md, TASK_TEMPLATE.md and EXCEPTIONS_AND_TOOLS.md all read from same explicit SHA. Repository tree contains only root AGENTS.md; P2-G1 and G2 SOURCE+PR CI on their own final SHAs green. P2-G3 JavaScript and added tests syntax checked in V8; full RED on old production source and local JDK/ADB NOT_TESTED, GitHub Actions must execute integration regressions. Code/diff self-reviewed before branch update. Initial source and PR JavaScript suite failure root cause confirmed at test #399; original assertion preserved, production behavior repaired in 04defa7750e06364bc4b58b77f893ed890c065f6.
+acceptance_source: User said "Dalej" after full P3-A analysis; IMPLEMENT next agreed P3-B stage on a new stacked branch. No merge, release, forced update, certificate change, destructive operations or explicit APK request.
+completed: P3-B JS recognition adds explicit positive result-region evidence, rejection of related/recommended/sidebar card containers even on /search pages, shared 1600-query budget across structure discovery, host locator checks, card-local metadata and group scoring. Query exhaustion reports SCAN_LIMIT rather than fabricating recognition. Legacy content.js fallback rejects region-excluded groups instead of bypassing structural negative evidence. Existing zcs1 locators, old CSS, Kotlin protocol and stored Room JSON untouched. Added regression tests for recommendation false positives, positive region evidence, query-cost cap, legacy fallback compatibility.
+remaining: Run all required SOURCE and stacked PR integration CI on exact final commit SHA; diagnose regressions from actual CI. Performance and GeckoView behavior on real sites remain NOT_TESTED; P3-C / P3-D / P3-E are separate future stages.
+required_ci: SOURCE process-docs + shared JS WebExtension, Kotlin/JVM Robolectric, AndroidTest compilation, Android lint-regression, checkout/evidence summary all SUCCESS on exact HEAD. Stacked PR integration JS/JVM/AndroidTest/lint/evidence SUCCESS. Missing/pending/skipped required job is NOT PASS.
+device: NOT_TESTED; user-confirmed v1224 startup is historical P2 smoke only
+apk: NOT_BUILT; no separate explicit request for private signed APK in this P3-B step
+known_failures: None newly observed at P3-B pre-commit. Record any actual CI failures in docs/ai/ERROR_CASES.json with correct run/job/attempt before concluding.
+verification: Direct GitHub preflight read AGENTS.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md, docs/AGENT_REFERENCE.md, docs/VIDEO_SEARCH_AUDIT.md, TASK_TEMPLATE, DEVELOPMENT_WORKFLOW, TEST_POLICY, TEST_PATTERNS, QUALITY_GATES, ERROR_LEARNING, CHECKPOINT_POLICY and APK trigger at exact P2 base SHA. Existing PR 123 open/unmerged, matching full head. A new branch was created from exact P2 SHA. Local JavaScript/Gradle/ADB execution unavailable via this connector; required CI pending.
 changed_paths:
+  - app/src/main/assets/extensions/zavro-video-search/recognition.js
   - app/src/main/assets/extensions/zavro-video-search/content.js
-  - app/src/test/js/video-search-p6-batches.test.cjs
-  - app/src/test/js/video-search-p9-link-identity.test.cjs
-  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchPageBatchProtocolTest.kt
+  - app/src/test/js/video-search-p1-recognition.test.cjs
+  - app/src/test/js/video-search-structural-v4.test.cjs
   - docs/AI_HANDOFF.md
-  - docs/ai/ERROR_CASES.json
 verified_before_push:
-  - No Gecko engine bridges, Room schema, persisted JSON format, production Kotlin behavior, worker permissions, lifecycle/selection logic or signing workflow changed.
-  - One existing JS protocol status 'stale' is reused; the Kotlin decoder and collector already reject stale windows.
-  - A new crawl generation starts only at explicit index 0; trusted page action and genuine append remain possible.
-  - Login/payment/download URLs are not film identities; genuine same-origin film links keep full query parameters and metadata.
-  - No automatic user interaction, query logging, raw DOM persistence, profile/session changes, destructive operations or force push.
+  - No new page clicks, navigation, POST, external requests, JavaScript permissions, profile/session changes or schema migration in P3-B.
+  - Automatic negative evidence cannot be replaced by legacy fallback; manual selectors remain unchanged.
+  - CSS lookup cap fails closed without promoting partial inspection to successful evidence.
+  - Original manual picker and owner-bound Gecko message protocol stay unchanged.
+  - P2 branch and stacked open PR 123 remain untouched.
 blockers:
-  - Independent lifecycle/security reviewer unavailable; own review and CI do not prove complete real-device acceptance.
-  - Device, real third-party sites, physical Gecko, private profile switching under actual load NOT_TESTED.
+  - No physical Android/GeckoView execution in this task, hence device NOT_TESTED.
+  - Independent reviewer unavailable; self review and CI do not prove live site acceptance.
 evidence_links:
   - https://github.com/laszko14/nira-browser/pull/123
-  - https://github.com/laszko14/nira-browser/commit/ef711d573459f3a5eb689b1f0d1cf961ecca48b6
-  - https://github.com/laszko14/nira-browser/commit/dde2b5f24fba336a6e8dc63b6df027c0050c4f35
-  - https://github.com/laszko14/nira-browser/actions/runs/42092884956
-  - https://github.com/laszko14/nira-browser/actions/runs/42092896183
-security: No APK and no private data read/write; stale DOM never becomes a completed run, unsafe navigation never becomes a film URL. Original profile/Room CAS and native owner/epoch proof remain unchanged.
-next_action: Check final pushed SHA, SOURCE process-docs/shared-tests and separate PR integration CI, record and fix any failures without weakening tests; after success stop. P2-G complete in code; real-device verification remains separate.
+  - https://github.com/laszko14/nira-browser/actions/runs/42095971084
+  - https://github.com/laszko14/nira-browser/actions/runs/42095981503
+next_action: Complete SOURCE and stacked PR integration CI on P3-B final SHA, fix any real regression without weakening tests; then STOP pending separate P3-C implementation instruction.
 ```

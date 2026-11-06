@@ -283,6 +283,11 @@
       let nodes;
       try { nodes = Array.from(document.querySelectorAll(selector)).slice(0, 64); }
       catch (_) { continue; }
+      // The structural classifier can reject recommendations/sidebars even
+      // when a legacy CSS selector happens to include their film-like cards.
+      // Skip the entire ambiguous legacy group rather than persisting a bad rule.
+      if (nodes.some(node => window.__zavroRecognition?.resultRegion?.(node)?.excluded))
+        continue;
       if (nodes.length < 2) continue;
       let linked = 0, withMetadata = 0;
       for (const node of nodes) {
