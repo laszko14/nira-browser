@@ -356,7 +356,7 @@
       const path = /(?:^|\/)(?:watch|movie|film|video|episode|title|play)(?:\/|$)/i.test(new URL(url).pathname);
       const points = 25 + (titleRelation ? 20 : heading && semantic ? 14 : 0) +
         (image ? 15 : 0) + (duration ? 5 : 0) + (path ? 10 : 0) +
-        (inResults ? 10 : 0) + (region.results ? 8 : 0);
+        (inResults ? 10 : 0) + (inResults && region.results ? 8 : 0);
       if (!winner || points > winner.points) { winner = {url,points}; ties = 0; }
       else if (points === winner.points && url !== winner.url) ties++;
     }
