@@ -110,6 +110,11 @@
       "task_id": "ZC-V4-P3-C-DYNAMIC-PROGRESS",
       "observed_count": 3,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P3-D-SMART-METADATA",
+      "observed_count": 6,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -2452,6 +2457,126 @@
       "regression_test": "app/src/test/js/video-search-p2-scoped-controls.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42269539303"
+      ]
+    },
+    {
+      "kind": "CI_FAILURE",
+      "task_id": "ZC-V4-P3-D-SMART-METADATA",
+      "source_sha": "65f32c91a094114619e3e3b8abfdaab9468b0223",
+      "observed_at": null,
+      "attempt": 1,
+      "state": "FIXED",
+      "fix_sha": "56934d0c48fd9eb14edae7ef5e91e585ef42bc28",
+      "duplicate_of": null,
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsMergeTest.kt",
+      "id": "CI-42272620819-1-128080881706",
+      "run_id": 42272620819,
+      "job_id": 128080881706,
+      "fingerprint": "p3d-stress-test-int-not-long",
+      "cause": "test_harness",
+      "summary": "PR Kotlin compileDebugUnitTestKotlin failed: VideoSearchResultsMergeTest.kt:374 passed Int expression 1200 + i%2 to Long? runtime test helper.",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42272620819"
+      ]
+    },
+    {
+      "kind": "CI_FAILURE",
+      "task_id": "ZC-V4-P3-D-SMART-METADATA",
+      "source_sha": "65f32c91a094114619e3e3b8abfdaab9468b0223",
+      "observed_at": null,
+      "attempt": 1,
+      "state": "FIXED",
+      "fix_sha": "56934d0c48fd9eb14edae7ef5e91e585ef42bc28",
+      "duplicate_of": "CI-42272620819-1-128080881706",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsMergeTest.kt",
+      "id": "CI-42272583480-1-128080838982",
+      "run_id": 42272583480,
+      "job_id": 128080838982,
+      "fingerprint": "p3d-stress-test-int-not-long",
+      "cause": "test_harness",
+      "summary": "SOURCE Kotlin/JVM reproduced the same P3-D test-only Int versus Long? type mismatch; production Kotlin main compilation had succeeded.",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42272583480"
+      ]
+    },
+    {
+      "kind": "CI_FAILURE",
+      "task_id": "ZC-V4-P3-D-SMART-METADATA",
+      "source_sha": "65f32c91a094114619e3e3b8abfdaab9468b0223",
+      "observed_at": null,
+      "attempt": 1,
+      "state": "FIXED",
+      "fix_sha": "56934d0c48fd9eb14edae7ef5e91e585ef42bc28",
+      "duplicate_of": null,
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsMergeTest.kt",
+      "id": "CI-42272583480-1-128083604716",
+      "run_id": 42272583480,
+      "job_id": 128083604716,
+      "fingerprint": "p3d-required-summary-upstream-kotlin-failed",
+      "cause": "workflow",
+      "summary": "SOURCE evidence summary correctly failed because mandatory Kotlin/JVM test compilation failed; green JS, docs, AndroidTest and lint did not override it.",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42272583480"
+      ]
+    },
+    {
+      "task_id": "ZC-V4-P3-D-SMART-METADATA",
+      "kind": "CI_FAILURE",
+      "source_sha": "a93a6279809b5fa3c6e9d416bc7da0fc56041040",
+      "observed_at": null,
+      "attempt": 1,
+      "fix_sha": "e7d8ba7d93848d7d4593fafde420ee162928e891",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsMergeTest.kt",
+      "id": "CI-42273735594-1-128084685645",
+      "run_id": 42273735594,
+      "job_id": 128084685645,
+      "fingerprint": "p3d-legacy-duration-or-expected-groups",
+      "cause": "test_harness",
+      "summary": "SOURCE Kotlin 1469/1470 PASS: new smart-mode test incorrectly expected three legacy duration groups; original one-second title bridge plus duration OR/transitivity yields two groups.",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42273735594"
+      ]
+    },
+    {
+      "task_id": "ZC-V4-P3-D-SMART-METADATA",
+      "kind": "CI_FAILURE",
+      "source_sha": "a93a6279809b5fa3c6e9d416bc7da0fc56041040",
+      "observed_at": null,
+      "attempt": 1,
+      "fix_sha": "e7d8ba7d93848d7d4593fafde420ee162928e891",
+      "state": "FIXED",
+      "duplicate_of": "CI-42273735594-1-128084685645",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsMergeTest.kt",
+      "id": "CI-42273745396-1-128084728580",
+      "run_id": 42273745396,
+      "job_id": 128084728580,
+      "fingerprint": "p3d-legacy-duration-or-expected-groups",
+      "cause": "test_harness",
+      "summary": "PR Kotlin reproduced exactly the same existing legacy duration-transitivity assertion failure. Fixed test now explicitly asserts original group membership; legacy production algorithm unchanged.",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42273745396"
+      ]
+    },
+    {
+      "task_id": "ZC-V4-P3-D-SMART-METADATA",
+      "kind": "CI_FAILURE",
+      "source_sha": "a93a6279809b5fa3c6e9d416bc7da0fc56041040",
+      "observed_at": null,
+      "attempt": 1,
+      "fix_sha": "e7d8ba7d93848d7d4593fafde420ee162928e891",
+      "state": "FIXED",
+      "duplicate_of": "CI-42272583480-1-128083604716",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsMergeTest.kt",
+      "id": "CI-42273735594-1-128088345723",
+      "run_id": 42273735594,
+      "job_id": 128088345723,
+      "fingerprint": "p3d-required-summary-upstream-kotlin-failed",
+      "cause": "workflow",
+      "summary": "SOURCE second-run evidence summary correctly failed due to Kotlin test assertion; JS, docs, AndroidTest and lint passed but this does not satisfy required jobs.",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42273735594"
       ]
     }
   ]

@@ -1,46 +1,45 @@
-# AI_HANDOFF — Zavro Clean V4 / P3-C dynamic search and pagination evidence
-> History: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md. P3-B completed at 45b598111b4df04bf25006ee40b68bf3a9d96d4e with SOURCE 42258523044 and stacked PR 42258535355 SUCCESS, attempt 1. These runs are previous-stage receipts, NOT P3-C CI.
+# AI_HANDOFF — Zavro Clean V4 / P3-D inteligentne metadane i scalanie
+> Archiwum: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md. P3-C VERIFIED na 86cf7ebdf6b3f84b890d1a46fecf0802108b1db5: SOURCE 42269940678 i PR 42269950801 SUCCESS, attempt 1. To historyczne dowody P3-C, a nie wynik P3-D.
 
 ```yaml
-task_id: ZC-V4-P3-C-DYNAMIC-PROGRESS
+task_id: ZC-V4-P3-D-SMART-METADATA
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
-branch: feat/zavro-clean-v4-p3c-dynamic-progress-20261106
-base_sha: 45b598111b4df04bf25006ee40b68bf3a9d96d4e
-observed_head_sha: 45b598111b4df04bf25006ee40b68bf3a9d96d4e
+branch: feat/zavro-clean-v4-p3d-smart-metadata-20261106
+base_sha: 86cf7ebdf6b3f84b890d1a46fecf0802108b1db5
+observed_head_sha: 86cf7ebdf6b3f84b890d1a46fecf0802108b1db5
 status: CI_PENDING
-acceptance_source: User said "Dalej" after verified P3-B, authorizing next agreed IMPLEMENT P3-C adaptive search, dynamic results and pagination stage; no merge, release, force-push, certificate change, destructive operations, APK signing request or MPV changes.
-completed: Existing native search submission / exact-query URL and film-identity proof remains mandatory. P3-C prevents deferred search submit if the controlled page field changes after input/change or before action. Pager clicks recheck original exact target and href, same-origin destination, window target, type, active number, loading/login gates and disabled/forbidden status at time of actual execution. Deferred infinite scroll rechecks login/loading; all user actions remain explicit. In normal and private pagination, a stale cursor on a genuine same-document virtualized replacement now enables an independent first-window probe, but only newly observed exact same-origin film URLs may advance; otherwise STALLED, never success. A changed Gecko document with unchanged URL or route with unchanged document fails closed instead of being accepted as a virtual replacement. Preserve Room schema/profiles, owner binding, existing search/query proof and historical result identities.
-remaining: Confirm real SOURCE and PR CI for this final SHA; fix any regression in production without weakening existing assertions. Future P3-D metadata/smart grouping and P3-E physical integration remain separate.
-required_ci: SOURCE process-docs + shared-tests (all JS WebExtension, Kotlin/JVM Robolectric, AndroidTest compile, Android lint-regression) + checkout/evidence summary SUCCESS on exact final HEAD; stacked PR integration JS/JVM/AndroidTest/lint/error-evidence SUCCESS. Build/release skipped is correct for tests-only; any required pending/skip/fail is NOT PASS.
-device: NOT_TESTED; physical GeckoView, real sites, orientation, background suspension and full crawl performance not covered by CI.
-apk: NOT_BUILT; no separately explicit authorized private APK update request for P3-C.
-known_failures: Initial PR 42269584501 and SOURCE 42269539303 each failed 2 existing scoped control JS tests (498/500 PASS) because synthetic HTMLInputElement.value only had a setter and no real-browser getter. Both failures were test_harness; SOURCE evidence summary failed as required due to skipped dependents. All three CI job occurrences registered FIXED in ERROR_CASES.json against test-harness fix 6f6e95b06915b5d5f579d31a52377d01dc832bb3; requires new green SOURCE and PR CI before CODE_VERIFIED.
-verification: Direct GitHub preflight at 45b598111b4df04bf25006ee40b68bf3a9d96d4e confirmed P3-B branch and open draft PR #124 matching HEAD, read root AGENTS.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md and selected VIDEO_SEARCH, TEST_POLICY, QUALITY_GATES, ERROR_LEARNING, CHECKPOINT_POLICY, TEST_PATTERNS and APK trigger from the same explicit SHA. The existing P3-B SOURCE and PR CI were green on that SHA. No local checkout/Gradle/ADB; source snapshot verified by direct connector. Independent review unavailable, self-review performed on scoped P3-C patch.
+acceptance_source: User said "Dalej" after P3-C CODE_VERIFIED, authorizing the next stage P3-D smart metadata and grouping. Scope: preserve existing two grouping toggles, no merge/release/force-push/destructive action/certificate change; no explicit private signed APK request.
+completed: Add separate optional presentation-only "Scalaj inteligentnie" setting exclusive with legacy "Scalaj po nazwie" and "Scalaj po długości" choices, retaining run/tab/profile-local state and pagination anchors. New pure conservative bounded grouping requires exact or strong fuzzy title plus compatible duration if known, episode-marker equality, bounded title variants without transitive chains, exact original URLs and first-seen ordering. Legacy two grouping algorithms untouched. Card-local JSON-LD now understands safe image arrays/ImageObject and TVEpisode (only exact film URL); local schema duration meta content is parsed. No remote fetch, native protocol/schema/Room migration or identity rewrite. Added Kotlin smart-mode, UI-memory and JS metadata negative/positive regressions.
+remaining: Verify SOURCE and stacked PR required CI on exact P3-D final SHA, triage and register CI/review errors without weakening assertions. P3-E is later integration and device acceptance.
+required_ci: SOURCE process-docs + shared-tests JS WebExtension, Kotlin/JVM Robolectric, AndroidTest compile, Android lint baseline, exact-head checkout/evidence summary all SUCCESS. Stacked PR shared-tests and error-learning evidence SUCCESS. Any skipped/pending mandatory job is not PASS.
+device: NOT_TESTED; cannot demonstrate on real GeckoView or real film sites until device tests.
+apk: NOT_BUILT; only explicit authorized signed APK instruction may invoke owner PR review trigger, not ordinary push/PR.
+known_failures: Six CI job failures registered in ERROR_CASES.json across two P3-D attempts. First SOURCE 42272583480 / PR 42272620819 Kotlin test compile error was Int rather than Long?; fixed at 56934d0c48fd9eb14edae7ef5e91e585ef42bc28. Second SOURCE 42273735594 / PR 42273745396 Kotlin suite had 1469/1470 PASS and one incorrect legacy duration-OR test expectation; test-only fix at e7d8ba7d93848d7d4593fafde420ee162928e891 now asserts actual unchanged two-group membership. Both SOURCE required summary jobs correctly failed. Six logged FIXED; new full CI still required on final SHA.
+verification: Direct GitHub G1 preflight on 86cf7ebdf6b3f84b890d1a46fecf0802108b1db5: branch/ref and PR #125 open Draft, exact HEAD SHA, AGENTS.md and docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md, VIDEO_SEARCH docs, TASK_TEMPLATE, DEVELOPMENT_WORKFLOW, TEST_POLICY, TEST_PATTERNS, QUALITY_GATES, ERROR_LEARNING, CHECKPOINT_POLICY, EXCEPTIONS, and APK trigger all read at same ref. No repository file mutations on P3-C branch. Local Gradle/ADB unavailable; CI is required source test evidence.
 changed_paths:
+  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsMerge.kt
+  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsActivity.kt
+  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsTabUiMemory.kt
   - app/src/main/assets/extensions/zavro-video-search/content.js
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchBridgeController.kt
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchPaginationCollector.kt
-  - app/src/test/js/video-search-p10-search-proof.test.cjs
-  - app/src/test/js/video-search-p11-pagination-evidence.test.cjs
-  - app/src/test/js/video-search-p2c-dynamic-pagination.test.cjs
-  - app/src/test/js/video-search-p2-scoped-controls.test.cjs
-  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchPaginationCollectorTest.kt
+  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsMergeTest.kt
+  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsTabUiMemoryTest.kt
+  - app/src/test/js/video-search-p9-link-identity.test.cjs
   - docs/AI_HANDOFF.md
   - docs/ai/ERROR_CASES.json
 verified_before_push:
-  - No new network requests, asynchronous autonomous searches, cross-origin navigation, unsafe form action, profile/private data writes, result schema or extension permissions.
-  - A dispatched action is still not verified results: existing native proof and collector require new exact film identity and reject old cards, no_results forgery and stale page.
-  - Replaced virtual DOM does not permit cursor rewind without atomic appendVerifiedReplacement.
-  - Delayed action revalidates same route and original control, rejecting changed href/login/target/loading.
-  - No force-push, merge, release, APK/certificate change.
+  - Smart merge is optional, legacy two filters and OR semantics untouched.
+  - Grouping is UI-only, never rewrites original URLs, data, or tab/profile ownership.
+  - Structured metadata remains card-local and linked to exact same-origin film URL; bounded parser.
+  - No network requests, media capture, executable selectors, new permissions or persistent Room schema.
+  - No PR merge, public release, force push or unauthorized APK trigger.
 blockers:
-  - No real-device / actual external sites test; DEVICE NOT_TESTED.
-  - No independent reviewer: self-review and CI do not replace manual acceptance.
+  - Physical GeckoView/site tests NOT_TESTED; CI is not real device acceptance.
+  - No independent external code reviewer; self-review plus required CI only.
 evidence_links:
-  - https://github.com/laszko14/nira-browser/pull/124
-  - https://github.com/laszko14/nira-browser/actions/runs/42258523044
-  - https://github.com/laszko14/nira-browser/actions/runs/42258535355
-next_action: Verify exact final SHA green SOURCE process-docs/shared-tests and stacked PR integration after fixing the scoped input fixture; diagnose any further failure without weakening assertions; then STOP before P3-D.
+  - https://github.com/laszko14/nira-browser/pull/125
+  - https://github.com/laszko14/nira-browser/actions/runs/42269940678
+  - https://github.com/laszko14/nira-browser/actions/runs/42269950801
+next_action: Run third SOURCE and stacked PR CI on final P3-D SHA after fixing strict legacy OR expectation; confirm Kotlin full 1470+ tests, JS, AndroidTest, lint, docs, evidence all SUCCESS then STOP before P3-E.
 ```

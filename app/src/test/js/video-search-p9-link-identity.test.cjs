@@ -53,11 +53,13 @@ function anchor(href, label = '', options = {}) {
   };
 }
 function card(links, title = null, metadata = {}) {
-  const durationNode = metadata.duration ? {
-    textContent: metadata.duration,
+  const timing = metadata.duration || metadata.metaDuration;
+  const durationNode = timing ? {
+    textContent: metadata.metaDuration ? '' : timing,
     getAttribute(name) {
-      return name === 'data-duration' ? metadata.duration :
-        name === 'datetime' ? metadata.duration : null;
+      if (name === 'content' && metadata.metaDuration) return timing;
+      return name === 'data-duration' && metadata.duration ? timing :
+        name === 'datetime' && metadata.duration ? timing : null;
     }
   } : null;
   const publicationNode = metadata.published ? {
@@ -281,4 +283,47 @@ test('P2-G3 safe film link survives unsafe companion routes with exact title evi
   assert.equal(result.status,'ok');
   assert.equal(result.films.length,1);
   assert.equal(result.films[0].filmPageUrl,origin+'/watch/feature');
+});
+
+test('P3-D card-local VideoObject image arrays and ISO duration keep exact provenance',()=>{
+  const film = origin + '/watch?id=metadata&lang=pl';
+  const result = run([card([anchor(film,'Fallback name')],'Fallback name',{
+    structured:{
+      '@type':'VideoObject', url:film, name:'Verified Local Film',
+      thumbnailUrl:['javascript:alert(1)',{url:'https://images.example/poster.webp'}],
+      duration:'PT1H2M3S', datePublished:'2024-06-20T00:00:00Z'
+    }
+  })]);
+  assert.equal(result.status,'ok');
+  assert.equal(result.films[0].filmPageUrl,film);
+  assert.equal(result.films[0].originalTitle,'Verified Local Film');
+  assert.equal(result.films[0].titleSource,'STRUCTURED');
+  assert.equal(result.films[0].thumbnailUrl,'https://images.example/poster.webp');
+  assert.equal(result.films[0].imageSource,'STRUCTURED');
+  assert.equal(result.films[0].durationSeconds,3723);
+  assert.equal(result.films[0].publishedAtMs,Date.parse('2024-06-20T00:00:00Z'));
+});
+test('P3-D structured metadata of a DIFFERENT film cannot contaminate the card',()=>{
+  const film=origin+'/watch?id=local';
+  const result=run([card([anchor(film,'Local Film')],'Local Film',{
+    structured:{'@graph':[
+      {'@type':'VideoObject',url:origin+'/watch?id=foreign',
+        name:'Wrong film',image:'https://images.example/foreign.webp',duration:'PT5M'},
+      {'@type':'TVEpisode',url:film,name:'Actual Episode',
+        image:[{contentUrl:'https://images.example/episode.webp'}],
+        duration:'PT10M'}
+    ]}
+  })]);
+  assert.equal(result.films[0].filmPageUrl,film);
+  assert.equal(result.films[0].originalTitle,'Actual Episode');
+  assert.equal(result.films[0].thumbnailUrl,'https://images.example/episode.webp');
+  assert.equal(result.films[0].durationSeconds,600);
+});
+test('P3-D schema.org itemprop duration meta content is parsed without page-level borrowing',()=>{
+  const film=origin+'/watch?id=meta';
+  const result=run([card([anchor(film,'Meta Film')],'Meta Film',{
+    metaDuration:'PT12M7S'
+  })]);
+  assert.equal(result.films[0].filmPageUrl,film);
+  assert.equal(result.films[0].durationSeconds,727);
 });

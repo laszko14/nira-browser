@@ -79,6 +79,31 @@ class VideoSearchResultsTabUiMemoryTest {
             setOf("merge-tab", "other-tab")).forRun("run").mergeByName.value)
     }
 
+    @Test fun p3dSmartMergeRemainsOnlyInThisTabProfileAndRun() {
+        val tabs = setOf("smart-tab", "other-smart-tab")
+        val owner = VideoSearchResultsTabUiMemory.forTab("smart-tab", "default", tabs)
+            .forRun("run-one")
+        owner.mergeSmart.value = true
+        owner.byWebsite.value = false
+        owner.pageSizeFor(null, VideoSearchSort.ORIGINAL,
+            byWebsite = false, mergeSmart = true).intValue = 450
+        val retained = VideoSearchResultsTabUiMemory.forTab(
+            "smart-tab", "default", tabs).forRun("run-one")
+        assertTrue(retained.mergeSmart.value)
+        assertEquals(450, retained.pageSizeFor(null, VideoSearchSort.ORIGINAL,
+            byWebsite = false, mergeSmart = true).intValue)
+        assertEquals(150, retained.pageSizeFor(null, VideoSearchSort.ORIGINAL,
+            byWebsite = false, mergeSmart = false).intValue)
+        assertFalse(owner.mergeByName.value)
+        assertFalse(owner.mergeByDuration.value)
+        assertFalse(VideoSearchResultsTabUiMemory.forTab(
+            "smart-tab", "default", tabs).forRun("run-two").mergeSmart.value)
+        assertFalse(VideoSearchResultsTabUiMemory.forTab(
+            "other-smart-tab", "default", tabs).forRun("run-one").mergeSmart.value)
+        assertFalse(VideoSearchResultsTabUiMemory.forTab(
+            "smart-tab", "work", tabs).forRun("run-one").mergeSmart.value)
+    }
+
     @Test fun bulkSelectionsSurviveFilmNavigationButRemainScopedToRunTabAndProfile() {
         val tab = "bulk-tab"
         val first = VideoSearchResultsTabUiMemory.forTab(tab, "default", setOf(tab))

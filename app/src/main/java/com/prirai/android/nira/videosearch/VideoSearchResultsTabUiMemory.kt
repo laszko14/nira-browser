@@ -14,6 +14,8 @@ internal class VideoSearchResultsRunUiState {
     val byWebsite: MutableState<Boolean> = mutableStateOf(true)
     val mergeByName: MutableState<Boolean> = mutableStateOf(false)
     val mergeByDuration: MutableState<Boolean> = mutableStateOf(false)
+    /** P3-D optional, conservative grouping; never stored in Room. */
+    val mergeSmart: MutableState<Boolean> = mutableStateOf(false)
     /** Collapsed filter panel survives film navigation for this tab/profile/run only. */
     val controlsCollapsed: MutableState<Boolean> = mutableStateOf(false)
     val controlsCollapsedTouched: MutableState<Boolean> = mutableStateOf(false)
@@ -29,15 +31,15 @@ internal class VideoSearchResultsRunUiState {
     private data class Selection(
         val site: String?, val sort: VideoSearchSort,
         val mergeByName: Boolean, val mergeByDuration: Boolean,
-        val byWebsite: Boolean,
+        val byWebsite: Boolean, val mergeSmart: Boolean,
     )
     private val pageSizes = LinkedHashMap<Selection, MutableIntState>(8, 0.75f, true)
     @Synchronized fun pageSizeFor(
         site: String?, sort: VideoSearchSort,
         mergeByName: Boolean = false, mergeByDuration: Boolean = false,
-        byWebsite: Boolean = true,
+        byWebsite: Boolean = true, mergeSmart: Boolean = false,
     ): MutableIntState {
-        val key = Selection(site, sort, mergeByName, mergeByDuration, byWebsite)
+        val key = Selection(site, sort, mergeByName, mergeByDuration, byWebsite, mergeSmart)
         pageSizes[key]?.let { return it }
         val count = mutableIntStateOf(150)
         pageSizes[key] = count

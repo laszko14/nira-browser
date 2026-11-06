@@ -140,6 +140,139 @@ internal object VideoSearchResultsMerge {
         }
     }
 
+
+    /** Strict, optional mode. Never used by the two legacy OR-based toggles. */
+    private val episodeMarker = Regex(
+        """(?i)(?:s\d{1,2}e\d{1,3}|\d{1,2}x\d{1,3}|(?:episode|ep|part|część)[\s._-]*\d{1,4})"""
+    )
+
+    private fun episodes(raw: String?): List<String> =
+        if (raw == null) emptyList() else
+            episodeMarker.findAll(Normalizer.normalize(raw, Normalizer.Form.NFKC))
+                .map { match -> match.value.lowercase(Locale.ROOT)
+                    .filter { it.isLetterOrDigit() } }.toList()
+
+    /** Duration cannot be the sole identity; missing runtime needs stronger text. */
+    private fun smartPair(
+        a: TitleParts, b: TitleParts,
+        aSeconds: Long?, bSeconds: Long?,
+        aEpisodes: List<String>, bEpisodes: List<String>,
+    ): Boolean {
+        val first = a.key ?: return false
+        val second = b.key ?: return false
+        if (a.numbers != b.numbers || aEpisodes != bEpisodes) return false
+        val left = aSeconds?.takeIf { it > 0 }
+        val right = bSeconds?.takeIf { it > 0 }
+        if (left != null && right != null &&
+            kotlin.math.abs(left - right) > 2L) return false
+        if (first == second) return true
+        val common = a.words.count { it in b.words }
+        val total = a.words.size + b.words.size
+        val overlap = if (total > 0) 2.0 * common / total else 0.0
+        // A typo without duration is possible, but the evidence must be
+        // exceptionally strong: no performer/title-only weak similarities.
+        if (left == null || right == null)
+            return minOf(first.length, second.length) >= 18 &&
+                common >= 2 && overlap >= 0.8 &&
+                characterSimilarity(first, second) >= 0.97
+        return plausibleFuzzyMatch(a, b, left, right)
+    }
+
+    private class SmartCluster(
+        val members: MutableList<Int>,
+        val distinctTitles: MutableList<Int>,
+        var shortest: Long?,
+        var longest: Long?,
+    )
+
+    /**
+     * P3-D: conservative presentation-only grouping. An exact/near-exact
+     * title AND compatible known duration are required. Never transitively
+     * connect two different films via a same-duration third card.
+     *
+     * Every distinct title spelling in one cluster must match every other
+     * spelling (max eight representatives), so A≈B and B≈C cannot silently
+     * put A and C in the same group. Bounded buckets avoid all-pairs scans
+     * across runs with thousands of independent films.
+     */
+    fun smartGroup(films: List<VideoSearchFilm>): List<VideoSearchMergedFilm> {
+        if (films.isEmpty()) return emptyList()
+        val owner = films.first()
+        require(films.all { it.runId == owner.runId && it.scope == owner.scope })
+        val details = films.map { parts(it.originalTitle) }
+        val markers = films.map { episodes(it.originalTitle) }
+        val groups = ArrayList<SmartCluster>()
+        val exactBuckets = HashMap<String, MutableList<Int>>()
+        val fuzzyBuckets = HashMap<String, MutableList<Int>>()
+
+        fun rememberBucket(bucket: MutableMap<String, MutableList<Int>>, key: String, group: Int) {
+            val values = bucket.getOrPut(key) { ArrayList() }
+            if (values.lastOrNull() != group) values.add(group)
+        }
+        fun shortlist(bucket: List<Int>?, into: LinkedHashSet<Int>) {
+            if (bucket == null) return
+            bucket.take(8).forEach { into.add(it) }
+            bucket.takeLast(24).forEach { into.add(it) }
+        }
+        films.forEachIndexed { index, film ->
+            val detail = details[index]
+            val name = detail.key
+            val length = film.durationSeconds?.takeIf { it > 0L }
+            var winner: Int? = null
+            if (name != null) {
+                val possible = LinkedHashSet<Int>()
+                shortlist(exactBuckets[name], possible)
+                // Exact spelling has priority; fuzzy lookup is only needed
+                // when no exact-title group with compatible duration exists.
+                fun admissible(id: Int): Boolean {
+                    val cluster = groups[id]
+                    if (length != null &&
+                        ((cluster.shortest != null &&
+                            kotlin.math.abs(length - cluster.shortest!!) > 2L) ||
+                         (cluster.longest != null &&
+                            kotlin.math.abs(length - cluster.longest!!) > 2L)))
+                        return false
+                    if (cluster.distinctTitles.size >= 8 &&
+                        cluster.distinctTitles.none { details[it].key == name })
+                        return false
+                    return cluster.distinctTitles.all { previous ->
+                        smartPair(detail, details[previous], length,
+                            films[previous].durationSeconds,
+                            markers[index], markers[previous])
+                    }
+                }
+                winner = possible.firstOrNull(::admissible)
+                if (winner == null && name.length in 9..180) {
+                    for (key in blockingKeys(detail)) {
+                        shortlist(fuzzyBuckets[key], possible)
+                        if (possible.size >= 96) break
+                    }
+                    winner = possible.firstOrNull(::admissible)
+                }
+            }
+            val groupId = if (winner != null) winner else groups.size.also {
+                groups.add(SmartCluster(ArrayList(), ArrayList(), null, null))
+            }
+            val target = groups[groupId]
+            target.members.add(index)
+            if (name != null) {
+                if (target.distinctTitles.none { details[it].key == name })
+                    target.distinctTitles.add(index)
+                rememberBucket(exactBuckets, name, groupId)
+                blockingKeys(detail).forEach { key ->
+                    rememberBucket(fuzzyBuckets, key, groupId)
+                }
+            }
+            if (length != null) {
+                target.shortest = minOf(target.shortest ?: length, length)
+                target.longest = maxOf(target.longest ?: length, length)
+            }
+        }
+        return groups.map { group ->
+            VideoSearchMergedFilm(group.members.map(films::get))
+        }
+    }
+
     /** Enabled together: name OR duration, with transitive matches. */
     fun group(
         films: List<VideoSearchFilm>,
