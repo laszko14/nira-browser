@@ -110,6 +110,11 @@
       "task_id": "ZC-V4-P3-C-DYNAMIC-PROGRESS",
       "observed_count": 3,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P3-D-SMART-METADATA",
+      "observed_count": 0,
+      "state": "ACTIVE"
     }
   ],
   "events": [

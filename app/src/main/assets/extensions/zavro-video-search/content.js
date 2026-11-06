@@ -1324,6 +1324,22 @@
       }
       return null;
     }
+    // A structured image may be a string, a schema.org ImageObject or
+    // a short list of either. Never follow URLs or combine data across cards.
+    function structuredPoster(entity) {
+      const fields = [entity.thumbnailUrl, entity.image];
+      for (const field of fields) {
+        const choices = Array.isArray(field) ? field.slice(0, 4) : [field];
+        for (const choice of choices) {
+          const value = typeof choice === "string" ? choice :
+            choice && typeof choice === "object" && !Array.isArray(choice) ?
+              choice.url || choice.contentUrl : null;
+          const accepted = safeUrl(value, false);
+          if (accepted) return accepted;
+        }
+      }
+      return null;
+    }
     // An inline JSON-LD object is eligible only if embedded INSIDE this card
     // and it explicitly identifies the EXACT same film URL.
     function cardStructured(card, filmUrl) {
@@ -1338,13 +1354,12 @@
         for (const entity of entities) {
           if (!entity || typeof entity !== "object" || Array.isArray(entity)) continue;
           const kinds = Array.isArray(entity["@type"]) ? entity["@type"] : [entity["@type"]];
-          if (!kinds.some(k => ["Movie", "VideoObject", "CreativeWork"].includes(k))) continue;
+          if (!kinds.some(k => ["Movie", "VideoObject", "TVEpisode", "CreativeWork"].includes(k)))
+            continue;
           if (safeUrl(entity.url || entity["@id"], true) !== filmUrl) continue;
-          const rawPoster = typeof entity.thumbnailUrl === "string" ? entity.thumbnailUrl :
-            typeof entity.image === "string" ? entity.image : entity.image?.url;
           return {
             title: shortText(entity.name || entity.headline, 512),
-            image: safeUrl(rawPoster, false),
+            image: structuredPoster(entity),
             duration: duration(entity.duration),
             publishedAtMs: publicationDate(entity.datePublished || entity.uploadDate ||
               entity.dateCreated)
@@ -1515,13 +1530,14 @@
       const posterFromJson = inline?.image || null;
       const cardTime = command.durationSelector ?
         scoped(card, command.durationSelector) :
-        scoped(card, 'time[datetime],[data-duration],[data-duration-seconds],.duration,.runtime,.video-duration');
+        scoped(card, 'time[datetime],[data-duration],[data-duration-seconds],[itemprop="duration"],.duration,.runtime,.video-duration');
       const secondsAttr = cardTime?.getAttribute("data-duration-seconds");
       const seconds = secondsAttr && /^\d{1,5}$/.test(secondsAttr) &&
         Number(secondsAttr) <= 86400 ? Number(secondsAttr) : null;
       const runtime = seconds !== null ? seconds :
         duration(cardTime?.getAttribute("datetime") ||
           cardTime?.getAttribute("data-duration") ||
+          cardTime?.getAttribute("content") ||
           nodeText(cardTime, 65) || "") ?? inline?.duration ?? null;
       const structuredTitleIsValid = !!titleFromJson && duration(titleFromJson) === null;
       const titleText = structuredTitleIsValid ? titleFromJson : title.value;

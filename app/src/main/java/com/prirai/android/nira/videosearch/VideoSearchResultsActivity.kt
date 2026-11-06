@@ -276,6 +276,9 @@ internal fun VideoSearchResultsScreen(
     var mergeByDuration by remember(run?.id, retainedRun) {
         retainedRun?.mergeByDuration ?: mutableStateOf(false)
     }
+    var mergeSmart by remember(run?.id, retainedRun) {
+        retainedRun?.mergeSmart ?: mutableStateOf(false)
+    }
     var selectedMerge by remember(run?.id) {
         mutableStateOf<VideoSearchMergedFilm?>(null)
     }
@@ -319,17 +322,19 @@ internal fun VideoSearchResultsScreen(
     val results = projectionState.value?.first
     // Merge the FULL sorted and selected result set before taking any page.
     // The original films, URLs and website provenance remain unchanged in Room.
-    val merging = !byWebsite && (mergeByName || mergeByDuration)
-    val mergedEntries = remember(results, merging, mergeByName, mergeByDuration) {
+    val merging = !byWebsite && (mergeSmart || mergeByName || mergeByDuration)
+    val mergedEntries = remember(results, merging, mergeByName, mergeByDuration, mergeSmart) {
         if (results == null || !merging) emptyList()
+        else if (mergeSmart) VideoSearchResultsMerge.smartGroup(results.visibleFilms)
         else VideoSearchResultsMerge.group(results.visibleFilms, mergeByName, mergeByDuration)
     }
     val flatTotal = if (merging) mergedEntries.size else results?.visibleFilms?.size ?: 0
     var visibleCount by remember(
-        run?.id, siteFilter, sort, mergeByName, mergeByDuration, byWebsite, retainedRun
+        run?.id, siteFilter, sort, mergeByName, mergeByDuration, byWebsite,
+        mergeSmart, retainedRun
     ) {
         retainedRun?.pageSizeFor(
-            siteFilter, sort, mergeByName, mergeByDuration, byWebsite
+            siteFilter, sort, mergeByName, mergeByDuration, byWebsite, mergeSmart
         ) ?: mutableIntStateOf(150)
     }
     val shownEntries = remember(mergedEntries, visibleCount) {
@@ -677,7 +682,10 @@ internal fun VideoSearchResultsScreen(
                         selected = mergeByName,
                         onClick = {
                             mergeByName = !mergeByName
-                            if (mergeByName) byWebsite = false
+                            if (mergeByName) {
+                                mergeSmart = false
+                                byWebsite = false
+                            }
                             selectedMerge = null
                         },
                         label = { Text("Scalaj po nazwie") },
@@ -688,14 +696,34 @@ internal fun VideoSearchResultsScreen(
                         selected = mergeByDuration,
                         onClick = {
                             mergeByDuration = !mergeByDuration
-                            if (mergeByDuration) byWebsite = false
+                            if (mergeByDuration) {
+                                mergeSmart = false
+                                byWebsite = false
+                            }
                             selectedMerge = null
                         },
                         label = { Text("Scalaj po długości") },
                     )
                 }
+                item {
+                    FilterChip(
+                        selected = mergeSmart,
+                        onClick = {
+                            mergeSmart = !mergeSmart
+                            if (mergeSmart) {
+                                // Smart matching is intentionally stricter
+                                // than either legacy OR-based grouping mode.
+                                mergeByName = false
+                                mergeByDuration = false
+                                byWebsite = false
+                            }
+                            selectedMerge = null
+                        },
+                        label = { Text("Scalaj inteligentnie") },
+                    )
+                }
             }
-            if (byWebsite && (mergeByName || mergeByDuration)) {
+            if (byWebsite && (mergeByName || mergeByDuration || mergeSmart)) {
                 Text("Scalanie działa w widoku „Wszystkie razem”.",
                     Modifier.padding(horizontal = 14.dp),
                     style = MaterialTheme.typography.labelSmall)

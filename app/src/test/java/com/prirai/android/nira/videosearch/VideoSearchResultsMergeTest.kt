@@ -291,4 +291,90 @@ class VideoSearchResultsMergeTest {
         assertEquals(2, VideoSearchResultsMerge.group(entries, true, false).size)
     }
 
+    @Test fun p3dSmartModeRequiresTitleAndCloseKnownDuration() {
+        val entries = listOf(
+            film("one", "a", "A Wonderful Evening Adventure", 1200),
+            film("two", "b", "HD 4K 20:01 A Wonderful Evening Adventure", 1201),
+            film("other", "c", "Entirely Different Story", 1201),
+            film("long", "d", "A Wonderful Evening Adventure", 1280),
+        )
+        val smart = VideoSearchResultsMerge.smartGroup(entries)
+        assertEquals(listOf(listOf("one", "two"), listOf("other"), listOf("long")),
+            smart.map { group -> group.films.map { it.id } })
+        // The legacy name and exact-duration OR switches are unchanged.
+        assertEquals(2, VideoSearchResultsMerge.group(entries, true, false).size)
+        assertEquals(3, VideoSearchResultsMerge.group(entries, false, true).size)
+        assertEquals(entries, smart.flatMap { it.films })
+    }
+
+    @Test fun p3dSmartModeNeverChainsAcrossAThreeSecondDurationGap() {
+        val entries = listOf(
+            film("a", "one", "The Beautiful Evening Adventure", 1200),
+            film("b", "two", "The Beautiful Evening Adventure", 1201),
+            film("c", "three", "The Beautiful Evening Adventure", 1203),
+        )
+        assertEquals(listOf(listOf("a", "b"), listOf("c")),
+            VideoSearchResultsMerge.smartGroup(entries)
+                .map { group -> group.films.map { it.id } })
+    }
+
+    @Test fun p3dSmartModeRejectsEpisodeAndSeasonCollisions() {
+        val entries = listOf(
+            film("first", "a", "The Great Journey S01E02", 1400),
+            film("second", "b", "The Great Journey S01E03", 1401),
+            film("third", "c", "The Great Journey Episode 1", 1400),
+            film("fourth", "d", "The Great Journey Episode 2", 1401),
+        )
+        assertEquals(4, VideoSearchResultsMerge.smartGroup(entries).size)
+    }
+
+    @Test fun p3dSmartModeFuzzyTitleNeedsDurationOrExceptionalTextProof() {
+        val withSeconds = listOf(
+            film("a", "a", "Wonderful Evening Adventure", 3140),
+            film("b", "b", "Wonderful Evening Adventures", 3142),
+        )
+        assertEquals(1, VideoSearchResultsMerge.smartGroup(withSeconds).size)
+        assertEquals(2, VideoSearchResultsMerge.smartGroup(
+            withSeconds.mapIndexed { i, f ->
+                if (i == 1) f.copy(durationSeconds = 3200) else f
+            }).size)
+        val withoutSeconds = listOf(
+            film("a", "a", "Mountain Adventure in the Midnight Forest", null),
+            film("b", "b", "Mountain Adventure in the Midnigt Forest", null),
+        )
+        assertEquals(1, VideoSearchResultsMerge.smartGroup(withoutSeconds).size)
+        assertEquals(2, VideoSearchResultsMerge.smartGroup(listOf(
+            film("a", "a", "An Exciting First Important Scene", null),
+            film("b", "b", "An Exciting Second Important Scene", null)
+        )).size)
+    }
+
+    @Test fun p3dSmartGroupsNeverChangeOriginalFilmUrlsOrProfileOwnership() {
+        val items = listOf(
+            film("one", "a", "Amazing Nature Documentary", 120),
+            film("two", "b", "Amazing Nature Documentary", 121),
+        )
+        val result = VideoSearchResultsMerge.smartGroup(items)
+        assertEquals(items, result.single().films)
+        assertEquals(items.map { it.filmPageUrl },
+            result.single().films.map { it.filmPageUrl })
+        assertFalse(result.single().toString().contains("https://"))
+        for (foreign in listOf(
+            items[1].copy(runId = "another"),
+            items[1].copy(scope = VideoSearchScope.Normal("work"))
+        )) try {
+            VideoSearchResultsMerge.smartGroup(listOf(items[0], foreign))
+            fail("Foreign run / profile must fail")
+        } catch (_: IllegalArgumentException) {}
+    }
+
+    @Test fun p3dSmartGroupingHandlesLargeDuplicateRunWithoutQuadraticScan() {
+        val many = (0 until 2200).map { i ->
+            film("film-$i", if (i % 2 == 0) "a" else "b",
+                "Beautiful Mountain Documentary", 1200 + i % 2)
+        }
+        val grouped = VideoSearchResultsMerge.smartGroup(many)
+        assertEquals(1, grouped.size)
+        assertEquals(many, grouped.single().films)
+    }
 }
