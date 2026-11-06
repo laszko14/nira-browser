@@ -303,7 +303,11 @@ class VideoSearchResultsMergeTest {
             smart.map { group -> group.films.map { it.id } })
         // The legacy name and exact-duration OR switches are unchanged.
         assertEquals(2, VideoSearchResultsMerge.group(entries, true, false).size)
-        assertEquals(3, VideoSearchResultsMerge.group(entries, false, true).size)
+        val durationLegacy = VideoSearchResultsMerge.group(entries, false, true)
+        // Legacy duration OR policy is intentionally transitive: nearby
+        // same-titled A/B bridge an unrelated film of identical duration.
+        assertEquals(listOf(listOf("one", "two", "other"), listOf("long")),
+            durationLegacy.map { group -> group.films.map { it.id } })
         assertEquals(entries, smart.flatMap { it.films })
     }
 
