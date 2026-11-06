@@ -16,7 +16,7 @@ remaining: Confirm real SOURCE and PR CI for this final SHA; fix any regression 
 required_ci: SOURCE process-docs + shared-tests (all JS WebExtension, Kotlin/JVM Robolectric, AndroidTest compile, Android lint-regression) + checkout/evidence summary SUCCESS on exact final HEAD; stacked PR integration JS/JVM/AndroidTest/lint/error-evidence SUCCESS. Build/release skipped is correct for tests-only; any required pending/skip/fail is NOT PASS.
 device: NOT_TESTED; physical GeckoView, real sites, orientation, background suspension and full crawl performance not covered by CI.
 apk: NOT_BUILT; no separately explicit authorized private APK update request for P3-C.
-known_failures: No new P3-C CI failures observed before first commit. Record every actual CI/review issue with source SHA, run/job/attempt and root cause in ERROR_CASES.json; fix then require fresh CI.
+known_failures: Initial PR 42269584501 and SOURCE 42269539303 each failed 2 existing scoped control JS tests (498/500 PASS) because synthetic HTMLInputElement.value only had a setter and no real-browser getter. Both failures were test_harness; SOURCE evidence summary failed as required due to skipped dependents. All three CI job occurrences registered FIXED in ERROR_CASES.json against test-harness fix 6f6e95b06915b5d5f579d31a52377d01dc832bb3; requires new green SOURCE and PR CI before CODE_VERIFIED.
 verification: Direct GitHub preflight at 45b598111b4df04bf25006ee40b68bf3a9d96d4e confirmed P3-B branch and open draft PR #124 matching HEAD, read root AGENTS.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md and selected VIDEO_SEARCH, TEST_POLICY, QUALITY_GATES, ERROR_LEARNING, CHECKPOINT_POLICY, TEST_PATTERNS and APK trigger from the same explicit SHA. The existing P3-B SOURCE and PR CI were green on that SHA. No local checkout/Gradle/ADB; source snapshot verified by direct connector. Independent review unavailable, self-review performed on scoped P3-C patch.
 changed_paths:
   - app/src/main/assets/extensions/zavro-video-search/content.js
@@ -25,6 +25,7 @@ changed_paths:
   - app/src/test/js/video-search-p10-search-proof.test.cjs
   - app/src/test/js/video-search-p11-pagination-evidence.test.cjs
   - app/src/test/js/video-search-p2c-dynamic-pagination.test.cjs
+  - app/src/test/js/video-search-p2-scoped-controls.test.cjs
   - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchPaginationCollectorTest.kt
   - docs/AI_HANDOFF.md
   - docs/ai/ERROR_CASES.json
@@ -41,5 +42,5 @@ evidence_links:
   - https://github.com/laszko14/nira-browser/pull/124
   - https://github.com/laszko14/nira-browser/actions/runs/42258523044
   - https://github.com/laszko14/nira-browser/actions/runs/42258535355
-next_action: Verify exact final SHA green SOURCE process-docs/shared-tests and stacked PR integration; diagnose and record any failures; then STOP before P3-D.
+next_action: Verify exact final SHA green SOURCE process-docs/shared-tests and stacked PR integration after fixing the scoped input fixture; diagnose any further failure without weakening assertions; then STOP before P3-D.
 ```

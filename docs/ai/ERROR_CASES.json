@@ -108,7 +108,7 @@
     },
     {
       "task_id": "ZC-V4-P3-C-DYNAMIC-PROGRESS",
-      "observed_count": 0,
+      "observed_count": 3,
       "state": "ACTIVE"
     }
   ],
@@ -2392,6 +2392,66 @@
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42257964558"
+      ]
+    },
+    {
+      "kind": "CI_FAILURE",
+      "task_id": "ZC-V4-P3-C-DYNAMIC-PROGRESS",
+      "source_sha": "a1e5e248c8c3f5f7490b86a4aa0969cf65866c8f",
+      "observed_at": null,
+      "attempt": 1,
+      "fix_sha": "6f6e95b06915b5d5f579d31a52377d01dc832bb3",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "id": "CI-42269584501-1-128070355190",
+      "run_id": 42269584501,
+      "job_id": 128070355190,
+      "fingerprint": "p3c-scoped-input-fixture-missing-real-getter",
+      "summary": "PR JavaScript 498/500 PASS; SHADOW and FRAME GET-search fixture lacks the native HTMLInputElement.value getter required by the new query-integrity recheck.",
+      "cause": "test_harness",
+      "regression_test": "app/src/test/js/video-search-p2-scoped-controls.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42269584501"
+      ]
+    },
+    {
+      "kind": "CI_FAILURE",
+      "task_id": "ZC-V4-P3-C-DYNAMIC-PROGRESS",
+      "source_sha": "a1e5e248c8c3f5f7490b86a4aa0969cf65866c8f",
+      "observed_at": null,
+      "attempt": 1,
+      "fix_sha": "6f6e95b06915b5d5f579d31a52377d01dc832bb3",
+      "state": "FIXED",
+      "duplicate_of": "CI-42269584501-1-128070355190",
+      "id": "CI-42269539303-1-128070440247",
+      "run_id": 42269539303,
+      "job_id": 128070440247,
+      "fingerprint": "p3c-scoped-input-fixture-missing-real-getter",
+      "summary": "SOURCE JavaScript reproduced PR false fixture failure for scoped SHADOW and FRAME GET search (498/500 PASS).",
+      "cause": "test_harness",
+      "regression_test": "app/src/test/js/video-search-p2-scoped-controls.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42269539303"
+      ]
+    },
+    {
+      "kind": "CI_FAILURE",
+      "task_id": "ZC-V4-P3-C-DYNAMIC-PROGRESS",
+      "source_sha": "a1e5e248c8c3f5f7490b86a4aa0969cf65866c8f",
+      "observed_at": null,
+      "attempt": 1,
+      "fix_sha": "6f6e95b06915b5d5f579d31a52377d01dc832bb3",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "id": "CI-42269539303-1-128070548544",
+      "run_id": 42269539303,
+      "job_id": 128070548544,
+      "fingerprint": "p3c-source-summary-upstream-js-failed",
+      "summary": "SOURCE evidence summary failed as required because JS regressions failed and dependent Kotlin/AndroidTest/lint jobs were skipped, not PASS.",
+      "cause": "workflow",
+      "regression_test": "app/src/test/js/video-search-p2-scoped-controls.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42269539303"
       ]
     }
   ]
