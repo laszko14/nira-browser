@@ -40,6 +40,28 @@ internal object VideoSearchHydrationPolicy {
             page.films.isEmpty() && !page.moreOnPage
 }
 
+/**
+ * P3-C: an obsolete absolute card cursor may be caused by a virtualized
+ * same-document results window. Only an already dispatched, authorized
+ * pagination operation may enter this gate. Its replacement must still
+ * prove a NEW exact film URL through appendVerifiedReplacement (CAS-like
+ * atomic aggregation), otherwise the caller reports STALLED.
+ *
+ * A changed document/route or a no-results claim is never a shortcut.
+ */
+internal object VideoSearchDynamicContinuationPolicy {
+    fun mayProbeReplacement(
+        originalDocumentId: String,
+        currentDocumentId: String?,
+        originalUrl: String,
+        currentUrl: String,
+        page: VideoSearchExtractedPage,
+    ): Boolean = currentDocumentId != null &&
+        currentDocumentId == originalDocumentId &&
+        currentUrl == originalUrl &&
+        page.status in setOf("ok", "empty", "stale")
+}
+
 internal class VideoSearchPaginationCollector(
     siteUrl: String,
     requestedLimit: Int,

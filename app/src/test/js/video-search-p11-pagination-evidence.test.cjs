@@ -15,20 +15,21 @@ function fixture() {
   let handle;
   const sent = [], timers = [];
   let clock = 1000, cards = [], terminal = false, empty = false,
-    loading = false, nextState = 'disabled', clicked = 0, hidden = false;
+    loading = false, nextState = 'disabled', clicked = 0, hidden = false,
+    nextHref = origin + '/results?page=2', nextTarget = '_self';
   const marker = {
     getBoundingClientRect() { return {width: 100, height: 20}; },
     closest(selector) { return hidden && selector.includes('[hidden]') ? {} : null; }
   };
   const next = {
-    id: 'next', className: '', target: '_self', type: 'button',
+    id: 'next', className: '', get target() { return nextTarget; }, type: 'button',
     get disabled() { return nextState === 'disabled'; },
     matches(selector) { return selector === 'a[href]'; },
     closest() { return null; },
     getBoundingClientRect() { return {width: 80, height: 18}; },
     getAttribute(name) {
       if (name === 'aria-disabled') return nextState === 'aria-disabled' ? 'true' : null;
-      if (name === 'href') return origin + '/results?page=2';
+      if (name === 'href') return nextHref;
       return null;
     },
     hasAttribute() { return false; },
@@ -87,6 +88,8 @@ function fixture() {
       });
     },
     next(state) {nextState = state;},
+    nextHref(v) {nextHref = v;},
+    nextTarget(v) {nextTarget = v;},
     marker(v) {terminal = v;},
     empty(v) {empty = v;},
     hidden(v) {hidden = v;},
@@ -199,4 +202,29 @@ test('extended 640-card crawl cursor accepts >=320 without negative progress', (
   assert.equal(x.status, 'empty');
   assert.equal(x.inspectedCards, 0);
   assert.equal(x.moreOnPage, false);
+});
+
+test('P3-C revoked href cannot redirect a queued NEXT_LINK to another origin',()=>{
+  const f=fixture();
+  f.next('enabled');
+  assert.equal(f.pagination(),'dispatched');
+  f.nextHref('https://evil.example/login');
+  f.flush();
+  assert.equal(f.clicks(),0);
+});
+test('P3-C a new-tab target cannot be added after NEXT_LINK validation',()=>{
+  const f=fixture();
+  f.next('enabled');
+  assert.equal(f.pagination(),'dispatched');
+  f.nextTarget('_blank');
+  f.flush();
+  assert.equal(f.clicks(),0);
+});
+test('P3-C disabled or loading pager cancels already queued click',()=>{
+  const f=fixture();
+  f.next('enabled');
+  assert.equal(f.pagination(),'dispatched');
+  f.loading(true);
+  f.flush();
+  assert.equal(f.clicks(),0);
 });

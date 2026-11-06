@@ -1086,6 +1086,9 @@
     setter.call(field, query);
     field.dispatchEvent(new Event("input", { bubbles: true }));
     field.dispatchEvent(new Event("change", { bubbles: true }));
+    // Controlled inputs may normalize/reject the query on these events.
+    // An ACK must never later submit a DIFFERENT site-controlled phrase.
+    if (field.value !== query) return "stale";
     // The acknowledgment precedes GET navigation, which destroys the port.
     // SPA rebinding must also revoke an old queued form submission.
     const issuedRevision = navigationRevision;
@@ -1095,7 +1098,7 @@
           location.href !== startUrl) return;
       const activeInput = resultNodes(command.inputSelector);
       if (!activeInput || activeInput.length !== 1 || activeInput[0] !== field ||
-          (!validInput(field) && !manualInput(field))) return;
+          field.value !== query || (!validInput(field) && !manualInput(field))) return;
       if (button) {
         const activeButton = resultNodes(command.submitSelector);
         if (!activeButton || activeButton.length !== 1 ||
@@ -1648,7 +1651,9 @@
       const issuedRevision = navigationRevision;
       setTimeout(function () {
         if (issuedRevision !== navigationRevision ||
-            location.href !== startUrl || !ready) return;
+            location.href !== startUrl || !ready ||
+            blocked.test(location.pathname) ||
+            document.querySelector('input[type="password"]') || loading()) return;
         const fresh = scrollPlan();
         // The owner/document must not be replaced while this action is queued.
         if (!fresh || fresh.first !== planned.first ||
@@ -1730,16 +1735,53 @@
       if ((!button && !roleButton && !hashLink) || target.disabled ||
           target.closest("form")) return "unsafe";
     }
+    // Dispatch remains provisional. The DOM can change after the reply but
+    // before the timer fires, including href, target, form and accessibility.
+    // Recheck ALL safety gates on the exact original control at click time.
+    const expectedHref = target.getAttribute?.("href") || null;
+    const expectedType = target.getAttribute?.("type") || null;
+    const expectedTarget = target.target || "";
     const issuedRevision = navigationRevision;
     setTimeout(function () {
-      if (issuedRevision === navigationRevision && ready &&
-          location.href === startUrl) {
-        const fresh = resultNodes(selector);
-        if (fresh?.length !== 1) return;
-        const active = fresh[0] === target ? target : nextInContainer(fresh[0], kind);
-        if (active === target && !forbiddenPager(target) && visible(target) &&
-            !target.disabled && !target.closest?.("form")) target.click();
-      }
+      if (issuedRevision !== navigationRevision || !ready ||
+          location.href !== startUrl || blocked.test(location.pathname) ||
+          document.querySelector('input[type="password"]') || loading()) return;
+      const fresh = resultNodes(selector);
+      if (fresh?.length !== 1) return;
+      const active = fresh[0] === target ? target : nextInContainer(fresh[0], kind);
+      if (active !== target || target.isConnected === false ||
+          forbiddenPager(target) || !visible(target) || target.disabled ||
+          target.getAttribute?.("aria-disabled") === "true" ||
+          target.closest?.("form") ||
+          (target.getAttribute?.("href") || null) !== expectedHref ||
+          (target.getAttribute?.("type") || null) !== expectedType ||
+          (target.target || "") !== expectedTarget) return;
+      if (resolvedNumeric) {
+        const pager = pagerContainer(target);
+        if (!pager || nextInContainer(pager.node, kind) !== target) return;
+      } else if (!safeSamePageAction(target) && !explicitNextParent(target)) return;
+      if (kind === "NEXT_LINK") {
+        if (!target.matches?.("a[href]") || !expectedHref ||
+            target.hasAttribute?.("download") ||
+            (target.target && !["_self", ""].includes(target.target))) return;
+        try {
+          const destination = new URL(expectedHref,
+            target.ownerDocument?.baseURI || location.href);
+          if (destination.origin !== location.origin ||
+              destination.username || destination.password ||
+              !["http:", "https:"].includes(destination.protocol) ||
+              destination.href.length > 2048 ||
+              blocked.test(destination.pathname) ||
+              destination.href === (target.ownerDocument?.location?.href || location.href))
+            return;
+        } catch (_) { return; }
+      } else if (!((target.matches?.("button") && !target.form) ||
+          (target.getAttribute?.("role") === "button" &&
+            (safeSamePageAction(target) || resolvedNumeric)) ||
+          (target.matches?.("a[href]") && expectedHref.startsWith("#") &&
+            safeSamePageAction(target) && !target.hasAttribute?.("download"))))
+        return;
+      target.click();
     }, 70);
     return "dispatched";
   }
