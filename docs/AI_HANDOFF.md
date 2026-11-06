@@ -16,7 +16,7 @@ remaining: Verify SOURCE and stacked PR required CI on exact P3-D final SHA, tri
 required_ci: SOURCE process-docs + shared-tests JS WebExtension, Kotlin/JVM Robolectric, AndroidTest compile, Android lint baseline, exact-head checkout/evidence summary all SUCCESS. Stacked PR shared-tests and error-learning evidence SUCCESS. Any skipped/pending mandatory job is not PASS.
 device: NOT_TESTED; cannot demonstrate on real GeckoView or real film sites until device tests.
 apk: NOT_BUILT; only explicit authorized signed APK instruction may invoke owner PR review trigger, not ordinary push/PR.
-known_failures: Initial P3-D PR 42272620819 job 128080881706 and SOURCE 42272583480 job 128080838982 failed the same Kotlin unit-test compile due to an Int where Long? is required at VideoSearchResultsMergeTest.kt:374. SOURCE summary job 128083604716 failed as required. All 3 actual CI failures registered FIXED in ERROR_CASES.json with test-only source fix 56934d0c48fd9eb14edae7ef5e91e585ef42bc28; green final CI still required. Legacy toggle tests were not weakened.
+known_failures: Six CI job failures registered in ERROR_CASES.json across two P3-D attempts. First SOURCE 42272583480 / PR 42272620819 Kotlin test compile error was Int rather than Long?; fixed at 56934d0c48fd9eb14edae7ef5e91e585ef42bc28. Second SOURCE 42273735594 / PR 42273745396 Kotlin suite had 1469/1470 PASS and one incorrect legacy duration-OR test expectation; test-only fix at e7d8ba7d93848d7d4593fafde420ee162928e891 now asserts actual unchanged two-group membership. Both SOURCE required summary jobs correctly failed. Six logged FIXED; new full CI still required on final SHA.
 verification: Direct GitHub G1 preflight on 86cf7ebdf6b3f84b890d1a46fecf0802108b1db5: branch/ref and PR #125 open Draft, exact HEAD SHA, AGENTS.md and docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md, VIDEO_SEARCH docs, TASK_TEMPLATE, DEVELOPMENT_WORKFLOW, TEST_POLICY, TEST_PATTERNS, QUALITY_GATES, ERROR_LEARNING, CHECKPOINT_POLICY, EXCEPTIONS, and APK trigger all read at same ref. No repository file mutations on P3-C branch. Local Gradle/ADB unavailable; CI is required source test evidence.
 changed_paths:
   - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsMerge.kt
@@ -41,5 +41,5 @@ evidence_links:
   - https://github.com/laszko14/nira-browser/pull/125
   - https://github.com/laszko14/nira-browser/actions/runs/42269940678
   - https://github.com/laszko14/nira-browser/actions/runs/42269950801
-next_action: Run new SOURCE and stacked PR CI on the corrected P3-D final SHA; fix any further real regression without weakening tests; verify all mandatory jobs SUCCESS then STOP before P3-E.
+next_action: Run third SOURCE and stacked PR CI on final P3-D SHA after fixing strict legacy OR expectation; confirm Kotlin full 1470+ tests, JS, AndroidTest, lint, docs, evidence all SUCCESS then STOP before P3-E.
 ```

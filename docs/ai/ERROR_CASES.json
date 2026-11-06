@@ -113,7 +113,7 @@
     },
     {
       "task_id": "ZC-V4-P3-D-SMART-METADATA",
-      "observed_count": 3,
+      "observed_count": 6,
       "state": "ACTIVE"
     }
   ],
@@ -2517,6 +2517,66 @@
       "summary": "SOURCE evidence summary correctly failed because mandatory Kotlin/JVM test compilation failed; green JS, docs, AndroidTest and lint did not override it.",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42272583480"
+      ]
+    },
+    {
+      "task_id": "ZC-V4-P3-D-SMART-METADATA",
+      "kind": "CI_FAILURE",
+      "source_sha": "a93a6279809b5fa3c6e9d416bc7da0fc56041040",
+      "observed_at": null,
+      "attempt": 1,
+      "fix_sha": "e7d8ba7d93848d7d4593fafde420ee162928e891",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsMergeTest.kt",
+      "id": "CI-42273735594-1-128084685645",
+      "run_id": 42273735594,
+      "job_id": 128084685645,
+      "fingerprint": "p3d-legacy-duration-or-expected-groups",
+      "cause": "test_harness",
+      "summary": "SOURCE Kotlin 1469/1470 PASS: new smart-mode test incorrectly expected three legacy duration groups; original one-second title bridge plus duration OR/transitivity yields two groups.",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42273735594"
+      ]
+    },
+    {
+      "task_id": "ZC-V4-P3-D-SMART-METADATA",
+      "kind": "CI_FAILURE",
+      "source_sha": "a93a6279809b5fa3c6e9d416bc7da0fc56041040",
+      "observed_at": null,
+      "attempt": 1,
+      "fix_sha": "e7d8ba7d93848d7d4593fafde420ee162928e891",
+      "state": "FIXED",
+      "duplicate_of": "CI-42273735594-1-128084685645",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsMergeTest.kt",
+      "id": "CI-42273745396-1-128084728580",
+      "run_id": 42273745396,
+      "job_id": 128084728580,
+      "fingerprint": "p3d-legacy-duration-or-expected-groups",
+      "cause": "test_harness",
+      "summary": "PR Kotlin reproduced exactly the same existing legacy duration-transitivity assertion failure. Fixed test now explicitly asserts original group membership; legacy production algorithm unchanged.",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42273745396"
+      ]
+    },
+    {
+      "task_id": "ZC-V4-P3-D-SMART-METADATA",
+      "kind": "CI_FAILURE",
+      "source_sha": "a93a6279809b5fa3c6e9d416bc7da0fc56041040",
+      "observed_at": null,
+      "attempt": 1,
+      "fix_sha": "e7d8ba7d93848d7d4593fafde420ee162928e891",
+      "state": "FIXED",
+      "duplicate_of": "CI-42272583480-1-128083604716",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsMergeTest.kt",
+      "id": "CI-42273735594-1-128088345723",
+      "run_id": 42273735594,
+      "job_id": 128088345723,
+      "fingerprint": "p3d-required-summary-upstream-kotlin-failed",
+      "cause": "workflow",
+      "summary": "SOURCE second-run evidence summary correctly failed due to Kotlin test assertion; JS, docs, AndroidTest and lint passed but this does not satisfy required jobs.",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42273735594"
       ]
     }
   ]
