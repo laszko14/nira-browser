@@ -1037,12 +1037,17 @@ internal class VideoSearchBridgeController(
                     val live = privateSiteTab(site, tabId, false, requireSelected)
                         ?: return stop(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
                     val liveUrl = currentTab(originalSession)?.pageUrl ?: beforeUrl
-                    if (live.second.documentId != beforeDocument && liveUrl != beforeUrl &&
-                        VideoSearchBridgeProtocol.sameOrigin(liveUrl, site.siteUrl)) {
-                        if (!collector.beginDocument(liveUrl))
-                            return stop(VideoSearchPaginationStop.STALLED)
-                        reloadedDocument = true
-                        break
+                    if (live.second.documentId != beforeDocument || liveUrl != beforeUrl) {
+                        if (live.second.documentId != beforeDocument && liveUrl != beforeUrl &&
+                            VideoSearchBridgeProtocol.sameOrigin(liveUrl, site.siteUrl)) {
+                            if (!collector.beginDocument(liveUrl))
+                                return stop(VideoSearchPaginationStop.STALLED)
+                            reloadedDocument = true
+                            break
+                        }
+                        // A same-URL document replacement or unbound SPA route
+                        // cannot impersonate the original result generation.
+                        return stop(VideoSearchPaginationStop.STALLED)
                     }
                     val cursor = collector.nextCardIndex
                     val appended = privateRequest(site, tabId, "crawl", false, requireSelected) { doc, request ->
@@ -1050,9 +1055,14 @@ internal class VideoSearchBridgeController(
                         VideoSearchResultBudgets.documentCards(site.resultLimit))
                     } as? VideoSearchBridgeMessage.Results
                         ?: return stop(VideoSearchPaginationStop.ERROR)
-                    if (appended.page.status == "stale")
+                    if (!VideoSearchDynamicContinuationPolicy.mayProbeReplacement(
+                            beforeDocument, live.second.documentId,
+                            beforeUrl, liveUrl, appended.page))
                         return stop(VideoSearchPaginationStop.ERROR)
-                    if (appended.page.inspectedCards > 0) {
+                    // A virtualized list can recycle the same DOM card nodes.
+                    // Its obsolete cursor is expected; NEVER append stale data.
+                    if (appended.page.status != "stale" &&
+                        appended.page.inspectedCards > 0) {
                         val added = try {
                             collector.appendWindow(cursor, appended.page)
                         } catch (_: IllegalArgumentException) {
@@ -1680,12 +1690,15 @@ internal class VideoSearchBridgeController(
                     val live = matchingTab()
                         ?: return collector.snapshot(VideoSearchPaginationStop.CONFIGURATION_CHANGED)
                     val liveUrl = currentTab(session)?.pageUrl ?: beforeUrl
-                    if (live.second.documentId != beforeDoc && liveUrl != beforeUrl &&
-                        VideoSearchBridgeProtocol.sameOrigin(liveUrl, site.siteUrl)) {
-                        if (!collector.beginDocument(liveUrl))
-                            return collector.snapshot(VideoSearchPaginationStop.STALLED)
-                        reloadedDocument = true
-                        break
+                    if (live.second.documentId != beforeDoc || liveUrl != beforeUrl) {
+                        if (live.second.documentId != beforeDoc && liveUrl != beforeUrl &&
+                            VideoSearchBridgeProtocol.sameOrigin(liveUrl, site.siteUrl)) {
+                            if (!collector.beginDocument(liveUrl))
+                                return collector.snapshot(VideoSearchPaginationStop.STALLED)
+                            reloadedDocument = true
+                            break
+                        }
+                        return collector.snapshot(VideoSearchPaginationStop.STALLED)
                     }
                     val offset = collector.nextCardIndex
                     val appended = request(site, "crawl", workerTabId = workerTabId) { doc, id ->
@@ -1693,9 +1706,12 @@ internal class VideoSearchBridgeController(
                             VideoSearchResultBudgets.documentCards(site.resultLimit))
                     } as? VideoSearchBridgeMessage.Results
                         ?: return collector.snapshot(VideoSearchPaginationStop.ERROR)
-                    if (appended.page.status == "stale")
+                    if (!VideoSearchDynamicContinuationPolicy.mayProbeReplacement(
+                            beforeDoc, live.second.documentId,
+                            beforeUrl, liveUrl, appended.page))
                         return collector.snapshot(VideoSearchPaginationStop.ERROR)
-                    if (appended.page.inspectedCards > 0) {
+                    if (appended.page.status != "stale" &&
+                        appended.page.inspectedCards > 0) {
                         val added = try {
                             collector.appendWindow(offset, appended.page)
                         } catch (_: IllegalArgumentException) {

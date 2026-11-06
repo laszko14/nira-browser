@@ -114,3 +114,12 @@ test('navigation and protected login pages do not trigger delayed scrolling',()=
   k.setCards([k.card(null)]);k.setBlocked(true);
   assert.equal(k.paginate(),'unsafe');
 });
+
+test('P3-C a login gate appearing after scroll ACK cancels deferred scrolling',()=>{
+  const h=fixture(), parent=h.container();
+  h.setCards([h.card(parent),h.card(parent)]);
+  assert.equal(h.paginate(),'dispatched');
+  h.setBlocked(true);
+  h.flush();
+  assert.deepEqual(h.stats(),{windowScrolls:0,innerScrolls:0});
+});

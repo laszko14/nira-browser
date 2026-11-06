@@ -108,6 +108,7 @@ function harness(initialFilm = 'old') {
   }
   return {
     extract, submit,
+    overwriteQuery(v) { input.value = v; },
     flush() { for (const fn of timers.splice(0)) fn(); },
     changeFilm(value) { currentFilm = value; },
     get submissions() { return submissions; },
@@ -149,4 +150,12 @@ test('changing query input alone does not change the film identity', () => {
   const after = h.extract();
   assert.deepEqual(after.films.map(x => x.filmPageUrl),
     before.films.map(x => x.filmPageUrl));
+});
+
+test('P3-C a queued GET search never submits a query mutated by the site',()=>{
+  const h=harness();
+  h.submit();
+  h.overwriteQuery('different search');
+  h.flush();
+  assert.equal(h.submissions,0);
 });

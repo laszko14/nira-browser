@@ -105,6 +105,11 @@
       "task_id": "ZC-V4-P3-B-SEMANTIC-RECOGNITION",
       "observed_count": 4,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P3-C-DYNAMIC-PROGRESS",
+      "observed_count": 0,
+      "state": "ACTIVE"
     }
   ],
   "events": [

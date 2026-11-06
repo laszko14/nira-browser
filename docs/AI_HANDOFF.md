@@ -1,42 +1,45 @@
-# AI_HANDOFF — Zavro Clean V4 / P3-B safe semantic recognition
-> History: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md. P3-A analysis completed in ChatGPT. Base P2 SOURCE 42095971084 and PR 42095981503 were SUCCESS on bbb57d58456b1afa458b13811b018859400824f3. Those are historical P2 receipts, not CI for P3-B.
+# AI_HANDOFF — Zavro Clean V4 / P3-C dynamic search and pagination evidence
+> History: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md. P3-B completed at 45b598111b4df04bf25006ee40b68bf3a9d96d4e with SOURCE 42258523044 and stacked PR 42258535355 SUCCESS, attempt 1. These runs are previous-stage receipts, NOT P3-C CI.
 
 ```yaml
-task_id: ZC-V4-P3-B-SEMANTIC-RECOGNITION
+task_id: ZC-V4-P3-C-DYNAMIC-PROGRESS
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
-branch: feat/zavro-clean-v4-p3b-recognition-20261106
-base_sha: bbb57d58456b1afa458b13811b018859400824f3
-observed_head_sha: bbb57d58456b1afa458b13811b018859400824f3
+branch: feat/zavro-clean-v4-p3c-dynamic-progress-20261106
+base_sha: 45b598111b4df04bf25006ee40b68bf3a9d96d4e
+observed_head_sha: 45b598111b4df04bf25006ee40b68bf3a9d96d4e
 status: CI_PENDING
-acceptance_source: User said "Dalej" after full P3-A analysis; IMPLEMENT next agreed P3-B stage on a new stacked branch. No merge, release, forced update, certificate change, destructive operations or explicit APK request.
-completed: P3-B JS recognition adds explicit positive result-region evidence, rejection of related/recommended/sidebar card containers even on /search pages, shared 1600-query budget across structure discovery, host locator checks, card-local metadata and group scoring. Query exhaustion reports SCAN_LIMIT rather than fabricating recognition. Legacy content.js fallback rejects region-excluded groups instead of bypassing structural negative evidence. Existing zcs1 locators, old CSS, Kotlin protocol and stored Room JSON untouched. Added regression tests for recommendation false positives, positive region evidence, query-cost cap, legacy fallback compatibility.
-remaining: Run all required SOURCE and stacked PR integration CI on exact final commit SHA; diagnose regressions from actual CI. Performance and GeckoView behavior on real sites remain NOT_TESTED; P3-C / P3-D / P3-E are separate future stages.
-required_ci: SOURCE process-docs + shared-tests (JS WebExtension, Kotlin/JVM Robolectric, AndroidTest compilation, Android lint-regression), checkout/evidence summary all SUCCESS on exact HEAD. Stacked PR integration JS/JVM/AndroidTest/lint/evidence SUCCESS. Missing/pending/skipped required job is NOT PASS.
-device: NOT_TESTED; user-confirmed v1224 startup is historical P2 smoke only
-apk: NOT_BUILT; no separate explicit request for private signed APK in this P3-B step
-known_failures: Initial PR 42257993545 JS (494/495 PASS) and SOURCE 42257964558 JS both failed the existing single-homepage-recommendation test because positive region bonus promoted homepage cards. SOURCE process-docs failed check-ai-handoff because required_ci omitted shared-tests and archive path. SOURCE summary failed because required jobs failed. All four occurrences registered in ERROR_CASES.json and corrected in candidate fix f03e79388a083ba2caa8b0a2224625286c17ca89; final CI still required before verified success. No baseline tests weakened.
-verification: Direct GitHub preflight read AGENTS.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md, docs/AGENT_REFERENCE.md, docs/VIDEO_SEARCH_AUDIT.md, TASK_TEMPLATE, DEVELOPMENT_WORKFLOW, TEST_POLICY, TEST_PATTERNS, QUALITY_GATES, ERROR_LEARNING, CHECKPOINT_POLICY and APK trigger at exact P2 base SHA. Existing PR 123 open/unmerged, matching full head. A new branch was created from exact P2 SHA. Local JavaScript/Gradle/ADB execution unavailable via this connector; required CI pending.
+acceptance_source: User said "Dalej" after verified P3-B, authorizing next agreed IMPLEMENT P3-C adaptive search, dynamic results and pagination stage; no merge, release, force-push, certificate change, destructive operations, APK signing request or MPV changes.
+completed: Existing native search submission / exact-query URL and film-identity proof remains mandatory. P3-C prevents deferred search submit if the controlled page field changes after input/change or before action. Pager clicks recheck original exact target and href, same-origin destination, window target, type, active number, loading/login gates and disabled/forbidden status at time of actual execution. Deferred infinite scroll rechecks login/loading; all user actions remain explicit. In normal and private pagination, a stale cursor on a genuine same-document virtualized replacement now enables an independent first-window probe, but only newly observed exact same-origin film URLs may advance; otherwise STALLED, never success. A changed Gecko document with unchanged URL or route with unchanged document fails closed instead of being accepted as a virtual replacement. Preserve Room schema/profiles, owner binding, existing search/query proof and historical result identities.
+remaining: Confirm real SOURCE and PR CI for this final SHA; fix any regression in production without weakening existing assertions. Future P3-D metadata/smart grouping and P3-E physical integration remain separate.
+required_ci: SOURCE process-docs + shared-tests (all JS WebExtension, Kotlin/JVM Robolectric, AndroidTest compile, Android lint-regression) + checkout/evidence summary SUCCESS on exact final HEAD; stacked PR integration JS/JVM/AndroidTest/lint/error-evidence SUCCESS. Build/release skipped is correct for tests-only; any required pending/skip/fail is NOT PASS.
+device: NOT_TESTED; physical GeckoView, real sites, orientation, background suspension and full crawl performance not covered by CI.
+apk: NOT_BUILT; no separately explicit authorized private APK update request for P3-C.
+known_failures: No new P3-C CI failures observed before first commit. Record every actual CI/review issue with source SHA, run/job/attempt and root cause in ERROR_CASES.json; fix then require fresh CI.
+verification: Direct GitHub preflight at 45b598111b4df04bf25006ee40b68bf3a9d96d4e confirmed P3-B branch and open draft PR #124 matching HEAD, read root AGENTS.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md and selected VIDEO_SEARCH, TEST_POLICY, QUALITY_GATES, ERROR_LEARNING, CHECKPOINT_POLICY, TEST_PATTERNS and APK trigger from the same explicit SHA. The existing P3-B SOURCE and PR CI were green on that SHA. No local checkout/Gradle/ADB; source snapshot verified by direct connector. Independent review unavailable, self-review performed on scoped P3-C patch.
 changed_paths:
-  - app/src/main/assets/extensions/zavro-video-search/recognition.js
   - app/src/main/assets/extensions/zavro-video-search/content.js
-  - app/src/test/js/video-search-p1-recognition.test.cjs
-  - app/src/test/js/video-search-structural-v4.test.cjs
+  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchBridgeController.kt
+  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchPaginationCollector.kt
+  - app/src/test/js/video-search-p10-search-proof.test.cjs
+  - app/src/test/js/video-search-p11-pagination-evidence.test.cjs
+  - app/src/test/js/video-search-p2c-dynamic-pagination.test.cjs
+  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchPaginationCollectorTest.kt
   - docs/AI_HANDOFF.md
   - docs/ai/ERROR_CASES.json
 verified_before_push:
-  - No new page clicks, navigation, POST, external requests, JavaScript permissions, profile/session changes or schema migration in P3-B.
-  - Automatic negative evidence cannot be replaced by legacy fallback; manual selectors remain unchanged.
-  - CSS lookup cap fails closed without promoting partial inspection to successful evidence.
-  - Original manual picker and owner-bound Gecko message protocol stay unchanged.
-  - P2 branch and stacked open PR 123 remain untouched.
+  - No new network requests, asynchronous autonomous searches, cross-origin navigation, unsafe form action, profile/private data writes, result schema or extension permissions.
+  - A dispatched action is still not verified results: existing native proof and collector require new exact film identity and reject old cards, no_results forgery and stale page.
+  - Replaced virtual DOM does not permit cursor rewind without atomic appendVerifiedReplacement.
+  - Delayed action revalidates same route and original control, rejecting changed href/login/target/loading.
+  - No force-push, merge, release, APK/certificate change.
 blockers:
-  - No physical Android/GeckoView execution in this task, hence device NOT_TESTED.
-  - Independent reviewer unavailable; self review and CI do not prove live site acceptance.
+  - No real-device / actual external sites test; DEVICE NOT_TESTED.
+  - No independent reviewer: self-review and CI do not replace manual acceptance.
 evidence_links:
-  - https://github.com/laszko14/nira-browser/pull/123
-  - https://github.com/laszko14/nira-browser/actions/runs/42095971084
-  - https://github.com/laszko14/nira-browser/actions/runs/42095981503
-next_action: Validate fixed regression and recorded 4/4 CI error occurrences via new SOURCE and stacked PR CI at final SHA; handle any new failures without weakening tests; then STOP before P3-C.
+  - https://github.com/laszko14/nira-browser/pull/124
+  - https://github.com/laszko14/nira-browser/actions/runs/42258523044
+  - https://github.com/laszko14/nira-browser/actions/runs/42258535355
+next_action: Verify exact final SHA green SOURCE process-docs/shared-tests and stacked PR integration; diagnose and record any failures; then STOP before P3-D.
 ```

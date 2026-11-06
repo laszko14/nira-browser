@@ -35,6 +35,55 @@ class VideoSearchPaginationCollectorTest {
         assertEquals(listOf(320L, 650L), VideoSearchHydrationPolicy.retryDelaysMs)
     }
 
+    @Test fun p3cVirtualWindowOnlyProbesSameDocumentAndRouteAfterExplicitAction() {
+        val oldDocument = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        val url = "https://films.example/search?q=test"
+        val stale = VideoSearchExtractedPage("stale", emptyList(), 0, false)
+        val empty = VideoSearchExtractedPage("empty", emptyList(), 0, false)
+        val newCards = window(0, count = 2, more = false,
+            films = listOf(film(0, "new-a"), film(1, "new-b")))
+        for (page in listOf(stale, empty, newCards))
+            assertTrue(VideoSearchDynamicContinuationPolicy.mayProbeReplacement(
+                oldDocument, oldDocument, url, url, page))
+        for (doc in listOf(null, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"))
+            assertFalse(VideoSearchDynamicContinuationPolicy.mayProbeReplacement(
+                oldDocument, doc, url, url, stale))
+        assertFalse(VideoSearchDynamicContinuationPolicy.mayProbeReplacement(
+            oldDocument, oldDocument, url, "https://films.example/search?q=other", stale))
+        assertFalse(VideoSearchDynamicContinuationPolicy.mayProbeReplacement(
+            oldDocument, oldDocument, url, url,
+            VideoSearchExtractedPage("no_results", emptyList(), 0, false)))
+    }
+
+    @Test fun p3cRecycledVirtualWindowCanProgressOnlyWithUnseenExactFilmUrls() {
+        val c = VideoSearchPaginationCollector(site, 200)
+        assertTrue(c.beginDocument(site))
+        assertEquals(3, c.appendWindow(0, window(0, count = 3, more = false)))
+        assertEquals(3, c.nextCardIndex)
+        assertTrue(c.recordAction())
+        c.armSameDocumentContinuation()
+        val discardedCursor = VideoSearchExtractedPage("stale", emptyList(), 0, false)
+        assertTrue(VideoSearchDynamicContinuationPolicy.mayProbeReplacement(
+            "same-doc", "same-doc", site, site, discardedCursor))
+        assertEquals(3, c.nextCardIndex)
+        assertEquals(3, c.uniqueCount)
+        // An unchanged recycled row is NOT another page. Failed evidence is atomic.
+        try {
+            c.appendVerifiedReplacement(window(0, count = 3, more = false))
+            fail("Reordered old identities cannot prove a new generation")
+        } catch (_: IllegalArgumentException) { }
+        assertEquals(3, c.nextCardIndex)
+        assertEquals(3, c.uniqueCount)
+        val replacement = window(0, count = 2, more = false,
+            films = listOf(film(0, "new-a"), film(1, "new-b")))
+        assertEquals(2, c.appendVerifiedReplacement(replacement))
+        assertEquals(2, c.nextCardIndex)
+        assertEquals(5, c.uniqueCount)
+        assertEquals(1, c.pageActions)
+        assertEquals(1, c.visitedPages)
+        assertEquals(5, c.snapshot(VideoSearchPaginationStop.STALLED).films.size)
+    }
+
     @Test fun collectsTenThousandUniqueResultsWithoutHidden200Cap() {
         val collector = VideoSearchPaginationCollector(site, 10_000)
         assertEquals(10_000, collector.limit)
