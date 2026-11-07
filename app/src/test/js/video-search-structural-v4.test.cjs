@@ -302,3 +302,37 @@ test('P3-B legacy compatibility remains for a valid unobstructed results list',(
   assert.equal(report.status,'ready');
   assert.equal(report.resultsCardSelector,'.videos-list article');
 });
+
+
+test('P4-A1 semantic GET search forms remain usable with custom IDs and keyword names',()=>{
+  for(const cfg of [
+    {inputId:'catalog-search',name:'keyword',ariaLabel:'Search films',
+      cardsSelector:'.video-grid article',formRole:'search'},
+    {inputId:'film-lookup',name:'q',ariaLabel:'Find movies',
+      cardsSelector:'.videos-list article',formRole:'search'}
+  ]) {
+    const result=inspectFixture(cfg);
+    assert.equal(result.status,'ready');
+    assert.equal(result.inputSelector,'#'+cfg.inputId);
+    assert.equal(result.submitSelector,'#searchsubmit');
+    assert.equal(result.submission,'CLICK_SUBMIT');
+    assert.equal(result.resultsCardSelector,cfg.cardsSelector);
+  }
+});
+
+test('P4-A1 reset controls and POST forms never become an automatic search click',()=>{
+  const reset=inspectFixture({cardsSelector:'.videos-list article',
+    inputId:'lookup',submitType:'reset'});
+  assert.equal(reset.submitSelector,null);
+  assert.equal(reset.submission,'FORM_SUBMIT');
+  const post=inspectFixture({cardsSelector:'.videos-list article',
+    inputId:'lookup',method:'POST'});
+  assert.equal(post.status,'missing');
+  assert.equal(post.submitSelector,null);
+});
+
+test('P4-A1 tied visible GET search inputs never choose a random form field',()=>{
+  const result=inspectFixture({cardsSelector:'.video-grid article',
+    secondInput:true, name:'keyword'});
+  assert.equal(result.inputSelector,null);
+});
