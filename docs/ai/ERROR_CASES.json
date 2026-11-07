@@ -115,6 +115,11 @@
       "task_id": "ZC-V4-P3-D-SMART-METADATA",
       "observed_count": 6,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P3-E-INTEGRATION-ACCEPTANCE",
+      "observed_count": 0,
+      "state": "ACTIVE"
     }
   ],
   "events": [

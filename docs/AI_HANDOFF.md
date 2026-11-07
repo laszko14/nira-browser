@@ -1,45 +1,42 @@
-# AI_HANDOFF — Zavro Clean V4 / P3-D inteligentne metadane i scalanie
-> Archiwum: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md. P3-C VERIFIED na 86cf7ebdf6b3f84b890d1a46fecf0802108b1db5: SOURCE 42269940678 i PR 42269950801 SUCCESS, attempt 1. To historyczne dowody P3-C, a nie wynik P3-D.
+# AI_HANDOFF — Zavro Clean V4 / P3-E integration + real-site/device readiness
+> Legacy history: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md. P3-D CODE_VERIFIED on `abfeadc263646bbb443b1c49b294b303a4dbbf9c`: SOURCE #42275003159 and PR #42275012306 completed SUCCESS, attempt 1. Those are previous stage receipts, NOT P3-E CI.
 
 ```yaml
-task_id: ZC-V4-P3-D-SMART-METADATA
+task_id: ZC-V4-P3-E-INTEGRATION-ACCEPTANCE
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
-branch: feat/zavro-clean-v4-p3d-smart-metadata-20261106
-base_sha: 86cf7ebdf6b3f84b890d1a46fecf0802108b1db5
-observed_head_sha: 86cf7ebdf6b3f84b890d1a46fecf0802108b1db5
+branch: feat/zavro-clean-v4-p3e-integration-20261107
+base_sha: abfeadc263646bbb443b1c49b294b303a4dbbf9c
+observed_head_sha: abfeadc263646bbb443b1c49b294b303a4dbbf9c
 status: CI_PENDING
-acceptance_source: User said "Dalej" after P3-C CODE_VERIFIED, authorizing the next stage P3-D smart metadata and grouping. Scope: preserve existing two grouping toggles, no merge/release/force-push/destructive action/certificate change; no explicit private signed APK request.
-completed: Add separate optional presentation-only "Scalaj inteligentnie" setting exclusive with legacy "Scalaj po nazwie" and "Scalaj po długości" choices, retaining run/tab/profile-local state and pagination anchors. New pure conservative bounded grouping requires exact or strong fuzzy title plus compatible duration if known, episode-marker equality, bounded title variants without transitive chains, exact original URLs and first-seen ordering. Legacy two grouping algorithms untouched. Card-local JSON-LD now understands safe image arrays/ImageObject and TVEpisode (only exact film URL); local schema duration meta content is parsed. No remote fetch, native protocol/schema/Room migration or identity rewrite. Added Kotlin smart-mode, UI-memory and JS metadata negative/positive regressions.
-remaining: Verify SOURCE and stacked PR required CI on exact P3-D final SHA, triage and register CI/review errors without weakening assertions. P3-E is later integration and device acceptance.
-required_ci: SOURCE process-docs + shared-tests JS WebExtension, Kotlin/JVM Robolectric, AndroidTest compile, Android lint baseline, exact-head checkout/evidence summary all SUCCESS. Stacked PR shared-tests and error-learning evidence SUCCESS. Any skipped/pending mandatory job is not PASS.
-device: NOT_TESTED; cannot demonstrate on real GeckoView or real film sites until device tests.
-apk: NOT_BUILT; only explicit authorized signed APK instruction may invoke owner PR review trigger, not ordinary push/PR.
-known_failures: Six CI job failures registered in ERROR_CASES.json across two P3-D attempts. First SOURCE 42272583480 / PR 42272620819 Kotlin test compile error was Int rather than Long?; fixed at 56934d0c48fd9eb14edae7ef5e91e585ef42bc28. Second SOURCE 42273735594 / PR 42273745396 Kotlin suite had 1469/1470 PASS and one incorrect legacy duration-OR test expectation; test-only fix at e7d8ba7d93848d7d4593fafde420ee162928e891 now asserts actual unchanged two-group membership. Both SOURCE required summary jobs correctly failed. Six logged FIXED; new full CI still required on final SHA.
-verification: Direct GitHub G1 preflight on 86cf7ebdf6b3f84b890d1a46fecf0802108b1db5: branch/ref and PR #125 open Draft, exact HEAD SHA, AGENTS.md and docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md, VIDEO_SEARCH docs, TASK_TEMPLATE, DEVELOPMENT_WORKFLOW, TEST_POLICY, TEST_PATTERNS, QUALITY_GATES, ERROR_LEARNING, CHECKPOINT_POLICY, EXCEPTIONS, and APK trigger all read at same ref. No repository file mutations on P3-C branch. Local Gradle/ADB unavailable; CI is required source test evidence.
+acceptance_source: User said "Dalej" after verified P3-D. Next agreed P3-E is integration of entire film search pipeline, regression test scenarios and preparation for real-site/device acceptance. No authorized merge, public release, force-push, APK signing, certificate changes or destructive actions.
+completed: Added real-source integration tests for recognition.js + content.js sharing one mocked native transport (explicit GET search, bounded recognition, structured exact card metadata, contiguous 16-card packets, stale cursor on recycled SPA DOM, category and cross-origin filtering). Added Kotlin/Robolectric Room integration for P2 query evidence + P3-C virtual replacement + exact film URL metadata correlation + profile-scoped transactional snapshot + P3-D optional smart grouping versus unchanged legacy duration OR, preserving partial terminal statuses and negative cross-origin tests. Added docs/ai/ZAVRO_V4_P3E_REAL_SITE_DEVICE_ACCEPTANCE.md with 18 executable real-device/site cases and evidence/status capture. Tests use synthetic DOM, not live websites or actual device. Existing production code, Room schema, GeckoView protocol and profile/session features remain unchanged.
+remaining: Verify full SOURCE and stacked PR required CI on P3-E final SHA. If a new regression is found, record run/job/attempt/error and fix test or production before fresh CI. Physical real-site/Android acceptance and signed APK still separate and NOT_TESTED/NOT_BUILT.
+required_ci: SOURCE process-docs + shared-tests JS WebExtension, JVM Kotlin/Robolectric, AndroidTest Kotlin compilation, Android lint baseline, checkout/source SHA evidence and summarizer all SUCCESS on final SHA; PR integration JavaScript/Kotlin/AndroidTest/lint and error-learning evidence SUCCESS on same final PR-head SHA. Expected build/release SKIPPED must not be reported as APK built.
+device: NOT_TESTED — Android 15 / Nothing Phone (1) physical test, GeckoView site navigation, orientation and screen rate, real-site search, pagination, private browsing, long lists must be executed separately with approved APK.
+apk: NOT_BUILT — no explicit signed APK authorization. Ordinary push and Draft PR must never trigger signing. Approved reviewer trigger requires separate confirmed request and signing prerequisites.
+known_failures: Zero P3-E CI failures observed before first push. Prior P3-D 6/6 CI failure occurrences recorded FIXED in docs/ai/ERROR_CASES.json; do not mistake earlier SOURCE failures for current P3-E checks.
+verification: Before starting, directly verified P3-D live branch and open Draft PR #126 at full base SHA; P3-D SOURCE #42275003159 and PR #42275012306 completed/success. At that exact SHA read AGENTS.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md, TASK_TEMPLATE, DEVELOPMENT_WORKFLOW, TEST_POLICY, TEST_PATTERNS, QUALITY_GATES, ERROR_LEARNING, CHECKPOINT_POLICY, EXCEPTIONS_AND_TOOLS, APK_CHAT_GITHUB_REVIEW_TRIGGER and VIDEO_SEARCH_AUDIT. Direct GitHub access confirmed push/admin; no local checkout, emulator, ADB or Gradle used. Full source tests delegated to GitHub CI, not falsely labeled local tests.
 changed_paths:
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsMerge.kt
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsActivity.kt
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsTabUiMemory.kt
-  - app/src/main/assets/extensions/zavro-video-search/content.js
-  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsMergeTest.kt
-  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsTabUiMemoryTest.kt
-  - app/src/test/js/video-search-p9-link-identity.test.cjs
+  - app/src/test/js/video-search-p3e-integration.test.cjs
+  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchV4P3EIntegrationTest.kt
+  - docs/ai/ZAVRO_V4_P3E_REAL_SITE_DEVICE_ACCEPTANCE.md
   - docs/AI_HANDOFF.md
   - docs/ai/ERROR_CASES.json
 verified_before_push:
-  - Smart merge is optional, legacy two filters and OR semantics untouched.
-  - Grouping is UI-only, never rewrites original URLs, data, or tab/profile ownership.
-  - Structured metadata remains card-local and linked to exact same-origin film URL; bounded parser.
-  - No network requests, media capture, executable selectors, new permissions or persistent Room schema.
-  - No PR merge, public release, force push or unauthorized APK trigger.
+  - No edits to production code, Room schema, existing profiles, APK, extension manifest, native bridge protocol or permissions.
+  - P3-E tests invoke actual recognition and content scripts against a single synthetic native port, not duplicated algorithms.
+  - Kotlin integration invokes actual collector, query proof, metadata correlator, repository, presenter and smartGroup.
+  - Strict original URL identity, profile isolation and partial-versus-complete status have negative regression tests; no test assertions relaxed.
+  - Real-site acceptance remains NOT_TESTED and all 18 cases start unverified.
 blockers:
-  - Physical GeckoView/site tests NOT_TESTED; CI is not real device acceptance.
-  - No independent external code reviewer; self-review plus required CI only.
+  - No attached physical Android device or authorized signed update APK; cannot claim DEVICE_VERIFIED.
+  - Synthetic scripted DOM/Room tests do not prove that unknown external websites work end-to-end; manual acceptance matrix required.
+  - No independent reviewer; self-review plus CI, no merge/release.
 evidence_links:
-  - https://github.com/laszko14/nira-browser/pull/125
-  - https://github.com/laszko14/nira-browser/actions/runs/42269940678
-  - https://github.com/laszko14/nira-browser/actions/runs/42269950801
-next_action: Run third SOURCE and stacked PR CI on final P3-D SHA after fixing strict legacy OR expectation; confirm Kotlin full 1470+ tests, JS, AndroidTest, lint, docs, evidence all SUCCESS then STOP before P3-E.
+  - https://github.com/laszko14/nira-browser/pull/126
+  - https://github.com/laszko14/nira-browser/actions/runs/42275003159
+  - https://github.com/laszko14/nira-browser/actions/runs/42275012306
+next_action: Complete SOURCE and PR CI on exact P3-E final SHA, repair failures and reconcile ERROR_CASES.json; report CODE_VERIFIED if all mandatory jobs SUCCESS. Then stop, leaving device/APK acceptance as NOT_TESTED/NOT_BUILT pending explicit owner authorization.
 ```
