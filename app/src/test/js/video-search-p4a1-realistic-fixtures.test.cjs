@@ -136,3 +136,17 @@ test('P4-A1 hidden and navigation-region film-shaped items are not accepted', ()
   assert.equal(page.report.reason, 'CARDS_NOT_FOUND');
   assert.equal(page.clicked(), 0);
 });
+
+
+test('P4-A1 film-like cards with only blocked URLs cannot be accepted as results', () => {
+  const page = inspectPage({items: [
+    {href:'/login'}, {href:'/checkout'},
+    {href:'https://person:secret@films.example/movie/4'},
+    {href:'/video/clip.webm'}, {href:'/tags/comedy'},
+    {href:'data:text/html,not-a-film'}
+  ]});
+  assert.equal(page.report.reason, 'CARDS_NOT_FOUND');
+  assert.equal(page.report.selector, null);
+  assert.equal(page.report.matchedCards, 0);
+  assert.equal(page.clicked(), 0);
+});
