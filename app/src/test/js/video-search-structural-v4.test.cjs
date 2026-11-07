@@ -326,13 +326,17 @@ test('P4-A1 reset controls and POST forms never become an automatic search click
   assert.equal(reset.submitSelector,null);
   assert.equal(reset.submission,'FORM_SUBMIT');
   const post=inspectFixture({cardsSelector:'.videos-list article',
-    inputId:'lookup',method:'POST'});
-  assert.equal(post.status,'missing');
-  assert.equal(post.submitSelector,null);
+    inputId:'lookup',method:'POST',analyze:true});
+  assert.equal(post.status,'unsafe');
+  assert.equal(post.reason,'unsafe_form');
+  assert.equal(post.inputSelector,null);
+  assert.ok(!post.submitSelector, 'unsafe POST must not select a submit control');
 });
 
 test('P4-A1 tied visible GET search inputs never choose a random form field',()=>{
   const result=inspectFixture({cardsSelector:'.video-grid article',
-    secondInput:true, name:'keyword'});
+    secondInput:true, name:'keyword',analyze:true});
+  assert.equal(result.status,'ambiguous');
+  assert.equal(result.reason,'ambiguous_input');
   assert.equal(result.inputSelector,null);
 });
