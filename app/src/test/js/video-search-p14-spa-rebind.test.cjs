@@ -12,18 +12,31 @@ const content = fs.readFileSync(path.join(__dirname,
 
 function harness(initial = 'https://films.example/home') {
   let onPortMessage, rngCalls=0, scrolls=0;
-  const messages=[], callbacks=new Map(), timers=[];
+  const messages=[], callbacks=new Map(), timers=new Map();
+  let timerId=0, activeObserver=null;
   const address=new URL(initial);
   const page={
     documentElement:{},
-    querySelector() {return null;},
-    querySelectorAll(selector) {return selector === '.cards' ? [card] : [];}
+    querySelector(selector) {
+      return selector === 'input[type="password"]' && loginGate ? {} : null;
+    },
+    querySelectorAll(selector) {return selector === '.cards' ? cards : [];}
   };
   // A configured, attached result card is mandatory before an opt-in scroll.
   const card={ownerDocument:page,parentElement:null,isConnected:true};
+  let cards=[card], loginGate=false;
+  function makeCard() {return {ownerDocument:page,parentElement:null,isConnected:true};}
+  class MutationObserver {
+    constructor(callback) {this.callback=callback;this.active=false;activeObserver=this;}
+    observe() {this.active=true;}
+    disconnect() {this.active=false;}
+  }
   const win={
     top:null, innerHeight:800,
-    addEventListener(type, fn) {callbacks.set(type, fn);},
+    addEventListener(type, fn) {
+      if (!callbacks.has(type)) callbacks.set(type, []);
+      callbacks.get(type).push(fn);
+    },
     scrollBy() {scrolls++;}
   };
   win.top=win;
@@ -37,8 +50,9 @@ function harness(initial = 'https://films.example/home') {
     browser:{runtime:{connectNative(){return port;}}},
     crypto:{getRandomValues(array){array.fill(++rngCalls);return array;}},
     URL,Uint8Array,TextEncoder,
-    setTimeout(fn){timers.push(fn);return timers.length;},
-    clearTimeout(){}
+    setTimeout(fn){const id=++timerId;timers.set(id,fn);return id;},
+    clearTimeout(id){timers.delete(id);},
+    MutationObserver
   });
   assert.equal(messages[0].event,'hello');
   let seq=0;
@@ -57,7 +71,7 @@ function harness(initial = 'https://films.example/home') {
     messages,address,callbacks,send,commands,bind,last,
     navigate(url,event) {
       address.href=url;
-      if(event) callbacks.get(event)?.();
+      if(event) callbacks.get(event)?.forEach(fn=>fn());
     },
     sync() {send({schemaVersion:1,event:'url_sync'});},
     inspect(token=last('hello').documentId) {
@@ -72,7 +86,18 @@ function harness(initial = 'https://films.example/home') {
         resultsCardSelector:'.cards'}));
       return messages.slice(n);
     },
-    flush() {for(const fn of timers.splice(0))fn();},
+    flush() {
+      for(const [id,fn] of Array.from(timers.entries())) {
+        if (timers.has(id)) {timers.delete(id);fn();}
+      }
+    },
+    mutate() {if(activeObserver?.active)activeObserver.callback([]);},
+    emit(event) {callbacks.get(event)?.forEach(fn=>fn());},
+    setCards(next) {cards=next;},
+    makeCard,
+    setLoginGate(next) {loginGate=next;},
+    pendingTimers() {return timers.size;},
+    observerActive() {return activeObserver?.active === true;},
     get scrolls() {return scrolls;}
   };
 }
@@ -175,4 +200,108 @@ test('a stale bound packet cannot restore a revoked route',()=>{
   assert.equal(h.inspect(old.documentId).length,0);
   h.bind();
   assert.equal(h.inspect().at(-1).event,'inspection');
+});
+
+
+test('P4-A2 AJAX hydration: pending empty list becomes dispatchable only after cards appear',()=>{
+  const h=harness();h.bind();
+  h.setCards([]);
+  assert.equal(h.scroll().at(-1).status,'pending');
+  h.flush();
+  assert.equal(h.scrolls,0);
+  h.setCards([h.makeCard(),h.makeCard()]);
+  assert.equal(h.scroll().at(-1).status,'dispatched');
+  h.flush();
+  assert.equal(h.scrolls,1);
+});
+
+test('P4-A2 recycled SPA DOM revokes a queued scroll but allows a fresh action',()=>{
+  const h=harness();h.bind();
+  const first=[h.makeCard(),h.makeCard()];
+  h.setCards(first);
+  assert.equal(h.scroll().at(-1).status,'dispatched');
+  for(const c of first)c.isConnected=false;
+  h.setCards([h.makeCard(),h.makeCard()]);
+  h.flush();
+  assert.equal(h.scrolls,0,'queued action must not act on replacement cards');
+  assert.equal(h.scroll().at(-1).status,'dispatched');
+  h.flush();
+  assert.equal(h.scrolls,1);
+});
+
+test('P4-A2 a burst of DOM mutations at the same address never rotates identity',()=>{
+  const h=harness(),first=h.bind();
+  assert.equal(h.observerActive(),true);
+  for(let i=0;i<24;i++)h.mutate();
+  assert.equal(h.pendingTimers(),1,'coalesced observations must not queue 24 checks');
+  h.flush();
+  assert.equal(h.messages.filter(m=>m.event==='hello').length,1);
+  assert.equal(h.last('hello').documentId,first.documentId);
+  assert.equal(h.inspect(first.documentId).at(-1).event,'inspection');
+});
+
+test('P4-A2 observer detects SPA route change and rejects the previous token',()=>{
+  const h=harness(),first=h.bind();
+  h.navigate('https://films.example/results?q=ajax-only');
+  for(let i=0;i<12;i++)h.mutate();
+  assert.equal(h.messages.filter(m=>m.event==='hello').length,1);
+  h.flush();
+  const next=h.last('hello');
+  assert.equal(h.messages.filter(m=>m.event==='hello').length,2);
+  assert.notEqual(next.documentId,first.documentId);
+  assert.equal(next.navigationRevision,1);
+  assert.equal(h.inspect(first.documentId).length,0);
+  h.bind();
+  assert.equal(h.inspect().at(-1).event,'inspection');
+});
+
+test('P4-A2 a queued scroll cannot survive unannounced SPA navigation',()=>{
+  const h=harness(),first=h.bind();
+  assert.equal(h.scroll().at(-1).status,'dispatched');
+  h.navigate('https://films.example/results?q=second');
+  h.mutate();
+  h.flush();
+  assert.equal(h.scrolls,0);
+  assert.notEqual(h.last('hello').documentId,first.documentId);
+  assert.equal(h.inspect(first.documentId).length,0);
+});
+
+test('P4-A2 pagehide disconnects observer and cancels deferred mutation check',()=>{
+  const h=harness();h.bind();
+  h.navigate('https://films.example/results?q=pending-hydration');
+  h.mutate();
+  assert.equal(h.pendingTimers(),1);
+  h.emit('pagehide');
+  assert.equal(h.observerActive(),false);
+  assert.equal(h.pendingTimers(),0);
+  h.flush();
+  assert.equal(h.messages.filter(m=>m.event==='hello').length,1);
+  h.mutate();
+  assert.equal(h.pendingTimers(),0);
+});
+
+test('P4-A2 login gate added after pagination ACK prevents delayed scrolling',()=>{
+  const h=harness();h.bind();
+  h.setCards([h.makeCard(),h.makeCard()]);
+  assert.equal(h.scroll().at(-1).status,'dispatched');
+  h.setLoginGate(true);
+  h.flush();
+  assert.equal(h.scrolls,0);
+  assert.equal(h.scroll().at(-1).status,'unsafe');
+  h.setLoginGate(false);
+  assert.equal(h.scroll().at(-1).status,'dispatched');
+  h.flush();
+  assert.equal(h.scrolls,1);
+});
+
+
+test('P4-C2 SPA navigation resets the bounded infinite-scroll stagnation state',()=>{
+  const h=harness();h.bind();
+  assert.equal(h.scroll().at(-1).status,'dispatched');h.flush();
+  assert.equal(h.scroll().at(-1).status,'dispatched');h.flush();
+  assert.equal(h.scroll().at(-1).status,'pending');
+  h.navigate('https://films.example/results?q=next-search');
+  h.sync();h.bind();
+  assert.equal(h.scroll().at(-1).status,'dispatched',
+    'a fresh route must not inherit a stale no-progress guard');
 });

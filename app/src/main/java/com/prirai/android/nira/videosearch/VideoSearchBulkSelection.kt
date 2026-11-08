@@ -23,14 +23,82 @@ internal object VideoSearchBulkSelection {
         return (selected - keys) + (keys - selected)
     }
 
-    /** Resolve from the FULL saved run, not just the rendered page of 150. */
-    fun resolve(snapshot: VideoSearchSavedResults?, keys: Set<String>): List<VideoSearchFilm> {
-        val owner = snapshot?.run ?: return emptyList()
-        return snapshot.films.filter {
-            it.runId == owner.id && it.scope == owner.scope &&
-                it.siteId in owner.siteIds && key(it) in keys
-        }.distinctBy(::key)
+    /** One immutable lookup index per Room snapshot; never shared across runs. */
+    internal data class IndexedFilm(val film: VideoSearchFilm, val order: Int)
+
+    internal class Index internal constructor(
+        val owner: VideoSearchRun,
+        internal val entries: Map<String, IndexedFilm>,
+    ) {
+        val size: Int get() = entries.size
     }
+
+    fun index(snapshot: VideoSearchSavedResults?): Index? {
+        val owner = snapshot?.run ?: return null
+        val sites = owner.siteIds.toHashSet()
+        val entries = HashMap<String, IndexedFilm>(snapshot.films.size)
+        snapshot.films.forEachIndexed { position, film ->
+            if (film.runId == owner.id && film.scope == owner.scope &&
+                film.siteId in sites) {
+                // Keep the first saved occurrence, matching historical resolve().
+                val id = key(film)
+                if (id !in entries) entries[id] = IndexedFilm(film, position)
+            }
+        }
+        return Index(owner, entries)
+    }
+
+    /** Fail closed on stale URL, another search run or another profile. */
+    fun owns(index: Index?, film: VideoSearchFilm): Boolean {
+        val owner = index?.owner ?: return false
+        return film.runId == owner.id && film.scope == owner.scope &&
+            index.entries[key(film)]?.film?.filmPageUrl == film.filmPageUrl
+    }
+
+    /**
+     * F1: validating one cluster uses O(cluster size) indexed lookups,
+     * not O(all saved films) for every tap/long press/checkbox.
+     */
+    fun toggleMergedIndexed(
+        index: Index?,
+        selected: Set<String>,
+        members: List<VideoSearchFilm>,
+    ): Set<String> {
+        if (index == null || members.isEmpty()) return selected
+        val ids = LinkedHashSet<String>()
+        for (film in members) {
+            if (!owns(index, film) || !ids.add(key(film))) return selected
+        }
+        return if (ids.all { it in selected }) selected - ids else selected + ids
+    }
+
+    /** Compatibility path for callers that do not retain a snapshot index. */
+    fun toggleMerged(
+        snapshot: VideoSearchSavedResults?,
+        selected: Set<String>,
+        members: List<VideoSearchFilm>,
+    ): Set<String> = toggleMergedIndexed(index(snapshot), selected, members)
+
+    fun selectedCount(selected: Set<String>, members: List<VideoSearchFilm>): Int =
+        members.count { key(it) in selected }
+
+    fun allSelected(selected: Set<String>, members: List<VideoSearchFilm>): Boolean =
+        members.isNotEmpty() && selectedCount(selected, members) == members.size
+
+    /**
+     * Only selected keys are resolved; presentation order stays the same
+     * as the original saved run, not click order or merged-card sort order.
+     */
+    fun resolveIndexed(index: Index?, keys: Set<String>): List<VideoSearchFilm> {
+        if (index == null || keys.isEmpty()) return emptyList()
+        return keys.mapNotNull { index.entries[it] }
+            .sortedBy { it.order }
+            .map { it.film }
+    }
+
+    /** Compatibility path, still never limited by the first rendered page. */
+    fun resolve(snapshot: VideoSearchSavedResults?, keys: Set<String>): List<VideoSearchFilm> =
+        resolveIndexed(index(snapshot), keys)
 
     fun name(input: String?): String? =
         input?.trim()?.takeIf { it.isNotEmpty() && it.length <= 120 &&

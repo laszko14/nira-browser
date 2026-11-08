@@ -13,7 +13,8 @@ const content = fs.readFileSync(path.join(__dirname,
 function inspectFixture({cardsSelector, count=4, name='s', submitType='submit',
     method='get', next=false, metadata=true, analyze=false,
     anonymousPager=false, secondInput=false, inputId='s', formRole='search',
-    excludeResultRegion=false,
+    excludeResultRegion=false, externalSubmit=false, formTarget=null,
+    submitMethod=null, submitAction=null, submitTarget=null,
     ariaLabel=null, placeholder='Search', recognitionReport=null,
     onScan=null, treeNodes=null, onWideQuery=null}={}) {
   const posted = [], selectors = new Map();
@@ -22,12 +23,14 @@ function inspectFixture({cardsSelector, count=4, name='s', submitType='submit',
   const form = {
     tagName:'FORM', id:'searchform', className:'',
     getAttribute(key) { return ({
-      method, action:'https://films.example/', role:formRole
+      method, action:'https://films.example/', role:formRole, target:formTarget
     })[key] ?? null; },
     querySelector() { return null; },
     querySelectorAll(key) {
-      return key === 'button,input[type="submit"],[role="button"]' ? [submit] : [];
-    }
+      return key === 'button,input[type="submit"],[role="button"]' ?
+        externalSubmit ? [] : [submit] : [];
+    },
+    get elements() {return [input,submit];}
   };
   const input = {
     tagName:'INPUT', id:inputId, name, type:'text', placeholder,
@@ -40,7 +43,8 @@ function inspectFixture({cardsSelector, count=4, name='s', submitType='submit',
   const submit = {
     tagName:'INPUT', id:'searchsubmit', name:'', value:'', className:'button',
     classList:['button'], disabled:false, form,
-    getAttribute(key) {return ({type:submitType})[key] ?? null;},
+    getAttribute(key) {return ({type:submitType,formmethod:submitMethod,
+      formaction:submitAction,formtarget:submitTarget})[key] ?? null;},
     closest() {return null;},
     matches(selector) {
       return selector === 'button,input[type="submit"],[role="button"]' ||
@@ -301,4 +305,98 @@ test('P3-B legacy compatibility remains for a valid unobstructed results list',(
   });
   assert.equal(report.status,'ready');
   assert.equal(report.resultsCardSelector,'.videos-list article');
+});
+
+
+test('P4-A1 semantic GET search forms remain usable with custom IDs and keyword names',()=>{
+  for(const cfg of [
+    {inputId:'catalog-search',name:'keyword',ariaLabel:'Search films',
+      cardsSelector:'.video-grid article',formRole:'search'},
+    {inputId:'film-lookup',name:'q',ariaLabel:'Find movies',
+      cardsSelector:'.videos-list article',formRole:'search'}
+  ]) {
+    const result=inspectFixture(cfg);
+    assert.equal(result.status,'ready');
+    assert.equal(result.inputSelector,'#'+cfg.inputId);
+    assert.equal(result.submitSelector,'#searchsubmit');
+    assert.equal(result.submission,'CLICK_SUBMIT');
+    assert.equal(result.resultsCardSelector,cfg.cardsSelector);
+  }
+});
+
+test('P4-A1 reset controls and POST forms never become an automatic search click',()=>{
+  const reset=inspectFixture({cardsSelector:'.videos-list article',
+    inputId:'lookup',submitType:'reset'});
+  assert.equal(reset.submitSelector,null);
+  assert.equal(reset.submission,'FORM_SUBMIT');
+  const post=inspectFixture({cardsSelector:'.videos-list article',
+    inputId:'lookup',method:'POST',analyze:true});
+  assert.equal(post.status,'unsafe');
+  assert.equal(post.reason,'unsafe_form');
+  assert.equal(post.inputSelector,null);
+  assert.ok(!post.submitSelector, 'unsafe POST must not select a submit control');
+});
+
+test('P4-A1 tied visible GET search inputs never choose a random form field',()=>{
+  const result=inspectFixture({cardsSelector:'.video-grid article',
+    secondInput:true, name:'keyword',analyze:true});
+  assert.equal(result.status,'ambiguous');
+  assert.equal(result.reason,'ambiguous_input');
+  assert.equal(result.inputSelector,null);
+});
+
+
+test('P4-B1 external submit tied to the GET form by HTML form owner is recognized',()=>{
+  const report=inspectFixture({externalSubmit:true, cardsSelector:'.videos-list article',
+    analyze:true});
+  assert.equal(report.status,'ready');
+  assert.equal(report.inputSelector,'#s');
+  assert.equal(report.submission,'CLICK_SUBMIT');
+  assert.equal(report.submitSelector,'#searchsubmit');
+  assert.ok(report.evidence.includes('BOUND_SUBMIT'));
+});
+
+test('P4-B1 formmethod POST override never becomes an automatic button click',()=>{
+  const report=inspectFixture({submitMethod:'POST', analyze:true});
+  assert.equal(report.status,'partial');
+  assert.equal(report.submission,'FORM_SUBMIT');
+  assert.equal(report.submitSelector,null);
+  assert.ok(!report.evidence.includes('BOUND_SUBMIT'));
+});
+
+test('P4-B1 cross-origin formaction override is rejected before selecting submit',()=>{
+  const report=inspectFixture({submitAction:'https://external.example/collect',
+    analyze:true});
+  assert.equal(report.status,'partial');
+  assert.equal(report.submission,'FORM_SUBMIT');
+  assert.equal(report.submitSelector,null);
+});
+
+test('P4-B1 new-tab formtarget override is rejected even on a same-origin GET form',()=>{
+  const report=inspectFixture({submitTarget:'_blank',analyze:true});
+  assert.equal(report.submission,'FORM_SUBMIT');
+  assert.equal(report.submitSelector,null);
+});
+
+test('P4-B1 form configured to open a new tab is not automatically selected',()=>{
+  const report=inspectFixture({formTarget:'_blank',analyze:true});
+  assert.equal(report.inputSelector,null);
+  assert.notEqual(report.status,'ready');
+  assert.notEqual(report.status,'partial');
+});
+
+test('P4-B1 keyword-named GET search input with neutral placeholder is recognized',()=>{
+  const report=inspectFixture({name:'keyword',inputId:'catalogQuery',
+    placeholder:'Film title',formRole:'',analyze:true});
+  assert.equal(report.status,'partial');
+  assert.equal(report.inputSelector,'#catalogQuery');
+  assert.equal(report.submitSelector,'#searchsubmit');
+  assert.equal(report.submission,'CLICK_SUBMIT');
+});
+
+test('P4-B1 user-owned unsafe POST form remains excluded even with keyword semantics',()=>{
+  const report=inspectFixture({method:'POST',name:'keyword',
+    formRole:'search',analyze:true});
+  assert.equal(report.inputSelector,null);
+  assert.equal(report.status,'unsafe');
 });

@@ -289,12 +289,14 @@ internal fun VideoSearchResultsScreen(
         retainedRun?.selectedFilmKeys ?: mutableStateOf(emptySet<String>())
     }
     var bulkMenuOpen by remember(run?.id) { mutableStateOf(false) }
-    val selectedFilms = VideoSearchBulkSelection.resolve(snapshot, selectedKeys)
+    // An active run may contain thousands of films. Build its owned URL index
+    // once per snapshot, never on every Compose scroll/recomposition or tap.
+    val selectionIndex = remember(snapshot) { VideoSearchBulkSelection.index(snapshot) }
+    val selectedFilms = remember(selectionIndex, selectedKeys) {
+        VideoSearchBulkSelection.resolveIndexed(selectionIndex, selectedKeys)
+    }
     val toggleFilm: (VideoSearchFilm) -> Unit = { film ->
-        if (run != null && film.runId == run.id && film.scope == run.scope &&
-            snapshot?.films?.any {
-                VideoSearchBulkSelection.key(it) == VideoSearchBulkSelection.key(film)
-            } == true) {
+        if (VideoSearchBulkSelection.owns(selectionIndex, film)) {
             selectedKeys = VideoSearchBulkSelection.toggle(selectedKeys, film)
         }
     }
@@ -415,6 +417,12 @@ internal fun VideoSearchResultsScreen(
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = Color(0xff090811)) {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+        // The actual Compose container, including split-screen, defines width/height.
+        val tileWidth = VideoSearchResultsLayoutPolicy.tileMinWidthDp(
+            maxWidth.value.toInt(), landscape).dp
+        val filterHeight = VideoSearchResultsLayoutPolicy.filterPanelMaxHeightDp(
+            maxHeight.value.toInt(), landscape).dp
         Column(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
             Row(
                 Modifier.fillMaxWidth().background(Color(0xff100b20))
@@ -529,12 +537,11 @@ internal fun VideoSearchResultsScreen(
                 enter = expandVertically(),
                 exit = shrinkVertically(),
             ) {
-              BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 9.dp)) {
+              Box(Modifier.fillMaxWidth().padding(horizontal = 9.dp)) {
               Column(
-                modifier = (if (landscape) Modifier.fillMaxWidth()
-                    .heightIn(max = maxHeight * 0.50f)
+                modifier = Modifier.fillMaxWidth()
+                    .heightIn(max = filterHeight)
                     .verticalScroll(rememberScrollState())
-                else Modifier.fillMaxWidth())
                     .clip(RoundedCornerShape(16.dp))
                     .background(Color(0xff151027))
                     .border(1.dp, Color(0xff9d42e8), RoundedCornerShape(16.dp))
@@ -750,7 +757,7 @@ internal fun VideoSearchResultsScreen(
                 }
             } else if (state.view == VideoSearchView.TILES) {
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(150.dp),
+                    columns = GridCells.Adaptive(tileWidth),
                     state = gridState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 5.dp),
@@ -784,7 +791,11 @@ internal fun VideoSearchResultsScreen(
                                 }) { index ->
                                     val film = group.films[index]
                                     VideoSearchFilmTile(
-                                        film, onOpen, onLongPress, selecting = selecting,
+                                        film, onOpen,
+                                        onLongPress = { item ->
+                                            if (selecting) toggleFilm(item) else onLongPress(item)
+                                        },
+                                        selecting = selecting,
                                         selected = VideoSearchBulkSelection.key(film) in selectedKeys,
                                         onToggle = toggleFilm,
                                     )
@@ -797,26 +808,37 @@ internal fun VideoSearchResultsScreen(
                             "film:${film.siteId}:${film.id}"
                         }) { index ->
                             val entry = shownEntries.getOrNull(index).takeIf { merging }
+                            val toggleEntry: (VideoSearchFilm) -> Unit = { film ->
+                                if (entry != null) selectedKeys =
+                                    VideoSearchBulkSelection.toggleMergedIndexed(
+                                        selectionIndex, selectedKeys, entry.films)
+                                else toggleFilm(film)
+                            }
                             VideoSearchFilmTile(
                                 visibleResults!!.visibleFilms[index],
                                 onOpen = { film ->
-                                    if (selecting) toggleFilm(film)
+                                    if (selecting) toggleEntry(film)
                                     else if (entry != null && entry.films.size > 1)
                                         selectedMerge = entry
                                     else onOpen(film)
                                 },
                                 onLongPress = { film ->
-                                    if (entry != null && entry.films.size > 1)
+                                    if (selecting) toggleEntry(film)
+                                    else if (entry != null && entry.films.size > 1)
                                         selectedMerge = entry
-                                    else if (selecting) toggleFilm(film)
                                     else onLongPress(film)
                                 },
-                                mergedLabel = entry?.takeIf { it.films.size > 1 }
-                                    ?.let { "${it.films.size} scalonych filmów" },
+                                mergedLabel = entry?.takeIf { it.films.size > 1 }?.let {
+                                    if (selecting) "${it.films.size} scalonych · " +
+                                        "${VideoSearchBulkSelection.selectedCount(selectedKeys, it.films)} zazn."
+                                    else "${it.films.size} scalonych filmów"
+                                },
                                 selecting = selecting,
-                                selected = VideoSearchBulkSelection.key(
+                                selected = if (entry != null)
+                                    VideoSearchBulkSelection.allSelected(selectedKeys, entry.films)
+                                else VideoSearchBulkSelection.key(
                                     visibleResults!!.visibleFilms[index]) in selectedKeys,
-                                onToggle = toggleFilm,
+                                onToggle = toggleEntry,
                             )
                         }
                     }
@@ -862,7 +884,11 @@ internal fun VideoSearchResultsScreen(
                                 }) { index ->
                                     val film = group.films[index]
                                     VideoSearchFilmRow(
-                                        film, onOpen, onLongPress, selecting = selecting,
+                                        film, onOpen,
+                                        onLongPress = { item ->
+                                            if (selecting) toggleFilm(item) else onLongPress(item)
+                                        },
+                                        selecting = selecting,
                                         selected = VideoSearchBulkSelection.key(film) in selectedKeys,
                                         onToggle = toggleFilm,
                                         compact = state.view == VideoSearchView.COMPACT,
@@ -876,26 +902,37 @@ internal fun VideoSearchResultsScreen(
                             "film:${film.siteId}:${film.id}"
                         }) { index ->
                             val entry = shownEntries.getOrNull(index).takeIf { merging }
+                            val toggleEntry: (VideoSearchFilm) -> Unit = { film ->
+                                if (entry != null) selectedKeys =
+                                    VideoSearchBulkSelection.toggleMergedIndexed(
+                                        selectionIndex, selectedKeys, entry.films)
+                                else toggleFilm(film)
+                            }
                             VideoSearchFilmRow(
                                 visibleResults!!.visibleFilms[index],
                                 onOpen = { film ->
-                                    if (selecting) toggleFilm(film)
+                                    if (selecting) toggleEntry(film)
                                     else if (entry != null && entry.films.size > 1)
                                         selectedMerge = entry
                                     else onOpen(film)
                                 },
                                 onLongPress = { film ->
-                                    if (entry != null && entry.films.size > 1)
+                                    if (selecting) toggleEntry(film)
+                                    else if (entry != null && entry.films.size > 1)
                                         selectedMerge = entry
-                                    else if (selecting) toggleFilm(film)
                                     else onLongPress(film)
                                 },
-                                mergedLabel = entry?.takeIf { it.films.size > 1 }
-                                    ?.let { "${it.films.size} scalonych filmów" },
+                                mergedLabel = entry?.takeIf { it.films.size > 1 }?.let {
+                                    if (selecting) "${it.films.size} scalonych · " +
+                                        "${VideoSearchBulkSelection.selectedCount(selectedKeys, it.films)} zazn."
+                                    else "${it.films.size} scalonych filmów"
+                                },
                                 selecting = selecting,
-                                selected = VideoSearchBulkSelection.key(
+                                selected = if (entry != null)
+                                    VideoSearchBulkSelection.allSelected(selectedKeys, entry.films)
+                                else VideoSearchBulkSelection.key(
                                     visibleResults!!.visibleFilms[index]) in selectedKeys,
-                                onToggle = toggleFilm,
+                                onToggle = toggleEntry,
                                 compact = state.view == VideoSearchView.COMPACT,
                             )
                         }
@@ -911,6 +948,7 @@ internal fun VideoSearchResultsScreen(
                     }
                 }
             }
+        }
         }
     }
     selectedMerge?.let { group ->
@@ -991,7 +1029,7 @@ private fun NeonResultAction(
         Color(0xff00c8f7), Color(0xff4541fa), Color(0xffad1bf4)
     ) else listOf(Color(0xff25203b), Color(0xff141025))
     Box(
-        modifier = modifier.heightIn(min = 42.dp).clip(shape)
+        modifier = modifier.heightIn(min = 48.dp).clip(shape)
             .background(Brush.horizontalGradient(colors), shape)
             .border(1.dp, if (highlighted) Color(0xffc65bff) else Color(0xff715293), shape)
             .clickable(onClick = onClick)

@@ -59,9 +59,9 @@
     observedShadowRoots.set(host, shadow);
     return true;
   }
-  const BAD_PATH = /(?:^|\/)(?:categor(?:y|ies)|genres?|tags?|topics?|channels?|authors?|playlists?|collections?|account|login|signin|register|checkout|ads?)(?:\/|$)/i;
+  const BAD_PATH = /(?:^|\/)(?:categor(?:y|ies)|genres?|tags?|topics?|channels?|authors?|users?|profiles?|people|persons?|actors?|cast|comments?|reviews?|forum|playlists?|collections?|account|login|log-in|signin|sign-in|register|signup|sign-up|checkout|cart|payment|purchase|ads?)(?:\/|$)/i;
   const MEDIA_FILE = /\.(?:mp4|webm|m3u8|mpd|mp3|m4a|ts)(?:$)/i;
-  const BAD_HINT = /(?:^|[\s_-])(?:advert(?:isement)?|sponsored|promo|banner|navigation|menu|breadcrumb|sidebar|category|tag|login|checkout)(?:$|[\s_-])/i;
+  const BAD_HINT = /(?:^|[\s_-])(?:advert(?:isement)?|sponsored|promo|banner|navigation|menu|breadcrumb|sidebar|category|tag|login|checkout|recommend(?:ed|ations?)?|related|suggest(?:ed|ions?)?|trending|popular|featured)(?:$|[\s_-])/i;
   const CARD_HINT = /(?:video|film|movie|episode|search|result|card|tile|post|listing|thumb)/i;
   const TOKEN = /^[a-zA-Z_][a-zA-Z0-9_-]{1,42}$/;
   // Avoid auto-learning generated build hashes and transient numeric CSS.
@@ -81,7 +81,9 @@
       if (!/^https?:$/.test(u.protocol) || u.origin !== owner.origin ||
           u.username || u.password || u.href === base || u.href.length > 2048 ||
           BAD_PATH.test(u.pathname) || MEDIA_FILE.test(u.pathname) ||
-          anchor.hasAttribute?.("download")) return null;
+          anchor.hasAttribute?.("download") ||
+          (u.pathname === owner.pathname && u.search === owner.search &&
+           u.hash && u.hash !== owner.hash)) return null;
       return u.href;
     } catch (_) { return null; }
   }
@@ -353,15 +355,19 @@
       const titleRelation = !!heading && !!label && (heading.toLowerCase() === label.toLowerCase() ||
         label.toLowerCase().includes(heading.toLowerCase()));
       const semantic = !!first(a, "h1,h2,h3,h4,[itemprop=name],.title,img", budget);
-      const path = /(?:^|\/)(?:watch|movie|film|video|episode|title|play)(?:\/|$)/i.test(new URL(url).pathname);
+      const path = /(?:^|\/)(?:watch|movies?|films?|videos?|episodes?|title|play)(?:\/|$)/i.test(new URL(url).pathname);
+      // A poster elsewhere in the card is not proof of a film-page anchor.
+      // Preserve weak diagnostic evidence, but never accept it as a locator.
+      const supported = !!(titleRelation || semantic || path);
       const points = 25 + (titleRelation ? 20 : heading && semantic ? 14 : 0) +
         (image ? 15 : 0) + (duration ? 5 : 0) + (path ? 10 : 0) +
         (inResults ? 10 : 0) + (inResults && region.results ? 8 : 0);
-      if (!winner || points > winner.points) { winner = {url,points}; ties = 0; }
+      if (!winner || points > winner.points) { winner = {url,points,supported}; ties = 0; }
       else if (points === winner.points && url !== winner.url) ties++;
     }
     if (!winner || ties > 0 || (!heading && !image)) return null;
-    return {points: winner.points, inResultRegion:region.results,
+    return {points: winner.points, anchorProven:winner.supported,
+      inResultRegion:region.results,
       fingerprint: node.tagName + "/" +
       Array.from(node.classList || []).filter(c => TOKEN.test(c)).slice(0, 2).join("."),
       parent: node.parentElement, node};
@@ -399,9 +405,10 @@
         const key = selector + "|" + ctx.surface + "|" +
           (card.parent ? nodeHint(card.parent).slice(0, 48) : "");
         const existing = groups.get(key) || {selector, surface:ctx.surface,
-          cards:0, points:0, regions:0, parent:card.parent, fingerprints:new Set()};
+          cards:0, points:0, regions:0, weak:0, parent:card.parent, fingerprints:new Set()};
         existing.cards++;
         existing.points += card.points;
+        if (!card.anchorProven) existing.weak++;
         if (card.inResultRegion) existing.regions++;
         existing.fingerprints.add(card.fingerprint);
         groups.set(key, existing);
@@ -409,14 +416,19 @@
       for (const candidate of groups.values()) {
         const repetition = candidate.cards >= 2 ? 15 : 0;
         const structure = candidate.fingerprints.size === 1 ? 10 : 0;
-        const confidence = Math.min(100, Math.round(candidate.points /
+        const rawConfidence = Math.min(100, Math.round(candidate.points /
           candidate.cards + repetition + structure));
+        // Legacy LOW_CONFIDENCE is valuable to diagnose weak results.
+        // Any unproven anchor caps the group below native acceptance (85).
+        const confidence = candidate.weak ? Math.min(84, rawConfidence) :
+          rawConfidence;
         if (candidate.cards === 1 && confidence < 85) continue;
         if (candidate.cards >= 2 && confidence < 75) continue;
         const result = {selector:ctx.surface === "MAIN" ? candidate.selector :
              encodeLocator(ctx.steps, candidate.selector), surface:candidate.surface,
           confidence, matchedCards:candidate.cards,
-          evidence:["FILM_PAGE_LINK","CARD_LOCAL_METADATA",
+          evidence:[...(candidate.weak ? ["WEAK_ANCHOR_EVIDENCE"] :
+              ["FILM_PAGE_LINK","CARD_LOCAL_METADATA"]),
             ...(repetition ? ["REPEATED_STRUCTURE"] : []),
             ...(inResults ? ["RESULTS_CONTEXT"] : []),
             ...(candidate.regions ? ["RESULT_REGION"] : [])]};

@@ -1,6 +1,10 @@
 package com.prirai.android.nira.videosearch
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
@@ -164,6 +168,44 @@ class VideoSearchMultiSiteExecutorTest {
         assertEquals(0, VideoSearchWorkerBudget.permits(10_000_000_000L, true))
         assertEquals(0, VideoSearchWorkerBudget.permits(299_999_999L, false))
         assertEquals(0, VideoSearchWorkerBudget.permits(0L, false))
+    }
+
+    @Test fun p4f1CancellationWithFiftySitesNeverStartsPendingWork() = runBlocking {
+        val q = queue(50)
+        val startedBoth = CompletableDeferred<Unit>()
+        val running = AtomicInteger(0)
+        val dispatch = async {
+            VideoSearchMultiSiteExecutor.dispatch(q, { 2 }, { true }) {
+                if (running.incrementAndGet() == 2) startedBoth.complete(Unit)
+                delay(Long.MAX_VALUE)
+                VideoSearchQueueStatus.SUBMITTED
+            }
+        }
+        withTimeout(5_000) { startedBoth.await() }
+        dispatch.cancelAndJoin()
+        val result = q.snapshot()
+        assertEquals(50, result.selected)
+        assertEquals(0, result.active)
+        assertEquals(0, result.queued)
+        assertEquals(0, result.submitted)
+        assertEquals(50, result.stopped)
+        assertTrue(result.stopping)
+    }
+
+    @Test fun p4f1MemoryDropStopsRemainingFortySevenSites() = runBlocking {
+        val q = queue(50)
+        val rounds = AtomicInteger()
+        val result = VideoSearchMultiSiteExecutor.dispatch(q, {
+            if (rounds.getAndIncrement() == 0) 3 else 0
+        }, { true }) {
+            VideoSearchQueueStatus.SUBMITTED
+        }
+        assertEquals(50, result.selected)
+        assertEquals(3, result.submitted)
+        assertEquals(47, result.stopped)
+        assertEquals(0, result.queued)
+        assertEquals(0, result.active)
+        assertEquals(0, result.finished)
     }
 
     @Test fun budgetPolicyScalesFromOneToFive() {

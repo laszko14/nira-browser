@@ -22,15 +22,36 @@
   let pickerPosition = null;
   // Consecutive trusted terminal observations are limited to this document.
   let endProbe = null;
+  // Bounded per-document scroll guard: do not dispatch overlapping scrolls
+  // or loop indefinitely on an unchanged virtualized result window.
+  // "pending" is never proof of an end; only explicit site markers are.
+  let infiniteScrollState = null;
   // Per-document, short-lived cursor guards. Only node identity and offsets
   // are retained; nothing from the DOM is stored or sent to native.
   const continuationAnchors = { extract_batch: null, extract_crawl: null };
   const limited = 80;
   const idPattern = /^[0-9a-f]{32}$/;
   const blocked = /login|log-in|signin|sign-in|password|register|checkout|payment|purchase|captcha/i;
-  const searchTerms = /search|szukaj|find|query|wyszuk|buscar|suche|recherche/i;
+  const searchTerms = /search|szukaj|find|query|wyszuk|buscar|suche|recherche|keyword|lookup/i;
   // Negative evidence always beats a keyword that happens to say "search".
   const unsafeControl = /reset|clear|cancel|anuluj|filter|filtr|sort|login|sign.?in|register|payment|checkout|delete|remove|usuń|usun|close|zamkn/i;
+  // A matching CSS card selector may include advertisements or recommendation
+  // shelves on the same results page. Never persist those as film results.
+  const nonResultRegion = /(?:^|[\s_-])(?:advert(?:isement)?s?|sponsored|promo|banner|sidebar|navigation|breadcrumb|recommend(?:ed|ations?)?|related|suggest(?:ed|ions?)?|trending|popular|featured|playlist|categories|genres)(?:$|[\s_-])/i;
+  function excludedResultCard(card) {
+    if (!card || card.isConnected === false || card.closest?.(
+        'nav,header,footer,aside,[role="navigation"],[hidden],[inert],[aria-hidden="true"],.ad,.advertisement,.sponsored,[data-ad]'))
+      return true;
+    let node = card;
+    for (let depth = 0; node && depth < 7; depth++, node = node.parentElement) {
+      const hint = [node.id, typeof node.className === "string" ? node.className : "",
+        node.getAttribute?.("data-testid"), node.getAttribute?.("data-type"),
+        node.getAttribute?.("aria-label")]
+        .filter(v => typeof v === "string").join(" ");
+      if (nonResultRegion.test(hint)) return true;
+    }
+    return false;
+  }
   function inputHint(input) {
     const labels = Array.from(input.labels || []).slice(0, 3)
       .map(n => (n.textContent || "").slice(0, 80));
@@ -52,6 +73,9 @@
       (form.getAttribute("action") || ""))) return false;
     const method = (form.getAttribute("method") || "GET").toUpperCase();
     if (method !== "GET") return false; // Never submit POST forms.
+    // A GET form targeting another browsing context is not a safe automatic search.
+    const target = (form.getAttribute("target") || "").trim().toLowerCase();
+    if (target && target !== "_self") return false;
     try {
       const base = form.ownerDocument?.baseURI || location.href;
       const action = new URL(form.getAttribute("action") || base, base);
@@ -191,8 +215,18 @@
   function searchButton(input) {
     const area = searchContext(input);
     if (!area) return null;
-    const controls = Array.from(area.querySelectorAll(
-      'button,input[type="submit"],[role="button"]')).slice(0, 24);
+    const controls = [];
+    function collect(nodes) {
+      if (!nodes) return;
+      // Bound both DOM reads and temporary storage on large dynamic forms.
+      for (let i = 0; i < nodes.length && i < 48 && controls.length < 48; i++) {
+        if (nodes[i] && !controls.includes(nodes[i])) controls.push(nodes[i]);
+      }
+    }
+    collect(area.querySelectorAll('button,input[type="submit"],[role="button"]'));
+    // HTMLFormElement.elements includes buttons associated via form="id"
+    // even when they live outside the form subtree. Never search globally.
+    if (input.form) collect(input.form.elements);
     const valid = controls.filter(b => manualSubmit(b, input));
     // A form may contain reset, filter and navigation buttons as well.
     // Prefer an explicitly named search action; otherwise a UNIQUE native
@@ -307,13 +341,18 @@
     }
     return best?.selector || null;
   }
-  function detectPagination() {
+  function detectPagination(resultsSelector = null) {
     // Collect every trustworthy control across accessible document contexts.
     const roots = window.__zavroRecognition?.roots?.() || [document];
     const paths = [
       'a[rel="next"]', '.pagination a.next',
       '.pagination .next a', 'button.load-more',
-      'a.next[aria-label]', '.pager a[rel="next"]'
+      'a.next[aria-label]', '.pager a[rel="next"]',
+      'button[data-action="load-more"]', '[role="button"][data-action="load-more"]',
+      '.search-results button[aria-label="Pokaż więcej"]',
+      '.search-results button[aria-label="Load more"]',
+      '.video-grid button[aria-label="Load more"]',
+      '[data-search-results] button[aria-label="Load more"]'
     ];
     const matches = [];
     for (const root of roots) {
@@ -322,7 +361,7 @@
         try { elements = root.querySelectorAll(path); }
         catch (_) { continue; }
         if (elements.length !== 1) continue;
-        const next = manualNext(elements[0]);
+        const next = manualNext(elements[0], resultsSelector);
         if (next) matches.push(next);
       }
       let controls;
@@ -333,7 +372,7 @@
           .slice(0, 50);
       } catch (_) { controls = []; }
       for (const control of controls) {
-        const next = manualNext(control);
+        const next = manualNext(control, resultsSelector);
         if (next) matches.push(next);
       }
     }
@@ -364,7 +403,7 @@
     if (!safeForm(form) && !button) return { status: "partial" };
     const result = getCards();
     const submit = button ? "CLICK_SUBMIT" : "FORM_SUBMIT";
-    const page = detectPagination();
+    const page = detectPagination(result);
     return {
       status: result ? "ready" : "partial",
       inputSelector, resultsCardSelector: result,
@@ -390,7 +429,7 @@
     const inspection = tie ? {status:"missing"} :
       detect(getCards, inputs.map(x => ({input:x.input, score:x.points})));
     const cards = inspection.resultsCardSelector || getCards();
-    const page = cards ? detectPagination() : {pagination:"NONE",nextPageSelector:null};
+    const page = cards ? detectPagination(cards) : {pagination:"NONE",nextPageSelector:null};
     const formReady = !!inspection.inputSelector && !!inspection.submission;
     const unsafe = !inputs.length && !!document.querySelector?.(
       'form[method="post"] input[type="search"],input[type="password"]');
@@ -442,6 +481,24 @@
     if (input.form) {
       // HTML "form" attribute may associate a submit control outside <form>.
       if (!safeForm(input.form) || button.form !== input.form) return false;
+      // A submit control can override the enclosing safe GET form. Never
+      // click POST, cross-origin actions or a new browsing context.
+      const method = (button.getAttribute?.("formmethod") || "").trim().toUpperCase();
+      const target = (button.getAttribute?.("formtarget") || "").trim().toLowerCase();
+      if ((method && method !== "GET") || (target && target !== "_self"))
+        return false;
+      const override = button.getAttribute?.("formaction");
+      if (override != null) {
+        if (typeof override !== "string" || override.length > 1800) return false;
+        try {
+          const base = input.form.ownerDocument?.baseURI || location.href;
+          const destination = new URL(override || base, base);
+          if (!/^https?:$/.test(destination.protocol) ||
+              destination.origin !== location.origin ||
+              destination.username || destination.password ||
+              destination.href.length > 2048) return false;
+        } catch (_) { return false; }
+      }
     } else if (!area.contains(button) || button.form || button.closest?.("form")) return false;
     const type = (button.getAttribute?.("type") || "").toLowerCase();
     if (type === "reset" || type === "image") return false;
@@ -548,8 +605,48 @@
       window.__zavroRecognition?.controlHint(el)]
       .filter(x => typeof x === "string").map(x => x.slice(0, 90)).join(" ");
   }
+  // A generic "Next" in a carousel, account sidebar or related-video shelf
+  // is not a pagination command for the film search results.
+  const unrelatedPager = /(?:^|[\s_-])(?:sidebar|carousel|slider|related|recommend(?:ed|ations?)?|suggest(?:ed|ions?)?|trending|popular|featured|sponsored|advert(?:isement)?s?|promo|banner|checkout|login)(?:$|[\s_-])/i;
+  function excludedPagerRegion(el) {
+    let node = el;
+    for (let depth = 0; node && depth < 9; depth++, node = node.parentElement) {
+      if (node.tagName === "ASIDE" || node.getAttribute?.("role") === "complementary")
+        return true;
+      const hint = [node.id, typeof node.className === "string" ? node.className : "",
+        node.getAttribute?.("aria-label"), node.getAttribute?.("data-testid"),
+        node.getAttribute?.("data-type")]
+        .filter(v => typeof v === "string").join(" ");
+      if (unrelatedPager.test(hint)) return true;
+    }
+    return false;
+  }
+  function pagerBoundToResults(el, selector) {
+    if (!selector) return true;
+    let cards;
+    try { cards = resultNodes(selector); } catch (_) { return false; }
+    if (!cards) return false;
+    if (!cards.length) return true; // Hydration is pending, not a confirmed mismatch.
+    const first = cards[0];
+    if (el.ownerDocument && first.ownerDocument &&
+        el.ownerDocument !== first.ownerDocument) return false;
+    if (!el.parentElement || !first.parentElement) return true; // No inspectable structure.
+    const cardParents = new Set();
+    let parent = first.parentElement;
+    for (let depth = 0; parent && depth < 10; depth++, parent = parent.parentElement) {
+      if (["BODY", "HTML"].includes(parent.tagName)) break;
+      cardParents.add(parent);
+    }
+    parent = el.parentElement;
+    for (let depth = 0; parent && depth < 10; depth++, parent = parent.parentElement) {
+      if (["BODY", "HTML"].includes(parent.tagName)) break;
+      if (cardParents.has(parent)) return true;
+    }
+    // Both regions have identifiable parents but no non-page-level owner.
+    return false;
+  }
   function forbiddenPager(el) {
-    return backwardPager.test(pagerHint(el)) ||
+    return excludedPagerRegion(el) || backwardPager.test(pagerHint(el)) ||
       el.getAttribute?.("aria-disabled") === "true";
   }
   function safeSamePageAction(el) {
@@ -592,6 +689,7 @@
       Array.isArray(el.classList) && (el.classList.includes("active") ||
         el.classList.includes("current"))).map(numericPage).filter(Number.isInteger);
     if (marked.length === 1) return marked[0];
+    if (marked.length > 1) return null; // Conflicting active labels are unsafe.
     // URL query is reliable only when the page value is explicitly present.
     try {
       const url = new URL(location.href);
@@ -610,7 +708,15 @@
         el.matches?.('button,[role="button"],a[href]')));
     if (semantic.length === 1) return semantic[0];
     if (semantic.length > 1) return null;
-    const active = currentPage(controls);
+    // The current page may be a non-clickable <span aria-current="page">.
+    // It is evidence of position, never a candidate for clicking.
+    let currentMarkers = [];
+    try {
+      currentMarkers = Array.from(container.querySelectorAll(
+        '[aria-current="page"],[aria-selected="true"],.active,.current')).slice(0, 12);
+    } catch (_) { /* The explicit URL may still identify the active page. */ }
+    const active = currentPage([...controls, ...currentMarkers.filter(el =>
+      !controls.includes(el))]);
     if (active == null) return null;
     const next = controls.filter(el => numericPage(el) === active + 1 &&
       (kind === "NEXT_LINK" ? el.matches?.("a[href]") :
@@ -636,10 +742,11 @@
     }
     return false;
   }
-  function manualNext(node) {
+  function manualNext(node, resultsSelector = null) {
     const el = node.closest('a[href],button,[role="button"]');
     if (!el || !visible(el) || el.disabled ||
-        el.closest('[hidden],[inert],[aria-hidden="true"]') || forbiddenPager(el))
+        el.closest('[hidden],[inert],[aria-hidden="true"]') ||
+        forbiddenPager(el) || !pagerBoundToResults(el, resultsSelector))
       return null;
     const pager = pagerContainer(el);
     const number = numericPage(el);
@@ -1049,6 +1156,7 @@
     cancelPicker();
     manuallySelectedInput = null;
     endProbe = null;
+    infiniteScrollState = null;
     continuationAnchors.extract_batch = null;
     continuationAnchors.extract_crawl = null;
     try { documentId = newDocumentId(); } catch (_) { originRevoked = true; return; }
@@ -1269,7 +1377,10 @@
             parsed.username || parsed.password ||
             parsed.href.length > (filmPage ? 2048 : 800)) return null;
         if (filmPage) {
+          const documentUrl = new URL(base);
           if (parsed.origin !== location.origin || (parsed.href === location.href || parsed.href === base) ||
+              (parsed.pathname === documentUrl.pathname &&
+               parsed.search === documentUrl.search && parsed.hash) ||
               /\.(?:mp4|webm|m3u8|mpd|mp3|m4a|ts)(?:$)/i.test(parsed.pathname)) return null;
         }
         return parsed.href; // Full query is identity; never strip it.
@@ -1279,7 +1390,7 @@
       if (typeof value !== "string" || value.length > 65) return null;
       const v = value.trim();
       if (!v) return null;
-      const iso = /^PT(?:(\d{1,2})H)?(?:(\d{1,2})M)?(?:(\d{1,2})S)?$/i.exec(v);
+      const iso = /^PT(?:(\d{1,4})H)?(?:(\d{1,4})M)?(?:(\d{1,2})S)?$/i.exec(v);
       if (iso && (iso[1] || iso[2] || iso[3])) {
         const seconds = Number(iso[1] || 0) * 3600 +
           Number(iso[2] || 0) * 60 + Number(iso[3] || 0);
@@ -1299,6 +1410,18 @@
       const raw = value.trim();
       if (!/^\d{4}(?:-\d{2}(?:-\d{2})?)?(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})?)?$/i.test(raw))
         return null;
+      // Date.parse silently normalizes impossible dates such as 2024-02-31.
+      // Reject those rather than assigning a wrong publication date to a film.
+      const calendar = /^(\d{4})-(\d{2})(?:-(\d{2}))?/.exec(raw);
+      if (calendar) {
+        const year = Number(calendar[1]), month = Number(calendar[2]);
+        const day = Number(calendar[3] || 1);
+        const verified = new Date(Date.UTC(year, month - 1, day));
+        if (month < 1 || month > 12 ||
+            verified.getUTCFullYear() !== year ||
+            verified.getUTCMonth() + 1 !== month ||
+            verified.getUTCDate() !== day) return null;
+      }
       const normalized = /^\d{4}-\d{2}-\d{2}T/.test(raw) &&
         !/(?:Z|[+-]\d{2}:\d{2})$/i.test(raw) ? raw + "Z" : raw;
       const stamp = Date.parse(normalized);
@@ -1354,15 +1477,34 @@
         for (const entity of entities) {
           if (!entity || typeof entity !== "object" || Array.isArray(entity)) continue;
           const kinds = Array.isArray(entity["@type"]) ? entity["@type"] : [entity["@type"]];
-          if (!kinds.some(k => ["Movie", "VideoObject", "TVEpisode", "CreativeWork"].includes(k)))
-            continue;
+          // schema.org allows either plain @type or its canonical URL.
+          const acceptedTypes = ["Movie", "VideoObject", "TVEpisode", "CreativeWork"];
+          const type = kinds.map(k => typeof k === "string" ?
+            k.replace(/^https?:\/\/schema\.org\//i, "") : null)
+            .find(k => acceptedTypes.includes(k));
+          if (!type) continue;
           if (safeUrl(entity.url || entity["@id"], true) !== filmUrl) continue;
+          // An episode marker must come from this exact film entity. Never
+          // infer a season/episode from adjacent cards or other JSON-LD.
+          function episodeNumber(value) {
+            if (!(typeof value === "number" || typeof value === "string") ||
+                !/^\d{1,3}$/.test(String(value))) return null;
+            const number = Number(value);
+            return number >= 1 && number <= 999 ? number : null;
+          }
+          const season = episodeNumber(entity.partOfSeason?.seasonNumber ??
+            entity.seasonNumber);
+          const episode = episodeNumber(entity.episodeNumber);
+          const episodeTag = type === "TVEpisode" && season && episode ?
+            "S" + String(season).padStart(2, "0") +
+            "E" + String(episode).padStart(2, "0") : null;
           return {
             title: shortText(entity.name || entity.headline, 512),
             image: structuredPoster(entity),
             duration: duration(entity.duration),
             publishedAtMs: publicationDate(entity.datePublished || entity.uploadDate ||
-              entity.dateCreated)
+              entity.dateCreated),
+            episodeTag
           };
         }
       }
@@ -1376,14 +1518,14 @@
       try { pathname = new URL(filmUrl).pathname; } catch (_) { return true; }
       // These routes can have cards/posters/headings, but they are not film
       // pages. Never use them as persisted search-result identities.
-      if (/(?:^|\/)(?:categor(?:y|ies)|genres?|tags?|topics?|channels?|authors?|playlists?|collections?|account|login|log-in|signin|sign-in|register|signup|sign-up|checkout|cart|payment|purchase|ads?)(?:\/|$)/i.test(pathname))
+      if (/(?:^|\/)(?:categor(?:y|ies)|genres?|tags?|topics?|channels?|authors?|users?|profiles?|people|persons?|actors?|cast|comments?|reviews?|forum|playlists?|collections?|account|login|log-in|signin|sign-in|register|signup|sign-up|checkout|cart|payment|purchase|ads?)(?:\/|$)/i.test(pathname))
         return true;
       const relation = anchor.getAttribute("rel") || "";
       if (/(?:^|\s)tag(?:\s|$)/i.test(relation)) return true;
       const labels = [anchor.getAttribute("data-type"), anchor.getAttribute("data-role"),
         anchor.getAttribute("data-testid"), anchor.className, anchor.id]
         .filter(value => typeof value === "string").join(" ");
-      return /(?:^|[\s_-])(?:category|categories|genre|genres|tag|tags|topic|topics)(?:$|[\s_-])/i.test(labels);
+      return /(?:^|[\s_-])(?:category|categories|genre|genres|tag|tags|topic|topics|author|user|profile|actor|cast|comment|review|share|sponsored)(?:$|[\s_-])/i.test(labels);
     }
     function selectedAnchor(card) {
       if (command.linkSelector) {
@@ -1425,7 +1567,13 @@
         });
       }
       const choices = Array.from(candidates.values());
-      if (choices.length === 1) return choices[0];
+      if (choices.length === 1) {
+        const only = choices[0];
+        // A generic URL without title, semantic, poster or film-path
+        // evidence cannot become a film solely from a neighboring heading.
+        return only.named || only.semantic || only.poster || only.filmPath ?
+          only : null;
+      }
       // Strongest unambiguous, card-local evidence wins. A tie is
       // ambiguous, not permission to pick the first same-origin URL.
       for (const signal of ["named", "semantic", "poster", "filmPath"]) {
@@ -1497,6 +1645,12 @@
     // The native collector will stop with ERROR, never completed success.
     const contiguous = prior && prior.selector === command.resultsCardSelector &&
       prior.next === start;
+    function cursorLink(card) {
+      // Virtualized lists may reuse the same node while replacing its href.
+      // Keep only a bounded, in-memory local comparison for this cursor.
+      const href = card?.querySelector?.("a[href]")?.getAttribute?.("href");
+      return typeof href === "string" ? href.slice(0, 1800) : null;
+    }
     if (start > cards.length) {
       if (stream) continuationAnchors[stream] = null;
       // A stand-alone high offset (without an observed prior batch) retains
@@ -1505,7 +1659,8 @@
       return { status:contiguous ? "stale" : "empty",
         films:[], inspectedCards:0, moreOnPage:false };
     }
-    if (contiguous && cards[start - 1] !== prior.anchor) {
+    if (contiguous && (cards[start - 1] !== prior.anchor ||
+        cursorLink(cards[start - 1]) !== prior.anchorLink)) {
       if (stream) continuationAnchors[stream] = null;
       return { status:"stale", films:[], inspectedCards:0, moreOnPage:false };
     }
@@ -1517,6 +1672,9 @@
     let consumed = end - start;
     for (let index = start; index < end; index++) {
       const card = cards[index];
+      // Recognition can group cards by CSS while the page mixes in an
+      // advertisement or related shelf. Enforce card-level exclusion again.
+      if (excludedResultCard(card)) continue;
       const match = selectedAnchor(card);
       if (!match) continue;
       const { anchor, filmUrl } = match;
@@ -1541,9 +1699,15 @@
           nodeText(cardTime, 65) || "") ?? inline?.duration ?? null;
       const structuredTitleIsValid = !!titleFromJson && duration(titleFromJson) === null;
       const titleText = structuredTitleIsValid ? titleFromJson : title.value;
+      // Preserve exact-URL TVEpisode season/episode identity in the existing
+      // title field without changing the native wire format or Room schema.
+      // Do not duplicate a marker already present on this same film title.
+      const taggedTitle = inline?.episodeTag && titleText &&
+        !/\bS\d{1,3}\s*E\d{1,3}\b/i.test(titleText) ?
+        (shortText(titleText + " · " + inline.episodeTag, 512) || titleText) : titleText;
       // A pure timestamp in the title slot is metadata noise, not a title.
       // Timestamps embedded in an actual title remain untouched.
-      const safeTitle = titleText && duration(titleText) === null ? titleText : null;
+      const safeTitle = taggedTitle && duration(taggedTitle) === null ? taggedTitle : null;
       const publicationNode = scoped(card,
         '[itemprop="datePublished"],[data-published],[data-upload-date],time[datetime]:not(.duration):not(.runtime)');
       const publishedAtMs = inline?.publishedAtMs ??
@@ -1584,7 +1748,8 @@
     if (stream) continuationAnchors[stream] = consumed > 0 && more ? {
       selector: command.resultsCardSelector,
       next: start + consumed,
-      anchor: cards[start + consumed - 1]
+      anchor: cards[start + consumed - 1],
+      anchorLink: cursorLink(cards[start + consumed - 1])
     } : null;
     return { status: films.length ? "ok" : "empty",
       films, inspectedCards: consumed, moreOnPage: more };
@@ -1635,11 +1800,15 @@
       function scrollPlan() {
         const cards = resultNodes(command.resultsCardSelector);
         if (!cards || !cards.length) return null; // SPA may still be hydrating.
-        const first = cards[0], second = cards.length > 1 ? cards[1] : first;
-        if (!first || !second || first.isConnected === false ||
-            second.isConnected === false) return null;
+        // Check both ends of the virtual window and the middle element.
+        // Virtual lists may recycle the trailing rows while the first stays.
+        const first = cards[0], middle = cards[Math.floor((cards.length - 1) / 2)],
+          last = cards[cards.length - 1];
+        if (!first || !middle || !last || [first, middle, last].some(card =>
+            card.isConnected === false || excludedResultCard(card))) return null;
         const doc = first.ownerDocument || document;
-        if ((second.ownerDocument || document) !== doc) return null;
+        if ([middle, last].some(card => (card.ownerDocument || document) !== doc))
+          return null;
         const view = doc.defaultView || window;
         function scrollOwner(card) {
           let ancestor = card.parentElement;
@@ -1656,25 +1825,62 @@
           return null;
         }
         const owner = scrollOwner(first);
-        if (owner !== scrollOwner(second)) return null;
+        if (owner !== scrollOwner(middle) || owner !== scrollOwner(last)) return null;
         if (owner ? typeof owner.scrollBy !== "function" :
             typeof view.scrollBy !== "function") return null;
-        return {first, doc, view, owner};
+        function filmIdentity(card) {
+          // URL is used only as a short-lived, local comparison signal.
+          // Never log, store across sessions, or send these values to native.
+          const anchor = card.querySelector?.("a[href]");
+          const href = anchor?.getAttribute?.("href");
+          return typeof href === "string" ? href.slice(0, 1800) : null;
+        }
+        const position = owner ? owner.scrollTop : view.scrollY;
+        return {
+          first, middle, last, count: cards.length, doc, view, owner,
+          firstLink: filmIdentity(first), lastLink: filmIdentity(last),
+          position: Number.isFinite(position) ? position : null
+        };
       }
       const planned = scrollPlan();
       if (!planned) return "pending";
+      function sameWindow(before, after) {
+        return before && after && before.doc === after.doc &&
+          before.view === after.view && before.owner === after.owner &&
+          before.first === after.first && before.middle === after.middle &&
+          before.last === after.last && before.count === after.count &&
+          before.firstLink === after.firstLink &&
+          before.lastLink === after.lastLink &&
+          before.position === after.position;
+      }
+      const previous = infiniteScrollState;
+      if (previous?.selector !== command.resultsCardSelector) infiniteScrollState = null;
+      else if (previous?.pending) return "pending"; // Never overlap queued scrolls.
+      // A virtualized window may keep the same nodes while changing their URLs;
+      // position and boundary film identities therefore count as progress.
+      const unchanged = sameWindow(previous?.snapshot, planned);
+      const stalls = unchanged ? previous.stalls + 1 : 0;
+      if (stalls >= 2) {
+        infiniteScrollState = {selector: command.resultsCardSelector,
+          pending: false, snapshot: planned, stalls};
+        return "pending"; // No evidence of end, no third blind scroll.
+      }
       endProbe = null;
+      const state = {selector: command.resultsCardSelector, pending: true,
+        snapshot: planned, stalls};
+      infiniteScrollState = state;
       const issuedRevision = navigationRevision;
       setTimeout(function () {
+        // A later route/action can replace the state before this callback.
+        if (infiniteScrollState !== state) return;
+        state.pending = false;
         if (issuedRevision !== navigationRevision ||
             location.href !== startUrl || !ready ||
             blocked.test(location.pathname) ||
             document.querySelector('input[type="password"]') || loading()) return;
         const fresh = scrollPlan();
-        // The owner/document must not be replaced while this action is queued.
-        if (!fresh || fresh.first !== planned.first ||
-            fresh.doc !== planned.doc || fresh.view !== planned.view ||
-            fresh.owner !== planned.owner) return;
+        // Reject any partial virtual-window replacement or owner change.
+        if (!sameWindow(planned, fresh)) return;
         if (fresh.owner) fresh.owner.scrollBy({
           top: Math.max(180, Math.floor(fresh.owner.clientHeight * 0.8)),
           behavior: "instant"

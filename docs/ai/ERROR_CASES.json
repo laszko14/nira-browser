@@ -120,6 +120,66 @@
       "task_id": "ZC-V4-P3-E-INTEGRATION-ACCEPTANCE",
       "observed_count": 0,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P4-A1-RECOGNITION-FIXTURES",
+      "observed_count": 8,
+      "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P4-A2-DYNAMIC-LIFECYCLE",
+      "observed_count": 0,
+      "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P4-B1-SMART-SEARCH-CONTROLS",
+      "observed_count": 0,
+      "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P4-B2-FILM-CARD-RELEVANCE",
+      "observed_count": 3,
+      "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P4-C1-PAGER-OWNERSHIP",
+      "observed_count": 0,
+      "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P4-C2-INFINITE-SCROLL-GUARD",
+      "observed_count": 7,
+      "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P4-D1-CARD-METADATA",
+      "observed_count": 2,
+      "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P4-D2-EPISODE-GROUPING",
+      "observed_count": 0,
+      "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P4-E1-RESPONSIVE-RESULTS",
+      "observed_count": 4,
+      "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P4-E2-BULK-MERGED-SELECTION",
+      "observed_count": 0,
+      "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P4-F1-LARGE-SEARCH-PERF",
+      "observed_count": 2,
+      "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P4-F2-FINAL-REGRESSION",
+      "observed_count": 2,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -2582,6 +2642,570 @@
       "summary": "SOURCE second-run evidence summary correctly failed due to Kotlin test assertion; JS, docs, AndroidTest and lint passed but this does not satisfy required jobs.",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42273735594"
+      ]
+    },
+    {
+      "id": "CI-42348525469-POST",
+      "task_id": "ZC-V4-P4-A1-RECOGNITION-FIXTURES",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4a1-post-inspect-undefined-vs-null",
+      "summary": "PR JavaScript: new POST search safety test expected null for an omitted inspection field; actual inspection returned undefined. Changed to stricter unsafe analysis with no input or submit control.",
+      "source_sha": "131acca9cc6ccc0a3d1355ac01b22433f6ceb9ae",
+      "observed_at": null,
+      "run_id": 42348525469,
+      "job_id": 128331449423,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "c1049d6edd1efeba3dfe62fdc5d09fe0bf8a35c7",
+      "regression_test": "app/src/test/js/video-search-structural-v4.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42348525469"
+      ]
+    },
+    {
+      "id": "CI-42348525469-AMBIG",
+      "task_id": "ZC-V4-P4-A1-RECOGNITION-FIXTURES",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4a1-ambiguous-inspect-undefined-vs-null",
+      "summary": "PR JavaScript: new ambiguous GET input fixture expected null on inspection; inspection omitted inputSelector. Switched to analysis and explicit ambiguous_input rejection with null input.",
+      "source_sha": "131acca9cc6ccc0a3d1355ac01b22433f6ceb9ae",
+      "observed_at": null,
+      "run_id": 42348525469,
+      "job_id": 128331449423,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "c1049d6edd1efeba3dfe62fdc5d09fe0bf8a35c7",
+      "regression_test": "app/src/test/js/video-search-structural-v4.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42348525469"
+      ]
+    },
+    {
+      "id": "CI-42348510836-DOCS",
+      "task_id": "ZC-V4-P4-A1-RECOGNITION-FIXTURES",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4a1-handoff-missing-required-ci-names",
+      "summary": "SOURCE process-docs: handoff required_ci lacked explicit process-docs and shared-tests names required by unchanged checkpoint restart test. Added exact logical gate names.",
+      "source_sha": "131acca9cc6ccc0a3d1355ac01b22433f6ceb9ae",
+      "observed_at": null,
+      "run_id": 42348510836,
+      "job_id": 128331498839,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "c1049d6edd1efeba3dfe62fdc5d09fe0bf8a35c7",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42348510836"
+      ]
+    },
+    {
+      "id": "CI-42348510836-POST",
+      "task_id": "ZC-V4-P4-A1-RECOGNITION-FIXTURES",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4a1-post-inspect-undefined-vs-null",
+      "summary": "SOURCE JavaScript reproduced PR failure: inspection omitted submitSelector for unsafe POST, whereas new test assumed null. Corrected analysis contract at c1049d6.",
+      "source_sha": "131acca9cc6ccc0a3d1355ac01b22433f6ceb9ae",
+      "observed_at": null,
+      "run_id": 42348510836,
+      "job_id": 128331498967,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": "CI-42348525469-POST",
+      "fix_sha": "c1049d6edd1efeba3dfe62fdc5d09fe0bf8a35c7",
+      "regression_test": "app/src/test/js/video-search-structural-v4.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42348510836"
+      ]
+    },
+    {
+      "id": "CI-42348510836-AMBIG",
+      "task_id": "ZC-V4-P4-A1-RECOGNITION-FIXTURES",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4a1-ambiguous-inspect-undefined-vs-null",
+      "summary": "SOURCE JavaScript reproduced PR failure: inspection omitted inputSelector for tied GET search fields. Corrected test to assert ambiguous analysis and no selected input.",
+      "source_sha": "131acca9cc6ccc0a3d1355ac01b22433f6ceb9ae",
+      "observed_at": null,
+      "run_id": 42348510836,
+      "job_id": 128331498967,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": "CI-42348525469-AMBIG",
+      "fix_sha": "c1049d6edd1efeba3dfe62fdc5d09fe0bf8a35c7",
+      "regression_test": "app/src/test/js/video-search-structural-v4.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42348510836"
+      ]
+    },
+    {
+      "id": "CI-42348510836-SUMMARY",
+      "task_id": "ZC-V4-P4-A1-RECOGNITION-FIXTURES",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4a1-required-summary-upstream-failure",
+      "summary": "SOURCE mandatory evidence summary correctly failed because process-docs and JS regression jobs failed; skipped downstream or green unrelated checks are not a pass.",
+      "source_sha": "131acca9cc6ccc0a3d1355ac01b22433f6ceb9ae",
+      "observed_at": null,
+      "run_id": 42348510836,
+      "job_id": 128331532263,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "b35801c950a669967a24deb6e66f1fc24341a1f7",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42348510836"
+      ]
+    },
+    {
+      "id": "CI-42348748165-DOCS",
+      "task_id": "ZC-V4-P4-A1-RECOGNITION-FIXTURES",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4a1-handoff-missing-legacy-archive-path",
+      "summary": "SOURCE process-docs on first repair commit passed preflight but failed checkpoint restart contract: handoff lacked canonical historical archive reference. Added reference.",
+      "source_sha": "c1049d6edd1efeba3dfe62fdc5d09fe0bf8a35c7",
+      "observed_at": null,
+      "run_id": 42348748165,
+      "job_id": 128332127450,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "b35801c950a669967a24deb6e66f1fc24341a1f7",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42348748165"
+      ]
+    },
+    {
+      "id": "CI-42348748165-SUMMARY",
+      "task_id": "ZC-V4-P4-A1-RECOGNITION-FIXTURES",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4a1-required-summary-upstream-failure",
+      "summary": "SOURCE required summary on c1049d6 correctly reported failed process-docs; that run was later cancelled after a newer push. Do not report cancelled source as PASS.",
+      "source_sha": "c1049d6edd1efeba3dfe62fdc5d09fe0bf8a35c7",
+      "observed_at": null,
+      "run_id": 42348748165,
+      "job_id": 128332469134,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": "CI-42348510836-SUMMARY",
+      "fix_sha": "b35801c950a669967a24deb6e66f1fc24341a1f7",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42348748165"
+      ]
+    },
+    {
+      "id": "CI-42470515830-P4B2-WEAK",
+      "task_id": "ZC-V4-P4-B2-FILM-CARD-RELEVANCE",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4b2-repeated-weak-anchor-low-confidence-regression",
+      "summary": "SOURCE JS 543/544 PASS: P2-E weak repeated /item links lost LOW_CONFIDENCE diagnostic after the new film-link requirement; returned CARDS_NOT_FOUND. Fix preserves weak observations below native confidence 85.",
+      "source_sha": "2e84e73628b4814ff86521831a0c2f70442efdf1",
+      "observed_at": null,
+      "run_id": 42470515830,
+      "job_id": 128699932651,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "1aad97aa7159b70d110b61d87d01be41843bea5a",
+      "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42470515830"
+      ]
+    },
+    {
+      "id": "CI-42470519760-P4B2-WEAK",
+      "task_id": "ZC-V4-P4-B2-FILM-CARD-RELEVANCE",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4b2-repeated-weak-anchor-low-confidence-regression",
+      "summary": "PR JavaScript replayed the same P2-E LOW_CONFIDENCE contract regression on source SHA 2e84e7; source-backed test must stay unchanged. Fix maintains weak diagnostic while denying persisted selectors.",
+      "source_sha": "2e84e73628b4814ff86521831a0c2f70442efdf1",
+      "observed_at": null,
+      "run_id": 42470519760,
+      "job_id": 128699944732,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-42470515830-P4B2-WEAK",
+      "fix_sha": "1aad97aa7159b70d110b61d87d01be41843bea5a",
+      "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42470519760"
+      ]
+    },
+    {
+      "id": "CI-42470515830-P4B2-SUMMARY",
+      "task_id": "ZC-V4-P4-B2-FILM-CARD-RELEVANCE",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4b2-source-required-summary-upstream-js-failure",
+      "summary": "SOURCE required-jobs summary failed correctly because JavaScript regressions failed and downstream Kotlin, AndroidTest and lint were skipped; skipped jobs are not PASS.",
+      "source_sha": "2e84e73628b4814ff86521831a0c2f70442efdf1",
+      "observed_at": null,
+      "run_id": 42470515830,
+      "job_id": 128699973704,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "1aad97aa7159b70d110b61d87d01be41843bea5a",
+      "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42470515830"
+      ]
+    },
+    {
+      "id": "CI-42475049401-P4C2-DOCS",
+      "task_id": "ZC-V4-P4-C2-INFINITE-SCROLL-GUARD",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4c2-handoff-required_ci-missing-exact-shared-tests",
+      "summary": "SOURCE process-docs failed restartable checkpoint contract: docs/AI_HANDOFF.md required_ci described shared JS gates but omitted the exact required 'shared-tests' keyword. Corrected handoff without relaxing tests.",
+      "source_sha": "d064c90b937b57f3a9dff88f66ae81e3f0a81f60",
+      "observed_at": null,
+      "run_id": 42475049401,
+      "job_id": 128714397420,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "795857f865aba90eb4a467f03ea5104452fdee84",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42475049401"
+      ]
+    },
+    {
+      "id": "CI-42475049401-P4C2-SUMMARY",
+      "task_id": "ZC-V4-P4-C2-INFINITE-SCROLL-GUARD",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4c2-source-summary-reports-upstream-process-docs-failure",
+      "summary": "SOURCE required-jobs summary correctly failed because process-docs did not pass its restartable checkpoint contract; JS, Kotlin/Robolectric, AndroidTest Kotlin compile and lint succeeded. Failed summary not counted as PASS.",
+      "source_sha": "d064c90b937b57f3a9dff88f66ae81e3f0a81f60",
+      "observed_at": null,
+      "run_id": 42475049401,
+      "job_id": 128716094714,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "795857f865aba90eb4a467f03ea5104452fdee84",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42475049401"
+      ]
+    },
+    {
+      "id": "CI-42475725324-P4C2-JS",
+      "task_id": "ZC-V4-P4-C2-INFINITE-SCROLL-GUARD",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4c2-recycled-cursor-js-fixture-missing-queryselector-anchor",
+      "summary": "SOURCE JS 561/562 passed; new recycled-href cursor test expected stale but got ok. The fixture lacked standard card.querySelector('a[href]') although it exposed querySelectorAll. Updated the fixture to match DOM behavior without weakening the stale-cursor assertion.",
+      "source_sha": "a504a77911bb98ce6cc7ac820d54de4ecc8c37c3",
+      "observed_at": null,
+      "run_id": 42475725324,
+      "job_id": 128716541664,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "cffcd30674158476d4633fe604ef2d726f0e102e",
+      "regression_test": "app/src/test/js/video-search-p3e-integration.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42475725324"
+      ]
+    },
+    {
+      "id": "CI-42475729250-P4C2-JS",
+      "task_id": "ZC-V4-P4-C2-INFINITE-SCROLL-GUARD",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4c2-recycled-cursor-js-fixture-missing-queryselector-anchor",
+      "summary": "PR JavaScript observed the same fixture regression on a504a77911bb98ce6cc7ac820d54de4ecc8c37c3. Existing shipping code requires standard DOM querySelector('a[href]'); fixture brought into parity.",
+      "source_sha": "a504a77911bb98ce6cc7ac820d54de4ecc8c37c3",
+      "observed_at": null,
+      "run_id": 42475729250,
+      "job_id": 128716554172,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": "CI-42475725324-P4C2-JS",
+      "fix_sha": "cffcd30674158476d4633fe604ef2d726f0e102e",
+      "regression_test": "app/src/test/js/video-search-p3e-integration.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42475729250"
+      ]
+    },
+    {
+      "id": "CI-42475725324-P4C2-SUMMARY",
+      "task_id": "ZC-V4-P4-C2-INFINITE-SCROLL-GUARD",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4c2-source-required-summary-upstream-js-failure",
+      "summary": "SOURCE required-jobs summary correctly failed because the new JS regression failed; downstream Kotlin/Robolectric, AndroidTest Kotlin compile and lint were skipped. Do not count skipped branches as success.",
+      "source_sha": "a504a77911bb98ce6cc7ac820d54de4ecc8c37c3",
+      "observed_at": null,
+      "run_id": 42475725324,
+      "job_id": 128716590876,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "cffcd30674158476d4633fe604ef2d726f0e102e",
+      "regression_test": "app/src/test/js/video-search-p3e-integration.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42475725324"
+      ]
+    },
+    {
+      "id": "CI-42476044251-P4C2-DOCS",
+      "task_id": "ZC-V4-P4-C2-INFINITE-SCROLL-GUARD",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4c2-registry-event-summary-exceeded-320-chars",
+      "summary": "SOURCE process-docs rejected P4-C2 error-learning registry: one earlier CI event summary was 336 characters, exceeding the 320-character schema limit. Shortened it without discarding cause, source SHA, evidence or regression contract.",
+      "source_sha": "113386acc34e248093a0747a4398a64b121a0d49",
+      "observed_at": null,
+      "run_id": 42476044251,
+      "job_id": 128717535711,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "875bc964153cc0700ac9e2378c904d24efcbcf36",
+      "regression_test": "scripts/error-learning.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42476044251"
+      ]
+    },
+    {
+      "id": "CI-42476044251-P4C2-SUMMARY",
+      "task_id": "ZC-V4-P4-C2-INFINITE-SCROLL-GUARD",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4c2-required-summary-upstream-error-learning-validation",
+      "summary": "SOURCE mandatory summary failed because process-docs rejected a too-long error-learning description; JS, Kotlin/Robolectric, AndroidTest Kotlin compilation and lint succeeded. Upstream failure correctly prevents SOURCE PASS.",
+      "source_sha": "113386acc34e248093a0747a4398a64b121a0d49",
+      "observed_at": null,
+      "run_id": 42476044251,
+      "job_id": 128719122504,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "875bc964153cc0700ac9e2378c904d24efcbcf36",
+      "regression_test": "scripts/error-learning.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42476044251"
+      ]
+    },
+    {
+      "id": "CI-42480367904-P4D1-DOCS",
+      "task_id": "ZC-V4-P4-D1-CARD-METADATA",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4d1-handoff-missing-legacy-archive-reference",
+      "summary": "SOURCE process-docs failed the current handoff restart contract because P4-D1 omitted the required archived handoff reference. Corrected the checkpoint and verified the handoff process-docs step in SOURCE run 42480524887.",
+      "source_sha": "5d69a26e164e5f86d3a2bacaf3ad37c01e32abd1",
+      "observed_at": null,
+      "run_id": 42480367904,
+      "job_id": 128730766555,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "d3210a4057b9679af7d593acdb10b7060a550e73",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42480367904"
+      ]
+    },
+    {
+      "id": "CI-42480367904-P4D1-SUMMARY",
+      "task_id": "ZC-V4-P4-D1-CARD-METADATA",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4d1-required-summary-upstream-process-docs",
+      "summary": "SOURCE mandatory evidence summary failed because process-docs failed its archive-reference contract. The upstream gate blocks a false PASS, and the corrected handoff passes its checkpoint validation.",
+      "source_sha": "5d69a26e164e5f86d3a2bacaf3ad37c01e32abd1",
+      "observed_at": null,
+      "run_id": 42480367904,
+      "job_id": 128731324729,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "d3210a4057b9679af7d593acdb10b7060a550e73",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42480367904"
+      ]
+    },
+    {
+      "id": "CI-42488143617-E1-DOCS",
+      "task_id": "ZC-V4-P4-E1-RESPONSIVE-RESULTS",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4e1-handoff-missing-shared-tests-literal",
+      "summary": "SOURCE process-docs failed checkpoint contract because required_ci omitted the exact shared-tests term. Restored the required term in the checkpoint.",
+      "source_sha": "3ee4dedd82e8f3a7dc19a29614d848c04d1f378f",
+      "observed_at": null,
+      "run_id": 42488143617,
+      "job_id": 128754433519,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "9855502eb5a2844f66e280d7d39525f42315d171",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42488143617"
+      ]
+    },
+    {
+      "id": "CI-42488143617-E1-LINT",
+      "task_id": "ZC-V4-P4-E1-RESPONSIVE-RESULTS",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4e1-source-lint-configuration-screen-width-height-plus-two",
+      "summary": "SOURCE lint-regression blocked two new ConfigurationScreenWidthHeight warnings from LocalConfiguration screen dimensions. The code now measures parent BoxWithConstraints viewport dimensions.",
+      "source_sha": "3ee4dedd82e8f3a7dc19a29614d848c04d1f378f",
+      "observed_at": null,
+      "run_id": 42488143617,
+      "job_id": 128754467422,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "9855502eb5a2844f66e280d7d39525f42315d171",
+      "regression_test": "scripts/lint-regression.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42488143617"
+      ]
+    },
+    {
+      "id": "CI-42488143617-E1-SUMMARY",
+      "task_id": "ZC-V4-P4-E1-RESPONSIVE-RESULTS",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4e1-summary-upstream-docs-and-lint-failure",
+      "summary": "SOURCE required summary correctly failed because process-docs and lint-regression failed. The upstream defects were corrected without relaxing either acceptance gate.",
+      "source_sha": "3ee4dedd82e8f3a7dc19a29614d848c04d1f378f",
+      "observed_at": null,
+      "run_id": 42488143617,
+      "job_id": 128755765025,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "9855502eb5a2844f66e280d7d39525f42315d171",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42488143617"
+      ]
+    },
+    {
+      "id": "CI-42488148084-E1-PR-LINT",
+      "task_id": "ZC-V4-P4-E1-RESPONSIVE-RESULTS",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4e1-pr-lint-configuration-screen-width-height-plus-two",
+      "summary": "PR lint independently blocked the same two new ConfigurationScreenWidthHeight warnings. Replaced screen dimension reads with measured Compose viewport dimensions; lint baseline unchanged.",
+      "source_sha": "3ee4dedd82e8f3a7dc19a29614d848c04d1f378f",
+      "observed_at": null,
+      "run_id": 42488148084,
+      "job_id": 128754492583,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "9855502eb5a2844f66e280d7d39525f42315d171",
+      "regression_test": "scripts/lint-regression.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42488148084"
+      ]
+    },
+    {
+      "id": "REVIEW-P4F1-SELECTION-SCAN",
+      "task_id": "ZC-V4-P4-F1-LARGE-SEARCH-PERF",
+      "kind": "REVIEW",
+      "fingerprint": "p4f1-full-snapshot-rescanned-per-selection",
+      "summary": "Results UI resolved selected films against the entire saved run on each recomposition, while each merged selection rebuilt a full film index. A retained snapshot-scoped index removes repeated scans; deterministic 12k/200-action test counts backing reads.",
+      "source_sha": "717eb29495a5adeb0285bab06cf768e7d0280eff",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "3864a336741d69b26881f68ab0276e13ccf8cb10",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchBulkSelectionTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/717eb29495a5adeb0285bab06cf768e7d0280eff",
+        "https://github.com/laszko14/nira-browser/commit/3864a336741d69b26881f68ab0276e13ccf8cb10"
+      ]
+    },
+    {
+      "id": "REVIEW-P4F1-CANCEL-QUEUED",
+      "task_id": "ZC-V4-P4-F1-LARGE-SEARCH-PERF",
+      "kind": "REVIEW",
+      "fingerprint": "p4f1-cancelled-dispatch-leaves-queued-sites",
+      "summary": "An externally cancelled dispatch did not mark not-yet-started websites as stopped. Structured cancellation now stops pending work after child completion while keeping unacknowledged external leases honest; tested with fifty websites.",
+      "source_sha": "717eb29495a5adeb0285bab06cf768e7d0280eff",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "3864a336741d69b26881f68ab0276e13ccf8cb10",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchMultiSiteExecutorTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/717eb29495a5adeb0285bab06cf768e7d0280eff",
+        "https://github.com/laszko14/nira-browser/commit/3864a336741d69b26881f68ab0276e13ccf8cb10"
+      ]
+    },
+    {
+      "id": "CI-P4F2-HANDOFF-PROCESS",
+      "task_id": "ZC-V4-P4-F2-FINAL-REGRESSION",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4f2.handoff.missing-archive-shared-tests",
+      "summary": "Initial F2 SOURCE process-docs failed because AI_HANDOFF omitted the exact legacy archive path and shared-tests literal required by existing check-ai-handoff test. Handoff fixed without changing gate.",
+      "source_sha": "34a66aeb7d81db6ed2adbe5e7b305dc59068d276",
+      "observed_at": "2026-11-08T16:24:50Z",
+      "run_id": 42499752653,
+      "job_id": 128789713161,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "c7718fa786a36e458412e55c3bbe9b98df5bcfb5",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42499752653",
+        "https://github.com/laszko14/nira-browser/commit/c7718fa786a36e458412e55c3bbe9b98df5bcfb5"
+      ]
+    },
+    {
+      "id": "CI-P4F2-SOURCE-SUMMARY",
+      "task_id": "ZC-V4-P4-F2-FINAL-REGRESSION",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4f2.required-summary-upstream-red",
+      "summary": "Initial F2 SOURCE required evidence summary correctly rejected the unsuccessful process-docs job. Repairing the handoff lets the unchanged CI evidence gate report success on the final SHA.",
+      "source_sha": "34a66aeb7d81db6ed2adbe5e7b305dc59068d276",
+      "observed_at": "2026-11-08T16:30:42Z",
+      "run_id": 42499752653,
+      "job_id": 128791197897,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "c7718fa786a36e458412e55c3bbe9b98df5bcfb5",
+      "regression_test": "scripts/ci-evidence.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42499752653",
+        "https://github.com/laszko14/nira-browser/commit/c7718fa786a36e458412e55c3bbe9b98df5bcfb5"
       ]
     }
   ]
