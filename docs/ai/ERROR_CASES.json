@@ -2879,7 +2879,7 @@
       "task_id": "ZC-V4-P4-C2-INFINITE-SCROLL-GUARD",
       "kind": "CI_FAILURE",
       "fingerprint": "p4c2-recycled-cursor-js-fixture-missing-queryselector-anchor",
-      "summary": "SOURCE JS (561/562 pass) failed added P4-C2 same-card href recycling regression: expected stale, got ok because sanitized fixture implemented card.querySelectorAll('a[href]') but lacked native DOM card.querySelector('a[href]') used by the bounded cursor guard. Added production-faithful querySelector in fixture without changing oracle.",
+      "summary": "SOURCE JS 561/562 passed; new recycled-href cursor test expected stale but got ok. The fixture lacked standard card.querySelector('a[href]') although it exposed querySelectorAll. Updated the fixture to match DOM behavior without weakening the stale-cursor assertion.",
       "source_sha": "a504a77911bb98ce6cc7ac820d54de4ecc8c37c3",
       "observed_at": null,
       "run_id": 42475725324,
