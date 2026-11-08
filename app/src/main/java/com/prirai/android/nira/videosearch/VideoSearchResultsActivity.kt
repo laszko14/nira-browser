@@ -252,10 +252,6 @@ internal fun VideoSearchResultsScreen(
 ) {
     val configuration = LocalConfiguration.current
     val landscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-    val tileWidth = VideoSearchResultsLayoutPolicy.tileMinWidthDp(
-        configuration.screenWidthDp, landscape).dp
-    val filterHeight = VideoSearchResultsLayoutPolicy.filterPanelMaxHeightDp(
-        configuration.screenHeightDp, landscape).dp
     val snapshot = state.snapshot
     val run = snapshot?.run
     // Film navigation unmounts Compose; this tab-owned state survives re-entry.
@@ -419,6 +415,12 @@ internal fun VideoSearchResultsScreen(
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = Color(0xff090811)) {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+        // The actual Compose container, including split-screen, defines width/height.
+        val tileWidth = VideoSearchResultsLayoutPolicy.tileMinWidthDp(
+            maxWidth.value.toInt(), landscape).dp
+        val filterHeight = VideoSearchResultsLayoutPolicy.filterPanelMaxHeightDp(
+            maxHeight.value.toInt(), landscape).dp
         Column(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
             Row(
                 Modifier.fillMaxWidth().background(Color(0xff100b20))
@@ -914,6 +916,7 @@ internal fun VideoSearchResultsScreen(
                     }
                 }
             }
+        }
         }
     }
     selectedMerge?.let { group ->
