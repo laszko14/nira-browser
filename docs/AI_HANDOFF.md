@@ -1,40 +1,42 @@
-# AI_HANDOFF — Zavro Clean V4 / P4-E2 merged bulk selection
+# AI_HANDOFF — Zavro Clean V4 / P4-F1 large searches and cancellation
 
-> Historical archive: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md. Pre-commit snapshot only; live GitHub HEAD overrides observed_head_sha. Previous P4-E1 CODE_VERIFIED at f7fb266ccb06264ca4b6847da6deeefc3b43550c; SOURCE #42488971704 and PR #42488976490 SUCCESS.
+> Historical archive: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md. Snapshot recorded before push; the live branch HEAD overrides observed_head_sha. P4-E2 CODE_VERIFIED at 717eb29495a5adeb0285bab06cf768e7d0280eff, SOURCE #42494203233 and PR #42494208399 SUCCESS.
 
 ```yaml
-task_id: ZC-V4-P4-E2-BULK-MERGED-SELECTION
+task_id: ZC-V4-P4-F1-LARGE-SEARCH-PERF
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: feat/zavro-clean-v4-p4-20261107
-base_sha: f7fb266ccb06264ca4b6847da6deeefc3b43550c
-observed_head_sha: f7fb266ccb06264ca4b6847da6deeefc3b43550c
+base_sha: 717eb29495a5adeb0285bab06cf768e7d0280eff
+observed_head_sha: 717eb29495a5adeb0285bab06cf768e7d0280eff
 status: CI_PENDING
-acceptance_source: User "dalej" after completed P4-E1. Perform P4-E2 selecting films and non-destructive bulk actions across merged groups, without APK, merge or unrelated changes.
-completed: Fixed merged film-card selection in both tile and list/mini-list. Tapping, checkbox and long press in selection mode toggle the whole original merged cluster rather than its primary film; partially selected cluster becomes fully selected before another click deselects it. Group selection checks run, profile, site, exact saved URL and duplicates against full snapshot and fails closed on stale/foreign cards. UI displays original group count and selected-member count. Website rows use long-press-to-toggle only during selection. Existing 11 bulk actions, group ownership, film URLs, scroll/filter state and source attribution remain unchanged. Five new JVM tests including 370 merged items beyond the first 150 and duplicate URLs from different sites.
-remaining: Verify exact final-SHA SOURCE process-docs and shared-tests JS/Kotlin/Robolectric/AndroidTest Kotlin compile/lint with summary; verify PR JS/Kotlin/AndroidTest/lint/error-learning evidence, repair and register any confirmed failures. Next stage only after fresh user instruction.
-required_ci: SOURCE process-docs and shared-tests JavaScript WebExtension, Kotlin/Robolectric JVM, AndroidTest Kotlin compilation, Android lint regression baseline and required evidence summary all SUCCESS on exact final SHA; PR shared-tests JS/Kotlin/AndroidTest/lint and error-learning evidence SUCCESS on identical head SHA.
-device: NOT_TESTED — no physical Nothing Phone (1), live GeckoView selection/long-press or actual external site.
-apk: NOT_BUILT_FOR_P4 — no APK authorized; no signing.
-known_failures: No P4-E2 CI failures observed before push; record actual CI findings without assumptions.
-verification: Live GitHub Draft PR #128, branch feat/zavro-clean-v4-p4-20261107, SHA f7fb266ccb06264ca4b6847da6deeefc3b43550c verified; AGENTS.md and docs/AI_HANDOFF.md at exact SHA and scoped preflight, quality, test, checkpoint and error-policy docs read. Reviewed full native bulk selection/actions/group profile checks and list/grid click handlers. No local checkout or device build.
+acceptance_source: User "dalej" after verified P4-E2. Approved original 12-step P4 plan specifies F1 performance of thousands of results, memory, scrolling, cancellation and parallel websites; F2 is a separate full regression stage. No APK or merge.
+completed: One run/snapshot-owned selection index built only when the Room snapshot changes; recomposition and 200 bulk interactions use indexed exact-URL identity instead of rescanning 12,000 film records repeatedly. Selected results recompute only when selection or snapshot changes, in original saved order. No cache shared across profiles or runs; stale URL, foreign run/site/profile fail closed. Coroutine cancellation now stops pending sites after structured concurrent child cancellation, without falsely declaring external leases completed. Memory-budget and worker-parallelism contracts preserved. Added four indexed-selection JVM tests including deterministic backing-list read counts and two 50-site cancellation/memory-pressure tests.
+remaining: SOURCE and PR exact-final-SHA mandatory CI; reconcile any actual failure in ERROR_CASES.json. Next P4-F2 full cross-module regression only on separate user "Dalej".
+required_ci: SOURCE process-docs and shared-tests JS WebExtension, Kotlin/Robolectric, AndroidTest Kotlin compilation, Android lint regression baseline and evidence summary all SUCCESS on final SHA; PR shared-tests JS/Kotlin/AndroidTest/lint and error-learning evidence all SUCCESS on same head SHA.
+device: NOT_TESTED — no real Nothing Phone (1), GeckoView, device memory profiler, touch-scroll FPS or actual live websites.
+apk: NOT_BUILT_FOR_P4 — no P4 signed APK approved.
+known_failures: Two code-review findings to be recorded with fix_sha: full-snapshot scans on selection, and unmarked pending sites after coroutine cancellation. No F1 CI failure observed before push.
+verification: GitHub Draft PR #128, correct branch and exact live 717eb29495a5adeb0285bab06cf768e7d0280eff verified; AGENTS.md, AI_HANDOFF.md and scoped test/quality/preflight/checkpoint/error policies read from this SHA. Inspected pure selection, 12,000-item path, MultiSiteExecutor and synchronized queue status handling. No local checkout or physical device tests.
 changed_paths:
   - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchBulkSelection.kt
   - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsActivity.kt
+  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchMultiSiteExecutor.kt
   - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchBulkSelectionTest.kt
+  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchMultiSiteExecutorTest.kt
   - docs/AI_HANDOFF.md
   - docs/ai/ERROR_CASES.json
 verified_before_push:
-  - No Room migration, native protocol, site recognition, new permissions, signing, package, or network changes.
-  - Selected IDs remain per result tab, run and profile; original saved URLs and all films remain intact.
-  - Selection-mode long press cannot open the film action menu or merged picker accidentally.
+  - Indexed state belongs to one immutable snapshot; no cross-profile persistence, Room schema, tab/session mutation or URL rewriting.
+  - Cancellation stops waiting work only after structured children finish; no faked successful search, no resource-permit increase.
+  - Retains existing worker fairness/parallelism, per-site result limit, legacy merge options and scroll state.
 blockers:
-  - Device and real-site behavior NOT_TESTED.
-  - Independent high-risk review unavailable; self-review plus CI do not establish device usability.
+  - No device memory/FPS numbers, real-site or live GeckoView acceptance; deterministic JVM work counter is not physical profiling.
+  - Independent high-risk review unavailable; self-review and CI are not a substitute.
 evidence_links:
   - https://github.com/laszko14/nira-browser/pull/128
-  - https://github.com/laszko14/nira-browser/actions/runs/42488971704
-  - https://github.com/laszko14/nira-browser/actions/runs/42488976490
-next_action: Verify full SOURCE and PR CI on new final SHA; reconcile real failures, then STOP at P4-E2. Do not start another stage or APK without new user request.
+  - https://github.com/laszko14/nira-browser/actions/runs/42494203233
+  - https://github.com/laszko14/nira-browser/actions/runs/42494208399
+next_action: Verify all required SOURCE and PR CI at exact final SHA, triage any failures; stop after F1. Proceed to F2 only on separate "Dalej".
 ```

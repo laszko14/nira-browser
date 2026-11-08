@@ -19,7 +19,8 @@ internal object VideoSearchMultiSiteExecutor {
         permittedWorkers: () -> Int,
         authorized: () -> Boolean,
         submit: suspend (VideoSearchLaunchSite) -> VideoSearchQueueStatus,
-    ): VideoSearchQueueSnapshot = coroutineScope {
+    ): VideoSearchQueueSnapshot = try {
+        coroutineScope {
         while (true) {
             if (!authorized()) {
                 queue.stopPending()
@@ -52,6 +53,14 @@ internal object VideoSearchMultiSiteExecutor {
             }.awaitAll()
         }
         queue.snapshot()
+        }
+    } catch (cancelled: CancellationException) {
+        // The coroutineScope has already awaited/cancelled its children.
+        // Never start another wave after an external Stop/profile change.
+        // Only pending sites are marked stopped; an unacknowledged external
+        // worker lease is NOT falsely declared finished.
+        queue.stopPending()
+        throw cancelled
     }
 }
 

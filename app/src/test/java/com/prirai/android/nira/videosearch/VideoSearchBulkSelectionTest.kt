@@ -159,4 +159,79 @@ class VideoSearchBulkSelectionTest {
             snapshot(listOf(a, b)), selected).size)
         assertEquals(listOf(shared), VideoSearchBulkSelection.uniqueLinks(listOf(a, b)))
     }
+
+    /** Deterministic work counter: test list reads, never flaky wall-clock timing. */
+    private class TrackedFilms(private val data: List<VideoSearchFilm>) :
+        AbstractList<VideoSearchFilm>() {
+        var reads = 0
+        override val size get() = data.size
+        override fun get(index: Int): VideoSearchFilm {
+            reads++
+            return data[index]
+        }
+    }
+
+    @Test fun p4f1TwelveThousandResultsAreIndexedOnlyOnceForTwoHundredActions() {
+        val originals = (0 until 12_000).map { position ->
+            film(if (position % 2 == 0) "site-a" else "site-b", "film-$position")
+        }
+        val tracked = TrackedFilms(originals)
+        val indexed = VideoSearchBulkSelection.index(snapshot(tracked))!!
+        assertEquals(12_000, indexed.size)
+        assertEquals(12_000, tracked.reads)
+        var selection = emptySet<String>()
+        repeat(200) { n ->
+            val members = listOf(originals[n], originals[11_999 - n])
+            selection = VideoSearchBulkSelection.toggleMergedIndexed(
+                indexed, selection, members)
+            val chosen = VideoSearchBulkSelection.resolveIndexed(indexed, selection)
+            assertEquals(selection.size, chosen.size)
+        }
+        assertEquals(400, selection.size)
+        // Previously toggleMerged alone scanned all 12,000 on every action.
+        // 200 actions now do ZERO additional reads of the backing film list.
+        assertEquals(12_000, tracked.reads)
+    }
+
+    @Test fun p4f1IndexedSelectionPreservesSavedOrderAndSourceIdentity() {
+        val a = film("site-a", "shared")
+        val b = film("site-b", "shared")
+        val c = film("site-a", "last")
+        val indexed = VideoSearchBulkSelection.index(snapshot(listOf(a, b, c)))!!
+        assertEquals(3, indexed.size)
+        val selected = VideoSearchBulkSelection.select(emptySet(), listOf(c, b, a))
+        assertEquals(listOf(a, b, c),
+            VideoSearchBulkSelection.resolveIndexed(indexed, selected))
+        assertTrue(VideoSearchBulkSelection.owns(indexed, a))
+        assertTrue(VideoSearchBulkSelection.owns(indexed, b))
+    }
+
+    @Test fun p4f1NewSnapshotInvalidatesOldUrlAndForeignProfileCannotToggle() {
+        val old = film("site-a", "one")
+        val updated = old.copy(filmPageUrl = "https://example.org/watch?id=new")
+        val indexed = VideoSearchBulkSelection.index(snapshot(listOf(updated)))!!
+        assertFalse(VideoSearchBulkSelection.owns(indexed, old))
+        assertEquals(emptySet<String>(), VideoSearchBulkSelection.toggleMergedIndexed(
+            indexed, emptySet(), listOf(old)))
+        assertTrue(VideoSearchBulkSelection.owns(indexed, updated))
+        assertFalse(VideoSearchBulkSelection.owns(indexed,
+            updated.copy(scope = VideoSearchScope.Normal("work"))))
+        assertEquals(emptySet<String>(), VideoSearchBulkSelection.toggleMergedIndexed(
+            indexed, emptySet(), listOf(updated.copy(runId = "foreign"))))
+    }
+
+    @Test fun p4f1DuplicateSavedKeysKeepFirstAndDoNotLeakUnknownSite() {
+        val first = film("site-a", "same")
+        val replacement = first.copy(filmPageUrl = "https://example.org/replaced")
+        val unknown = film("other", "unknown")
+        val indexed = VideoSearchBulkSelection.index(
+            snapshot(listOf(first, replacement, unknown)))!!
+        assertEquals(1, indexed.size)
+        assertTrue(VideoSearchBulkSelection.owns(indexed, first))
+        assertFalse(VideoSearchBulkSelection.owns(indexed, replacement))
+        assertFalse(VideoSearchBulkSelection.owns(indexed, unknown))
+        assertEquals(listOf(first), VideoSearchBulkSelection.resolveIndexed(
+            indexed, setOf(VideoSearchBulkSelection.key(first),
+                VideoSearchBulkSelection.key(unknown))))
+    }
 }

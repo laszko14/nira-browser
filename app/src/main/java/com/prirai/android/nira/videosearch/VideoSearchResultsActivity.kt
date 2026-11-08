@@ -289,12 +289,14 @@ internal fun VideoSearchResultsScreen(
         retainedRun?.selectedFilmKeys ?: mutableStateOf(emptySet<String>())
     }
     var bulkMenuOpen by remember(run?.id) { mutableStateOf(false) }
-    val selectedFilms = VideoSearchBulkSelection.resolve(snapshot, selectedKeys)
+    // An active run may contain thousands of films. Build its owned URL index
+    // once per snapshot, never on every Compose scroll/recomposition or tap.
+    val selectionIndex = remember(snapshot) { VideoSearchBulkSelection.index(snapshot) }
+    val selectedFilms = remember(selectionIndex, selectedKeys) {
+        VideoSearchBulkSelection.resolveIndexed(selectionIndex, selectedKeys)
+    }
     val toggleFilm: (VideoSearchFilm) -> Unit = { film ->
-        if (run != null && film.runId == run.id && film.scope == run.scope &&
-            snapshot?.films?.any {
-                VideoSearchBulkSelection.key(it) == VideoSearchBulkSelection.key(film)
-            } == true) {
+        if (VideoSearchBulkSelection.owns(selectionIndex, film)) {
             selectedKeys = VideoSearchBulkSelection.toggle(selectedKeys, film)
         }
     }
@@ -808,8 +810,8 @@ internal fun VideoSearchResultsScreen(
                             val entry = shownEntries.getOrNull(index).takeIf { merging }
                             val toggleEntry: (VideoSearchFilm) -> Unit = { film ->
                                 if (entry != null) selectedKeys =
-                                    VideoSearchBulkSelection.toggleMerged(
-                                        snapshot, selectedKeys, entry.films)
+                                    VideoSearchBulkSelection.toggleMergedIndexed(
+                                        selectionIndex, selectedKeys, entry.films)
                                 else toggleFilm(film)
                             }
                             VideoSearchFilmTile(
@@ -902,8 +904,8 @@ internal fun VideoSearchResultsScreen(
                             val entry = shownEntries.getOrNull(index).takeIf { merging }
                             val toggleEntry: (VideoSearchFilm) -> Unit = { film ->
                                 if (entry != null) selectedKeys =
-                                    VideoSearchBulkSelection.toggleMerged(
-                                        snapshot, selectedKeys, entry.films)
+                                    VideoSearchBulkSelection.toggleMergedIndexed(
+                                        selectionIndex, selectedKeys, entry.films)
                                 else toggleFilm(film)
                             }
                             VideoSearchFilmRow(
