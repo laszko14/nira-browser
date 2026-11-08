@@ -1,0 +1,139 @@
+# Default-branch bootstrap for the reviewed, private signed update.
+# This file intentionally has NO push, pull_request, tag, or dispatch trigger.
+# It checks out only the reviewed, fully SOURCE-CI-verified same-repo SHA.
+# The application's code and signing key remain entirely off main.
+name: Zavro private APK — authorized owner PR review
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  private-apk:
+    if: >-
+      github.event_name == 'pull_request_review' &&
+      github.event.action == 'submitted' &&
+      github.event.review.state == 'commented' &&
+      github.actor == 'laszko14' &&
+      github.event.sender.login == 'laszko14' &&
+      github.event.review.user.login == 'laszko14' &&
+      github.event.pull_request.head.repo.full_name == 'laszko14/nira-browser' &&
+      github.event.pull_request.base.repo.full_name == 'laszko14/nira-browser' &&
+      startsWith(github.event.review.body, 'ZAVRO_PRIVATE_APK_REQUEST')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: zavro-private-apk-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    env:
+      EXPECTED_PACKAGE: com.prirai.android.nira.debug
+      EXPECTED_VERSION_CODE: "1224"
+      EXPECTED_VERSION_NAME: 0.5.22-alpha120-clean
+      EXPECTED_CERT_SHA256: df90b01217fbbf973b65865be64bfede267e17fec611c355b814585dfba83f00
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request_review' && github.event.pull_request.head.sha || github.sha }}
+      - name: Validate exact owner review and current SOURCE CI (no secrets)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEW_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REVIEW_BODY: ${{ github.event.review.body }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/authorize-private-apk-review.cjs
+          test "$(git rev-parse HEAD)" = "$REVIEW_HEAD_SHA"
+          live_pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          jq -e --arg sha "$REVIEW_HEAD_SHA" --arg ref "$PR_HEAD_REF" '
+            .state == "open" and .merged_at == null and
+            .head.sha == $sha and .head.ref == $ref and
+            .head.repo.full_name == "laszko14/nira-browser" and
+            .base.repo.full_name == "laszko14/nira-browser"
+          ' <<< "$live_pr" >/dev/null
+          runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/zavro-ai-process-docs.yml/runs?event=push&head_sha=$REVIEW_HEAD_SHA&branch=$PR_HEAD_REF&per_page=100")"
+          run_id="$(jq -er --arg sha "$REVIEW_HEAD_SHA" --arg ref "$PR_HEAD_REF" '
+            [.workflow_runs[] | select(.event == "push" and
+              .head_sha == $sha and .head_branch == $ref)][0].id
+          ' <<< "$runs")"
+          node scripts/ci-run-receipt.cjs "$run_id" "$REVIEW_HEAD_SHA" "$PR_HEAD_REF"
+          echo "Validated six SOURCE gates for exact reviewed SHA; PR merge tests are separate."
+      - name: Validate Gradle wrapper
+        uses: gradle/wrapper-validation-action@v2
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: zulu
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      # Do not publish an ephemeral Android debug signature as an update.
+      # Reuse the stable signing key already used by the release workflow.
+      - name: Recheck live PR HEAD immediately before signing secrets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEW_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$REVIEW_HEAD_SHA"
+          actual_sha="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)"
+          test "$actual_sha" = "$REVIEW_HEAD_SHA" || { echo "::error::PR head changed after authorization"; exit 1; }
+
+      - name: Build single arm64 debug APK (update-safe certificate)
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in ANDROID_KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Stable signing secret $key is not configured. Refusing to publish an incompatible debug APK."
+              exit 1
+            fi
+          done
+          keystore_path="$RUNNER_TEMP/nira-update.p12"
+          cleanup() {
+            rm -f "$keystore_path"
+          }
+          trap cleanup EXIT
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
+          chmod 600 "$keystore_path"
+          export NIRA_SIGNING_STORE_FILE="$keystore_path"
+          export NIRA_SIGNING_STORE_PASSWORD="$KEYSTORE_PASSWORD"
+          export NIRA_SIGNING_KEY_ALIAS="$KEY_ALIAS"
+          export NIRA_SIGNING_KEY_PASSWORD="$KEY_PASSWORD"
+          ./gradlew assembleDebug --console=plain
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/debug/*.apk)
+          if [ "${#apks[@]}" -ne 1 ] || [[ "${apks[0]}" != *arm64-v8a* ]]; then
+            echo "::error::Expected exactly one arm64-v8a APK, got ${#apks[@]}."
+            exit 1
+          fi
+          bash scripts/verify-update-apk.sh \
+            "${apks[0]}" \
+            "$EXPECTED_PACKAGE" \
+            "$EXPECTED_VERSION_CODE" \
+            "$EXPECTED_VERSION_NAME" \
+            "$EXPECTED_CERT_SHA256"
+          echo "Built and verified exactly one update-safe arm64-v8a APK."
+
+      - name: Upload only arm64 debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: zavro-arm64-update-apk-v1224
+          path: app/build/outputs/apk/debug/*arm64-v8a*.apk
+          if-no-files-found: error
+          retention-days: 30
+
