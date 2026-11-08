@@ -261,8 +261,9 @@ internal class VideoSearchDiagnosticRecorder internal constructor(
                 return true
             }
         }
-        out.write(line)
-        out.newLine()
+        val writer = checkNotNull(out) { "Normal diagnostic writer must exist" }
+        writer.write(line)
+        writer.newLine()
         return true
     }
 

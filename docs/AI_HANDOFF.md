@@ -6,6 +6,7 @@ Previously verified P4-F2 final source SHA:
 469d93b236b0a14790b82919dbc89c8c5abacdb4.
 P4-F2 SOURCE #42500376062 and PR #42500381650 SUCCESS.
 
+```yaml
 task_id: ZC-VIDEO-DIAG-1
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
@@ -20,7 +21,7 @@ remaining: Verify required SOURCE and PR CI on same final SHA. Triage actual fai
 required_ci: SOURCE process-docs and shared-tests JS, Kotlin/Robolectric JVM, compileDebugAndroidTestKotlin, lint regression and required-summary; PR shared-tests JS/JVM/AndroidTest Kotlin compile/lint/error-learning evidence. Build/release SKIPPED.
 device: NOT_TESTED - no real GeckoView, live sites or Nothing Phone (1).
 apk: NOT_BUILT - forbidden during all seven stages until a new approval afterward.
-known_failures: No source/PR CI failures are established for the new stage before push; any observed failures must be added to docs/ai/ERROR_CASES.json in the repair commit.
+known_failures: Initial SOURCE #42512509777 had process-docs missing YAML checkpoint, compiler errors at VideoSearchDiagnosticRecorder.kt lines 264-265 in 3 Kotlin jobs, and dependent required-summary failure; PR #42512537056 had the same Kotlin compiler error in 3 jobs. Eight observed CI failures to register in docs/ai/ERROR_CASES.json.
 verification: Read AGENTS.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md and relevant quality/test/workflow/checkpoint/error-learning instructions at exact base SHA via GitHub connector. Inspected WebExtension, bridge, protocol, queue, run journal, Room/private stores, results presenter and TestLab exports.
 changed_paths:
   - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticRecorder.kt
@@ -38,3 +39,4 @@ evidence_links:
   - https://github.com/laszko14/nira-browser/pull/128
   - https://github.com/laszko14/nira-browser/blob/469d93b236b0a14790b82919dbc89c8c5abacdb4/docs/ai/P4_FINAL_REGRESSION.md
 next_action: Check and repair required CI if necessary; STOP after stage 1, wait for "dalej". Do not ask about APK.
+```
