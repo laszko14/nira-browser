@@ -1,42 +1,39 @@
-# AI_HANDOFF — Zavro Clean V4 / P4-F1 large searches and cancellation
+# AI_HANDOFF — Zavro Clean V4 / P4-F2 final cross-module regression
 
-> Historical archive: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md. Snapshot recorded before push; the live branch HEAD overrides observed_head_sha. P4-E2 CODE_VERIFIED at 717eb29495a5adeb0285bab06cf768e7d0280eff, SOURCE #42494203233 and PR #42494208399 SUCCESS.
+> Pre-commit snapshot; source of truth is live GitHub branch HEAD, not observed_head_sha. P4-F1 CODE_VERIFIED at 5e91b74cf44ba8c0a82a228294534e396bd88fa0, SOURCE #42497040362 and PR #42497045614 SUCCESS.
 
 ```yaml
-task_id: ZC-V4-P4-F1-LARGE-SEARCH-PERF
+task_id: ZC-V4-P4-F2-FINAL-REGRESSION
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: feat/zavro-clean-v4-p4-20261107
-base_sha: 717eb29495a5adeb0285bab06cf768e7d0280eff
-observed_head_sha: 717eb29495a5adeb0285bab06cf768e7d0280eff
+base_sha: 5e91b74cf44ba8c0a82a228294534e396bd88fa0
+observed_head_sha: 5e91b74cf44ba8c0a82a228294534e396bd88fa0
 status: CI_PENDING
-acceptance_source: User "dalej" after verified P4-E2. Approved original 12-step P4 plan specifies F1 performance of thousands of results, memory, scrolling, cancellation and parallel websites; F2 is a separate full regression stage. No APK or merge.
-completed: One run/snapshot-owned selection index built only when the Room snapshot changes; recomposition and 200 bulk interactions use indexed exact-URL identity instead of rescanning 12,000 film records repeatedly. Selected results recompute only when selection or snapshot changes, in original saved order. No cache shared across profiles or runs; stale URL, foreign run/site/profile fail closed. Coroutine cancellation now stops pending sites after structured concurrent child cancellation, without falsely declaring external leases completed. Memory-budget and worker-parallelism contracts preserved. Added four indexed-selection JVM tests including deterministic backing-list read counts and two 50-site cancellation/memory-pressure tests.
-remaining: SOURCE and PR exact-final-SHA mandatory CI; reconcile any actual failure in ERROR_CASES.json. Next P4-F2 full cross-module regression only on separate user "Dalej".
-required_ci: SOURCE process-docs and shared-tests JS WebExtension, Kotlin/Robolectric, AndroidTest Kotlin compilation, Android lint regression baseline and evidence summary all SUCCESS on final SHA; PR shared-tests JS/Kotlin/AndroidTest/lint and error-learning evidence all SUCCESS on same head SHA.
-device: NOT_TESTED — no real Nothing Phone (1), GeckoView, device memory profiler, touch-scroll FPS or actual live websites.
-apk: NOT_BUILT_FOR_P4 — no P4 signed APK approved.
-known_failures: Two code-review findings to be recorded with fix_sha: full-snapshot scans on selection, and unmarked pending sites after coroutine cancellation. No F1 CI failure observed before push.
-verification: GitHub Draft PR #128, correct branch and exact live 717eb29495a5adeb0285bab06cf768e7d0280eff verified; AGENTS.md, AI_HANDOFF.md and scoped test/quality/preflight/checkpoint/error policies read from this SHA. Inspected pure selection, 12,000-item path, MultiSiteExecutor and synchronized queue status handling. No local checkout or physical device tests.
+acceptance_source: User "dalej" after P4-F1 CODE_VERIFIED. F2 is final P4 cross-module regression, normal/private profile data and session safety, no APK or merge.
+completed: Added five Robolectric integration tests with real in-memory Room repository and synthetic pages. Contracts cover normal scopes sharing run ID but never data, smart season/episode grouping from saved metadata and exact page URLs, merged bulk selecting all sources with indexed ownership, 340 saved films with 150-card lazy window/3 source headers/site filters, restored selection/scroll/view within one tab-run-profile and discarded selection on close, private RAM retirement never entering normal Room, E1 responsive size and scroll anchors. Existing JS/JVM full suite still runs in mandatory SOURCE and PR CI. Full matrix documented in docs/ai/P4_FINAL_REGRESSION.md.
+remaining: Run and verify all required SOURCE and PR CI jobs on identical final SHA; review and reconcile real CI failures and fix regressions in the same stage. Do not claim live-site/device test or APK.
+required_ci: SOURCE process-docs, shared-tests JS, Kotlin/Robolectric JVM, AndroidTest Kotlin compile, Android lint baseline, evidence summary all SUCCESS; PR shared-tests JS, Kotlin, AndroidTest compile, lint baseline and error-learning evidence all SUCCESS; check source checkout HEAD equals final SHA.
+device: NOT_TESTED — no Nothing Phone (1), GeckoView, real sites, actual rotation/touch or RAM/FPS measurement.
+apk: NOT_BUILT_FOR_P4 — no trigger, no private build/signing requested.
+known_failures: None observed before writing; record actual SOURCE/PR CI FAIL with correct provenance if any.
+verification: Live Draft PR #128 on feat/zavro-clean-v4-p4-20261107 at exact 5e91b74cf44ba8c0a82a228294534e396bd88fa0; AGENTS.md, AI_HANDOFF.md, preflight, quality gates, test, checkpoint, workflow, error-learning and task docs read from this SHA. Reviewed P3-E and V3.2 integrations, results Room, profile private store, smart grouping, bulk index, tab memory, lazy page keys.
 changed_paths:
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchBulkSelection.kt
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsActivity.kt
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchMultiSiteExecutor.kt
-  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchBulkSelectionTest.kt
-  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchMultiSiteExecutorTest.kt
+  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchV4P4F2IntegrationTest.kt
+  - docs/ai/P4_FINAL_REGRESSION.md
   - docs/AI_HANDOFF.md
   - docs/ai/ERROR_CASES.json
 verified_before_push:
-  - Indexed state belongs to one immutable snapshot; no cross-profile persistence, Room schema, tab/session mutation or URL rewriting.
-  - Cancellation stops waiting work only after structured children finish; no faked successful search, no resource-permit increase.
-  - Retains existing worker fairness/parallelism, per-site result limit, legacy merge options and scroll state.
+  - No production app code changed unless real new failure requires it; no existing test weakened.
+  - In-memory Room and private RAM test fixtures do not touch external profile data.
+  - No signing, APK workflow, MPV, manifest permissions, release or merge changes.
 blockers:
-  - No device memory/FPS numbers, real-site or live GeckoView acceptance; deterministic JVM work counter is not physical profiling.
-  - Independent high-risk review unavailable; self-review and CI are not a substitute.
+  - Actual website and device integration NOT_TESTED; JVM fixtures are not GeckoView proof.
+  - Independent high-risk review unavailable.
 evidence_links:
   - https://github.com/laszko14/nira-browser/pull/128
-  - https://github.com/laszko14/nira-browser/actions/runs/42494203233
-  - https://github.com/laszko14/nira-browser/actions/runs/42494208399
-next_action: Verify all required SOURCE and PR CI at exact final SHA, triage any failures; stop after F1. Proceed to F2 only on separate "Dalej".
+  - https://github.com/laszko14/nira-browser/actions/runs/42497040362
+  - https://github.com/laszko14/nira-browser/actions/runs/42497045614
+next_action: Verify mandatory CI on exact final SHA, triage and register any failure, then STOP. F2 is the last agreed P4 substage.
 ```

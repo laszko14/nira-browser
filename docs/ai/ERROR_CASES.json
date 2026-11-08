@@ -175,6 +175,11 @@
       "task_id": "ZC-V4-P4-F1-LARGE-SEARCH-PERF",
       "observed_count": 2,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P4-F2-FINAL-REGRESSION",
+      "observed_count": 0,
+      "state": "ACTIVE"
     }
   ],
   "events": [
