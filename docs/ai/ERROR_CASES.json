@@ -148,7 +148,7 @@
     },
     {
       "task_id": "ZC-V4-P4-C2-INFINITE-SCROLL-GUARD",
-      "observed_count": 5,
+      "observed_count": 7,
       "state": "ACTIVE"
     }
   ],
@@ -2932,6 +2932,46 @@
       "regression_test": "app/src/test/js/video-search-p3e-integration.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42475725324"
+      ]
+    },
+    {
+      "id": "CI-42476044251-P4C2-DOCS",
+      "task_id": "ZC-V4-P4-C2-INFINITE-SCROLL-GUARD",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4c2-registry-event-summary-exceeded-320-chars",
+      "summary": "SOURCE process-docs rejected P4-C2 error-learning registry: one earlier CI event summary was 336 characters, exceeding the 320-character schema limit. Shortened it without discarding cause, source SHA, evidence or regression contract.",
+      "source_sha": "113386acc34e248093a0747a4398a64b121a0d49",
+      "observed_at": null,
+      "run_id": 42476044251,
+      "job_id": 128717535711,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "875bc964153cc0700ac9e2378c904d24efcbcf36",
+      "regression_test": "scripts/error-learning.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42476044251"
+      ]
+    },
+    {
+      "id": "CI-42476044251-P4C2-SUMMARY",
+      "task_id": "ZC-V4-P4-C2-INFINITE-SCROLL-GUARD",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4c2-required-summary-upstream-error-learning-validation",
+      "summary": "SOURCE mandatory summary failed because process-docs rejected a too-long error-learning description; JS, Kotlin/Robolectric, AndroidTest Kotlin compilation and lint succeeded. Upstream failure correctly prevents SOURCE PASS.",
+      "source_sha": "113386acc34e248093a0747a4398a64b121a0d49",
+      "observed_at": null,
+      "run_id": 42476044251,
+      "job_id": 128719122504,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "875bc964153cc0700ac9e2378c904d24efcbcf36",
+      "regression_test": "scripts/error-learning.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42476044251"
       ]
     }
   ]
