@@ -163,7 +163,7 @@
     },
     {
       "task_id": "ZC-V4-P4-E1-RESPONSIVE-RESULTS",
-      "observed_count": 0,
+      "observed_count": 4,
       "state": "ACTIVE"
     }
   ],
@@ -3027,6 +3027,86 @@
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42480367904"
+      ]
+    },
+    {
+      "id": "CI-42488143617-E1-DOCS",
+      "task_id": "ZC-V4-P4-E1-RESPONSIVE-RESULTS",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4e1-handoff-missing-shared-tests-literal",
+      "summary": "SOURCE process-docs failed checkpoint contract because required_ci omitted the exact shared-tests term. Restored the required term in the checkpoint.",
+      "source_sha": "3ee4dedd82e8f3a7dc19a29614d848c04d1f378f",
+      "observed_at": null,
+      "run_id": 42488143617,
+      "job_id": 128754433519,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "9855502eb5a2844f66e280d7d39525f42315d171",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42488143617"
+      ]
+    },
+    {
+      "id": "CI-42488143617-E1-LINT",
+      "task_id": "ZC-V4-P4-E1-RESPONSIVE-RESULTS",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4e1-source-lint-configuration-screen-width-height-plus-two",
+      "summary": "SOURCE lint-regression blocked two new ConfigurationScreenWidthHeight warnings from LocalConfiguration screen dimensions. The code now measures parent BoxWithConstraints viewport dimensions.",
+      "source_sha": "3ee4dedd82e8f3a7dc19a29614d848c04d1f378f",
+      "observed_at": null,
+      "run_id": 42488143617,
+      "job_id": 128754467422,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "9855502eb5a2844f66e280d7d39525f42315d171",
+      "regression_test": "scripts/lint-regression.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42488143617"
+      ]
+    },
+    {
+      "id": "CI-42488143617-E1-SUMMARY",
+      "task_id": "ZC-V4-P4-E1-RESPONSIVE-RESULTS",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4e1-summary-upstream-docs-and-lint-failure",
+      "summary": "SOURCE required summary correctly failed because process-docs and lint-regression failed. The upstream defects were corrected without relaxing either acceptance gate.",
+      "source_sha": "3ee4dedd82e8f3a7dc19a29614d848c04d1f378f",
+      "observed_at": null,
+      "run_id": 42488143617,
+      "job_id": 128755765025,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "9855502eb5a2844f66e280d7d39525f42315d171",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42488143617"
+      ]
+    },
+    {
+      "id": "CI-42488148084-E1-PR-LINT",
+      "task_id": "ZC-V4-P4-E1-RESPONSIVE-RESULTS",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4e1-pr-lint-configuration-screen-width-height-plus-two",
+      "summary": "PR lint independently blocked the same two new ConfigurationScreenWidthHeight warnings. Replaced screen dimension reads with measured Compose viewport dimensions; lint baseline unchanged.",
+      "source_sha": "3ee4dedd82e8f3a7dc19a29614d848c04d1f378f",
+      "observed_at": null,
+      "run_id": 42488148084,
+      "job_id": 128754492583,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "9855502eb5a2844f66e280d7d39525f42315d171",
+      "regression_test": "scripts/lint-regression.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42488148084"
       ]
     }
   ]
