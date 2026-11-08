@@ -85,7 +85,10 @@ test('P4-B2 unrelated generic action links do not inherit poster/heading evidenc
     {duration:true,links:[{href:'/item/b',label:'Read more',innerTitle:false}]}
   ]);
   assert.equal(result.selector,null,'poster on card does not prove anchor destination');
-  assert.equal(result.reason,'CARDS_NOT_FOUND');
+  assert.equal(result.reason,'LOW_CONFIDENCE');
+  assert.equal(result.matchedCards,2);
+  assert.ok(result.confidence>=75 && result.confidence<85,
+    'unproven anchors are diagnostic but must stay below native acceptance');
 });
 
 test('P4-B2 recommended card class is excluded even inside a search-results grid',()=>{

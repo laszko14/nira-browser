@@ -98,15 +98,16 @@ function harness() {
       }
     };
     const anchor = {
-      textContent: title, className: 'movie-link', id: '',
+      textContent: options.linkText || title,
+      className: options.anchorClass || 'movie-link', id: '',
       getAttribute(key) { return key === 'href' ? url : null; },
       hasAttribute() { return false; },
       matches(selector) { return selector === 'a[href]' ||
-        selector.includes('.movie-link'); },
+        (selector.includes('.movie-link') && this.className === 'movie-link'); },
       querySelector(selector) {
-        if (selector === 'img') return image;
+        if (selector === 'img') return options.anchorImage === false ? null : image;
         if (selector.includes('[itemprop="name"]') || selector.includes('h2,h3,h4'))
-          return heading;
+          return options.anchorHeading === false ? null : heading;
         return null;
       }
     };
@@ -415,4 +416,21 @@ test('P4-B2 card selection fails closed when all matching entries are non-result
   assert.equal(batch.films.length,0);
   assert.equal(batch.inspectedCards,4);
   assert.equal(h.clicks(),0,'read-only results extraction must never click');
+});
+
+
+test('P4-B2 an unproven utility URL with only a neighboring card poster is excluded',()=>{
+  const h=harness();
+  h.setCards([
+    h.card(8,{url:origin+'/item/8',linkText:'Read more',
+      anchorClass:'utility',anchorImage:false,anchorHeading:false,
+      structured:false}),
+    h.card(9)
+  ]);
+  const batch=extract(h,'.search-results article.video-card',0);
+  assert.equal(batch.status,'ok');
+  assert.equal(batch.inspectedCards,2);
+  assert.deepEqual(Array.from(batch.films,f=>f.filmPageUrl),[
+    origin+'/watch?id=9&lang=pl'
+  ]);
 });

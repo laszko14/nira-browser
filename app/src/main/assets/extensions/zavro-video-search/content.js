@@ -1476,7 +1476,13 @@
         });
       }
       const choices = Array.from(candidates.values());
-      if (choices.length === 1) return choices[0];
+      if (choices.length === 1) {
+        const only = choices[0];
+        // A generic URL without title, semantic, poster or film-path
+        // evidence cannot become a film solely from a neighboring heading.
+        return only.named || only.semantic || only.poster || only.filmPath ?
+          only : null;
+      }
       // Strongest unambiguous, card-local evidence wins. A tie is
       // ambiguous, not permission to pick the first same-origin URL.
       for (const signal of ["named", "semantic", "poster", "filmPath"]) {
