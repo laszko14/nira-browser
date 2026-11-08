@@ -381,4 +381,93 @@ class VideoSearchResultsMergeTest {
         assertEquals(1, grouped.size)
         assertEquals(many, grouped.single().films)
     }
+
+    @Test fun p4d2CanonicalSeasonEpisodeAliasesMergeAcrossSites() {
+        val entries = listOf(
+            film("a", "one", "Aurora Adventures S02E03", 1200),
+            film("b", "two", "Aurora Adventures 2x03", 1201),
+            film("c", "three", "Aurora Adventures Season 2 Episode 3", 1202),
+            film("d", "four", "Aurora Adventures Sezon 2 Odcinek 3", 1200),
+        )
+        val result = VideoSearchResultsMerge.smartGroup(entries)
+        assertEquals(1, result.size)
+        assertEquals(entries, result.single().films)
+        assertEquals(entries.map { it.filmPageUrl }, result.single().films.map { it.filmPageUrl })
+    }
+
+    @Test fun p4d2DifferentSeasonsEpisodesAndPartsNeverMerge() {
+        val entries = listOf(
+            film("e1", "a", "Great Island S01E02", 1300),
+            film("e2", "b", "Great Island 1x03", 1300),
+            film("e3", "c", "Great Island S02E02", 1300),
+            film("e4", "d", "Great Island Episode 2", 1300),
+            film("part", "e", "Great Island Część 2", 1300),
+            film("unknown", "f", "Great Island", 1300),
+        )
+        assertEquals(6, VideoSearchResultsMerge.smartGroup(entries).size)
+        assertEquals(1, VideoSearchResultsMerge.group(entries, false, true).size)
+    }
+
+    @Test fun p4d2PartAndEpisodeIdentityRemainSeparate() {
+        val entries = listOf(
+            film("part-pl", "a", "Mountain Chronicle Część 2", 1510),
+            film("part-en", "b", "Mountain Chronicle Part 02", 1511),
+            film("episode", "c", "Mountain Chronicle Episode 2", 1510),
+            film("part-three", "d", "Mountain Chronicle Part 3", 1510),
+        )
+        assertEquals(
+            listOf(listOf("part-pl", "part-en"), listOf("episode"), listOf("part-three")),
+            VideoSearchResultsMerge.smartGroup(entries).map { g -> g.films.map { it.id } },
+        )
+    }
+
+    @Test fun p4d2UnknownSeasonCannotJoinSpecificSeason() {
+        val entries = listOf(
+            film("explicit", "a", "Aurora City S01E02", 600),
+            film("partial", "b", "Aurora City Ep 2", 601),
+            film("different", "c", "Aurora City Episode 3", 600),
+            film("missing", "d", "Aurora City", 600),
+        )
+        assertEquals(4, VideoSearchResultsMerge.smartGroup(entries).size)
+    }
+
+    @Test fun p4d2OtherTitleNumbersAndDifferentSeriesAreStillProtected() {
+        val entries = listOf(
+            film("one", "a", "Aurora Memories 2024 S01E02", 700),
+            film("two", "b", "Aurora Memories 2025 1x02", 700),
+            film("three", "c", "Other Memories 2024 S01E02", 700),
+        )
+        assertEquals(3, VideoSearchResultsMerge.smartGroup(entries).size)
+    }
+
+    @Test fun p4d2ManyEpisodeBucketsMatchDistantDuplicates() {
+        val first = (1..60).map { index ->
+            film("first-" + index, "a",
+                "Northern Journey S01E" + index.toString().padStart(2, '0'), 1800)
+        }
+        val again = (1..60).map { index ->
+            film("again-" + index, "b",
+                "Northern Journey 1x" + index.toString().padStart(2, '0'), 1801)
+        }
+        val result = VideoSearchResultsMerge.smartGroup(first + again)
+        assertEquals(60, result.size)
+        assertTrue(result.all { it.films.size == 2 })
+        assertEquals(120, result.flatMap { it.films }.map { it.filmPageUrl }.distinct().size)
+    }
+
+    @Test fun p4d2GroupingNeverChangesOriginalsOrCrossesRunProfileBoundary() {
+        val original = listOf(
+            film("a", "one", "Voyage S01E02", 1200),
+            film("b", "two", "Voyage 1x02", 1201),
+        )
+        assertEquals(original, VideoSearchResultsMerge.smartGroup(original).single().films)
+        assertEquals("Voyage S01E02", original[0].originalTitle)
+        for (foreign in listOf(
+            original[1].copy(runId = "other"),
+            original[1].copy(scope = VideoSearchScope.Normal("other-profile")),
+        )) try {
+            VideoSearchResultsMerge.smartGroup(listOf(original[0], foreign))
+            fail("Must reject foreign run/profile")
+        } catch (_: IllegalArgumentException) {}
+    }
 }

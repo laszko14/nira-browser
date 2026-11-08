@@ -142,21 +142,62 @@ internal object VideoSearchResultsMerge {
 
 
     /** Strict, optional mode. Never used by the two legacy OR-based toggles. */
-    private val episodeMarker = Regex(
-        """(?i)(?:s\d{1,2}e\d{1,3}|\d{1,2}x\d{1,3}|(?:episode|ep|part|część)[\s._-]*\d{1,4})"""
+    /** Canonical, explicit episode/part identity for opt-in smart mode only. */
+    private data class EpisodeIdentity(val kind: String, val season: Int?, val number: Int)
+    private data class EpisodeEvidence(val title: TitleParts, val identities: List<EpisodeIdentity>)
+
+    // Do not infer a season for "Episode 2"; unknown is not "Season 1".
+    // Never match inside a larger word or number.
+    private val smartEpisodePattern = Regex(
+        """(?iu)(?<![\p{L}\p{N}])(?:s(?:eason)?[\s._-]*(\d{1,3})[\s._-]*e(?:p(?:isode)?)?[\s._-]*(\d{1,3})|(\d{1,3})[\s._-]*x[\s._-]*(\d{1,3})|(?:sezon|season)[\s._-]*(\d{1,3})[\s._-]*(?:odcinek|episode|ep)[\s._-]*(\d{1,3})|(?:episode|ep|odcinek)[\s._-]*(\d{1,3})|(?:part|część)[\s._-]*(\d{1,3}))(?![\p{L}\p{N}])"""
     )
 
-    private fun episodes(raw: String?): List<String> =
-        if (raw == null) emptyList() else
-            episodeMarker.findAll(Normalizer.normalize(raw, Normalizer.Form.NFKC))
-                .map { match -> match.value.lowercase(Locale.ROOT)
-                    .filter { it.isLetterOrDigit() } }.toList()
+    private fun episodeEvidence(raw: String?): EpisodeEvidence {
+        if (raw.isNullOrBlank()) return EpisodeEvidence(parts(raw), emptyList())
+        val normalized = Normalizer.normalize(raw, Normalizer.Form.NFKC)
+        val comparable = StringBuilder(normalized.length)
+        val identities = ArrayList<EpisodeIdentity>()
+        var cursor = 0
+        for (match in smartEpisodePattern.findAll(normalized)) {
+            if (identities.size >= 8)
+                return EpisodeEvidence(TitleParts(null, emptySet(), emptySet()), emptyList())
+            fun number(group: Int): Int? =
+                match.groups[group]?.value?.toIntOrNull()?.takeIf { it in 1..999 }
+            val identity = when {
+                match.groups[1] != null -> number(1)?.let { season ->
+                    number(2)?.let { EpisodeIdentity("episode", season, it) }
+                }
+                match.groups[3] != null -> number(3)?.let { season ->
+                    number(4)?.let { EpisodeIdentity("episode", season, it) }
+                }
+                match.groups[5] != null -> number(5)?.let { season ->
+                    number(6)?.let { EpisodeIdentity("episode", season, it) }
+                }
+                match.groups[7] != null ->
+                    number(7)?.let { EpisodeIdentity("episode", null, it) }
+                else -> number(8)?.let { EpisodeIdentity("part", null, it) }
+            }
+            if (identity != null) {
+                comparable.append(normalized, cursor, match.range.first)
+                comparable.append(' ')
+                cursor = match.range.last + 1
+                identities.add(identity)
+            }
+        }
+        comparable.append(normalized, cursor, normalized.length)
+        return EpisodeEvidence(parts(comparable.toString()), identities.distinct())
+    }
+
+    private fun episodeBucket(identities: List<EpisodeIdentity>): String =
+        identities.joinToString(";") {
+            it.kind + ":" + (it.season?.toString() ?: "unknown") + ":" + it.number
+        }
 
     /** Duration cannot be the sole identity; missing runtime needs stronger text. */
     private fun smartPair(
         a: TitleParts, b: TitleParts,
         aSeconds: Long?, bSeconds: Long?,
-        aEpisodes: List<String>, bEpisodes: List<String>,
+        aEpisodes: List<EpisodeIdentity>, bEpisodes: List<EpisodeIdentity>,
     ): Boolean {
         val first = a.key ?: return false
         val second = b.key ?: return false
@@ -186,7 +227,7 @@ internal object VideoSearchResultsMerge {
     )
 
     /**
-     * P3-D: conservative presentation-only grouping. An exact/near-exact
+     * P4-D2: conservative presentation-only grouping. An exact/near-exact
      * title AND compatible known duration are required. Never transitively
      * connect two different films via a same-duration third card.
      *
@@ -199,8 +240,10 @@ internal object VideoSearchResultsMerge {
         if (films.isEmpty()) return emptyList()
         val owner = films.first()
         require(films.all { it.runId == owner.runId && it.scope == owner.scope })
-        val details = films.map { parts(it.originalTitle) }
-        val markers = films.map { episodes(it.originalTitle) }
+        val evidence = films.map { episodeEvidence(it.originalTitle) }
+        val details = evidence.map { it.title }
+        val markers = evidence.map { it.identities }
+        val episodeBuckets = markers.map(::episodeBucket)
         val groups = ArrayList<SmartCluster>()
         val exactBuckets = HashMap<String, MutableList<Int>>()
         val fuzzyBuckets = HashMap<String, MutableList<Int>>()
@@ -221,7 +264,8 @@ internal object VideoSearchResultsMerge {
             var winner: Int? = null
             if (name != null) {
                 val possible = LinkedHashSet<Int>()
-                shortlist(exactBuckets[name], possible)
+                val scopedName = episodeBuckets[index] + "|" + name
+                shortlist(exactBuckets[scopedName], possible)
                 // Exact spelling has priority; fuzzy lookup is only needed
                 // when no exact-title group with compatible duration exists.
                 fun admissible(id: Int): Boolean {
@@ -244,7 +288,7 @@ internal object VideoSearchResultsMerge {
                 winner = possible.firstOrNull(::admissible)
                 if (winner == null && name.length in 9..180) {
                     for (key in blockingKeys(detail)) {
-                        shortlist(fuzzyBuckets[key], possible)
+                        shortlist(fuzzyBuckets[episodeBuckets[index] + "|" + key], possible)
                         if (possible.size >= 96) break
                     }
                     winner = possible.firstOrNull(::admissible)
@@ -258,9 +302,9 @@ internal object VideoSearchResultsMerge {
             if (name != null) {
                 if (target.distinctTitles.none { details[it].key == name })
                     target.distinctTitles.add(index)
-                rememberBucket(exactBuckets, name, groupId)
+                rememberBucket(exactBuckets, episodeBuckets[index] + "|" + name, groupId)
                 blockingKeys(detail).forEach { key ->
-                    rememberBucket(fuzzyBuckets, key, groupId)
+                    rememberBucket(fuzzyBuckets, episodeBuckets[index] + "|" + key, groupId)
                 }
             }
             if (length != null) {
