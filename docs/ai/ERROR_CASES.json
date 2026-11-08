@@ -153,7 +153,7 @@
     },
     {
       "task_id": "ZC-V4-P4-D1-CARD-METADATA",
-      "observed_count": 0,
+      "observed_count": 2,
       "state": "ACTIVE"
     }
   ],
@@ -2977,6 +2977,46 @@
       "regression_test": "scripts/error-learning.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42476044251"
+      ]
+    },
+    {
+      "id": "CI-42480367904-P4D1-DOCS",
+      "task_id": "ZC-V4-P4-D1-CARD-METADATA",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4d1-handoff-missing-legacy-archive-reference",
+      "summary": "SOURCE process-docs failed the current handoff restart contract because P4-D1 omitted the required archived handoff reference. Corrected the checkpoint and verified the handoff process-docs step in SOURCE run 42480524887.",
+      "source_sha": "5d69a26e164e5f86d3a2bacaf3ad37c01e32abd1",
+      "observed_at": null,
+      "run_id": 42480367904,
+      "job_id": 128730766555,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "d3210a4057b9679af7d593acdb10b7060a550e73",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42480367904"
+      ]
+    },
+    {
+      "id": "CI-42480367904-P4D1-SUMMARY",
+      "task_id": "ZC-V4-P4-D1-CARD-METADATA",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4d1-required-summary-upstream-process-docs",
+      "summary": "SOURCE mandatory evidence summary failed because process-docs failed its archive-reference contract. The upstream gate blocks a false PASS, and the corrected handoff passes its checkpoint validation.",
+      "source_sha": "5d69a26e164e5f86d3a2bacaf3ad37c01e32abd1",
+      "observed_at": null,
+      "run_id": 42480367904,
+      "job_id": 128731324729,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "d3210a4057b9679af7d593acdb10b7060a550e73",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42480367904"
       ]
     }
   ]
