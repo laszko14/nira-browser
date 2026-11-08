@@ -148,7 +148,7 @@
     },
     {
       "task_id": "ZC-V4-P4-C2-INFINITE-SCROLL-GUARD",
-      "observed_count": 0,
+      "observed_count": 2,
       "state": "ACTIVE"
     }
   ],
@@ -2832,6 +2832,46 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42470515830"
+      ]
+    },
+    {
+      "id": "CI-42475049401-P4C2-DOCS",
+      "task_id": "ZC-V4-P4-C2-INFINITE-SCROLL-GUARD",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4c2-handoff-required_ci-missing-exact-shared-tests",
+      "summary": "SOURCE process-docs failed restartable checkpoint contract: docs/AI_HANDOFF.md required_ci described shared JS gates but omitted the exact required 'shared-tests' keyword. Corrected handoff without relaxing tests.",
+      "source_sha": "d064c90b937b57f3a9dff88f66ae81e3f0a81f60",
+      "observed_at": null,
+      "run_id": 42475049401,
+      "job_id": 128714397420,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "795857f865aba90eb4a467f03ea5104452fdee84",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42475049401"
+      ]
+    },
+    {
+      "id": "CI-42475049401-P4C2-SUMMARY",
+      "task_id": "ZC-V4-P4-C2-INFINITE-SCROLL-GUARD",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4c2-source-summary-reports-upstream-process-docs-failure",
+      "summary": "SOURCE required-jobs summary correctly failed because process-docs did not pass its restartable checkpoint contract; JS, Kotlin/Robolectric, AndroidTest Kotlin compile and lint succeeded. Failed summary not counted as PASS.",
+      "source_sha": "d064c90b937b57f3a9dff88f66ae81e3f0a81f60",
+      "observed_at": null,
+      "run_id": 42475049401,
+      "job_id": 128716094714,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "795857f865aba90eb4a467f03ea5104452fdee84",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42475049401"
       ]
     }
   ]
