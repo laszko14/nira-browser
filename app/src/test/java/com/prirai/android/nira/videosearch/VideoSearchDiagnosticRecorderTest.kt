@@ -30,7 +30,7 @@ class VideoSearchDiagnosticRecorderTest {
         fields = fields,
     )
     private fun folder() = File(
-        RuntimeEnvironment.getApplication<Application>().cacheDir,
+        RuntimeEnvironment.getApplication().cacheDir,
         "diagnostic-test-" + UUID.randomUUID(),
     )
     private fun records(recorder: VideoSearchDiagnosticRecorder): List<JSONObject> =
