@@ -178,7 +178,7 @@
     },
     {
       "task_id": "ZC-V4-P4-F2-FINAL-REGRESSION",
-      "observed_count": 0,
+      "observed_count": 2,
       "state": "ACTIVE"
     }
   ],
@@ -3164,6 +3164,48 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/717eb29495a5adeb0285bab06cf768e7d0280eff",
         "https://github.com/laszko14/nira-browser/commit/3864a336741d69b26881f68ab0276e13ccf8cb10"
+      ]
+    },
+    {
+      "id": "CI-P4F2-HANDOFF-PROCESS",
+      "task_id": "ZC-V4-P4-F2-FINAL-REGRESSION",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4f2.handoff.missing-archive-shared-tests",
+      "summary": "Initial F2 SOURCE process-docs failed because AI_HANDOFF omitted the exact legacy archive path and shared-tests literal required by existing check-ai-handoff test. Handoff fixed without changing gate.",
+      "source_sha": "34a66aeb7d81db6ed2adbe5e7b305dc59068d276",
+      "observed_at": "2026-11-08T16:24:50Z",
+      "run_id": 42499752653,
+      "job_id": 128789713161,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "c7718fa786a36e458412e55c3bbe9b98df5bcfb5",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42499752653",
+        "https://github.com/laszko14/nira-browser/commit/c7718fa786a36e458412e55c3bbe9b98df5bcfb5"
+      ]
+    },
+    {
+      "id": "CI-P4F2-SOURCE-SUMMARY",
+      "task_id": "ZC-V4-P4-F2-FINAL-REGRESSION",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4f2.required-summary-upstream-red",
+      "summary": "Initial F2 SOURCE required evidence summary correctly rejected the unsuccessful process-docs job. Repairing the handoff lets the unchanged CI evidence gate report success on the final SHA.",
+      "source_sha": "34a66aeb7d81db6ed2adbe5e7b305dc59068d276",
+      "observed_at": "2026-11-08T16:30:42Z",
+      "run_id": 42499752653,
+      "job_id": 128791197897,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "c7718fa786a36e458412e55c3bbe9b98df5bcfb5",
+      "regression_test": "scripts/ci-evidence.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42499752653",
+        "https://github.com/laszko14/nira-browser/commit/c7718fa786a36e458412e55c3bbe9b98df5bcfb5"
       ]
     }
   ]
