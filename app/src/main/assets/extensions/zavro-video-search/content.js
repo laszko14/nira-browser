@@ -22,6 +22,10 @@
   let pickerPosition = null;
   // Consecutive trusted terminal observations are limited to this document.
   let endProbe = null;
+  // Bounded per-document scroll guard: do not dispatch overlapping scrolls
+  // or loop indefinitely on an unchanged virtualized result window.
+  // "pending" is never proof of an end; only explicit site markers are.
+  let infiniteScrollState = null;
   // Per-document, short-lived cursor guards. Only node identity and offsets
   // are retained; nothing from the DOM is stored or sent to native.
   const continuationAnchors = { extract_batch: null, extract_crawl: null };
@@ -1152,6 +1156,7 @@
     cancelPicker();
     manuallySelectedInput = null;
     endProbe = null;
+    infiniteScrollState = null;
     continuationAnchors.extract_batch = null;
     continuationAnchors.extract_crawl = null;
     try { documentId = newDocumentId(); } catch (_) { originRevoked = true; return; }
@@ -1750,11 +1755,15 @@
       function scrollPlan() {
         const cards = resultNodes(command.resultsCardSelector);
         if (!cards || !cards.length) return null; // SPA may still be hydrating.
-        const first = cards[0], second = cards.length > 1 ? cards[1] : first;
-        if (!first || !second || first.isConnected === false ||
-            second.isConnected === false) return null;
+        // Check both ends of the virtual window and the middle element.
+        // Virtual lists may recycle the trailing rows while the first stays.
+        const first = cards[0], middle = cards[Math.floor((cards.length - 1) / 2)],
+          last = cards[cards.length - 1];
+        if (!first || !middle || !last || [first, middle, last].some(card =>
+            card.isConnected === false || excludedResultCard(card))) return null;
         const doc = first.ownerDocument || document;
-        if ((second.ownerDocument || document) !== doc) return null;
+        if ([middle, last].some(card => (card.ownerDocument || document) !== doc))
+          return null;
         const view = doc.defaultView || window;
         function scrollOwner(card) {
           let ancestor = card.parentElement;
@@ -1771,25 +1780,62 @@
           return null;
         }
         const owner = scrollOwner(first);
-        if (owner !== scrollOwner(second)) return null;
+        if (owner !== scrollOwner(middle) || owner !== scrollOwner(last)) return null;
         if (owner ? typeof owner.scrollBy !== "function" :
             typeof view.scrollBy !== "function") return null;
-        return {first, doc, view, owner};
+        function filmIdentity(card) {
+          // URL is used only as a short-lived, local comparison signal.
+          // Never log, store across sessions, or send these values to native.
+          const anchor = card.querySelector?.("a[href]");
+          const href = anchor?.getAttribute?.("href");
+          return typeof href === "string" ? href.slice(0, 1800) : null;
+        }
+        const position = owner ? owner.scrollTop : view.scrollY;
+        return {
+          first, middle, last, count: cards.length, doc, view, owner,
+          firstLink: filmIdentity(first), lastLink: filmIdentity(last),
+          position: Number.isFinite(position) ? position : null
+        };
       }
       const planned = scrollPlan();
       if (!planned) return "pending";
+      function sameWindow(before, after) {
+        return before && after && before.doc === after.doc &&
+          before.view === after.view && before.owner === after.owner &&
+          before.first === after.first && before.middle === after.middle &&
+          before.last === after.last && before.count === after.count &&
+          before.firstLink === after.firstLink &&
+          before.lastLink === after.lastLink &&
+          before.position === after.position;
+      }
+      const previous = infiniteScrollState;
+      if (previous?.selector !== command.resultsCardSelector) infiniteScrollState = null;
+      else if (previous?.pending) return "pending"; // Never overlap queued scrolls.
+      // A virtualized window may keep the same nodes while changing their URLs;
+      // position and boundary film identities therefore count as progress.
+      const unchanged = sameWindow(previous?.snapshot, planned);
+      const stalls = unchanged ? previous.stalls + 1 : 0;
+      if (stalls >= 2) {
+        infiniteScrollState = {selector: command.resultsCardSelector,
+          pending: false, snapshot: planned, stalls};
+        return "pending"; // No evidence of end, no third blind scroll.
+      }
       endProbe = null;
+      const state = {selector: command.resultsCardSelector, pending: true,
+        snapshot: planned, stalls};
+      infiniteScrollState = state;
       const issuedRevision = navigationRevision;
       setTimeout(function () {
+        // A later route/action can replace the state before this callback.
+        if (infiniteScrollState !== state) return;
+        state.pending = false;
         if (issuedRevision !== navigationRevision ||
             location.href !== startUrl || !ready ||
             blocked.test(location.pathname) ||
             document.querySelector('input[type="password"]') || loading()) return;
         const fresh = scrollPlan();
-        // The owner/document must not be replaced while this action is queued.
-        if (!fresh || fresh.first !== planned.first ||
-            fresh.doc !== planned.doc || fresh.view !== planned.view ||
-            fresh.owner !== planned.owner) return;
+        // Reject any partial virtual-window replacement or owner change.
+        if (!sameWindow(planned, fresh)) return;
         if (fresh.owner) fresh.owner.scrollBy({
           top: Math.max(180, Math.floor(fresh.owner.clientHeight * 0.8)),
           behavior: "instant"

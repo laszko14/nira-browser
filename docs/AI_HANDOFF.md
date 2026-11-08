@@ -1,40 +1,42 @@
-# AI_HANDOFF — Zavro Clean V4 / P4-C1 search pagination controls and result ownership
+# AI_HANDOFF — Zavro Clean V4 / P4-C2 virtualized results and bounded infinite scroll
 
-> Historical checkpoint archive: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md. This is the P4-C1 pre-commit source snapshot. Live GitHub HEAD, not observed_head_sha, is authoritative. P4-B2 CODE_VERIFIED on `5ef57c6191091e92e5ea863b1ff5135d6ff8ab8c`: SOURCE #42470942791 and PR #42470946060 completed SUCCESS, attempt 1; 3 initial P4-B2 CI occurrences were FIXED and reconciled.
+> Historical checkpoint archive: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md. This is a P4-C2 pre-commit snapshot; remote live branch SHA overrides observed_head_sha. P4-C1 CODE_VERIFIED on `0ecbf118e334d0d8b455db0a9d5406e787baa629` with SOURCE #42473653785 and PR #42473656931 completed SUCCESS, attempt 1.
 
 ```yaml
-task_id: ZC-V4-P4-C1-PAGER-OWNERSHIP
+task_id: ZC-V4-P4-C2-INFINITE-SCROLL-GUARD
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: feat/zavro-clean-v4-p4-20261107
-base_sha: 5ef57c6191091e92e5ea863b1ff5135d6ff8ab8c
-observed_head_sha: 5ef57c6191091e92e5ea863b1ff5135d6ff8ab8c
+base_sha: 0ecbf118e334d0d8b455db0a9d5406e787baa629
+observed_head_sha: 0ecbf118e334d0d8b455db0a9d5406e787baa629
 status: CI_PENDING
-acceptance_source: User said "Dalej" after P4-B2 CODE_VERIFIED. The agreed P4-C1 stage enhances Next, numbered pagination and Show More detection, while rejecting unrelated carousels/sidebars and preserving native provisional page-action protocol. No APK, merge or release authorized.
-completed: Hardened production content.js pager detection with more bounded search-results and data-action Load more selectors; rejected pagination controls inside unrelated sidebars/carousels/recommendations/advertisement/login sections at selection and delayed click-time; associated discovered pager with recognized result-card owners when structural ancestry is inspectable; recognized non-clickable active span markers for numeric pagination; rejected conflicting active page markers rather than selecting an arbitrary number; maintained exact control identity and same-origin safety checks. Added a source-backed VM pagination harness with 7 regression scenarios: reusable numeric pager chooses 2 then 3, active-page marker conflict, sidebar rejection, detached result owner mismatch, late movement to sidebar cancels click, classless Load more recognition and safe action, Load more sidebar rejection. Existing P11/P2C/P13/P14/P4A/P4B tests preserved.
-remaining: Run and verify all required SOURCE and stacked Draft PR CI at exact final P4-C1 SHA. Triage and register every observed new CI/review failure with source/job/attempt/first failing assertion, repair, and repeat required gates. Next P4-C2 is infinite scroll and virtual list robustness on separate user "Dalej".
-required_ci: SOURCE process-docs, shared-tests JS WebExtension, Kotlin/Robolectric, AndroidTest Kotlin compile, Android lint with baseline and final evidence summary all SUCCESS at exact commit SHA; PR JavaScript/Kotlin/AndroidTest compile/lint and error-learning evidence all SUCCESS at matching PR head SHA.
-device: NOT_TESTED — no physical Android device, installed APK, real website or GeckoView UI test.
-apk: NOT_BUILT_FOR_P4 — prior P3-E signed v1224 belongs to earlier SHA. No P4 APK authorized.
-known_failures: At initial P4-C1 commit 0 known CI failures; registry coverage observed_count 0. Reconcile actual CI results before final CODE_VERIFIED; P4-B2 three initial failures registered FIXED.
-verification: At pre-write SHA 5ef57c6191091e92e5ea863b1ff5135d6ff8ab8c, checked live remote P4 branch and Draft PR #128 open/unmerged and matching head, read AGENTS.md, AI_HANDOFF.md and STARTUP_PREFLIGHT.md plus relevant TASK_TEMPLATE, DEVELOPMENT_WORKFLOW, TEST_POLICY, TEST_PATTERNS, QUALITY_GATES, ERROR_LEARNING, CHECKPOINT_POLICY and EXCEPTIONS_AND_TOOLS. Inspected actual content.js detectPagination/manualNext/pagerContainer/numericPage/nextInContainer/pageAction and existing source-backed P11/P2C/structural tests. Confirmed P4-B2 SOURCE #42470942791 and PR #42470946060 completed SUCCESS. No local checkout or physical device; mandatory GitHub Actions used as test executor.
+acceptance_source: User wrote "Dalej" after verified P4-C1. The agreed P4-C2 task targets infinite scroll, virtualized result windows, bounded loop protection, and explicit evidence of end, with no APK or merge.
+completed: Hardened production content.js infinite-scroll owner selection against mismatched first/middle/last card owners, detached/hidden/unrelated cards and mid-window virtualization. Queued scroll revalidates same document, first/middle/last exact nodes, count, short-lived first/last film URL identities, current scroll position and owner. Added per-document bounded no-progress guard: disallows overlapping scroll commands and stops issuing blind repeated scrolls after two unchanged windows, returns pending rather than falsely declaring end; a changed card window, virtualized URL identity or scrollTop/scrollY resets stagnation. SPA route reset clears transient guard; explicit terminal marker still requires independent observations separated by 650ms. Added 8 production source-backed VM pagination tests and 1 SPA route regression. Reused original native protocol without additional fields or persistence.
+remaining: Complete SOURCE process-docs and shared JS/Kotlin/Robolectric/AndroidTest Kotlin compile/lint regression plus exact-SHA summary, and stacked PR JS/Kotlin/AndroidTest compile/lint/error-learning gates. Inspect each distinct CI failure, update ERROR_CASES.json, patch the actual cause and rerun required final-SHA CI. Next P4-D1 covers titles/duration and metadata correlation only after separate "Dalej".
+required_ci: SOURCE process-docs, shared JS WebExtension, Kotlin/Robolectric, AndroidTest Kotlin compile, Android lint regression baseline and final evidence summary all SUCCESS at final Git SHA. PR shared JS/Kotlin/AndroidTest compile/lint plus error-learning evidence all SUCCESS at identical head SHA.
+device: NOT_TESTED — no physical Nothing Phone (1), real GeckoView or third-party live-site acceptance.
+apk: NOT_BUILT_FOR_P4 — prior P3-E signed v1224 belongs to earlier SHA. No P4 APK authorized by user.
+known_failures: Initial P4-C2 CI not yet run; 0 newly observed failures and coverage 0. Previous P4-C1 recorded 0 new CI failures, full SOURCE/PR success on 0ecbf118e334d0d8b455db0a9d5406e787baa629. Reconcile counts against observed jobs.
+verification: Checked correct P4 branch and live full SHA 0ecbf118e334d0d8b455db0a9d5406e787baa629 with open/unmerged Draft PR #128 and matching head. Read AGENTS.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md and scoped TASK_TEMPLATE, DEVELOPMENT_WORKFLOW, TEST_POLICY, TEST_PATTERNS, QUALITY_GATES, ERROR_LEARNING, CHECKPOINT_POLICY, EXCEPTIONS_AND_TOOLS plus P3-E real-site/device acceptance at explicit SHA via direct GitHub connector. Reviewed production scrollPlan, pageAction, native packet dispatch, URL sync, previous p2c/p14/p11 tests, and retained P4-C1 SOURCE #42473653785 and PR #42473656931 success. No local checkout/Android/device tests; use GitHub Actions.
 changed_paths:
   - app/src/main/assets/extensions/zavro-video-search/content.js
-  - app/src/test/js/video-search-p4c1-pager-ownership.test.cjs
+  - app/src/test/js/video-search-p2c-dynamic-pagination.test.cjs
+  - app/src/test/js/video-search-p14-spa-rebind.test.cjs
   - docs/AI_HANDOFF.md
   - docs/ai/ERROR_CASES.json
 verified_before_push:
-  - No native packet schema, Kotlin, database, profiles, sessions, manifest, UI toolbar, permissions, signing key, ABI or version changes.
-  - Pager results selector is passed only during discovery; numeric pager-root re-resolves each page. Deferred actions still re-check node identity, state, href, same-origin and pagination semantics.
-  - Weak/unrelated controls are not treated as a proven end-of-results; explicit terminal evidence remains required.
-  - Optional result-ownership proof only acts where identifiable DOM structure exists. Synthetic tests use production content.js and native protocol.
+  - No changes to UI, Java/Kotlin, data, Room, profile isolation, secrets, package, ABI, permissions, signing or versionCode.
+  - Only a requested native paginate command triggers a bounded scroll; acknowledgement remains provisional.
+  - No-progress means pending, NEVER end, unless explicit visible stable site terminal evidence exists.
+  - A virtualized reused row with changed href invalidates a pending action and counts as progress on a subsequent command. Guard is per document and resets on SPA navigation.
+  - Safety/ownership gates and native protocol remain unchanged; tests run actual production content.js via Node VM.
 blockers:
-  - Real-device and live-site acceptance remain NOT_TESTED.
-  - Independent lifecycle/security code review not available; self-review plus mandatory CI is not an independent risk signoff.
+  - E01-E18 physical-device and third-party real-site acceptance NOT_TESTED.
+  - Independent high-risk lifecycle review unavailable; self-review and required CI are not independent risk signoff.
 evidence_links:
   - https://github.com/laszko14/nira-browser/pull/128
-  - https://github.com/laszko14/nira-browser/actions/runs/42470942791
-  - https://github.com/laszko14/nira-browser/actions/runs/42470946060
-next_action: Push P4-C1 code and checkpoint; get exact-SHA SOURCE and PR CI green, fix and register failures if needed, reconcile branch/PR/runs/errors and STOP. Next "Dalej" begins P4-C2; no APK.
+  - https://github.com/laszko14/nira-browser/actions/runs/42473653785
+  - https://github.com/laszko14/nira-browser/actions/runs/42473656931
+next_action: Commit and push P4-C2; repair any observed CI failures and reconcile the registry; verify exact-SHA SOURCE plus PR CI and STOP. Next "Dalej" authorizes only P4-D1, never implicitly APK.
 ```

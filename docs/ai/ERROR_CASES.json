@@ -145,6 +145,11 @@
       "task_id": "ZC-V4-P4-C1-PAGER-OWNERSHIP",
       "observed_count": 0,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P4-C2-INFINITE-SCROLL-GUARD",
+      "observed_count": 0,
+      "state": "ACTIVE"
     }
   ],
   "events": [

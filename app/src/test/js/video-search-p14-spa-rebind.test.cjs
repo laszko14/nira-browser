@@ -293,3 +293,15 @@ test('P4-A2 login gate added after pagination ACK prevents delayed scrolling',()
   h.flush();
   assert.equal(h.scrolls,1);
 });
+
+
+test('P4-C2 SPA navigation resets the bounded infinite-scroll stagnation state',()=>{
+  const h=harness();h.bind();
+  assert.equal(h.scroll().at(-1).status,'dispatched');h.flush();
+  assert.equal(h.scroll().at(-1).status,'dispatched');h.flush();
+  assert.equal(h.scroll().at(-1).status,'pending');
+  h.navigate('https://films.example/results?q=next-search');
+  h.sync();h.bind();
+  assert.equal(h.scroll().at(-1).status,'dispatched',
+    'a fresh route must not inherit a stale no-progress guard');
+});
