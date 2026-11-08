@@ -252,6 +252,10 @@ internal fun VideoSearchResultsScreen(
 ) {
     val configuration = LocalConfiguration.current
     val landscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    val tileWidth = VideoSearchResultsLayoutPolicy.tileMinWidthDp(
+        configuration.screenWidthDp, landscape).dp
+    val filterHeight = VideoSearchResultsLayoutPolicy.filterPanelMaxHeightDp(
+        configuration.screenHeightDp, landscape).dp
     val snapshot = state.snapshot
     val run = snapshot?.run
     // Film navigation unmounts Compose; this tab-owned state survives re-entry.
@@ -529,12 +533,11 @@ internal fun VideoSearchResultsScreen(
                 enter = expandVertically(),
                 exit = shrinkVertically(),
             ) {
-              BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 9.dp)) {
+              Box(Modifier.fillMaxWidth().padding(horizontal = 9.dp)) {
               Column(
-                modifier = (if (landscape) Modifier.fillMaxWidth()
-                    .heightIn(max = maxHeight * 0.50f)
+                modifier = Modifier.fillMaxWidth()
+                    .heightIn(max = filterHeight)
                     .verticalScroll(rememberScrollState())
-                else Modifier.fillMaxWidth())
                     .clip(RoundedCornerShape(16.dp))
                     .background(Color(0xff151027))
                     .border(1.dp, Color(0xff9d42e8), RoundedCornerShape(16.dp))
@@ -750,7 +753,7 @@ internal fun VideoSearchResultsScreen(
                 }
             } else if (state.view == VideoSearchView.TILES) {
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(150.dp),
+                    columns = GridCells.Adaptive(tileWidth),
                     state = gridState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 5.dp),
@@ -991,7 +994,7 @@ private fun NeonResultAction(
         Color(0xff00c8f7), Color(0xff4541fa), Color(0xffad1bf4)
     ) else listOf(Color(0xff25203b), Color(0xff141025))
     Box(
-        modifier = modifier.heightIn(min = 42.dp).clip(shape)
+        modifier = modifier.heightIn(min = 48.dp).clip(shape)
             .background(Brush.horizontalGradient(colors), shape)
             .border(1.dp, if (highlighted) Color(0xffc65bff) else Color(0xff715293), shape)
             .clickable(onClick = onClick)
