@@ -337,13 +337,18 @@
     }
     return best?.selector || null;
   }
-  function detectPagination() {
+  function detectPagination(resultsSelector = null) {
     // Collect every trustworthy control across accessible document contexts.
     const roots = window.__zavroRecognition?.roots?.() || [document];
     const paths = [
       'a[rel="next"]', '.pagination a.next',
       '.pagination .next a', 'button.load-more',
-      'a.next[aria-label]', '.pager a[rel="next"]'
+      'a.next[aria-label]', '.pager a[rel="next"]',
+      'button[data-action="load-more"]', '[role="button"][data-action="load-more"]',
+      '.search-results button[aria-label="Pokaż więcej"]',
+      '.search-results button[aria-label="Load more"]',
+      '.video-grid button[aria-label="Load more"]',
+      '[data-search-results] button[aria-label="Load more"]'
     ];
     const matches = [];
     for (const root of roots) {
@@ -352,7 +357,7 @@
         try { elements = root.querySelectorAll(path); }
         catch (_) { continue; }
         if (elements.length !== 1) continue;
-        const next = manualNext(elements[0]);
+        const next = manualNext(elements[0], resultsSelector);
         if (next) matches.push(next);
       }
       let controls;
@@ -363,7 +368,7 @@
           .slice(0, 50);
       } catch (_) { controls = []; }
       for (const control of controls) {
-        const next = manualNext(control);
+        const next = manualNext(control, resultsSelector);
         if (next) matches.push(next);
       }
     }
@@ -394,7 +399,7 @@
     if (!safeForm(form) && !button) return { status: "partial" };
     const result = getCards();
     const submit = button ? "CLICK_SUBMIT" : "FORM_SUBMIT";
-    const page = detectPagination();
+    const page = detectPagination(result);
     return {
       status: result ? "ready" : "partial",
       inputSelector, resultsCardSelector: result,
@@ -420,7 +425,7 @@
     const inspection = tie ? {status:"missing"} :
       detect(getCards, inputs.map(x => ({input:x.input, score:x.points})));
     const cards = inspection.resultsCardSelector || getCards();
-    const page = cards ? detectPagination() : {pagination:"NONE",nextPageSelector:null};
+    const page = cards ? detectPagination(cards) : {pagination:"NONE",nextPageSelector:null};
     const formReady = !!inspection.inputSelector && !!inspection.submission;
     const unsafe = !inputs.length && !!document.querySelector?.(
       'form[method="post"] input[type="search"],input[type="password"]');
@@ -596,8 +601,48 @@
       window.__zavroRecognition?.controlHint(el)]
       .filter(x => typeof x === "string").map(x => x.slice(0, 90)).join(" ");
   }
+  // A generic "Next" in a carousel, account sidebar or related-video shelf
+  // is not a pagination command for the film search results.
+  const unrelatedPager = /(?:^|[\s_-])(?:sidebar|carousel|slider|related|recommend(?:ed|ations?)?|suggest(?:ed|ions?)?|trending|popular|featured|sponsored|advert(?:isement)?s?|promo|banner|checkout|login)(?:$|[\s_-])/i;
+  function excludedPagerRegion(el) {
+    let node = el;
+    for (let depth = 0; node && depth < 9; depth++, node = node.parentElement) {
+      if (node.tagName === "ASIDE" || node.getAttribute?.("role") === "complementary")
+        return true;
+      const hint = [node.id, typeof node.className === "string" ? node.className : "",
+        node.getAttribute?.("aria-label"), node.getAttribute?.("data-testid"),
+        node.getAttribute?.("data-type")]
+        .filter(v => typeof v === "string").join(" ");
+      if (unrelatedPager.test(hint)) return true;
+    }
+    return false;
+  }
+  function pagerBoundToResults(el, selector) {
+    if (!selector) return true;
+    let cards;
+    try { cards = resultNodes(selector); } catch (_) { return false; }
+    if (!cards) return false;
+    if (!cards.length) return true; // Hydration is pending, not a confirmed mismatch.
+    const first = cards[0];
+    if (el.ownerDocument && first.ownerDocument &&
+        el.ownerDocument !== first.ownerDocument) return false;
+    if (!el.parentElement || !first.parentElement) return true; // No inspectable structure.
+    const cardParents = new Set();
+    let parent = first.parentElement;
+    for (let depth = 0; parent && depth < 10; depth++, parent = parent.parentElement) {
+      if (["BODY", "HTML"].includes(parent.tagName)) break;
+      cardParents.add(parent);
+    }
+    parent = el.parentElement;
+    for (let depth = 0; parent && depth < 10; depth++, parent = parent.parentElement) {
+      if (["BODY", "HTML"].includes(parent.tagName)) break;
+      if (cardParents.has(parent)) return true;
+    }
+    // Both regions have identifiable parents but no non-page-level owner.
+    return false;
+  }
   function forbiddenPager(el) {
-    return backwardPager.test(pagerHint(el)) ||
+    return excludedPagerRegion(el) || backwardPager.test(pagerHint(el)) ||
       el.getAttribute?.("aria-disabled") === "true";
   }
   function safeSamePageAction(el) {
@@ -640,6 +685,7 @@
       Array.isArray(el.classList) && (el.classList.includes("active") ||
         el.classList.includes("current"))).map(numericPage).filter(Number.isInteger);
     if (marked.length === 1) return marked[0];
+    if (marked.length > 1) return null; // Conflicting active labels are unsafe.
     // URL query is reliable only when the page value is explicitly present.
     try {
       const url = new URL(location.href);
@@ -658,7 +704,15 @@
         el.matches?.('button,[role="button"],a[href]')));
     if (semantic.length === 1) return semantic[0];
     if (semantic.length > 1) return null;
-    const active = currentPage(controls);
+    // The current page may be a non-clickable <span aria-current="page">.
+    // It is evidence of position, never a candidate for clicking.
+    let currentMarkers = [];
+    try {
+      currentMarkers = Array.from(container.querySelectorAll(
+        '[aria-current="page"],[aria-selected="true"],.active,.current')).slice(0, 12);
+    } catch (_) { /* The explicit URL may still identify the active page. */ }
+    const active = currentPage([...controls, ...currentMarkers.filter(el =>
+      !controls.includes(el))]);
     if (active == null) return null;
     const next = controls.filter(el => numericPage(el) === active + 1 &&
       (kind === "NEXT_LINK" ? el.matches?.("a[href]") :
@@ -684,10 +738,11 @@
     }
     return false;
   }
-  function manualNext(node) {
+  function manualNext(node, resultsSelector = null) {
     const el = node.closest('a[href],button,[role="button"]');
     if (!el || !visible(el) || el.disabled ||
-        el.closest('[hidden],[inert],[aria-hidden="true"]') || forbiddenPager(el))
+        el.closest('[hidden],[inert],[aria-hidden="true"]') ||
+        forbiddenPager(el) || !pagerBoundToResults(el, resultsSelector))
       return null;
     const pager = pagerContainer(el);
     const number = numericPage(el);

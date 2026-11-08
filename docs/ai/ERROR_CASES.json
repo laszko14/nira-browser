@@ -140,6 +140,11 @@
       "task_id": "ZC-V4-P4-B2-FILM-CARD-RELEVANCE",
       "observed_count": 3,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P4-C1-PAGER-OWNERSHIP",
+      "observed_count": 0,
+      "state": "ACTIVE"
     }
   ],
   "events": [

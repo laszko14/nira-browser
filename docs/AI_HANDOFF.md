@@ -1,44 +1,40 @@
-# AI_HANDOFF — Zavro Clean V4 / P4-B2 film-card recognition and extraction relevance
+# AI_HANDOFF — Zavro Clean V4 / P4-C1 search pagination controls and result ownership
 
-> Legacy archive: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md. This checkpoint is prepared before the P4-B2 commit, so observed_head_sha is a historical pre-write snapshot. Live GitHub ref is authoritative. P4-B1 CODE_VERIFIED on `fe0607080a631960ab9b08b34c3e42ba512351c6`: SOURCE #42464810955 and PR #42464816562 completed SUCCESS, attempt 1.
+> Historical checkpoint archive: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md. This is the P4-C1 pre-commit source snapshot. Live GitHub HEAD, not observed_head_sha, is authoritative. P4-B2 CODE_VERIFIED on `5ef57c6191091e92e5ea863b1ff5135d6ff8ab8c`: SOURCE #42470942791 and PR #42470946060 completed SUCCESS, attempt 1; 3 initial P4-B2 CI occurrences were FIXED and reconciled.
 
 ```yaml
-task_id: ZC-V4-P4-B2-FILM-CARD-RELEVANCE
+task_id: ZC-V4-P4-C1-PAGER-OWNERSHIP
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: feat/zavro-clean-v4-p4-20261107
-base_sha: fe0607080a631960ab9b08b34c3e42ba512351c6
-observed_head_sha: fe0607080a631960ab9b08b34c3e42ba512351c6
+base_sha: 5ef57c6191091e92e5ea863b1ff5135d6ff8ab8c
+observed_head_sha: 5ef57c6191091e92e5ea863b1ff5135d6ff8ab8c
 status: CI_PENDING
-acceptance_source: User wrote "Dalej" after P4-B1 CODE_VERIFIED. The agreed next stage P4-B2 improves structural recognition of actual film cards and consistency of extraction, especially mixed result grids, recommendations and unrelated links. No APK, merge, release, cert change, profile modification or unapproved operations.
-completed: Diagnosed source-backed P2-E regression in first JS run and corrected production recognition to retain LOW_CONFIDENCE diagnostics for unproven anchors without accepting film selectors. Added explicit extraction filter for unsupported single generic utility anchors and its integration regression; registered 3 initial CI failures with provenance. Enhanced production recognition.js to reject profile/author/person/cast/comment/review/forum routes and same-page fragment anchors, exclude recommendation/related/trending/featured card hints, require card-local anchor title/semantic or film-route evidence rather than inheriting an unrelated poster. Enhanced production content.js extraction with bounded per-card exclusion of sponsored and recommendation/sidebar/featured contexts even when configured CSS selects all cards, aligned catalogLink navigation-route exclusions and same-page fragments. Added source-backed P4-B2 recognition tests for blocked routes, hash links, weak utility anchors, recommendations, valid unconventional title links, mixed user/movie links and ambiguous dual-film links. Added extraction integration tests for mixed poisoned grids and all-invalid lists using the real production recognition + bridge VM. Preserved source and protocol behavior for legitimate cards, CSS configuration and prior tests.
-remaining: Execute SOURCE process-docs + JS + Kotlin/Robolectric + AndroidTest Kotlin compile + lint regression + evidence summary and stacked Draft PR shared gates + error-learning evidence at exact final P4-B2 SHA. Triage all CI failures and reconcile ERROR_CASES. Next step P4-C1 focuses pagination controls, only on separate user "Dalej".
-required_ci: SOURCE process-docs and shared-tests JS WebExtension, Kotlin/Robolectric, AndroidTest Kotlin compile, Android lint baseline, final evidence summary all SUCCESS on exact commit SHA; stacked PR shared-tests JS/Kotlin/AndroidTest Kotlin compile/lint plus error-learning evidence SUCCESS on identical PR head SHA.
-device: NOT_TESTED — source/VM/Gradle only, no real Nothing Phone (1) or live external websites.
-apk: NOT_BUILT_FOR_P4 — prior signed P3-E v1224 belongs to another SHA; user did not authorize any new APK.
-known_failures: Initial P4-B2 SOURCE #42470515830 and PR #42470519760 failed on SHA 2e84e73628b4814ff86521831a0c2f70442efdf1: old P2-E required LOW_CONFIDENCE for weak anchor cards, received CARDS_NOT_FOUND instead. The SOURCE required summary failed accordingly. Three CI job failure occurrences are registered FIXED in ERROR_CASES.json, correction commit 1aad97aa7159b70d110b61d87d01be41843bea5a preserves weak diagnostic below native acceptance, while new tests ensure weak URLs cannot become film results. Final CI not yet verified.
-verification: Verified live branch and PR #128 head fe0607080a631960ab9b08b34c3e42ba512351c6, Draft open unmerged with P3-E as base. Read AGENTS.md, docs/AI_HANDOFF.md and STARTUP_PREFLIGHT.md and task, workflow, test, pattern, review, error-learning, checkpoint, exception instructions at exact SHA. Reviewed current recognition.js, content.js extraction routes and score rules, P1/P4-A1/P3-E tests, and verified previous SOURCE #42464810955 and PR #42464816562 successes. No local checkout; CI required.
+acceptance_source: User said "Dalej" after P4-B2 CODE_VERIFIED. The agreed P4-C1 stage enhances Next, numbered pagination and Show More detection, while rejecting unrelated carousels/sidebars and preserving native provisional page-action protocol. No APK, merge or release authorized.
+completed: Hardened production content.js pager detection with more bounded search-results and data-action Load more selectors; rejected pagination controls inside unrelated sidebars/carousels/recommendations/advertisement/login sections at selection and delayed click-time; associated discovered pager with recognized result-card owners when structural ancestry is inspectable; recognized non-clickable active span markers for numeric pagination; rejected conflicting active page markers rather than selecting an arbitrary number; maintained exact control identity and same-origin safety checks. Added a source-backed VM pagination harness with 7 regression scenarios: reusable numeric pager chooses 2 then 3, active-page marker conflict, sidebar rejection, detached result owner mismatch, late movement to sidebar cancels click, classless Load more recognition and safe action, Load more sidebar rejection. Existing P11/P2C/P13/P14/P4A/P4B tests preserved.
+remaining: Run and verify all required SOURCE and stacked Draft PR CI at exact final P4-C1 SHA. Triage and register every observed new CI/review failure with source/job/attempt/first failing assertion, repair, and repeat required gates. Next P4-C2 is infinite scroll and virtual list robustness on separate user "Dalej".
+required_ci: SOURCE process-docs, shared-tests JS WebExtension, Kotlin/Robolectric, AndroidTest Kotlin compile, Android lint with baseline and final evidence summary all SUCCESS at exact commit SHA; PR JavaScript/Kotlin/AndroidTest compile/lint and error-learning evidence all SUCCESS at matching PR head SHA.
+device: NOT_TESTED — no physical Android device, installed APK, real website or GeckoView UI test.
+apk: NOT_BUILT_FOR_P4 — prior P3-E signed v1224 belongs to earlier SHA. No P4 APK authorized.
+known_failures: At initial P4-C1 commit 0 known CI failures; registry coverage observed_count 0. Reconcile actual CI results before final CODE_VERIFIED; P4-B2 three initial failures registered FIXED.
+verification: At pre-write SHA 5ef57c6191091e92e5ea863b1ff5135d6ff8ab8c, checked live remote P4 branch and Draft PR #128 open/unmerged and matching head, read AGENTS.md, AI_HANDOFF.md and STARTUP_PREFLIGHT.md plus relevant TASK_TEMPLATE, DEVELOPMENT_WORKFLOW, TEST_POLICY, TEST_PATTERNS, QUALITY_GATES, ERROR_LEARNING, CHECKPOINT_POLICY and EXCEPTIONS_AND_TOOLS. Inspected actual content.js detectPagination/manualNext/pagerContainer/numericPage/nextInContainer/pageAction and existing source-backed P11/P2C/structural tests. Confirmed P4-B2 SOURCE #42470942791 and PR #42470946060 completed SUCCESS. No local checkout or physical device; mandatory GitHub Actions used as test executor.
 changed_paths:
-  - app/src/main/assets/extensions/zavro-video-search/recognition.js
   - app/src/main/assets/extensions/zavro-video-search/content.js
-  - app/src/test/js/video-search-p4b2-card-relevance.test.cjs
-  - app/src/test/js/video-search-p3e-integration.test.cjs
-  - docs/ai/ERROR_CASES.json
+  - app/src/test/js/video-search-p4c1-pager-ownership.test.cjs
   - docs/AI_HANDOFF.md
+  - docs/ai/ERROR_CASES.json
 verified_before_push:
-  - Scan is read-only and bounded; no navigation, click, tracking, data transfer or added permissions.
-  - Film URL must have film anchor-local proof; strong title-labelled unusual paths are allowed, ambiguous two-film links remain unaccepted.
-  - CSS group can be broader than eligible cards, so per-card validation repeats during extraction. Profile links, hash anchors, sponsored/recommendations not persisted.
-  - No schema/profile/session/key/ABI/version/build workflow edits. Tests run genuine production WebExtension scripts with synthetic site-owned DOM.
+  - No native packet schema, Kotlin, database, profiles, sessions, manifest, UI toolbar, permissions, signing key, ABI or version changes.
+  - Pager results selector is passed only during discovery; numeric pager-root re-resolves each page. Deferred actions still re-check node identity, state, href, same-origin and pagination semantics.
+  - Weak/unrelated controls are not treated as a proven end-of-results; explicit terminal evidence remains required.
+  - Optional result-ownership proof only acts where identifiable DOM structure exists. Synthetic tests use production content.js and native protocol.
 blockers:
-  - Real-site / device acceptance E01-E18 remains NOT_TESTED.
-  - Independent high-risk review unavailable; self-review and green CI are not independent on-device acceptance.
+  - Real-device and live-site acceptance remain NOT_TESTED.
+  - Independent lifecycle/security code review not available; self-review plus mandatory CI is not an independent risk signoff.
 evidence_links:
   - https://github.com/laszko14/nira-browser/pull/128
-  - https://github.com/laszko14/nira-browser/actions/runs/42464810955
-  - https://github.com/laszko14/nira-browser/actions/runs/42464816562
-  - https://github.com/laszko14/nira-browser/actions/runs/42470515830
-  - https://github.com/laszko14/nira-browser/actions/runs/42470519760
-next_action: Fix any P4-B2 CI failure and record it, get both SOURCE and PR required gates green at exact final SHA, confirm Draft PR head and STOP. On separate "Dalej" implement P4-C1 pager controls, not APK.
+  - https://github.com/laszko14/nira-browser/actions/runs/42470942791
+  - https://github.com/laszko14/nira-browser/actions/runs/42470946060
+next_action: Push P4-C1 code and checkpoint; get exact-SHA SOURCE and PR CI green, fix and register failures if needed, reconcile branch/PR/runs/errors and STOP. Next "Dalej" begins P4-C2; no APK.
 ```
