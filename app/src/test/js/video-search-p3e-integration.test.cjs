@@ -531,3 +531,15 @@ test('P4-D1 title with existing SxxExx marker is not duplicated by exact matchin
   const film=extract(h,'.search-results article.video-card',0).films[0];
   assert.equal(film.originalTitle,'Aurora S02E03');
 });
+
+test('P4-D1 a bounded title is retained if adding a season/episode marker would overflow',()=> {
+  const h=harness();
+  const longTitle='A'.repeat(510);
+  h.setCards([h.card(55,{title:longTitle,structuredData:{
+    '@type':'TVEpisode',url:origin+'/watch?id=55&lang=pl',name:longTitle,
+    episodeNumber:5,partOfSeason:{seasonNumber:2}
+  }})]);
+  const film=extract(h,'.search-results article.video-card',0).films[0];
+  assert.equal(film.originalTitle,longTitle);
+  assert.equal(film.titleSource,'STRUCTURED');
+});

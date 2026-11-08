@@ -1704,7 +1704,7 @@
       // Do not duplicate a marker already present on this same film title.
       const taggedTitle = inline?.episodeTag && titleText &&
         !/\bS\d{1,3}\s*E\d{1,3}\b/i.test(titleText) ?
-        shortText(titleText + " · " + inline.episodeTag, 512) : titleText;
+        (shortText(titleText + " · " + inline.episodeTag, 512) || titleText) : titleText;
       // A pure timestamp in the title slot is metadata noise, not a title.
       // Timestamps embedded in an actual title remain untouched.
       const safeTitle = taggedTitle && duration(taggedTitle) === null ? taggedTitle : null;
