@@ -17,6 +17,7 @@ const pageUrl = origin + '/search?q=Aurora+City';
  */
 function harness() {
   let cards = [], clicked = 0, receive;
+  const submitOverrides = Object.create(null);
   const messages = [], timers = [];
   const location = new URL(pageUrl);
   const parent = {
@@ -70,7 +71,10 @@ function harness() {
     tagName: 'BUTTON', id: 'searchSubmit', className: '', classList: [],
     form, ownerDocument: document, disabled: false, isConnected: true,
     getRootNode() { return document; },
-    getAttribute(key) { return {type: 'submit', 'aria-label': 'Search'}[key] || null; },
+    getAttribute(key) {
+      return Object.prototype.hasOwnProperty.call(submitOverrides, key) ?
+        submitOverrides[key] : ({type: 'submit', 'aria-label': 'Search'}[key] || null);
+    },
     closest() { return null; },
     matches(q) { return q.includes('button') || q.includes('submit'); },
     getBoundingClientRect() { return {width: 48, height: 32}; },
@@ -172,6 +176,7 @@ function harness() {
     setCards(next) { cards = next; },
     getCards() { return cards; },
     clicks() { return clicked; },
+    submitOverride(key,value) {submitOverrides[key] = value;},
     flush() { for (const fn of timers.splice(0)) fn(); }
   };
 }
@@ -328,4 +333,45 @@ test('P4-A2 recognition awaits AJAX cards rather than treating search ACK as res
     origin+'/watch?id=3&lang=pl'
   ]);
   assert.equal(h.clicks(),1);
+});
+
+
+test('P4-B1 a POST override injected after search ACK cancels deferred click',()=>{
+  const h=harness();
+  const config=h.send('analyze');
+  assert.equal(config.submitSelector,'#searchSubmit');
+  const ack=h.send('search',{
+    query:'Aurora City',inputSelector:config.inputSelector,
+    submission:config.submission,submitSelector:config.submitSelector
+  });
+  assert.equal(ack.event,'submitted');
+  h.submitOverride('formmethod','POST');
+  h.flush();
+  assert.equal(h.clicks(),0,'submit method must be revalidated at click time');
+});
+
+test('P4-B1 a cross-origin formaction injected after search ACK cancels click',()=>{
+  const h=harness();
+  const config=h.send('analyze');
+  const ack=h.send('search',{
+    query:'Aurora City',inputSelector:config.inputSelector,
+    submission:config.submission,submitSelector:config.submitSelector
+  });
+  assert.equal(ack.event,'submitted');
+  h.submitOverride('formaction','https://elsewhere.example/collect?q=secret');
+  h.flush();
+  assert.equal(h.clicks(),0,'cross-origin override must not run after ACK');
+});
+
+test('P4-B1 a new-tab target injected after search ACK cancels click',()=>{
+  const h=harness();
+  const config=h.send('analyze');
+  const ack=h.send('search',{
+    query:'Aurora City',inputSelector:config.inputSelector,
+    submission:config.submission,submitSelector:config.submitSelector
+  });
+  assert.equal(ack.event,'submitted');
+  h.submitOverride('formtarget','_blank');
+  h.flush();
+  assert.equal(h.clicks(),0,'search must not escape to a new tab after ACK');
 });

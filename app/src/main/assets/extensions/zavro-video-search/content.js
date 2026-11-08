@@ -28,7 +28,7 @@
   const limited = 80;
   const idPattern = /^[0-9a-f]{32}$/;
   const blocked = /login|log-in|signin|sign-in|password|register|checkout|payment|purchase|captcha/i;
-  const searchTerms = /search|szukaj|find|query|wyszuk|buscar|suche|recherche/i;
+  const searchTerms = /search|szukaj|find|query|wyszuk|buscar|suche|recherche|keyword|lookup/i;
   // Negative evidence always beats a keyword that happens to say "search".
   const unsafeControl = /reset|clear|cancel|anuluj|filter|filtr|sort|login|sign.?in|register|payment|checkout|delete|remove|usuń|usun|close|zamkn/i;
   function inputHint(input) {
@@ -52,6 +52,9 @@
       (form.getAttribute("action") || ""))) return false;
     const method = (form.getAttribute("method") || "GET").toUpperCase();
     if (method !== "GET") return false; // Never submit POST forms.
+    // A GET form targeting another browsing context is not a safe automatic search.
+    const target = (form.getAttribute("target") || "").trim().toLowerCase();
+    if (target && target !== "_self") return false;
     try {
       const base = form.ownerDocument?.baseURI || location.href;
       const action = new URL(form.getAttribute("action") || base, base);
@@ -191,8 +194,18 @@
   function searchButton(input) {
     const area = searchContext(input);
     if (!area) return null;
-    const controls = Array.from(area.querySelectorAll(
-      'button,input[type="submit"],[role="button"]')).slice(0, 24);
+    const controls = [];
+    function collect(nodes) {
+      if (!nodes) return;
+      // Bound both DOM reads and temporary storage on large dynamic forms.
+      for (let i = 0; i < nodes.length && i < 48 && controls.length < 48; i++) {
+        if (nodes[i] && !controls.includes(nodes[i])) controls.push(nodes[i]);
+      }
+    }
+    collect(area.querySelectorAll('button,input[type="submit"],[role="button"]'));
+    // HTMLFormElement.elements includes buttons associated via form="id"
+    // even when they live outside the form subtree. Never search globally.
+    if (input.form) collect(input.form.elements);
     const valid = controls.filter(b => manualSubmit(b, input));
     // A form may contain reset, filter and navigation buttons as well.
     // Prefer an explicitly named search action; otherwise a UNIQUE native
@@ -442,6 +455,24 @@
     if (input.form) {
       // HTML "form" attribute may associate a submit control outside <form>.
       if (!safeForm(input.form) || button.form !== input.form) return false;
+      // A submit control can override the enclosing safe GET form. Never
+      // click POST, cross-origin actions or a new browsing context.
+      const method = (button.getAttribute?.("formmethod") || "").trim().toUpperCase();
+      const target = (button.getAttribute?.("formtarget") || "").trim().toLowerCase();
+      if ((method && method !== "GET") || (target && target !== "_self"))
+        return false;
+      const override = button.getAttribute?.("formaction");
+      if (override != null) {
+        if (typeof override !== "string" || override.length > 1800) return false;
+        try {
+          const base = input.form.ownerDocument?.baseURI || location.href;
+          const destination = new URL(override || base, base);
+          if (!/^https?:$/.test(destination.protocol) ||
+              destination.origin !== location.origin ||
+              destination.username || destination.password ||
+              destination.href.length > 2048) return false;
+        } catch (_) { return false; }
+      }
     } else if (!area.contains(button) || button.form || button.closest?.("form")) return false;
     const type = (button.getAttribute?.("type") || "").toLowerCase();
     if (type === "reset" || type === "image") return false;
