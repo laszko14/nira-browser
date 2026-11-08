@@ -1614,6 +1614,12 @@
     // The native collector will stop with ERROR, never completed success.
     const contiguous = prior && prior.selector === command.resultsCardSelector &&
       prior.next === start;
+    function cursorLink(card) {
+      // Virtualized lists may reuse the same node while replacing its href.
+      // Keep only a bounded, in-memory local comparison for this cursor.
+      const href = card?.querySelector?.("a[href]")?.getAttribute?.("href");
+      return typeof href === "string" ? href.slice(0, 1800) : null;
+    }
     if (start > cards.length) {
       if (stream) continuationAnchors[stream] = null;
       // A stand-alone high offset (without an observed prior batch) retains
@@ -1622,7 +1628,8 @@
       return { status:contiguous ? "stale" : "empty",
         films:[], inspectedCards:0, moreOnPage:false };
     }
-    if (contiguous && cards[start - 1] !== prior.anchor) {
+    if (contiguous && (cards[start - 1] !== prior.anchor ||
+        cursorLink(cards[start - 1]) !== prior.anchorLink)) {
       if (stream) continuationAnchors[stream] = null;
       return { status:"stale", films:[], inspectedCards:0, moreOnPage:false };
     }
@@ -1704,7 +1711,8 @@
     if (stream) continuationAnchors[stream] = consumed > 0 && more ? {
       selector: command.resultsCardSelector,
       next: start + consumed,
-      anchor: cards[start + consumed - 1]
+      anchor: cards[start + consumed - 1],
+      anchorLink: cursorLink(cards[start + consumed - 1])
     } : null;
     return { status: films.length ? "ok" : "empty",
       films, inspectedCards: consumed, moreOnPage: more };

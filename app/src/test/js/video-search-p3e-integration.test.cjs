@@ -100,7 +100,9 @@ function harness() {
     const anchor = {
       textContent: options.linkText || title,
       className: options.anchorClass || 'movie-link', id: '',
-      getAttribute(key) { return key === 'href' ? url : null; },
+      getAttribute(key) {
+        return key === 'href' ? (options.linkState?.href || url) : null;
+      },
       hasAttribute() { return false; },
       matches(selector) { return selector === 'a[href]' ||
         (selector.includes('.movie-link') && this.className === 'movie-link'); },
@@ -433,4 +435,22 @@ test('P4-B2 an unproven utility URL with only a neighboring card poster is exclu
   assert.deepEqual(Array.from(batch.films,f=>f.filmPageUrl),[
     origin+'/watch?id=9&lang=pl'
   ]);
+});
+
+
+test('P4-C2 virtualized cursor is stale when the same last card node changes its film URL',()=>{
+  const h=harness();
+  const linkState={href:origin+'/watch?id=16&lang=pl'};
+  const cards=Array.from({length:18},(_,i)=>i===15 ?
+    h.card(16,{linkState}) : h.card(i+1));
+  h.setCards(cards);
+  const first=extract(h,'.search-results article.video-card',0);
+  assert.equal(first.status,'ok');
+  assert.equal(first.inspectedCards,16);
+  assert.equal(first.moreOnPage,true);
+  linkState.href=origin+'/watch?id=816&lang=pl';
+  const stale=extract(h,'.search-results article.video-card',16);
+  assert.equal(stale.status,'stale');
+  assert.equal(stale.inspectedCards,0);
+  assert.equal(stale.films.length,0);
 });
