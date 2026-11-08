@@ -1390,7 +1390,7 @@
       if (typeof value !== "string" || value.length > 65) return null;
       const v = value.trim();
       if (!v) return null;
-      const iso = /^PT(?:(\d{1,2})H)?(?:(\d{1,2})M)?(?:(\d{1,2})S)?$/i.exec(v);
+      const iso = /^PT(?:(\d{1,4})H)?(?:(\d{1,4})M)?(?:(\d{1,2})S)?$/i.exec(v);
       if (iso && (iso[1] || iso[2] || iso[3])) {
         const seconds = Number(iso[1] || 0) * 3600 +
           Number(iso[2] || 0) * 60 + Number(iso[3] || 0);
@@ -1410,6 +1410,18 @@
       const raw = value.trim();
       if (!/^\d{4}(?:-\d{2}(?:-\d{2})?)?(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})?)?$/i.test(raw))
         return null;
+      // Date.parse silently normalizes impossible dates such as 2024-02-31.
+      // Reject those rather than assigning a wrong publication date to a film.
+      const calendar = /^(\d{4})-(\d{2})(?:-(\d{2}))?/.exec(raw);
+      if (calendar) {
+        const year = Number(calendar[1]), month = Number(calendar[2]);
+        const day = Number(calendar[3] || 1);
+        const verified = new Date(Date.UTC(year, month - 1, day));
+        if (month < 1 || month > 12 ||
+            verified.getUTCFullYear() !== year ||
+            verified.getUTCMonth() + 1 !== month ||
+            verified.getUTCDate() !== day) return null;
+      }
       const normalized = /^\d{4}-\d{2}-\d{2}T/.test(raw) &&
         !/(?:Z|[+-]\d{2}:\d{2})$/i.test(raw) ? raw + "Z" : raw;
       const stamp = Date.parse(normalized);
@@ -1465,15 +1477,34 @@
         for (const entity of entities) {
           if (!entity || typeof entity !== "object" || Array.isArray(entity)) continue;
           const kinds = Array.isArray(entity["@type"]) ? entity["@type"] : [entity["@type"]];
-          if (!kinds.some(k => ["Movie", "VideoObject", "TVEpisode", "CreativeWork"].includes(k)))
-            continue;
+          // schema.org allows either plain @type or its canonical URL.
+          const acceptedTypes = ["Movie", "VideoObject", "TVEpisode", "CreativeWork"];
+          const type = kinds.map(k => typeof k === "string" ?
+            k.replace(/^https?:\/\/schema\.org\//i, "") : null)
+            .find(k => acceptedTypes.includes(k));
+          if (!type) continue;
           if (safeUrl(entity.url || entity["@id"], true) !== filmUrl) continue;
+          // An episode marker must come from this exact film entity. Never
+          // infer a season/episode from adjacent cards or other JSON-LD.
+          function episodeNumber(value) {
+            if (!(typeof value === "number" || typeof value === "string") ||
+                !/^\d{1,3}$/.test(String(value))) return null;
+            const number = Number(value);
+            return number >= 1 && number <= 999 ? number : null;
+          }
+          const season = episodeNumber(entity.partOfSeason?.seasonNumber ??
+            entity.seasonNumber);
+          const episode = episodeNumber(entity.episodeNumber);
+          const episodeTag = type === "TVEpisode" && season && episode ?
+            "S" + String(season).padStart(2, "0") +
+            "E" + String(episode).padStart(2, "0") : null;
           return {
             title: shortText(entity.name || entity.headline, 512),
             image: structuredPoster(entity),
             duration: duration(entity.duration),
             publishedAtMs: publicationDate(entity.datePublished || entity.uploadDate ||
-              entity.dateCreated)
+              entity.dateCreated),
+            episodeTag
           };
         }
       }
@@ -1668,9 +1699,15 @@
           nodeText(cardTime, 65) || "") ?? inline?.duration ?? null;
       const structuredTitleIsValid = !!titleFromJson && duration(titleFromJson) === null;
       const titleText = structuredTitleIsValid ? titleFromJson : title.value;
+      // Preserve exact-URL TVEpisode season/episode identity in the existing
+      // title field without changing the native wire format or Room schema.
+      // Do not duplicate a marker already present on this same film title.
+      const taggedTitle = inline?.episodeTag && titleText &&
+        !/\bS\d{1,3}\s*E\d{1,3}\b/i.test(titleText) ?
+        shortText(titleText + " · " + inline.episodeTag, 512) : titleText;
       // A pure timestamp in the title slot is metadata noise, not a title.
       // Timestamps embedded in an actual title remain untouched.
-      const safeTitle = titleText && duration(titleText) === null ? titleText : null;
+      const safeTitle = taggedTitle && duration(taggedTitle) === null ? taggedTitle : null;
       const publicationNode = scoped(card,
         '[itemprop="datePublished"],[data-published],[data-upload-date],time[datetime]:not(.duration):not(.runtime)');
       const publishedAtMs = inline?.publishedAtMs ??

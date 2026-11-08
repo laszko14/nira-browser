@@ -150,6 +150,11 @@
       "task_id": "ZC-V4-P4-C2-INFINITE-SCROLL-GUARD",
       "observed_count": 7,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P4-D1-CARD-METADATA",
+      "observed_count": 0,
+      "state": "ACTIVE"
     }
   ],
   "events": [

@@ -131,7 +131,8 @@ function harness() {
         if (selector === 'a[href]') return [anchor];
         if (selector.includes('script[type="application/ld+json"]'))
           return options.structured === false ? [] :
-            [{textContent: JSON.stringify(ld)}];
+            [{textContent: JSON.stringify(options.structuredData === undefined ?
+              ld : options.structuredData)}];
         if (selector.includes('h1,h2,h3,h4') ||
             selector === '[itemprop="name"]') return [heading];
         if (selector === 'img' ||
@@ -454,4 +455,79 @@ test('P4-C2 virtualized cursor is stale when the same last card node changes its
   assert.equal(stale.status,'stale');
   assert.equal(stale.inspectedCards,0);
   assert.equal(stale.films.length,0);
+});
+
+test('P4-D1 schema.org URL TVEpisode keeps exact-URL season, episode, poster and long duration',()=> {
+  const h=harness();
+  const url=origin+'/watch?id=51&lang=pl';
+  h.setCards([h.card(51,{title:'The Aurora',structuredData:{
+    '@type':'https://schema.org/TVEpisode',url,name:'The Aurora',
+    episodeNumber:'3',partOfSeason:{seasonNumber:'2'},
+    image:[{'@type':'ImageObject',contentUrl:origin+'/poster/51.jpg'}],
+    duration:'PT120M',datePublished:'2024-02-29'
+  }})]);
+  const result=extract(h,'.search-results article.video-card',0);
+  assert.equal(result.status,'ok');
+  const film=result.films[0];
+  assert.equal(film.filmPageUrl,url);
+  assert.equal(film.originalTitle,'The Aurora · S02E03');
+  assert.equal(film.titleSource,'STRUCTURED');
+  assert.equal(film.thumbnailUrl,origin+'/poster/51.jpg');
+  assert.equal(film.imageSource,'STRUCTURED');
+  assert.equal(film.durationSeconds,7200);
+  assert.equal(film.publishedAtMs,Date.parse('2024-02-29'));
+});
+
+test('P4-D1 distinct episodes with identical names retain separate exact URL and identity',()=> {
+  const h=harness();
+  h.setCards([1,2].map(episode=>h.card(episode,{
+    title:'Aurora',structuredData:{
+      '@type':'TVEpisode',url:origin+'/watch?id='+episode+'&lang=pl',
+      name:'Aurora',episodeNumber:episode,partOfSeason:{seasonNumber:1}
+    }
+  })));
+  const result=extract(h,'.search-results article.video-card',0);
+  assert.equal(result.status,'ok');
+  assert.deepEqual(Array.from(result.films,f=>f.originalTitle),
+    ['Aurora · S01E01','Aurora · S01E02']);
+  assert.equal(h.clicks(),0);
+});
+
+test('P4-D1 embedded structured data for a different exact film URL is never borrowed',()=> {
+  const h=harness();
+  h.setCards([h.card(52,{title:'Correct Local Title',structuredData:{
+    '@type':'Movie',url:origin+'/watch?id=999&lang=pl',
+    name:'Wrong Neighbor Film',image:origin+'/wrong-neighbor.jpg',
+    duration:'PT83M',datePublished:'2023-03-10'
+  }})]);
+  const result=extract(h,'.search-results article.video-card',0);
+  assert.equal(result.status,'ok');
+  const film=result.films[0];
+  assert.equal(film.originalTitle,'Correct Local Title');
+  assert.equal(film.thumbnailUrl,origin+'/poster?id=52');
+  assert.equal(film.durationSeconds,null);
+  assert.equal(film.publishedAtMs,null);
+});
+
+test('P4-D1 invalid calendar date is not normalized into another day',()=> {
+  const h=harness();
+  h.setCards([h.card(53,{structuredData:{
+    '@type':'Movie',url:origin+'/watch?id=53&lang=pl',
+    name:'Leap Day Error',datePublished:'2024-02-31',duration:'PT3M'
+  }})]);
+  const film=extract(h,'.search-results article.video-card',0).films[0];
+  assert.equal(film.publishedAtMs,null);
+  assert.equal(film.durationSeconds,180);
+});
+
+test('P4-D1 title with existing SxxExx marker is not duplicated by exact matching JSON-LD',()=> {
+  const h=harness();
+  h.setCards([h.card(54,{structuredData:{
+    '@type':'http://schema.org/TVEpisode',
+    url:origin+'/watch?id=54&lang=pl',
+    name:'Aurora S02E03',episodeNumber:3,
+    partOfSeason:{seasonNumber:2}
+  }})]);
+  const film=extract(h,'.search-results article.video-card',0).films[0];
+  assert.equal(film.originalTitle,'Aurora S02E03');
 });
