@@ -31,6 +31,23 @@
   const searchTerms = /search|szukaj|find|query|wyszuk|buscar|suche|recherche|keyword|lookup/i;
   // Negative evidence always beats a keyword that happens to say "search".
   const unsafeControl = /reset|clear|cancel|anuluj|filter|filtr|sort|login|sign.?in|register|payment|checkout|delete|remove|usuń|usun|close|zamkn/i;
+  // A matching CSS card selector may include advertisements or recommendation
+  // shelves on the same results page. Never persist those as film results.
+  const nonResultRegion = /(?:^|[\s_-])(?:advert(?:isement)?s?|sponsored|promo|banner|sidebar|navigation|breadcrumb|recommend(?:ed|ations?)?|related|suggest(?:ed|ions?)?|trending|popular|featured|playlist|categories|genres)(?:$|[\s_-])/i;
+  function excludedResultCard(card) {
+    if (!card || card.isConnected === false || card.closest?.(
+        'nav,header,footer,aside,[role="navigation"],[hidden],[inert],[aria-hidden="true"],.ad,.advertisement,.sponsored,[data-ad]'))
+      return true;
+    let node = card;
+    for (let depth = 0; node && depth < 7; depth++, node = node.parentElement) {
+      const hint = [node.id, typeof node.className === "string" ? node.className : "",
+        node.getAttribute?.("data-testid"), node.getAttribute?.("data-type"),
+        node.getAttribute?.("aria-label")]
+        .filter(v => typeof v === "string").join(" ");
+      if (nonResultRegion.test(hint)) return true;
+    }
+    return false;
+  }
   function inputHint(input) {
     const labels = Array.from(input.labels || []).slice(0, 3)
       .map(n => (n.textContent || "").slice(0, 80));
@@ -1300,7 +1317,10 @@
             parsed.username || parsed.password ||
             parsed.href.length > (filmPage ? 2048 : 800)) return null;
         if (filmPage) {
+          const documentUrl = new URL(base);
           if (parsed.origin !== location.origin || (parsed.href === location.href || parsed.href === base) ||
+              (parsed.pathname === documentUrl.pathname &&
+               parsed.search === documentUrl.search && parsed.hash) ||
               /\.(?:mp4|webm|m3u8|mpd|mp3|m4a|ts)(?:$)/i.test(parsed.pathname)) return null;
         }
         return parsed.href; // Full query is identity; never strip it.
@@ -1407,14 +1427,14 @@
       try { pathname = new URL(filmUrl).pathname; } catch (_) { return true; }
       // These routes can have cards/posters/headings, but they are not film
       // pages. Never use them as persisted search-result identities.
-      if (/(?:^|\/)(?:categor(?:y|ies)|genres?|tags?|topics?|channels?|authors?|playlists?|collections?|account|login|log-in|signin|sign-in|register|signup|sign-up|checkout|cart|payment|purchase|ads?)(?:\/|$)/i.test(pathname))
+      if (/(?:^|\/)(?:categor(?:y|ies)|genres?|tags?|topics?|channels?|authors?|users?|profiles?|people|persons?|actors?|cast|comments?|reviews?|forum|playlists?|collections?|account|login|log-in|signin|sign-in|register|signup|sign-up|checkout|cart|payment|purchase|ads?)(?:\/|$)/i.test(pathname))
         return true;
       const relation = anchor.getAttribute("rel") || "";
       if (/(?:^|\s)tag(?:\s|$)/i.test(relation)) return true;
       const labels = [anchor.getAttribute("data-type"), anchor.getAttribute("data-role"),
         anchor.getAttribute("data-testid"), anchor.className, anchor.id]
         .filter(value => typeof value === "string").join(" ");
-      return /(?:^|[\s_-])(?:category|categories|genre|genres|tag|tags|topic|topics)(?:$|[\s_-])/i.test(labels);
+      return /(?:^|[\s_-])(?:category|categories|genre|genres|tag|tags|topic|topics|author|user|profile|actor|cast|comment|review|share|sponsored)(?:$|[\s_-])/i.test(labels);
     }
     function selectedAnchor(card) {
       if (command.linkSelector) {
@@ -1548,6 +1568,9 @@
     let consumed = end - start;
     for (let index = start; index < end; index++) {
       const card = cards[index];
+      // Recognition can group cards by CSS while the page mixes in an
+      // advertisement or related shelf. Enforce card-level exclusion again.
+      if (excludedResultCard(card)) continue;
       const match = selectedAnchor(card);
       if (!match) continue;
       const { anchor, filmUrl } = match;

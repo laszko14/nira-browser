@@ -116,9 +116,12 @@ function harness() {
       duration: 'PT10M', datePublished: '2024-04-10T00:00:00Z'
     };
     return {
-      tagName: 'ARTICLE', id: '', className: 'video-card',
-      classList: ['video-card'], isConnected: true,
-      parentElement: parent, ownerDocument: document,
+      tagName: 'ARTICLE', id: '', className: options.className || 'video-card',
+      classList: [options.className || 'video-card'], isConnected: true,
+      parentElement: options.region ? {
+        id: '', className: options.region, classList: [options.region],
+        parentElement: parent, getAttribute() {return null;}
+      } : parent, ownerDocument: document,
       getAttribute() { return null; },
       closest() { return null; },
       querySelectorAll(selector) {
@@ -374,4 +377,42 @@ test('P4-B1 a new-tab target injected after search ACK cancels click',()=>{
   h.submitOverride('formtarget','_blank');
   h.flush();
   assert.equal(h.clicks(),0,'search must not escape to a new tab after ACK');
+});
+
+
+test('P4-B2 broad saved CSS selector excludes sponsored, recommendations, profile and fragment cards',()=>{
+  const h=harness();
+  h.setCards([
+    h.card(1),
+    h.card(2,{className:'sponsored-card'}),
+    h.card(3,{className:'recommended-card'}),
+    h.card(4,{url:origin+'/users/editor'}),
+    h.card(5,{url:pageUrl+'#episode'}),
+    h.card(6,{region:'related-videos'}),
+    h.card(7)
+  ]);
+  // A real site's broad selector may still match sponsored cards in the same
+  // grid. The extractor must re-check each card and URL before persistence.
+  const batch=extract(h,'.search-results article.video-card',0);
+  assert.equal(batch.status,'ok');
+  assert.equal(batch.inspectedCards,7);
+  assert.deepEqual(Array.from(batch.films,f=>f.filmPageUrl),[
+    origin+'/watch?id=1&lang=pl',origin+'/watch?id=7&lang=pl'
+  ]);
+  assert.deepEqual(Array.from(batch.films,f=>f.originalIndex),[0,6]);
+});
+
+test('P4-B2 card selection fails closed when all matching entries are non-results',()=>{
+  const h=harness();
+  h.setCards([
+    h.card(1,{className:'recommended-card'}),
+    h.card(2,{url:origin+'/profiles/curator'}),
+    h.card(3,{url:pageUrl+'#discussion'}),
+    h.card(4,{region:'trending-videos'})
+  ]);
+  const batch=extract(h,'.search-results article.video-card',0);
+  assert.equal(batch.status,'empty');
+  assert.equal(batch.films.length,0);
+  assert.equal(batch.inspectedCards,4);
+  assert.equal(h.clicks(),0,'read-only results extraction must never click');
 });

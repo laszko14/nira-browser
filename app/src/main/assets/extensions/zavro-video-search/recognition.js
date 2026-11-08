@@ -59,9 +59,9 @@
     observedShadowRoots.set(host, shadow);
     return true;
   }
-  const BAD_PATH = /(?:^|\/)(?:categor(?:y|ies)|genres?|tags?|topics?|channels?|authors?|playlists?|collections?|account|login|signin|register|checkout|ads?)(?:\/|$)/i;
+  const BAD_PATH = /(?:^|\/)(?:categor(?:y|ies)|genres?|tags?|topics?|channels?|authors?|users?|profiles?|people|persons?|actors?|cast|comments?|reviews?|forum|playlists?|collections?|account|login|log-in|signin|sign-in|register|signup|sign-up|checkout|cart|payment|purchase|ads?)(?:\/|$)/i;
   const MEDIA_FILE = /\.(?:mp4|webm|m3u8|mpd|mp3|m4a|ts)(?:$)/i;
-  const BAD_HINT = /(?:^|[\s_-])(?:advert(?:isement)?|sponsored|promo|banner|navigation|menu|breadcrumb|sidebar|category|tag|login|checkout)(?:$|[\s_-])/i;
+  const BAD_HINT = /(?:^|[\s_-])(?:advert(?:isement)?|sponsored|promo|banner|navigation|menu|breadcrumb|sidebar|category|tag|login|checkout|recommend(?:ed|ations?)?|related|suggest(?:ed|ions?)?|trending|popular|featured)(?:$|[\s_-])/i;
   const CARD_HINT = /(?:video|film|movie|episode|search|result|card|tile|post|listing|thumb)/i;
   const TOKEN = /^[a-zA-Z_][a-zA-Z0-9_-]{1,42}$/;
   // Avoid auto-learning generated build hashes and transient numeric CSS.
@@ -81,7 +81,9 @@
       if (!/^https?:$/.test(u.protocol) || u.origin !== owner.origin ||
           u.username || u.password || u.href === base || u.href.length > 2048 ||
           BAD_PATH.test(u.pathname) || MEDIA_FILE.test(u.pathname) ||
-          anchor.hasAttribute?.("download")) return null;
+          anchor.hasAttribute?.("download") ||
+          (u.pathname === owner.pathname && u.search === owner.search &&
+           u.hash && u.hash !== owner.hash)) return null;
       return u.href;
     } catch (_) { return null; }
   }
@@ -353,7 +355,10 @@
       const titleRelation = !!heading && !!label && (heading.toLowerCase() === label.toLowerCase() ||
         label.toLowerCase().includes(heading.toLowerCase()));
       const semantic = !!first(a, "h1,h2,h3,h4,[itemprop=name],.title,img", budget);
-      const path = /(?:^|\/)(?:watch|movie|film|video|episode|title|play)(?:\/|$)/i.test(new URL(url).pathname);
+      const path = /(?:^|\/)(?:watch|movies?|films?|videos?|episodes?|title|play)(?:\/|$)/i.test(new URL(url).pathname);
+      // A poster and heading elsewhere in the card cannot turn an arbitrary
+      // profile/comment/utility link into a film. Require anchor-local proof.
+      if (!titleRelation && !semantic && !path) continue;
       const points = 25 + (titleRelation ? 20 : heading && semantic ? 14 : 0) +
         (image ? 15 : 0) + (duration ? 5 : 0) + (path ? 10 : 0) +
         (inResults ? 10 : 0) + (inResults && region.results ? 8 : 0);

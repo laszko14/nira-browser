@@ -1,42 +1,42 @@
-# AI_HANDOFF — Zavro Clean V4 / P4-B1 intelligent and safe search controls
+# AI_HANDOFF — Zavro Clean V4 / P4-B2 film-card recognition and extraction relevance
 
-> Legacy history: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md. This checkpoint is a pre-commit source snapshot; live HEAD is authoritative. P4-A2 CODE_VERIFIED on `3fc6337dc1b95b9833089057b0317df3bf321db5`: SOURCE #42463044134 and PR #42463047560 completed SUCCESS (attempt 1). Previous P4-A1 CODE_VERIFIED also retained.
+> Legacy archive: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md. This checkpoint is prepared before the P4-B2 commit, so observed_head_sha is a historical pre-write snapshot. Live GitHub ref is authoritative. P4-B1 CODE_VERIFIED on `fe0607080a631960ab9b08b34c3e42ba512351c6`: SOURCE #42464810955 and PR #42464816562 completed SUCCESS, attempt 1.
 
 ```yaml
-task_id: ZC-V4-P4-B1-SMART-SEARCH-CONTROLS
+task_id: ZC-V4-P4-B2-FILM-CARD-RELEVANCE
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: feat/zavro-clean-v4-p4-20261107
-base_sha: 3fc6337dc1b95b9833089057b0317df3bf321db5
-observed_head_sha: 3fc6337dc1b95b9833089057b0317df3bf321db5
+base_sha: fe0607080a631960ab9b08b34c3e42ba512351c6
+observed_head_sha: fe0607080a631960ab9b08b34c3e42ba512351c6
 status: CI_PENDING
-acceptance_source: User said "dalej" after P4-A2 CODE_VERIFIED in the agreed 12-stage P4 rollout. P4-B1 implements smarter search-field and submit-button recognition, association and fail-closed action safety. No APK or merge authorized.
-completed: Enhanced production WebExtension content.js search discovery with bounded same-form HTMLFormControlsCollection support for external form-associated submit buttons, safe keyword/lookup input recognition, safe GET form target validation, and fail-closed validation of per-button formmethod/formaction/formtarget overrides both at discovery and when a previously acknowledged click is deferred. Added 7 source-backed inspection/analysis fixture tests plus 3 production bridge deferred-click tests. Existing manual picker, user site rules, native contract, GeckoView, Kotlin, Room, profile isolation, session data and signing remain unchanged.
-remaining: Verify required SOURCE and stacked Draft PR CI on final P4-B1 commit; on any failure, triage with exact job/run/attempt, add each observed CI occurrence to ERROR_CASES and fix cause before final green CI. Next P4-B2 covers recognizing actual film result cards, to start only on separate "Dalej".
-required_ci: SOURCE process-docs + shared-tests JS WebExtension, Kotlin/Robolectric, AndroidTest Kotlin compile, Android lint regression baseline and exact SHA summary all SUCCESS; stacked PR JS/Kotlin/AndroidTest compile/lint plus error-learning evidence SUCCESS on identical final PR-head SHA.
-device: NOT_TESTED — no physical Android or live-site verification in ordinary chat.
-apk: NOT_BUILT_FOR_P4 — P3-E v1224 signed APK belongs to earlier source SHA, no P4 signature/build request.
-known_failures: Before initial P4-B1 CI, zero known new failures. Prior P4-A1 eight CI occurrences fixed and recorded; P4-A2 zero failures. Reconcile this task count against final CI evidence.
-verification: Read live P4 HEAD 3fc6337dc1b95b9833089057b0317df3bf321db5, Draft PR #128 matching head and correct base, AGENTS.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md and scoped TEST_POLICY, TEST_PATTERNS, TASK_TEMPLATE, QUALITY_GATES, DEVELOPMENT_WORKFLOW, ERROR_LEARNING, CHECKPOINT_POLICY, EXCEPTIONS_AND_TOOLS, P3-E real-site acceptance. Analyzed production content.js validInput/score/searchContext/searchButton/manualSubmit/safeForm/runSearch/siteAnalysis and existing P3-E and structural fixtures. SOURCE #42463044134 and PR #42463047560 verified completed SUCCESS on 3fc6337dc1b95b9833089057b0317df3bf321db5. Tests are synthetic Node/VM fixtures; GeckoView and device not run.
+acceptance_source: User wrote "Dalej" after P4-B1 CODE_VERIFIED. The agreed next stage P4-B2 improves structural recognition of actual film cards and consistency of extraction, especially mixed result grids, recommendations and unrelated links. No APK, merge, release, cert change, profile modification or unapproved operations.
+completed: Enhanced production recognition.js to reject profile/author/person/cast/comment/review/forum routes and same-page fragment anchors, exclude recommendation/related/trending/featured card hints, require card-local anchor title/semantic or film-route evidence rather than inheriting an unrelated poster. Enhanced production content.js extraction with bounded per-card exclusion of sponsored and recommendation/sidebar/featured contexts even when configured CSS selects all cards, aligned catalogLink navigation-route exclusions and same-page fragments. Added source-backed P4-B2 recognition tests for blocked routes, hash links, weak utility anchors, recommendations, valid unconventional title links, mixed user/movie links and ambiguous dual-film links. Added extraction integration tests for mixed poisoned grids and all-invalid lists using the real production recognition + bridge VM. Preserved source and protocol behavior for legitimate cards, CSS configuration and prior tests.
+remaining: Execute SOURCE process-docs + JS + Kotlin/Robolectric + AndroidTest Kotlin compile + lint regression + evidence summary and stacked Draft PR shared gates + error-learning evidence at exact final P4-B2 SHA. Triage all CI failures and reconcile ERROR_CASES. Next step P4-C1 focuses pagination controls, only on separate user "Dalej".
+required_ci: SOURCE process-docs and shared-tests JS WebExtension, Kotlin/Robolectric, AndroidTest Kotlin compile, Android lint baseline, final evidence summary all SUCCESS on exact commit SHA; stacked PR shared-tests JS/Kotlin/AndroidTest Kotlin compile/lint plus error-learning evidence SUCCESS on identical PR head SHA.
+device: NOT_TESTED — source/VM/Gradle only, no real Nothing Phone (1) or live external websites.
+apk: NOT_BUILT_FOR_P4 — prior signed P3-E v1224 belongs to another SHA; user did not authorize any new APK.
+known_failures: Before initial P4-B2 CI zero confirmed P4-B2 failures. Reconcile observed jobs and record every distinct CI/review problem in ERROR_CASES before CODE_VERIFIED. Historical P4-A1 registered 8 FIXED, P4-A2/B1 zero observed CI failures.
+verification: Verified live branch and PR #128 head fe0607080a631960ab9b08b34c3e42ba512351c6, Draft open unmerged with P3-E as base. Read AGENTS.md, docs/AI_HANDOFF.md and STARTUP_PREFLIGHT.md and task, workflow, test, pattern, review, error-learning, checkpoint, exception instructions at exact SHA. Reviewed current recognition.js, content.js extraction routes and score rules, P1/P4-A1/P3-E tests, and verified previous SOURCE #42464810955 and PR #42464816562 successes. No local checkout; CI required.
 changed_paths:
+  - app/src/main/assets/extensions/zavro-video-search/recognition.js
   - app/src/main/assets/extensions/zavro-video-search/content.js
-  - app/src/test/js/video-search-structural-v4.test.cjs
+  - app/src/test/js/video-search-p4b2-card-relevance.test.cjs
   - app/src/test/js/video-search-p3e-integration.test.cjs
   - docs/ai/ERROR_CASES.json
   - docs/AI_HANDOFF.md
 verified_before_push:
-  - Production-only change is search detection/action safety; no schema, networking, profiles, secrets, certificate, ABI or UI changes.
-  - Search actions still require explicit native command, with no automatic site clicks during inspection or analysis.
-  - Form override validation rejects non-GET methods, cross-origin destinations and foreign targets. Deferred search revalidates on original bound control.
-  - External form-associated submit candidates come from one bounded form.elements collection rather than global DOM search. Unsafe and ambiguous candidates fail closed.
-  - Existing tests remain; regressions added for both accepted and rejected controls.
+  - Scan is read-only and bounded; no navigation, click, tracking, data transfer or added permissions.
+  - Film URL must have film anchor-local proof; strong title-labelled unusual paths are allowed, ambiguous two-film links remain unaccepted.
+  - CSS group can be broader than eligible cards, so per-card validation repeats during extraction. Profile links, hash anchors, sponsored/recommendations not persisted.
+  - No schema/profile/session/key/ABI/version/build workflow edits. Tests run genuine production WebExtension scripts with synthetic site-owned DOM.
 blockers:
-  - Physical device and external real-site test E01-E18 are NOT_TESTED.
-  - Independent high-risk review not available; self-review plus mandatory CI, no claim of independently accepted risk.
+  - Real-site / device acceptance E01-E18 remains NOT_TESTED.
+  - Independent high-risk review unavailable; self-review and green CI are not independent on-device acceptance.
 evidence_links:
   - https://github.com/laszko14/nira-browser/pull/128
-  - https://github.com/laszko14/nira-browser/actions/runs/42463044134
-  - https://github.com/laszko14/nira-browser/actions/runs/42463047560
-next_action: Complete SOURCE and PR CI at final P4-B1 SHA, fix and log any observed CI failures, confirm branch/PR/run SHA and STOP. Next user "Dalej" begins P4-B2 actual result-card recognition; P4 APK remains unauthorized.
+  - https://github.com/laszko14/nira-browser/actions/runs/42464810955
+  - https://github.com/laszko14/nira-browser/actions/runs/42464816562
+next_action: Fix any P4-B2 CI failure and record it, get both SOURCE and PR required gates green at exact final SHA, confirm Draft PR head and STOP. On separate "Dalej" implement P4-C1 pager controls, not APK.
 ```
