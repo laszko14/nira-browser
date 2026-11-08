@@ -138,7 +138,7 @@
     },
     {
       "task_id": "ZC-V4-P4-B2-FILM-CARD-RELEVANCE",
-      "observed_count": 0,
+      "observed_count": 3,
       "state": "ACTIVE"
     }
   ],
@@ -2762,6 +2762,66 @@
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42348748165"
+      ]
+    },
+    {
+      "id": "CI-42470515830-P4B2-WEAK",
+      "task_id": "ZC-V4-P4-B2-FILM-CARD-RELEVANCE",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4b2-repeated-weak-anchor-low-confidence-regression",
+      "summary": "SOURCE JS 543/544 PASS: P2-E weak repeated /item links lost LOW_CONFIDENCE diagnostic after the new film-link requirement; returned CARDS_NOT_FOUND. Fix preserves weak observations below native confidence 85.",
+      "source_sha": "2e84e73628b4814ff86521831a0c2f70442efdf1",
+      "observed_at": null,
+      "run_id": 42470515830,
+      "job_id": 128699932651,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "1aad97aa7159b70d110b61d87d01be41843bea5a",
+      "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42470515830"
+      ]
+    },
+    {
+      "id": "CI-42470519760-P4B2-WEAK",
+      "task_id": "ZC-V4-P4-B2-FILM-CARD-RELEVANCE",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4b2-repeated-weak-anchor-low-confidence-regression",
+      "summary": "PR JavaScript replayed the same P2-E LOW_CONFIDENCE contract regression on source SHA 2e84e7; source-backed test must stay unchanged. Fix maintains weak diagnostic while denying persisted selectors.",
+      "source_sha": "2e84e73628b4814ff86521831a0c2f70442efdf1",
+      "observed_at": null,
+      "run_id": 42470519760,
+      "job_id": 128699944732,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-42470515830-P4B2-WEAK",
+      "fix_sha": "1aad97aa7159b70d110b61d87d01be41843bea5a",
+      "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42470519760"
+      ]
+    },
+    {
+      "id": "CI-42470515830-P4B2-SUMMARY",
+      "task_id": "ZC-V4-P4-B2-FILM-CARD-RELEVANCE",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4b2-source-required-summary-upstream-js-failure",
+      "summary": "SOURCE required-jobs summary failed correctly because JavaScript regressions failed and downstream Kotlin, AndroidTest and lint were skipped; skipped jobs are not PASS.",
+      "source_sha": "2e84e73628b4814ff86521831a0c2f70442efdf1",
+      "observed_at": null,
+      "run_id": 42470515830,
+      "job_id": 128699973704,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "1aad97aa7159b70d110b61d87d01be41843bea5a",
+      "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42470515830"
       ]
     }
   ]
