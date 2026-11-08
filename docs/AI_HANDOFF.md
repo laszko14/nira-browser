@@ -1,40 +1,40 @@
-# AI_HANDOFF — Zavro Clean V4 / P4-E1 portrait/landscape results
+# AI_HANDOFF — Zavro Clean V4 / P4-E2 merged bulk selection
 
-> Historical archive: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md. P4-D2 completed CODE_VERIFIED at 98bb6854e828b53a80137586856b50f60300df37; SOURCE #42483581694 and PR #42483586384 SUCCESS. This is a pre-commit checkpoint; remote live HEAD overrides observed_head_sha.
+> Historical archive: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md. Pre-commit snapshot only; live GitHub HEAD overrides observed_head_sha. Previous P4-E1 CODE_VERIFIED at f7fb266ccb06264ca4b6847da6deeefc3b43550c; SOURCE #42488971704 and PR #42488976490 SUCCESS.
 
 ```yaml
-task_id: ZC-V4-P4-E1-RESPONSIVE-RESULTS
+task_id: ZC-V4-P4-E2-BULK-MERGED-SELECTION
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: feat/zavro-clean-v4-p4-20261107
-base_sha: 98bb6854e828b53a80137586856b50f60300df37
-observed_head_sha: 98bb6854e828b53a80137586856b50f60300df37
+base_sha: f7fb266ccb06264ca4b6847da6deeefc3b43550c
+observed_head_sha: f7fb266ccb06264ca4b6847da6deeefc3b43550c
 status: CI_PENDING
-acceptance_source: User "Dalej" after P4-D2; original 12-stage P4 plan advances to P4-E1 portrait/landscape views. Previous mention of P4-D3 was incorrect. No APK or merge.
-completed: Responsive tile width measured from actual BoxWithConstraints viewport rather than linted screenWidthDp/screenHeightDp; GridCells.Adaptive still respects the actual parent width. Scrollable, height-bounded filter panel in both orientations and minimum 48dp toolbar targets. Original results, list/grid switching, sorting, grouping and scroll owners intact. Three JVM sizing tests.
-remaining: Verify final SOURCE and PR required CI on exact SHA, fix and record any real failures; next P4-E2 only after user "Dalej".
-required_ci: SOURCE process-docs and shared-tests (JS, JVM/Robolectric, AndroidTest Kotlin compilation, lint regression baseline), plus final evidence summary all SUCCESS on final HEAD; PR shared-tests JS/Kotlin/AndroidTest/lint and error-learning evidence SUCCESS.
-device: NOT_TESTED — no physical Nothing Phone (1) rendering/rotation/touch check or real-site test.
-apk: NOT_BUILT — no P4 APK requested.
-known_failures: Four observed CI failures at 3ee4dedd82e8f3a7dc19a29614d848c04d1f378f: SOURCE process-docs missed shared-tests literal, SOURCE+PR lint caught two ConfigurationScreenWidthHeight regressions, and SOURCE required summary failed due upstream checks. All four recorded in docs/ai/ERROR_CASES.json with a real code/document fix SHA; final CI to verify.
-verification: Read AGENTS.md and AI_HANDOFF.md at exact live 98bb6854e828b53a80137586856b50f60300df37; reviewed Compose results view, controls, lazy scroll state, TEST_POLICY, QUALITY_GATES, STARTUP_PREFLIGHT, ERROR_LEARNING and CHECKPOINT_POLICY. No local Android build.
+acceptance_source: User "dalej" after completed P4-E1. Perform P4-E2 selecting films and non-destructive bulk actions across merged groups, without APK, merge or unrelated changes.
+completed: Fixed merged film-card selection in both tile and list/mini-list. Tapping, checkbox and long press in selection mode toggle the whole original merged cluster rather than its primary film; partially selected cluster becomes fully selected before another click deselects it. Group selection checks run, profile, site, exact saved URL and duplicates against full snapshot and fails closed on stale/foreign cards. UI displays original group count and selected-member count. Website rows use long-press-to-toggle only during selection. Existing 11 bulk actions, group ownership, film URLs, scroll/filter state and source attribution remain unchanged. Five new JVM tests including 370 merged items beyond the first 150 and duplicate URLs from different sites.
+remaining: Verify exact final-SHA SOURCE process-docs and shared-tests JS/Kotlin/Robolectric/AndroidTest Kotlin compile/lint with summary; verify PR JS/Kotlin/AndroidTest/lint/error-learning evidence, repair and register any confirmed failures. Next stage only after fresh user instruction.
+required_ci: SOURCE process-docs and shared-tests JavaScript WebExtension, Kotlin/Robolectric JVM, AndroidTest Kotlin compilation, Android lint regression baseline and required evidence summary all SUCCESS on exact final SHA; PR shared-tests JS/Kotlin/AndroidTest/lint and error-learning evidence SUCCESS on identical head SHA.
+device: NOT_TESTED — no physical Nothing Phone (1), live GeckoView selection/long-press or actual external site.
+apk: NOT_BUILT_FOR_P4 — no APK authorized; no signing.
+known_failures: No P4-E2 CI failures observed before push; record actual CI findings without assumptions.
+verification: Live GitHub Draft PR #128, branch feat/zavro-clean-v4-p4-20261107, SHA f7fb266ccb06264ca4b6847da6deeefc3b43550c verified; AGENTS.md and docs/AI_HANDOFF.md at exact SHA and scoped preflight, quality, test, checkpoint and error-policy docs read. Reviewed full native bulk selection/actions/group profile checks and list/grid click handlers. No local checkout or device build.
 changed_paths:
+  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchBulkSelection.kt
   - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsActivity.kt
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsLayoutPolicy.kt
-  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsLayoutPolicyTest.kt
+  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchBulkSelectionTest.kt
   - docs/AI_HANDOFF.md
   - docs/ai/ERROR_CASES.json
 verified_before_push:
-  - Presentation-only changes; no URL, stored data, profile, private state, Room or native protocol changes.
-  - Original selections, sorting, list/grid states and all filter actions stay intact.
-  - No signing, APK workflow, permission or certificate changes.
+  - No Room migration, native protocol, site recognition, new permissions, signing, package, or network changes.
+  - Selected IDs remain per result tab, run and profile; original saved URLs and all films remain intact.
+  - Selection-mode long press cannot open the film action menu or merged picker accidentally.
 blockers:
-  - Real-device visual verification NOT_TESTED.
-  - Independent high-risk review unavailable.
+  - Device and real-site behavior NOT_TESTED.
+  - Independent high-risk review unavailable; self-review plus CI do not establish device usability.
 evidence_links:
   - https://github.com/laszko14/nira-browser/pull/128
-  - https://github.com/laszko14/nira-browser/actions/runs/42483581694
-  - https://github.com/laszko14/nira-browser/actions/runs/42483586384
-next_action: Verify exact final SOURCE and PR CI, fix any proven failure and STOP. Next P4-E2 needs a separate "Dalej".
+  - https://github.com/laszko14/nira-browser/actions/runs/42488971704
+  - https://github.com/laszko14/nira-browser/actions/runs/42488976490
+next_action: Verify full SOURCE and PR CI on new final SHA; reconcile real failures, then STOP at P4-E2. Do not start another stage or APK without new user request.
 ```

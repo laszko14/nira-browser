@@ -165,6 +165,11 @@
       "task_id": "ZC-V4-P4-E1-RESPONSIVE-RESULTS",
       "observed_count": 4,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P4-E2-BULK-MERGED-SELECTION",
+      "observed_count": 0,
+      "state": "ACTIVE"
     }
   ],
   "events": [

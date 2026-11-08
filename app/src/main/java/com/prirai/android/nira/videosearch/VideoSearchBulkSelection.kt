@@ -23,6 +23,44 @@ internal object VideoSearchBulkSelection {
         return (selected - keys) + (keys - selected)
     }
 
+    /**
+     * A merged row represents every original film, not only its primary card.
+     * Reject the entire toggle if even one member is stale, foreign, duplicated
+     * or no longer points to the exact URL saved for this search run.
+     * Selection is UI-only and never persists grouping or changes a film link.
+     */
+    fun toggleMerged(
+        snapshot: VideoSearchSavedResults?,
+        selected: Set<String>,
+        members: List<VideoSearchFilm>,
+    ): Set<String> {
+        val run = snapshot?.run ?: return selected
+        if (members.isEmpty()) return selected
+        val saved = snapshot.films.asSequence()
+            .filter { it.runId == run.id && it.scope == run.scope &&
+                it.siteId in run.siteIds }
+            .associateBy(::key)
+        val membersKeys = LinkedHashSet<String>()
+        for (film in members) {
+            val id = key(film)
+            val original = saved[id] ?: return selected
+            if (film.runId != run.id || film.scope != run.scope ||
+                film.siteId !in run.siteIds ||
+                film.filmPageUrl != original.filmPageUrl ||
+                !membersKeys.add(id)) return selected
+        }
+        // A partially selected cluster selects all missing members. Only an
+        // entirely selected cluster toggles to unselected.
+        return if (membersKeys.all { it in selected }) selected - membersKeys
+            else selected + membersKeys
+    }
+
+    fun selectedCount(selected: Set<String>, members: List<VideoSearchFilm>): Int =
+        members.count { key(it) in selected }
+
+    fun allSelected(selected: Set<String>, members: List<VideoSearchFilm>): Boolean =
+        members.isNotEmpty() && selectedCount(selected, members) == members.size
+
     /** Resolve from the FULL saved run, not just the rendered page of 150. */
     fun resolve(snapshot: VideoSearchSavedResults?, keys: Set<String>): List<VideoSearchFilm> {
         val owner = snapshot?.run ?: return emptyList()
