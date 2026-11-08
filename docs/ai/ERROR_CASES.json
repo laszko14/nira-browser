@@ -183,7 +183,7 @@
     },
     {
       "task_id": "ZC-VIDEO-DIAG-1",
-      "observed_count": 11,
+      "observed_count": 12,
       "state": "ACTIVE"
     }
   ],
@@ -3442,6 +3442,27 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/a01d17e6a510bb8fd3d969397415a67e990a87e3",
         "https://github.com/laszko14/nira-browser/commit/ea48beaa615afc58e7ea46b726781e04c0dc0957"
+      ]
+    },
+    {
+      "id": "CI-DIAG1-SOURCE-SUMMARY-SECOND",
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag1.required-summary.red-upstream",
+      "summary": "Second SOURCE required-summary rejected the upstream JVM test compilation failure and the cancelled lint job after the superseding push; evidence gate was not weakened.",
+      "source_sha": "a01d17e6a510bb8fd3d969397415a67e990a87e3",
+      "observed_at": null,
+      "run_id": 42512954366,
+      "job_id": 128831557377,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG1-SOURCE-SUMMARY",
+      "fix_sha": "d1db6bb1841859374cfb4d836397d7894eec6305",
+      "regression_test": "scripts/ci-evidence.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42512954366",
+        "https://github.com/laszko14/nira-browser/commit/d1db6bb1841859374cfb4d836397d7894eec6305"
       ]
     }
   ]
