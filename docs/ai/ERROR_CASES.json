@@ -148,7 +148,7 @@
     },
     {
       "task_id": "ZC-V4-P4-C2-INFINITE-SCROLL-GUARD",
-      "observed_count": 2,
+      "observed_count": 5,
       "state": "ACTIVE"
     }
   ],
@@ -2872,6 +2872,66 @@
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42475049401"
+      ]
+    },
+    {
+      "id": "CI-42475725324-P4C2-JS",
+      "task_id": "ZC-V4-P4-C2-INFINITE-SCROLL-GUARD",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4c2-recycled-cursor-js-fixture-missing-queryselector-anchor",
+      "summary": "SOURCE JS (561/562 pass) failed added P4-C2 same-card href recycling regression: expected stale, got ok because sanitized fixture implemented card.querySelectorAll('a[href]') but lacked native DOM card.querySelector('a[href]') used by the bounded cursor guard. Added production-faithful querySelector in fixture without changing oracle.",
+      "source_sha": "a504a77911bb98ce6cc7ac820d54de4ecc8c37c3",
+      "observed_at": null,
+      "run_id": 42475725324,
+      "job_id": 128716541664,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "cffcd30674158476d4633fe604ef2d726f0e102e",
+      "regression_test": "app/src/test/js/video-search-p3e-integration.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42475725324"
+      ]
+    },
+    {
+      "id": "CI-42475729250-P4C2-JS",
+      "task_id": "ZC-V4-P4-C2-INFINITE-SCROLL-GUARD",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4c2-recycled-cursor-js-fixture-missing-queryselector-anchor",
+      "summary": "PR JavaScript observed the same fixture regression on a504a77911bb98ce6cc7ac820d54de4ecc8c37c3. Existing shipping code requires standard DOM querySelector('a[href]'); fixture brought into parity.",
+      "source_sha": "a504a77911bb98ce6cc7ac820d54de4ecc8c37c3",
+      "observed_at": null,
+      "run_id": 42475729250,
+      "job_id": 128716554172,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": "CI-42475725324-P4C2-JS",
+      "fix_sha": "cffcd30674158476d4633fe604ef2d726f0e102e",
+      "regression_test": "app/src/test/js/video-search-p3e-integration.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42475729250"
+      ]
+    },
+    {
+      "id": "CI-42475725324-P4C2-SUMMARY",
+      "task_id": "ZC-V4-P4-C2-INFINITE-SCROLL-GUARD",
+      "kind": "CI_FAILURE",
+      "fingerprint": "p4c2-source-required-summary-upstream-js-failure",
+      "summary": "SOURCE required-jobs summary correctly failed because the new JS regression failed; downstream Kotlin/Robolectric, AndroidTest Kotlin compile and lint were skipped. Do not count skipped branches as success.",
+      "source_sha": "a504a77911bb98ce6cc7ac820d54de4ecc8c37c3",
+      "observed_at": null,
+      "run_id": 42475725324,
+      "job_id": 128716590876,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "cffcd30674158476d4633fe604ef2d726f0e102e",
+      "regression_test": "app/src/test/js/video-search-p3e-integration.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42475725324"
       ]
     }
   ]
