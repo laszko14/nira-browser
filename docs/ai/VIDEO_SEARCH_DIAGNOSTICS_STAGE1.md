@@ -59,7 +59,7 @@ after the lifetime ends. Process death also loses the private RAM.
 Limits: 20,000 accepted producer events per session, 8 MiB per session,
 256 pending entries, 45 minutes; 1,024 bytes are reserved for a session_end
 marker. When capped, drop counts are recorded rather than blocking the Gecko
-or Android UI thread. Producers only perform O(1) enqueue under a short lock;
+or Android UI thread. Producer admission additionally limits each trace ID and reason to 128 characters, each field to 4096 characters before queuing, and field-count to the fixed schema. Producers perform bounded enqueue under a short lock;
 JSON encoding, redaction and file IO run on a background daemon. IO failure
 becomes an explicit failure signal; incomplete disk files are not considered
 complete. No network calls, automatic sharing, manifest permissions or UI.

@@ -178,6 +178,30 @@ class VideoSearchDiagnosticRecorderTest {
         assertTrue(recorder.state().retired)
     }
 
+
+    @Test fun extremelyLongEvidenceIsBoundedBeforeEnteringQueue() {
+        val owner = VideoSearchScope.Private("profile-A", "oversized-epoch")
+        val recorder = VideoSearchDiagnosticRecorder(owner, null)
+        val huge = "Q".repeat(100_000)
+        assertTrue(recorder.record(event(
+            trace = VideoSearchDiagnosticTrace(runId = huge),
+            fields = mapOf(
+                VideoSearchDiagnosticField.DOM_FRAGMENT to huge,
+                VideoSearchDiagnosticField.TITLE to huge,
+            )).copy(reason = huge)))
+        recorder.stop()
+        assertTrue(recorder.awaitStopped())
+        val observation = recorder.privateLines(owner).map(::JSONObject)
+            .single { it.getString("kind") == "event" }
+        assertEquals(128, observation.getString("reason").length)
+        assertEquals(128, observation.getJSONObject("trace").getString("runId").length)
+        assertEquals(2048,
+            observation.getJSONObject("fields").getString("DOM_FRAGMENT").length)
+        assertEquals(1024,
+            observation.getJSONObject("fields").getString("TITLE").length)
+        assertTrue(recorder.state().bytes < 5000)
+    }
+
     @Test fun invalidScopeStorageCombinationsAreRejected() {
         val destination = folder()
         try {

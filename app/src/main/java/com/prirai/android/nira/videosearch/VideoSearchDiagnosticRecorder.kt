@@ -203,8 +203,24 @@ internal class VideoSearchDiagnosticRecorder internal constructor(
             dropped++
             return@synchronized false
         }
-        val accepted = queue.offer(Pending(attempted, now(), event.copy(
-            counts = event.counts.toMap(), fields = event.fields.toMap())))
+        // Admission is bounded as well as the serialized output. A hostile or
+        // broken page must not retain megabyte-scale strings in the RAM queue.
+        val bounded = event.copy(
+            reason = event.reason.take(128),
+            trace = event.trace.copy(
+                runId = event.trace.runId?.take(128),
+                siteId = event.trace.siteId?.take(128),
+                documentId = event.trace.documentId?.take(128),
+                requestId = event.trace.requestId?.take(128),
+                workerId = event.trace.workerId?.take(128),
+                batchId = event.trace.batchId?.take(128),
+            ),
+            counts = event.counts.entries.take(8).associate { it.key to it.value },
+            fields = event.fields.entries.take(9).associate {
+                it.key to it.value.take(4096)
+            },
+        )
+        val accepted = queue.offer(Pending(attempted, now(), bounded))
         if (accepted) queued++ else dropped++
         accepted
     }
