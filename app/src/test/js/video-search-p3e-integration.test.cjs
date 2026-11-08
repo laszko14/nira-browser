@@ -139,6 +139,7 @@ function harness() {
         return [];
       },
       querySelector(selector) {
+        if (selector === 'a[href]') return anchor;
         if (selector.includes('h1,h2,h3,h4') ||
             selector === '[itemprop="name"]') return heading;
         if (selector.includes('img,picture,video')) return image;
