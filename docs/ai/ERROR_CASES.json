@@ -180,6 +180,11 @@
       "task_id": "ZC-V4-P4-F2-FINAL-REGRESSION",
       "observed_count": 2,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "observed_count": 11,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -3206,6 +3211,237 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42499752653",
         "https://github.com/laszko14/nira-browser/commit/c7718fa786a36e458412e55c3bbe9b98df5bcfb5"
+      ]
+    },
+    {
+      "id": "CI-DIAG1-SOURCE-PROCESS",
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag1.handoff.yaml-checkpoint",
+      "summary": "SOURCE process-docs failed: new handoff lacked a fenced YAML checkpoint block, causing the existing restart test to reject it.",
+      "source_sha": "51e8d73f1b0a087288c67a62a95f20f10f68dd8c",
+      "observed_at": null,
+      "run_id": 42512509777,
+      "job_id": 128828470930,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "a01d17e6a510bb8fd3d969397415a67e990a87e3",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42512509777",
+        "https://github.com/laszko14/nira-browser/commit/a01d17e6a510bb8fd3d969397415a67e990a87e3"
+      ]
+    },
+    {
+      "id": "CI-DIAG1-SOURCE-ANDROIDTEST",
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag1.kotlin.nullable-writer",
+      "summary": "SOURCE AndroidTest compilation failed at new recorder lines 264-265 on unsafe nullable BufferedWriter calls.",
+      "source_sha": "51e8d73f1b0a087288c67a62a95f20f10f68dd8c",
+      "observed_at": null,
+      "run_id": 42512509777,
+      "job_id": 128828507796,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "a01d17e6a510bb8fd3d969397415a67e990a87e3",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticRecorderTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42512509777",
+        "https://github.com/laszko14/nira-browser/commit/a01d17e6a510bb8fd3d969397415a67e990a87e3"
+      ]
+    },
+    {
+      "id": "CI-DIAG1-SOURCE-LINT",
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag1.kotlin.nullable-writer",
+      "summary": "SOURCE lint compilation was blocked by the identical nullable BufferedWriter calls in the new diagnostic recorder.",
+      "source_sha": "51e8d73f1b0a087288c67a62a95f20f10f68dd8c",
+      "observed_at": null,
+      "run_id": 42512509777,
+      "job_id": 128828507836,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG1-SOURCE-ANDROIDTEST",
+      "fix_sha": "a01d17e6a510bb8fd3d969397415a67e990a87e3",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticRecorderTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42512509777",
+        "https://github.com/laszko14/nira-browser/commit/a01d17e6a510bb8fd3d969397415a67e990a87e3"
+      ]
+    },
+    {
+      "id": "CI-DIAG1-SOURCE-JVM",
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag1.kotlin.nullable-writer",
+      "summary": "SOURCE JVM suite could not compile the new Kotlin recorder due to the same unsafe nullable BufferedWriter calls.",
+      "source_sha": "51e8d73f1b0a087288c67a62a95f20f10f68dd8c",
+      "observed_at": null,
+      "run_id": 42512509777,
+      "job_id": 128828507880,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG1-SOURCE-ANDROIDTEST",
+      "fix_sha": "a01d17e6a510bb8fd3d969397415a67e990a87e3",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticRecorderTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42512509777",
+        "https://github.com/laszko14/nira-browser/commit/a01d17e6a510bb8fd3d969397415a67e990a87e3"
+      ]
+    },
+    {
+      "id": "CI-DIAG1-SOURCE-SUMMARY",
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag1.required-summary.red-upstream",
+      "summary": "SOURCE required-summary correctly rejected upstream process-docs and compile failures; the unchanged evidence gate behaved correctly.",
+      "source_sha": "51e8d73f1b0a087288c67a62a95f20f10f68dd8c",
+      "observed_at": null,
+      "run_id": 42512509777,
+      "job_id": 128829143727,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "a01d17e6a510bb8fd3d969397415a67e990a87e3",
+      "regression_test": "scripts/ci-evidence.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42512509777",
+        "https://github.com/laszko14/nira-browser/commit/a01d17e6a510bb8fd3d969397415a67e990a87e3"
+      ]
+    },
+    {
+      "id": "CI-DIAG1-PR-ANDROIDTEST",
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag1.kotlin.nullable-writer",
+      "summary": "PR AndroidTest compile failed on the same two nullable BufferedWriter method invocations.",
+      "source_sha": "51e8d73f1b0a087288c67a62a95f20f10f68dd8c",
+      "observed_at": null,
+      "run_id": 42512537056,
+      "job_id": 128828545115,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG1-SOURCE-ANDROIDTEST",
+      "fix_sha": "a01d17e6a510bb8fd3d969397415a67e990a87e3",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticRecorderTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42512537056",
+        "https://github.com/laszko14/nira-browser/commit/a01d17e6a510bb8fd3d969397415a67e990a87e3"
+      ]
+    },
+    {
+      "id": "CI-DIAG1-PR-LINT",
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag1.kotlin.nullable-writer",
+      "summary": "PR lint failed while compiling the same nullable BufferedWriter calls; no baseline suppression was made.",
+      "source_sha": "51e8d73f1b0a087288c67a62a95f20f10f68dd8c",
+      "observed_at": null,
+      "run_id": 42512537056,
+      "job_id": 128828545140,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG1-SOURCE-ANDROIDTEST",
+      "fix_sha": "a01d17e6a510bb8fd3d969397415a67e990a87e3",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticRecorderTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42512537056",
+        "https://github.com/laszko14/nira-browser/commit/a01d17e6a510bb8fd3d969397415a67e990a87e3"
+      ]
+    },
+    {
+      "id": "CI-DIAG1-PR-JVM",
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag1.kotlin.nullable-writer",
+      "summary": "PR JVM compile failed on the same nullable BufferedWriter accesses in the new Kotlin recorder.",
+      "source_sha": "51e8d73f1b0a087288c67a62a95f20f10f68dd8c",
+      "observed_at": null,
+      "run_id": 42512537056,
+      "job_id": 128828545203,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG1-SOURCE-ANDROIDTEST",
+      "fix_sha": "a01d17e6a510bb8fd3d969397415a67e990a87e3",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticRecorderTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42512537056",
+        "https://github.com/laszko14/nira-browser/commit/a01d17e6a510bb8fd3d969397415a67e990a87e3"
+      ]
+    },
+    {
+      "id": "CI-DIAG1-SOURCE-JVM-SECOND",
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag1.robolectric.getapplication-typeargs",
+      "summary": "SOURCE JVM test compilation failed because new Robolectric test called static getApplication with illegal type arguments.",
+      "source_sha": "a01d17e6a510bb8fd3d969397415a67e990a87e3",
+      "observed_at": null,
+      "run_id": 42512954366,
+      "job_id": 128829822010,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "d1db6bb1841859374cfb4d836397d7894eec6305",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticRecorderTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42512954366",
+        "https://github.com/laszko14/nira-browser/commit/d1db6bb1841859374cfb4d836397d7894eec6305"
+      ]
+    },
+    {
+      "id": "CI-DIAG1-PR-JVM-SECOND",
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag1.robolectric.getapplication-typeargs",
+      "summary": "PR JVM test compilation failed on the same getApplication type-argument misuse in the new test.",
+      "source_sha": "a01d17e6a510bb8fd3d969397415a67e990a87e3",
+      "observed_at": null,
+      "run_id": 42512958759,
+      "job_id": 128829836776,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG1-SOURCE-JVM-SECOND",
+      "fix_sha": "d1db6bb1841859374cfb4d836397d7894eec6305",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticRecorderTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42512958759",
+        "https://github.com/laszko14/nira-browser/commit/d1db6bb1841859374cfb4d836397d7894eec6305"
+      ]
+    },
+    {
+      "id": "REVIEW-DIAG1-BOUNDED-QUEUE",
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "kind": "REVIEW",
+      "fingerprint": "diag1.queue.unbounded-string-evidence",
+      "summary": "Self-review identified that event admission retained arbitrarily long DOM/URL strings in the bounded pending queue. Admission now clips all fields and correlation IDs before enqueue.",
+      "source_sha": "a01d17e6a510bb8fd3d969397415a67e990a87e3",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "ea48beaa615afc58e7ea46b726781e04c0dc0957",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticRecorderTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/a01d17e6a510bb8fd3d969397415a67e990a87e3",
+        "https://github.com/laszko14/nira-browser/commit/ea48beaa615afc58e7ea46b726781e04c0dc0957"
       ]
     }
   ]
