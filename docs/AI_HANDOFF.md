@@ -1,47 +1,40 @@
-# AI_HANDOFF — Zavro Clean V4 / P4-A1 realistic recognition regressions
+# AI_HANDOFF — Zavro Clean V4 / P4-A2 dynamic lifecycle regressions
 
-> Current branch snapshot below was prepared before the P4-A1 final CI. Historical SHA in YAML is pre-write evidence. See docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md for archived checkpoints.
-> P3-E was separately CODE_VERIFIED and signed APK v1224 was APK_VERIFIED on SHA
-> `94090f7dd91b51794f69b065b4c6f1737f737e0c`. Neither SOURCE CI nor this document is a physical-device test.
+> Historical checkpoints: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md. This checkpoint is a pre-commit snapshot, not the live head ref. P4-A1 was CODE_VERIFIED on `36699b20701664b6f65a42fd8f6fb18558ec513a` with SOURCE #42348993221 and PR #42348996814, both completed SUCCESS, attempt 1.
 
 ```yaml
-task_id: ZC-V4-P4-A1-RECOGNITION-FIXTURES
+task_id: ZC-V4-P4-A2-DYNAMIC-LIFECYCLE
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: feat/zavro-clean-v4-p4-20261107
-base_sha: 94090f7dd91b51794f69b065b4c6f1737f737e0c
-observed_head_sha: 94090f7dd91b51794f69b065b4c6f1737f737e0c
+base_sha: 36699b20701664b6f65a42fd8f6fb18558ec513a
+observed_head_sha: 36699b20701664b6f65a42fd8f6fb18558ec513a
 status: CI_PENDING
-acceptance_source: User said "Dalej" after agreeing the 12-step P4 plan. P4-A1 only expands realistic, sanitized structural recognition and safe search-form tests. No APK, merge, release, force-push, certificate, profile or session changes.
-completed: Registered 8 known P4-A1 CI failure occurrences, with provenance, root causes, regression tests and correction SHAs. Added blocked-only URL negative fixture. Added source-backed JS/VM regression fixtures testing mixed legitimate results vs sponsored/recommendations, homepage featured shelves, equal-scoring ambiguous grids, unsafe/external/category/media URLs, hidden/nav items and semantic GET vs unsafe POST/reset/ambiguous search controls. Existing production recognition.js/content.js used unmodified. Kept P3-E full integration tests.
-remaining: Verify SOURCE process-docs, JS, Kotlin/Robolectric, AndroidTest Kotlin compilation, lint regression, summary; verify stacked Draft PR JS, Kotlin, AndroidTest compilation, lint and error-learning evidence on the exact P4-A1 final SHA. On a test failure, register distinct CI evidence in ERROR_CASES.json, fix and repeat mandatory gates. Next P4-A2 is dynamic-page failure and context-replacement regression coverage, separately authorized by "Dalej".
-required_ci: SOURCE process-docs + shared-tests (JS WebExtension, Kotlin/Robolectric, AndroidTest Kotlin compile, Android lint baseline), exact SHA checkout and final summary; PR shared regression JS/Kotlin/AndroidTest compile/lint plus learning evidence success on exact PR HEAD.
-device: NOT_TESTED — physical Android and external live-site acceptance remain user/device tasks.
-apk: NOT_BUILT_FOR_P4 — previous P3-E v1224 APK_VERIFIED via pull_request_review run 42346801018, existing signing key; no P4 APK authorization.
-known_failures: 8 observed P4-A1 failed CI assertion/job occurrences reconciled in ERROR_CASES.json, all linked to tested correction commits c1049d6edd1efeba3dfe62fdc5d09fe0bf8a35c7 and b35801c950a669967a24deb6e66f1fc24341a1f7. Initial P4-A1 JS and checkpoint errors were test-harness/contract mismatches; no confirmed production regression. The c1049d6 SOURCE run was cancelled after failures; it is not PASS.
-verification: At base 94090f7dd91b51794f69b065b4c6f1737f737e0c read AGENTS.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md, TASK_TEMPLATE, DEVELOPMENT_WORKFLOW, TEST_POLICY, TEST_PATTERNS, QUALITY_GATES, ERROR_LEARNING, CHECKPOINT_POLICY, EXCEPTIONS_AND_TOOLS and P3-E device acceptance via direct GitHub connector. P3-E PR #127 was open/draft, SHA matched live branch. SOURCE #42345574085 and PR #42345592736 both completed SUCCESS; signed APK build #42346801018 success. No device or live external site tests.
+acceptance_source: User said "Dalej" after P4-A1 CODE_VERIFIED and accepted the 12-stage P4 plan. P4-A2 tests dynamic AJAX/SPA DOM changes, queued actions, partial hydration and navigation. No APK authorized.
+completed: Added actual production WebExtension content.js lifecycle regression coverage for AJAX hydration, recycled DOM cards after ACK, coalesced MutationObserver notifications, same-origin SPA route revocation, unannounced route switch while scroll is queued, pagehide cancelling queued mutation work and login gate arriving after ACK. Added real recognition.js+content.js tests for disabled/detached search controls and late-result hydration. Updated only synthetic JS test fixtures and error-learning/checkpoint. No shipping JS, Kotlin, Room, manifest, permissions, signing, profiles or sessions changed.
+remaining: Complete exact-source SOURCE process-docs, JS, Kotlin/Robolectric, AndroidTest Kotlin compilation, lint baseline and final required summary; verify all PR gates at matching final SHA, register and fix any CI failure. Next P4-B1 is more intelligent field/button recognition, authorized separately by "Dalej".
+required_ci: SOURCE process-docs and shared-tests JS WebExtension, Kotlin/Robolectric, AndroidTest Kotlin compile, Android lint regression plus evidence summary on final HEAD; stacked PR JS/Kotlin/AndroidTest/lint and error-learning evidence on identical PR HEAD.
+device: NOT_TESTED — no actual Nothing Phone (1), GeckoView or live third-party site tests.
+apk: NOT_BUILT_FOR_P4 — previous verified P3-E v1224 APK preserved, no signature/Secrets changes or P4 private APK authorization.
+known_failures: At initial P4-A2 commit zero observed CI errors; reconcile against exact run IDs before reporting final status. Prior P4-A1 8 failures recorded FIXED in ERROR_CASES.json.
+verification: At pre-write SHA 36699b20701664b6f65a42fd8f6fb18558ec513a, verified remote branch, open Draft PR #128, matching P4-A1 head and relevant AGENTS.md, docs/AI_HANDOFF.md, STARTUP_PREFLIGHT, TASK_TEMPLATE, DEVELOPMENT_WORKFLOW, TEST_POLICY, TEST_PATTERNS, QUALITY_GATES, ERROR_LEARNING, CHECKPOINT_POLICY, EXCEPTIONS_AND_TOOLS and P3-E real-site/device acceptance. Read relevant production content.js/recognition.js and existing P14/P3E/P11/P2C regressions. No local checkout, Gradle, Android device or real web sites; full tests via GitHub Actions.
 changed_paths:
-  - app/src/test/js/video-search-p4a1-realistic-fixtures.test.cjs
-  - app/src/test/js/video-search-structural-v4.test.cjs
-  - docs/ai/ERROR_CASES.json
+  - app/src/test/js/video-search-p14-spa-rebind.test.cjs
+  - app/src/test/js/video-search-p3e-integration.test.cjs
   - docs/AI_HANDOFF.md
+  - docs/ai/ERROR_CASES.json
 verified_before_push:
-  - No production code, manifest, schema, ABI, cert or permissions changes.
-  - Fixtures use actual shipped recognition and content sources, not algorithm copies.
-  - Explicit assertions for rejected cases, fail-closed ambiguity and no unsolicited page click.
-  - Regression coverage added rather than relaxing prior tests.
+  - Existing production files unchanged; no new permissions, side effects, migrations, cert, profiles or session reset.
+  - Synthetic MutationObserver and cancellable timer queue preserve native protocol and test real content.js rather than duplicated algorithms.
+  - Negative assertions for stale route tokens, detached/disabled submit controls, false completion, unsolicited clicks and protected login gates.
+  - Existing P3-E integration and P4-A1 regression coverage preserved.
 blockers:
-  - Real-site/physical-device cases E01-E18 are NOT_TESTED.
-  - No independent code reviewer, self-review plus GitHub CI only.
+  - Real-device and real-site acceptance E01-E18 is NOT_TESTED.
+  - Independent review unavailable; self-review plus mandatory CI only.
 evidence_links:
   - https://github.com/laszko14/nira-browser/pull/128
-  - https://github.com/laszko14/nira-browser/pull/127
-  - https://github.com/laszko14/nira-browser/actions/runs/42345574085
-  - https://github.com/laszko14/nira-browser/actions/runs/42345592736
-  - https://github.com/laszko14/nira-browser/actions/runs/42346801018
-  - https://github.com/laszko14/nira-browser/actions/runs/42348510836
-  - https://github.com/laszko14/nira-browser/actions/runs/42348525469
-  - https://github.com/laszko14/nira-browser/actions/runs/42348748165
-next_action: Complete exact-source SOURCE and Draft PR CI for P4-A1, repair failures and reconcile ERROR_CASES; then STOP. Next separate user "Dalej" begins P4-A2 dynamic DOM replacement regressions, NOT a new audit or signed APK.
+  - https://github.com/laszko14/nira-browser/actions/runs/42348993221
+  - https://github.com/laszko14/nira-browser/actions/runs/42348996814
+next_action: Complete SOURCE and PR CI on exact final P4-A2 SHA; reconcile observed errors, fix failures, verify branch=PR=run SHA, STOP. Next user "Dalej" begins P4-B1 smarter field/button recognition. No APK unless separately authorized.
 ```

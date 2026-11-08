@@ -125,6 +125,11 @@
       "task_id": "ZC-V4-P4-A1-RECOGNITION-FIXTURES",
       "observed_count": 8,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P4-A2-DYNAMIC-LIFECYCLE",
+      "observed_count": 0,
+      "state": "ACTIVE"
     }
   ],
   "events": [

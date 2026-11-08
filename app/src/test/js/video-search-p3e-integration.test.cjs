@@ -168,7 +168,7 @@ function harness() {
     return messages.slice(start).find(m => m.requestId === requestId) || null;
   }
   return {
-    send, card, document, location, input,
+    send, card, document, location, input, button,
     setCards(next) { cards = next; },
     getCards() { return cards; },
     clicks() { return clicked; },
@@ -273,4 +273,59 @@ test('P3-E rejected cross-origin and fake cards do not become recognized films',
   assert.deepEqual(Array.from(data.films, f => f.filmPageUrl), [
     origin + '/watch?id=1&lang=pl', origin + '/watch?id=2&lang=pl']);
   assert.equal(h.clicks(), 0);
+});
+
+
+test('P4-A2 delayed search never clicks submit control disabled after ACK',()=>{
+  const h=harness();
+  const form=h.send('analyze');
+  assert.ok(['ready','partial'].includes(form.status));
+  const ack=h.send('search',{
+    query:'Aurora City',inputSelector:form.inputSelector,
+    submission:form.submission,submitSelector:form.submitSelector
+  });
+  assert.equal(ack.event,'submitted');
+  assert.equal(h.clicks(),0);
+  h.button.disabled=true;
+  h.flush();
+  assert.equal(h.clicks(),0,'AJAX-disabled submit control must not be clicked');
+});
+
+test('P4-A2 delayed search never clicks submit button detached by SPA hydration',()=>{
+  const h=harness();
+  const form=h.send('analyze');
+  const ack=h.send('search',{
+    query:'Aurora City',inputSelector:form.inputSelector,
+    submission:form.submission,submitSelector:form.submitSelector
+  });
+  assert.equal(ack.event,'submitted');
+  h.button.isConnected=false;
+  h.flush();
+  assert.equal(h.clicks(),0,'detached control must not be reused');
+});
+
+test('P4-A2 recognition awaits AJAX cards rather than treating search ACK as results',()=>{
+  const h=harness();
+  const form=h.send('analyze');
+  const before=h.send('recognize');
+  assert.equal(before.status,'missing');
+  const ack=h.send('search',{
+    query:'Aurora City',inputSelector:form.inputSelector,
+    submission:form.submission,submitSelector:form.submitSelector
+  });
+  assert.equal(ack.event,'submitted');
+  assert.equal(h.send('recognize').status,'missing');
+  assert.equal(h.clicks(),0);
+  h.flush();
+  h.setCards([h.card(1),h.card(2),h.card(3)]);
+  const after=h.send('recognize');
+  assert.equal(after.status,'found');
+  assert.equal(after.matchedCards,3);
+  const batch=extract(h,after.resultsCardSelector,0);
+  assert.equal(batch.status,'ok');
+  assert.deepEqual(Array.from(batch.films,f=>f.filmPageUrl),[
+    origin+'/watch?id=1&lang=pl',origin+'/watch?id=2&lang=pl',
+    origin+'/watch?id=3&lang=pl'
+  ]);
+  assert.equal(h.clicks(),1);
 });
