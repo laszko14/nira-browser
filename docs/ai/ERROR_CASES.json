@@ -170,6 +170,11 @@
       "task_id": "ZC-V4-P4-E2-BULK-MERGED-SELECTION",
       "observed_count": 0,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-V4-P4-F1-LARGE-SEARCH-PERF",
+      "observed_count": 2,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -3112,6 +3117,48 @@
       "regression_test": "scripts/lint-regression.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42488148084"
+      ]
+    },
+    {
+      "id": "REVIEW-P4F1-SELECTION-SCAN",
+      "task_id": "ZC-V4-P4-F1-LARGE-SEARCH-PERF",
+      "kind": "REVIEW",
+      "fingerprint": "p4f1-full-snapshot-rescanned-per-selection",
+      "summary": "Results UI resolved selected films against the entire saved run on each recomposition, while each merged selection rebuilt a full film index. A retained snapshot-scoped index removes repeated scans; deterministic 12k/200-action test counts backing reads.",
+      "source_sha": "717eb29495a5adeb0285bab06cf768e7d0280eff",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "3864a336741d69b26881f68ab0276e13ccf8cb10",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchBulkSelectionTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/717eb29495a5adeb0285bab06cf768e7d0280eff",
+        "https://github.com/laszko14/nira-browser/commit/3864a336741d69b26881f68ab0276e13ccf8cb10"
+      ]
+    },
+    {
+      "id": "REVIEW-P4F1-CANCEL-QUEUED",
+      "task_id": "ZC-V4-P4-F1-LARGE-SEARCH-PERF",
+      "kind": "REVIEW",
+      "fingerprint": "p4f1-cancelled-dispatch-leaves-queued-sites",
+      "summary": "An externally cancelled dispatch did not mark not-yet-started websites as stopped. Structured cancellation now stops pending work after child completion while keeping unacknowledged external leases honest; tested with fifty websites.",
+      "source_sha": "717eb29495a5adeb0285bab06cf768e7d0280eff",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "3864a336741d69b26881f68ab0276e13ccf8cb10",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchMultiSiteExecutorTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/717eb29495a5adeb0285bab06cf768e7d0280eff",
+        "https://github.com/laszko14/nira-browser/commit/3864a336741d69b26881f68ab0276e13ccf8cb10"
       ]
     }
   ]
