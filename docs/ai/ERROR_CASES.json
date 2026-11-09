@@ -218,7 +218,7 @@
     },
     {
       "task_id": "ZC-VIDEO-DIAG-7-FIX",
-      "observed_count": 1,
+      "observed_count": 6,
       "state": "ACTIVE"
     }
   ],
@@ -4205,6 +4205,106 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42670589192",
         "https://github.com/laszko14/nira-browser/commit/1847be31b5ca944cf5898eb066af4c87391c751b"
+      ]
+    },
+    {
+      "id": "REVIEW-DIAG7FIX-PR-INCOMPLETE-A1",
+      "task_id": "ZC-VIDEO-DIAG-7-FIX",
+      "kind": "REVIEW",
+      "fingerprint": "diag7fix.actions-incomplete-orchestrator-gates",
+      "summary": "PR Android CI concluded failure despite four passed shared regression jobs; missing downstream evidence job. Run-level scheduling evidence incomplete, no failed test oracle.",
+      "source_sha": "67c853f4d865d25c774954cb3e3fde638144c389",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "undetermined",
+      "state": "ACCEPTED_RISK",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42670606209"
+      ]
+    },
+    {
+      "id": "REVIEW-DIAG7FIX-SOURCE-INCOMPLETE-A1",
+      "task_id": "ZC-VIDEO-DIAG-7-FIX",
+      "kind": "REVIEW",
+      "fingerprint": "diag7fix.actions-incomplete-orchestrator-gates",
+      "summary": "Final source attempt 1 concluded failure with JS/AndroidTest/lint success but missing process-docs and JVM jobs. No failure step available; do not infer application defect.",
+      "source_sha": "bc2a83f2d777b4d5312d3c726c2195bc1835c77c",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "undetermined",
+      "state": "ACCEPTED_RISK",
+      "duplicate_of": "REVIEW-DIAG7FIX-PR-INCOMPLETE-A1",
+      "fix_sha": null,
+      "regression_test": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42671047032"
+      ]
+    },
+    {
+      "id": "REVIEW-DIAG7FIX-PR-INCOMPLETE-A1B",
+      "task_id": "ZC-VIDEO-DIAG-7-FIX",
+      "kind": "REVIEW",
+      "fingerprint": "diag7fix.actions-incomplete-orchestrator-gates",
+      "summary": "PR attempt 1 concluded failure with only a skipped Kotlin job; no failed test step or complete shared gate recorded.",
+      "source_sha": "bc2a83f2d777b4d5312d3c726c2195bc1835c77c",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "undetermined",
+      "state": "ACCEPTED_RISK",
+      "duplicate_of": "REVIEW-DIAG7FIX-PR-INCOMPLETE-A1",
+      "fix_sha": null,
+      "regression_test": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42671059494"
+      ]
+    },
+    {
+      "id": "REVIEW-DIAG7FIX-PR-INCOMPLETE-A2",
+      "task_id": "ZC-VIDEO-DIAG-7-FIX",
+      "kind": "REVIEW",
+      "fingerprint": "diag7fix.actions-incomplete-orchestrator-gates",
+      "summary": "PR attempt 2 after targeted rerun had JS/error-learning success and expected skipped build/release, but missing Kotlin/AndroidTest/lint and failed overall.",
+      "source_sha": "bc2a83f2d777b4d5312d3c726c2195bc1835c77c",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "undetermined",
+      "state": "ACCEPTED_RISK",
+      "duplicate_of": "REVIEW-DIAG7FIX-PR-INCOMPLETE-A1",
+      "fix_sha": null,
+      "regression_test": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42671059494"
+      ]
+    },
+    {
+      "id": "CI-DIAG7FIX-SOURCE-SUMMARY-SKIPPED-A2",
+      "task_id": "ZC-VIDEO-DIAG-7-FIX",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag7fix.source-summary-skipped-required-jobs",
+      "summary": "SOURCE rerun attempt 2 passed process-docs, but Android JVM/lint/AndroidTest were skipped; required summary correctly rejected incomplete evidence. A full clean run is needed.",
+      "source_sha": "bc2a83f2d777b4d5312d3c726c2195bc1835c77c",
+      "observed_at": null,
+      "run_id": 42671047032,
+      "job_id": 129349912696,
+      "attempt": 2,
+      "cause": "workflow",
+      "state": "ACCEPTED_RISK",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42671047032"
       ]
     }
   ]

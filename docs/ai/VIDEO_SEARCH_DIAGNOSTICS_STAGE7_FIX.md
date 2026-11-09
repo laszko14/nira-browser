@@ -72,3 +72,19 @@ Poprawka:
 - **Nie buduj APK automatycznie z pushu**. Użytkownik postanowił najpierw
   naprawić dwa problemy; podpisany APK tylko po uzgodnieniu dalszego kroku
   i zweryfikowaniu zatwierdzonej recenzji PR.
+
+## Dodatkowy zapis CI: częściowe uruchomienia (9 listopada 2026)
+
+Po pierwszym pushu i poprawce brakującego dosłownego klucza shared-tests
+ujawniono kilka niepełnych wykonań GitHub Actions. W PR 42670606209
+cztery testy regresji przeszły, lecz workflow zakończył się błędem
+bez zadania końcowych dowodów. SOURCE 42671047032 (attempt 1) zakończył się
+bez uruchomienia wszystkich logicznych jobów. PR 42671059494 (attempts 1/2)
+również nie wykonał kompletu zadań. Pojedynczy rerun joba SOURCE attempt 2
+potwierdził poprawność process-docs, lecz pominął inne joby i wymagane
+required-summary prawidłowo odrzuciło niekompletny przebieg.
+Wszystkie te zdarzenia zapisano jako historyczne awarie/workflow anomalies
+w `ERROR_CASES.json`, **nie jako błędy funkcjonalne aplikacji** i nie jako PASS.
+Przyczyna nieustalona, nie przypisujemy jej arbitralnie GitHubowi ani kodowi.
+Potrzebne jest świeże pełne SOURCE i PR CI na kolejnym końcowym SHA;
+nie zmieniamy progów testów, workflow ani aplikacji, nie budujemy APK.
