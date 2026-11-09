@@ -136,6 +136,9 @@ test('read-only form, empty marker and pagination events never change primary re
     cursor=batch.events.at(-1).sequence;
   }
   assert.equal(events.some(e=>e.stage==='FORM'),true);
+  assert.equal(events.some(e=>e.stage==='FORM' &&
+    e.fields.DETAIL?.includes('button=NONE')),true,
+    'form observation must state whether a safe submit button was identified');
   assert.equal(events.some(e=>e.reason==='EXPLICIT_VISIBLE_EMPTY_MARKER'),true);
   assert.equal(events.some(e=>e.reason==='PAGINATION_PENDING'),true);
   assert.equal(events.every(e=>e.claim==='OBSERVATION'),true);

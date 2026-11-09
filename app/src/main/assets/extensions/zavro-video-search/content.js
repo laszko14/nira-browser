@@ -2166,7 +2166,9 @@
           const found=detect();
           diag("FORM",found.status === "ready" ? "SEEN" : "UNCERTAIN",
             "INSPECTION_" + found.status.toUpperCase(),message.requestId,
-            null,{SELECTOR:found.inputSelector || "",DETAIL:found.submission || ""});
+            null,{SELECTOR:found.inputSelector || "",
+              DETAIL:"submission=" + (found.submission || "NONE") +
+                ";button=" + (found.submitSelector || "NONE")});
           diag("RESULTS_REGION",found.resultsCardSelector ? "SEEN" : "UNCERTAIN",
             found.resultsCardSelector ? "RESULT_LOCATOR_FOUND" : "RESULT_LOCATOR_MISSING",
             message.requestId,null,{SELECTOR:found.resultsCardSelector || ""});
@@ -2201,7 +2203,9 @@
             const analysis=siteAnalysis();
             diag("FORM",analysis.status === "ready" ? "SEEN" : "UNCERTAIN",
               "ANALYSIS_" + analysis.reason.toUpperCase(),message.requestId,
-              null,{SELECTOR:analysis.inputSelector || "",DETAIL:"confidence=" + analysis.confidence});
+              null,{SELECTOR:analysis.inputSelector || "",
+                DETAIL:"confidence=" + analysis.confidence +
+                  ";button=" + (analysis.submitSelector || "NONE")});
             diag("PAGINATION",analysis.pagination !== "NONE" ? "SEEN" : "UNCERTAIN",
               "PAGER_" + analysis.pagination,message.requestId,null,
               {SELECTOR:analysis.nextPageSelector || ""});
