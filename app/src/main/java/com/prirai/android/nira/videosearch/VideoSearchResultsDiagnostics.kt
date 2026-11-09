@@ -181,22 +181,111 @@ internal object VideoSearchResultsDiagnosticAnalyzer {
     }
 }
 
+
+/** Stage-6 private RAM -> RecyclerView adapter totals; not website/pixel proof. */
+internal object VideoSearchPrivateResultsDiagnosticAnalyzer {
+    fun events(
+        snapshot: VideoSearchPrivateRunSnapshot,
+        displayed: List<VideoSearchFilm>,
+    ): List<VideoSearchDiagnosticEvent> {
+        val run = snapshot.run
+        require(run.scope is VideoSearchScope.Private)
+        require(snapshot.tasks.all {
+            it.runId == run.id && it.scope == run.scope && it.siteId in run.siteIds
+        })
+        require(snapshot.tasks.map { it.siteId }.distinct().size == snapshot.tasks.size)
+        require(snapshot.films.all {
+            it.runId == run.id && it.scope == run.scope && it.siteId in run.siteIds
+        })
+        require(displayed.size <= snapshot.films.size &&
+            displayed == snapshot.films.take(displayed.size))
+        val limited = snapshot.films.size >= VideoSearchPrivateGroupAccess.MAX_AGGREGATE_FILMS
+        val unique = snapshot.films.distinctBy { it.siteId to it.filmPageUrl }
+        val stored = unique.groupingBy { it.siteId }.eachCount()
+        val shown = displayed.groupingBy { it.siteId }.eachCount()
+        val tasks = snapshot.tasks.associateBy { it.siteId }
+        val overview = VideoSearchDiagnosticEvent(
+            stage = VideoSearchDiagnosticStage.DISPLAY,
+            claim = VideoSearchDiagnosticClaim.OBSERVATION,
+            decision = VideoSearchDiagnosticDecision.SEEN,
+            reason = "PRIVATE_RESULTS_SCREEN_COUNTS",
+            trace = VideoSearchDiagnosticTrace(runId = run.id),
+            counts = mapOf(
+                VideoSearchDiagnosticCount.SAVED_FILMS to unique.size,
+                VideoSearchDiagnosticCount.DISPLAYED_FILMS to displayed.size,
+                VideoSearchDiagnosticCount.CANDIDATES to snapshot.films.size,
+            ),
+            fields = mapOf(VideoSearchDiagnosticField.DETAIL to
+                ("sites=" + run.siteIds.size +
+                    ";pageLimited=" + (displayed.size < snapshot.films.size) +
+                    ";aggregateTruncated=" + limited +
+                    ";adapterRowsNotPixels=true;privateRamOnly=true")),
+        )
+        val perSite = run.siteIds.map { siteId ->
+            val task = tasks[siteId]
+            val saved = stored[siteId] ?: 0
+            val visible = shown[siteId] ?: 0
+            val (decision, reason) = when {
+                task == null -> VideoSearchDiagnosticDecision.FAILED to
+                    "PRIVATE_MISSING_SITE_TASK"
+                limited -> VideoSearchDiagnosticDecision.UNCERTAIN to
+                    "PRIVATE_AGGREGATE_LIMIT_UNKNOWN"
+                task.uniqueResults != saved -> VideoSearchDiagnosticDecision.FAILED to
+                    "PRIVATE_TASK_RAM_COUNT_MISMATCH"
+                task.status in setOf(VideoSearchSiteState.FAILED,
+                    VideoSearchSiteState.STOPPED, VideoSearchSiteState.NEEDS_ATTENTION) ->
+                    VideoSearchDiagnosticDecision.INTERRUPTED to ("PRIVATE_SITE_" + task.status.name)
+                task.status != VideoSearchSiteState.COMPLETED ||
+                    run.status != VideoSearchRunState.COMPLETED ->
+                    VideoSearchDiagnosticDecision.UNCERTAIN to "PRIVATE_RUN_IN_PROGRESS"
+                saved == 0 -> VideoSearchDiagnosticDecision.UNCERTAIN to
+                    "PRIVATE_ZERO_NEEDS_PAGE_EVIDENCE"
+                visible < saved -> VideoSearchDiagnosticDecision.SEEN to
+                    "PRIVATE_PAGE_LIMIT_NOT_LOSS"
+                else -> VideoSearchDiagnosticDecision.SEEN to
+                    "PRIVATE_LOCAL_RAM_COUNTS_MATCH"
+            }
+            VideoSearchDiagnosticEvent(
+                stage = VideoSearchDiagnosticStage.STORAGE,
+                claim = VideoSearchDiagnosticClaim.INFERENCE,
+                decision = decision,
+                reason = reason,
+                trace = VideoSearchDiagnosticTrace(runId = run.id, siteId = siteId),
+                counts = mapOf(
+                    VideoSearchDiagnosticCount.SAVED_FILMS to saved,
+                    VideoSearchDiagnosticCount.DISPLAYED_FILMS to visible,
+                    VideoSearchDiagnosticCount.UNIQUE_FILMS to (task?.uniqueResults ?: 0),
+                    VideoSearchDiagnosticCount.PAGES to (task?.visitedPages ?: 0),
+                ),
+                fields = mapOf(VideoSearchDiagnosticField.DETAIL to
+                    ("taskState=" + (task?.status?.name ?: "MISSING") +
+                        ";aggregateTruncated=" + limited +
+                        ";privateRamOnly=true;notWebsiteProof=true")),
+            )
+        }
+        return listOf(overview) + perSite
+    }
+}
+
 /** Process-owned, opt-in recorder reference. Never stores URLs/films in RAM. */
 internal object VideoSearchDiagnosticResultsHost {
     private val active = AtomicReference<VideoSearchDiagnosticRecorder?>(null)
     private val lock = Any()
     private var previousFrame: String? = null
     private var previousViewport: String? = null
+    private var previousPrivateFrame: String? = null
 
     fun attach(recorder: VideoSearchDiagnosticRecorder) = synchronized(lock) {
         active.set(recorder)
         previousFrame = null
         previousViewport = null
+        previousPrivateFrame = null
     }
     fun detach(recorder: VideoSearchDiagnosticRecorder) = synchronized(lock) {
         if (active.compareAndSet(recorder, null)) {
             previousFrame = null
             previousViewport = null
+            previousPrivateFrame = null
         }
     }
     fun isRecording(owner: VideoSearchScope): Boolean =
@@ -217,6 +306,28 @@ internal object VideoSearchDiagnosticResultsHost {
             events.forEach { recorder.record(it) }
         }
     }
+
+    /** Exact active recorder only; no automatic private browsing capture. */
+    fun observePrivate(
+        snapshot: VideoSearchPrivateRunSnapshot,
+        displayed: List<VideoSearchFilm>,
+    ) {
+        val recorder = active.get() ?: return
+        if (snapshot.run.scope !is VideoSearchScope.Private ||
+            recorder.owner != snapshot.run.scope || !recorder.state().active) return
+        val events = VideoSearchPrivateResultsDiagnosticAnalyzer.events(snapshot, displayed)
+        val fingerprint = events.joinToString("|") { event ->
+            event.reason + event.trace.runId + event.trace.siteId +
+                event.counts.toString() + event.fields.toString()
+        }
+        synchronized(lock) {
+            if (active.get() !== recorder || !recorder.state().active ||
+                previousPrivateFrame == fingerprint) return
+            previousPrivateFrame = fingerprint
+            events.forEach { recorder.record(it) }
+        }
+    }
+
     fun viewport(
         owner: VideoSearchScope, runId: String, view: VideoSearchView,
         firstItem: Int, composedFilmRows: Int,

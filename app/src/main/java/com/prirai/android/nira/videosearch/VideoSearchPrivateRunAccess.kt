@@ -6,7 +6,9 @@ internal data class VideoSearchPrivateRunSnapshot(
     val run: VideoSearchRun,
     val films: List<VideoSearchFilm>,
     val tasks: List<VideoSearchSiteTask> = emptyList(),
-)
+) {
+    override fun toString(): String = "VideoSearchPrivateRunSnapshot(redacted)"
+}
 
 /** All private results and queries stay in the session-owned RAM store. */
 internal class VideoSearchPrivateRunAccess(

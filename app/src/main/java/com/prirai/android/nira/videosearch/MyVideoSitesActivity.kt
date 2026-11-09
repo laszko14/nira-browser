@@ -719,6 +719,20 @@ class MyVideoSitesActivity : AppCompatActivity() {
         privateMoreResultsButton.visibility =
             if (shown < privateResultsItems.size) View.VISIBLE else View.GONE
         privateMoreResultsButton.text = "Pokaż kolejne 150 · $shown/${privateResultsItems.size}"
+
+        // Only adapter-submitted rows, never claimed visible pixels.
+        // Revalidate the exact private tab/profile/epoch inside registry lock.
+        val snapshot = privateRunHistory.firstOrNull { it.run.id == selectedPrivateRunId }
+        if (snapshot != null && VideoSearchDiagnosticResultsHost.isRecording(snapshot.run.scope)) {
+            selectedPrivateTab()?.let { (tab, profileId) ->
+                VideoSearchPrivateSessionHost.registry.withAuthorizedTab(tab, profileId) { _, scope ->
+                    if (scope == snapshot.run.scope) {
+                        VideoSearchDiagnosticResultsHost.observePrivate(
+                            snapshot, privateResultsItems.take(shown))
+                    }
+                }
+            }
+        }
     }
 
     private fun renderPrivateRun(snapshot: VideoSearchPrivateRunSnapshot) {
