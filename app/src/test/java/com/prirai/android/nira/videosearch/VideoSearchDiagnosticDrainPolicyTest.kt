@@ -6,19 +6,19 @@ import org.junit.Test
 class VideoSearchDiagnosticDrainPolicyTest {
     private val d = VideoSearchDiagnosticDrainPolicy
     @Test fun normalReadIsNeverMistakenForStop() {
-        assertEquals(d.Command.START, d.command("start", false))
-        assertEquals(d.Command.START, d.command("start", true))
+        assertEquals(VideoSearchDiagnosticDrainPolicy.Command.START, d.command("start", false))
+        assertEquals(VideoSearchDiagnosticDrainPolicy.Command.START, d.command("start", true))
         assertEquals("reading", d.afterAck("start", "active"))
-        assertEquals(d.Command.READ, d.command("reading", false))
+        assertEquals(VideoSearchDiagnosticDrainPolicy.Command.READ, d.command("reading", false))
         assertEquals("reading", d.afterRead("reading", true))
         assertFalse(d.terminal("reading"))
     }
     @Test fun stopMustAckBeforeDrainAndEmptyReadMustProveEnd() {
-        assertEquals(d.Command.STOP, d.command("reading", true))
+        assertEquals(VideoSearchDiagnosticDrainPolicy.Command.STOP, d.command("reading", true))
         assertNull(d.command("stopping", true))
         assertNull(d.afterAck("stopping", "active"))
         assertEquals("draining", d.afterAck("stopping", "stopped"))
-        assertEquals(d.Command.READ, d.command("draining", true))
+        assertEquals(VideoSearchDiagnosticDrainPolicy.Command.READ, d.command("draining", true))
         assertEquals("draining", d.afterRead("draining", false))
         assertFalse(d.terminal("draining"))
         assertEquals("drained", d.afterRead("draining", true))
