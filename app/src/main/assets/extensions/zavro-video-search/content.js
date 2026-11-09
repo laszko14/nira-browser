@@ -1699,7 +1699,7 @@
     const serializedBytes = row => encoder.encode(JSON.stringify(row)).length;
     let usedBytes = 0, more = false;
     let consumed = end - start;
-    let excludedCount=0,noAnchorCount=0,candidateCount=0,missingMetadata=0;
+    let excludedCount=0,noAnchorCount=0,candidateCount=0,acceptedCount=0,missingMetadata=0;
     for (let index = start; index < end; index++) {
       const card = cards[index];
       // Recognition can group cards by CSS while the page mixes in an
@@ -1791,13 +1791,14 @@
       }
       usedBytes += nextCost - oldCost;
       found.set(filmUrl, next);
+      acceptedCount++;
     }
     if (end < Math.min(cards.length, cardCap) || cards.length >= cardCap) more = true;
     const films = Array.from(found.values());
     diag("CARDS",films.length ? "ACCEPTED" : "UNCERTAIN",
       films.length ? "BATCH_EXTRACTED" : "BATCH_NO_ACCEPTED_FILMS",
       command.requestId,{VISIBLE_CARDS:cards.length,CANDIDATES:candidateCount,
-        ACCEPTED_FILMS:candidateCount,UNIQUE_FILMS:films.length},
+        ACCEPTED_FILMS:acceptedCount,UNIQUE_FILMS:films.length},
       {SELECTOR:command.resultsCardSelector,
         DETAIL:"excluded=" + excludedCount + ";noAnchor=" + noAnchorCount +
           ";missingMetadata=" + missingMetadata + ";consumed=" + consumed +

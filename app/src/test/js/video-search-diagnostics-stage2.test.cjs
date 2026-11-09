@@ -239,6 +239,48 @@ test('SPA changes document correlation without presenting old document as curren
   assert.equal(h.controller.read(2,'c'.repeat(32)).events[0].documentId,'c'.repeat(32));
 });
 
+
+test('accepted film funnel counts distinguish candidates, accepted cards and unique URLs',()=>{
+  function card(link) {
+    const img={currentSrc:null,getAttribute(key) {
+      return key==='data-src'?'https://films.example/poster.jpg':null;
+    }};
+    const anchor={textContent:'Aurora Film',matches(){return false;},
+      getAttribute(key){return key==='href'?link:null;},
+      querySelector(key){return key==='img'?img:null;}};
+    return {querySelectorAll(key){return key==='a[href]'&&link?[anchor]:[];}};
+  }
+  const h=harness(true,{nodes:{'.cards':[
+    card('https://films.example/watch?id=1'),
+    card('https://films.example/watch?id=1'),
+    card(null)
+  ]}});
+  const doc=h.sent[0].documentId;
+  h.dispatch({schemaVersion:1,event:'bound',documentId:doc});
+  h.dispatch({schemaVersion:1,event:'diag_start',documentId:doc,requestId:id,sessionId:uuid});
+  h.dispatch({schemaVersion:1,event:'extract_batch',documentId:doc,requestId:id,
+    resultsCardSelector:'.cards',startIndex:0,linkSelector:null,titleSelector:null,
+    thumbnailSelector:null,durationSelector:null});
+  assert.equal(h.sent.at(-1).status,'ok');
+  assert.equal(h.sent.at(-1).films.length,1);
+  const all=[];
+  let cursor=0;
+  for(let i=0;i<12;i++){
+    const batch=h.controller.read(cursor,doc);
+    if(batch.events.length===0)break;
+    all.push(...batch.events);
+    cursor=batch.events.at(-1).sequence;
+  }
+  const funnel=all.find(x=>x.reason==='BATCH_EXTRACTED');
+  assert.ok(funnel,'a successful extraction must emit a counter snapshot');
+  assert.equal(funnel.counts.VISIBLE_CARDS,3);
+  assert.equal(funnel.counts.CANDIDATES,2);
+  assert.equal(funnel.counts.ACCEPTED_FILMS,2);
+  assert.equal(funnel.counts.UNIQUE_FILMS,1);
+  assert.ok(all.some(x=>x.reason==='NO_SAFE_FILM_LINK'));
+  assert.ok(all.some(x=>x.stage==='METADATA'),'partial metadata is observable');
+});
+
 test('private DOM/bridge RAM is retired on disconnect and no sensitive storage APIs used',()=>{
   const h=harness(true);
   const doc=h.sent[0].documentId;
