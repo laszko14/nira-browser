@@ -10,7 +10,7 @@ function fail(s){throw Error('Error learning: '+s)}
 function fields(o,keys){return o&&typeof o==='object'&&!Array.isArray(o)&&
   Object.keys(o).sort().join()===keys.slice().sort().join()}
 function validate(data){
-  if(!fields(data,['schema','coverage','events'])||data.schema!=='zavro.error-learning/1')fail('schema');
+  if(!fields(data,['schema','coverage','events'])||data.schema!=='zavro.error-learning/2')fail('schema');
   if(!Array.isArray(data.coverage)||!Array.isArray(data.events))fail('arrays');
   const tasks=new Map(),ids=new Map(),first=new Map();
   for(const t of data.coverage){
@@ -22,7 +22,8 @@ function validate(data){
   for(const e of data.events){
     if(!fields(e,['id','task_id','kind','fingerprint','summary','source_sha',
       'observed_at','run_id','job_id','attempt','cause','state','duplicate_of',
-      'fix_sha','regression_test','evidence_links']))fail('event fields');
+      'fix_sha','regression_test','evidence_links','branch','workflow_name',
+      'cause_confidence','fix_summary','test_result','final_ci','recurrence_conditions']))fail('event fields');
     if(!ID.test(e.id)||ids.has(e.id)||!tasks.has(e.task_id))fail('duplicate id or unknown task');
     if(!TYPES.includes(e.kind)||typeof e.fingerprint!=='string'||
       !/^[a-z0-9][a-z0-9._:-]{3,119}$/.test(e.fingerprint))fail('fingerprint');
@@ -41,8 +42,16 @@ function validate(data){
         fail('CI run link');
     }else if([e.run_id,e.job_id,e.attempt].some(x=>x!==null))fail('non-CI provenance');
     if(!CAUSES.includes(e.cause)||!STATES.includes(e.state))fail('cause/status');
+    if(!['confirmed','suspected','unknown'].includes(e.cause_confidence))fail('cause confidence');
+    if(e.branch!==null&&(typeof e.branch!=='string'||! /^(?:feat|fix|chore|build|test|docs)\/[A-Za-z0-9._/-]{1,160}$/.test(e.branch)))fail('branch');
+    if(e.workflow_name!==null&&(typeof e.workflow_name!=='string'||e.workflow_name.length>160))fail('workflow name');
+    if(e.fix_summary!==null&&(typeof e.fix_summary!=='string'||e.fix_summary.length>320))fail('fix summary');
+    if(e.test_result!==null&&!['PASS','FAIL','NOT_TESTED','BLOCKED'].includes(e.test_result))fail('test result');
+    if(e.final_ci!==null&&!['SUCCESS','FAILURE','PENDING','BLOCKED','NOT_TESTED'].includes(e.final_ci))fail('final CI');
+    if(e.recurrence_conditions!==null&&(typeof e.recurrence_conditions!=='string'||e.recurrence_conditions.length>320))fail('recurrence conditions');
     if(e.fix_sha!==null&&!SHA.test(e.fix_sha))fail('fix SHA');
     if(e.state==='FIXED'&&(!e.fix_sha||!e.regression_test))fail('FIXED requires SHA and test');
+    if(e.state==='FIXED'&&e.test_result==='FAIL')fail('FIXED with failed test');
     if(e.state==='OPEN'&&e.fix_sha!==null)fail('OPEN with fix SHA');
     if(e.regression_test!==null&&
       (typeof e.regression_test!=='string'||

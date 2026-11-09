@@ -42,7 +42,7 @@ jobs:
         run: node --test scripts/ai-pilot-metrics.test.cjs
       - name: Validate V3.2 preflight and project source integrity (negative tests)
         run: node --test scripts/ai-preflight.test.cjs scripts/project-sources.test.cjs
-      - name: Validate V3.1 persistent error learning and negative tests
+      - name: Validate V3.2 persistent error learning and negative tests
         run: |
           node --test scripts/error-learning.test.cjs
           node scripts/error-learning.cjs validate
