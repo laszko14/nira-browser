@@ -1,47 +1,51 @@
-# AI_HANDOFF — Zavro Clean Video Search Diagnostics 4/7
+# AI_HANDOFF — Zavro Clean Video Search Diagnostics stage 5/7
 
 Historical archive: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md.
-This is a pre-commit snapshot; verify the actual GitHub branch HEAD.
-Stage 3 CODE_VERIFIED at 0c7be9c457a25b969303827f53554f9adb07c17d.
-SOURCE https://github.com/laszko14/nira-browser/actions/runs/42574674393 and
-PR https://github.com/laszko14/nira-browser/actions/runs/42574682099 SUCCESS at this SHA.
+This pre-commit checkpoint is NOT live HEAD. Verify GitHub ref each session.
+Stage 4 CODE_VERIFIED at 22c6fef04140fe6650172065514aefd64eb5857b; SOURCE #42580299529 and PR #42580307181
+both SUCCESS on that exact SHA.
 
 ```yaml
-task_id: ZC-VIDEO-DIAG-4
+task_id: ZC-VIDEO-DIAG-5
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: feat/zavro-clean-video-diagnostics-20261108
-base_sha: 0c7be9c457a25b969303827f53554f9adb07c17d
-observed_head_sha: 0c7be9c457a25b969303827f53554f9adb07c17d
+base_sha: 22c6fef04140fe6650172065514aefd64eb5857b
+observed_head_sha: 22c6fef04140fe6650172065514aefd64eb5857b
 status: CI_PENDING
-acceptance_source: User "Dalej" after verified Stage 3/7, authorizes implementation of Stage 4 only. No APK until separate approval following Stage 7.
-completed: Added opt-in read-only results diagnostics from saved Room snapshot through sorted and filtered project, optional smart/name/duration merge, UI page limit, grouped/collapsed render-eligible rows and real Compose lazy viewport composition. Added source-level local verdicts and specific first-divergence reasons, separate OBSERVATION vs INFERENCE, privacy checks and synthetic Robolectric regression tests.
-remaining: Verify SOURCE and PR CI on final stage-4 SHA, fix any failures, reconcile observed errors. Stage 5 only on next explicit "dalej"; no APK.
-required_ci: SOURCE process-docs and shared-tests JS/Kotlin-Robolectric/AndroidTest compilation/Android lint regression, required-summary all SUCCESS on exact final source SHA. PR shared-tests JS/Kotlin/AndroidTest/lint/error-learning evidence all SUCCESS at final PR head SHA. Build/release SKIPPED.
-device: NOT_TESTED — no physical Nothing Phone (1), real websites, Compose screenshot/pixels, on-device lifecycle or FPS/RAM.
-apk: NOT_BUILT — prohibited in all stages without independent authorization after Stage 7.
-known_failures: None observed in Stage 4 before first CI; add each actual separate CI or review finding to docs/ai/ERROR_CASES.json.
-verification: Read AGENTS.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md, VIDEO_SEARCH_DIAGNOSTICS_STAGE3.md, TEST_POLICY.md, QUALITY_GATES.md, ERROR_LEARNING.md, CHECKPOINT_POLICY.md from exact base_sha. Examined ResultsPresenter, ResultsMerge, ResultsActivity, ResultsTabContent, TabUiMemory, ScrollKeys, Repository, PrivateRunAccess, native recorder/bridge and related test fixtures.
+acceptance_source: User "Dalej" after CODE_VERIFIED stage 4; authorizes only stage 5/7; expressly no APK until independent approval after stage 7.
+completed: Manual opt-in Logi/Stop/Raport controls in normal and private "Moje witryny"; process-owned bounded JS final drain with explicit partial tracking; expiring 120s read-only content URI share, no private disk copies, no automatic upload; privacy confirmation and session owner gate; Kotlin/Robolectric and JS regression tests; documentation.
+remaining: Verify all required SOURCE/PR CI on exact final SHA, repair any actual regressions and reconcile all failures; stage 6 only after next "dalej".
+required_ci: SOURCE process-docs and shared-tests JS/Kotlin-Robolectric/AndroidTest Kotlin compilation/Android lint with baseline, required-summary all SUCCESS at same final SHA. PR shared-tests JS/Kotlin/AndroidTest/lint/error-learning evidence SUCCESS at final head SHA. Build/release SKIPPED.
+device: NOT_TESTED — no physical Nothing Phone (1), live website, Android content chooser or private mode lifecycle tested on real device.
+apk: NOT_BUILT — forbidden through all 7 stages without separate approval after stage 7.
+known_failures: Pre-push review found 5 risk cases, registered in docs/ai/ERROR_CASES.json with code commit 606197d8555feeb315df1c9231aed24ef99e7c1a; no CI run observed yet for stage 5.
+verification: GitHub live preflight read AGENTS.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md, VIDEO_SEARCH_DIAGNOSTICS_STAGE4.md, VIDEO_SEARCH_DIAGNOSTICS_STAGE3.md, TEST_POLICY.md, QUALITY_GATES.md, ERROR_LEARNING.md, CHECKPOINT_POLICY.md and APK_CHAT_GITHUB_REVIEW_TRIGGER.md from explicit preflight SHA; inspected MyVideoSitesActivity normal/private panels, Gecko bridge, private registry, recorder, AndroidManifest and existing FileProvider contract.
 changed_paths:
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsDiagnostics.kt
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsActivity.kt
+  - app/src/main/java/com/prirai/android/nira/videosearch/MyVideoSitesActivity.kt
+  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticControls.kt
+  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticReportProvider.kt
+  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticDrainPolicy.kt
   - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchBridgeController.kt
-  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchResultsDiagnosticsTest.kt
-  - docs/ai/VIDEO_SEARCH_DIAGNOSTICS_STAGE4.md
+  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticRecorder.kt
+  - app/src/main/AndroidManifest.xml
+  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticDrainPolicyTest.kt
+  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticShareRegistryTest.kt
+  - app/src/test/js/video-search-diagnostics-stage5-ui.test.cjs
+  - docs/ai/VIDEO_SEARCH_DIAGNOSTICS_STAGE5.md
   - docs/AI_HANDOFF.md
   - docs/ai/ERROR_CASES.json
 verified_before_push:
-  - Existing Room/presenter/merge results, pagination/selection semantics and Gecko worker unchanged.
-  - No new automatic recording; future Stage 5 user UI must explicitly start/stop.
-  - No merge, release, force push, cert/Secrets/package change or APK.
+  - No auto-start, no network upload, no changes to normal/Gecko search decisions or persisted Room UI settings.
+  - No APK, merge, release, force-push, signing/cert/Secrets/package/ABI changes.
+  - Content provider is exported=false; private report uses RAM pipe and precise session guard.
 blockers:
-  - Physical device, real websites and Compose viewport pixels NOT_TESTED; a render-eligible Lazy list is not proof of painted pixels.
-  - Private results UI requires separate integration and tests before final Stage 7 acceptance.
-  - Independent high-risk reviewer unavailable; self-review only.
+  - Device/real site/real share recipients NOT_TESTED; independent security review unavailable.
+  - Private results saved→displayed per-site evidence gap from stage 4 remains; stages 6/7 must address or report it.
 evidence_links:
   - https://github.com/laszko14/nira-browser/pull/129
-  - https://github.com/laszko14/nira-browser/actions/runs/42574674393
-  - https://github.com/laszko14/nira-browser/actions/runs/42574682099
-next_action: Verify final SOURCE/PR CI, then STOP. Stage 5 only with next "dalej"; do not ask for APK.
+  - https://github.com/laszko14/nira-browser/actions/runs/42580299529
+  - https://github.com/laszko14/nira-browser/actions/runs/42580307181
+next_action: Verify final SOURCE & PR CI; repair actual failures and STOP. Stage 6 only after user "dalej", no APK.
 ```

@@ -200,6 +200,11 @@
       "task_id": "ZC-VIDEO-DIAG-4",
       "observed_count": 0,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "observed_count": 5,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -3771,6 +3776,106 @@
         "https://github.com/laszko14/nira-browser/commit/4ddaa76aa3a3f878418314fbbe81a1ca410f6724"
       ],
       "task_id": "ZC-VIDEO-DIAG-3"
+    },
+    {
+      "id": "REVIEW-DIAG5-STOP-UNDRAINED",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "REVIEW",
+      "fingerprint": "diag5.stop-undrained-js",
+      "summary": "Original Stage 3 synchronous stop discarded unread JS batches and marked a generic loss instead of attempting bounded final drain. Added verified stop ACK/cursor drain and regression state machine.",
+      "source_sha": "22c6fef04140fe6650172065514aefd64eb5857b",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "606197d8555feeb315df1c9231aed24ef99e7c1a",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticDrainPolicyTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/606197d8555feeb315df1c9231aed24ef99e7c1a"
+      ]
+    },
+    {
+      "id": "REVIEW-DIAG5-UI-ROTATION-CANCEL",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "REVIEW",
+      "fingerprint": "diag5.ui-rotation-cancels-stop",
+      "summary": "An Activity-owned stop coroutine could be cancelled by My Sites rotation/navigation while JS drains. Made stop process-owned and UI only awaits, preserving session through rotation.",
+      "source_sha": "22c6fef04140fe6650172065514aefd64eb5857b",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "606197d8555feeb315df1c9231aed24ef99e7c1a",
+      "regression_test": "app/src/test/js/video-search-diagnostics-stage5-ui.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/606197d8555feeb315df1c9231aed24ef99e7c1a"
+      ]
+    },
+    {
+      "id": "REVIEW-DIAG5-PRIVATE-EXPORT-ON-DISK",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "REVIEW",
+      "fingerprint": "diag5.private-export-temp-file-risk",
+      "summary": "FileProvider-based sharing would require writing the private RAM log to a disk cache. Implemented a non-exported read-only ContentProvider pipe and exact lifetime check, no temp file.",
+      "source_sha": "22c6fef04140fe6650172065514aefd64eb5857b",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "606197d8555feeb315df1c9231aed24ef99e7c1a",
+      "regression_test": "app/src/test/js/video-search-diagnostics-stage5-ui.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/606197d8555feeb315df1c9231aed24ef99e7c1a"
+      ]
+    },
+    {
+      "id": "REVIEW-DIAG5-LOSS-FOOTER",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "REVIEW",
+      "fingerprint": "diag5.interruptions-unreported-in-manifest",
+      "summary": "A syntactically closed JSONL footer could be misreported as a complete diagnostic despite lost ports/worker interruptions. Recorder and manifest now count interruptions and label incomplete sessions.",
+      "source_sha": "22c6fef04140fe6650172065514aefd64eb5857b",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "606197d8555feeb315df1c9231aed24ef99e7c1a",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticShareRegistryTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/606197d8555feeb315df1c9231aed24ef99e7c1a"
+      ]
+    },
+    {
+      "id": "REVIEW-DIAG5-RATE-TIMEOUT",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "REVIEW",
+      "fingerprint": "diag5.stop-rate-and-expiration",
+      "summary": "The original ordinary 12-replies/5s rate could starve final drain, and an expired 45m session needed an explicit Stop action. Added separate bounded diagnostic rate and finalizable session status.",
+      "source_sha": "22c6fef04140fe6650172065514aefd64eb5857b",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "606197d8555feeb315df1c9231aed24ef99e7c1a",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticDrainPolicyTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/606197d8555feeb315df1c9231aed24ef99e7c1a"
+      ]
     }
   ]
 }
