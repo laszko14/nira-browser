@@ -81,6 +81,9 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private lateinit var stopMultiButton: Button
     private lateinit var multiHistoryButton: Button
     private lateinit var savedFoldersButton: Button
+    private lateinit var normalDiagnosticControls: VideoSearchDiagnosticControls
+    private lateinit var privateDiagnosticControls: VideoSearchDiagnosticControls
+    private var diagnosticsStatusJob: Job? = null
     private lateinit var adapter: SitesAdapter
     private lateinit var sitesList: RecyclerView
     private var draftOwnerId: String? = null
@@ -327,6 +330,11 @@ class MyVideoSitesActivity : AppCompatActivity() {
         }
         multiActions.addView(multiHistoryButton, LinearLayout.LayoutParams(0, dp(64), 1f))
         multiActions.addView(savedFoldersButton, LinearLayout.LayoutParams(0, dp(64), 1f))
+        normalDiagnosticControls = VideoSearchDiagnosticControls(
+            this, privateMode = false, owner = { ownerIfCurrent() },
+            notifyUser = ::message)
+        normalHeader.addView(normalDiagnosticControls.panel,
+            LinearLayout.LayoutParams(-1, -2))
         normalHeader.addView(info, LinearLayout.LayoutParams(-1, -2))
 
         normalEmptyState = TextView(this).apply {
@@ -462,6 +470,11 @@ class MyVideoSitesActivity : AppCompatActivity() {
             text = "Tylko RAM. Po zamknięciu ostatniej karty prywatnej lista znika."
         }
         header.addView(privateStatus)
+        privateDiagnosticControls = VideoSearchDiagnosticControls(
+            this, privateMode = true, owner = { selectedPrivateTab()?.let { (tab, profile) ->
+                VideoSearchPrivateSessionHost.registry.ownerForTab(tab, profile)
+            } }, notifyUser = ::message)
+        header.addView(privateDiagnosticControls.panel)
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             isBaselineAligned = false
@@ -833,6 +846,14 @@ class MyVideoSitesActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        diagnosticsStatusJob?.cancel()
+        diagnosticsStatusJob = lifecycleScope.launch {
+            while (true) {
+                normalDiagnosticControls.refresh()
+                privateDiagnosticControls.refresh()
+                delay(1200)
+            }
+        }
         val manager = ProfileManager.getInstance(applicationContext)
         if (manager.isPrivateMode()) {
             dismissTrackedNormalDialog()
@@ -1033,6 +1054,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
         observer?.cancel()
         observer = null
         adapter.cancelDrag()
+        diagnosticsStatusJob?.cancel()
+        diagnosticsStatusJob = null
         super.onPause()
     }
 

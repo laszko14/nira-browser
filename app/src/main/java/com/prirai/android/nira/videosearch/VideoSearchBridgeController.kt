@@ -16,6 +16,8 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.delay
 import com.prirai.android.nira.browser.profile.ProfileManager
 import kotlinx.coroutines.Dispatchers
@@ -122,13 +124,104 @@ internal class VideoSearchBridgeController(
         val knownDocuments: LinkedHashSet<String> = linkedSetOf(),
     )
     private val diagnosticPorts = IdentityHashMap<EngineSession, DiagnosticPortState>()
+    private val diagnosticWindows = IdentityHashMap<EngineSession, Window>()
+    private var diagnosticFinalizing = false
+    private var diagnosticStopJob: Deferred<VideoSearchDiagnosticRecorder?>? = null
+    private var diagnosticStopTarget: VideoSearchDiagnosticNativeSession? = null
+
+    /** Process-owned stop job: rotating/leaving My Sites does not cancel the drain. */
+    fun requestFinishDiagnostics(owner: VideoSearchScope):
+        Deferred<VideoSearchDiagnosticRecorder?>? {
+        val active = diagnostic?.takeIf { it.owner == owner } ?: return null
+        val previous = diagnosticStopJob
+        if (previous?.isActive == true && diagnosticStopTarget === active)
+            return previous
+        return manualScope.async {
+            if (diagnostic !== active) null else finishDiagnostics(owner)
+        }.also {
+            diagnosticStopJob = it
+            diagnosticStopTarget = active
+        }
+    }
+
+    /** UI status contains no sites, URLs, queries or profile identifiers. */
+    data class DiagnosticStatus(
+        val recording: Boolean, val stopping: Boolean, val reportReady: Boolean,
+        val attempted: Long, val recorded: Long, val dropped: Long,
+        val failure: String?,
+    )
+
+    fun diagnosticStatus(owner: VideoSearchScope): DiagnosticStatus {
+        diagnosticOwnerChanged()
+        val live = diagnostic?.takeIf { it.owner == owner }?.recorder
+        val finished = completedDiagnostic?.takeIf {
+            it.owner == owner && !it.state().retired
+        }
+        val state = live?.state() ?: finished?.state()
+        return DiagnosticStatus(
+            live != null,
+            diagnosticFinalizing && live != null,
+            finished != null && finished.state().finished,
+            state?.attempted ?: 0, state?.recorded ?: 0,
+            state?.dropped ?: 0, state?.failure)
+    }
+
+    /** Only the explicitly stopped, still-owned recording can be shared. */
+    fun diagnosticReport(owner: VideoSearchScope): VideoSearchDiagnosticRecorder? {
+        diagnosticOwnerChanged()
+        if (!diagnosticOwnerAuthorized(owner)) return null
+        return completedDiagnostic?.takeIf {
+            it.owner == owner && it.state().finished && !it.state().retired
+        }
+    }
+
+    /**
+     * Stops JS first, drains bounded batches, and only then finishes the
+     * writer. Timeout/closed ports are explicit interruption observations.
+     * Called from a user-initiated coroutine, never from a background task.
+     */
+    suspend fun finishDiagnostics(owner: VideoSearchScope): VideoSearchDiagnosticRecorder? {
+        val active = diagnostic?.takeIf { it.owner == owner } ?: return null
+        if (diagnosticFinalizing || !diagnosticOwnerAuthorized(owner)) return null
+        diagnosticFinalizing = true
+        try {
+            val allDrained = withTimeoutOrNull(24_000L) {
+                while (diagnostic === active && diagnosticOwnerAuthorized(owner)) {
+                    if (diagnosticPorts.values.all {
+                        VideoSearchDiagnosticDrainPolicy.terminal(it.phase)
+                    }) break
+                    delay(120)
+                }
+                diagnostic === active && diagnosticOwnerAuthorized(owner) &&
+                    diagnosticPorts.values.all { it.phase == "drained" }
+            } == true
+            if (diagnostic !== active || !diagnosticOwnerAuthorized(owner))
+                return null
+            diagnosticPorts.values.forEach {
+                if (it.phase != "drained") {
+                    active.interrupted(it.tabId, it.documentId,
+                        if (it.phase == "failed") "DIAG_FINAL_DRAIN_FAILED"
+                        else "DIAG_FINAL_DRAIN_TIMEOUT")
+                }
+            }
+            diagnostic = null
+            VideoSearchDiagnosticResultsHost.detach(active.recorder)
+            diagnosticPorts.clear()
+            active.stop(if (allDrained) "USER_STOP_DRAINED" else "USER_STOP_PARTIAL")
+            completedDiagnostic = active.recorder
+            return active.recorder
+        } finally {
+            diagnosticFinalizing = false
+        }
+    }
     private val diagnosticWorkerRuns = LinkedHashMap<String, String>()
     // A completed private recording stays RAM-only until its exact epoch ends.
     private var completedDiagnostic: VideoSearchDiagnosticRecorder? = null
 
     /** Recording is an explicit, native UI opt-in, never a JS/page decision. */
     fun beginDiagnostics(owner: VideoSearchScope): Boolean {
-        if (diagnostic != null || !diagnosticOwnerAuthorized(owner)) return false
+        if (diagnostic != null || diagnosticFinalizing ||
+            !diagnosticOwnerAuthorized(owner)) return false
         completedDiagnostic?.let { old ->
             if (old.owner is VideoSearchScope.Private &&
                 !diagnosticPrivateEpochAlive(old.owner as VideoSearchScope.Private)) {
@@ -136,6 +229,13 @@ internal class VideoSearchBridgeController(
                 completedDiagnostic = null
             }
         }
+        // Previous reports must not be mistaken for the newly started session.
+        completedDiagnostic?.let {
+            if (it.owner is VideoSearchScope.Private) {
+                it.retirePrivateLifetime(it.owner as VideoSearchScope.Private)
+            }
+        }
+        completedDiagnostic = null
         diagnostic = VideoSearchDiagnosticNativeSession(
             VideoSearchDiagnosticRecorder.create(applicationContext, owner))
         VideoSearchDiagnosticResultsHost.attach(checkNotNull(diagnostic).recorder)
@@ -214,6 +314,10 @@ internal class VideoSearchBridgeController(
     /** A native-verified hello binds one Gecko port to one owned tab/document. */
     private fun diagnosticDocumentBound(session: EngineSession, entry: DocumentPort) {
         val active = diagnostic ?: return
+        if (diagnosticFinalizing) {
+            diagnosticPortLost(session, "DIAG_DOCUMENT_CHANGED_DURING_STOP")
+            return
+        }
         val tab = currentTab(session) ?: return
         val document = entry.documentId ?: return
         if (!isFresh(session, entry) || tab.owner != active.owner ||
@@ -240,7 +344,7 @@ internal class VideoSearchBridgeController(
         if (existing !== state) {
             manualScope.launch {
                 while (diagnostic === active && diagnosticPorts[session] === state) {
-                    delay(1300)
+                    delay(if (diagnosticFinalizing) 160L else 1300L)
                     if (!diagnosticOwnerAuthorized(active.owner)) {
                         diagnosticOwnerChanged()
                         break
@@ -255,21 +359,37 @@ internal class VideoSearchBridgeController(
                         active.interrupted(state.tabId, state.documentId,
                             "DIAG_RESPONSE_TIMEOUT")
                         state.outstanding = null
+                        if (diagnosticFinalizing) state.phase = "failed"
+                        else if (state.phase == "stopping") state.phase = "reading"
                     }
-                    if (state.phase == "failed") continue
+                    val action = VideoSearchDiagnosticDrainPolicy.command(
+                        state.phase, diagnosticFinalizing) ?: continue
                     val req = newDiagnosticRequestId()
-                    val packet = if (state.phase == "start")
-                        VideoSearchDiagnosticWire.start(
-                            state.documentId, req, active.sessionId)
-                    else VideoSearchDiagnosticWire.read(
-                        state.documentId, req, state.cursor)
+                    val shouldStop = action ==
+                        VideoSearchDiagnosticDrainPolicy.Command.STOP
+                    val packet = when (action) {
+                        VideoSearchDiagnosticDrainPolicy.Command.START ->
+                            VideoSearchDiagnosticWire.start(
+                                state.documentId, req, active.sessionId)
+                        VideoSearchDiagnosticDrainPolicy.Command.STOP ->
+                            VideoSearchDiagnosticWire.stop(
+                                state.documentId, req, active.sessionId)
+                        VideoSearchDiagnosticDrainPolicy.Command.READ ->
+                            VideoSearchDiagnosticWire.read(
+                                state.documentId, req, state.cursor)
+                    }
                     try {
-                        live.port.postMessage(packet)
+                        // Track the command before asynchronous Gecko callbacks.
                         state.outstanding = req
                         state.sentAt = SystemClock.elapsedRealtime()
+                        if (shouldStop) state.phase = "stopping"
+                        live.port.postMessage(packet)
                     } catch (_: Exception) {
                         active.interrupted(state.tabId, state.documentId,
                             "DIAG_PORT_SEND_FAILED")
+                        state.outstanding = null
+                        if (diagnosticFinalizing) state.phase = "failed"
+                        else if (shouldStop) state.phase = "reading"
                     }
                 }
             }
@@ -278,6 +398,7 @@ internal class VideoSearchBridgeController(
 
     private fun diagnosticPortLost(session: EngineSession, reason: String) {
         val state = diagnosticPorts.remove(session) ?: return
+        diagnosticWindows.remove(session)
         diagnostic?.interrupted(state.tabId, state.documentId, reason)
     }
 
@@ -297,23 +418,30 @@ internal class VideoSearchBridgeController(
             reply.requestId != state.outstanding) return
         when (reply) {
             is VideoSearchDiagnosticWire.Reply.Ack -> {
-                if (state.phase == "start" && reply.status == "active") {
-                    state.phase = "reading"
-                } else {
+                val next = VideoSearchDiagnosticDrainPolicy.afterAck(
+                    state.phase, reply.status)
+                if (next == null) {
                     active.interrupted(state.tabId, state.documentId,
                         "DIAG_UNEXPECTED_ACK")
                     state.phase = "failed"
-                }
+                } else state.phase = next
             }
             is VideoSearchDiagnosticWire.Reply.Batch -> {
-                if (state.phase != "reading") return
+                if (state.phase != "reading" && state.phase != "draining") {
+                    state.outstanding = null
+                    return
+                }
                 val next = active.accept(
                     state.tabId, state.knownDocuments, state.cursor, reply)
                 if (next == null) {
                     active.interrupted(state.tabId, state.documentId,
                         "DIAG_INVALID_BATCH_CONTEXT")
                     state.phase = "failed"
-                } else state.cursor = next
+                } else {
+                    state.cursor = next
+                    state.phase = VideoSearchDiagnosticDrainPolicy.afterRead(
+                        state.phase, reply.observations.isEmpty()) ?: "failed"
+                }
             }
         }
         state.outstanding = null
@@ -424,6 +552,20 @@ internal class VideoSearchBridgeController(
             entry.documentId != null
     }
 
+    private fun withinDiagnosticRate(session: EngineSession): Boolean {
+        // Independent bounded channel: final drain cannot consume the
+        // ordinary search command's 12-per-5s rate budget.
+        val now = SystemClock.elapsedRealtime()
+        val window = diagnosticWindows[session]
+        if (window == null || now - window.start >= 5_000L) {
+            diagnosticWindows[session] = Window(now, 1)
+            return true
+        }
+        if (window.count >= 32) return false
+        window.count++
+        return true
+    }
+
     private fun withinRate(session: EngineSession): Boolean {
         val now = SystemClock.elapsedRealtime()
         val window = windows[session]
@@ -456,6 +598,7 @@ internal class VideoSearchBridgeController(
                     diagnosticPortLost(old, "DIAG_TAB_REMOVED")
                     attached.remove(old)
                     windows.remove(old)
+                    diagnosticWindows.remove(old)
                     pending.remove(old)?.result?.cancel()
                     proposals.entries.removeAll { it.value.session === old }
                     ports.remove(old)?.port?.let {
@@ -541,13 +684,14 @@ internal class VideoSearchBridgeController(
             if (entry.port.name() != port.name() ||
                 entry.port.senderUrl() != port.senderUrl() ||
                 port.name() != VideoSearchBridgeProtocol.NATIVE_APP) return
-            if (!withinRate(session)) return
             val eventName = (message as? org.json.JSONObject)?.optString("event")
             if (eventName == "diag_ack" || eventName == "diag_events") {
+                if (!withinDiagnosticRate(session)) return
                 val diagReply = VideoSearchDiagnosticWire.decode(message) ?: return
                 diagnosticReply(session, entry, diagReply)
                 return
             }
+            if (!withinRate(session)) return
             val parsed = VideoSearchBridgeProtocol.decode(message) ?: return
             val tab = currentTab(session) ?: return
             when (parsed) {

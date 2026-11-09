@@ -182,6 +182,7 @@ internal class VideoSearchDiagnosticRecorder internal constructor(
     private var queued = 0L
     private var recorded = 0L
     private var dropped = 0L
+    private var interruptions = 0L
     private var byteCount = 0
     private var error: String? = null
     private val worker = Thread({ drain() }, "zavro-video-diagnostics").apply {
@@ -221,7 +222,11 @@ internal class VideoSearchDiagnosticRecorder internal constructor(
             },
         )
         val accepted = queue.offer(Pending(attempted, now(), bounded))
-        if (accepted) queued++ else dropped++
+        if (accepted) {
+            queued++
+            if (bounded.decision == VideoSearchDiagnosticDecision.INTERRUPTED)
+                interruptions++
+        } else dropped++
         accepted
     }
 
@@ -247,10 +252,11 @@ internal class VideoSearchDiagnosticRecorder internal constructor(
     data class State(
         val active: Boolean, val finished: Boolean, val retired: Boolean,
         val attempted: Long, val recorded: Long, val dropped: Long,
-        val bytes: Int, val failure: String?,
+        val interruptions: Long, val bytes: Int, val failure: String?,
     )
     fun state(): State = synchronized(gate) {
-        State(active, finished, retired, attempted, recorded, dropped, byteCount, error)
+        State(active, finished, retired, attempted, recorded, dropped,
+            interruptions, byteCount, error)
     }
     fun privateLines(scope: VideoSearchScope.Private): List<String> = synchronized(gate) {
         if (scope != owner || directory != null || retired) emptyList()
@@ -331,6 +337,7 @@ internal class VideoSearchDiagnosticRecorder internal constructor(
                     .put("sessionId", sessionId).put("reason", reason)
                     .put("timeMs", now()).put("attempted", attempted)
                     .put("recorded", recorded).put("dropped", dropped)
+                    .put("interruptions", interruptions)
                     .put("limited", dropped > 0L).toString()
             }
             append(out, end, reserve = 0)
