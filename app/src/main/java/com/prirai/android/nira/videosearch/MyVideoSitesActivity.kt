@@ -765,10 +765,10 @@ class MyVideoSitesActivity : AppCompatActivity() {
             // Revalidate inside the registry immediately before writing.
             // Both authorization and the bounded enqueue run off the UI thread.
             withContext(Dispatchers.Default) {
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
                 VideoSearchPrivateSessionHost.registry.withAuthorizedTab(
                     tab.first, tab.second
                 ) { _, scope ->
-                    kotlinx.coroutines.currentCoroutineContext().ensureActive()
                     if (scope == owner) {
                         VideoSearchDiagnosticResultsHost.submitPrivateEvents(
                             owner, token, events)
