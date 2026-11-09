@@ -253,6 +253,8 @@ internal fun VideoSearchResultsScreen(
 ) {
     val configuration = LocalConfiguration.current
     val diagnosticsContext = LocalContext.current
+    // Attaching a recorder must trigger a snapshot even if the results are unchanged.
+    val diagnosticsSession by VideoSearchDiagnosticResultsHost.recordingSession.collectAsState()
     val landscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     val snapshot = state.snapshot
     val run = snapshot?.run
@@ -406,7 +408,7 @@ internal fun VideoSearchResultsScreen(
     LaunchedEffect(snapshot, projectionSource.value, results, siteFilter, sort,
         byWebsite, mergeByName, mergeByDuration, mergeSmart,
         visibleCount, expandedSites, selecting, selectedFilms.size,
-        state.view, visibleKeys) {
+        state.view, visibleKeys, diagnosticsSession) {
         val saved = snapshot ?: return@LaunchedEffect
         val projected = results ?: return@LaunchedEffect
         if (projectionSource.value !== saved) return@LaunchedEffect
@@ -426,7 +428,8 @@ internal fun VideoSearchResultsScreen(
     }
     // This is only the number of FILM rows composed in a lazy viewport,
     // not a count of pixels, saved records or the full displayed dataset.
-    LaunchedEffect(run?.id, state.view, gridState, listState, visibleKeys) {
+    LaunchedEffect(run?.id, state.view, gridState, listState, visibleKeys,
+        diagnosticsSession) {
         val live = run ?: return@LaunchedEffect
         var lastRecordedAt = 0L
         snapshotFlow {
@@ -457,7 +460,7 @@ internal fun VideoSearchResultsScreen(
             }
         }
     }
-    LaunchedEffect(state.error, run?.id) {
+    LaunchedEffect(state.error, run?.id, diagnosticsSession) {
         if (state.error != null && run != null &&
             VideoSearchDiagnosticResultsHost.isRecording(run.scope)) {
             VideoSearchDiagnosticResultsHost.loadFailure(run.scope, run.id)

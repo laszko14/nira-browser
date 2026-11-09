@@ -1,6 +1,8 @@
 package com.prirai.android.nira.videosearch
 
 import java.util.concurrent.atomic.AtomicReference
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 /** Stage 4: local, opt-in, read-only diagnosis of saved-to-presented results. */
 internal data class VideoSearchResultsDiagnosticFrame(
@@ -270,6 +272,8 @@ internal object VideoSearchPrivateResultsDiagnosticAnalyzer {
 /** Process-owned, opt-in recorder reference. Never stores URLs/films in RAM. */
 internal object VideoSearchDiagnosticResultsHost {
     private val active = AtomicReference<VideoSearchDiagnosticRecorder?>(null)
+    private val sessionState = MutableStateFlow<String?>(null)
+    val recordingSession: StateFlow<String?> = sessionState
     private val lock = Any()
     private var previousFrame: String? = null
     private var previousViewport: String? = null
@@ -277,12 +281,14 @@ internal object VideoSearchDiagnosticResultsHost {
 
     fun attach(recorder: VideoSearchDiagnosticRecorder) = synchronized(lock) {
         active.set(recorder)
+        sessionState.value = recorder.sessionId
         previousFrame = null
         previousViewport = null
         previousPrivateFrame = null
     }
     fun detach(recorder: VideoSearchDiagnosticRecorder) = synchronized(lock) {
         if (active.compareAndSet(recorder, null)) {
+            sessionState.value = null
             previousFrame = null
             previousViewport = null
             previousPrivateFrame = null
@@ -307,25 +313,39 @@ internal object VideoSearchDiagnosticResultsHost {
         }
     }
 
-    /** Exact active recorder only; no automatic private browsing capture. */
-    fun observePrivate(
-        snapshot: VideoSearchPrivateRunSnapshot,
-        displayed: List<VideoSearchFilm>,
-    ) {
-        val recorder = active.get() ?: return
-        if (snapshot.run.scope !is VideoSearchScope.Private ||
-            recorder.owner != snapshot.run.scope || !recorder.state().active) return
-        val events = VideoSearchPrivateResultsDiagnosticAnalyzer.events(snapshot, displayed)
+    /** Recorders are process-local. The token prevents late jobs from
+     * writing into a NEW recording of the same profile/epoch. */
+    fun recordingToken(owner: VideoSearchScope): String? =
+        active.get()?.takeIf { it.owner == owner && it.state().active }?.sessionId
+
+    /** Computation is done off-main by the caller. Call only after a fresh
+     * private tab/profile/epoch check, never using a stale cached permission. */
+    fun submitPrivateEvents(
+        owner: VideoSearchScope.Private,
+        expectedSessionId: String,
+        events: List<VideoSearchDiagnosticEvent>,
+    ) = synchronized(lock) {
+        val recorder = active.get() ?: return@synchronized
+        if (recorder.owner != owner || recorder.sessionId != expectedSessionId ||
+            !recorder.state().active) return@synchronized
         val fingerprint = events.joinToString("|") { event ->
             event.reason + event.trace.runId + event.trace.siteId +
                 event.counts.toString() + event.fields.toString()
         }
-        synchronized(lock) {
-            if (active.get() !== recorder || !recorder.state().active ||
-                previousPrivateFrame == fingerprint) return
-            previousPrivateFrame = fingerprint
-            events.forEach { recorder.record(it) }
-        }
+        if (previousPrivateFrame == fingerprint) return@synchronized
+        previousPrivateFrame = fingerprint
+        events.forEach { recorder.record(it) }
+    }
+
+    /** Synchronous helper for synthetic tests and non-UI callers only. */
+    fun observePrivate(
+        snapshot: VideoSearchPrivateRunSnapshot,
+        displayed: List<VideoSearchFilm>,
+    ) {
+        val owner = snapshot.run.scope as? VideoSearchScope.Private ?: return
+        val token = recordingToken(owner) ?: return
+        val events = VideoSearchPrivateResultsDiagnosticAnalyzer.events(snapshot, displayed)
+        submitPrivateEvents(owner, token, events)
     }
 
     fun viewport(

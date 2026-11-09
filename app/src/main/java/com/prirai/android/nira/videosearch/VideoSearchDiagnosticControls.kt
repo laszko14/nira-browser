@@ -24,6 +24,7 @@ internal class VideoSearchDiagnosticControls(
     private val privateMode: Boolean,
     private val owner: () -> VideoSearchScope?,
     private val notifyUser: (String) -> Unit,
+    private val onStarted: () -> Unit = {},
 ) {
     val panel = LinearLayout(activity).apply {
         orientation = LinearLayout.VERTICAL
@@ -130,6 +131,7 @@ internal class VideoSearchDiagnosticControls(
                     ?.beginDiagnostics(target) == true
                 notifyUser(if (started) "Rozpoczęto zapisywanie diagnostyki."
                     else "Nie uruchomiono. Sprawdź profil i aktywną sesję.")
+                if (started) onStarted()
                 refresh()
             }.show()
     }
