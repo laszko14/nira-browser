@@ -125,14 +125,21 @@ test('read-only form, empty marker and pagination events never change primary re
     resultsCardSelector:'.cards'});
   assert.equal(h.sent.at(-1).event,'page_action');
   assert.equal(h.sent.at(-1).status,'pending');
-  h.dispatch({schemaVersion:1,event:'diag_read',documentId:doc,requestId:id,cursor:0});
-  const events=h.sent.at(-1).batch.events;
+  const events=[];
+  let cursor=0;
+  for(let part=0;part<12;part++){
+    h.dispatch({schemaVersion:1,event:'diag_read',documentId:doc,requestId:id,cursor});
+    const batch=h.sent.at(-1).batch;
+    assert.ok(batch.events.length<=4,'native diagnostic packets stay bounded');
+    if(!batch.events.length) break;
+    events.push(...batch.events);
+    cursor=batch.events.at(-1).sequence;
+  }
   assert.equal(events.some(e=>e.stage==='FORM'),true);
   assert.equal(events.some(e=>e.reason==='EXPLICIT_VISIBLE_EMPTY_MARKER'),true);
-  assert.equal(events.some(e=>e.reason==='PAGINATION_PENDING') ||
-    h.controller.read(0,doc).events.length<4,true);
+  assert.equal(events.some(e=>e.reason==='PAGINATION_PENDING'),true);
   assert.equal(events.every(e=>e.claim==='OBSERVATION'),true);
-  assert.equal(h.sent.some(e=>e.event==='diag_events'),true);
+  assert.equal(new Set(events.map(e=>e.sequence)).size,events.length);
 });
 
 test('empty cards with loading is UNCERTAIN/WAITING, never a real empty result',()=>{
