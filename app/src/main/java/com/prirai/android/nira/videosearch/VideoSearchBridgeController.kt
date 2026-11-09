@@ -138,6 +138,7 @@ internal class VideoSearchBridgeController(
         }
         diagnostic = VideoSearchDiagnosticNativeSession(
             VideoSearchDiagnosticRecorder.create(applicationContext, owner))
+        VideoSearchDiagnosticResultsHost.attach(checkNotNull(diagnostic).recorder)
         ports.forEach { (session, entry) ->
             diagnosticDocumentBound(session, entry)
         }
@@ -148,6 +149,7 @@ internal class VideoSearchBridgeController(
     fun stopDiagnostics(): VideoSearchDiagnosticRecorder? {
         val active = diagnostic ?: return null
         diagnostic = null
+        VideoSearchDiagnosticResultsHost.detach(active.recorder)
         diagnosticPorts.forEach { (session, state) ->
             val entry = ports[session]
             if (entry != null && entry.documentId == state.documentId &&
@@ -198,6 +200,7 @@ internal class VideoSearchBridgeController(
         val active = diagnostic ?: return
         if (diagnosticOwnerAuthorized(active.owner)) return
         diagnostic = null
+        VideoSearchDiagnosticResultsHost.detach(active.recorder)
         diagnosticPorts.clear()
         if (active.owner is VideoSearchScope.Private &&
             !diagnosticPrivateEpochAlive(active.owner as VideoSearchScope.Private)) {

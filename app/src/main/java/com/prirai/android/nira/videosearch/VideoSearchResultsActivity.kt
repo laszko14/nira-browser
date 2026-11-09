@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -251,6 +252,7 @@ internal fun VideoSearchResultsScreen(
         { _, _, _ -> },
 ) {
     val configuration = LocalConfiguration.current
+    val diagnosticsContext = LocalContext.current
     val landscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     val snapshot = state.snapshot
     val run = snapshot?.run
@@ -310,6 +312,11 @@ internal fun VideoSearchResultsScreen(
     val projectionState = remember(run?.id) {
         mutableStateOf<Pair<VideoSearchResultsDisplay, List<VideoSearchResultsGroup>>?>(null)
     }
+    // Diagnostics are attributed only after the matching snapshot was projected.
+    // Keep the existing displayed list during live Room updates, unchanged.
+    val projectionSource = remember(run?.id) {
+        mutableStateOf<VideoSearchSavedResults?>(null)
+    }
     LaunchedEffect(snapshot, siteFilter, sort) {
         val next = withContext(Dispatchers.Default) {
             snapshot?.let {
@@ -320,6 +327,7 @@ internal fun VideoSearchResultsScreen(
             }
         }
         if (next != projectionState.value) projectionState.value = next
+        projectionSource.value = snapshot
     }
     val results = projectionState.value?.first
     // Merge the FULL sorted and selected result set before taking any page.
@@ -392,6 +400,68 @@ internal fun VideoSearchResultsScreen(
         if (visibleResults == null) emptyList() else VideoSearchScrollKeys.visible(
             visibleResults, groups, byWebsite, expandedSites
         )
+    }
+    // Read-only evidence after the SAME snapshot has reached the real UI
+    // projection. A stale async projection must never be diagnosed as data loss.
+    LaunchedEffect(snapshot, projectionSource.value, results, siteFilter, sort,
+        byWebsite, mergeByName, mergeByDuration, mergeSmart,
+        visibleCount, expandedSites, selecting, selectedFilms.size,
+        state.view, visibleKeys) {
+        val saved = snapshot ?: return@LaunchedEffect
+        val projected = results ?: return@LaunchedEffect
+        if (projectionSource.value !== saved) return@LaunchedEffect
+        val owner = saved.run.scope as? VideoSearchScope.Normal ?: return@LaunchedEffect
+        if (!VideoSearchDiagnosticResultsHost.isRecording(owner)) return@LaunchedEffect
+        val manager = ProfileManager.getInstance(diagnosticsContext.applicationContext)
+        if (manager.isPrivateMode() || manager.getActiveProfile().id != owner.profileId)
+            return@LaunchedEffect
+        val frame = VideoSearchResultsDiagnosticFrame(
+            saved, projected, siteFilter, sort, byWebsite, mergeByName,
+            mergeByDuration, mergeSmart, mergedEntries, flatTotal,
+            visibleResults?.visibleFilms.orEmpty(), visibleKeys,
+            expandedSites, visibleCount, state.view, selecting, selectedFilms.size)
+        withContext(Dispatchers.Default) {
+            VideoSearchDiagnosticResultsHost.observe(frame)
+        }
+    }
+    // This is only the number of FILM rows composed in a lazy viewport,
+    // not a count of pixels, saved records or the full displayed dataset.
+    LaunchedEffect(run?.id, state.view, gridState, listState, visibleKeys) {
+        val live = run ?: return@LaunchedEffect
+        var lastRecordedAt = 0L
+        snapshotFlow {
+            if (state.view == VideoSearchView.TILES) {
+                gridState.firstVisibleItemIndex to
+                    gridState.layoutInfo.visibleItemsInfo.count {
+                        it.key.toString().startsWith("film:")
+                    }
+            } else {
+                listState.firstVisibleItemIndex to
+                    listState.layoutInfo.visibleItemsInfo.count {
+                        it.key.toString().startsWith("film:")
+                    }
+            }
+        }.collect { (firstItem, rows) ->
+            if (!VideoSearchDiagnosticResultsHost.isRecording(live.scope))
+                return@collect
+            val now = android.os.SystemClock.elapsedRealtime()
+            if (lastRecordedAt == 0L || now - lastRecordedAt >= 800L) {
+                val manager = ProfileManager.getInstance(
+                    diagnosticsContext.applicationContext)
+                if (!manager.isPrivateMode() &&
+                    manager.getActiveProfile().id == live.scope.profileId) {
+                    VideoSearchDiagnosticResultsHost.viewport(
+                        live.scope, live.id, state.view, firstItem, rows)
+                    lastRecordedAt = now
+                }
+            }
+        }
+    }
+    LaunchedEffect(state.error, run?.id) {
+        if (state.error != null && run != null &&
+            VideoSearchDiagnosticResultsHost.isRecording(run.scope)) {
+            VideoSearchDiagnosticResultsHost.loadFailure(run.scope, run.id)
+        }
     }
     var pendingLayoutSwitch by remember(run?.id, retainedRun) {
         retainedRun?.pendingLayoutSwitch ?:
