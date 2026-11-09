@@ -214,6 +214,11 @@
     {
       "task_id": "ZC-VIDEO-DIAG-7",
       "observed_count": 2,
+      "state": "COMPLETE"
+    },
+    {
+      "task_id": "ZC-VIDEO-DIAG-7-FIX",
+      "observed_count": 0,
       "state": "ACTIVE"
     }
   ],
@@ -4149,13 +4154,14 @@
       "job_id": null,
       "attempt": null,
       "cause": "production",
-      "state": "OPEN",
+      "state": "FIXED",
       "duplicate_of": null,
-      "fix_sha": null,
-      "regression_test": null,
+      "fix_sha": "a79f126b4eb2f5050758a52558d656fe74bfe5f1",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticsStage7FixTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/8221895736a08c3c1fa98fddd81e66acabd9fc45",
-        "https://github.com/laszko14/nira-browser/pull/129"
+        "https://github.com/laszko14/nira-browser/pull/129",
+        "https://github.com/laszko14/nira-browser/commit/a79f126b4eb2f5050758a52558d656fe74bfe5f1"
       ]
     },
     {
@@ -4169,14 +4175,15 @@
       "run_id": null,
       "job_id": null,
       "attempt": null,
-      "cause": "undetermined",
-      "state": "OPEN",
+      "cause": "production",
+      "state": "FIXED",
       "duplicate_of": null,
-      "fix_sha": null,
-      "regression_test": null,
+      "fix_sha": "bc99cb63077297c695e81131e249414186e00616",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticsStage7FixTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/8221895736a08c3c1fa98fddd81e66acabd9fc45",
-        "https://github.com/laszko14/nira-browser/pull/129"
+        "https://github.com/laszko14/nira-browser/pull/129",
+        "https://github.com/laszko14/nira-browser/commit/bc99cb63077297c695e81131e249414186e00616"
       ]
     }
   ]

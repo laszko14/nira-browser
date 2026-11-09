@@ -1,39 +1,46 @@
-# AI_HANDOFF — Zavro Clean video diagnostics 7/7 final audit
+# AI_HANDOFF — Zavro Clean video diagnostics stage-7 fixes
 
 Historical archive: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md.
-This is a pre-commit checkpoint; verify live GitHub HEAD before proceeding.
-Stage 6 CODE_VERIFIED on 8221895736a08c3c1fa98fddd81e66acabd9fc45; SOURCE #42656937259, PR #42656951717 SUCCESS.
+Pre-commit checkpoint — read live HEAD from GitHub, do not infer from SHA below.
+Previous stage-7 SOURCE #42663278302 and PR #42663299781 both SUCCESS at 4ac89b23617da85d91ed95ba1431e65a96d2ed26.
 
 ```yaml
-task_id: ZC-VIDEO-DIAG-7
+task_id: ZC-VIDEO-DIAG-7-FIX
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: feat/zavro-clean-video-diagnostics-20261108
-base_sha: 8221895736a08c3c1fa98fddd81e66acabd9fc45
-observed_head_sha: 8221895736a08c3c1fa98fddd81e66acabd9fc45
+base_sha: 4ac89b23617da85d91ed95ba1431e65a96d2ed26
+observed_head_sha: 4ac89b23617da85d91ed95ba1431e65a96d2ed26
 status: CI_PENDING
-acceptance_source: User "Dalej" after stage 6 CODE_VERIFIED; stage 7 final AUDIT+DOCS only. No APK authorized.
-completed: Read current GitHub instructions and verified stage-6 tests/CI; reviewed 7-stage instrumentation, JSONL recorder, JS/native correlation, normal/private result funnels, consent, 24s stop, RAM/noBackup, share provider, permissions, retention, sanitization, test coverage; wrote final audit and recorded two open review findings. No app code changes.
-remaining: Verify final stage-7 docs-only SOURCE/PR CI at exact new SHA; possible separate fixes for D7-01/D7-02; controlled APK only after explicit consent, device tests NOT_TESTED.
-required_ci: SOURCE process-docs, shared-tests JS/Kotlin-Robolectric/AndroidTest Kotlin compile/Android lint+baseline, required-summary all SUCCESS; PR shared-tests JS/JVM/AndroidTest lint and error-learning evidence SUCCESS on final HEAD. Build/release SKIPPED.
-device: NOT_TESTED — Nothing Phone (1), real GeckoView websites, share recipients, FPS and memory unverified.
-apk: NOT_BUILT — no consent to run signed APK build; no trigger review sent.
-known_failures: D7-01 pre-existing results may not be sampled at logging start; D7-02 private analyzer on UI thread under registry lock, performance risk not measured. Both OPEN; OBSERVED 2 / RECORDED 2 / OPEN 2. Existing Stage 6 SOURCE and PR passed.
-verification: Live GitHub branch HEAD 8221895736a08c3c1fa98fddd81e66acabd9fc45, AGENTS.md, docs/AI_HANDOFF.md, STARTUP_PREFLIGHT, QUALITY_GATES, TEST_POLICY, CHECKPOINT_POLICY, ERROR_LEARNING, APK_CHAT_GITHUB_REVIEW_TRIGGER, stages 1-6 docs and code, stage-6 CI API.
+acceptance_source: User explicitly requested to fix both D7-01 and D7-02 first, after previously requesting APK; pause APK until verified corrections and next approval.
+completed: Fixed already-open results sampling by process-owned recording session StateFlow and Compose effect trigger plus private onStarted snapshot. Moved private per-site count analysis and bounded record submission off UI thread; cancellation and owner/profile/tab/epoch/session token rechecks reject stale tasks. Added synthetically tested 200/2000/20000 counters, recorder restart/stale token regression, updated structural JS guard, original audit findings marked FIXED with code SHA. No APK build triggered.
+remaining: Check required final SOURCE/PR CI on exact committed SHA; address actual CI errors without disabling tests. Confirm real device performance only after signed private update and physical test.
+required_ci: SOURCE process-docs; JS/WebExtension; Kotlin/Robolectric JVM; AndroidTest Kotlin compile; Android lint and frozen baseline; required-summary all SUCCESS. PR shared JS/JVM/AndroidTest/lint/error-learning all SUCCESS on same final SHA; build/release SKIPPED.
+device: NOT_TESTED — no physical Nothing Phone (1), real websites, Android chooser, 60/120Hz FPS, RAM or ANR measured.
+apk: NOT_BUILT — current request prioritizes repairs; do not trigger approved review APK before checking post-fix plan with user.
+known_failures: D7-01 and D7-02 audit evidence at 4ac89b23617da85d91ed95ba1431e65a96d2ed26; patched in a79f126b4eb2f5050758a52558d656fe74bfe5f1 and bc99cb63077297c695e81131e249414186e00616; awaiting CI. ZC-VIDEO-DIAG-7 OBSERVED=2/RECORDED=2/OPEN=0; new fix task 0/0/0 until CI.
+verification: Re-read live HEAD, AGENTS.md, docs/AI_HANDOFF.md, STARTUP_PREFLIGHT.md, QUALITY_GATES.md, TEST_POLICY.md, ERROR_LEARNING.md, stage-6/7 source audit and relevant UI/host/recorder Kotlin files and previous tests at 4ac89b23617da85d91ed95ba1431e65a96d2ed26. Prepared code+tests from exact same Git tree, no policy modifications.
 changed_paths:
-  - docs/ai/VIDEO_SEARCH_DIAGNOSTICS_STAGE7.md
+  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsDiagnostics.kt
+  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchResultsActivity.kt
+  - app/src/main/java/com/prirai/android/nira/videosearch/MyVideoSitesActivity.kt
+  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticControls.kt
+  - app/src/test/js/video-search-diagnostics-stage6.test.cjs
+  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticsStage7FixTest.kt
+  - docs/ai/VIDEO_SEARCH_DIAGNOSTICS_STAGE7_FIX.md
   - docs/AI_HANDOFF.md
   - docs/ai/ERROR_CASES.json
 verified_before_push:
-  - Audit/docs only, no changes to app, tests, baseline, workflows, signing, Secrets, profile, package, version or Android permissions.
-  - No APK, merge, release, force-push, destructive operation, background capture or auto-upload.
+  - No changes to existing search selections/Room/profile/session storage, APK, package, ABI, signing secrets, lint baseline, test threshold or permissions.
+  - No merge, release, force-push, auto-upload, auto-start or user-data deletion.
 blockers:
-  - D7-01 and D7-02 OPEN; no complete real-site/pixel/completeness claims.
-  - Real device and independent security review NOT_TESTED.
+  - CI_PENDING until final SOURCE/PR success; physical performance and third-party review still NOT_TESTED.
 evidence_links:
   - https://github.com/laszko14/nira-browser/pull/129
-  - https://github.com/laszko14/nira-browser/actions/runs/42656937259
-  - https://github.com/laszko14/nira-browser/actions/runs/42656951717
-next_action: Verify docs-only stage-7 final CI, then STOP and ask for separate approval to build a private controlled test APK or fix D7-01/D7-02. No APK until consent.
+  - https://github.com/laszko14/nira-browser/commit/a79f126b4eb2f5050758a52558d656fe74bfe5f1
+  - https://github.com/laszko14/nira-browser/commit/bc99cb63077297c695e81131e249414186e00616
+  - https://github.com/laszko14/nira-browser/actions/runs/42663278302
+  - https://github.com/laszko14/nira-browser/actions/runs/42663299781
+next_action: Verify SOURCE/PR final CI then STOP; discuss when to trigger private test APK after repairs are confirmed.
 ```
