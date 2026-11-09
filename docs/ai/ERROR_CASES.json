@@ -218,7 +218,7 @@
     },
     {
       "task_id": "ZC-VIDEO-DIAG-7-FIX",
-      "observed_count": 0,
+      "observed_count": 1,
       "state": "ACTIVE"
     }
   ],
@@ -4184,6 +4184,27 @@
         "https://github.com/laszko14/nira-browser/commit/8221895736a08c3c1fa98fddd81e66acabd9fc45",
         "https://github.com/laszko14/nira-browser/pull/129",
         "https://github.com/laszko14/nira-browser/commit/bc99cb63077297c695e81131e249414186e00616"
+      ]
+    },
+    {
+      "id": "CI-DIAG7-FIX-SOURCE-HANDOFF-SHARED-TESTS",
+      "task_id": "ZC-VIDEO-DIAG-7-FIX",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag7fix.handoff-missing-shared-tests",
+      "summary": "SOURCE process-docs handoff resume test rejected a missing literal shared-tests marker in required_ci, although the individual gates were listed. Checkpoint corrected without weakening test.",
+      "source_sha": "67c853f4d865d25c774954cb3e3fde638144c389",
+      "observed_at": null,
+      "run_id": 42670589192,
+      "job_id": 129345775144,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "1847be31b5ca944cf5898eb066af4c87391c751b",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42670589192",
+        "https://github.com/laszko14/nira-browser/commit/1847be31b5ca944cf5898eb066af4c87391c751b"
       ]
     }
   ]
