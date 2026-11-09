@@ -46,6 +46,8 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import com.prirai.android.nira.ext.components
 import mozilla.components.browser.icons.IconRequest
@@ -81,6 +83,10 @@ class MyVideoSitesActivity : AppCompatActivity() {
     private lateinit var stopMultiButton: Button
     private lateinit var multiHistoryButton: Button
     private lateinit var savedFoldersButton: Button
+    private lateinit var normalDiagnosticControls: VideoSearchDiagnosticControls
+    private lateinit var privateDiagnosticControls: VideoSearchDiagnosticControls
+    private var diagnosticsStatusJob: Job? = null
+    private var privateDiagnosticsSnapshotJob: Job? = null
     private lateinit var adapter: SitesAdapter
     private lateinit var sitesList: RecyclerView
     private var draftOwnerId: String? = null
@@ -327,6 +333,11 @@ class MyVideoSitesActivity : AppCompatActivity() {
         }
         multiActions.addView(multiHistoryButton, LinearLayout.LayoutParams(0, dp(64), 1f))
         multiActions.addView(savedFoldersButton, LinearLayout.LayoutParams(0, dp(64), 1f))
+        normalDiagnosticControls = VideoSearchDiagnosticControls(
+            this, privateMode = false, owner = { ownerIfCurrent() },
+            notifyUser = ::message)
+        normalHeader.addView(normalDiagnosticControls.panel,
+            LinearLayout.LayoutParams(-1, -2))
         normalHeader.addView(info, LinearLayout.LayoutParams(-1, -2))
 
         normalEmptyState = TextView(this).apply {
@@ -462,6 +473,12 @@ class MyVideoSitesActivity : AppCompatActivity() {
             text = "Tylko RAM. Po zamknięciu ostatniej karty prywatnej lista znika."
         }
         header.addView(privateStatus)
+        privateDiagnosticControls = VideoSearchDiagnosticControls(
+            this, privateMode = true, owner = { selectedPrivateTab()?.let { (tab, profile) ->
+                VideoSearchPrivateSessionHost.registry.ownerForTab(tab, profile)
+            } }, notifyUser = ::message,
+            onStarted = { schedulePrivateDiagnosticObservation() })
+        header.addView(privateDiagnosticControls.panel)
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             isBaselineAligned = false
@@ -706,6 +723,59 @@ class MyVideoSitesActivity : AppCompatActivity() {
         privateMoreResultsButton.visibility =
             if (shown < privateResultsItems.size) View.VISIBLE else View.GONE
         privateMoreResultsButton.text = "Pokaż kolejne 150 · $shown/${privateResultsItems.size}"
+
+        // Snapshot only the submitted adapter prefix, not physical pixels.
+        schedulePrivateDiagnosticObservation()
+    }
+
+    /**
+     * Never analyze 20,000 private films on the Activity's main thread or
+     * while holding the private registry lock. Only an opt-in recording can
+     * schedule work; switching run, tab, owner or recorder cancels the result.
+     */
+    private fun schedulePrivateDiagnosticObservation() {
+        privateDiagnosticsSnapshotJob?.cancel()
+        if (privatePanel.visibility != View.VISIBLE) return
+        val snapshot = privateRunHistory.firstOrNull {
+            it.run.id == selectedPrivateRunId
+        } ?: return
+        val owner = snapshot.run.scope as? VideoSearchScope.Private ?: return
+        val token = VideoSearchDiagnosticResultsHost.recordingToken(owner) ?: return
+        val tab = selectedPrivateTab() ?: return
+        if (VideoSearchPrivateSessionHost.registry.ownerForTab(tab.first, tab.second) != owner)
+            return
+        // subList is a constant-time view of the immutable snapshot list.
+        val submitted = privateResultsItems.subList(
+            0, minOf(privateVisibleFilms, privateResultsItems.size))
+        privateDiagnosticsSnapshotJob = lifecycleScope.launch {
+            val events = try {
+                withContext(Dispatchers.Default) {
+                    VideoSearchPrivateResultsDiagnosticAnalyzer.events(snapshot, submitted)
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: IllegalArgumentException) {
+                // Stale/foreign snapshot is not a successful observation.
+                return@launch
+            }
+            if (privatePanel.visibility != View.VISIBLE ||
+                selectedPrivateRunId != snapshot.run.id ||
+                privateResultsItems !== snapshot.films ||
+                selectedPrivateTab() != tab) return@launch
+            // Revalidate inside the registry immediately before writing.
+            // Both authorization and the bounded enqueue run off the UI thread.
+            withContext(Dispatchers.Default) {
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                VideoSearchPrivateSessionHost.registry.withAuthorizedTab(
+                    tab.first, tab.second
+                ) { _, scope ->
+                    if (scope == owner) {
+                        VideoSearchDiagnosticResultsHost.submitPrivateEvents(
+                            owner, token, events)
+                    }
+                }
+            }
+        }
     }
 
     private fun renderPrivateRun(snapshot: VideoSearchPrivateRunSnapshot) {
@@ -726,6 +796,7 @@ class MyVideoSitesActivity : AppCompatActivity() {
         val target = selectedPrivateTab()
         val snapshot = target?.let { privateSitesAccess.snapshot(it.first, it.second) }
         if (snapshot == null) {
+            privateDiagnosticsSnapshotJob?.cancel()
             privateAddButton.isEnabled = false
             privateResultsLabel.text = ""
             privateResultsItems = emptyList()
@@ -833,6 +904,19 @@ class MyVideoSitesActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        diagnosticsStatusJob?.cancel()
+        diagnosticsStatusJob = lifecycleScope.launch {
+            while (true) {
+                // Refresh only the current mode: the hidden private scope must
+                // not query BrowserStore during ordinary-profile UI work.
+                if (ProfileManager.getInstance(applicationContext).isPrivateMode()) {
+                    privateDiagnosticControls.refresh()
+                } else {
+                    normalDiagnosticControls.refresh()
+                }
+                delay(1200)
+            }
+        }
         val manager = ProfileManager.getInstance(applicationContext)
         if (manager.isPrivateMode()) {
             dismissTrackedNormalDialog()
@@ -1007,6 +1091,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
 
     /** No stale private title, URL or query remains on a paused screen. */
     private fun clearPrivatePresentation() {
+        privateDiagnosticsSnapshotJob?.cancel()
+        privateDiagnosticsSnapshotJob = null
         if (!::privateQueryInput.isInitialized) return
         privateQueryInput.text.clear()
         privateSiteInput.text.clear()
@@ -1033,6 +1119,8 @@ class MyVideoSitesActivity : AppCompatActivity() {
         observer?.cancel()
         observer = null
         adapter.cancelDrag()
+        diagnosticsStatusJob?.cancel()
+        diagnosticsStatusJob = null
         super.onPause()
     }
 

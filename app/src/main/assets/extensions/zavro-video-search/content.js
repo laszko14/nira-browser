@@ -66,6 +66,13 @@
       ...labels].filter(v => typeof v === "string").join(" ");
   }
   let port;
+  // Passive Stage 2 evidence; only active after a verified native request.
+  function diag(stage,decision,reason,requestId=null,counts=null,fields=null) {
+    const observer=window.__zavroVideoDiagnostics;
+    if (!observer?.active()) return;
+    try { observer.observe({stage,decision,reason,requestId,counts,fields}); }
+    catch (_) { /* Never affect extraction or navigation on diagnostic failure. */ }
+  }
 
   function safeForm(form) {
     if (!form || form.tagName !== "FORM" || form.querySelector('input[type="password"]')) return false;
@@ -1162,6 +1169,8 @@
     try { documentId = newDocumentId(); } catch (_) { originRevoked = true; return; }
     navigationRevision++;
     startUrl = current;
+    try { window.__zavroVideoDiagnostics?.route(documentId,navigationRevision,
+      current,"SAME_ORIGIN_ROUTE_CHANGE"); } catch (_) { /* optional */ }
     hello();
   }
   function post(event, requestId, extra) {
@@ -1336,7 +1345,24 @@
     // every 16-card checkpoint. NodeList is indexable without copying.
     try { cards = resultNodes(command.resultsCardSelector); }
     catch (_) { return { status: "stale", films: [], inspectedCards: 0, moreOnPage: false }; }
-    if (!cards) return { status: "stale", films: [], inspectedCards: 0, moreOnPage: false };
+    if (!cards) {
+      diag("RESULTS_REGION","UNCERTAIN","SELECTOR_STALE",command.requestId,
+        null,{SELECTOR:command.resultsCardSelector});
+      return { status: "stale", films: [], inspectedCards: 0, moreOnPage: false };
+    }
+    diag("RESULTS_REGION",cards.length ? "SEEN" : "UNCERTAIN",
+      cards.length ? "RESULT_SELECTOR_MATCHED" : "NO_CARDS_MATCHED",
+      command.requestId,{VISIBLE_CARDS:cards.length},
+      {SELECTOR:command.resultsCardSelector,PAGE_URL:location.href});
+    // Explicit loading and login gates are not false empty results.
+    if (cards.length===0) {
+      const isGate=blocked.test(location.pathname) ||
+        !!document.querySelector('input[type="password"]');
+      const isLoading=!!document.querySelector('[aria-busy="true"],[data-loading="true"]');
+      diag("RESULTS_REGION",isGate ? "REJECTED" : isLoading ? "WAITING" : "UNCERTAIN",
+        isGate ? "HUMAN_GATE" : isLoading ? "DYNAMIC_LOADING" : "EMPTY_OR_UNDETECTED",
+        command.requestId,{VISIBLE_CARDS:0});
+    }
     // Only an explicit, visible site-owned empty-state marker is proof
     // of zero results. A missing card/selector or loading page is not.
     if (cards.length === 0 && command.startIndex === 0 &&
@@ -1347,8 +1373,11 @@
       if (marker && !marker.closest('[hidden],[inert],[aria-hidden="true"]') &&
           marker.getBoundingClientRect().width > 0 &&
           marker.getBoundingClientRect().height > 0 &&
-          !document.querySelector('[aria-busy="true"],[data-loading="true"]'))
+          !document.querySelector('[aria-busy="true"],[data-loading="true"]')) {
+        diag("RESULTS_REGION","SEEN","EXPLICIT_VISIBLE_EMPTY_MARKER",
+          command.requestId,{VISIBLE_CARDS:0});
         return { status: "no_results", films: [], inspectedCards: 0, moreOnPage: false };
+      }
     }
 
     function scoped(card, selector) {
@@ -1670,13 +1699,26 @@
     const serializedBytes = row => encoder.encode(JSON.stringify(row)).length;
     let usedBytes = 0, more = false;
     let consumed = end - start;
+    let excludedCount=0,noAnchorCount=0,candidateCount=0,acceptedCount=0,missingMetadata=0;
     for (let index = start; index < end; index++) {
       const card = cards[index];
       // Recognition can group cards by CSS while the page mixes in an
       // advertisement or related shelf. Enforce card-level exclusion again.
-      if (excludedResultCard(card)) continue;
+      if (excludedResultCard(card)) {
+        excludedCount++;
+        if (excludedCount<=2) diag("CARDS","REJECTED","CARD_EXCLUDED_REGION",
+          command.requestId,{VISIBLE_CARDS:cards.length},
+          {SELECTOR:command.resultsCardSelector,DETAIL:"index=" + index});
+        continue;
+      }
       const match = selectedAnchor(card);
-      if (!match) continue;
+      if (!match) {
+        noAnchorCount++;
+        if (noAnchorCount<=2) diag("CARDS","REJECTED","NO_SAFE_FILM_LINK",
+          command.requestId,null,{DETAIL:"index=" + index});
+        continue;
+      }
+      candidateCount++;
       const { anchor, filmUrl } = match;
       const image = command.thumbnailSelector ?
         scoped(card, command.thumbnailSelector) :
@@ -1716,6 +1758,13 @@
           publicationNode?.getAttribute("data-published") ||
           publicationNode?.getAttribute("data-upload-date") ||
           nodeText(publicationNode, 64) || "");
+      if (!safeTitle || runtime == null || publishedAtMs == null) {
+        missingMetadata++;
+        if (missingMetadata<=2) diag("METADATA","UNCERTAIN",
+          "CARD_METADATA_PARTIAL",command.requestId,null,
+          {DETAIL:"title=" + !!safeTitle + ";duration=" + (runtime != null) +
+            ";date=" + (publishedAtMs != null),FILM_URL:filmUrl});
+      }
       const fresh = {
         filmPageUrl: filmUrl,
         originalTitle: safeTitle,
@@ -1742,9 +1791,21 @@
       }
       usedBytes += nextCost - oldCost;
       found.set(filmUrl, next);
+      acceptedCount++;
     }
     if (end < Math.min(cards.length, cardCap) || cards.length >= cardCap) more = true;
     const films = Array.from(found.values());
+    diag("CARDS",films.length ? "ACCEPTED" : "UNCERTAIN",
+      films.length ? "BATCH_EXTRACTED" : "BATCH_NO_ACCEPTED_FILMS",
+      command.requestId,{VISIBLE_CARDS:cards.length,CANDIDATES:candidateCount,
+        ACCEPTED_FILMS:acceptedCount,UNIQUE_FILMS:films.length},
+      {SELECTOR:command.resultsCardSelector,
+        DETAIL:"excluded=" + excludedCount + ";noAnchor=" + noAnchorCount +
+          ";missingMetadata=" + missingMetadata + ";consumed=" + consumed +
+          ";start=" + start + ";more=" + more,
+        ...(films[0] ? {FILM_URL:films[0].filmPageUrl,
+          TITLE:films[0].originalTitle || "",DURATION:String(films[0].durationSeconds ?? ""),
+          DATE:String(films[0].publishedAtMs ?? "")} : {})});
     if (stream) continuationAnchors[stream] = consumed > 0 && more ? {
       selector: command.resultsCardSelector,
       next: start + consumed,
@@ -1753,6 +1814,20 @@
     } : null;
     return { status: films.length ? "ok" : "empty",
       films, inspectedCards: consumed, moreOnPage: more };
+  }
+
+  // A page may be still loading, have no recognized cards, or really be
+  // empty. Preserve the parser's exact status without changing its decision.
+  function diagnosticExtraction(command) {
+    const result=extractResults(command);
+    diag("RESULTS_REGION",result.status === "no_results" ? "SEEN" :
+      result.status === "ok" ? "ACCEPTED" : result.status === "stale" ?
+      "REJECTED" : "UNCERTAIN",
+      "EXTRACTION_" + result.status.toUpperCase(),command.requestId,
+      {ACCEPTED_FILMS:result.films.length},
+      {DETAIL:"inspected=" + result.inspectedCards +
+        ";more=" + result.moreOnPage});
+    return result;
   }
 
   // Only an explicit user request can trigger pagination. Never follow a
@@ -2019,12 +2094,20 @@
     if (typeof MutationObserver === "function" && document.documentElement) {
       // High-mutation SPAs can create hundreds of events per frame. Native
       // url_sync and pre-request checks still protect navigation immediately.
-      let pendingCheck = null;
+      let pendingCheck = null,lastMutationObservation=-Infinity;
       const monitor = new MutationObserver(function () {
         if (pendingCheck !== null) return;
         pendingCheck = setTimeout(function () {
           pendingCheck = null;
           syncLocation();
+          if (window.__zavroVideoDiagnostics?.active()) {
+            const stamp=Date.now();
+            if (stamp-lastMutationObservation>=1200) {
+              lastMutationObservation=stamp;
+              diag("SPA","WAITING","DOM_MUTATION_OBSERVED",null,
+                null,{PAGE_URL:location.href});
+            }
+          }
         }, 90);
       });
       monitor.observe(document.documentElement, {subtree: true, childList: true});
@@ -2052,6 +2135,28 @@
           location.href !== startUrl) return;
       if (message.event === "bound" && keys === "documentId,event,schemaVersion") {
         ready = true;
+      } else if (ready && message.event === "diag_start" &&
+          keys === "documentId,event,requestId,schemaVersion,sessionId" &&
+          idPattern.test(message.requestId || "")) {
+        const ok=window.__zavroVideoDiagnostics?.start(
+          message.sessionId,documentId,navigationRevision) === true;
+        post("diag_ack",message.requestId,{status:ok ? "active" : "rejected"});
+      } else if (ready && message.event === "diag_read" &&
+          keys === "cursor,documentId,event,requestId,schemaVersion" &&
+          idPattern.test(message.requestId || "")) {
+        const batch=window.__zavroVideoDiagnostics?.read(message.cursor,documentId);
+        if (batch) post("diag_events",message.requestId,{batch});
+      } else if (ready && message.event === "diag_snapshot" &&
+          keys === "documentId,event,requestId,schemaVersion" &&
+          idPattern.test(message.requestId || "")) {
+        const ok=window.__zavroVideoDiagnostics?.snapshot(
+          documentId,message.requestId,document) === true;
+        post("diag_ack",message.requestId,{status:ok ? "sampled" : "rejected"});
+      } else if (ready && message.event === "diag_stop" &&
+          keys === "documentId,event,requestId,schemaVersion,sessionId" &&
+          idPattern.test(message.requestId || "")) {
+        const ok=window.__zavroVideoDiagnostics?.stop(message.sessionId) === true;
+        post("diag_ack",message.requestId,{status:ok ? "stopped" : "rejected"});
       } else if (message.event === "ping" && ready &&
                  keys === "documentId,event,schemaVersion") {
         try { port.postMessage({ schemaVersion: 1, event: "pong", documentId }); }
@@ -2059,16 +2164,30 @@
       } else if (ready && !busy && idPattern.test(message.requestId || "")) {
         if (message.event === "inspect" && keys === "documentId,event,requestId,schemaVersion") {
           busy = true;
-          const found = detect();
-          post("inspection", message.requestId, found);
+          const found=detect();
+          diag("FORM",found.status === "ready" ? "SEEN" : "UNCERTAIN",
+            "INSPECTION_" + found.status.toUpperCase(),message.requestId,
+            null,{SELECTOR:found.inputSelector || "",
+              DETAIL:"submission=" + (found.submission || "NONE") +
+                ";button=" + (found.submitSelector || "NONE")});
+          diag("RESULTS_REGION",found.resultsCardSelector ? "SEEN" : "UNCERTAIN",
+            found.resultsCardSelector ? "RESULT_LOCATOR_FOUND" : "RESULT_LOCATOR_MISSING",
+            message.requestId,null,{SELECTOR:found.resultsCardSelector || ""});
+          post("inspection",message.requestId,found);
           busy = false;
         } else if (message.event === "recognize" &&
             keys === "documentId,event,requestId,schemaVersion" && !picker) {
           busy = true;
           try {
             const report = window.__zavroRecognition?.scan(document);
-            const selector = report?.selector || null;
-            post("recognition", message.requestId, {
+            const selector=report?.selector || null;
+            diag("CARDS",selector ? "SEEN" : "UNCERTAIN",
+              report?.reason || "CARDS_NOT_FOUND",message.requestId,
+              {VISIBLE_CARDS:report?.matchedCards || 0},
+              {SELECTOR:selector || "",DETAIL:"surface=" + (report?.surface || "UNKNOWN") +
+                ";confidence=" + (report?.confidence || 0) +
+                ";scannedElements=" + (report?.scannedElements || 0)});
+            post("recognition",message.requestId,{
               status: selector ? "found" : report?.confidence > 0 ? "partial" : "missing",
               reason: report?.reason || "CARDS_NOT_FOUND",
               confidence: report?.confidence || 0,
@@ -2081,8 +2200,18 @@
         } else if (message.event === "analyze" &&
             keys === "documentId,event,requestId,schemaVersion" && !picker) {
           busy = true;
-          try { post("analysis", message.requestId, siteAnalysis()); }
-          finally { busy = false; }
+          try {
+            const analysis=siteAnalysis();
+            diag("FORM",analysis.status === "ready" ? "SEEN" : "UNCERTAIN",
+              "ANALYSIS_" + analysis.reason.toUpperCase(),message.requestId,
+              null,{SELECTOR:analysis.inputSelector || "",
+                DETAIL:"confidence=" + analysis.confidence +
+                  ";button=" + (analysis.submitSelector || "NONE")});
+            diag("PAGINATION",analysis.pagination !== "NONE" ? "SEEN" : "UNCERTAIN",
+              "PAGER_" + analysis.pagination,message.requestId,null,
+              {SELECTOR:analysis.nextPageSelector || ""});
+            post("analysis",message.requestId,analysis);
+          } finally { busy = false; }
         } else if (message.event === "pick" &&
             keys === "documentId,event,pickKind,requestId,schemaVersion") {
           pick(message);
@@ -2099,8 +2228,9 @@
                      "resultsCardSelector,schemaVersion,thumbnailSelector,titleSelector")) {
           busy = true;
           try {
-            post("results", message.requestId, extractResults(message));
+            post("results", message.requestId, diagnosticExtraction(message));
           } catch (_) {
+            diag("BRIDGE","FAILED","EXTRACT_EXCEPTION",message.requestId);
             post("results", message.requestId,
               { status: "stale", films: [], inspectedCards: 0, moreOnPage: false });
           } finally { busy = false; }
@@ -2111,8 +2241,9 @@
             message.startIndex >= 0 && message.startIndex <= 79) {
           busy = true;
           try {
-            post("results", message.requestId, extractResults(message));
+            post("results", message.requestId, diagnosticExtraction(message));
           } catch (_) {
+            diag("BRIDGE","FAILED","EXTRACT_EXCEPTION",message.requestId);
             post("results", message.requestId,
               { status: "stale", films: [], inspectedCards: 0, moreOnPage: false });
           } finally { busy = false; }
@@ -2130,8 +2261,9 @@
             message.startIndex < (message.cardCap || 320)) {
           busy = true;
           try {
-            post("crawl_results", message.requestId, extractResults(message));
+            post("crawl_results", message.requestId, diagnosticExtraction(message));
           } catch (_) {
+            diag("BRIDGE","FAILED","EXTRACT_CRAWL_EXCEPTION",message.requestId);
             post("crawl_results", message.requestId,
               { status: "stale", films: [], inspectedCards: 0, moreOnPage: false });
           } finally { busy = false; }
@@ -2141,20 +2273,32 @@
                      "resultsCardSelector,schemaVersion" &&
               message.pagination === "INFINITE_SCROLL"))) {
           busy = true;
-          const status = pageAction(message);
-          post("page_action", message.requestId,
+          const status=pageAction(message);
+          diag("PAGINATION",status === "dispatched" ? "SEEN" :
+            status === "unsafe" ? "REJECTED" : status === "pending" ? "WAITING" : "UNCERTAIN",
+            "PAGINATION_" + status.toUpperCase(),message.requestId,null,
+            {SELECTOR:message.nextPageSelector || "",DETAIL:message.pagination});
+          post("page_action",message.requestId,
             { pagination: message.pagination, status: status });
           busy = false;
         } else if (message.event === "search" &&
             keys === "documentId,event,inputSelector,query,requestId,schemaVersion,submission,submitSelector") {
           busy = true;
-          const result = runSearch(message);
+          const result=runSearch(message);
+          diag("FORM",result === "submitted" ? "SEEN" :
+            result === "unsafe" ? "REJECTED" : "UNCERTAIN",
+            "SEARCH_" + result.toUpperCase(),message.requestId,null,
+            {SEARCH_QUERY:message.query,SELECTOR:message.inputSelector});
           if (result !== "submitted") post("search_failed", message.requestId, { reason: result });
           busy = false;
         }
       }
     });
-    port.onDisconnect.addListener(function () { ready = false; cancelPicker(); });
+    port.onDisconnect.addListener(function () {
+      ready=false;
+      try { window.__zavroVideoDiagnostics?.close(); } catch (_) { /* RAM only */ }
+      cancelPicker();
+    });
     window.addEventListener("pagehide", cancelPicker, { once: true });
     hello();
   } catch (_) { ready = false; }

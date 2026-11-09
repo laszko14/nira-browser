@@ -1,5 +1,5 @@
 {
-  "schema": "zavro.error-learning/1",
+  "schema": "zavro.error-learning/2",
   "coverage": [
     {
       "task_id": "ZC-V31-ERROR-LEARNING",
@@ -180,6 +180,46 @@
       "task_id": "ZC-V4-P4-F2-FINAL-REGRESSION",
       "observed_count": 2,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "observed_count": 12,
+      "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-VIDEO-DIAG-2",
+      "observed_count": 8,
+      "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-VIDEO-DIAG-3",
+      "observed_count": 6,
+      "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-VIDEO-DIAG-4",
+      "observed_count": 0,
+      "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "observed_count": 15,
+      "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-VIDEO-DIAG-6",
+      "observed_count": 2,
+      "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-VIDEO-DIAG-7",
+      "observed_count": 2,
+      "state": "COMPLETE"
+    },
+    {
+      "task_id": "ZC-VIDEO-DIAG-7-FIX",
+      "observed_count": 8,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -199,7 +239,14 @@
       "duplicate_of": null,
       "fix_sha": null,
       "regression_test": "scripts/error-learning.test.cjs",
-      "evidence_links": []
+      "evidence_links": [],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41334916448-1-124932586787",
@@ -219,7 +266,14 @@
       "regression_test": "scripts/error-learning.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41334916448"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41335018971-1-124933016011",
@@ -241,7 +295,14 @@
         "https://github.com/laszko14/nira-browser/actions/runs/41335018971",
         "https://github.com/laszko14/nira-browser/commit/75d59b0ba47269b84e4e027556fd59dcbee66287",
         "https://github.com/laszko14/nira-browser/actions/runs/41335154679"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41337049270-1-124938975803",
@@ -263,7 +324,14 @@
         "https://github.com/laszko14/nira-browser/actions/runs/41337049270",
         "https://github.com/laszko14/nira-browser/commit/0138e1e73de2b3fd4677a774e6adea0cd608b717",
         "https://github.com/laszko14/nira-browser/actions/runs/41337335979"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41337163423-1-124939468643",
@@ -285,7 +353,14 @@
         "https://github.com/laszko14/nira-browser/actions/runs/41337163423",
         "https://github.com/laszko14/nira-browser/commit/5458e884ebb5b135db1caa7f2f3f7a0f4ddfe43c",
         "https://github.com/laszko14/nira-browser/actions/runs/41337335979"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261101-0002",
@@ -308,7 +383,14 @@
         "https://github.com/laszko14/nira-browser/actions/runs/41335018971",
         "https://github.com/laszko14/nira-browser/actions/runs/41337049270",
         "https://github.com/laszko14/nira-browser/actions/runs/41337163423"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261101-0003",
@@ -328,7 +410,14 @@
       "regression_test": null,
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/119"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "unknown",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261101-0004",
@@ -346,7 +435,14 @@
       "duplicate_of": null,
       "fix_sha": null,
       "regression_test": "app/src/test/js/video-search-neon-redesign.test.cjs",
-      "evidence_links": []
+      "evidence_links": [],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41346184372-1-124966435012",
@@ -366,7 +462,14 @@
       "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41346184372"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41346404329-1-124967036250",
@@ -386,7 +489,14 @@
       "regression_test": "app/src/test/js/update-apk-workflow-scope.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41346404329"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261101-0005",
@@ -406,7 +516,14 @@
       "regression_test": "app/src/test/js/video-search-neon-redesign.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41346404329"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41346783332-1-124968367788",
@@ -426,7 +543,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/MyVideoSitesLayoutTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41346783332"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261102-0001",
@@ -444,7 +568,14 @@
       "duplicate_of": null,
       "fix_sha": null,
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
-      "evidence_links": []
+      "evidence_links": [],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41535669908-1-125586730519",
@@ -464,7 +595,14 @@
       "regression_test": "app/src/test/js/video-search-neon-redesign.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41535669908"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41535972657-1-125588178983",
@@ -484,7 +622,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41535972657"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41535972657-1-125588179140",
@@ -504,7 +649,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41535972657"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41535972657-1-125588179149",
@@ -524,7 +676,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41535972657"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41535985531-1-125587894526",
@@ -544,7 +703,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41535985531"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41535985531-1-125587894538",
@@ -564,7 +730,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41535985531"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41535985531-1-125587894615",
@@ -584,7 +757,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41535985531"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41536879882-1-125590976456",
@@ -604,7 +784,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41536879882"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41537572431-1-125593311107",
@@ -624,7 +811,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/MyVideoSitesDialogRegressionTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41537572431"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41537564625-1-125593767099",
@@ -644,7 +838,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/MyVideoSitesDialogRegressionTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41537564625"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41538591682-1-125597736578",
@@ -664,7 +865,14 @@
       "regression_test": "scripts/error-learning.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41538591682"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41539774510-1-125600952193",
@@ -684,7 +892,14 @@
       "regression_test": "scripts/lint-regression.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41539774510"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41539785113-1-125600844250",
@@ -704,7 +919,14 @@
       "regression_test": "scripts/lint-regression.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41539785113"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41539785113-1-125600843928",
@@ -724,7 +946,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41539785113"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41539774510-1-125604090696",
@@ -744,7 +973,14 @@
       "regression_test": "scripts/ci-run-receipt.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41539774510"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41549291438-1-125632527282",
@@ -764,7 +1000,14 @@
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41549291438"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261103-0001",
@@ -782,7 +1025,14 @@
       "duplicate_of": null,
       "fix_sha": null,
       "regression_test": "app/src/test/js/video-search-structural-v4.test.cjs",
-      "evidence_links": []
+      "evidence_links": [],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41554791864-1-125650924887",
@@ -802,7 +1052,14 @@
       "regression_test": "app/src/test/js/video-search-structural-v4.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41554791864"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41554647363-1-125650941620",
@@ -822,7 +1079,14 @@
       "regression_test": "scripts/ai-preflight.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41554647363"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261103-0002",
@@ -840,7 +1104,14 @@
       "state": "OPEN",
       "duplicate_of": null,
       "fix_sha": null,
-      "evidence_links": []
+      "evidence_links": [],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261103-0003",
@@ -858,7 +1129,14 @@
       "state": "OPEN",
       "duplicate_of": null,
       "fix_sha": null,
-      "evidence_links": []
+      "evidence_links": [],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261103-0004",
@@ -876,7 +1154,14 @@
       "state": "OPEN",
       "duplicate_of": null,
       "fix_sha": null,
-      "evidence_links": []
+      "evidence_links": [],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41563078120-1-125678007205-A",
@@ -896,7 +1181,14 @@
       "fix_sha": "f402a2c5084bfcf3818b4a98b705f9c8e5ece826",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41563078120"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41563078120-1-125678007205-B",
@@ -916,7 +1208,14 @@
       "fix_sha": "f402a2c5084bfcf3818b4a98b705f9c8e5ece826",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41563078120"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41564153989-1-125681499550-1",
@@ -936,7 +1235,14 @@
       "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41564153989"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41564153989-1-125681499550-2",
@@ -956,7 +1262,14 @@
       "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41564153989"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41564153989-1-125681499550-3",
@@ -976,7 +1289,14 @@
       "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41564153989"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41564153989-1-125681499550-4",
@@ -996,7 +1316,14 @@
       "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41564153989"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41564153989-1-125681499550-5",
@@ -1016,7 +1343,14 @@
       "regression_test": "app/src/test/js/update-apk-workflow-scope.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41564153989"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41564153989-1-125681499550-6",
@@ -1036,7 +1370,14 @@
       "regression_test": "app/src/test/js/video-search-neon-redesign.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41564153989"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41569421409-1-125698882892",
@@ -1056,7 +1397,14 @@
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41569421409"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "REVIEW-20261103-P1-0001",
@@ -1076,7 +1424,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP1RecognitionTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/122"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "REVIEW-20261103-P2-0001",
@@ -1096,7 +1451,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchWorkerVerificationTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/122"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "REVIEW-20261103-P2-0002",
@@ -1116,7 +1478,14 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/122"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41574885520-1-125715970231",
@@ -1136,7 +1505,14 @@
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41574885520"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41574885520-1-125716025290",
@@ -1156,7 +1532,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchWorkerVerificationTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41574885520"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41574910600-1-125716153325",
@@ -1176,7 +1559,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchWorkerVerificationTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41574910600"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "REVIEW-20261103-P2B-0001",
@@ -1196,7 +1586,14 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "REVIEW-20261103-P2A-0001",
@@ -1216,7 +1613,14 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41586101551-1-125751842443",
@@ -1236,7 +1640,14 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41586101551"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41586107020-1-125751858499",
@@ -1256,7 +1667,14 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41586107020"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41586333089-1-125752581737",
@@ -1276,7 +1694,14 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41586333089"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41586339373-1-125752602376",
@@ -1296,7 +1721,14 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41586339373"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "REVIEW-20261103-P2AB-0001",
@@ -1316,7 +1748,14 @@
       "regression_test": "app/src/test/js/video-search-p2-scoped-controls.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "REVIEW-20261103-P2AB-0002",
@@ -1336,7 +1775,14 @@
       "regression_test": "app/src/test/js/video-search-p2-scoped-controls.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41700223274-1-126141241473",
@@ -1356,7 +1802,14 @@
       "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41700223274"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41700236345-1-126141287456",
@@ -1376,7 +1829,14 @@
       "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41700236345"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "REVIEW-20261103-P2C-0001",
@@ -1396,7 +1856,14 @@
       "regression_test": "app/src/test/js/video-search-p2c-dynamic-pagination.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "REVIEW-20261103-P2C-0002",
@@ -1416,7 +1883,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchPaginationCollectorTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41706339537-1-126162536360",
@@ -1436,7 +1910,14 @@
       "regression_test": "app/src/test/js/video-search-p14-spa-rebind.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41706339537"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41706349279-1-126162567753",
@@ -1456,7 +1937,14 @@
       "regression_test": "app/src/test/js/video-search-p14-spa-rebind.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41706349279"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261103-P2D-0001",
@@ -1476,7 +1964,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261103-P2D-0002",
@@ -1496,7 +1991,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261103-P2D-0003",
@@ -1516,7 +2018,14 @@
       "regression_test": "app/src/test/js/video-search-p2d-diagnostics.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261103-P2D-0004",
@@ -1536,7 +2045,14 @@
       "regression_test": "app/src/test/js/video-search-p2d-diagnostics.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "task_id": "ZC-V4-P2-D-RULE-REPAIR",
@@ -1556,7 +2072,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "task_id": "ZC-V4-P2-D-RULE-REPAIR",
@@ -1576,7 +2099,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchConfigurationHealthTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41714819448"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "task_id": "ZC-V4-P2-D-RULE-REPAIR",
@@ -1596,7 +2126,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchManualConfigurationTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41714825819"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "task_id": "ZC-V4-P2-D-RULE-REPAIR",
@@ -1616,7 +2153,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchConfigurationRevisionTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41714819448"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41716281572-1-126197571954",
@@ -1636,7 +2180,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41716281572"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41716281572-1-126197571964",
@@ -1656,7 +2207,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41716281572"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41716281572-1-126197572064",
@@ -1676,7 +2234,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41716281572"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41716281572-1-126199104379",
@@ -1696,7 +2261,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41716281572"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41716291555-1-126197175392",
@@ -1716,7 +2288,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41716291555"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41716291555-1-126197175477",
@@ -1736,7 +2315,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41716291555"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41716291555-1-126197175687",
@@ -1756,7 +2342,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41716291555"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261103-P2D-0006",
@@ -1776,7 +2369,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261103-P2D-0007",
@@ -1796,7 +2396,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP2DRepairTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261104-P2E-0001",
@@ -1816,7 +2423,14 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261104-P2E-0002",
@@ -1836,7 +2450,14 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261104-P2E-0003",
@@ -1856,7 +2477,14 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261104-P2E-0004",
@@ -1876,7 +2504,14 @@
       "regression_test": "app/src/test/js/video-search-structural-v4.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261104-P2E-0005",
@@ -1896,7 +2531,14 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchP1RecognitionTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/pull/123"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261104-P2E-0006",
@@ -1916,7 +2558,14 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41872440694"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261104-P2E-0007",
@@ -1936,7 +2585,14 @@
       "regression_test": "app/src/test/js/video-search-structural-v4.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41872440694"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261104-P2E-0008",
@@ -1956,7 +2612,14 @@
       "regression_test": "app/src/test/js/video-search-structural-v4.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41872440694"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261104-P2E-0009",
@@ -1976,7 +2639,14 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41872440694"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41873225326-1-126726641615",
@@ -1996,7 +2666,14 @@
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41873225326"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41873979868-1-126728390535",
@@ -2016,7 +2693,14 @@
       "regression_test": null,
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41873979868"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-41876626372-1-126737652855",
@@ -2036,7 +2720,14 @@
       "regression_test": "scripts/error-learning.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41876626372"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261105-P2F-0001",
@@ -2056,7 +2747,14 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/25501af603b2c71f0e7b6b6dc831298993a58245"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261105-P2F-0002",
@@ -2076,7 +2774,14 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/25501af603b2c71f0e7b6b6dc831298993a58245"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261105-P2F-0003",
@@ -2096,7 +2801,14 @@
       "regression_test": "app/src/test/js/video-search-structural-v4.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/25501af603b2c71f0e7b6b6dc831298993a58245"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261105-P2G1-0001",
@@ -2116,7 +2828,14 @@
       "regression_test": "app/src/test/js/video-search-picker-v2.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/79aef695fb44b0e0a3262c4917586ca99f944cfd"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261105-P2G1-0002",
@@ -2136,7 +2855,14 @@
       "regression_test": "app/src/test/js/video-search-picker-v2.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/79aef695fb44b0e0a3262c4917586ca99f944cfd"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261105-P2G1-0003",
@@ -2156,7 +2882,14 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/79aef695fb44b0e0a3262c4917586ca99f944cfd"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261105-P2G1-0004",
@@ -2177,7 +2910,14 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42086427757",
         "https://github.com/laszko14/nira-browser/commit/9ae4d3f500ff222103f4dbee7e8438f2f3440504"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261105-P2G2-0001",
@@ -2197,7 +2937,14 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/ef5d0e84e984d46def534f8b9148fa477ecfebad"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261105-P2G2-0002",
@@ -2217,7 +2964,14 @@
       "regression_test": "app/src/test/js/video-search-structural-v4.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/ef5d0e84e984d46def534f8b9148fa477ecfebad"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261105-P2G2-0003",
@@ -2237,7 +2991,14 @@
       "regression_test": "app/src/test/js/video-search-structural-v4.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/ef5d0e84e984d46def534f8b9148fa477ecfebad"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261105-P2G2-0004",
@@ -2258,7 +3019,14 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42091382260",
         "https://github.com/laszko14/nira-browser/commit/99fe2d09a0d3ce8b65fca70dbf00b719da02ddf3"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261105-P2G2-0005",
@@ -2279,7 +3047,14 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42091593763",
         "https://github.com/laszko14/nira-browser/pull/123"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261105-P2G3-0001",
@@ -2299,7 +3074,14 @@
       "regression_test": "app/src/test/js/video-search-p6-batches.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/ef711d573459f3a5eb689b1f0d1cf961ecca48b6"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261105-P2G3-0002",
@@ -2319,7 +3101,14 @@
       "regression_test": "app/src/test/js/video-search-p9-link-identity.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/ef711d573459f3a5eb689b1f0d1cf961ecca48b6"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261105-P2G3-0003",
@@ -2340,7 +3129,14 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42095577733",
         "https://github.com/laszko14/nira-browser/commit/04defa7750e06364bc4b58b77f893ed890c065f6"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261105-P2G3-0004",
@@ -2361,7 +3157,14 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42095583300",
         "https://github.com/laszko14/nira-browser/commit/04defa7750e06364bc4b58b77f893ed890c065f6"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "ERR-20261105-P2G3-0005",
@@ -2382,7 +3185,14 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42095577733",
         "https://github.com/laszko14/nira-browser/commit/04defa7750e06364bc4b58b77f893ed890c065f6"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "task_id": "ZC-V4-P3-B-SEMANTIC-RECOGNITION",
@@ -2402,7 +3212,14 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42257993545"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "task_id": "ZC-V4-P3-B-SEMANTIC-RECOGNITION",
@@ -2422,7 +3239,14 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42257964558"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "task_id": "ZC-V4-P3-B-SEMANTIC-RECOGNITION",
@@ -2442,7 +3266,14 @@
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42257964558"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "task_id": "ZC-V4-P3-B-SEMANTIC-RECOGNITION",
@@ -2462,7 +3293,14 @@
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42257964558"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "kind": "CI_FAILURE",
@@ -2482,7 +3320,14 @@
       "regression_test": "app/src/test/js/video-search-p2-scoped-controls.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42269584501"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "kind": "CI_FAILURE",
@@ -2502,7 +3347,14 @@
       "regression_test": "app/src/test/js/video-search-p2-scoped-controls.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42269539303"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "kind": "CI_FAILURE",
@@ -2522,7 +3374,14 @@
       "regression_test": "app/src/test/js/video-search-p2-scoped-controls.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42269539303"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "kind": "CI_FAILURE",
@@ -2542,7 +3401,14 @@
       "summary": "PR Kotlin compileDebugUnitTestKotlin failed: VideoSearchResultsMergeTest.kt:374 passed Int expression 1200 + i%2 to Long? runtime test helper.",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42272620819"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "kind": "CI_FAILURE",
@@ -2562,7 +3428,14 @@
       "summary": "SOURCE Kotlin/JVM reproduced the same P3-D test-only Int versus Long? type mismatch; production Kotlin main compilation had succeeded.",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42272583480"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "kind": "CI_FAILURE",
@@ -2582,7 +3455,14 @@
       "summary": "SOURCE evidence summary correctly failed because mandatory Kotlin/JVM test compilation failed; green JS, docs, AndroidTest and lint did not override it.",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42272583480"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "task_id": "ZC-V4-P3-D-SMART-METADATA",
@@ -2602,7 +3482,14 @@
       "summary": "SOURCE Kotlin 1469/1470 PASS: new smart-mode test incorrectly expected three legacy duration groups; original one-second title bridge plus duration OR/transitivity yields two groups.",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42273735594"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "task_id": "ZC-V4-P3-D-SMART-METADATA",
@@ -2622,7 +3509,14 @@
       "summary": "PR Kotlin reproduced exactly the same existing legacy duration-transitivity assertion failure. Fixed test now explicitly asserts original group membership; legacy production algorithm unchanged.",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42273745396"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "task_id": "ZC-V4-P3-D-SMART-METADATA",
@@ -2642,7 +3536,14 @@
       "summary": "SOURCE second-run evidence summary correctly failed due to Kotlin test assertion; JS, docs, AndroidTest and lint passed but this does not satisfy required jobs.",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42273735594"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-42348525469-POST",
@@ -2662,7 +3563,14 @@
       "regression_test": "app/src/test/js/video-search-structural-v4.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42348525469"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-42348525469-AMBIG",
@@ -2682,7 +3590,14 @@
       "regression_test": "app/src/test/js/video-search-structural-v4.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42348525469"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-42348510836-DOCS",
@@ -2702,7 +3617,14 @@
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42348510836"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-42348510836-POST",
@@ -2722,7 +3644,14 @@
       "regression_test": "app/src/test/js/video-search-structural-v4.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42348510836"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-42348510836-AMBIG",
@@ -2742,7 +3671,14 @@
       "regression_test": "app/src/test/js/video-search-structural-v4.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42348510836"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-42348510836-SUMMARY",
@@ -2762,7 +3698,14 @@
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42348510836"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-42348748165-DOCS",
@@ -2782,7 +3725,14 @@
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42348748165"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-42348748165-SUMMARY",
@@ -2802,7 +3752,14 @@
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42348748165"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-42470515830-P4B2-WEAK",
@@ -2822,7 +3779,14 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42470515830"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-42470519760-P4B2-WEAK",
@@ -2842,7 +3806,14 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42470519760"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-42470515830-P4B2-SUMMARY",
@@ -2862,7 +3833,14 @@
       "regression_test": "app/src/test/js/video-search-p1-recognition.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42470515830"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-42475049401-P4C2-DOCS",
@@ -2882,7 +3860,14 @@
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42475049401"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-42475049401-P4C2-SUMMARY",
@@ -2902,7 +3887,14 @@
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42475049401"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-42475725324-P4C2-JS",
@@ -2922,7 +3914,14 @@
       "regression_test": "app/src/test/js/video-search-p3e-integration.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42475725324"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-42475729250-P4C2-JS",
@@ -2942,7 +3941,14 @@
       "regression_test": "app/src/test/js/video-search-p3e-integration.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42475729250"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-42475725324-P4C2-SUMMARY",
@@ -2962,7 +3968,14 @@
       "regression_test": "app/src/test/js/video-search-p3e-integration.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42475725324"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-42476044251-P4C2-DOCS",
@@ -2982,7 +3995,14 @@
       "regression_test": "scripts/error-learning.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42476044251"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-42476044251-P4C2-SUMMARY",
@@ -3002,7 +4022,14 @@
       "regression_test": "scripts/error-learning.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42476044251"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-42480367904-P4D1-DOCS",
@@ -3022,7 +4049,14 @@
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42480367904"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-42480367904-P4D1-SUMMARY",
@@ -3042,7 +4076,14 @@
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42480367904"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-42488143617-E1-DOCS",
@@ -3062,7 +4103,14 @@
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42488143617"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-42488143617-E1-LINT",
@@ -3082,7 +4130,14 @@
       "regression_test": "scripts/lint-regression.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42488143617"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-42488143617-E1-SUMMARY",
@@ -3102,7 +4157,14 @@
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42488143617"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-42488148084-E1-PR-LINT",
@@ -3122,7 +4184,14 @@
       "regression_test": "scripts/lint-regression.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42488148084"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "REVIEW-P4F1-SELECTION-SCAN",
@@ -3143,7 +4212,14 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/717eb29495a5adeb0285bab06cf768e7d0280eff",
         "https://github.com/laszko14/nira-browser/commit/3864a336741d69b26881f68ab0276e13ccf8cb10"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "REVIEW-P4F1-CANCEL-QUEUED",
@@ -3164,7 +4240,14 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/717eb29495a5adeb0285bab06cf768e7d0280eff",
         "https://github.com/laszko14/nira-browser/commit/3864a336741d69b26881f68ab0276e13ccf8cb10"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-P4F2-HANDOFF-PROCESS",
@@ -3185,7 +4268,14 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42499752653",
         "https://github.com/laszko14/nira-browser/commit/c7718fa786a36e458412e55c3bbe9b98df5bcfb5"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     },
     {
       "id": "CI-P4F2-SOURCE-SUMMARY",
@@ -3206,7 +4296,1488 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42499752653",
         "https://github.com/laszko14/nira-browser/commit/c7718fa786a36e458412e55c3bbe9b98df5bcfb5"
-      ]
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG1-SOURCE-PROCESS",
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag1.handoff.yaml-checkpoint",
+      "summary": "SOURCE process-docs failed: new handoff lacked a fenced YAML checkpoint block, causing the existing restart test to reject it.",
+      "source_sha": "51e8d73f1b0a087288c67a62a95f20f10f68dd8c",
+      "observed_at": null,
+      "run_id": 42512509777,
+      "job_id": 128828470930,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "a01d17e6a510bb8fd3d969397415a67e990a87e3",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42512509777",
+        "https://github.com/laszko14/nira-browser/commit/a01d17e6a510bb8fd3d969397415a67e990a87e3"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG1-SOURCE-ANDROIDTEST",
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag1.kotlin.nullable-writer",
+      "summary": "SOURCE AndroidTest compilation failed at new recorder lines 264-265 on unsafe nullable BufferedWriter calls.",
+      "source_sha": "51e8d73f1b0a087288c67a62a95f20f10f68dd8c",
+      "observed_at": null,
+      "run_id": 42512509777,
+      "job_id": 128828507796,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "a01d17e6a510bb8fd3d969397415a67e990a87e3",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticRecorderTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42512509777",
+        "https://github.com/laszko14/nira-browser/commit/a01d17e6a510bb8fd3d969397415a67e990a87e3"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG1-SOURCE-LINT",
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag1.kotlin.nullable-writer",
+      "summary": "SOURCE lint compilation was blocked by the identical nullable BufferedWriter calls in the new diagnostic recorder.",
+      "source_sha": "51e8d73f1b0a087288c67a62a95f20f10f68dd8c",
+      "observed_at": null,
+      "run_id": 42512509777,
+      "job_id": 128828507836,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG1-SOURCE-ANDROIDTEST",
+      "fix_sha": "a01d17e6a510bb8fd3d969397415a67e990a87e3",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticRecorderTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42512509777",
+        "https://github.com/laszko14/nira-browser/commit/a01d17e6a510bb8fd3d969397415a67e990a87e3"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG1-SOURCE-JVM",
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag1.kotlin.nullable-writer",
+      "summary": "SOURCE JVM suite could not compile the new Kotlin recorder due to the same unsafe nullable BufferedWriter calls.",
+      "source_sha": "51e8d73f1b0a087288c67a62a95f20f10f68dd8c",
+      "observed_at": null,
+      "run_id": 42512509777,
+      "job_id": 128828507880,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG1-SOURCE-ANDROIDTEST",
+      "fix_sha": "a01d17e6a510bb8fd3d969397415a67e990a87e3",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticRecorderTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42512509777",
+        "https://github.com/laszko14/nira-browser/commit/a01d17e6a510bb8fd3d969397415a67e990a87e3"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG1-SOURCE-SUMMARY",
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag1.required-summary.red-upstream",
+      "summary": "SOURCE required-summary correctly rejected upstream process-docs and compile failures; the unchanged evidence gate behaved correctly.",
+      "source_sha": "51e8d73f1b0a087288c67a62a95f20f10f68dd8c",
+      "observed_at": null,
+      "run_id": 42512509777,
+      "job_id": 128829143727,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "a01d17e6a510bb8fd3d969397415a67e990a87e3",
+      "regression_test": "scripts/ci-evidence.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42512509777",
+        "https://github.com/laszko14/nira-browser/commit/a01d17e6a510bb8fd3d969397415a67e990a87e3"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG1-PR-ANDROIDTEST",
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag1.kotlin.nullable-writer",
+      "summary": "PR AndroidTest compile failed on the same two nullable BufferedWriter method invocations.",
+      "source_sha": "51e8d73f1b0a087288c67a62a95f20f10f68dd8c",
+      "observed_at": null,
+      "run_id": 42512537056,
+      "job_id": 128828545115,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG1-SOURCE-ANDROIDTEST",
+      "fix_sha": "a01d17e6a510bb8fd3d969397415a67e990a87e3",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticRecorderTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42512537056",
+        "https://github.com/laszko14/nira-browser/commit/a01d17e6a510bb8fd3d969397415a67e990a87e3"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG1-PR-LINT",
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag1.kotlin.nullable-writer",
+      "summary": "PR lint failed while compiling the same nullable BufferedWriter calls; no baseline suppression was made.",
+      "source_sha": "51e8d73f1b0a087288c67a62a95f20f10f68dd8c",
+      "observed_at": null,
+      "run_id": 42512537056,
+      "job_id": 128828545140,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG1-SOURCE-ANDROIDTEST",
+      "fix_sha": "a01d17e6a510bb8fd3d969397415a67e990a87e3",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticRecorderTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42512537056",
+        "https://github.com/laszko14/nira-browser/commit/a01d17e6a510bb8fd3d969397415a67e990a87e3"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG1-PR-JVM",
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag1.kotlin.nullable-writer",
+      "summary": "PR JVM compile failed on the same nullable BufferedWriter accesses in the new Kotlin recorder.",
+      "source_sha": "51e8d73f1b0a087288c67a62a95f20f10f68dd8c",
+      "observed_at": null,
+      "run_id": 42512537056,
+      "job_id": 128828545203,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG1-SOURCE-ANDROIDTEST",
+      "fix_sha": "a01d17e6a510bb8fd3d969397415a67e990a87e3",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticRecorderTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42512537056",
+        "https://github.com/laszko14/nira-browser/commit/a01d17e6a510bb8fd3d969397415a67e990a87e3"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG1-SOURCE-JVM-SECOND",
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag1.robolectric.getapplication-typeargs",
+      "summary": "SOURCE JVM test compilation failed because new Robolectric test called static getApplication with illegal type arguments.",
+      "source_sha": "a01d17e6a510bb8fd3d969397415a67e990a87e3",
+      "observed_at": null,
+      "run_id": 42512954366,
+      "job_id": 128829822010,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "d1db6bb1841859374cfb4d836397d7894eec6305",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticRecorderTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42512954366",
+        "https://github.com/laszko14/nira-browser/commit/d1db6bb1841859374cfb4d836397d7894eec6305"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG1-PR-JVM-SECOND",
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag1.robolectric.getapplication-typeargs",
+      "summary": "PR JVM test compilation failed on the same getApplication type-argument misuse in the new test.",
+      "source_sha": "a01d17e6a510bb8fd3d969397415a67e990a87e3",
+      "observed_at": null,
+      "run_id": 42512958759,
+      "job_id": 128829836776,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG1-SOURCE-JVM-SECOND",
+      "fix_sha": "d1db6bb1841859374cfb4d836397d7894eec6305",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticRecorderTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42512958759",
+        "https://github.com/laszko14/nira-browser/commit/d1db6bb1841859374cfb4d836397d7894eec6305"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "REVIEW-DIAG1-BOUNDED-QUEUE",
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "kind": "REVIEW",
+      "fingerprint": "diag1.queue.unbounded-string-evidence",
+      "summary": "Self-review identified that event admission retained arbitrarily long DOM/URL strings in the bounded pending queue. Admission now clips all fields and correlation IDs before enqueue.",
+      "source_sha": "a01d17e6a510bb8fd3d969397415a67e990a87e3",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "ea48beaa615afc58e7ea46b726781e04c0dc0957",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticRecorderTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/a01d17e6a510bb8fd3d969397415a67e990a87e3",
+        "https://github.com/laszko14/nira-browser/commit/ea48beaa615afc58e7ea46b726781e04c0dc0957"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG1-SOURCE-SUMMARY-SECOND",
+      "task_id": "ZC-VIDEO-DIAG-1",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag1.required-summary.red-upstream",
+      "summary": "Second SOURCE required-summary rejected the upstream JVM test compilation failure and the cancelled lint job after the superseding push; evidence gate was not weakened.",
+      "source_sha": "a01d17e6a510bb8fd3d969397415a67e990a87e3",
+      "observed_at": null,
+      "run_id": 42512954366,
+      "job_id": 128831557377,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG1-SOURCE-SUMMARY",
+      "fix_sha": "d1db6bb1841859374cfb4d836397d7894eec6305",
+      "regression_test": "scripts/ci-evidence.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42512954366",
+        "https://github.com/laszko14/nira-browser/commit/d1db6bb1841859374cfb4d836397d7894eec6305"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG2-SOURCE-JS-REGRESSION",
+      "task_id": "ZC-VIDEO-DIAG-2",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag2.js.empty-marker-branch-and-fixtures",
+      "summary": "First SOURCE JavaScript suite failed five tests: unconditional no_results after diagnostic marker, incorrect extract fixture and stale manifest order assertion. Restored strict empty proof and updated tests.",
+      "source_sha": "41ef554801d376f40ed7a8218b005a68c725894f",
+      "observed_at": "2026-11-09T05:45:34Z",
+      "run_id": 42569108916,
+      "job_id": 129002119329,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "52348291b1d94dc33dd226786f5ce6cc764e8869",
+      "regression_test": "app/src/test/js/video-search-diagnostics-stage2.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42569108916",
+        "https://github.com/laszko14/nira-browser/commit/52348291b1d94dc33dd226786f5ce6cc764e8869"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG2-PR-JS-REGRESSION",
+      "task_id": "ZC-VIDEO-DIAG-2",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag2.js.empty-marker-branch-and-fixtures",
+      "summary": "First PR JavaScript suite independently failed the same five assertions on the same source SHA, including ordinary empty/loading/hidden marker negative controls.",
+      "source_sha": "41ef554801d376f40ed7a8218b005a68c725894f",
+      "observed_at": "2026-11-09T05:45:35Z",
+      "run_id": 42569113276,
+      "job_id": 129002132767,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG2-SOURCE-JS-REGRESSION",
+      "fix_sha": "52348291b1d94dc33dd226786f5ce6cc764e8869",
+      "regression_test": "app/src/test/js/video-search-diagnostics-stage2.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42569113276",
+        "https://github.com/laszko14/nira-browser/commit/52348291b1d94dc33dd226786f5ce6cc764e8869"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG2-SOURCE-SUMMARY",
+      "task_id": "ZC-VIDEO-DIAG-2",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag2.required-summary-red-js",
+      "summary": "SOURCE required-summary correctly rejected the failed required JavaScript job; Kotlin/Android/lint dependent jobs were skipped. No workflow or evidence test was weakened.",
+      "source_sha": "41ef554801d376f40ed7a8218b005a68c725894f",
+      "observed_at": null,
+      "run_id": 42569108916,
+      "job_id": 129002187795,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "52348291b1d94dc33dd226786f5ce6cc764e8869",
+      "regression_test": "scripts/ci-evidence.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42569108916",
+        "https://github.com/laszko14/nira-browser/commit/52348291b1d94dc33dd226786f5ce6cc764e8869"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG2-SOURCE-JS-BATCH-ASSERT",
+      "task_id": "ZC-VIDEO-DIAG-2",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag2.test.first-batch-assumed-complete",
+      "summary": "SOURCE JS failed one new test: it expected an explicit empty marker in the first 4-event response instead of draining later bounded packets.",
+      "source_sha": "5a2bfd67934bb480e558a4387f685ba2b9a60f5e",
+      "observed_at": null,
+      "run_id": 42569319434,
+      "job_id": 129002781014,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "180ef4d4f31644c0d2bdf232b72f79090eb6544b",
+      "regression_test": "app/src/test/js/video-search-diagnostics-stage2.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42569319434",
+        "https://github.com/laszko14/nira-browser/commit/180ef4d4f31644c0d2bdf232b72f79090eb6544b"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG2-PR-JS-BATCH-ASSERT",
+      "task_id": "ZC-VIDEO-DIAG-2",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag2.test.first-batch-assumed-complete",
+      "summary": "PR JS separately failed the same first-packet-only assumption; production diagnostic cursor and packet size were correct.",
+      "source_sha": "5a2bfd67934bb480e558a4387f685ba2b9a60f5e",
+      "observed_at": null,
+      "run_id": 42569324578,
+      "job_id": 129002798241,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG2-SOURCE-JS-BATCH-ASSERT",
+      "fix_sha": "180ef4d4f31644c0d2bdf232b72f79090eb6544b",
+      "regression_test": "app/src/test/js/video-search-diagnostics-stage2.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42569324578",
+        "https://github.com/laszko14/nira-browser/commit/180ef4d4f31644c0d2bdf232b72f79090eb6544b"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG2-SOURCE-SUMMARY-SECOND",
+      "task_id": "ZC-VIDEO-DIAG-2",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag2.required-summary-red-js",
+      "summary": "Second SOURCE summary correctly rejected the failed JS suite; dependent Kotlin and lint jobs were skipped without source verification.",
+      "source_sha": "5a2bfd67934bb480e558a4387f685ba2b9a60f5e",
+      "observed_at": null,
+      "run_id": 42569319434,
+      "job_id": 129002829156,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG2-SOURCE-SUMMARY",
+      "fix_sha": "180ef4d4f31644c0d2bdf232b72f79090eb6544b",
+      "regression_test": "scripts/ci-evidence.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42569319434",
+        "https://github.com/laszko14/nira-browser/commit/180ef4d4f31644c0d2bdf232b72f79090eb6544b"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "REVIEW-DIAG2-MISSING-SUBMIT-BUTTON-EVIDENCE",
+      "task_id": "ZC-VIDEO-DIAG-2",
+      "kind": "REVIEW",
+      "fingerprint": "diag2.observation.submit-selector-omitted",
+      "summary": "Stage-2 review found the form diagnostic recorded input and submission method but omitted the selected submit button selector. Included bounded button evidence in inspect/analyze diagnostic events.",
+      "source_sha": "90e6e48303478e749573c3695cdb6053d3c148d0",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "6c85e3c2d1ebbb618c5701eac8266a5f079b1ffd",
+      "regression_test": "app/src/test/js/video-search-diagnostics-stage2.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/90e6e48303478e749573c3695cdb6053d3c148d0",
+        "https://github.com/laszko14/nira-browser/commit/6c85e3c2d1ebbb618c5701eac8266a5f079b1ffd"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "REVIEW-DIAG2-ACCEPTED-COUNT",
+      "task_id": "ZC-VIDEO-DIAG-2",
+      "kind": "REVIEW",
+      "fingerprint": "diag2.funnel.accepted-count-misattribution",
+      "summary": "Stage-2 review found ACCEPTED_FILMS was derived from all safe URL candidates, including a candidate not emitted after the packet byte cap. Count now increments only after actually adding a film; regression covers duplicate URLs.",
+      "source_sha": "6c85e3c2d1ebbb618c5701eac8266a5f079b1ffd",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "fdbc5ee7e2dc6b36a8291010a00cd14d3d2eff41",
+      "regression_test": "app/src/test/js/video-search-diagnostics-stage2.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/6c85e3c2d1ebbb618c5701eac8266a5f079b1ffd",
+        "https://github.com/laszko14/nira-browser/commit/fdbc5ee7e2dc6b36a8291010a00cd14d3d2eff41"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "task_id": "ZC-VIDEO-DIAG-3",
+      "id": "CI-DIAG3-SOURCE-PROCESS-DOCS",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag3.checkpoint.missing-shared-tests",
+      "summary": "SOURCE process-docs check-ai-handoff rejected required_ci because the stage-3 checkpoint omitted the required literal shared-tests; no app test was involved.",
+      "source_sha": "dcb742b89660e23cfc4b35ed4935ff8094b17390",
+      "observed_at": "2026-11-09T06:24:14Z",
+      "run_id": 42572797860,
+      "job_id": 129013772607,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "e3eaa5dedc835e7635b051bea69679a14ca5de0b",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42572797860",
+        "https://github.com/laszko14/nira-browser/commit/e3eaa5dedc835e7635b051bea69679a14ca5de0b"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "task_id": "ZC-VIDEO-DIAG-3",
+      "id": "CI-DIAG3-SOURCE-REQUIRED-SUMMARY",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag3.required-summary-red-process-docs",
+      "summary": "SOURCE required-summary correctly refused PASS because process-docs was red even though JS, Kotlin/Robolectric, AndroidTest Kotlin compile and lint had succeeded.",
+      "source_sha": "dcb742b89660e23cfc4b35ed4935ff8094b17390",
+      "observed_at": null,
+      "run_id": 42572797860,
+      "job_id": 129015633143,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "e3eaa5dedc835e7635b051bea69679a14ca5de0b",
+      "regression_test": "scripts/ci-evidence.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42572797860",
+        "https://github.com/laszko14/nira-browser/commit/e3eaa5dedc835e7635b051bea69679a14ca5de0b"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "task_id": "ZC-VIDEO-DIAG-3",
+      "id": "REVIEW-DIAG3-WIRE-TOSTRING-REDACTION",
+      "kind": "REVIEW",
+      "fingerprint": "diag3.wire.default-tostring-raw-fields",
+      "summary": "Pre-push self-review found that Kotlin diagnostic data-class toString would expose unsanitized JavaScript URLs and titles before the recorder codec. Overridden toString with redacted values and regression assertion.",
+      "source_sha": null,
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "dcb742b89660e23cfc4b35ed4935ff8094b17390",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticWireTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/dcb742b89660e23cfc4b35ed4935ff8094b17390"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "task_id": "ZC-VIDEO-DIAG-3",
+      "id": "REVIEW-DIAG3-FRESH-PORT-DROP-COUNTER",
+      "kind": "REVIEW",
+      "fingerprint": "diag3.dropped-counter-reused-across-port",
+      "summary": "Pre-push self-review found a potential false rejection when one tab opens a new Gecko document with a fresh JS dropped count after a prior full buffer; reset only per new native port, with regression.",
+      "source_sha": null,
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "dcb742b89660e23cfc4b35ed4935ff8094b17390",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticWireTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/dcb742b89660e23cfc4b35ed4935ff8094b17390"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG3-SOURCE-ARCHIVE-PATH",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag3.checkpoint.missing-archive-reference",
+      "summary": "Second SOURCE run process-docs failed scripts/check-ai-handoff.test.cjs because the active checkpoint lacked the exact archived handoff path required by the migration contract.",
+      "source_sha": "ddb1ff765ceaff6437c45f00748cbf61a5fdc0c7",
+      "observed_at": "2026-11-09T06:33:49Z",
+      "run_id": 42573788095,
+      "job_id": 129016858587,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "4ddaa76aa3a3f878418314fbbe81a1ca410f6724",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42573788095",
+        "https://github.com/laszko14/nira-browser/commit/4ddaa76aa3a3f878418314fbbe81a1ca410f6724"
+      ],
+      "task_id": "ZC-VIDEO-DIAG-3",
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG3-SOURCE-SUMMARY-SECOND",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag3.required-summary-red-process-docs",
+      "summary": "Second SOURCE required-summary correctly failed because process-docs remained red although the required JS, Kotlin/Robolectric, AndroidTest compile and lint jobs all succeeded.",
+      "source_sha": "ddb1ff765ceaff6437c45f00748cbf61a5fdc0c7",
+      "observed_at": null,
+      "run_id": 42573788095,
+      "job_id": 129019189913,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG3-SOURCE-REQUIRED-SUMMARY",
+      "fix_sha": "4ddaa76aa3a3f878418314fbbe81a1ca410f6724",
+      "regression_test": "scripts/ci-evidence.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42573788095",
+        "https://github.com/laszko14/nira-browser/commit/4ddaa76aa3a3f878418314fbbe81a1ca410f6724"
+      ],
+      "task_id": "ZC-VIDEO-DIAG-3",
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "REVIEW-DIAG5-STOP-UNDRAINED",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "REVIEW",
+      "fingerprint": "diag5.stop-undrained-js",
+      "summary": "Original Stage 3 synchronous stop discarded unread JS batches and marked a generic loss instead of attempting bounded final drain. Added verified stop ACK/cursor drain and regression state machine.",
+      "source_sha": "22c6fef04140fe6650172065514aefd64eb5857b",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "606197d8555feeb315df1c9231aed24ef99e7c1a",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticDrainPolicyTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/606197d8555feeb315df1c9231aed24ef99e7c1a"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "REVIEW-DIAG5-UI-ROTATION-CANCEL",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "REVIEW",
+      "fingerprint": "diag5.ui-rotation-cancels-stop",
+      "summary": "An Activity-owned stop coroutine could be cancelled by My Sites rotation/navigation while JS drains. Made stop process-owned and UI only awaits, preserving session through rotation.",
+      "source_sha": "22c6fef04140fe6650172065514aefd64eb5857b",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "606197d8555feeb315df1c9231aed24ef99e7c1a",
+      "regression_test": "app/src/test/js/video-search-diagnostics-stage5-ui.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/606197d8555feeb315df1c9231aed24ef99e7c1a"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "REVIEW-DIAG5-PRIVATE-EXPORT-ON-DISK",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "REVIEW",
+      "fingerprint": "diag5.private-export-temp-file-risk",
+      "summary": "FileProvider-based sharing would require writing the private RAM log to a disk cache. Implemented a non-exported read-only ContentProvider pipe and exact lifetime check, no temp file.",
+      "source_sha": "22c6fef04140fe6650172065514aefd64eb5857b",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "606197d8555feeb315df1c9231aed24ef99e7c1a",
+      "regression_test": "app/src/test/js/video-search-diagnostics-stage5-ui.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/606197d8555feeb315df1c9231aed24ef99e7c1a"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "REVIEW-DIAG5-LOSS-FOOTER",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "REVIEW",
+      "fingerprint": "diag5.interruptions-unreported-in-manifest",
+      "summary": "A syntactically closed JSONL footer could be misreported as a complete diagnostic despite lost ports/worker interruptions. Recorder and manifest now count interruptions and label incomplete sessions.",
+      "source_sha": "22c6fef04140fe6650172065514aefd64eb5857b",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "606197d8555feeb315df1c9231aed24ef99e7c1a",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticShareRegistryTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/606197d8555feeb315df1c9231aed24ef99e7c1a"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "REVIEW-DIAG5-RATE-TIMEOUT",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "REVIEW",
+      "fingerprint": "diag5.stop-rate-and-expiration",
+      "summary": "The original ordinary 12-replies/5s rate could starve final drain, and an expired 45m session needed an explicit Stop action. Added separate bounded diagnostic rate and finalizable session status.",
+      "source_sha": "22c6fef04140fe6650172065514aefd64eb5857b",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "606197d8555feeb315df1c9231aed24ef99e7c1a",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticDrainPolicyTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/606197d8555feeb315df1c9231aed24ef99e7c1a"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG5-SOURCE-JVM-ENUM",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag5.kotlin-test-nested-enum",
+      "summary": "SOURCE JVM test compilation failed: VideoSearchDiagnosticDrainPolicyTest used d.Command rather than fully qualified VideoSearchDiagnosticDrainPolicy.Command. Only test source was affected.",
+      "source_sha": "799d9a92cec3332a458217f903b87e5898fee76e",
+      "observed_at": null,
+      "run_id": 42591814353,
+      "job_id": 129075064192,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "3906f8a0ed13899e3a45396cc5ae2e12d470e6c3",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticDrainPolicyTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42591814353",
+        "https://github.com/laszko14/nira-browser/commit/3906f8a0ed13899e3a45396cc5ae2e12d470e6c3"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG5-PR-JVM-ENUM",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag5.kotlin-test-nested-enum",
+      "summary": "PR JVM test compilation independently failed for the same incorrectly qualified nested enum at the same source SHA.",
+      "source_sha": "799d9a92cec3332a458217f903b87e5898fee76e",
+      "observed_at": null,
+      "run_id": 42591821098,
+      "job_id": 129075090853,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG5-SOURCE-JVM-ENUM",
+      "fix_sha": "3906f8a0ed13899e3a45396cc5ae2e12d470e6c3",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticDrainPolicyTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42591821098",
+        "https://github.com/laszko14/nira-browser/commit/3906f8a0ed13899e3a45396cc5ae2e12d470e6c3"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG5-SOURCE-LINT-TEXT",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag5.android-lint-settexti18n",
+      "summary": "SOURCE Android lint baseline gate found 4 new SetTextI18n warnings in VideoSearchDiagnosticControls.kt due to concatenated dynamic diagnostic status labels. Converted dynamic labels to Android formatted string resources, without suppression or baseline edit.",
+      "source_sha": "799d9a92cec3332a458217f903b87e5898fee76e",
+      "observed_at": null,
+      "run_id": 42591814353,
+      "job_id": 129075064127,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "8cebed0d68104ff5c329e0b412224689809b4b11",
+      "regression_test": "scripts/lint-regression.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42591814353",
+        "https://github.com/laszko14/nira-browser/commit/8cebed0d68104ff5c329e0b412224689809b4b11"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG5-PR-LINT-TEXT",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag5.android-lint-settexti18n",
+      "summary": "PR Android lint found the same 4 new SetTextI18n warnings as SOURCE at the same SHA.",
+      "source_sha": "799d9a92cec3332a458217f903b87e5898fee76e",
+      "observed_at": null,
+      "run_id": 42591821098,
+      "job_id": 129075090217,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG5-SOURCE-LINT-TEXT",
+      "fix_sha": "8cebed0d68104ff5c329e0b412224689809b4b11",
+      "regression_test": "scripts/lint-regression.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42591821098",
+        "https://github.com/laszko14/nira-browser/commit/8cebed0d68104ff5c329e0b412224689809b4b11"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG5-SOURCE-REQUIRED-SUMMARY",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag5.required-summary-on-red-jvm-lint",
+      "summary": "SOURCE final required-summary correctly failed because JVM and Android lint child jobs were red; JS, AndroidTest compile and process-docs passed.",
+      "source_sha": "799d9a92cec3332a458217f903b87e5898fee76e",
+      "observed_at": null,
+      "run_id": 42591814353,
+      "job_id": 129079928489,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "8cebed0d68104ff5c329e0b412224689809b4b11",
+      "regression_test": "scripts/ci-evidence.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42591814353",
+        "https://github.com/laszko14/nira-browser/commit/8cebed0d68104ff5c329e0b412224689809b4b11"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG5-SOURCE-JVM-PRIVATE-EAGER",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag5.private-controls-eager-browserapp-cast",
+      "summary": "SOURCE JVM/Robolectric: 2 of 1534 existing tests failed due to ClassCastException (Application -> BrowserApp) when diagnostic controls eagerly read selectedPrivateTab on Activity creation. Private owner resolution is now deferred and mode-scoped.",
+      "source_sha": "d50a19e0cafa8eaa474fb35c5445fffc1dd8daf2",
+      "observed_at": null,
+      "run_id": 42593629056,
+      "job_id": 129081002523,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "b6d944d1aee63d2b9ebb69bc8783f3428f544723",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/MyVideoSitesDialogRegressionTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42593629056",
+        "https://github.com/laszko14/nira-browser/commit/b6d944d1aee63d2b9ebb69bc8783f3428f544723"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG5-PR-JVM-PRIVATE-EAGER",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag5.private-controls-eager-browserapp-cast",
+      "summary": "PR Kotlin/Robolectric independently reported the same private-owner eager construction failure.",
+      "source_sha": "d50a19e0cafa8eaa474fb35c5445fffc1dd8daf2",
+      "observed_at": null,
+      "run_id": 42593635888,
+      "job_id": 129081047952,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG5-SOURCE-JVM-PRIVATE-EAGER",
+      "fix_sha": "b6d944d1aee63d2b9ebb69bc8783f3428f544723",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/MyVideoSitesLayoutTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42593635888",
+        "https://github.com/laszko14/nira-browser/commit/b6d944d1aee63d2b9ebb69bc8783f3428f544723"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG5-SOURCE-LINT-BUTTONS",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag5.lint-diagnostic-button-literals",
+      "summary": "SOURCE lint regression gate found 3 new SetTextI18n warnings on the stage-5 start, stop and report button labels. Labels moved to Android string resources without lint baseline changes.",
+      "source_sha": "d50a19e0cafa8eaa474fb35c5445fffc1dd8daf2",
+      "observed_at": null,
+      "run_id": 42593629056,
+      "job_id": 129081002704,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "b6d944d1aee63d2b9ebb69bc8783f3428f544723",
+      "regression_test": "scripts/lint-regression.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42593629056",
+        "https://github.com/laszko14/nira-browser/commit/b6d944d1aee63d2b9ebb69bc8783f3428f544723"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG5-PR-LINT-BUTTONS",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag5.lint-diagnostic-button-literals",
+      "summary": "PR lint independently found the same 3 SetTextI18n warnings at the same source SHA.",
+      "source_sha": "d50a19e0cafa8eaa474fb35c5445fffc1dd8daf2",
+      "observed_at": null,
+      "run_id": 42593635888,
+      "job_id": 129081048107,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG5-SOURCE-LINT-BUTTONS",
+      "fix_sha": "b6d944d1aee63d2b9ebb69bc8783f3428f544723",
+      "regression_test": "scripts/lint-regression.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42593635888",
+        "https://github.com/laszko14/nira-browser/commit/b6d944d1aee63d2b9ebb69bc8783f3428f544723"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG5-SOURCE-REQUIRED-SUMMARY-2",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag5.required-summary-on-red-jvm-lint",
+      "summary": "SOURCE required-summary correctly rejected Kotlin/Robolectric and lint regressions; JS, process-docs and AndroidTest compile passed.",
+      "source_sha": "d50a19e0cafa8eaa474fb35c5445fffc1dd8daf2",
+      "observed_at": null,
+      "run_id": 42593629056,
+      "job_id": 129085423227,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG5-SOURCE-REQUIRED-SUMMARY",
+      "fix_sha": "b6d944d1aee63d2b9ebb69bc8783f3428f544723",
+      "regression_test": "scripts/ci-evidence.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42593629056",
+        "https://github.com/laszko14/nira-browser/commit/b6d944d1aee63d2b9ebb69bc8783f3428f544723"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "REVIEW-DIAG6-PRIVATE-RAM-FUNNEL",
+      "task_id": "ZC-VIDEO-DIAG-6",
+      "kind": "REVIEW",
+      "fingerprint": "diag6.private-results-funnel-unobserved",
+      "summary": "Stage-4 normal results had a per-site storage/display funnel, but private My Sites results adapter showed rows without a comparable private RAM evidence path. Added opt-in, epoch-guarded per-site RAM-to-adapter observations.",
+      "source_sha": "a348000b47e7febb6b2612f4a1adf3f7a022a48d",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "76001163bf167d7d4b324df8c947901f11fb9632",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticsStage6Test.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/76001163bf167d7d4b324df8c947901f11fb9632"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "REVIEW-DIAG6-PRIVATE-SNAPSHOT-TOSTRING",
+      "task_id": "ZC-VIDEO-DIAG-6",
+      "kind": "REVIEW",
+      "fingerprint": "diag6.private-snapshot-default-tostring",
+      "summary": "PrivateRunSnapshot data class default toString could leak query, film titles and film URLs to accidental debugging output. Override with a redacted string; test contains secret values.",
+      "source_sha": "a348000b47e7febb6b2612f4a1adf3f7a022a48d",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "76001163bf167d7d4b324df8c947901f11fb9632",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticsStage6Test.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/76001163bf167d7d4b324df8c947901f11fb9632"
+      ],
+      "branch": null,
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "REVIEW-DIAG7-ALREADY-VISIBLE-RESULTS",
+      "task_id": "ZC-VIDEO-DIAG-7",
+      "kind": "REVIEW",
+      "fingerprint": "diag7.preexisting-results-no-trigger",
+      "summary": "Diagnostics start does not explicitly snapshot already displayed search results. Ordinary Compose diagnostics are keyed by result/view changes; private observations run on render/page updates. An unchanged preexisting view may not be captured until interaction.",
+      "source_sha": "8221895736a08c3c1fa98fddd81e66acabd9fc45",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "a79f126b4eb2f5050758a52558d656fe74bfe5f1",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticsStage7FixTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/8221895736a08c3c1fa98fddd81e66acabd9fc45",
+        "https://github.com/laszko14/nira-browser/pull/129",
+        "https://github.com/laszko14/nira-browser/commit/a79f126b4eb2f5050758a52558d656fe74bfe5f1"
+      ],
+      "branch": "feat/zavro-clean-video-diagnostics-20261108",
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "REVIEW-DIAG7-PRIVATE-UI-MAIN-THREAD",
+      "task_id": "ZC-VIDEO-DIAG-7",
+      "kind": "REVIEW",
+      "fingerprint": "diag7.private-analyzer-main-thread",
+      "summary": "Private per-site analyzer compares prefixes, deduplicates and groups result rows synchronously from the Activity UI path under a private registry lock. Large result sets could increase UI latency; physical-device measurement and off-main optimization are missing.",
+      "source_sha": "8221895736a08c3c1fa98fddd81e66acabd9fc45",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "bc99cb63077297c695e81131e249414186e00616",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticsStage7FixTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/8221895736a08c3c1fa98fddd81e66acabd9fc45",
+        "https://github.com/laszko14/nira-browser/pull/129",
+        "https://github.com/laszko14/nira-browser/commit/bc99cb63077297c695e81131e249414186e00616"
+      ],
+      "branch": "feat/zavro-clean-video-diagnostics-20261108",
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG7-FIX-SOURCE-HANDOFF-SHARED-TESTS",
+      "task_id": "ZC-VIDEO-DIAG-7-FIX",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag7fix.handoff-missing-shared-tests",
+      "summary": "SOURCE process-docs handoff resume test rejected a missing literal shared-tests marker in required_ci, although the individual gates were listed. Checkpoint corrected without weakening test.",
+      "source_sha": "67c853f4d865d25c774954cb3e3fde638144c389",
+      "observed_at": null,
+      "run_id": 42670589192,
+      "job_id": 129345775144,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "1847be31b5ca944cf5898eb066af4c87391c751b",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42670589192",
+        "https://github.com/laszko14/nira-browser/commit/1847be31b5ca944cf5898eb066af4c87391c751b"
+      ],
+      "branch": "feat/zavro-clean-video-diagnostics-20261108",
+      "workflow_name": "Zavro AI process - documentation gate (NO APK)",
+      "cause_confidence": "confirmed",
+      "fix_summary": "Restored the literal shared-tests key in the branch checkpoint; no test or gate was weakened.",
+      "test_result": "PASS",
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "REVIEW-DIAG7FIX-PR-INCOMPLETE-A1",
+      "task_id": "ZC-VIDEO-DIAG-7-FIX",
+      "kind": "REVIEW",
+      "fingerprint": "diag7fix.actions-incomplete-orchestrator-gates",
+      "summary": "PR Android CI concluded failure despite four passed shared regression jobs; missing downstream evidence job. Run-level scheduling evidence incomplete, no failed test oracle.",
+      "source_sha": "67c853f4d865d25c774954cb3e3fde638144c389",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "undetermined",
+      "state": "ACCEPTED_RISK",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42670606209",
+        "https://github.com/laszko14/nira-browser/actions/runs/42680589707",
+        "https://github.com/laszko14/nira-browser/actions/runs/42680601059"
+      ],
+      "branch": "feat/zavro-clean-video-diagnostics-20261108",
+      "workflow_name": "Android CI",
+      "cause_confidence": "unknown",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": "If required jobs are absent or skipped, classify the historical run as incomplete; a later complete SOURCE and PR success verifies code at its own SHA only."
+    },
+    {
+      "id": "REVIEW-DIAG7FIX-SOURCE-INCOMPLETE-A1",
+      "task_id": "ZC-VIDEO-DIAG-7-FIX",
+      "kind": "REVIEW",
+      "fingerprint": "diag7fix.actions-incomplete-orchestrator-gates",
+      "summary": "Final source attempt 1 concluded failure with JS/AndroidTest/lint success but missing process-docs and JVM jobs. No failure step available; do not infer application defect.",
+      "source_sha": "bc2a83f2d777b4d5312d3c726c2195bc1835c77c",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "undetermined",
+      "state": "ACCEPTED_RISK",
+      "duplicate_of": "REVIEW-DIAG7FIX-PR-INCOMPLETE-A1",
+      "fix_sha": null,
+      "regression_test": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42671047032"
+      ],
+      "branch": "feat/zavro-clean-video-diagnostics-20261108",
+      "workflow_name": "Zavro AI process - documentation gate (NO APK)",
+      "cause_confidence": "unknown",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "REVIEW-DIAG7FIX-PR-INCOMPLETE-A1B",
+      "task_id": "ZC-VIDEO-DIAG-7-FIX",
+      "kind": "REVIEW",
+      "fingerprint": "diag7fix.actions-incomplete-orchestrator-gates",
+      "summary": "PR attempt 1 concluded failure with only a skipped Kotlin job; no failed test step or complete shared gate recorded.",
+      "source_sha": "bc2a83f2d777b4d5312d3c726c2195bc1835c77c",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "undetermined",
+      "state": "ACCEPTED_RISK",
+      "duplicate_of": "REVIEW-DIAG7FIX-PR-INCOMPLETE-A1",
+      "fix_sha": null,
+      "regression_test": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42671059494"
+      ],
+      "branch": "feat/zavro-clean-video-diagnostics-20261108",
+      "workflow_name": "Android CI",
+      "cause_confidence": "unknown",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "REVIEW-DIAG7FIX-PR-INCOMPLETE-A2",
+      "task_id": "ZC-VIDEO-DIAG-7-FIX",
+      "kind": "REVIEW",
+      "fingerprint": "diag7fix.actions-incomplete-orchestrator-gates",
+      "summary": "PR attempt 2 after targeted rerun had JS/error-learning success and expected skipped build/release, but missing Kotlin/AndroidTest/lint and failed overall.",
+      "source_sha": "bc2a83f2d777b4d5312d3c726c2195bc1835c77c",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "undetermined",
+      "state": "ACCEPTED_RISK",
+      "duplicate_of": "REVIEW-DIAG7FIX-PR-INCOMPLETE-A1",
+      "fix_sha": null,
+      "regression_test": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42671059494"
+      ],
+      "branch": "feat/zavro-clean-video-diagnostics-20261108",
+      "workflow_name": "Android CI",
+      "cause_confidence": "unknown",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "CI-DIAG7FIX-SOURCE-SUMMARY-SKIPPED-A2",
+      "task_id": "ZC-VIDEO-DIAG-7-FIX",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag7fix.source-summary-skipped-required-jobs",
+      "summary": "SOURCE rerun attempt 2 passed process-docs, but Android JVM/lint/AndroidTest were skipped; required summary correctly rejected incomplete evidence. A full clean run is needed.",
+      "source_sha": "bc2a83f2d777b4d5312d3c726c2195bc1835c77c",
+      "observed_at": null,
+      "run_id": 42671047032,
+      "job_id": 129349912696,
+      "attempt": 2,
+      "cause": "workflow",
+      "state": "ACCEPTED_RISK",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42671047032",
+        "https://github.com/laszko14/nira-browser/actions/runs/42680589707",
+        "https://github.com/laszko14/nira-browser/actions/runs/42680601059"
+      ],
+      "branch": "feat/zavro-clean-video-diagnostics-20261108",
+      "workflow_name": "Zavro AI process - documentation gate (NO APK)",
+      "cause_confidence": "suspected",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": "If required jobs are absent or skipped, classify the historical run as incomplete; a later complete SOURCE and PR success verifies code at its own SHA only."
+    },
+    {
+      "id": "REVIEW-DIAG7FIX-SOURCE-NO-JOBS-FINAL",
+      "task_id": "ZC-VIDEO-DIAG-7-FIX",
+      "kind": "REVIEW",
+      "fingerprint": "diag7fix.actions-incomplete-orchestrator-gates",
+      "summary": "New SOURCE workflow concluded FAILURE without creating any job; no application or process test ran. Root cause unknown; do not report CODE_VERIFIED.",
+      "source_sha": "bcbe3cca396859430da8a1675698bae13c18946e",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "undetermined",
+      "state": "ACCEPTED_RISK",
+      "duplicate_of": "REVIEW-DIAG7FIX-PR-INCOMPLETE-A1",
+      "fix_sha": null,
+      "regression_test": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42673343064"
+      ],
+      "branch": "feat/zavro-clean-video-diagnostics-20261108",
+      "workflow_name": "Zavro AI process - documentation gate (NO APK)",
+      "cause_confidence": "unknown",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
+    },
+    {
+      "id": "REVIEW-DIAG7FIX-PR-MISSING-ANDROIDTEST-FINAL",
+      "task_id": "ZC-VIDEO-DIAG-7-FIX",
+      "kind": "REVIEW",
+      "fingerprint": "diag7fix.actions-incomplete-orchestrator-gates",
+      "summary": "New PR workflow had successful JS, JVM, lint and error-learning jobs but omitted AndroidTest compilation, then concluded FAILURE. Missing job is not a pass.",
+      "source_sha": "bcbe3cca396859430da8a1675698bae13c18946e",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "undetermined",
+      "state": "ACCEPTED_RISK",
+      "duplicate_of": "REVIEW-DIAG7FIX-PR-INCOMPLETE-A1",
+      "fix_sha": null,
+      "regression_test": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42673352080"
+      ],
+      "branch": "feat/zavro-clean-video-diagnostics-20261108",
+      "workflow_name": "Android CI",
+      "cause_confidence": "unknown",
+      "fix_summary": null,
+      "test_result": null,
+      "final_ci": null,
+      "recurrence_conditions": null
     }
   ]
 }

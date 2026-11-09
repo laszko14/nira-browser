@@ -799,4 +799,17 @@
     <string name="minimal_state_collapse">Collapse toolbar</string>
     <string name="minimal_state_expand">Expand toolbar</string>
     <string name="video_search_queue_preview_title" translatable="false">Podgląd kolejki witryn</string>
+    <!-- Zavro Clean diagnostic UI: Polish-only messages, formatted by Android. -->
+    <string name="video_diag_button_start" translatable="false">▶ Logi</string>
+    <string name="video_diag_button_stop" translatable="false">■ Stop</string>
+    <string name="video_diag_button_report" translatable="false">↥ Raport</string>
+    <string name="video_diag_status_initial" translatable="false">Diagnostyka wyłączona · uruchamiana tylko ręcznie</string>
+    <string name="video_diag_status_unavailable" translatable="false">Diagnostyka niedostępna: brak właściwej karty/profilu.</string>
+    <string name="video_diag_status_stopping" translatable="false">Kończenie nagrywania i odczyt ostatnich zdarzeń…</string>
+    <string name="video_diag_status_recording" translatable="false">● Nagrywanie · zgłoszono %1$d · zapisano %2$d · utracono %3$d</string>
+    <string name="video_diag_status_ready_private" translatable="false">Raport gotowy · zapisano %1$d · utracono %2$d · tylko RAM%3$s</string>
+    <string name="video_diag_status_ready_normal" translatable="false">Raport gotowy · zapisano %1$d · utracono %2$d · lokalny noBackup%3$s</string>
+    <string name="video_diag_status_failure_suffix" translatable="false"> · błąd zapisu</string>
+    <string name="video_diag_status_off_private" translatable="false">Diagnostyka wyłączona · start tylko po potwierdzeniu. Prywatnie: tylko RAM.</string>
+    <string name="video_diag_status_off_normal" translatable="false">Diagnostyka wyłączona · start tylko po potwierdzeniu. Zapis lokalny.</string>
 </resources>

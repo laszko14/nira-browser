@@ -11,7 +11,9 @@ const event=(id,over={})=>({
  fingerprint:'incomplete-error-capture',summary:'User reported another identical failure',
  source_sha:sha,observed_at:null,run_id:null,job_id:null,attempt:null,
  cause:'undetermined',state:'OPEN',duplicate_of:null,fix_sha:null,
- regression_test:null,evidence_links:[],...over
+ regression_test:null,evidence_links:[],branch:null,workflow_name:null,
+ cause_confidence:'unknown',fix_summary:null,test_result:null,final_ci:null,
+ recurrence_conditions:null,...over
 });
 test('canonical registry validates without inventing missing historical reports',()=>{
  const current=source();assert.equal(validate(current).recorded,current.events.length);
@@ -37,7 +39,7 @@ test('cannot close task with open errors or assert fix without SHA',()=>{
  const d=copy();d.coverage[0].state='COMPLETE';
  assert.throws(()=>validate(d),/unresolved/);
  d.events[0].state='FIXED';assert.throws(()=>validate(d),/FIXED requires/);
- d.events[0].fix_sha=sha;assert.equal(validate(d).open,0);
+ d.events[0].fix_sha=sha;d.events[0].regression_test='scripts/error-learning.test.cjs';d.events[0].test_result='PASS';assert.equal(validate(d).open,0);
 });
 test('CI must retain job/run/attempt and source evidence',()=>{
  const d=copy();d.events[0]=event('ERR-20261101-0001',{kind:'CI_FAILURE',
@@ -47,6 +49,15 @@ test('CI must retain job/run/attempt and source evidence',()=>{
  d.events[0].attempt=null;assert.throws(()=>validate(d),/CI provenance/);
  d.events[0].attempt=1;d.events[0].evidence_links=[];
  assert.throws(()=>validate(d),/CI run link/);
+});
+test('schema v2 retains branch, cause confidence, fix, tests, final CI and recurrence conditions',()=>{
+ const d=copy();d.events[0].branch='feat/zavro-clean-v3-20261101';
+ d.events[0].workflow_name='Android CI';d.events[0].cause_confidence='confirmed';
+ d.events[0].fix_summary='Fixed the diagnosed lifecycle defect';
+ d.events[0].test_result='PASS';d.events[0].final_ci='SUCCESS';
+ d.events[0].recurrence_conditions='Reappears when the owner changes during cancellation';
+ assert.equal(validate(d).recorded,1);
+ d.events[0].cause_confidence='confirmed-but-unverified';assert.throws(()=>validate(d),/cause confidence/);
 });
 test('capture records first failing step and exact run/job without raw logs',()=>{
  const run={id:12,head_sha:sha,run_attempt:2,event:'push',

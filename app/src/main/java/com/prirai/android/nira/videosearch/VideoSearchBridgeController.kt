@@ -16,6 +16,8 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.delay
 import com.prirai.android.nira.browser.profile.ProfileManager
 import kotlinx.coroutines.Dispatchers
@@ -106,6 +108,393 @@ internal class VideoSearchBridgeController(
     private var started = false
     private var extensionReady = false
 
+    /**
+     * Diagnostic owner is native-only. The UI will explicitly call
+     * beginDiagnostics in stage 5; no page browsing starts it automatically.
+     */
+    private var diagnostic: VideoSearchDiagnosticNativeSession? = null
+    private data class DiagnosticPortState(
+        val tabId: String,
+        var documentId: String,
+        var revision: Int,
+        var cursor: Long = 0,
+        var phase: String = "start",
+        var outstanding: String? = null,
+        var sentAt: Long = 0,
+        val knownDocuments: LinkedHashSet<String> = linkedSetOf(),
+    )
+    private val diagnosticPorts = IdentityHashMap<EngineSession, DiagnosticPortState>()
+    private val diagnosticWindows = IdentityHashMap<EngineSession, Window>()
+    private var diagnosticFinalizing = false
+    private var diagnosticStopJob: Deferred<VideoSearchDiagnosticRecorder?>? = null
+    private var diagnosticStopTarget: VideoSearchDiagnosticNativeSession? = null
+
+    /** Process-owned stop job: rotating/leaving My Sites does not cancel the drain. */
+    fun requestFinishDiagnostics(owner: VideoSearchScope):
+        Deferred<VideoSearchDiagnosticRecorder?>? {
+        val active = diagnostic?.takeIf { it.owner == owner } ?: return null
+        val previous = diagnosticStopJob
+        if (previous?.isActive == true && diagnosticStopTarget === active)
+            return previous
+        return manualScope.async {
+            if (diagnostic !== active) null else finishDiagnostics(owner)
+        }.also {
+            diagnosticStopJob = it
+            diagnosticStopTarget = active
+        }
+    }
+
+    /** UI status contains no sites, URLs, queries or profile identifiers. */
+    data class DiagnosticStatus(
+        val recording: Boolean, val stopping: Boolean, val reportReady: Boolean,
+        val attempted: Long, val recorded: Long, val dropped: Long,
+        val failure: String?,
+    )
+
+    fun diagnosticStatus(owner: VideoSearchScope): DiagnosticStatus {
+        diagnosticOwnerChanged()
+        val live = diagnostic?.takeIf { it.owner == owner }?.recorder
+        val finished = completedDiagnostic?.takeIf {
+            it.owner == owner && !it.state().retired
+        }
+        val state = live?.state() ?: finished?.state()
+        return DiagnosticStatus(
+            live != null,
+            diagnosticFinalizing && live != null,
+            finished != null && finished.state().finished,
+            state?.attempted ?: 0, state?.recorded ?: 0,
+            state?.dropped ?: 0, state?.failure)
+    }
+
+    /** Only the explicitly stopped, still-owned recording can be shared. */
+    fun diagnosticReport(owner: VideoSearchScope): VideoSearchDiagnosticRecorder? {
+        diagnosticOwnerChanged()
+        if (!diagnosticOwnerAuthorized(owner)) return null
+        return completedDiagnostic?.takeIf {
+            it.owner == owner && it.state().finished && !it.state().retired
+        }
+    }
+
+    /**
+     * Stops JS first, drains bounded batches, and only then finishes the
+     * writer. Timeout/closed ports are explicit interruption observations.
+     * Called from a user-initiated coroutine, never from a background task.
+     */
+    suspend fun finishDiagnostics(owner: VideoSearchScope): VideoSearchDiagnosticRecorder? {
+        val active = diagnostic?.takeIf { it.owner == owner } ?: return null
+        if (diagnosticFinalizing || !diagnosticOwnerAuthorized(owner)) return null
+        diagnosticFinalizing = true
+        try {
+            val allDrained = withTimeoutOrNull(24_000L) {
+                while (diagnostic === active && diagnosticOwnerAuthorized(owner)) {
+                    if (diagnosticPorts.values.all {
+                        VideoSearchDiagnosticDrainPolicy.terminal(it.phase)
+                    }) break
+                    delay(120)
+                }
+                diagnostic === active && diagnosticOwnerAuthorized(owner) &&
+                    diagnosticPorts.values.all { it.phase == "drained" }
+            } == true
+            if (diagnostic !== active || !diagnosticOwnerAuthorized(owner))
+                return null
+            diagnosticPorts.values.forEach {
+                if (it.phase != "drained") {
+                    active.interrupted(it.tabId, it.documentId,
+                        if (it.phase == "failed") "DIAG_FINAL_DRAIN_FAILED"
+                        else "DIAG_FINAL_DRAIN_TIMEOUT")
+                }
+            }
+            diagnostic = null
+            VideoSearchDiagnosticResultsHost.detach(active.recorder)
+            diagnosticPorts.clear()
+            active.stop(if (allDrained) "USER_STOP_DRAINED" else "USER_STOP_PARTIAL")
+            completedDiagnostic = active.recorder
+            return active.recorder
+        } finally {
+            diagnosticFinalizing = false
+        }
+    }
+    private val diagnosticWorkerRuns = LinkedHashMap<String, String>()
+    // A completed private recording stays RAM-only until its exact epoch ends.
+    private var completedDiagnostic: VideoSearchDiagnosticRecorder? = null
+
+    /** Recording is an explicit, native UI opt-in, never a JS/page decision. */
+    fun beginDiagnostics(owner: VideoSearchScope): Boolean {
+        if (diagnostic != null || diagnosticFinalizing ||
+            !diagnosticOwnerAuthorized(owner)) return false
+        completedDiagnostic?.let { old ->
+            if (old.owner is VideoSearchScope.Private &&
+                !diagnosticPrivateEpochAlive(old.owner as VideoSearchScope.Private)) {
+                old.retirePrivateLifetime(old.owner as VideoSearchScope.Private)
+                completedDiagnostic = null
+            }
+        }
+        // Previous reports must not be mistaken for the newly started session.
+        completedDiagnostic?.let {
+            if (it.owner is VideoSearchScope.Private) {
+                it.retirePrivateLifetime(it.owner as VideoSearchScope.Private)
+            }
+        }
+        completedDiagnostic = null
+        diagnostic = VideoSearchDiagnosticNativeSession(
+            VideoSearchDiagnosticRecorder.create(applicationContext, owner))
+        VideoSearchDiagnosticResultsHost.attach(checkNotNull(diagnostic).recorder)
+        ports.forEach { (session, entry) ->
+            diagnosticDocumentBound(session, entry)
+        }
+        return true
+    }
+
+    /** No exported report is implied: unread JS events are marked interrupted. */
+    fun stopDiagnostics(): VideoSearchDiagnosticRecorder? {
+        val active = diagnostic ?: return null
+        diagnostic = null
+        VideoSearchDiagnosticResultsHost.detach(active.recorder)
+        diagnosticPorts.forEach { (session, state) ->
+            val entry = ports[session]
+            if (entry != null && entry.documentId == state.documentId &&
+                state.phase == "reading") {
+                try {
+                    entry.port.postMessage(VideoSearchDiagnosticWire.stop(
+                        state.documentId, newDiagnosticRequestId(), active.sessionId))
+                } catch (_: Exception) { /* preserve incomplete state */ }
+            }
+            active.interrupted(state.tabId, state.documentId, "STOP_WITH_UNDRAINED_JS")
+        }
+        diagnosticPorts.clear()
+        active.stop("USER_STOP_UNDRAINED")
+        completedDiagnostic = active.recorder
+        return active.recorder
+    }
+
+    private fun newDiagnosticRequestId(): String =
+        UUID.randomUUID().toString().replace("-", "")
+
+    private fun diagnosticPrivateEpochAlive(scope: VideoSearchScope.Private): Boolean {
+        if (VideoSearchPrivateSessionHost.registry.activeScope() != scope) return false
+        return store.state.tabs.any { tab ->
+            tab.content.private && tab.contextId == "private" &&
+                VideoSearchPrivateSessionHost.registry.ownerForTab(
+                    VideoSearchPrivateTab(tab.id, tab.contextId, true),
+                    scope.profileId) == scope
+        }
+    }
+
+    private fun diagnosticOwnerAuthorized(owner: VideoSearchScope): Boolean {
+        val manager = ProfileManager.getInstance(applicationContext)
+        if (manager.getActiveProfile().id != owner.profileId) return false
+        return when (owner) {
+            is VideoSearchScope.Normal -> !manager.isPrivateMode()
+            is VideoSearchScope.Private ->
+                manager.isPrivateMode() && diagnosticPrivateEpochAlive(owner)
+        }
+    }
+
+    private fun diagnosticOwnerChanged() {
+        val completed = completedDiagnostic
+        if (completed?.owner is VideoSearchScope.Private &&
+            !diagnosticPrivateEpochAlive(completed.owner as VideoSearchScope.Private)) {
+            completed.retirePrivateLifetime(completed.owner as VideoSearchScope.Private)
+            completedDiagnostic = null
+        }
+        val active = diagnostic ?: return
+        if (diagnosticOwnerAuthorized(active.owner)) return
+        diagnostic = null
+        VideoSearchDiagnosticResultsHost.detach(active.recorder)
+        diagnosticPorts.clear()
+        if (active.owner is VideoSearchScope.Private &&
+            !diagnosticPrivateEpochAlive(active.owner as VideoSearchScope.Private)) {
+            active.retirePrivate(active.owner as VideoSearchScope.Private)
+        } else {
+            active.stop("PROFILE_SWITCH")
+            completedDiagnostic = active.recorder
+        }
+    }
+
+    /** A native-verified hello binds one Gecko port to one owned tab/document. */
+    private fun diagnosticDocumentBound(session: EngineSession, entry: DocumentPort) {
+        val active = diagnostic ?: return
+        if (diagnosticFinalizing) {
+            diagnosticPortLost(session, "DIAG_DOCUMENT_CHANGED_DURING_STOP")
+            return
+        }
+        val tab = currentTab(session) ?: return
+        val document = entry.documentId ?: return
+        if (!isFresh(session, entry) || tab.owner != active.owner ||
+            !diagnosticOwnerAuthorized(active.owner)) return
+        val existing = diagnosticPorts[session]
+        if (existing == null && diagnosticPorts.size >= 12) {
+            active.interrupted(tab.tabId, document, "DIAG_PORT_LIMIT")
+            return
+        }
+        val state = if (existing != null && existing.tabId == tab.tabId) {
+            existing.documentId = document
+            existing.revision = entry.navigationRevision
+            existing.phase = "start"
+            existing.outstanding = null
+            existing
+        } else DiagnosticPortState(
+            tab.tabId, document, entry.navigationRevision)
+        state.knownDocuments.add(document)
+        while (state.knownDocuments.size > 32) {
+            state.knownDocuments.remove(state.knownDocuments.first())
+            active.interrupted(tab.tabId, document, "DIAG_OLD_DOCUMENT_EVICTED")
+        }
+        diagnosticPorts[session] = state
+        if (existing !== state) {
+            manualScope.launch {
+                while (diagnostic === active && diagnosticPorts[session] === state) {
+                    delay(if (diagnosticFinalizing) 160L else 1300L)
+                    if (!diagnosticOwnerAuthorized(active.owner)) {
+                        diagnosticOwnerChanged()
+                        break
+                    }
+                    val live = ports[session] ?: break
+                    if (!isFresh(session, live) ||
+                        live.documentId != state.documentId ||
+                        pending.containsKey(session)) continue
+                    if (state.outstanding != null) {
+                        if (SystemClock.elapsedRealtime() - state.sentAt < 5_000L)
+                            continue
+                        active.interrupted(state.tabId, state.documentId,
+                            "DIAG_RESPONSE_TIMEOUT")
+                        state.outstanding = null
+                        if (diagnosticFinalizing) state.phase = "failed"
+                        else if (state.phase == "stopping") state.phase = "reading"
+                    }
+                    val action = VideoSearchDiagnosticDrainPolicy.command(
+                        state.phase, diagnosticFinalizing) ?: continue
+                    val req = newDiagnosticRequestId()
+                    val shouldStop = action ==
+                        VideoSearchDiagnosticDrainPolicy.Command.STOP
+                    val packet = when (action) {
+                        VideoSearchDiagnosticDrainPolicy.Command.START ->
+                            VideoSearchDiagnosticWire.start(
+                                state.documentId, req, active.sessionId)
+                        VideoSearchDiagnosticDrainPolicy.Command.STOP ->
+                            VideoSearchDiagnosticWire.stop(
+                                state.documentId, req, active.sessionId)
+                        VideoSearchDiagnosticDrainPolicy.Command.READ ->
+                            VideoSearchDiagnosticWire.read(
+                                state.documentId, req, state.cursor)
+                    }
+                    try {
+                        // Track the command before asynchronous Gecko callbacks.
+                        state.outstanding = req
+                        state.sentAt = SystemClock.elapsedRealtime()
+                        if (shouldStop) state.phase = "stopping"
+                        live.port.postMessage(packet)
+                    } catch (_: Exception) {
+                        active.interrupted(state.tabId, state.documentId,
+                            "DIAG_PORT_SEND_FAILED")
+                        state.outstanding = null
+                        if (diagnosticFinalizing) state.phase = "failed"
+                        else if (shouldStop) state.phase = "reading"
+                    }
+                }
+            }
+        }
+    }
+
+    private fun diagnosticPortLost(session: EngineSession, reason: String) {
+        val state = diagnosticPorts.remove(session) ?: return
+        diagnosticWindows.remove(session)
+        diagnostic?.interrupted(state.tabId, state.documentId, reason)
+    }
+
+    private fun diagnosticReply(
+        session: EngineSession,
+        entry: DocumentPort,
+        reply: VideoSearchDiagnosticWire.Reply,
+    ) {
+        val active = diagnostic ?: return
+        val state = diagnosticPorts[session] ?: return
+        val tab = currentTab(session) ?: return
+        if (tab.tabId != state.tabId || tab.owner != active.owner ||
+            !diagnosticOwnerAuthorized(active.owner) ||
+            !isFresh(session, entry) ||
+            entry.documentId != state.documentId ||
+            reply.documentId != state.documentId ||
+            reply.requestId != state.outstanding) return
+        when (reply) {
+            is VideoSearchDiagnosticWire.Reply.Ack -> {
+                val next = VideoSearchDiagnosticDrainPolicy.afterAck(
+                    state.phase, reply.status)
+                if (next == null) {
+                    active.interrupted(state.tabId, state.documentId,
+                        "DIAG_UNEXPECTED_ACK")
+                    state.phase = "failed"
+                } else state.phase = next
+            }
+            is VideoSearchDiagnosticWire.Reply.Batch -> {
+                if (state.phase != "reading" && state.phase != "draining") {
+                    state.outstanding = null
+                    return
+                }
+                val next = active.accept(
+                    state.tabId, state.knownDocuments, state.cursor, reply)
+                if (next == null) {
+                    active.interrupted(state.tabId, state.documentId,
+                        "DIAG_INVALID_BATCH_CONTEXT")
+                    state.phase = "failed"
+                } else {
+                    state.cursor = next
+                    state.phase = VideoSearchDiagnosticDrainPolicy.afterRead(
+                        state.phase, reply.observations.isEmpty()) ?: "failed"
+                }
+            }
+        }
+        state.outstanding = null
+    }
+
+    private fun diagnosticRequestStarted(
+        session: EngineSession, entry: DocumentPort,
+        requestId: String, siteId: String, workerTabId: String?,
+    ) {
+        val state = diagnosticPorts[session] ?: return
+        if (state.documentId != entry.documentId ||
+            diagnostic?.owner != entry.owner) return
+        diagnostic?.registerRequest(
+            state.tabId, state.documentId, requestId,
+            siteId, workerTabId, runId = workerTabId?.let(diagnosticWorkerRuns::get),
+            batchId = requestId)
+    }
+
+    private fun diagnosticNativeReply(
+        session: EngineSession, entry: DocumentPort,
+        job: Pending, packet: VideoSearchBridgeMessage,
+    ) {
+        val state = diagnosticPorts[session] ?: return
+        if (state.documentId != job.documentId ||
+            diagnostic?.owner != job.owner) return
+        val (reason, decision, accepted) = when (packet) {
+            is VideoSearchBridgeMessage.Results -> Triple(
+                "EXTRACT_" + packet.page.status.uppercase(),
+                if (packet.page.status == "ok")
+                    VideoSearchDiagnosticDecision.ACCEPTED
+                else if (packet.page.status == "stale")
+                    VideoSearchDiagnosticDecision.INTERRUPTED
+                else VideoSearchDiagnosticDecision.UNCERTAIN,
+                packet.page.films.size)
+            is VideoSearchBridgeMessage.PageAction -> Triple(
+                "PAGE_" + packet.status.uppercase(),
+                if (packet.status == "end")
+                    VideoSearchDiagnosticDecision.SEEN
+                else if (packet.status == "unsafe")
+                    VideoSearchDiagnosticDecision.REJECTED
+                else VideoSearchDiagnosticDecision.WAITING, null)
+            is VideoSearchBridgeMessage.SearchFailed -> Triple(
+                "SEARCH_" + packet.reason.uppercase(),
+                VideoSearchDiagnosticDecision.REJECTED, null)
+            else -> Triple(
+                "NATIVE_" + job.kind.uppercase() + "_REPLY",
+                VideoSearchDiagnosticDecision.SEEN, null)
+        }
+        diagnostic?.nativeOutcome(
+            state.tabId, state.documentId, job.requestId,
+            reason, decision, accepted)
+    }
+
     fun start() {
         if (started) return
         started = true
@@ -163,6 +552,20 @@ internal class VideoSearchBridgeController(
             entry.documentId != null
     }
 
+    private fun withinDiagnosticRate(session: EngineSession): Boolean {
+        // Independent bounded channel: final drain cannot consume the
+        // ordinary search command's 12-per-5s rate budget.
+        val now = SystemClock.elapsedRealtime()
+        val window = diagnosticWindows[session]
+        if (window == null || now - window.start >= 5_000L) {
+            diagnosticWindows[session] = Window(now, 1)
+            return true
+        }
+        if (window.count >= 32) return false
+        window.count++
+        return true
+    }
+
     private fun withinRate(session: EngineSession): Boolean {
         val now = SystemClock.elapsedRealtime()
         val window = windows[session]
@@ -186,13 +589,16 @@ internal class VideoSearchBridgeController(
                     }
                 }
             }.distinctUntilChanged().collect { (selectedId, live) ->
+                diagnosticOwnerChanged()
                 privateWorkerLease?.observeSelection(selectedId)
                 VideoSearchNormalWorkerSelectionHost.registry.observeSelection(selectedId)
                 val sessions = live.map { it.first }
                 val obsolete = attached.keys.filter { old -> sessions.none { it === old } }
                 obsolete.forEach { old ->
+                    diagnosticPortLost(old, "DIAG_TAB_REMOVED")
                     attached.remove(old)
                     windows.remove(old)
+                    diagnosticWindows.remove(old)
                     pending.remove(old)?.result?.cancel()
                     proposals.entries.removeAll { it.value.session === old }
                     ports.remove(old)?.port?.let {
@@ -228,10 +634,12 @@ internal class VideoSearchBridgeController(
                                             VideoSearchBridgeProtocol.syncUrl()
                                         )
                                     } catch (_: Exception) {
+                                        diagnosticPortLost(session, "DIAG_URL_SYNC_FAILED")
                                         ports.remove(session)
                                         try { connection.port.disconnect() } catch (_: Exception) {}
                                     }
                                 } else {
+                                    diagnosticPortLost(session, "DIAG_DOCUMENT_REVOKED")
                                     ports.remove(session)
                                     try { connection.port.disconnect() } catch (_: Exception) {}
                                 }
@@ -247,14 +655,23 @@ internal class VideoSearchBridgeController(
         override fun onMessage(message: Any, source: EngineSession?): Any = false
 
         override fun onPortConnected(port: Port) {
-            if (currentTab(session) == null) {
+            val actualTab = currentTab(session)
+            if (actualTab == null) {
                 try { port.disconnect() } catch (_: Exception) {}
                 return
+            }
+            pending[session]?.let { abandoned ->
+                diagnostic?.takeIf { it.owner == abandoned.owner }?.nativeOutcome(
+                    actualTab.tabId, abandoned.documentId, abandoned.requestId,
+                    "NATIVE_PORT_REPLACED", VideoSearchDiagnosticDecision.INTERRUPTED)
             }
             pending.remove(session)?.result?.cancel()
             proposals.entries.removeAll { it.value.session === session }
             val old = ports.put(session, DocumentPort(port))
+            if (old == null || old.port !== port)
+                diagnostic?.newPageBuffer(actualTab.tabId)
             if (old != null && old.port !== port) {
+                diagnosticPortLost(session, "DIAG_PORT_REPLACED")
                 try { old.port.disconnect() } catch (_: Exception) {}
             }
         }
@@ -267,6 +684,13 @@ internal class VideoSearchBridgeController(
             if (entry.port.name() != port.name() ||
                 entry.port.senderUrl() != port.senderUrl() ||
                 port.name() != VideoSearchBridgeProtocol.NATIVE_APP) return
+            val eventName = (message as? org.json.JSONObject)?.optString("event")
+            if (eventName == "diag_ack" || eventName == "diag_events") {
+                if (!withinDiagnosticRate(session)) return
+                val diagReply = VideoSearchDiagnosticWire.decode(message) ?: return
+                diagnosticReply(session, entry, diagReply)
+                return
+            }
             if (!withinRate(session)) return
             val parsed = VideoSearchBridgeProtocol.decode(message) ?: return
             val tab = currentTab(session) ?: return
@@ -278,6 +702,12 @@ internal class VideoSearchBridgeController(
                         )) return
                     // A valid newer same-origin route revokes every previous
                     // request/proposal, even when the underlying port survives.
+                    pending[session]?.let { abandoned ->
+                        diagnostic?.takeIf { it.owner == abandoned.owner }?.nativeOutcome(
+                            tab.tabId, abandoned.documentId, abandoned.requestId,
+                            "NATIVE_DOCUMENT_STALE",
+                            VideoSearchDiagnosticDecision.INTERRUPTED)
+                    }
                     pending.remove(session)?.result?.cancel()
                     proposals.entries.removeAll { it.value.session === session }
                     entry.documentId = parsed.documentId
@@ -287,7 +717,9 @@ internal class VideoSearchBridgeController(
                     entry.lastPong = false
                     try {
                         port.postMessage(VideoSearchBridgeProtocol.bound(parsed.documentId))
+                        diagnosticDocumentBound(session, entry)
                     } catch (_: Exception) {
+                        diagnosticPortLost(session, "DIAG_HELLO_BIND_FAILED")
                         ports.remove(session)
                     }
                 }
@@ -346,6 +778,7 @@ internal class VideoSearchBridgeController(
                             else -> return
                         }) return
                     pending.remove(session)
+                    diagnosticNativeReply(session, entry, job, parsed)
                     if (job.owner is VideoSearchScope.Normal &&
                         parsed is VideoSearchBridgeMessage.Inspection &&
                         parsed.inputSelector != null && parsed.submission != null) {
@@ -369,6 +802,7 @@ internal class VideoSearchBridgeController(
             val old = ports[session]
             if (old != null && old.port.name() == port.name() &&
                 old.port.senderUrl() == port.senderUrl()) {
+                diagnosticPortLost(session, "DIAG_PORT_DISCONNECTED")
                 ports.remove(session)
                 pending.remove(session)?.result?.cancel()
                 proposals.entries.removeAll { it.value.session === session }
@@ -433,6 +867,7 @@ internal class VideoSearchBridgeController(
         val work = Pending(requestId, document, site.scope, site.id,
             entry.pageUrl ?: return null, kind, result)
         pending[session] = work
+        diagnosticRequestStarted(session, entry, requestId, site.id, tabId)
         try {
             entry.port.postMessage(packet(document, requestId))
             return withTimeoutOrNull(6_000L) { result.await() }
@@ -441,7 +876,12 @@ internal class VideoSearchBridgeController(
         } catch (_: Exception) {
             return null
         } finally {
-            if (pending[session] === work) pending.remove(session)
+            if (pending[session] === work) {
+                pending.remove(session)
+                diagnostic?.takeIf { it.owner == work.owner }?.nativeOutcome(
+                    tabId, document, requestId, "PRIVATE_REQUEST_INTERRUPTED",
+                    VideoSearchDiagnosticDecision.INTERRUPTED)
+            }
         }
     }
 
@@ -669,6 +1109,7 @@ internal class VideoSearchBridgeController(
                                     contextId = "private",
                                 )
                             createdTabId = newId
+                            diagnosticWorkerRuns[newId] = groupRunId
                             VideoSearchPrivateWorkerLease(newId, plan.owner).also {
                                 lease = it
                                 privateWorkerLease = it
@@ -789,6 +1230,7 @@ internal class VideoSearchBridgeController(
                                 } catch (_: Exception) { }
                             }
                         }
+                        if (createdTabId != null) diagnosticWorkerRuns.remove(createdTabId)
                         if (privateWorkerLease === lease) privateWorkerLease = null
                     }
                     delay(40)
@@ -1200,6 +1642,7 @@ internal class VideoSearchBridgeController(
         val work = Pending(requestId, documentId, scope, site.id,
             entry.pageUrl ?: return null, kind, result)
         pending[session] = work
+        diagnosticRequestStarted(session, entry, requestId, site.id, workerTabId)
         try {
             entry.port.postMessage(packet(documentId, requestId))
             val reply = withTimeoutOrNull(timeoutMs) { result.await() }
@@ -1219,7 +1662,13 @@ internal class VideoSearchBridgeController(
         } catch (_: Exception) {
             return null
         } finally {
-            if (pending[session] === work) pending.remove(session)
+            if (pending[session] === work) {
+                pending.remove(session)
+                diagnostic?.takeIf { it.owner == work.owner }?.nativeOutcome(
+                    currentTab(session)?.tabId ?: "", documentId, requestId,
+                    "NORMAL_REQUEST_INTERRUPTED",
+                    VideoSearchDiagnosticDecision.INTERRUPTED)
+            }
         }
     }
 
@@ -2314,6 +2763,8 @@ internal class VideoSearchBridgeController(
                                 active.getActiveProfile().id == plan.scope.profileId
                         },
                         submit = { site ->
+                            diagnostic?.takeIf { it.owner == plan.scope }?.queueStatus(
+                                journal.runId, site.id, VideoSearchQueueStatus.LEASED)
                             var outcome = VideoSearchQueueStatus.FAILED
                             var snapshot: VideoSearchPaginationSnapshot? = null
                             val current = withContext(Dispatchers.IO) {
@@ -2336,6 +2787,7 @@ internal class VideoSearchBridgeController(
                                     contextId = plan.scope.contextId,
                                 )
                                 val lease = VideoSearchNormalWorkerLease(tabId, plan.scope)
+                                diagnosticWorkerRuns[tabId] = journal.runId
                                 VideoSearchNormalWorkerSelectionHost.registry.register(lease, store.state.selectedTabId)
                                 try {
                                     val before = withTimeoutOrNull(10_000L) {
@@ -2429,6 +2881,7 @@ internal class VideoSearchBridgeController(
                                         // Ownership uncertain: keep the user's tab.
                                     } finally {
                                         VideoSearchNormalWorkerSelectionHost.registry.release(lease)
+                                        diagnosticWorkerRuns.remove(tabId)
                                     }
                                 }
                             }
@@ -2455,6 +2908,13 @@ internal class VideoSearchBridgeController(
                     }
                 } catch (_: Exception) {
                     // Do not claim a completed run if the transaction failed.
+                }
+                // Record the actual final queue snapshot, not an inferred film-save.
+                plan.selectedSites.forEach { site ->
+                    queue.statusOf(site.id)?.let { status ->
+                        diagnostic?.takeIf { it.owner == plan.scope }?.queueStatus(
+                            journal.runId, site.id, status)
+                    }
                 }
                 // An older generation must never reset the new run's state.
                 if (normalRunGate.owns(coroutineContext[Job], queue)) {

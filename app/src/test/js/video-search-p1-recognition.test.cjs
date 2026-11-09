@@ -51,7 +51,8 @@ function fixture({count=3, links='film', ads=false, surface='MAIN', resultPage=t
   return win.__zavroRecognition.scan(outer);
 }
 test('P1 built-in extension loads recognition before content bridge',()=>{
-  assert.deepEqual(manifest.content_scripts[0].js,['recognition.js','content.js']);
+  assert.deepEqual(manifest.content_scripts[0].js,
+    ['recognition.js','diagnostics.js','content.js']);
   assert.equal(manifest.content_scripts[0].all_frames,false);
 });
 test('P1 identifies repeated card-local film links with structural score',()=>{

@@ -285,6 +285,13 @@
       </intent-filter>
     </activity>
 
+    <!-- Explicit diagnostic share: read-only, temporary URI grants, RAM pipe for private mode. -->
+    <provider
+        android:name=".videosearch.VideoSearchDiagnosticReportProvider"
+        android:authorities="${applicationId}.video_diagnostics"
+        android:exported="false"
+        android:grantUriPermissions="true" />
+
     <!-- FileProvider for sharing exported profile ZIP files -->
     <provider
             android:name="androidx.core.content.FileProvider"
