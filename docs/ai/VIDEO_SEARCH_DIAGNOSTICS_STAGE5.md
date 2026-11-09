@@ -71,6 +71,15 @@ Dynamic status strings are formatted by Android resources in
 `app/src/main/res/values/strings.xml`; no lint suppressions and no
 baseline changes were introduced. The initial CI regression found and
 fixed a test enum qualification and resource formatting for this stage.
+A follow-up SOURCE/PR CI at d50a19e0cafa8eaa474fb35c5445fffc1dd8daf2
+found two existing Robolectric private-mode Activity regressions:
+new diagnostics controls eagerly queried selectedPrivateTab during Activity
+construction, which casts a bare test Application to BrowserApp. The new UI
+now resolves the private owner only while the private panel is active, not
+while the normal profile is open. Three literal button labels also triggered
+SetTextI18n warnings: the identical Polish text now comes from Android
+string resources. Existing JVM tests and lint baseline were not weakened.
+Final SOURCE and PR CI must pass on the last commit before CODE_VERIFIED.
 
 ## Tests, safety and limits
 

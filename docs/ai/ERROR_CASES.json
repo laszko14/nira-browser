@@ -203,7 +203,7 @@
     },
     {
       "task_id": "ZC-VIDEO-DIAG-5",
-      "observed_count": 10,
+      "observed_count": 15,
       "state": "ACTIVE"
     }
   ],
@@ -3980,6 +3980,111 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42591814353",
         "https://github.com/laszko14/nira-browser/commit/8cebed0d68104ff5c329e0b412224689809b4b11"
+      ]
+    },
+    {
+      "id": "CI-DIAG5-SOURCE-JVM-PRIVATE-EAGER",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag5.private-controls-eager-browserapp-cast",
+      "summary": "SOURCE JVM/Robolectric: 2 of 1534 existing tests failed due to ClassCastException (Application -> BrowserApp) when diagnostic controls eagerly read selectedPrivateTab on Activity creation. Private owner resolution is now deferred and mode-scoped.",
+      "source_sha": "d50a19e0cafa8eaa474fb35c5445fffc1dd8daf2",
+      "observed_at": null,
+      "run_id": 42593629056,
+      "job_id": 129081002523,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "b6d944d1aee63d2b9ebb69bc8783f3428f544723",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/MyVideoSitesDialogRegressionTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42593629056",
+        "https://github.com/laszko14/nira-browser/commit/b6d944d1aee63d2b9ebb69bc8783f3428f544723"
+      ]
+    },
+    {
+      "id": "CI-DIAG5-PR-JVM-PRIVATE-EAGER",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag5.private-controls-eager-browserapp-cast",
+      "summary": "PR Kotlin/Robolectric independently reported the same private-owner eager construction failure.",
+      "source_sha": "d50a19e0cafa8eaa474fb35c5445fffc1dd8daf2",
+      "observed_at": null,
+      "run_id": 42593635888,
+      "job_id": 129081047952,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG5-SOURCE-JVM-PRIVATE-EAGER",
+      "fix_sha": "b6d944d1aee63d2b9ebb69bc8783f3428f544723",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/MyVideoSitesLayoutTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42593635888",
+        "https://github.com/laszko14/nira-browser/commit/b6d944d1aee63d2b9ebb69bc8783f3428f544723"
+      ]
+    },
+    {
+      "id": "CI-DIAG5-SOURCE-LINT-BUTTONS",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag5.lint-diagnostic-button-literals",
+      "summary": "SOURCE lint regression gate found 3 new SetTextI18n warnings on the stage-5 start, stop and report button labels. Labels moved to Android string resources without lint baseline changes.",
+      "source_sha": "d50a19e0cafa8eaa474fb35c5445fffc1dd8daf2",
+      "observed_at": null,
+      "run_id": 42593629056,
+      "job_id": 129081002704,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "b6d944d1aee63d2b9ebb69bc8783f3428f544723",
+      "regression_test": "scripts/lint-regression.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42593629056",
+        "https://github.com/laszko14/nira-browser/commit/b6d944d1aee63d2b9ebb69bc8783f3428f544723"
+      ]
+    },
+    {
+      "id": "CI-DIAG5-PR-LINT-BUTTONS",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag5.lint-diagnostic-button-literals",
+      "summary": "PR lint independently found the same 3 SetTextI18n warnings at the same source SHA.",
+      "source_sha": "d50a19e0cafa8eaa474fb35c5445fffc1dd8daf2",
+      "observed_at": null,
+      "run_id": 42593635888,
+      "job_id": 129081048107,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG5-SOURCE-LINT-BUTTONS",
+      "fix_sha": "b6d944d1aee63d2b9ebb69bc8783f3428f544723",
+      "regression_test": "scripts/lint-regression.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42593635888",
+        "https://github.com/laszko14/nira-browser/commit/b6d944d1aee63d2b9ebb69bc8783f3428f544723"
+      ]
+    },
+    {
+      "id": "CI-DIAG5-SOURCE-REQUIRED-SUMMARY-2",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag5.required-summary-on-red-jvm-lint",
+      "summary": "SOURCE required-summary correctly rejected Kotlin/Robolectric and lint regressions; JS, process-docs and AndroidTest compile passed.",
+      "source_sha": "d50a19e0cafa8eaa474fb35c5445fffc1dd8daf2",
+      "observed_at": null,
+      "run_id": 42593629056,
+      "job_id": 129085423227,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG5-SOURCE-REQUIRED-SUMMARY",
+      "fix_sha": "b6d944d1aee63d2b9ebb69bc8783f3428f544723",
+      "regression_test": "scripts/ci-evidence.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42593629056",
+        "https://github.com/laszko14/nira-browser/commit/b6d944d1aee63d2b9ebb69bc8783f3428f544723"
       ]
     }
   ]
