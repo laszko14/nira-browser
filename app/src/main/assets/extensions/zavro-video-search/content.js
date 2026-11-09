@@ -1373,10 +1373,11 @@
       if (marker && !marker.closest('[hidden],[inert],[aria-hidden="true"]') &&
           marker.getBoundingClientRect().width > 0 &&
           marker.getBoundingClientRect().height > 0 &&
-          !document.querySelector('[aria-busy="true"],[data-loading="true"]'))
+          !document.querySelector('[aria-busy="true"],[data-loading="true"]')) {
         diag("RESULTS_REGION","SEEN","EXPLICIT_VISIBLE_EMPTY_MARKER",
           command.requestId,{VISIBLE_CARDS:0});
         return { status: "no_results", films: [], inspectedCards: 0, moreOnPage: false };
+      }
     }
 
     function scoped(card, selector) {

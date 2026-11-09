@@ -114,8 +114,9 @@ test('read-only form, empty marker and pagination events never change primary re
   h.dispatch({schemaVersion:1,event:'diag_start',documentId:doc,requestId:id,sessionId:uuid});
   h.dispatch({schemaVersion:1,event:'inspect',documentId:doc,requestId:id});
   assert.equal(h.sent.at(-1).event,'inspection');
-  h.dispatch({schemaVersion:1,event:'extract',documentId:doc,requestId:id,
-    resultsCardSelector:'.cards'});
+  h.dispatch({schemaVersion:1,event:'extract_batch',documentId:doc,requestId:id,
+    resultsCardSelector:'.cards',startIndex:0,linkSelector:null,titleSelector:null,
+    thumbnailSelector:null,durationSelector:null});
   assert.equal(h.sent.at(-1).event,'results');
   assert.equal(h.sent.at(-1).status,'no_results',
     'only an existing explicit empty marker proves no results');
