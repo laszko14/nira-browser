@@ -19,7 +19,7 @@ remaining: Verify required SOURCE/PR CI on final SHA, repair actual failures and
 required_ci: SOURCE process-docs plus shared-tests JavaScript, Kotlin/Robolectric JVM, compileDebugAndroidTestKotlin, lint regression, required summary; PR shared-tests JavaScript/Kotlin/AndroidTest/lint and error learning evidence. All SUCCESS on identical final source SHA. Build/release SKIPPED.
 device: NOT_TESTED — real GeckoView, physical Nothing Phone (1), actual websites and device performance not measured.
 apk: NOT_BUILT — prohibited throughout 7 stages.
-known_failures: No Stage 2 CI failures observed before initial push. Record every real CI/review finding in docs/ai/ERROR_CASES.json and reconcile counts.
+known_failures: First SOURCE #42569108916 and PR #42569113276 JavaScript suites failed on missing strict braces for empty marker and misaligned fixture/manifest expectation; SOURCE summary correctly rejected red JS. OBSERVED 3 / RECORDED 3 / OPEN 0, repaired by code commit 52348291b1d94dc33dd226786f5ce6cc764e8869. New final SHA CI must verify these repairs.
 verification: Read AGENTS.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md, TEST_POLICY.md, QUALITY_GATES.md, ERROR_LEARNING.md and Stage 1 contract from explicit base_sha. Examined manifest, JS recognition, native bridge and JS tests.
 changed_paths:
   - app/src/main/assets/extensions/zavro-video-search/diagnostics.js
@@ -29,6 +29,7 @@ changed_paths:
   - docs/ai/VIDEO_SEARCH_DIAGNOSTICS_STAGE2.md
   - docs/AI_HANDOFF.md
   - docs/ai/ERROR_CASES.json
+  - app/src/test/js/video-search-p1-recognition.test.cjs
 verified_before_push:
   - WebExtension permissions unchanged; no new automatic clicks or search behavior.
   - Local JS-only buffer is opt-in; native authenticated correlation to follow in Stage 3.

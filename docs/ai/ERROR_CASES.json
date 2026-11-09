@@ -188,7 +188,7 @@
     },
     {
       "task_id": "ZC-VIDEO-DIAG-2",
-      "observed_count": 0,
+      "observed_count": 3,
       "state": "ACTIVE"
     }
   ],
@@ -3468,6 +3468,69 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42512954366",
         "https://github.com/laszko14/nira-browser/commit/d1db6bb1841859374cfb4d836397d7894eec6305"
+      ]
+    },
+    {
+      "id": "CI-DIAG2-SOURCE-JS-REGRESSION",
+      "task_id": "ZC-VIDEO-DIAG-2",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag2.js.empty-marker-branch-and-fixtures",
+      "summary": "First SOURCE JavaScript suite failed five tests: unconditional no_results after diagnostic marker, incorrect extract fixture and stale manifest order assertion. Restored strict empty proof and updated tests.",
+      "source_sha": "41ef554801d376f40ed7a8218b005a68c725894f",
+      "observed_at": "2026-11-09T05:45:34Z",
+      "run_id": 42569108916,
+      "job_id": 129002119329,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "52348291b1d94dc33dd226786f5ce6cc764e8869",
+      "regression_test": "app/src/test/js/video-search-diagnostics-stage2.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42569108916",
+        "https://github.com/laszko14/nira-browser/commit/52348291b1d94dc33dd226786f5ce6cc764e8869"
+      ]
+    },
+    {
+      "id": "CI-DIAG2-PR-JS-REGRESSION",
+      "task_id": "ZC-VIDEO-DIAG-2",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag2.js.empty-marker-branch-and-fixtures",
+      "summary": "First PR JavaScript suite independently failed the same five assertions on the same source SHA, including ordinary empty/loading/hidden marker negative controls.",
+      "source_sha": "41ef554801d376f40ed7a8218b005a68c725894f",
+      "observed_at": "2026-11-09T05:45:35Z",
+      "run_id": 42569113276,
+      "job_id": 129002132767,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG2-SOURCE-JS-REGRESSION",
+      "fix_sha": "52348291b1d94dc33dd226786f5ce6cc764e8869",
+      "regression_test": "app/src/test/js/video-search-diagnostics-stage2.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42569113276",
+        "https://github.com/laszko14/nira-browser/commit/52348291b1d94dc33dd226786f5ce6cc764e8869"
+      ]
+    },
+    {
+      "id": "CI-DIAG2-SOURCE-SUMMARY",
+      "task_id": "ZC-VIDEO-DIAG-2",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag2.required-summary-red-js",
+      "summary": "SOURCE required-summary correctly rejected the failed required JavaScript job; Kotlin/Android/lint dependent jobs were skipped. No workflow or evidence test was weakened.",
+      "source_sha": "41ef554801d376f40ed7a8218b005a68c725894f",
+      "observed_at": null,
+      "run_id": 42569108916,
+      "job_id": 129002187795,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "52348291b1d94dc33dd226786f5ce6cc764e8869",
+      "regression_test": "scripts/ci-evidence.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42569108916",
+        "https://github.com/laszko14/nira-browser/commit/52348291b1d94dc33dd226786f5ce6cc764e8869"
       ]
     }
   ]
