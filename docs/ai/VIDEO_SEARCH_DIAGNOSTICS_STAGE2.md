@@ -21,7 +21,7 @@ the diagnostic event schema v1 is separate.
   visible explicit site empty marker is a separate observed reason;
   dynamic loading is WAITING; password/login is HUMAN_GATE not zero results.
 - CARDS: recognition reason and matched/scanned count; extraction counters
-  for visible, candidate and unique films; at most 2 rejection examples for
+  for visible, candidate, actually accepted and unique films; at most 2 rejection examples for
   excluded ads/recommendations/sidebar and invalid safe film anchors.
 - METADATA: missing title, duration or publication date signals and bounded
   accepted sample fields URL/title/duration/date, not full HTML.

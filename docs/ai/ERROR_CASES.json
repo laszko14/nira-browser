@@ -188,7 +188,7 @@
     },
     {
       "task_id": "ZC-VIDEO-DIAG-2",
-      "observed_count": 6,
+      "observed_count": 8,
       "state": "ACTIVE"
     }
   ],
@@ -3594,6 +3594,48 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42569319434",
         "https://github.com/laszko14/nira-browser/commit/180ef4d4f31644c0d2bdf232b72f79090eb6544b"
+      ]
+    },
+    {
+      "id": "REVIEW-DIAG2-MISSING-SUBMIT-BUTTON-EVIDENCE",
+      "task_id": "ZC-VIDEO-DIAG-2",
+      "kind": "REVIEW",
+      "fingerprint": "diag2.observation.submit-selector-omitted",
+      "summary": "Stage-2 review found the form diagnostic recorded input and submission method but omitted the selected submit button selector. Included bounded button evidence in inspect/analyze diagnostic events.",
+      "source_sha": "90e6e48303478e749573c3695cdb6053d3c148d0",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "6c85e3c2d1ebbb618c5701eac8266a5f079b1ffd",
+      "regression_test": "app/src/test/js/video-search-diagnostics-stage2.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/90e6e48303478e749573c3695cdb6053d3c148d0",
+        "https://github.com/laszko14/nira-browser/commit/6c85e3c2d1ebbb618c5701eac8266a5f079b1ffd"
+      ]
+    },
+    {
+      "id": "REVIEW-DIAG2-ACCEPTED-COUNT",
+      "task_id": "ZC-VIDEO-DIAG-2",
+      "kind": "REVIEW",
+      "fingerprint": "diag2.funnel.accepted-count-misattribution",
+      "summary": "Stage-2 review found ACCEPTED_FILMS was derived from all safe URL candidates, including a candidate not emitted after the packet byte cap. Count now increments only after actually adding a film; regression covers duplicate URLs.",
+      "source_sha": "6c85e3c2d1ebbb618c5701eac8266a5f079b1ffd",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "fdbc5ee7e2dc6b36a8291010a00cd14d3d2eff41",
+      "regression_test": "app/src/test/js/video-search-diagnostics-stage2.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/6c85e3c2d1ebbb618c5701eac8266a5f079b1ffd",
+        "https://github.com/laszko14/nira-browser/commit/fdbc5ee7e2dc6b36a8291010a00cd14d3d2eff41"
       ]
     }
   ]
