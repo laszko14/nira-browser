@@ -88,3 +88,15 @@ w `ERROR_CASES.json`, **nie jako błędy funkcjonalne aplikacji** i nie jako PAS
 Przyczyna nieustalona, nie przypisujemy jej arbitralnie GitHubowi ani kodowi.
 Potrzebne jest świeże pełne SOURCE i PR CI na kolejnym końcowym SHA;
 nie zmieniamy progów testów, workflow ani aplikacji, nie budujemy APK.
+
+## Ostatnie pełne uruchomienia i bramka końcowa
+
+SOURCE #42673343064 zakończył się `failure` bez utworzenia jakiegokolwiek
+joba. PR #42673352080 zaliczył JS, Kotlin/Robolectric, Android Lint oraz
+error-learning, lecz nie uruchomił AndroidTest compile, więc cały workflow
+zakończył się `failure`. Nie znaleziono czerwonego testu aplikacji w tych
+przebiegach, ale wynik całości jest **CI_BLOCKED**, a nie `CODE_VERIFIED`.
+Oba oddzielne przypadki dopisano do kanonicznego rejestru jako historyczne
+workflow anomalies z nierozpoznaną przyczyną. Kolejny, świeży workflow
+musi potwierdzić wszystkie wymagane joby na nowym finalnym SHA. Brak zgody
+na ominięcie G5, zmianę polityki lub podpisywanie APK.

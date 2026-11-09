@@ -218,7 +218,7 @@
     },
     {
       "task_id": "ZC-VIDEO-DIAG-7-FIX",
-      "observed_count": 6,
+      "observed_count": 8,
       "state": "ACTIVE"
     }
   ],
@@ -4305,6 +4305,46 @@
       "regression_test": null,
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42671047032"
+      ]
+    },
+    {
+      "id": "REVIEW-DIAG7FIX-SOURCE-NO-JOBS-FINAL",
+      "task_id": "ZC-VIDEO-DIAG-7-FIX",
+      "kind": "REVIEW",
+      "fingerprint": "diag7fix.actions-incomplete-orchestrator-gates",
+      "summary": "New SOURCE workflow concluded FAILURE without creating any job; no application or process test ran. Root cause unknown; do not report CODE_VERIFIED.",
+      "source_sha": "bcbe3cca396859430da8a1675698bae13c18946e",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "undetermined",
+      "state": "ACCEPTED_RISK",
+      "duplicate_of": "REVIEW-DIAG7FIX-PR-INCOMPLETE-A1",
+      "fix_sha": null,
+      "regression_test": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42673343064"
+      ]
+    },
+    {
+      "id": "REVIEW-DIAG7FIX-PR-MISSING-ANDROIDTEST-FINAL",
+      "task_id": "ZC-VIDEO-DIAG-7-FIX",
+      "kind": "REVIEW",
+      "fingerprint": "diag7fix.actions-incomplete-orchestrator-gates",
+      "summary": "New PR workflow had successful JS, JVM, lint and error-learning jobs but omitted AndroidTest compilation, then concluded FAILURE. Missing job is not a pass.",
+      "source_sha": "bcbe3cca396859430da8a1675698bae13c18946e",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "undetermined",
+      "state": "ACCEPTED_RISK",
+      "duplicate_of": "REVIEW-DIAG7FIX-PR-INCOMPLETE-A1",
+      "fix_sha": null,
+      "regression_test": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42673352080"
       ]
     }
   ]
