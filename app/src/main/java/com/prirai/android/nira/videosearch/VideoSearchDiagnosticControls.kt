@@ -10,6 +10,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.prirai.android.nira.ext.components
+import com.prirai.android.nira.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -30,7 +31,7 @@ internal class VideoSearchDiagnosticControls(
     }
     private val status = TextView(activity).apply {
         textSize = 12f
-        text = "Diagnostyka wyłączona · uruchamiana tylko ręcznie"
+        text = activity.getString(R.string.video_diag_status_initial)
         tag = if (privateMode) "video-diag-private-state" else "video-diag-normal-state"
     }
     private val start = Button(activity).apply {
@@ -81,21 +82,22 @@ internal class VideoSearchDiagnosticControls(
         share.isEnabled = current != null && !busy &&
             state?.reportReady == true && state?.stopping != true
         status.text = when {
-            current == null ->
-                "Diagnostyka niedostępna: brak właściwej karty/profilu."
+            current == null -> activity.getString(R.string.video_diag_status_unavailable)
             state?.stopping == true || busy ->
-                "Kończenie nagrywania i odczyt ostatnich zdarzeń…"
+                activity.getString(R.string.video_diag_status_stopping)
             state?.recording == true ->
-                "● Nagrywanie · zgłoszono " + state.attempted +
-                    " · zapisano " + state.recorded +
-                    " · utracono " + state.dropped
+                activity.getString(R.string.video_diag_status_recording,
+                    state.attempted, state.recorded, state.dropped)
             state?.reportReady == true ->
-                "Raport gotowy · zapisano " + state.recorded +
-                    " · utracono " + state.dropped +
-                    (if (privateMode) " · tylko RAM" else " · lokalny noBackup") +
-                    (if (state.failure == null) "" else " · błąd zapisu")
-            else -> "Diagnostyka wyłączona · start tylko po potwierdzeniu." +
-                (if (privateMode) " Prywatnie: tylko RAM." else " Zapis lokalny.")
+                activity.getString(
+                    if (privateMode) R.string.video_diag_status_ready_private
+                    else R.string.video_diag_status_ready_normal,
+                    state.recorded, state.dropped,
+                    if (state.failure == null) ""
+                    else activity.getString(R.string.video_diag_status_failure_suffix))
+            else -> activity.getString(
+                if (privateMode) R.string.video_diag_status_off_private
+                else R.string.video_diag_status_off_normal)
         }
     }
 
