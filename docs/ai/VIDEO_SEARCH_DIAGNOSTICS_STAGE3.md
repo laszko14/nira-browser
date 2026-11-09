@@ -12,7 +12,7 @@ diag_ack and diag_events messages on the existing native Gecko port.
 It refuses unknown schema keys, spoofed profile/site/run/worker identifiers,
 unknown count/field vocabulary, malformed document/request/session IDs, ill-typed
 or negative counters, overly long strings, inferences by JavaScript, more than
-four events in a packet, a non-9000-byte wire budget, duplicate or out-of-order
+four events in a packet, a 9000-character wire budget, duplicate or out-of-order
 event sequence, invalid loss accounting and malformed stop reasons.
 
 The native controller verifies session-to-tab BrowserStore ownership, actual

@@ -16,10 +16,10 @@ status: CI_PENDING
 acceptance_source: User "Dalej" after Stage 2 CODE_VERIFIED, authorizes only Stage 3/7; explicitly no APK until separate authorization after Stage 7.
 completed: Strict native JSON wire parser, owner-bound diagnostic Gecko port command/ACK/read pump, bounded JS cursor transport, native request/site/worker/run correlation when proven, native queue outcomes, explicit unknown/stale/timeout/lost-event reporting, normal profile noBackup and private epoch RAM lifecycle integration; Robolectric tests and documented limits.
 remaining: Verify all SOURCE and PR required CI on final SHA; reconcile actual failures and findings; do not start Stage 4 before separate "dalej".
-required_ci: SOURCE process-docs, JS full suite, JVM/Robolectric, AndroidTest Kotlin compilation, Android lint + regression baseline, evidence summary all SUCCESS on same final SHA; PR JS/JVM/AndroidTest/lint/error-learning evidence SUCCESS on final head. Build/release SKIPPED.
+required_ci: SOURCE process-docs and shared-tests JavaScript/JVM-Robolectric/AndroidTest Kotlin compilation/Android lint + regression baseline, required-summary all SUCCESS on exact final SHA; PR shared-tests JavaScript/JVM/AndroidTest/lint and error-learning evidence all SUCCESS on same final PR head. Build/release SKIPPED.
 device: NOT_TESTED — physical Nothing Phone (1), real GeckoView/live sites, real lifecycle and performance.
 apk: NOT_BUILT — forbidden until after Stage 7 and separate approval.
-known_failures: None observed in Stage 3 before first CI; record every actual distinct CI/review failure with task coverage in docs/ai/ERROR_CASES.json.
+known_failures: Initial SOURCE run #42572797860 process-docs failed scripts/check-ai-handoff.test.cjs because required_ci omitted literal shared-tests. Other required tests may still be running; never infer PASS until green on final SHA. Record each actual CI or review finding.
 verification: Read AGENTS.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md, VIDEO_SEARCH_DIAGNOSTICS_STAGE1/2.md, TEST_POLICY.md, QUALITY_GATES.md, ERROR_LEARNING.md and CHECKPOINT_POLICY.md from exact base_sha; inspected Gecko controller, strict bridge protocol, existing queue and private registry, recorder and Robolectric tests.
 changed_paths:
   - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchBridgeController.kt
