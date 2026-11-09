@@ -47,6 +47,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import com.prirai.android.nira.ext.components
 import mozilla.components.browser.icons.IconRequest
@@ -761,14 +762,17 @@ class MyVideoSitesActivity : AppCompatActivity() {
                 selectedPrivateRunId != snapshot.run.id ||
                 privateResultsItems !== snapshot.films ||
                 selectedPrivateTab() != tab) return@launch
-            // Revalidate the actual current epoch before committing the
-            // precomputed, bounded events to the SAME recorder session.
-            VideoSearchPrivateSessionHost.registry.withAuthorizedTab(
-                tab.first, tab.second
-            ) { _, scope ->
-                if (scope == owner) {
-                    VideoSearchDiagnosticResultsHost.submitPrivateEvents(
-                        owner, token, events)
+            // Revalidate inside the registry immediately before writing.
+            // Both authorization and the bounded enqueue run off the UI thread.
+            withContext(Dispatchers.Default) {
+                VideoSearchPrivateSessionHost.registry.withAuthorizedTab(
+                    tab.first, tab.second
+                ) { _, scope ->
+                    kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                    if (scope == owner) {
+                        VideoSearchDiagnosticResultsHost.submitPrivateEvents(
+                            owner, token, events)
+                    }
                 }
             }
         }
