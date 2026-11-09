@@ -193,7 +193,7 @@
     },
     {
       "task_id": "ZC-VIDEO-DIAG-3",
-      "observed_count": 4,
+      "observed_count": 6,
       "state": "ACTIVE"
     }
   ],
@@ -3724,6 +3724,48 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/dcb742b89660e23cfc4b35ed4935ff8094b17390"
       ]
+    },
+    {
+      "id": "CI-DIAG3-SOURCE-ARCHIVE-PATH",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag3.checkpoint.missing-archive-reference",
+      "summary": "Second SOURCE run process-docs failed scripts/check-ai-handoff.test.cjs because the active checkpoint lacked the exact archived handoff path required by the migration contract.",
+      "source_sha": "ddb1ff765ceaff6437c45f00748cbf61a5fdc0c7",
+      "observed_at": "2026-11-09T06:33:49Z",
+      "run_id": 42573788095,
+      "job_id": 129016858587,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "4ddaa76aa3a3f878418314fbbe81a1ca410f6724",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42573788095",
+        "https://github.com/laszko14/nira-browser/commit/4ddaa76aa3a3f878418314fbbe81a1ca410f6724"
+      ],
+      "task_id": "ZC-VIDEO-DIAG-3"
+    },
+    {
+      "id": "CI-DIAG3-SOURCE-SUMMARY-SECOND",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag3.required-summary-red-process-docs",
+      "summary": "Second SOURCE required-summary correctly failed because process-docs remained red although the required JS, Kotlin/Robolectric, AndroidTest compile and lint jobs all succeeded.",
+      "source_sha": "ddb1ff765ceaff6437c45f00748cbf61a5fdc0c7",
+      "observed_at": null,
+      "run_id": 42573788095,
+      "job_id": 129019189913,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG3-SOURCE-REQUIRED-SUMMARY",
+      "fix_sha": "4ddaa76aa3a3f878418314fbbe81a1ca410f6724",
+      "regression_test": "scripts/ci-evidence.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42573788095",
+        "https://github.com/laszko14/nira-browser/commit/4ddaa76aa3a3f878418314fbbe81a1ca410f6724"
+      ],
+      "task_id": "ZC-VIDEO-DIAG-3"
     }
   ]
 }
