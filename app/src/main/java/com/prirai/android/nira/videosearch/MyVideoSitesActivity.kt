@@ -849,8 +849,13 @@ class MyVideoSitesActivity : AppCompatActivity() {
         diagnosticsStatusJob?.cancel()
         diagnosticsStatusJob = lifecycleScope.launch {
             while (true) {
-                normalDiagnosticControls.refresh()
-                privateDiagnosticControls.refresh()
+                // Refresh only the current mode: the hidden private scope must
+                // not query BrowserStore during ordinary-profile UI work.
+                if (ProfileManager.getInstance(applicationContext).isPrivateMode()) {
+                    privateDiagnosticControls.refresh()
+                } else {
+                    normalDiagnosticControls.refresh()
+                }
                 delay(1200)
             }
         }

@@ -35,17 +35,17 @@ internal class VideoSearchDiagnosticControls(
         tag = if (privateMode) "video-diag-private-state" else "video-diag-normal-state"
     }
     private val start = Button(activity).apply {
-        text = "▶ Logi"
+        text = activity.getString(R.string.video_diag_button_start)
         contentDescription = "Rozpocznij diagnostykę wyszukiwarki filmów"
         tag = if (privateMode) "video-diag-private-start" else "video-diag-normal-start"
     }
     private val stop = Button(activity).apply {
-        text = "■ Stop"
+        text = activity.getString(R.string.video_diag_button_stop)
         contentDescription = "Zatrzymaj i dokończ zapis zdarzeń"
         tag = if (privateMode) "video-diag-private-stop" else "video-diag-normal-stop"
     }
     private val share = Button(activity).apply {
-        text = "↥ Raport"
+        text = activity.getString(R.string.video_diag_button_report)
         contentDescription = "Udostępnij zakończony raport diagnostyczny"
         tag = if (privateMode) "video-diag-private-share" else "video-diag-normal-share"
     }
@@ -67,7 +67,11 @@ internal class VideoSearchDiagnosticControls(
         start.setOnClickListener { confirmStart() }
         stop.setOnClickListener { finishByUser() }
         share.setOnClickListener { confirmShare() }
-        refresh()
+        // Do not query a private tab owner before this panel becomes active.
+        start.isEnabled = false
+        stop.isEnabled = false
+        share.isEnabled = false
+        if (!privateMode) refresh()
     }
 
     fun refresh() {
