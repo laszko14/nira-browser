@@ -193,7 +193,7 @@
     },
     {
       "task_id": "ZC-VIDEO-DIAG-3",
-      "observed_count": 0,
+      "observed_count": 4,
       "state": "ACTIVE"
     }
   ],
@@ -3641,6 +3641,88 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/6c85e3c2d1ebbb618c5701eac8266a5f079b1ffd",
         "https://github.com/laszko14/nira-browser/commit/fdbc5ee7e2dc6b36a8291010a00cd14d3d2eff41"
+      ]
+    },
+    {
+      "task_id": "ZC-VIDEO-DIAG-3",
+      "id": "CI-DIAG3-SOURCE-PROCESS-DOCS",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag3.checkpoint.missing-shared-tests",
+      "summary": "SOURCE process-docs check-ai-handoff rejected required_ci because the stage-3 checkpoint omitted the required literal shared-tests; no app test was involved.",
+      "source_sha": "dcb742b89660e23cfc4b35ed4935ff8094b17390",
+      "observed_at": "2026-11-09T06:24:14Z",
+      "run_id": 42572797860,
+      "job_id": 129013772607,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "e3eaa5dedc835e7635b051bea69679a14ca5de0b",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42572797860",
+        "https://github.com/laszko14/nira-browser/commit/e3eaa5dedc835e7635b051bea69679a14ca5de0b"
+      ]
+    },
+    {
+      "task_id": "ZC-VIDEO-DIAG-3",
+      "id": "CI-DIAG3-SOURCE-REQUIRED-SUMMARY",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag3.required-summary-red-process-docs",
+      "summary": "SOURCE required-summary correctly refused PASS because process-docs was red even though JS, Kotlin/Robolectric, AndroidTest Kotlin compile and lint had succeeded.",
+      "source_sha": "dcb742b89660e23cfc4b35ed4935ff8094b17390",
+      "observed_at": null,
+      "run_id": 42572797860,
+      "job_id": 129015633143,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "e3eaa5dedc835e7635b051bea69679a14ca5de0b",
+      "regression_test": "scripts/ci-evidence.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42572797860",
+        "https://github.com/laszko14/nira-browser/commit/e3eaa5dedc835e7635b051bea69679a14ca5de0b"
+      ]
+    },
+    {
+      "task_id": "ZC-VIDEO-DIAG-3",
+      "id": "REVIEW-DIAG3-WIRE-TOSTRING-REDACTION",
+      "kind": "REVIEW",
+      "fingerprint": "diag3.wire.default-tostring-raw-fields",
+      "summary": "Pre-push self-review found that Kotlin diagnostic data-class toString would expose unsanitized JavaScript URLs and titles before the recorder codec. Overridden toString with redacted values and regression assertion.",
+      "source_sha": null,
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "dcb742b89660e23cfc4b35ed4935ff8094b17390",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticWireTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/dcb742b89660e23cfc4b35ed4935ff8094b17390"
+      ]
+    },
+    {
+      "task_id": "ZC-VIDEO-DIAG-3",
+      "id": "REVIEW-DIAG3-FRESH-PORT-DROP-COUNTER",
+      "kind": "REVIEW",
+      "fingerprint": "diag3.dropped-counter-reused-across-port",
+      "summary": "Pre-push self-review found a potential false rejection when one tab opens a new Gecko document with a fresh JS dropped count after a prior full buffer; reset only per new native port, with regression.",
+      "source_sha": null,
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "dcb742b89660e23cfc4b35ed4935ff8094b17390",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticWireTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/dcb742b89660e23cfc4b35ed4935ff8094b17390"
       ]
     }
   ]
