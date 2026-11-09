@@ -20,7 +20,7 @@ remaining: Verify all required SOURCE/PR CI on exact final SHA, repair any actua
 required_ci: SOURCE process-docs and shared-tests JS/Kotlin-Robolectric/AndroidTest Kotlin compilation/Android lint with baseline, required-summary all SUCCESS at same final SHA. PR shared-tests JS/Kotlin/AndroidTest/lint/error-learning evidence SUCCESS at final head SHA. Build/release SKIPPED.
 device: NOT_TESTED — no physical Nothing Phone (1), live website, Android content chooser or private mode lifecycle tested on real device.
 apk: NOT_BUILT — forbidden through all 7 stages without separate approval after stage 7.
-known_failures: Pre-push review found 5 risk cases, registered in docs/ai/ERROR_CASES.json with code commit 606197d8555feeb315df1c9231aed24ef99e7c1a; no CI run observed yet for stage 5.
+known_failures: First SOURCE #42591814353 and PR #42591821098 each failed JVM test compile (unqualified nested enum) and lint regression (4 new SetTextI18n warnings). SOURCE required-summary also correctly failed. Fixed enum test in 3906f8a0ed13899e3a45396cc5ae2e12d470e6c3 and translated formatted status resources in 8cebed0d68104ff5c329e0b412224689809b4b11, without suppressing or updating frozen lint baseline. Plus 5 registered pre-push review risks: OBSERVED 10 / RECORDED 10 / OPEN 0. Required final SOURCE and PR CI must be checked again.
 verification: GitHub live preflight read AGENTS.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md, VIDEO_SEARCH_DIAGNOSTICS_STAGE4.md, VIDEO_SEARCH_DIAGNOSTICS_STAGE3.md, TEST_POLICY.md, QUALITY_GATES.md, ERROR_LEARNING.md, CHECKPOINT_POLICY.md and APK_CHAT_GITHUB_REVIEW_TRIGGER.md from explicit preflight SHA; inspected MyVideoSitesActivity normal/private panels, Gecko bridge, private registry, recorder, AndroidManifest and existing FileProvider contract.
 changed_paths:
   - app/src/main/java/com/prirai/android/nira/videosearch/MyVideoSitesActivity.kt
@@ -30,6 +30,7 @@ changed_paths:
   - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchBridgeController.kt
   - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticRecorder.kt
   - app/src/main/AndroidManifest.xml
+  - app/src/main/res/values/strings.xml
   - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticDrainPolicyTest.kt
   - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticShareRegistryTest.kt
   - app/src/test/js/video-search-diagnostics-stage5-ui.test.cjs

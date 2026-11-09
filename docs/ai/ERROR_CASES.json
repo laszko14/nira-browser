@@ -203,7 +203,7 @@
     },
     {
       "task_id": "ZC-VIDEO-DIAG-5",
-      "observed_count": 5,
+      "observed_count": 10,
       "state": "ACTIVE"
     }
   ],
@@ -3875,6 +3875,111 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticDrainPolicyTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/606197d8555feeb315df1c9231aed24ef99e7c1a"
+      ]
+    },
+    {
+      "id": "CI-DIAG5-SOURCE-JVM-ENUM",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag5.kotlin-test-nested-enum",
+      "summary": "SOURCE JVM test compilation failed: VideoSearchDiagnosticDrainPolicyTest used d.Command rather than fully qualified VideoSearchDiagnosticDrainPolicy.Command. Only test source was affected.",
+      "source_sha": "799d9a92cec3332a458217f903b87e5898fee76e",
+      "observed_at": null,
+      "run_id": 42591814353,
+      "job_id": 129075064192,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "3906f8a0ed13899e3a45396cc5ae2e12d470e6c3",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticDrainPolicyTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42591814353",
+        "https://github.com/laszko14/nira-browser/commit/3906f8a0ed13899e3a45396cc5ae2e12d470e6c3"
+      ]
+    },
+    {
+      "id": "CI-DIAG5-PR-JVM-ENUM",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag5.kotlin-test-nested-enum",
+      "summary": "PR JVM test compilation independently failed for the same incorrectly qualified nested enum at the same source SHA.",
+      "source_sha": "799d9a92cec3332a458217f903b87e5898fee76e",
+      "observed_at": null,
+      "run_id": 42591821098,
+      "job_id": 129075090853,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG5-SOURCE-JVM-ENUM",
+      "fix_sha": "3906f8a0ed13899e3a45396cc5ae2e12d470e6c3",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticDrainPolicyTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42591821098",
+        "https://github.com/laszko14/nira-browser/commit/3906f8a0ed13899e3a45396cc5ae2e12d470e6c3"
+      ]
+    },
+    {
+      "id": "CI-DIAG5-SOURCE-LINT-TEXT",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag5.android-lint-settexti18n",
+      "summary": "SOURCE Android lint baseline gate found 4 new SetTextI18n warnings in VideoSearchDiagnosticControls.kt due to concatenated dynamic diagnostic status labels. Converted dynamic labels to Android formatted string resources, without suppression or baseline edit.",
+      "source_sha": "799d9a92cec3332a458217f903b87e5898fee76e",
+      "observed_at": null,
+      "run_id": 42591814353,
+      "job_id": 129075064127,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "8cebed0d68104ff5c329e0b412224689809b4b11",
+      "regression_test": "scripts/lint-regression.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42591814353",
+        "https://github.com/laszko14/nira-browser/commit/8cebed0d68104ff5c329e0b412224689809b4b11"
+      ]
+    },
+    {
+      "id": "CI-DIAG5-PR-LINT-TEXT",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag5.android-lint-settexti18n",
+      "summary": "PR Android lint found the same 4 new SetTextI18n warnings as SOURCE at the same SHA.",
+      "source_sha": "799d9a92cec3332a458217f903b87e5898fee76e",
+      "observed_at": null,
+      "run_id": 42591821098,
+      "job_id": 129075090217,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG5-SOURCE-LINT-TEXT",
+      "fix_sha": "8cebed0d68104ff5c329e0b412224689809b4b11",
+      "regression_test": "scripts/lint-regression.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42591821098",
+        "https://github.com/laszko14/nira-browser/commit/8cebed0d68104ff5c329e0b412224689809b4b11"
+      ]
+    },
+    {
+      "id": "CI-DIAG5-SOURCE-REQUIRED-SUMMARY",
+      "task_id": "ZC-VIDEO-DIAG-5",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag5.required-summary-on-red-jvm-lint",
+      "summary": "SOURCE final required-summary correctly failed because JVM and Android lint child jobs were red; JS, AndroidTest compile and process-docs passed.",
+      "source_sha": "799d9a92cec3332a458217f903b87e5898fee76e",
+      "observed_at": null,
+      "run_id": 42591814353,
+      "job_id": 129079928489,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "8cebed0d68104ff5c329e0b412224689809b4b11",
+      "regression_test": "scripts/ci-evidence.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42591814353",
+        "https://github.com/laszko14/nira-browser/commit/8cebed0d68104ff5c329e0b412224689809b4b11"
       ]
     }
   ]

@@ -67,6 +67,11 @@ any interruption/loss makes manifest incomplete=true. The existing recorder
 limits are max 20,000 events, 8 MiB, 45 min; per-profile normal retention
 remains four files/seven days. Sharing creates no new persistent file.
 
+Dynamic status strings are formatted by Android resources in
+`app/src/main/res/values/strings.xml`; no lint suppressions and no
+baseline changes were introduced. The initial CI regression found and
+fixed a test enum qualification and resource formatting for this stage.
+
 ## Tests, safety and limits
 
 - Robolectric/JVM: explicit share grants only for finished recorders;
