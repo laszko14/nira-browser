@@ -1,42 +1,44 @@
-# AI_HANDOFF - Zavro Clean Video Search Diagnostic Session 1/7
+# AI_HANDOFF — Zavro Clean diagnostics Stage 2/7
 
 Historical archive: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md.
-This is a pre-commit checkpoint. The live HEAD on GitHub is authoritative.
-Previously verified P4-F2 final source SHA:
-469d93b236b0a14790b82919dbc89c8c5abacdb4.
-P4-F2 SOURCE #42500376062 and PR #42500381650 SUCCESS.
+Pre-commit snapshot. Live GitHub ref is authoritative, not the observed SHA.
+Stage 1 CODE_VERIFIED at 3467b4967f857c43a4158daf5c52168630310a14, SOURCE #42514106455, PR #42514110934 SUCCESS.
 
 ```yaml
-task_id: ZC-VIDEO-DIAG-1
+task_id: ZC-VIDEO-DIAG-2
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: feat/zavro-clean-video-diagnostics-20261108
-base_sha: 469d93b236b0a14790b82919dbc89c8c5abacdb4
-observed_head_sha: 469d93b236b0a14790b82919dbc89c8c5abacdb4
+base_sha: 3467b4967f857c43a4158daf5c52168630310a14
+observed_head_sha: 3467b4967f857c43a4158daf5c52168630310a14
 status: CI_PENDING
-acceptance_source: User authorized IMPLEMENT staged 1/7, one "dalej" per stage, no APK until separate approval after stage 7.
-completed: Separate versioned diagnostics event schema and recorder foundation, correlation keys, observation vs inference, explicit loss counters, bounded queue admission and off-main writing, hashed per-normal-profile no-backup files, private RAM retirement and strict redaction; synthetic Robolectric tests and documented contract.
-remaining: Verify required SOURCE and PR CI on same final SHA. Triage actual failures within stage 1. Do not start stage 2 without user's separate "dalej".
-required_ci: SOURCE process-docs and shared-tests JS, Kotlin/Robolectric JVM, compileDebugAndroidTestKotlin, lint regression and required-summary; PR shared-tests JS/JVM/AndroidTest Kotlin compile/lint/error-learning evidence. Build/release SKIPPED.
-device: NOT_TESTED - no real GeckoView, live sites or Nothing Phone (1).
-apk: NOT_BUILT - forbidden during all seven stages until a new approval afterward.
-known_failures: Initial SOURCE #42512509777 had process-docs missing YAML checkpoint, compiler errors at VideoSearchDiagnosticRecorder.kt lines 264-265 in 3 Kotlin jobs, and dependent required-summary failure; PR #42512537056 had the same Kotlin compiler error in 3 jobs. Eleven observed CI job failures (including second SOURCE required-summary red dependency) and one self-review finding, all recorded in docs/ai/ERROR_CASES.json. Repairs in commits a01d17e6a510bb8fd3d969397415a67e990a87e3, ea48beaa615afc58e7ea46b726781e04c0dc0957 and d1db6bb1841859374cfb4d836397d7894eec6305; final SOURCE/PR CI verification still pending.
-verification: Read AGENTS.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md and relevant quality/test/workflow/checkpoint/error-learning instructions at exact base SHA via GitHub connector. Inspected WebExtension, bridge, protocol, queue, run journal, Room/private stores, results presenter and TestLab exports.
+acceptance_source: User explicit "dalej" after Stage 1 CODE_VERIFIED; implement only Stage 2/7; no APK until independent authorization after Stage 7.
+completed: Passive opt-in WebExtension diagnostic module, strict native-port diagnostic start/read/stop/snapshot commands, form/results/recognition/extraction/metatada/pagination/SPA observability, bounded DOM/error samples and diagnostics JS tests.
+remaining: Verify required SOURCE/PR CI on final SHA, repair actual failures and record observed errors. Stage 3 only after another user "dalej".
+required_ci: SOURCE process-docs plus shared-tests JavaScript, Kotlin/Robolectric JVM, compileDebugAndroidTestKotlin, lint regression, required summary; PR shared-tests JavaScript/Kotlin/AndroidTest/lint and error learning evidence. All SUCCESS on identical final source SHA. Build/release SKIPPED.
+device: NOT_TESTED — real GeckoView, physical Nothing Phone (1), actual websites and device performance not measured.
+apk: NOT_BUILT — prohibited throughout 7 stages.
+known_failures: No Stage 2 CI failures observed before initial push. Record every real CI/review finding in docs/ai/ERROR_CASES.json and reconcile counts.
+verification: Read AGENTS.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md, TEST_POLICY.md, QUALITY_GATES.md, ERROR_LEARNING.md and Stage 1 contract from explicit base_sha. Examined manifest, JS recognition, native bridge and JS tests.
 changed_paths:
-  - app/src/main/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticRecorder.kt
-  - app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticRecorderTest.kt
-  - docs/ai/VIDEO_SEARCH_DIAGNOSTICS_STAGE1.md
+  - app/src/main/assets/extensions/zavro-video-search/diagnostics.js
+  - app/src/main/assets/extensions/zavro-video-search/content.js
+  - app/src/main/assets/extensions/zavro-video-search/manifest.json
+  - app/src/test/js/video-search-diagnostics-stage2.test.cjs
+  - docs/ai/VIDEO_SEARCH_DIAGNOSTICS_STAGE2.md
   - docs/AI_HANDOFF.md
+  - docs/ai/ERROR_CASES.json
 verified_before_push:
-  - No changes to WebExtension permissions, existing search/queue/Room decisions, package, profile data, signing or CI workflow.
-  - Diagnostic module is not yet connected to search; never claim coverage.
-  - Stage 1 tests use synthetic data and do not certify a real phone.
+  - WebExtension permissions unchanged; no new automatic clicks or search behavior.
+  - Local JS-only buffer is opt-in; native authenticated correlation to follow in Stage 3.
+  - No APK, signing, release, merge or changes to user profiles/history/data.
 blockers:
-  - Independent high-risk reviewer unavailable; self-review is not independent acceptance.
-  - Real site and Android device acceptance NOT_TESTED.
+  - Real device and site NOT_TESTED; independent high-risk review unavailable.
+  - Kotlin event/owner correlation and persistence deferred to Stage 3.
 evidence_links:
-  - https://github.com/laszko14/nira-browser/pull/128
-  - https://github.com/laszko14/nira-browser/blob/469d93b236b0a14790b82919dbc89c8c5abacdb4/docs/ai/P4_FINAL_REGRESSION.md
-next_action: Check and repair required CI if necessary; STOP after stage 1, wait for "dalej". Do not ask about APK.
+  - https://github.com/laszko14/nira-browser/pull/129
+  - https://github.com/laszko14/nira-browser/actions/runs/42514106455
+  - https://github.com/laszko14/nira-browser/actions/runs/42514110934
+next_action: Verify required CI on exact new SHA and STOP. Stage 3 only on explicit "dalej"; do not ask about APK.
 ```

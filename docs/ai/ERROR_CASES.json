@@ -185,6 +185,11 @@
       "task_id": "ZC-VIDEO-DIAG-1",
       "observed_count": 12,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-VIDEO-DIAG-2",
+      "observed_count": 0,
+      "state": "ACTIVE"
     }
   ],
   "events": [
