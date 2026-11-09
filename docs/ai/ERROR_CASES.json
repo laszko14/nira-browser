@@ -5521,7 +5521,7 @@
         "https://github.com/laszko14/nira-browser/pull/129",
         "https://github.com/laszko14/nira-browser/commit/a79f126b4eb2f5050758a52558d656fe74bfe5f1"
       ],
-      "branch": null,
+      "branch": "feat/zavro-clean-video-diagnostics-20261108",
       "workflow_name": null,
       "cause_confidence": "suspected",
       "fix_summary": null,
@@ -5550,7 +5550,7 @@
         "https://github.com/laszko14/nira-browser/pull/129",
         "https://github.com/laszko14/nira-browser/commit/bc99cb63077297c695e81131e249414186e00616"
       ],
-      "branch": null,
+      "branch": "feat/zavro-clean-video-diagnostics-20261108",
       "workflow_name": null,
       "cause_confidence": "suspected",
       "fix_summary": null,
@@ -5578,11 +5578,11 @@
         "https://github.com/laszko14/nira-browser/actions/runs/42670589192",
         "https://github.com/laszko14/nira-browser/commit/1847be31b5ca944cf5898eb066af4c87391c751b"
       ],
-      "branch": null,
-      "workflow_name": null,
-      "cause_confidence": "suspected",
-      "fix_summary": null,
-      "test_result": null,
+      "branch": "feat/zavro-clean-video-diagnostics-20261108",
+      "workflow_name": "Zavro AI process - documentation gate (NO APK)",
+      "cause_confidence": "confirmed",
+      "fix_summary": "Restored the literal shared-tests key in the branch checkpoint; no test or gate was weakened.",
+      "test_result": "PASS",
       "final_ci": null,
       "recurrence_conditions": null
     },
@@ -5603,15 +5603,17 @@
       "fix_sha": null,
       "regression_test": null,
       "evidence_links": [
-        "https://github.com/laszko14/nira-browser/actions/runs/42670606209"
+        "https://github.com/laszko14/nira-browser/actions/runs/42670606209",
+        "https://github.com/laszko14/nira-browser/actions/runs/42680589707",
+        "https://github.com/laszko14/nira-browser/actions/runs/42680601059"
       ],
-      "branch": null,
-      "workflow_name": null,
+      "branch": "feat/zavro-clean-video-diagnostics-20261108",
+      "workflow_name": "Android CI",
       "cause_confidence": "unknown",
       "fix_summary": null,
       "test_result": null,
       "final_ci": null,
-      "recurrence_conditions": null
+      "recurrence_conditions": "If required jobs are absent or skipped, classify the historical run as incomplete; a later complete SOURCE and PR success verifies code at its own SHA only."
     },
     {
       "id": "REVIEW-DIAG7FIX-SOURCE-INCOMPLETE-A1",
@@ -5632,8 +5634,8 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42671047032"
       ],
-      "branch": null,
-      "workflow_name": null,
+      "branch": "feat/zavro-clean-video-diagnostics-20261108",
+      "workflow_name": "Zavro AI process - documentation gate (NO APK)",
       "cause_confidence": "unknown",
       "fix_summary": null,
       "test_result": null,
@@ -5659,8 +5661,8 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42671059494"
       ],
-      "branch": null,
-      "workflow_name": null,
+      "branch": "feat/zavro-clean-video-diagnostics-20261108",
+      "workflow_name": "Android CI",
       "cause_confidence": "unknown",
       "fix_summary": null,
       "test_result": null,
@@ -5686,8 +5688,8 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42671059494"
       ],
-      "branch": null,
-      "workflow_name": null,
+      "branch": "feat/zavro-clean-video-diagnostics-20261108",
+      "workflow_name": "Android CI",
       "cause_confidence": "unknown",
       "fix_summary": null,
       "test_result": null,
@@ -5711,15 +5713,17 @@
       "fix_sha": null,
       "regression_test": null,
       "evidence_links": [
-        "https://github.com/laszko14/nira-browser/actions/runs/42671047032"
+        "https://github.com/laszko14/nira-browser/actions/runs/42671047032",
+        "https://github.com/laszko14/nira-browser/actions/runs/42680589707",
+        "https://github.com/laszko14/nira-browser/actions/runs/42680601059"
       ],
-      "branch": null,
-      "workflow_name": null,
+      "branch": "feat/zavro-clean-video-diagnostics-20261108",
+      "workflow_name": "Zavro AI process - documentation gate (NO APK)",
       "cause_confidence": "suspected",
       "fix_summary": null,
       "test_result": null,
       "final_ci": null,
-      "recurrence_conditions": null
+      "recurrence_conditions": "If required jobs are absent or skipped, classify the historical run as incomplete; a later complete SOURCE and PR success verifies code at its own SHA only."
     },
     {
       "id": "REVIEW-DIAG7FIX-SOURCE-NO-JOBS-FINAL",
@@ -5740,8 +5744,8 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42673343064"
       ],
-      "branch": null,
-      "workflow_name": null,
+      "branch": "feat/zavro-clean-video-diagnostics-20261108",
+      "workflow_name": "Zavro AI process - documentation gate (NO APK)",
       "cause_confidence": "unknown",
       "fix_summary": null,
       "test_result": null,
@@ -5767,8 +5771,8 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42673352080"
       ],
-      "branch": null,
-      "workflow_name": null,
+      "branch": "feat/zavro-clean-video-diagnostics-20261108",
+      "workflow_name": "Android CI",
       "cause_confidence": "unknown",
       "fix_summary": null,
       "test_result": null,
