@@ -210,6 +210,11 @@
       "task_id": "ZC-VIDEO-DIAG-6",
       "observed_count": 2,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-VIDEO-DIAG-7",
+      "observed_count": 2,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -4130,6 +4135,48 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchDiagnosticsStage6Test.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/76001163bf167d7d4b324df8c947901f11fb9632"
+      ]
+    },
+    {
+      "id": "REVIEW-DIAG7-ALREADY-VISIBLE-RESULTS",
+      "task_id": "ZC-VIDEO-DIAG-7",
+      "kind": "REVIEW",
+      "fingerprint": "diag7.preexisting-results-no-trigger",
+      "summary": "Diagnostics start does not explicitly snapshot already displayed search results. Ordinary Compose diagnostics are keyed by result/view changes; private observations run on render/page updates. An unchanged preexisting view may not be captured until interaction.",
+      "source_sha": "8221895736a08c3c1fa98fddd81e66acabd9fc45",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/8221895736a08c3c1fa98fddd81e66acabd9fc45",
+        "https://github.com/laszko14/nira-browser/pull/129"
+      ]
+    },
+    {
+      "id": "REVIEW-DIAG7-PRIVATE-UI-MAIN-THREAD",
+      "task_id": "ZC-VIDEO-DIAG-7",
+      "kind": "REVIEW",
+      "fingerprint": "diag7.private-analyzer-main-thread",
+      "summary": "Private per-site analyzer compares prefixes, deduplicates and groups result rows synchronously from the Activity UI path under a private registry lock. Large result sets could increase UI latency; physical-device measurement and off-main optimization are missing.",
+      "source_sha": "8221895736a08c3c1fa98fddd81e66acabd9fc45",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "undetermined",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/8221895736a08c3c1fa98fddd81e66acabd9fc45",
+        "https://github.com/laszko14/nira-browser/pull/129"
       ]
     }
   ]
