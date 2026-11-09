@@ -188,7 +188,7 @@
     },
     {
       "task_id": "ZC-VIDEO-DIAG-2",
-      "observed_count": 3,
+      "observed_count": 6,
       "state": "ACTIVE"
     }
   ],
@@ -3531,6 +3531,69 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42569108916",
         "https://github.com/laszko14/nira-browser/commit/52348291b1d94dc33dd226786f5ce6cc764e8869"
+      ]
+    },
+    {
+      "id": "CI-DIAG2-SOURCE-JS-BATCH-ASSERT",
+      "task_id": "ZC-VIDEO-DIAG-2",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag2.test.first-batch-assumed-complete",
+      "summary": "SOURCE JS failed one new test: it expected an explicit empty marker in the first 4-event response instead of draining later bounded packets.",
+      "source_sha": "5a2bfd67934bb480e558a4387f685ba2b9a60f5e",
+      "observed_at": null,
+      "run_id": 42569319434,
+      "job_id": 129002781014,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "180ef4d4f31644c0d2bdf232b72f79090eb6544b",
+      "regression_test": "app/src/test/js/video-search-diagnostics-stage2.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42569319434",
+        "https://github.com/laszko14/nira-browser/commit/180ef4d4f31644c0d2bdf232b72f79090eb6544b"
+      ]
+    },
+    {
+      "id": "CI-DIAG2-PR-JS-BATCH-ASSERT",
+      "task_id": "ZC-VIDEO-DIAG-2",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag2.test.first-batch-assumed-complete",
+      "summary": "PR JS separately failed the same first-packet-only assumption; production diagnostic cursor and packet size were correct.",
+      "source_sha": "5a2bfd67934bb480e558a4387f685ba2b9a60f5e",
+      "observed_at": null,
+      "run_id": 42569324578,
+      "job_id": 129002798241,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG2-SOURCE-JS-BATCH-ASSERT",
+      "fix_sha": "180ef4d4f31644c0d2bdf232b72f79090eb6544b",
+      "regression_test": "app/src/test/js/video-search-diagnostics-stage2.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42569324578",
+        "https://github.com/laszko14/nira-browser/commit/180ef4d4f31644c0d2bdf232b72f79090eb6544b"
+      ]
+    },
+    {
+      "id": "CI-DIAG2-SOURCE-SUMMARY-SECOND",
+      "task_id": "ZC-VIDEO-DIAG-2",
+      "kind": "CI_FAILURE",
+      "fingerprint": "diag2.required-summary-red-js",
+      "summary": "Second SOURCE summary correctly rejected the failed JS suite; dependent Kotlin and lint jobs were skipped without source verification.",
+      "source_sha": "5a2bfd67934bb480e558a4387f685ba2b9a60f5e",
+      "observed_at": null,
+      "run_id": 42569319434,
+      "job_id": 129002829156,
+      "attempt": 1,
+      "cause": "workflow",
+      "state": "FIXED",
+      "duplicate_of": "CI-DIAG2-SOURCE-SUMMARY",
+      "fix_sha": "180ef4d4f31644c0d2bdf232b72f79090eb6544b",
+      "regression_test": "scripts/ci-evidence.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42569319434",
+        "https://github.com/laszko14/nira-browser/commit/180ef4d4f31644c0d2bdf232b72f79090eb6544b"
       ]
     }
   ]

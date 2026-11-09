@@ -19,7 +19,7 @@ remaining: Verify required SOURCE/PR CI on final SHA, repair actual failures and
 required_ci: SOURCE process-docs plus shared-tests JavaScript, Kotlin/Robolectric JVM, compileDebugAndroidTestKotlin, lint regression, required summary; PR shared-tests JavaScript/Kotlin/AndroidTest/lint and error learning evidence. All SUCCESS on identical final source SHA. Build/release SKIPPED.
 device: NOT_TESTED — real GeckoView, physical Nothing Phone (1), actual websites and device performance not measured.
 apk: NOT_BUILT — prohibited throughout 7 stages.
-known_failures: First SOURCE #42569108916 and PR #42569113276 JavaScript suites failed on missing strict braces for empty marker and misaligned fixture/manifest expectation; SOURCE summary correctly rejected red JS. OBSERVED 3 / RECORDED 3 / OPEN 0, repaired by code commit 52348291b1d94dc33dd226786f5ce6cc764e8869. New final SHA CI must verify these repairs.
+known_failures: First SOURCE #42569108916 and PR #42569113276 JavaScript suites failed on missing strict braces for empty marker and misaligned fixture/manifest expectation; SOURCE summary correctly rejected red JS. SOURCE #42569319434 and PR #42569324578 then each failed the new first-packet-only diagnostic test; SOURCE summary also rejected red JS. The test now reads all <=4-event cursor batches (fix commit 180ef4d4f31644c0d2bdf232b72f79090eb6544b). Total OBSERVED 6 / RECORDED 6 / OPEN 0. Verify full required CI on final source SHA.
 verification: Read AGENTS.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md, TEST_POLICY.md, QUALITY_GATES.md, ERROR_LEARNING.md and Stage 1 contract from explicit base_sha. Examined manifest, JS recognition, native bridge and JS tests.
 changed_paths:
   - app/src/main/assets/extensions/zavro-video-search/diagnostics.js
