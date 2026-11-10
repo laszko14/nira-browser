@@ -5805,7 +5805,7 @@
       "workflow_name": null,
       "cause_confidence": "unknown",
       "fix_summary": null,
-      "test_result": "NOT_TESTED before CI; synthetic tests are not Gecko playback evidence",
+      "test_result": "NOT_TESTED",
       "final_ci": null,
       "recurrence_conditions": "Preview driven by hover, touch or muted autoplay"
     }
