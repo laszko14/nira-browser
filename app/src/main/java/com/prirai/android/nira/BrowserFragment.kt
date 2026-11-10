@@ -1154,7 +1154,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                         Toast.makeText(owner, "Najpierw otwórz zwykłą kartę strony", Toast.LENGTH_LONG).show()
                         return@Action
                     }
-                    val domain = runCatching { android.net.Uri.parse(current.content.url).host }.getOrNull()
+                    val domain = runCatching { current.content.url.toUri().host }.getOrNull()
                     val started = mpvDiagnostics.start(manager.getActiveProfile().id,
                         current.id, domain, manager.isPrivateMode() || current.content.private)
                     val message = when (started) {

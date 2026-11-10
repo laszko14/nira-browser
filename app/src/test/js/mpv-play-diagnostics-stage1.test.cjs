@@ -12,6 +12,8 @@ test('MPV diagnostic UI is opt-in and has explicit start/mark/stop/share control
   }
   assert.match(fragment, /mpvDiagnostics\.export/);
   assert.match(fragment, /Intent\.FLAG_GRANT_READ_URI_PERMISSION/);
+  assert.match(fragment, /current\.content\.url\.toUri\(\)\.host/);
+  assert.doesNotMatch(fragment, /android\.net\.Uri\.parse\(current\.content\.url\)/);
 });
 
 test('diagnostic recorder is bounded, opt-in, and excludes private sessions in stage 1', () => {
