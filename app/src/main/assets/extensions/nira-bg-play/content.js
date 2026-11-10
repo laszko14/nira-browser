@@ -211,16 +211,26 @@
 
         // == 3. Video pause monkey-patch + auto-resume ==
         var INTENTIONAL_WINDOW_MS = 30;
+        // Preview media belongs to its site or preview-assist, not bg-play.
+        function isTransientPreview(video) {
+          try {
+            return !!((video.dataset &&
+              video.dataset.niraPreviewCreated === "1") ||
+              (video.muted && (video.loop || video.autoplay)));
+          } catch (_) { return false; }
+        }
 
         function watchVideo(video) {
           if (!video || video.__niraBgWatched) return;
           video.__niraBgWatched = true;
 
           var lastIntentionalPauseAt = 0;
+          var hasPlayed = !video.paused;
           try {
             var origPause = video.pause.bind(video);
             video.pause = function () {
               lastIntentionalPauseAt = Date.now();
+              hasPlayed = false; // Intent survives a delayed pause event.
               return origPause();
             };
           } catch (e) { /* ignore */ }
@@ -228,16 +238,24 @@
           try {
             video.addEventListener("play", function () {
               lastIntentionalPauseAt = 0;
+              hasPlayed = true;
             });
           } catch (e) {}
 
           try {
             video.addEventListener("pause", function () {
-              if (video.ended) return;
-              if (!video.currentSrc && !video.src) return;
-              if (Date.now() - lastIntentionalPauseAt <= INTENTIONAL_WINDOW_MS) return;
+              if (video.ended || !hasPlayed || isTransientPreview(video)) return;
+              var pausedSource = video.currentSrc || video.src;
+              if (!pausedSource) return;
+              if (Date.now() - lastIntentionalPauseAt <= INTENTIONAL_WINDOW_MS) {
+                hasPlayed = false;
+                return;
+              }
+              hasPlayed = false; // One resume attempt per proven play cycle.
               Promise.resolve().then(function () {
-                if (!video.paused || video.ended) return;
+                if (!video.paused || video.ended || video.isConnected === false ||
+                    isTransientPreview(video) ||
+                    (video.currentSrc || video.src) !== pausedSource) return;
                 try {
                   var p = video.play();
                   if (p && typeof p.catch === "function") p.catch(function () {});

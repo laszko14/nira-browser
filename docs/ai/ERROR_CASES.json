@@ -240,6 +240,11 @@
       "task_id": "ZC-PREVIEW-COMPAT-4",
       "observed_count": 1,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-PREVIEW-COMPAT-5",
+      "observed_count": 2,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -5908,6 +5913,60 @@
       "test_result": "PASS",
       "final_ci": "PENDING",
       "recurrence_conditions": "Declared video-preview source on hovering thumbnail or synthetic click after touch scroll/long press. Device and affected website outcomes remain NOT_TESTED."
+    },
+    {
+      "id": "ERR-20261110-PREVIEW-05",
+      "task_id": "ZC-PREVIEW-COMPAT-5",
+      "kind": "REGRESSION",
+      "source_sha": "fb41a867319adc21c6a81ba7d3425bacd55cc1ec",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/preview-bgplay-stage5.test.cjs",
+      "branch": "feat/zavro-clean-preview-bgplay-stage5-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING",
+      "fingerprint": "nira-bgplay-native-pause-resumes-transient-muted-preview",
+      "summary": "On any allowlisted origin, page-world native pause listener could revive muted looping/autoplay thumbnail previews (including helper-created ones), previously never-played media, or delayed intentional pauses. Code-level conflict; live affected website NOT_TESTED.",
+      "fix_summary": "Gate recovery by prior playing state, clear that state on explicit pause even for late events, exempt helper-owned or muted loop/autoplay previews, reject stale detached/source-changed recoveries.",
+      "recurrence_conditions": "An allowlisted page fires pause on temporary muted video, or emits delayed pause after video.pause(), or swaps/removes the media before recovery microtask.",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/fb41a867319adc21c6a81ba7d3425bacd55cc1ec"
+      ]
+    },
+    {
+      "id": "ERR-20261110-BGPLAY-ALLOWLIST-RACE",
+      "task_id": "ZC-PREVIEW-COMPAT-5",
+      "kind": "REGRESSION",
+      "source_sha": "fb41a867319adc21c6a81ba7d3425bacd55cc1ec",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/preview-bgplay-stage5.test.cjs",
+      "branch": "feat/zavro-clean-preview-bgplay-stage5-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING",
+      "fingerprint": "nira-bgplay-stale-storage-hydration-overwrites-live-host-allowlist",
+      "summary": "Asynchronous stored allowlist hydration could overwrite a newer native Kotlin host push (including an empty revocation), restoring outdated permissions in the background script.",
+      "fix_summary": "Set hostHasPushed for native port messages; discard subsequent stale cached hydration. Keep cache fallback only until first live host update.",
+      "recurrence_conditions": "Native port set message arrives before a pending storage.local.get resolves with an obsolete allowed origin.",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/fb41a867319adc21c6a81ba7d3425bacd55cc1ec"
+      ]
     }
   ]
 }
