@@ -258,7 +258,7 @@
     },
     {
       "task_id": "ZC-PREVIEW-COMPAT-10",
-      "observed_count": 1,
+      "observed_count": 2,
       "state": "ACTIVE"
     }
   ],
@@ -6162,6 +6162,34 @@
       "test_result": "PASS",
       "final_ci": "SUCCESS",
       "recurrence_conditions": "GitHub Actions jobs API returns stale status=in_progress after a job has a success conclusion and completed_at, while quality-evidence reads job metadata."
+    },
+    {
+      "id": "ERR-20261110-UPDATE-VERSIONCODE",
+      "task_id": "ZC-PREVIEW-COMPAT-10",
+      "kind": "REGRESSION",
+      "fingerprint": "signed-debug-apk-versioncode-equals-installed-clean-1224",
+      "summary": "User-provided Nothing Phone (1) About screen shows installed Clean versionName 0.5.22-alpha120-clean and versionCode 1224. First signed stage10 APK also had versionCode 1224, so it could not qualify as a higher-version update.",
+      "source_sha": "9617574be8d2b74e9d5ef82b2fbe31b3387d0497",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "f1304b4510f28bce7b6e0d06b92e7eb1278e0634",
+      "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42807937319",
+        "https://github.com/laszko14/nira-browser/commit/f1304b4510f28bce7b6e0d06b92e7eb1278e0634"
+      ],
+      "branch": "feat/zavro-clean-preview-final-stage10-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "fix_summary": "Bumped arm64 install versionCode from 1224 to 1225 and versionName to 0.5.22-alpha121-clean; synchronized exact private build contract and artifact name. Added regression asserting versionCode exceeds installed 1224.",
+      "test_result": "PASS",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "A signed APK uses the same or a lower versionCode than the currently installed Clean package. Certificate and package compatibility remain separate checks."
     }
   ]
 }
