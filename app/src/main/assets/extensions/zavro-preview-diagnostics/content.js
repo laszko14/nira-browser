@@ -11,7 +11,7 @@
   const metricsKeys = new Set(["frame","shadow","readyState","networkState","paused",
     "muted","autoplay","controls","loop","duration","currentTime","errorCode","width",
     "height","x","y","z","display","visibility","pointerEvents","poster","preload",
-    "playsInline","dropped","count","node","parent","hasId","hasClass","hasAria","playHint"]);
+    "playsInline","dropped","count","node","parent","hasId","hasClass","hasAria","playHint","helperMarker"]);
   const monitored = "video,button,[role='button'],a,iframe,source";
   const allowedDisplay = new Set(["NONE","BLOCK","INLINE","INLINE_BLOCK","FLEX","GRID","CONTENTS","OTHER"]);
   const allowedVisibility = new Set(["VISIBLE","HIDDEN","COLLAPSE","OTHER"]);
@@ -45,7 +45,7 @@
     const priority = video
       ? ["frame","node","parent","poster","paused","autoplay","controls",
          "readyState","networkState","errorCode","duration","currentTime",
-         "width","height","display","visibility"]
+         "width","helperMarker","display","visibility"]
       : ["frame","node","parent","count","dropped","playHint","hasId",
          "hasClass","hasAria","shadow","x","y","width","height",
          "display","visibility"];
@@ -94,6 +94,9 @@
       try {
         Object.assign(data,{readyState:node.readyState,networkState:node.networkState,
           paused:node.paused,muted:node.muted,autoplay:node.autoplay,controls:node.controls,
+          // Existing assist sets this marker on helper-created videos.
+          // A page can spoof it: this is an OBSERVED hint, not owner proof.
+          helperMarker:node.dataset?.niraPreviewCreated === "1",
           loop:node.loop,poster:!!node.poster,playsInline:node.playsInline,
           duration:safeNumber(node.duration),currentTime:safeNumber(node.currentTime),
           errorCode:node.error ? node.error.code : 0,

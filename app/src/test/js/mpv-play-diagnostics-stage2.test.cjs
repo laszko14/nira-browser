@@ -143,6 +143,21 @@ test('attribute changes retain synthetic node identity and safe post-change HTML
   assert.doesNotMatch(JSON.stringify(x.packets), /SUPER_SECRET|https:\/\/example\.org/);
 });
 
+test('packaged preview-assist marker is recorded as an untrusted hint only', () => {
+  const f = harness();
+  f.node.dataset = {niraPreviewCreated:'1'};
+  f.command({schemaVersion:2,action:'start',sessionId:ID});
+  const video = f.packets.find(p => p.kind === 'MEDIA' && p.target === 'VIDEO');
+  assert.ok(video);
+  assert.equal(video.metrics.helperMarker,true);
+  assert.equal(video.metrics.poster,true);
+  assert.equal(Object.keys(video.metrics).length <= 16,true);
+  assert.doesNotMatch(JSON.stringify(f.packets), /SUPER_SECRET|example\.org/);
+  const source = fs.readFileSync(path.join(root,
+    'app/src/main/assets/extensions/nira-media-detector/preview-assist.js'),'utf8');
+  assert.match(source, /video\.dataset\.niraPreviewCreated\s*=\s*"1"/);
+});
+
 test('no page rewriting, media playback or background persistence in probe source', () => {
   assert.doesNotMatch(script, /\.play\s*\(|\.pause\s*\(|\.innerHTML|\.textContent/);
   assert.doesNotMatch(script, /\bfetch\s*\(|XMLHttpRequest|localStorage|indexedDB|sendNativeMessage/);

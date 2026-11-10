@@ -13,6 +13,9 @@ import mozilla.components.concept.engine.webextension.WebExtension
 import mozilla.components.lib.state.ext.flowScoped
 import com.prirai.android.nira.browser.profile.ProfileManager
 import com.prirai.android.nira.browser.profile.ProfileTabScope
+import com.prirai.android.nira.permissions.BackgroundPlaybackAllowlist
+import java.net.URI
+import java.util.Locale
 import org.json.JSONObject
 import java.util.IdentityHashMap
 
@@ -65,6 +68,39 @@ internal class MpvPlayPageBridgeController(
         put("sessionId", sessionId)
     }
 
+    /** An allow-list match is not proof that the page-world patch ran. */
+    private fun originPermission(tabUrl: String): Boolean? = runCatching {
+        val uri = URI(tabUrl)
+        val scheme = uri.scheme?.lowercase(Locale.ROOT)
+        val host = uri.host?.lowercase(Locale.ROOT)
+        if (scheme !in setOf("http", "https") || host.isNullOrBlank()) {
+            null
+        } else {
+            val port = if (uri.port > 0) uri.port else if (scheme == "https") 443 else 80
+            BackgroundPlaybackAllowlist.getInstance(context).isAllowed(
+                "${scheme}://${host}:$port")
+        }
+    }.getOrNull()
+
+    /** Reads installed extension IDs via Gecko only after a user START. */
+    private fun captureAddonInventory(profile: String, tab: String,
+                                      nonce: String, pageUrl: String) {
+        val permittedAtOrigin = originPermission(pageUrl)
+        try {
+            engine.listInstalledWebExtensions(
+                onSuccess = { addons ->
+                    MpvPlayDiagnostics.addons(profile, tab, nonce,
+                        addons.map { it.id }.toSet(), permittedAtOrigin)
+                },
+                onError = { _ ->
+                    MpvPlayDiagnostics.addons(profile, tab, nonce, null, permittedAtOrigin)
+                },
+            )
+        } catch (_: Exception) {
+            MpvPlayDiagnostics.addons(profile, tab, nonce, null, permittedAtOrigin)
+        }
+    }
+
     /** The control surface does not read or rewrite any page data. */
     fun command(profile: String, tabId: String, action: String) {
         if (action !in setOf("start", "snapshot", "pick", "cancel_pick", "stop")) return
@@ -72,6 +108,7 @@ internal class MpvPlayPageBridgeController(
         val tab = store.state.tabs.firstOrNull { it.id == tabId } ?: return
         val session = tab.engineState.engineSession ?: return
         if (trustedOwner(session) != (profile to tabId)) return
+        if (action == "start") captureAddonInventory(profile, tabId, id, tab.content.url)
         val live = ports[session] ?: return
         val msg = packet(action, id)
         val iterator = live.iterator()

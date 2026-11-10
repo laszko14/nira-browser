@@ -48,6 +48,10 @@ internal class MpvPlayDiagnosticLedger(
     private val pageEvents = mutableListOf<JSONObject>()
     private val lastSequence = mutableMapOf<String, Int>()
     private var pageRejected = 0
+    // Real Gecko installed-addon snapshot, collected only during an explicit
+    // session. It is NOT proof that a script executed on the target website.
+    private var addonInventory = MpvPlayAddonEvidence.unknown()
+
     private var result = "RUNNING"
     private var stoppedWallMs: Long? = null
 
@@ -92,7 +96,7 @@ internal class MpvPlayDiagnosticLedger(
             "muted", "autoplay", "controls", "loop", "duration", "currentTime", "errorCode",
             "width", "height", "x", "y", "z", "display", "visibility", "pointerEvents",
             "poster", "preload", "playsInline", "dropped", "count", "node", "parent",
-            "hasId", "hasClass", "hasAria", "playHint")
+            "hasId", "hasClass", "hasAria", "playHint", "helperMarker")
         val filtered = JSONObject()
         for (name in metrics.keys()) {
             if (name !in names) return reject()
@@ -120,6 +124,12 @@ internal class MpvPlayDiagnosticLedger(
         return true
     }
 
+    fun recordAddons(installed: Set<String>?, originAllowed: Boolean?): Boolean {
+        if (!active) return false
+        addonInventory = MpvPlayAddonEvidence.snapshot(installed, originAllowed)
+        return true
+    }
+
     fun finish(elapsedMs: Long, wallMs: Long, reason: String) {
         if (!active) return
         result = reason
@@ -130,7 +140,7 @@ internal class MpvPlayDiagnosticLedger(
     fun toZipBytes(): ByteArray {
         check(!active) { "Stop diagnostics before exporting" }
         val summary = JSONObject().apply {
-            put("schema", "zavro-mpv-play-stage2-v1")
+            put("schema", "zavro-mpv-play-stage3-v1")
             put("session", sessionId)
             put("status", result)
             put("started_utc_ms", startedWallMs)
@@ -144,7 +154,9 @@ internal class MpvPlayDiagnosticLedger(
             put("page_rejected", pageRejected)
             put("iframe_capture", "PERMITTED_HTTP_FRAMES_ONLY")
             put("shadow_dom", "OPEN_ROOTS_BOUNDED")
-            put("network_capture", "NOT_CAPTURED_STAGE2")
+            put("network_capture", "NOT_CAPTURED_STAGE3")
+            put("addon_inventory_scope", "INSTALLED_ADDONS_NOT_PAGE_SCRIPT_EXECUTION")
+            put("play_origin", "NOT_CONFIRMED_WITHOUT_REAL_PAGE_EVIDENCE")
             put("play_promise_rejections", "UNHANDLED_ONLY")
             put("private_tabs", "NOT_SUPPORTED_STAGE1")
             put("automatic_upload", false)
@@ -169,6 +181,7 @@ internal class MpvPlayDiagnosticLedger(
             add("timeline.json", timeline.toString(2))
             add("native-overlay.txt", snapshots.joinToString("\n\n--- NEXT MARK ---\n\n"))
             add("page-events.json", JSONArray(pageEvents).toString(2))
+            add("addon-inventory.json", addonInventory.toString(2))
             add("page-coverage.json", JSONObject().apply {
                 put("snapshot", "STRUCTURE_AND_STATE_NOT_RAW_HTML")
                 put("frame_access", "HTTP_FRAMES_WITH_EXTENSION_ACCESS")
@@ -183,6 +196,43 @@ internal class MpvPlayDiagnosticLedger(
         }
         return out.toByteArray().also { check(it.size <= MAX_ARCHIVE_BYTES) }
     }
+}
+
+
+/**
+ * Packaged built-in add-on identifiers, never arbitrary Gecko extension names
+ * or user-configured hostnames. A session inventory proves installation only;
+ * page-world modifications and the actual Play owner remain unverified.
+ */
+internal object MpvPlayAddonEvidence {
+    private val known = linkedMapOf(
+        "media_detector" to "nira-media-detector@prirai.android.nira",
+        "bg_play" to "nira-bg-play@prirai.android.nira",
+        "page_diagnostics" to "zavro-preview-diagnostics@prirai.android.nira",
+    )
+
+    fun unknown(): JSONObject = snapshot(null, null)
+
+    fun snapshot(installed: Set<String>?, allowedOrigin: Boolean?): JSONObject =
+        JSONObject().apply {
+            put("schema", "zavro-preview-addons-stage3-v1")
+            put("evidence", if (installed == null) "NOT_OBSERVED" else "GECKO_INSTALLED_LIST")
+            put("execution_on_page", "NOT_CONFIRMED")
+            put("play_owner", "UNKNOWN")
+            for ((key, id) in known) {
+                put(key, if (installed == null) "UNKNOWN" else
+                    if (id in installed) "INSTALLED" else "NOT_INSTALLED")
+            }
+            put("bgplay_current_origin_permission", when (allowedOrigin) {
+                true -> "ALLOWED"
+                false -> "NOT_ALLOWED"
+                null -> "UNKNOWN"
+            })
+            put("bgplay_page_patch", "NOT_OBSERVED")
+            put("preview_assist_declared", "PACKAGED_WITH_MEDIA_DETECTOR")
+            put("preview_assist_executed", "NOT_OBSERVED")
+            put("raw_extension_ids_exported", false)
+        }
 }
 
 internal object MpvPlayDiagnostics {
@@ -241,6 +291,19 @@ internal object MpvPlayDiagnostics {
         val ledger = recording ?: return@synchronized false
         if (ledger.ownerProfile != profile || ledger.ownerTab != tab) return@synchronized false
         ledger.appendPageEvent(packet, SystemClock.elapsedRealtime() - ledger.startedElapsedMs)
+    }
+
+    /**
+     * A delayed Gecko callback must not modify a stopped or newer session.
+     * Only known IDs become booleans; no third-party extension list is stored.
+     */
+    fun addons(profile: String, tab: String, nonce: String,
+               installed: Set<String>?, originAllowed: Boolean?): Boolean = synchronized(lock) {
+        expireIfNeeded()
+        val ledger = recording ?: return@synchronized false
+        if (ledger.ownerProfile != profile || ledger.ownerTab != tab ||
+            ledger.sessionId != nonce) return@synchronized false
+        ledger.recordAddons(installed, originAllowed)
     }
 
     fun mark(profile: String, tab: String, snapshot: String): Boolean = synchronized(lock) {

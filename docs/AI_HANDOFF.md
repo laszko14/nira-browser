@@ -1,49 +1,40 @@
-# AI_HANDOFF — Zavro Clean MPV / Play diagnostic stage 2/5
+# AI_HANDOFF — Zavro Clean MPV / Play diagnostic stage 3/5
 
 Archive: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md.
-Predecessor: stage 1/5, SHA e14157ad6ad5d39ca9ec8c42e41dad8918a47750; SOURCE 42826748109 and PR 42826759307 SUCCESS.
+Stage2 checkpoint: base SHA b33afe322e7b44467ee33a83810ffb95a7eb29de; SOURCE 42836649028 and PR 42836662817 verified SUCCESS. Stage2 handoff kept as historical source at that SHA.
 
 ```yaml
-task_id: ZC-MPV-PLAY-DIAG-2
+task_id: ZC-MPV-PLAY-DIAG-3
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: feat/zavro-clean-mpv-play-diagnostics-stage1-20261110
-base_sha: e14157ad6ad5d39ca9ec8c42e41dad8918a47750
-observed_head_sha: 64c07c161ba3102a92debccda0a3301e45f6473d
+base_sha: b33afe322e7b44467ee33a83810ffb95a7eb29de
+observed_head_sha: b33afe322e7b44467ee33a83810ffb95a7eb29de
 status: CI_PENDING
-acceptance_source: User DALEJ on 2026-11-10, approved stage 2/5 passive page instrumentation and local ZIP; NO APK.
-completed: Stage 1 preflight and source/PR CI verified. Stage 2 bounded WebExtension probe, native Gecko tab partition and EngineSession port ownership, page event validation, picker, archive and tests prepared.
-remaining: Verify all required SOURCE and PR CI on exact final SHA; physical Android site test; await user DALEJ for stage 3.
+acceptance_source: User DALEJ 2026-11-10: stage 3/5 provenance of Play, embedded-MPV residue review, packaged preview assist, bgplay allowlist and runtime addon inventory. No APK.
+completed: Verified stage2 SOURCE run 42836649028 and PR run 42836662817 SUCCESS at base SHA. Stage3 static ownership audit and bounded opt-in addon inventory, helper DOM marker hint, nonce/profiles isolation tests, report prepared.
+remaining: Required SOURCE and PR CI on final stage3 SHA; real website and Android device evidence; defer targeted changes to stage4 only after next DALEJ.
 required_ci: SOURCE process-docs, shared-tests JavaScript / JVM / AndroidTest compile / lint regression, quality-evidence; PR shared-tests integration JavaScript / JVM / AndroidTest compile / lint, error-learning evidence.
-apk: NOT_BUILT — NO APK requested. Package, ABI, signing and versionCode unchanged.
+apk: NOT_BUILT — no APK requested, package, ABI, signing and versionCode unchanged.
 device: NOT_TESTED
-privacy: Explicit START only, no raw DOM content, URL, login or network payloads. Normal profile and target tab only; private tabs excluded. No auto-upload.
-known_failures: ERR-20261110-MPV-DIAG-STAGE2-METRIC-PRIORITY fixed by 64c07c161ba3102a92debccda0a3301e45f6473d (JS tests SUCCESS); ERR-20261110-MPV-DIAG-STAGE2-ERROR-FINGERPRINT corrected by b94de822c09b09a1514955f4307db17a537fd9fe (registry validator PASS). Historical ERR-20261110-PREVIEW-01 and bgplay cases remain OPEN; Play owner not confirmed.
-verification: Base stage1 SOURCE 42826748109 PR 42826759307 SUCCESS. First stage2 SHA 25dfe9888662708c2b281097845376670afbcc96 JS FAIL 637/638. Follow-up SHA 64c07c161ba3102a92debccda0a3301e45f6473d SOURCE 42834869116 JS/JVM/AndroidTest/lint SUCCESS, process-docs FAIL invalid new fingerprint; PR 42834883499 JS/JVM/AndroidTest SUCCESS; final combined source SHA and CI remain pending. DEVICE NOT_TESTED.
-verified_before_push: Direct GitHub connector fetched live HEAD and AGENTS.md, AI_HANDOFF.md, STARTUP_PREFLIGHT and task-specific policies at base SHA; inspected WebExtension and GeckoView APIs in repository. Local Android compile unavailable.
-blockers: No known code blocker. Initial JS metric truncation and SOURCE error-registry fingerprint format both corrected; final SOURCE and PR CI still required. Real-site test awaits user-approved APK.
+privacy: Manual START only. Only three known builtin extension installation statuses and target-origin allow permission exported. No foreign extension IDs or host/URL values. Private tabs excluded. DOM helper marker is untrusted hint, not origin proof.
+known_failures: ERR-20261110-PREVIEW-01/-03/-04/-05 and BGPLAY allowlist issues remain OPEN for real website/device evidence. No new confirmed cause of the particular Play overlay. Historical stage2 issues fixed and CI verified at base SHA.
+verification: Base stage2 SOURCE 42836649028 attempt1 SUCCESS and PR 42836662817 attempt1 SUCCESS on b33afe322e7b44467ee33a83810ffb95a7eb29de. Stage3 source CI pending. No APK and no physical website repro.
+verified_before_push: Direct GitHub live branch head, AGENTS.md, docs/AI_HANDOFF.md, CHATGPT_PROJECT_INSTRUCTIONS.md and selected preflight/test/quality sources read at base SHA. Preview helper, bgplay, extension manifests and historical stage7 audit crosschecked; synthetic targeted JS source syntax and structural conditions passed. Local Kotlin compile unavailable.
+blockers: Device + target site unavailable; Play origin cannot be asserted. CI pending until final source and PR workflows complete.
 evidence_links:
-  - https://github.com/laszko14/nira-browser/actions/runs/42826748109
-  - https://github.com/laszko14/nira-browser/actions/runs/42826759307
+  - https://github.com/laszko14/nira-browser/actions/runs/42836649028
+  - https://github.com/laszko14/nira-browser/actions/runs/42836662817
   - https://github.com/laszko14/nira-browser/pull/140
-  - https://github.com/laszko14/nira-browser/actions/runs/42834153760
-  - https://github.com/laszko14/nira-browser/actions/runs/42834163423
-  - https://github.com/laszko14/nira-browser/actions/runs/42834869116
-  - https://github.com/laszko14/nira-browser/actions/runs/42834883499
-  - https://github.com/laszko14/nira-browser/commit/b94de822c09b09a1514955f4307db17a537fd9fe
 changed_paths:
-  - app/src/main/java/com/prirai/android/nira/BrowserApp.kt
-  - app/src/main/java/com/prirai/android/nira/BrowserFragment.kt
   - app/src/main/java/com/prirai/android/nira/browser/MpvPlayDiagnostics.kt
   - app/src/main/java/com/prirai/android/nira/browser/MpvPlayPageBridgeController.kt
-  - app/src/main/assets/extensions/zavro-preview-diagnostics/manifest.json
   - app/src/main/assets/extensions/zavro-preview-diagnostics/content.js
-  - app/src/test/js/mpv-play-diagnostics-stage1.test.cjs
-  - app/src/test/js/mpv-play-diagnostics-stage2.test.cjs
   - app/src/test/java/com/prirai/android/nira/browser/MpvPlayDiagnosticsTest.kt
-  - docs/ai/MPV_PLAY_DIAGNOSTICS_STAGE2.md
-  - docs/ai/ERROR_CASES.json
+  - app/src/test/js/mpv-play-diagnostics-stage2.test.cjs
+  - app/src/test/js/mpv-play-diagnostics-stage3.test.cjs
+  - docs/ai/MPV_PLAY_DIAGNOSTICS_STAGE3.md
   - docs/AI_HANDOFF.md
-next_action: Complete SOURCE and PR CI on final SHA; repair FAIL in this task; report CODE_VERIFIED only after green required checks and then wait for DALEJ.
+next_action: Finish stage3 required SOURCE and PR CI on final exact SHA; any FAIL must be fixed in stage3 and rerun on new SHA, then report CODE_VERIFIED, no APK and wait for DALEJ to start stage4.
 ```

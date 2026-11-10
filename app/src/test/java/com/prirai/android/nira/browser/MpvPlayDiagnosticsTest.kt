@@ -43,7 +43,7 @@ class MpvPlayDiagnosticsTest {
         assertFalse(ledger.mark(55, "after stop"))
         val entries = archiveEntries(ledger.toZipBytes())
         assertEquals(setOf("summary.json", "timeline.json", "native-overlay.txt",
-            "page-events.json", "page-coverage.json"), entries.keys)
+            "page-events.json", "page-coverage.json", "addon-inventory.json"), entries.keys)
         val summary = JSONObject(entries.getValue("summary.json"))
         assertEquals("APP_DECOR_ONLY", summary.getString("snapshot_scope"))
         assertEquals("BOUNDED_STRUCTURE_ONLY", summary.getString("dom_capture"))
@@ -88,6 +88,53 @@ class MpvPlayDiagnosticsTest {
         val summary = JSONObject(entries.getValue("summary.json"))
         assertEquals(2, summary.getInt("page_events"))
         assertTrue(summary.getInt("page_rejected") >= 4)
+    }
+
+    @Test fun addonInventoryCannotConflateInstalledWithExecutedOrLeakExtensionIds() {
+        val ledger = MpvPlayDiagnosticLedger(
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "profile-A", "tab-A", "example.org", "v", 100, 1)
+        assertTrue(ledger.recordAddons(setOf(
+            "nira-media-detector@prirai.android.nira",
+            "zavro-preview-diagnostics@prirai.android.nira",
+            "third-party.private-addon@example.test"
+        ), false))
+        ledger.finish(5, 105, "STOPPED")
+        val json = JSONObject(archiveEntries(ledger.toZipBytes())
+            .getValue("addon-inventory.json"))
+        assertEquals("INSTALLED", json.getString("media_detector"))
+        assertEquals("NOT_INSTALLED", json.getString("bg_play"))
+        assertEquals("INSTALLED", json.getString("page_diagnostics"))
+        assertEquals("NOT_ALLOWED", json.getString("bgplay_current_origin_permission"))
+        assertEquals("NOT_CONFIRMED", json.getString("execution_on_page"))
+        assertEquals("NOT_OBSERVED", json.getString("bgplay_page_patch"))
+        assertFalse(json.getBoolean("raw_extension_ids_exported"))
+        assertFalse(json.toString().contains("third-party.private-addon"))
+        assertFalse(ledger.recordAddons(emptySet(), true))
+        val unknown = MpvPlayAddonEvidence.unknown()
+        assertEquals("UNKNOWN", unknown.getString("bg_play"))
+        assertEquals("NOT_OBSERVED", unknown.getString("evidence"))
+    }
+
+    @Test fun lateInventoryCallbacksCannotModifyNewSessions() {
+        MpvPlayDiagnostics.discard()
+        try {
+            assertEquals(MpvPlayDiagnostics.Start.STARTED,
+                MpvPlayDiagnostics.start("p", "t", "example.org", false))
+            val first = MpvPlayDiagnostics.sessionFor("p", "t")!!
+            assertFalse(MpvPlayDiagnostics.addons("another", "t", first, emptySet(), true))
+            assertFalse(MpvPlayDiagnostics.addons("p", "other", first, emptySet(), true))
+            assertFalse(MpvPlayDiagnostics.addons("p", "t", "forged", emptySet(), true))
+            assertTrue(MpvPlayDiagnostics.stop("p"))
+            assertFalse(MpvPlayDiagnostics.addons("p", "t", first, emptySet(), true))
+            assertEquals(MpvPlayDiagnostics.Start.STARTED,
+                MpvPlayDiagnostics.start("p", "t", "example.org", false))
+            assertFalse(MpvPlayDiagnostics.addons("p", "t", first, emptySet(), true))
+            assertTrue(MpvPlayDiagnostics.addons("p", "t",
+                MpvPlayDiagnostics.sessionFor("p", "t")!!, emptySet(), false))
+        } finally {
+            MpvPlayDiagnostics.discard()
+        }
     }
 
     @Test fun privateTabBlockedAndProfileIsolationAndGateConflict() {
