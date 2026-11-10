@@ -6328,9 +6328,9 @@
       "job_id": 129891755275,
       "attempt": 1,
       "cause": "production",
-      "state": "OPEN",
+      "state": "FIXED",
       "duplicate_of": null,
-      "fix_sha": null,
+      "fix_sha": "64c07c161ba3102a92debccda0a3301e45f6473d",
       "regression_test": "app/src/test/js/mpv-play-diagnostics-stage2.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42834153760",
@@ -6356,9 +6356,9 @@
       "job_id": 129894278945,
       "attempt": 1,
       "cause": "workflow",
-      "state": "OPEN",
+      "state": "FIXED",
       "duplicate_of": null,
-      "fix_sha": null,
+      "fix_sha": "b94de822c09b09a1514955f4307db17a537fd9fe",
       "regression_test": "scripts/error-learning.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42834869116"
