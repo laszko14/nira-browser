@@ -29,6 +29,57 @@ class MpvPlayDiagnosticsTest {
         return entries
     }
 
+    @Test fun emptyMarkedSessionReportsNoPortInsteadOfSuccessfulPageCapture() {
+        val ledger = MpvPlayDiagnosticLedger("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "p", "t", null, "v", 1, 0)
+        assertTrue(ledger.mark(10, "native only"))
+        assertTrue(ledger.mark(20, "native only"))
+        ledger.refreshTransport(8_001)
+        assertEquals(MpvPlayDiagnosticLedger.Transport.NO_PORT, ledger.transport)
+        ledger.finish(71_000, 71_001, "STOPPED")
+        val entries = archiveEntries(ledger.toZipBytes())
+        assertEquals(0, JSONObject(entries.getValue("summary.json")).getInt("page_events"))
+        assertEquals("NO_PORT", JSONObject(entries.getValue("transport.json")).getString("failure"))
+        assertFalse(JSONObject(entries.getValue("analysis.json")).getBoolean("diagnostics_complete"))
+    }
+
+    @Test fun ackRequiresSentStartAndBaselineSnapshotBeforeCaptureIsConfirmed() {
+        val ledger = MpvPlayDiagnosticLedger("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "p", "t", null, "v", 1, 0)
+        val doc = "0123456789abcdef0123456789abcdef"
+        val ack = JSONObject().put("schemaVersion", 2).put("event", "start_ack")
+            .put("sessionId", ledger.sessionId).put("documentId", doc).put("frame", "TOP")
+        assertFalse(ledger.startAck(ack))
+        ledger.connected()
+        ledger.startSent(100)
+        assertTrue(ledger.startAck(ack))
+        assertEquals(MpvPlayDiagnosticLedger.Transport.START_ACKNOWLEDGED, ledger.transport)
+        assertTrue(ledger.startAck(ack))
+        ledger.refreshTransport(8_101)
+        assertEquals(MpvPlayDiagnosticLedger.Transport.NO_PAGE_EVENTS, ledger.transport)
+        ledger.finish(9_000, 9_001, "STOPPED")
+        val transport = JSONObject(archiveEntries(ledger.toZipBytes()).getValue("transport.json"))
+        assertEquals(1, transport.getInt("start_acknowledgements"))
+        assertEquals(1, transport.getInt("packets_rejected"))
+    }
+
+    @Test fun sentStartWithoutAckTimesOutAndLatePacketsCannotRestartIt() {
+        val ledger = MpvPlayDiagnosticLedger("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "p", "t", null, "v", 1, 0)
+        ledger.connected()
+        ledger.startSent(10)
+        ledger.refreshTransport(8_011)
+        assertEquals(MpvPlayDiagnosticLedger.Transport.NO_ACK, ledger.transport)
+        val late = JSONObject().put("schemaVersion", 2).put("event", "start_ack")
+            .put("sessionId", ledger.sessionId)
+            .put("documentId", "0123456789abcdef0123456789abcdef").put("frame", "TOP")
+        assertFalse(ledger.startAck(late))
+        ledger.finish(9_000, 9_001, "TIMED_OUT")
+        assertFalse(ledger.startAck(late))
+        val report = JSONObject(archiveEntries(ledger.toZipBytes()).getValue("summary.json"))
+        assertEquals("NO_ACK", report.getString("transport_failure"))
+    }
+
     @Test fun boundedNativeSnapshotsAndArchiveCarryExplicitStage1Limitations() {
         val ledger = MpvPlayDiagnosticLedger(
             "synthetic-session", "profile-A", "tab-A", "example.org",
@@ -44,8 +95,11 @@ class MpvPlayDiagnosticsTest {
         val entries = archiveEntries(ledger.toZipBytes())
         assertEquals(setOf("summary.json", "timeline.json", "native-overlay.txt",
             "page-events.json", "page-coverage.json", "addon-inventory.json",
-            "analysis.json", "analysis.txt"), entries.keys)
+            "analysis.json", "analysis.txt", "transport.json"), entries.keys)
         val summary = JSONObject(entries.getValue("summary.json"))
+        assertEquals("zavro-mpv-play-stage4-v2", summary.getString("schema"))
+        assertEquals("zavro-preview-triage-stage4-v2",
+            JSONObject(entries.getValue("analysis.json")).getString("schema"))
         assertEquals("APP_DECOR_ONLY", summary.getString("snapshot_scope"))
         assertEquals("BOUNDED_STRUCTURE_ONLY", summary.getString("dom_capture"))
         assertEquals("NOT_SUPPORTED_STAGE1", summary.getString("private_tabs"))
@@ -58,6 +112,11 @@ class MpvPlayDiagnosticsTest {
         val ledger = MpvPlayDiagnosticLedger(
             "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "p", "t", "example.org", "v", 1L, 0L)
         val doc = "0123456789abcdef0123456789abcdef"
+        ledger.connected()
+        ledger.startSent(1)
+        assertTrue(ledger.startAck(JSONObject().put("schemaVersion", 2)
+            .put("event", "start_ack").put("sessionId", ledger.sessionId)
+            .put("documentId", doc).put("frame", "TOP")))
         fun packet(sequence: Int, token: String = ledger.sessionId): JSONObject =
             JSONObject().apply {
                 put("schemaVersion", 2)
@@ -68,7 +127,8 @@ class MpvPlayDiagnosticsTest {
                 put("kind", "MEDIA")
                 put("target", "VIDEO")
                 put("detail", "BASELINE")
-                put("metrics", JSONObject().put("readyState", 3).put("paused", true))
+                put("metrics", JSONObject().put("frame", "TOP")
+                    .put("readyState", 3).put("paused", true))
             }
         assertTrue(ledger.appendPageEvent(packet(1), 12))
         assertFalse(ledger.appendPageEvent(packet(1), 13))
@@ -149,6 +209,8 @@ class MpvPlayDiagnosticsTest {
         try {
             assertEquals(MpvPlayDiagnostics.Start.PRIVATE_TAB,
                 MpvPlayDiagnostics.start("p1", "t1", "example.org", true))
+            assertEquals(MpvPlayDiagnostics.Start.UNSUPPORTED_PAGE,
+                MpvPlayDiagnostics.start("p1", "t1", null, false, false))
             assertFalse(MpvPlayDiagnostics.state().running)
             assertTrue(DiagnosticSessionGate.shared.acquire(DiagnosticOwner.TESTLAB))
             assertEquals(MpvPlayDiagnostics.Start.BUSY,

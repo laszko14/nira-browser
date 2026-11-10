@@ -13,9 +13,11 @@ const manifest = JSON.parse(read("app/src/main/assets/extensions/zavro-preview-d
 const ONE = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 const TWO = "11111111-2222-3333-4444-555555555555";
 
-function fixture({ subframe = false, failedPost = false } = {}) {
+function fixture({ subframe = false, failedPost = false, connectFailures = 0 } = {}) {
   let clock = 1000, inbound, onMutation, disconnected, observed = 0, disposed = 0;
-  const packet = [], listeners = new Map(), changes = { play:0, pause:0, prevent:0, stop:0 };
+  const packet = [], listeners = new Map(), scheduled = [];
+  let connectCalls = 0;
+  const changes = { play:0, pause:0, prevent:0, stop:0 };
   const doc = {
     querySelectorAll: () => [video, button, frame],
     createTreeWalker: () => ({ nextNode: () => null }),
@@ -60,10 +62,13 @@ function fixture({ subframe = false, failedPost = false } = {}) {
   };
   vm.runInNewContext(script,{
     browser:{runtime:{connectNative(name) {
-      assert.equal(name,"zavro.preview.forensics"); return port;
+      assert.equal(name,"zavro.preview.forensics");
+      connectCalls++;
+      return connectCalls <= connectFailures ? null : port;
     }}}, document:doc, window:win,
     crypto:{getRandomValues(bytes) { bytes.fill(subframe ? 17 : 12); return bytes; }},
-    NodeFilter:{SHOW_ELEMENT:1}, Date:class extends Date { static now(){return clock;} },
+    NodeFilter:{SHOW_ELEMENT:1}, setTimeout:fn=>scheduled.push(fn),
+    Date:class extends Date { static now(){return clock;} },
     getComputedStyle:()=>({display:"block",visibility:"visible",
       pointerEvents:"auto",zIndex:"7"}),
     MutationObserver:class {
@@ -76,18 +81,21 @@ function fixture({ subframe = false, failedPost = false } = {}) {
     packets:packet, listeners, video, button, frame, changes, port,
     command(action, sessionId=ONE){inbound({schemaVersion:2,action,sessionId})},
     badCommand(value){inbound(value)},
-    fire(type,target=video) {
+    fire(type,target=video,pointerType="mouse") {
       const key=(type==="error"||type==="unhandledrejection")&&target===win
         ? "win:"+type : "doc:"+type;
       const fn=listeners.get(key);
       assert.ok(fn,"missing listener "+key);
-      fn({type,target,
+      fn({type,target,pointerType,
         preventDefault(){changes.prevent++},
         stopImmediatePropagation(){changes.stop++}});
     },
     fireWindow(type){this.fire(type,win)},
     mutation(batch){onMutation(batch)},
     disconnect(){disconnected()},
+    retry(){const fn=scheduled.shift();assert.ok(fn);fn()},
+    connectCalls(){return connectCalls},
+    pendingRetries(){return scheduled.length},
     clockTo(ms){clock=ms},
     stats(){return {observed,disposed,activeListeners:listeners.size}}
   };
@@ -111,6 +119,9 @@ test("final5: normal HTML5 preview, site Play button, subframe and private data"
   top.video.dataset.niraPreviewCreated="1";
   top.command("start");iframe.command("start");
   assert.ok(top.packets.length>=4);
+  assert.equal(top.packets[0].event,"start_ack");
+  assert.equal(top.packets[0].sessionId,ONE);
+  assert.ok(top.packets.some(x=>x.detail==="SNAPSHOT_FINISHED"));
   const media=top.packets.find(x=>x.kind==="MEDIA");
   assert.equal(media.metrics.frame,"TOP");
   assert.equal(media.metrics.controls,true);
@@ -123,6 +134,11 @@ test("final5: normal HTML5 preview, site Play button, subframe and private data"
   const full=JSON.stringify(top.packets.concat(iframe.packets));
   assert.doesNotMatch(full,/secret-session-token|private-username|site-css-secret|private\/media|secret=123|https:/);
   for(const x of top.packets.concat(iframe.packets)){
+    if(x.event==="start_ack"){
+      assert.deepEqual(Object.keys(x).sort(),
+        ["schemaVersion","event","sessionId","documentId","frame"].sort());
+      continue;
+    }
     assert.deepEqual(Object.keys(x).sort(),
       ["schemaVersion","event","sessionId","documentId","sequence","kind","target","detail","metrics"].sort());
     assert.ok(Object.keys(x.metrics).length<=16);
@@ -147,16 +163,18 @@ test("final5: only user-authorized picker consumes one tap and records synthetic
   const f=fixture();f.command("start");
   f.command("pick");
   f.fire("pointerdown",f.button);
+  assert.equal(f.changes.prevent,0);
+  f.fire("pointerdown",f.button,"touch");
   assert.equal(f.changes.prevent,1);
   assert.equal(f.changes.stop,1);
   const pick=f.packets.at(-1);
   assert.equal(pick.kind,"PICK");
   assert.ok(pick.metrics.node>0);
   assert.equal(pick.metrics.node,f.packets.at(-2).metrics.node);
-  f.fire("pointerdown",f.button);
+  f.fire("pointerdown",f.button,"touch");
   assert.equal(f.changes.prevent,1);
   f.command("pick");f.command("cancel_pick");
-  f.fire("pointerdown",f.button);
+  f.fire("pointerdown",f.button,"touch");
   assert.equal(f.changes.stop,1);
 });
 
@@ -191,7 +209,7 @@ test("final5: dynamic DOM mutations keep attribute categories without raw values
 test("final5: event budget caps at 160 and explicitly indicates truncation", () => {
   const f=fixture();f.command("start");
   for(let i=0;i<250;i++)f.fire("click",f.button);
-  assert.equal(f.packets.length,160);
+  assert.equal(f.packets.length,161);
   assert.equal(f.packets.at(-1).kind,"GAP");
   assert.equal(f.packets.at(-1).detail,"EVENT_LIMIT");
   assert.equal(f.packets.at(-1).sequence,160);
@@ -214,6 +232,41 @@ test("final5: STOP, restart and disconnect remove observer/listeners", () => {
   assert.deepEqual(f.stats(),{observed:2,disposed:2,activeListeners:0});
 });
 
+test("late native connection and lost port retry are bounded and remain dormant before START", () => {
+  const early=fixture();
+  early.disconnect();
+  assert.equal(early.stats().activeListeners,0);
+  assert.equal(early.pendingRetries(),1);
+  early.retry();
+  assert.equal(early.connectCalls(),2);
+  assert.equal(early.packets.length,0);
+  const f=fixture({connectFailures:2});
+  assert.equal(f.packets.length,0);
+  assert.equal(f.stats().activeListeners,0);
+  f.retry();f.retry();
+  assert.equal(f.connectCalls(),3);
+  assert.equal(f.pendingRetries(),0);
+  f.command("start");
+  assert.equal(f.packets[0].event,"start_ack");
+  const oldSequence=f.packets.filter(x=>x.event==="observation").at(-1).sequence;
+  f.disconnect();
+  assert.equal(f.stats().activeListeners,0);
+  assert.equal(f.pendingRetries(),1);
+  f.retry();
+  assert.equal(f.connectCalls(),4);
+  f.command("start");
+  assert.equal(f.packets.filter(x=>x.event==="start_ack").length,2);
+  assert.ok(f.packets.filter(x=>x.event==="observation").at(-1).sequence>oldSequence);
+  f.command("stop");
+  f.disconnect();
+  assert.equal(f.pendingRetries(),0);
+  const unavailable=fixture({connectFailures:5});
+  unavailable.retry();unavailable.retry();unavailable.retry();
+  assert.equal(unavailable.connectCalls(),4);
+  assert.equal(unavailable.pendingRetries(),0);
+  assert.equal(unavailable.stats().activeListeners,0);
+});
+
 test("final5: time expiry and failed native port fail closed", () => {
   const f=fixture();f.command("start");
   const before=f.packets.length;
@@ -225,7 +278,8 @@ test("final5: time expiry and failed native port fail closed", () => {
   const bad=fixture({failedPost:true});
   bad.command("start");
   assert.equal(bad.stats().activeListeners,0);
-  assert.equal(bad.stats().disposed,1);
+  assert.equal(bad.stats().observed,0);
+  assert.equal(bad.stats().disposed,0);
 });
 
 test("final5: integration boundaries keep existing preview, autoplay, media detection and external MPV", () => {

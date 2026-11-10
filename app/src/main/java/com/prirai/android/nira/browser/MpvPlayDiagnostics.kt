@@ -32,6 +32,10 @@ internal class MpvPlayDiagnosticLedger(
     val startedWallMs: Long,
     val startedElapsedMs: Long,
 ) {
+    enum class Transport { NOT_READY, CONNECTED, START_SENT, START_ACKNOWLEDGED,
+        CAPTURING, NO_PORT, NO_ACK, NO_PAGE_EVENTS, NO_BASELINE, DISCONNECTED, FAILED }
+    enum class Failure { NONE, NO_PORT, NO_ACK, NO_PAGE_EVENTS, NO_BASELINE, PORT_DISCONNECTED,
+        INSTALL_FAILED, HANDLER_FAILED, POST_FAILED, INVALID_ACK }
     companion object {
         const val MAX_MARKS = 8
         const val MAX_SNAPSHOT_CHARS = 12_000
@@ -49,12 +53,125 @@ internal class MpvPlayDiagnosticLedger(
     // Real Gecko installed-addon snapshot, collected only during an explicit
     // session. It is NOT proof that a script executed on the target website.
     private var addonInventory = MpvPlayAddonEvidence.unknown()
+    var transport = Transport.NOT_READY
+        private set
+    var failure = Failure.NONE
+        private set
+    private var portsConnected = 0
+    private var portsDisconnected = 0
+    private var openPorts = 0
+    private var startAttempts = 0
+    private var startAcknowledgements = 0
+    private var transportRejected = 0
+    private var lastTransportProgressMs = 0L
+    private val acknowledgedFrames = mutableMapOf<String, String>()
+    private val transportTimeoutMs = 8_000L
 
     private var result = "RUNNING"
     private var stoppedWallMs: Long? = null
 
     val active: Boolean get() = result == "RUNNING"
     val markCount: Int get() = snapshots.size
+
+    fun connected(elapsedMs: Long = 0) {
+        if (!active || transport in setOf(Transport.NO_PORT, Transport.NO_ACK,
+                Transport.NO_PAGE_EVENTS, Transport.NO_BASELINE)) return
+        portsConnected++
+        openPorts++
+        lastTransportProgressMs = elapsedMs.coerceAtLeast(0)
+        if (transport in setOf(Transport.NOT_READY, Transport.DISCONNECTED, Transport.FAILED)) {
+            transport = Transport.CONNECTED
+            failure = Failure.NONE
+        }
+    }
+
+    fun startSent(elapsedMs: Long) {
+        if (!active || transport in setOf(Transport.NO_PORT, Transport.NO_ACK,
+                Transport.NO_PAGE_EVENTS, Transport.NO_BASELINE)) return
+        startAttempts++
+        lastTransportProgressMs = elapsedMs.coerceAtLeast(0)
+        if (transport != Transport.CAPTURING && transport != Transport.START_ACKNOWLEDGED) {
+            transport = Transport.START_SENT
+            failure = Failure.NONE
+        }
+    }
+
+    fun startAck(packet: JSONObject, elapsedMs: Long = 0): Boolean {
+        if (!active || transport in setOf(Transport.NO_PORT, Transport.NO_ACK,
+                Transport.NO_PAGE_EVENTS, Transport.NO_BASELINE) || packet.length() != 5 ||
+            packet.optInt("schemaVersion") != 2 ||
+            packet.optString("event") != "start_ack" ||
+            packet.optString("sessionId") != sessionId || startAttempts == 0) {
+            transportRejected++
+            return false
+        }
+        val doc = packet.optString("documentId")
+        val frame = packet.optString("frame")
+        if (!doc.matches(Regex("[0-9a-f]{32}")) || frame !in setOf("TOP", "SUBFRAME") ||
+            (acknowledgedFrames.size >= 24 && doc !in acknowledgedFrames) ||
+            (acknowledgedFrames[doc] != null && acknowledgedFrames[doc] != frame)) {
+            transportRejected++
+            return false
+        }
+        if (doc !in acknowledgedFrames) startAcknowledgements++
+        acknowledgedFrames[doc] = frame
+        lastTransportProgressMs = elapsedMs.coerceAtLeast(0)
+        if (transport != Transport.CAPTURING) transport = Transport.START_ACKNOWLEDGED
+        failure = Failure.NONE
+        return true
+    }
+
+    fun disconnected(elapsedMs: Long = 0) {
+        if (!active) return
+        portsDisconnected++
+        openPorts = (openPorts - 1).coerceAtLeast(0)
+        lastTransportProgressMs = elapsedMs.coerceAtLeast(0)
+        if (openPorts == 0) {
+            transport = Transport.DISCONNECTED
+            failure = Failure.PORT_DISCONNECTED
+        }
+    }
+
+    fun transportFailed(cause: Failure) {
+        if (!active) return
+        if (cause !in setOf(Failure.INSTALL_FAILED, Failure.HANDLER_FAILED,
+                Failure.POST_FAILED, Failure.INVALID_ACK)) return
+        transport = Transport.FAILED
+        failure = cause
+    }
+
+    fun refreshTransport(elapsedMs: Long, terminal: Boolean = false) {
+        if (!active) return
+        if (transport in setOf(Transport.CAPTURING, Transport.FAILED,
+                Transport.NO_PORT, Transport.NO_ACK, Transport.NO_PAGE_EVENTS,
+                Transport.NO_BASELINE)) return
+        val elapsed = elapsedMs.coerceAtLeast(0)
+        when {
+            transport == Transport.DISCONNECTED &&
+                (terminal || elapsed - lastTransportProgressMs >= transportTimeoutMs) -> {
+                transport = Transport.FAILED; failure = Failure.PORT_DISCONNECTED
+            }
+            transport == Transport.DISCONNECTED -> Unit
+            startAcknowledgements > 0 && (terminal ||
+                elapsed - lastTransportProgressMs >= transportTimeoutMs) -> {
+                if (pageEvents.isEmpty()) {
+                    transport = Transport.NO_PAGE_EVENTS; failure = Failure.NO_PAGE_EVENTS
+                } else {
+                    transport = Transport.NO_BASELINE; failure = Failure.NO_BASELINE
+                }
+            }
+            startAttempts > 0 && (terminal ||
+                elapsed - lastTransportProgressMs >= transportTimeoutMs) -> {
+                transport = Transport.NO_ACK; failure = Failure.NO_ACK
+            }
+            portsConnected == 0 && (terminal || elapsed >= transportTimeoutMs) -> {
+                transport = Transport.NO_PORT; failure = Failure.NO_PORT
+            }
+            terminal && portsConnected > 0 -> {
+                transport = Transport.NO_ACK; failure = Failure.NO_ACK
+            }
+        }
+    }
 
     fun mark(elapsedMs: Long, nativeSnapshot: String): Boolean {
         if (!active || snapshots.size >= MAX_MARKS) return false
@@ -71,7 +188,8 @@ internal class MpvPlayDiagnosticLedger(
      * cookies or network payloads. The content extension is NOT a trust boundary.
      */
     fun appendPageEvent(message: JSONObject, receivedMs: Long): Boolean {
-        if (!active) return false
+        if (!active || transport in setOf(Transport.NO_PORT, Transport.NO_ACK,
+                Transport.NO_PAGE_EVENTS, Transport.NO_BASELINE)) return false
         fun reject(): Boolean { pageRejected++; return false }
         if (message.toString().length > MAX_PAGE_PACKET_CHARS ||
             message.length() != 9 || message.optInt("schemaVersion") != 2 ||
@@ -79,6 +197,7 @@ internal class MpvPlayDiagnosticLedger(
             message.optString("sessionId") != sessionId) return reject()
         val documentId = message.optString("documentId")
         if (!documentId.matches(Regex("[0-9a-f]{32}"))) return reject()
+        val expectedFrame = acknowledgedFrames[documentId] ?: return reject()
         val sequence = message.optInt("sequence", -1)
         if (sequence <= 0 || sequence > 160 ||
             sequence <= (lastSequence[documentId] ?: 0)) return reject()
@@ -102,6 +221,7 @@ internal class MpvPlayDiagnosticLedger(
                 "JS_ERROR", "USER_SELECTED", "DOM_UNAVAILABLE",
                 "SCAN_LIMIT", "EVENT_LIMIT")) return reject()
         val metrics = message.optJSONObject("metrics") ?: return reject()
+        if (metrics.optString("frame") != expectedFrame) return reject()
         if (metrics.length() > 16) return reject()
         val names = setOf("frame", "shadow", "readyState", "networkState", "paused",
             "muted", "autoplay", "controls", "loop", "duration", "currentTime", "errorCode",
@@ -146,6 +266,10 @@ internal class MpvPlayDiagnosticLedger(
             put("metrics", filtered)
         })
         entries.add(Entry(received, "page_" + kind.lowercase(), detail))
+        if (detail == "SNAPSHOT_FINISHED") {
+            transport = Transport.CAPTURING
+            failure = Failure.NONE
+        }
         return true
     }
 
@@ -157,6 +281,7 @@ internal class MpvPlayDiagnosticLedger(
 
     fun finish(elapsedMs: Long, wallMs: Long, reason: String) {
         if (!active) return
+        refreshTransport(elapsedMs, terminal = true)
         result = reason
         stoppedWallMs = wallMs
         entries.add(Entry(elapsedMs.coerceAtLeast(0L), "finished", reason))
@@ -165,7 +290,7 @@ internal class MpvPlayDiagnosticLedger(
     fun toZipBytes(): ByteArray {
         check(!active) { "Stop diagnostics before exporting" }
         val summary = JSONObject().apply {
-            put("schema", "zavro-mpv-play-stage4-v1")
+            put("schema", "zavro-mpv-play-stage4-v2")
             put("session", sessionId)
             put("status", result)
             put("started_utc_ms", startedWallMs)
@@ -186,6 +311,8 @@ internal class MpvPlayDiagnosticLedger(
             put("private_tabs", "NOT_SUPPORTED_STAGE1")
             put("automatic_upload", false)
             put("marks", snapshots.size)
+            put("transport_state", transport.name)
+            put("transport_failure", failure.name)
         }
         val timeline = JSONArray()
         entries.sortedBy { it.elapsedMs }.forEach { entry ->
@@ -197,6 +324,12 @@ internal class MpvPlayDiagnosticLedger(
         }
         val analysis = MpvPlayEvidenceReport.build(pageEvents, markCount,
             pageRejected, addonInventory)
+        analysis.put("transport_state", transport.name)
+        analysis.put("transport_failure", failure.name)
+        analysis.put("diagnostics_complete", transport == Transport.CAPTURING)
+        if (transport != Transport.CAPTURING) {
+            analysis.getJSONArray("missing_evidence").put("DIAGNOSTIC_TRANSPORT_INCOMPLETE")
+        }
         val out = ByteArrayOutputStream()
         ZipOutputStream(out).use { zip ->
             fun add(name: String, data: String) {
@@ -212,6 +345,7 @@ internal class MpvPlayDiagnosticLedger(
             add("analysis.json", analysis.toString(2))
             add("analysis.txt", MpvPlayEvidenceReport.explanation(analysis))
             add("page-coverage.json", JSONObject().apply {
+                put("schema", "zavro-mpv-play-coverage-v2")
                 put("snapshot", "STRUCTURE_AND_STATE_NOT_RAW_HTML")
                 put("frame_access", "HTTP_FRAMES_WITH_EXTENSION_ACCESS")
                 put("shadow_dom", "OPEN_ROOTS_ONLY")
@@ -221,6 +355,19 @@ internal class MpvPlayDiagnosticLedger(
                 put("credentials", "NOT_RECORDED")
                 put("missing_page_events", pageEvents.isEmpty())
                 put("rejected_events", pageRejected)
+                put("transport_state", transport.name)
+                put("transport_failure", failure.name)
+            }.toString(2))
+            add("transport.json", JSONObject().apply {
+                put("schema", "zavro-mpv-play-transport-v1")
+                put("state", transport.name)
+                put("failure", failure.name)
+                put("ports_connected", portsConnected)
+                put("ports_disconnected", portsDisconnected)
+                put("start_attempts", startAttempts)
+                put("start_acknowledgements", startAcknowledgements)
+                put("frames_acknowledged", acknowledgedFrames.size)
+                put("packets_rejected", transportRejected)
             }.toString(2))
         }
         return out.toByteArray().also { check(it.size <= MAX_ARCHIVE_BYTES) }
@@ -265,9 +412,11 @@ internal object MpvPlayAddonEvidence {
 }
 
 internal object MpvPlayDiagnostics {
-    internal enum class Start { STARTED, PRIVATE_TAB, BUSY }
+    internal enum class Start { STARTED, PRIVATE_TAB, UNSUPPORTED_PAGE, BUSY }
     internal data class State(val running: Boolean, val reportReady: Boolean,
-        val ownerProfile: String?, val ownerTab: String?)
+        val ownerProfile: String?, val ownerTab: String?,
+        val transport: MpvPlayDiagnosticLedger.Transport?,
+        val failure: MpvPlayDiagnosticLedger.Failure?)
     private const val MAX_DURATION_MS = 15 * 60 * 1000L
     private val lock = Any()
     private var recording: MpvPlayDiagnosticLedger? = null
@@ -276,7 +425,13 @@ internal object MpvPlayDiagnostics {
     private fun expireIfNeeded() {
         val old = recording ?: return
         val elapsed = SystemClock.elapsedRealtime() - old.startedElapsedMs
-        if (elapsed < MAX_DURATION_MS) return
+        old.refreshTransport(elapsed)
+        if (elapsed < MAX_DURATION_MS && old.transport !in setOf(
+                MpvPlayDiagnosticLedger.Transport.NO_PORT,
+                MpvPlayDiagnosticLedger.Transport.NO_ACK,
+                MpvPlayDiagnosticLedger.Transport.NO_PAGE_EVENTS,
+                MpvPlayDiagnosticLedger.Transport.NO_BASELINE) &&
+                !(old.transport == MpvPlayDiagnosticLedger.Transport.FAILED && elapsed >= 8_000L)) return
         old.finish(elapsed, System.currentTimeMillis(), "TIMED_OUT")
         recording = null
         finished = old
@@ -287,12 +442,15 @@ internal object MpvPlayDiagnostics {
         expireIfNeeded()
         val current = recording
         State(current != null, finished != null, current?.ownerProfile ?: finished?.ownerProfile,
-            current?.ownerTab ?: finished?.ownerTab)
+            current?.ownerTab ?: finished?.ownerTab, current?.transport ?: finished?.transport,
+            current?.failure ?: finished?.failure)
     }
 
-    fun start(profile: String, tab: String, host: String?, privateTab: Boolean): Start = synchronized(lock) {
+    fun start(profile: String, tab: String, host: String?, privateTab: Boolean,
+              eligiblePage: Boolean = true): Start = synchronized(lock) {
         expireIfNeeded()
         if (privateTab) return@synchronized Start.PRIVATE_TAB
+        if (!eligiblePage) return@synchronized Start.UNSUPPORTED_PAGE
         if (recording != null || !DiagnosticSessionGate.shared.acquire(DiagnosticOwner.VIDEO_PREVIEW_DIAGNOSTICS)) {
             return@synchronized Start.BUSY
         }
@@ -313,6 +471,43 @@ internal object MpvPlayDiagnostics {
     fun sessionFor(profile: String, tab: String): String? = synchronized(lock) {
         expireIfNeeded()
         recording?.takeIf { it.ownerProfile == profile && it.ownerTab == tab }?.sessionId
+    }
+
+    private fun withSession(profile: String, tab: String, nonce: String,
+                            block: (MpvPlayDiagnosticLedger) -> Unit): Boolean = synchronized(lock) {
+        expireIfNeeded()
+        val ledger = recording ?: return@synchronized false
+        if (ledger.ownerProfile != profile || ledger.ownerTab != tab ||
+            ledger.sessionId != nonce) return@synchronized false
+        block(ledger)
+        true
+    }
+
+    fun connected(profile: String, tab: String, nonce: String): Boolean =
+        withSession(profile, tab, nonce) {
+            it.connected(SystemClock.elapsedRealtime() - it.startedElapsedMs)
+        }
+
+    fun startSent(profile: String, tab: String, nonce: String): Boolean =
+        withSession(profile, tab, nonce) {
+            it.startSent(SystemClock.elapsedRealtime() - it.startedElapsedMs)
+        }
+
+    fun disconnected(profile: String, tab: String, nonce: String): Boolean =
+        withSession(profile, tab, nonce) {
+            it.disconnected(SystemClock.elapsedRealtime() - it.startedElapsedMs)
+        }
+
+    fun failed(profile: String, tab: String, nonce: String,
+               cause: MpvPlayDiagnosticLedger.Failure): Boolean =
+        withSession(profile, tab, nonce) { it.transportFailed(cause) }
+
+    fun ack(profile: String, tab: String, nonce: String, packet: JSONObject): Boolean {
+        var result = false
+        withSession(profile, tab, nonce) {
+            result = it.startAck(packet, SystemClock.elapsedRealtime() - it.startedElapsedMs)
+        }
+        return result
     }
 
     fun page(profile: String, tab: String, packet: JSONObject): Boolean = synchronized(lock) {

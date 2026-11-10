@@ -16,6 +16,18 @@ import java.util.zip.ZipInputStream
 class MpvPlayEvidenceReportTest {
     private val token = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
     private val doc = "abcdefabcdefabcdefabcdefabcdefab"
+    private val subDoc = "0123456789abcdef0123456789abcdef"
+
+    private fun ready(ledger: MpvPlayDiagnosticLedger, subframe: Boolean = false) {
+        ledger.connected()
+        ledger.startSent(0)
+        assertTrue(ledger.startAck(JSONObject().put("schemaVersion", 2)
+            .put("event", "start_ack").put("sessionId", token)
+            .put("documentId", doc).put("frame", "TOP")))
+        if (subframe) assertTrue(ledger.startAck(JSONObject().put("schemaVersion", 2)
+            .put("event", "start_ack").put("sessionId", token)
+            .put("documentId", subDoc).put("frame", "SUBFRAME")))
+    }
 
     private fun packet(seq: Int, kind: String, target: String, detail: String,
                        metrics: JSONObject = JSONObject()): JSONObject =
@@ -23,12 +35,13 @@ class MpvPlayEvidenceReportTest {
             put("schemaVersion", 2)
             put("event", "observation")
             put("sessionId", token)
-            put("documentId", doc)
+            val frame = metrics.optString("frame", "TOP")
+            put("documentId", if (frame == "SUBFRAME") subDoc else doc)
             put("sequence", seq)
             put("kind", kind)
             put("target", target)
             put("detail", detail)
-            put("metrics", metrics)
+            put("metrics", if (metrics.has("frame")) metrics else metrics.put("frame", "TOP"))
         }
 
     private fun zip(ledger: MpvPlayDiagnosticLedger): Map<String, String> {
@@ -64,6 +77,7 @@ class MpvPlayEvidenceReportTest {
 
     @Test fun typedHintsCannotBeConflatedWithVerifiedAttribution() {
         val ledger = MpvPlayDiagnosticLedger(token, "p", "t", "example.test", "v", 100, 0)
+        ready(ledger, subframe = true)
         assertTrue(ledger.mark(10, "native AppDecOr sensitive-tag=NEVER-EXPORT-AS-HINT"))
         assertTrue(ledger.appendPageEvent(packet(1,"DOM","BUTTON","PICKED_ELEMENT",
             JSONObject().put("playHint",true).put("frame","TOP")),1))
@@ -90,7 +104,7 @@ class MpvPlayEvidenceReportTest {
         assertEquals("UNKNOWN", report.getString("play_owner"))
         assertEquals(1, report.getInt("selected_controls"))
         assertEquals(2, report.getInt("video_records"))
-        assertEquals(1, report.getInt("documents_observed"))
+        assertEquals(2, report.getInt("documents_observed"))
         assertFalse(parts.getValue("analysis.json").contains("third-party-secret"))
         assertFalse(parts.getValue("analysis.txt").contains("NEVER-EXPORT-AS-HINT"))
         assertEquals("UNDETERMINED", report.getString("diagnosis"))
@@ -98,6 +112,7 @@ class MpvPlayEvidenceReportTest {
 
     @Test fun rejectedMalformedStringsAndDataLossAreReportedAsGaps() {
         val ledger = MpvPlayDiagnosticLedger(token, "p", "t", null, "v", 0, 0)
+        ready(ledger)
         assertFalse(ledger.appendPageEvent(packet(1,"DOM","BUTTON","PRIVATE_SECRET"), 1))
         assertFalse(ledger.appendPageEvent(packet(1,"DOM","BUTTON","BASELINE",
             JSONObject().put("frame","SESSION_TOKEN")), 1))
@@ -128,6 +143,7 @@ class MpvPlayEvidenceReportTest {
 
     @Test fun nativeTimelineIsTimeOrderedEvenWhenCallbacksArriveOutOfOrder() {
         val ledger = MpvPlayDiagnosticLedger(token, "p", "t", null, "v", 0, 0)
+        ready(ledger)
         assertTrue(ledger.appendPageEvent(packet(1,"DOM","VIDEO","BASELINE"), 7))
         assertTrue(ledger.mark(3, "native"))
         ledger.finish(10, 10, "STOPPED")
@@ -141,6 +157,7 @@ class MpvPlayEvidenceReportTest {
     @Test fun final5BoundedSaturatedCaptureNeverExceedsZipLimit() {
         val ledger = MpvPlayDiagnosticLedger(
             token, "normal", "tab-a", "example.test", "v-stage5", 100L, 0L)
+        ready(ledger, subframe = true)
         repeat(MpvPlayDiagnosticLedger.MAX_MARKS) { index ->
             assertTrue(ledger.mark(index.toLong() + 1L, "N".repeat(24_000)))
         }
@@ -166,12 +183,13 @@ class MpvPlayEvidenceReportTest {
         assertTrue(JSONObject(parts.getValue("analysis.json")).getJSONArray("missing_evidence")
             .toString().contains("PAGE_EVENT_LIMIT_REACHED"))
         assertFalse(parts.getValue("page-events.json").contains("example.test"))
-        assertEquals(8, parts.keys.size)
+        assertEquals(9, parts.keys.size)
     }
 
     @Test fun final5RejectsUntrustedMetadataEvenWhenItLooksLikeAnEnum() {
         val ledger = MpvPlayDiagnosticLedger(
             token, "normal", "tab-a", null, "v-stage5", 100L, 0L)
+        ready(ledger)
         for ((key,value) in listOf(
             "frame" to "SESSION_TOKEN",
             "display" to "SECRET",

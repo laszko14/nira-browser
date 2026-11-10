@@ -12,7 +12,9 @@ test('MPV diagnostic UI is opt-in and has explicit start/mark/stop/share control
   }
   assert.match(fragment, /mpvDiagnostics\.export/);
   assert.match(fragment, /Intent\.FLAG_GRANT_READ_URI_PERMISSION/);
-  assert.match(fragment, /current\.content\.url\.toUri\(\)\.host/);
+  assert.match(fragment, /current\.content\.url\.toUri\(\)/);
+  assert.match(fragment, /pageUri\?\.scheme\?\.lowercase\(\) in setOf\("http", "https"\)/);
+  assert.match(fragment, /!domain\.isNullOrBlank\(\)/);
   assert.doesNotMatch(fragment, /android\.net\.Uri\.parse\(current\.content\.url\)/);
 });
 

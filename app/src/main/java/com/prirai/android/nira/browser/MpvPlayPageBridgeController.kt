@@ -1,6 +1,8 @@
 package com.prirai.android.nira.browser
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -31,22 +33,47 @@ internal class MpvPlayPageBridgeController(
 ) {
     private val attached = IdentityHashMap<EngineSession, Unit>()
     private val ports = IdentityHashMap<EngineSession, MutableList<Port>>()
+    private val portNonces = IdentityHashMap<Port, String>()
+    private val portDocuments = IdentityHashMap<Port, Pair<String, String>>()
     private var observer: kotlinx.coroutines.CoroutineScope? = null
     private var installed = false
+    private var installGeneration = 0
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     fun start() {
         if (installed) return
+        val owner = MpvPlayDiagnostics.state()
+        val requestNonce = owner.ownerProfile?.let { profile ->
+            owner.ownerTab?.let { tab -> MpvPlayDiagnostics.sessionFor(profile, tab) }
+        }
         installed = true
+        val generation = ++installGeneration
         try {
             engine.installBuiltInWebExtension(
                 id = EXTENSION_ID,
                 url = "resource://android/assets/extensions/zavro-preview-diagnostics/",
-                onSuccess = { ext -> attach(ext) },
-                onError = { installed = false },
+                onSuccess = { ext -> if (generation == installGeneration) attach(ext) },
+                onError = {
+                    if (generation != installGeneration) return@installBuiltInWebExtension
+                    installed = false
+                    reportFailure(MpvPlayDiagnosticLedger.Failure.INSTALL_FAILED, requestNonce)
+                },
             )
         } catch (_: Exception) {
+            if (generation != installGeneration) return
             installed = false
+            reportFailure(MpvPlayDiagnosticLedger.Failure.INSTALL_FAILED, requestNonce)
         }
+    }
+
+    private fun reportFailure(cause: MpvPlayDiagnosticLedger.Failure, expectedNonce: String?) {
+        if (expectedNonce == null) return
+        val state = MpvPlayDiagnostics.state()
+        val profile = state.ownerProfile ?: return
+        val tab = state.ownerTab ?: return
+        val nonce = MpvPlayDiagnostics.sessionFor(profile, tab) ?: return
+        if (nonce != expectedNonce) return
+        MpvPlayDiagnostics.failed(profile, tab, nonce, cause)
     }
 
     private fun currentTab(session: EngineSession) = store.state.tabs.singleOrNull {
@@ -105,23 +132,79 @@ internal class MpvPlayPageBridgeController(
     fun command(profile: String, tabId: String, action: String) {
         if (action !in setOf("start", "snapshot", "pick", "cancel_pick", "stop")) return
         val id = MpvPlayDiagnostics.sessionFor(profile, tabId) ?: return
+        if (action == "start") {
+            if (!installed) start()
+            scheduleTimeout(profile, tabId, id)
+        }
         val tab = store.state.tabs.firstOrNull { it.id == tabId } ?: return
         val session = tab.engineState.engineSession ?: return
         if (trustedOwner(session) != (profile to tabId)) return
-        if (action == "start") captureAddonInventory(profile, tabId, id, tab.content.url)
+        if (action == "start") {
+            captureAddonInventory(profile, tabId, id, tab.content.url)
+        }
         val live = ports[session] ?: return
-        val msg = packet(action, id)
         val iterator = live.iterator()
         while (iterator.hasNext()) {
+            val port = iterator.next()
             try {
-                iterator.next().postMessage(msg)
+                if (action == "start") {
+                    MpvPlayDiagnostics.connected(profile, tabId, id)
+                    MpvPlayDiagnostics.startSent(profile, tabId, id)
+                    portNonces[port] = id
+                    portDocuments.remove(port)
+                }
+                port.postMessage(packet(action, id))
+                if (action == "stop") {
+                    portNonces.remove(port)
+                    portDocuments.remove(port)
+                }
             } catch (_: Exception) {
                 iterator.remove()
+                portNonces.remove(port)
+                portDocuments.remove(port)
+                MpvPlayDiagnostics.failed(profile, tabId, id,
+                    MpvPlayDiagnosticLedger.Failure.POST_FAILED)
             }
         }
     }
 
+    private fun scheduleTimeout(profile: String, tabId: String, nonce: String) {
+        fun check() {
+            val state = MpvPlayDiagnostics.state()
+            if (MpvPlayDiagnostics.sessionFor(profile, tabId) != nonce) {
+                stopPorts(nonce)
+            } else if (state.transport != MpvPlayDiagnosticLedger.Transport.CAPTURING) {
+                mainHandler.postDelayed({ check() }, 8_000L)
+            }
+        }
+        mainHandler.postDelayed({ check() }, 8_000L)
+        mainHandler.postDelayed({
+            MpvPlayDiagnostics.state()
+            if (MpvPlayDiagnostics.sessionFor(profile, tabId) != nonce) stopPorts(nonce)
+        }, 15 * 60 * 1000L)
+    }
+
+    private fun stopPorts(nonce: String) {
+        for (list in ports.values) for (port in list.toList()) {
+            if (portNonces[port] == nonce) {
+                try { port.postMessage(packet("stop", nonce)) } catch (_: Exception) {}
+                portNonces.remove(port)
+                portDocuments.remove(port)
+            }
+        }
+    }
+
+    /** Cancel only the current diagnostic nonce, even if the UI changed profiles. */
+    fun cancelCurrent() {
+        val state = MpvPlayDiagnostics.state()
+        val profile = state.ownerProfile ?: return
+        val tab = state.ownerTab ?: return
+        val nonce = MpvPlayDiagnostics.sessionFor(profile, tab) ?: return
+        stopPorts(nonce)
+    }
+
     private fun attach(extension: WebExtension) {
+        if (observer != null) return
         observer = store.flowScoped(dispatcher = Dispatchers.Main) { flow ->
             flow.map { state -> state.tabs.mapNotNull { tab ->
                 tab.engineState.engineSession?.let { it to tab.id }
@@ -131,6 +214,8 @@ internal class MpvPlayPageBridgeController(
                     if (sessions.none { it === old }) {
                         attached.remove(old)
                         ports.remove(old)?.forEach { port ->
+                            portNonces.remove(port)
+                            portDocuments.remove(port)
                             try { port.disconnect() } catch (_: Exception) {}
                         }
                     }
@@ -142,6 +227,12 @@ internal class MpvPlayPageBridgeController(
                             attached[session] = Unit
                         } catch (_: Exception) {
                             // No URLs or page text in logcat.
+                            trustedOwner(session)?.let { (profile, tab) ->
+                                MpvPlayDiagnostics.sessionFor(profile, tab)?.let { nonce ->
+                                    MpvPlayDiagnostics.failed(profile, tab, nonce,
+                                        MpvPlayDiagnosticLedger.Failure.HANDLER_FAILED)
+                                }
+                            }
                         }
                     }
                 }
@@ -166,14 +257,37 @@ internal class MpvPlayPageBridgeController(
             val live = ports.getOrPut(session) { mutableListOf() }
             if (live.size >= MAX_FRAMES) {
                 val old = live.removeAt(0)
+                portNonces.remove(old)
+                portDocuments.remove(old)
                 try { old.disconnect() } catch (_: Exception) {}
             }
             live.add(port)
             val (profile, tabId) = trustedOwner(session) ?: return
             val id = MpvPlayDiagnostics.sessionFor(profile, tabId)
             if (id != null) {
-                try { port.postMessage(packet("start", id)) } catch (_: Exception) {}
+                MpvPlayDiagnostics.connected(profile, tabId, id)
+                try {
+                    MpvPlayDiagnostics.startSent(profile, tabId, id)
+                    portNonces[port] = id
+                    portDocuments.remove(port)
+                    port.postMessage(packet("start", id))
+                } catch (_: Exception) {
+                    live.removeAll { it === port }
+                    portNonces.remove(port)
+                    portDocuments.remove(port)
+                    MpvPlayDiagnostics.failed(profile, tabId, id,
+                        MpvPlayDiagnosticLedger.Failure.POST_FAILED)
+                }
             }
+        }
+
+        override fun onPortDisconnected(port: Port) {
+            val wasConnected = ports[session]?.removeAll { it === port } == true
+            val nonce = portNonces.remove(port) ?: return
+            portDocuments.remove(port)
+            if (!wasConnected) return
+            val (profile, tabId) = trustedOwner(session) ?: return
+            MpvPlayDiagnostics.disconnected(profile, tabId, nonce)
         }
 
         override fun onPortMessage(message: Any, port: Port) {
@@ -181,8 +295,20 @@ internal class MpvPlayPageBridgeController(
                 !MpvPlayPortIdentity.matches(ports[session], port)) return
             val (profile, tabId) = trustedOwner(session) ?: return
             val payload = message as? JSONObject ?: return
+            val nonce = portNonces[port] ?: return
+            if (payload.optString("sessionId") != nonce) return
+            if (payload.optString("event") == "start_ack") {
+                val identity = payload.optString("documentId") to payload.optString("frame")
+                if (portDocuments[port] == null || portDocuments[port] == identity) {
+                    if (MpvPlayDiagnostics.ack(profile, tabId, nonce, payload))
+                        portDocuments[port] = identity
+                }
+                return
+            }
             if (payload.optInt("schemaVersion") != 2 ||
                 payload.optString("event") != "observation") return
+            if (portDocuments[port] != (payload.optString("documentId") to
+                    payload.optJSONObject("metrics")?.optString("frame"))) return
             if (MpvPlayDiagnostics.page(profile, tabId, payload) &&
                 payload.optString("kind") == "PICK") {
                 // A click in one iframe must disarm the picker in all frames.

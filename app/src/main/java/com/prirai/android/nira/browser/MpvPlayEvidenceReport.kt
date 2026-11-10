@@ -79,7 +79,7 @@ internal object MpvPlayEvidenceReport {
         if (eventLimit) actions.add("SHORTEN_CAPTURE_TO_AVOID_TRUNCATION")
         actions.add("VERIFY_EXPORT_ON_REAL_SITE_AND_DEVICE")
         return JSONObject().apply {
-            put("schema", "zavro-preview-triage-stage4-v1")
+            put("schema", "zavro-preview-triage-stage4-v2")
             put("diagnosis", "UNDETERMINED")
             put("attribution_confidence", "NOT_ESTABLISHED")
             put("play_owner", "UNKNOWN")
@@ -112,6 +112,7 @@ internal object MpvPlayEvidenceReport {
             "ZAVRO CLEAN — RAPORT DIAGNOSTYCZNY PLAY (ETAP 4/5)",
             "WYNIK: NIE USTALONO ŹRÓDŁA PRZYCISKU PLAY.",
             "Wskazówki są obserwacjami, nie dowodami przyczynowymi.",
+            "Stan zbierania: ${data.optString("transport_state", "UNKNOWN")}; przyczyna: ${data.optString("transport_failure", "NONE")}.",
             "Zdarzenia strony: ${data.getInt("page_events")}; wskazane elementy: ${data.getInt("selected_controls")}.",
             "Zaobserwowane sygnały: ${values("hints")}",
             "Brakujące dowody i ograniczenia: ${values("missing_evidence")}",

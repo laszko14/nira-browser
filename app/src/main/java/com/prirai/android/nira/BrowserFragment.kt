@@ -1142,6 +1142,31 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         // page evidence; native snapshots remain APP_DECOR_ONLY.
         val mpvDiagnostics = com.prirai.android.nira.browser.MpvPlayDiagnostics
         val mpvState = mpvDiagnostics.state()
+        if (mpvState.running || mpvState.reportReady) {
+            val confirmed = mpvState.transport ==
+                com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.CAPTURING
+            val waiting = mpvState.running && mpvState.transport in setOf(
+                com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.NOT_READY,
+                com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.CONNECTED,
+                com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.START_SENT,
+                com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.START_ACKNOWLEDGED)
+            menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+                id = "mpv_play_diagnostic_status",
+                title = if (confirmed) "MPV / Play • ZBIERANIE POTWIERDZONE"
+                    else if (waiting) "MPV / Play • OCZEKIWANIE NA STRONĘ"
+                    else "MPV / Play • BRAK POŁĄCZENIA / RAPORT NIEPEŁNY",
+                iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_settings_24,
+                onClick = {
+                    val owner = activity ?: return@Action
+                    Toast.makeText(owner, if (confirmed)
+                        "Dane strony są zbierane. Odtwórz problem i oznacz go."
+                        else if (waiting)
+                        "Oczekiwanie na potwierdzenie strony. Jeśli stan się nie zmieni, odśwież kartę."
+                        else "Brak potwierdzonej migawki strony. Odśwież kartę, wróć do testu i sprawdź stan; w ZIP znajdziesz kategorię błędu.",
+                        Toast.LENGTH_LONG).show()
+                }
+            ))
+        }
         if (!mpvState.running) {
             menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
                 id = "mpv_play_diagnostic_start", title = "MPV / Play • ROZPOCZNIJ TEST",
@@ -1154,21 +1179,26 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                         Toast.makeText(owner, "Najpierw otwórz zwykłą kartę strony", Toast.LENGTH_LONG).show()
                         return@Action
                     }
-                    val domain = runCatching { current.content.url.toUri().host }.getOrNull()
+                    val pageUri = runCatching { current.content.url.toUri() }.getOrNull()
+                    val domain = pageUri?.host
+                    val eligiblePage = pageUri?.scheme?.lowercase() in setOf("http", "https") &&
+                        !domain.isNullOrBlank()
                     val profileId = manager.getActiveProfile().id
                     val canObserve = com.prirai.android.nira.browser.profile.ProfileTabScope
                         .belongsToNormalProfile(current, profileId)
                     val started = mpvDiagnostics.start(profileId,
-                        current.id, domain, manager.isPrivateMode() || !canObserve)
+                        current.id, domain, manager.isPrivateMode() || !canObserve, eligiblePage)
                     if (started == com.prirai.android.nira.browser.MpvPlayDiagnostics.Start.STARTED) {
                         (owner.application as? BrowserApp)?.mpvPlayPageBridge?.command(
                             manager.getActiveProfile().id, current.id, "start")
                     }
                     val message = when (started) {
                         com.prirai.android.nira.browser.MpvPlayDiagnostics.Start.STARTED ->
-                            "Test MPV rozpoczęty. Odtwórz problem i wybierz ⋮ → OZNACZ PROBLEM."
+                            "Test MPV rozpoczęty. Poczekaj na potwierdzenie zbierania w menu."
                         com.prirai.android.nira.browser.MpvPlayDiagnostics.Start.PRIVATE_TAB ->
                             "Diagnostyka działa tylko na zwykłej karcie aktywnego profilu."
+                        com.prirai.android.nira.browser.MpvPlayDiagnostics.Start.UNSUPPORTED_PAGE ->
+                            "Otwórz zwykłą stronę HTTP(S), aby rozpocząć diagnostykę."
                         com.prirai.android.nira.browser.MpvPlayDiagnostics.Start.BUSY ->
                             "Inna diagnostyka jest aktywna. Zakończ ją przed nowym testem."
                     }
@@ -1229,7 +1259,10 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                             manager.getActiveProfile().id, tab, "stop")
                     }
                     val stopped = !manager.isPrivateMode() && mpvDiagnostics.stop(manager.getActiveProfile().id)
-                    Toast.makeText(owner, if (stopped) "Raport gotowy. ⋮ → EKSPORTUJ ZIP"
+                    val complete = mpvDiagnostics.state().transport ==
+                        com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.CAPTURING
+                    Toast.makeText(owner, if (stopped && complete) "Zbieranie potwierdzone. Raport gotowy do eksportu."
+                        else if (stopped) "Raport niepełny: brak połączenia lub danych strony. Wyeksportuj ZIP, aby sprawdzić przyczynę."
                         else "Test należy do innego profilu. Możesz anulować sesję.", Toast.LENGTH_LONG).show()
                 }
             ))
@@ -1272,6 +1305,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                         (owner.application as? BrowserApp)?.mpvPlayPageBridge?.command(
                             manager.getActiveProfile().id, tab, "stop")
                     }
+                    (owner.application as? BrowserApp)?.mpvPlayPageBridge?.cancelCurrent()
                     mpvDiagnostics.discard()
                     viewLifecycleOwner.lifecycleScope.launch {
                         mpvDiagnostics.clearExports(owner.applicationContext)

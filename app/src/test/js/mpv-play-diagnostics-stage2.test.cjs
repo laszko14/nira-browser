@@ -52,7 +52,7 @@ function harness(frame = false) {
     onDisconnect: { addListener(fn) { disconnected = fn; } }
   };
   vm.runInNewContext(script, { window, document, NodeFilter:{SHOW_ELEMENT:1},
-    crypto:webcrypto, MutationObserver, browser: {
+    crypto:webcrypto, MutationObserver, setTimeout: () => 0, browser: {
       runtime: {connectNative(name) {
         assert.equal(name, 'zavro.preview.forensics'); return port;
       }}
@@ -79,16 +79,19 @@ test('manifest runs frame-aware content probe, but no page observers before user
 test('START captures bounded metadata not page text, passwords, raw source URL or token', () => {
   const x = harness();
   x.command({schemaVersion:2,action:'start',sessionId:ID});
+  assert.equal(x.packets[0].event, 'start_ack');
+  assert.equal(x.packets[0].sessionId, ID);
+  assert.match(x.packets[0].documentId, /^[0-9a-f]{32}$/);
+  assert.ok(x.packets.some(p => p.detail === 'SNAPSHOT_FINISHED'));
   assert.ok(x.packets.length >= 2);
-  assert.equal(x.packets[0].event, 'observation');
-  assert.equal(x.packets[0].schemaVersion, 2);
-  assert.equal(x.packets[0].kind, 'MEDIA');
-  assert.equal(x.packets[0].metrics.poster, true);
-  assert.equal(x.packets[0].metrics.readyState, 2);
-  assert.equal(x.packets[0].metrics.paused, true);
-  assert.equal(x.packets[0].metrics.controls, false);
-  assert.equal(Object.keys(x.packets[0].metrics).length <= 16, true);
-  assert.equal(x.packets[0].metrics.frame, 'TOP');
+  const media = x.packets.find(p => p.kind === 'MEDIA');
+  assert.equal(media.schemaVersion, 2);
+  assert.equal(media.metrics.poster, true);
+  assert.equal(media.metrics.readyState, 2);
+  assert.equal(media.metrics.paused, true);
+  assert.equal(media.metrics.controls, false);
+  assert.equal(Object.keys(media.metrics).length <= 16, true);
+  assert.equal(media.metrics.frame, 'TOP');
   assert.doesNotMatch(JSON.stringify(x.packets), /SUPER_SECRET|https:\/\/example\.org/);
   assert.deepEqual(x.observerState(), [1,0]);
   x.command({schemaVersion:2,action:'snapshot',sessionId:'ffffffff-ffff-ffff-ffff-ffffffffffff'});
@@ -109,7 +112,7 @@ test('picker consumes exactly the authorised touch, and can be disarmed across f
   x.command({schemaVersion:2,action:'start',sessionId:ID});
   x.command({schemaVersion:2,action:'pick',sessionId:ID});
   let prevented = 0;
-  const touch = {type:'pointerdown',target:x.node,
+  const touch = {type:'pointerdown',pointerType:'touch',target:x.node,
     preventDefault() { prevented++; },
     stopImmediatePropagation() { prevented++; }};
   x.listeners.get('pointerdown')(touch);
@@ -131,7 +134,7 @@ test('picker consumes exactly the authorised touch, and can be disarmed across f
 test('attribute changes retain synthetic node identity and safe post-change HTML5 state', () => {
   const x = harness();
   x.command({schemaVersion:2,action:'start',sessionId:ID});
-  const firstNode = x.packets[0].metrics.node;
+  const firstNode = x.packets.find(p => p.kind === 'MEDIA').metrics.node;
   x.node.paused = false;
   x.mutate([{type:'attributes',target:x.node,attributeName:'poster'},
     {type:'attributes',target:x.node,attributeName:'src'}]);

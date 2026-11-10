@@ -18,6 +18,8 @@
   const allowedPointer = new Set(["AUTO","NONE","OTHER"]);
   const safeNumber = value => Number.isFinite(value) ? Math.max(0, Math.min(32768, Math.round(value))) : 0;
   let port, active = null, observer = null, listeners = [], serial = 0, picked = false, lost = 0;
+  let stoppedId = null;
+  let lastActiveId = null;
   let elementIds = new WeakMap(), nextElementId = 0;
   function elementId(element) {
     if (!element || typeof element !== "object") return 0;
@@ -129,7 +131,7 @@
   function handler(event) {
     if (!active || serial >= MAX_EVENTS) return;
     const type = event.type;
-    if (picked && type === "pointerdown") {
+    if (picked && type === "pointerdown" && event.pointerType === "touch") {
       picked = false;
       // Only the explicitly requested picker consumes one tap.
       event.preventDefault();
@@ -196,9 +198,20 @@
   }
   function start(id) {
     if (!sessionPattern.test(id || "")) return;
-    stop(); active = {id,since:Date.now()}; serial = 0; lost = 0;
+    if (id === stoppedId) return;
+    if (active?.id === id) {
+      acknowledge(id);
+      return;
+    }
+    stop();
+    if (lastActiveId !== id) {
+      serial = 0;
+      elementIds = new WeakMap(); nextElementId = 0;
+    }
+    lastActiveId = id;
+    active = {id,since:Date.now()}; lost = 0;
+    if (!acknowledge(id)) return;
     handler.hovered = null;
-    elementIds = new WeakMap(); nextElementId = 0;
     for (const name of ["pointerdown","pointerover","click","play","pause","loadedmetadata","error"]) {
       listen(document,name,handler,true);
     }
@@ -210,9 +223,19 @@
       attributeFilter:["style","class","hidden","poster","src","controls","autoplay","role"]});
     snapshot("BASELINE");
   }
-  try {
-    port = browser.runtime.connectNative(APP);
-    if (!port) return;
+  function acknowledge(id) {
+    try {
+      port.postMessage({schemaVersion:2,event:"start_ack",sessionId:id,
+        documentId,frame:window.top === window ? "TOP" : "SUBFRAME"});
+      return true;
+    } catch (_) { stop(); return false; }
+  }
+  function connect(attempt = 0) {
+    try { port = browser.runtime.connectNative(APP); } catch (_) { port = null; }
+    if (!port) {
+      if (attempt < 3) setTimeout(() => connect(attempt + 1), 250 * (attempt + 1));
+      return;
+    }
     port.onMessage.addListener(command => {
       if (!command || command.schemaVersion !== 2 || typeof command.sessionId !== "string") return;
       if (command.action === "start" && Object.keys(command).length === 3) start(command.sessionId);
@@ -220,9 +243,14 @@
         if (command.action === "snapshot") snapshot("USER_MARK");
         else if (command.action === "pick") picked = true;
         else if (command.action === "cancel_pick") picked = false;
-        else if (command.action === "stop") stop();
+        else if (command.action === "stop") { stoppedId = active.id; stop(); }
       }
     });
-    port.onDisconnect.addListener(stop);
-  } catch (_) { stop(); }
+    port.onDisconnect.addListener(() => {
+      stop();
+      if (attempt < 3 && !stoppedId)
+        setTimeout(() => connect(attempt + 1), 250 * (attempt + 1));
+    });
+  }
+  connect();
 })();

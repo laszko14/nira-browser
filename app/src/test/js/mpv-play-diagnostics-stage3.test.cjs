@@ -47,7 +47,7 @@ test('background-play patch is still allowlist gated and never proves actual pag
 test('Gecko addon inventory is explicit-start only, session-nonce bound and no foreign IDs exported', () => {
   const bridge = read('app/src/main/java/com/prirai/android/nira/browser/MpvPlayPageBridgeController.kt');
   const ledger = read('app/src/main/java/com/prirai/android/nira/browser/MpvPlayDiagnostics.kt');
-  assert.match(bridge,/if \(action == "start"\) captureAddonInventory/);
+  assert.match(bridge,/if \(action == "start"\) \{\s*captureAddonInventory/);
   assert.match(bridge,/ProfileTabScope\.belongsToNormalProfile/);
   assert.match(bridge,/engine\.listInstalledWebExtensions/);
   assert.match(ledger,/ledger\.sessionId != nonce/);

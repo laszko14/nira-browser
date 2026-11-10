@@ -5,45 +5,44 @@ Archive: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md.
 Kanon gałęzi i monotonicznej wersji: `docs/ai/ACTIVE_CLEAN_LINE.md`. Przed pracą sprawdzaj live HEAD wskazanej gałęzi i ostatnie Actions; poniższy checkpoint jest zapisany **przed nowym CI dokumentacji**.
 
 ```yaml
-task_id: ZC-CLEAN-CONTINUOUS-LINE-APK-LINK-20261110
+task_id: ZC-MPV-PLAY-TRANSPORT-20261110
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: feat/zavro-clean-mpv-play-diagnostics-stage1-20261110
-base_sha: f24e3463a958c83aa2f2347000fbb7705ae8bfa4
-observed_head_sha: f24e3463a958c83aa2f2347000fbb7705ae8bfa4
+base_sha: b131a0219ea86e533a1f4f88afd81789427e8f57
+observed_head_sha: b131a0219ea86e533a1f4f88afd81789427e8f57
 status: CI_PENDING
-acceptance_source: User 2026-11-10 requested no agent APK downloads in ChatGPT/Work/Codex, only GitHub Actions run links; one continuously advancing development branch and strictly increasing APK update numbers.
-completed: Confirmed live branch and PR #140 at base SHA. SOURCE 42863285968 and PR 42863296609 completed/success on base SHA. Private signed v1226 build 42864976383 completed/success; build job verifier confirmed package, versionCode 1226, versionName alpha122-clean, arm64-v8a and pinned SHA-256 certificate; artifact 13787720924. Prepared docs-only canonical active line and harmonized agent, preflight, project, Copilot, process and APK instructions; no app or signing changes.
-remaining: Push checkpoint regression fix on the same branch; confirm full final SHA and required SOURCE/PR CI on that exact SHA; triage any FAIL in the same task. No APK for documentation change. Manually replace ChatGPT Project Instructions and refresh static Project Sources outside repo if desired.
-required_ci: SOURCE process-docs, shared-tests JavaScript, JVM/Robolectric, AndroidTest compile, lint, evidence; PR shared-tests and error-learning gates all SUCCESS on final source HEAD / corresponding PR merge-ref.
-apk: APK_VERIFIED v1226 from run 42864976383 and artifact zavro-arm64-update-apk-v1226 (ID 13787720924), source SHA f24e3463a958c83aa2f2347000fbb7705ae8bfa4. DO NOT download APK/ZIP as agent; user downloads from run page. This docs-only change does not build another APK.
-device: NOT_TESTED; user previously confirmed installed v1225, installation of v1226 NOT_CONFIRMED.
-privacy: No changes to profiles, sessions, history, permissions, Android package, ABI, signing key, app code, merge or release.
-known_failures: SOURCE 42870276479 (SHA 77f9434233b033f95ccbba46d11ab0bc69c4b7d2) failed project-sources test because the new assertion required Markdown backticks around canonical branch in the plain-text ChatGPT bootstrap; corrected to require branch value, not formatting; new CI PENDING. SOURCE 42869723023 (SHA d413c2803d0fffff000ebbef2fb3e39c04aa47ca) failed process-docs on scripts/project-sources.test.cjs: static old V3 branch assertion rejected newly correct canonical branch. Updated test to compare Project Source/AGENTS/preflight/bootstrap against ACTIVE_CLEAN_LINE and reject stale copies; new CI PENDING. Docs-only SOURCE 42868786887 on SHA 19a68940c6b9f0d7e631f6a0d48409df97c73a22 failed process-docs at scripts/check-ai-handoff.test.cjs because the rewritten checkpoint dropped its mandatory legacy archive reference. Restored archive path; recurrence of ERR-20261110-MPV-DIAG4-HANDOFF-SHAREDTESTS; new final CI PENDING. Initial v1226 neon test fixture failure on old SHA a2a4c414da65f0249c4afd800625521679045b81 corrected before base; historical failed runs 42862726025 and 42862739371 do not block green base SHA. Runtime Play/preview site cases still require device evidence.
-verification: SOURCE 42863285968 success; PR 42863296609 success; APK 42864976383 completed/success with verifier output versionCode=1226, cert and ABI; artifact metadata confirmed. New documentation commit CI remains PENDING.
-verified_before_push: Read AGENTS.md, docs/AI_HANDOFF.md, docs/ai/CHATGPT_PROJECT_INSTRUCTIONS.md, docs/ai/STARTUP_PREFLIGHT.md, APK_CHAT_GITHUB_REVIEW_TRIGGER.md, DEVELOPMENT_WORKFLOW.md, CHECKPOINT_POLICY.md, project sources and build.gradle at explicit live base SHA; confirmed branch ref and active PR.
-blockers: ChatGPT Project Instructions and uploaded Project Sources cannot be changed by repo commit; user must apply latest bootstrap manually. Local Android device not accessible.
+acceptance_source: User supplied two v1226 diagnostic ZIPs and requested an opt-in MPV/Play transport repair, tests, registry, checkpoint, commit, push and green SOURCE/PR CI; no APK, merge or release.
+completed: Verified two valid archives with native markers and zero DOM events. RED JS test showed no START acknowledgement. Added typed ACK, bounded JS reconnect, native transport states and safe failure counters, explicit incomplete report and menu status. Root cause of the two phone transport failures remains undetermined.
+remaining: Finish local Kotlin and full regression gates, review diff, push on this branch, verify final source SHA and all required SOURCE/PR CI; inspect a new device report for the exact transport failure. Do not infer the cause of broken thumbnails.
+required_ci: SOURCE process-docs and shared-tests JavaScript, JVM/Robolectric, AndroidTest compile, lint plus baseline and evidence all SUCCESS on final source SHA; PR shared-tests and error-learning gates SUCCESS on integration checkout.
+apk: NOT_BUILT for this task. Historical v1226 signed artifact run 42864976383; no new build or download.
+device: NOT_TESTED; no Android device or real Gecko site test in this task.
+known_failures: Both supplied ZIPs have the same empty-page-evidence fingerprint. Original v1226 report cannot distinguish no port, missing ACK or rejected page packet. Local Robolectric initially lacked its Android 15 image; verified Maven SHA-512 and reran. One test fixture used a Kotlin-null Mockito matcher and was corrected; an OOM-killed Gradle daemon was rerun with a smaller heap.
+verification: RED node stage2 ACK test failed before implementation. Final local JS 660/660, process 63/63, JVM/Robolectric 1561/1561 and AndroidTest Kotlin compile succeeded. Final lint is running; earlier lint and baseline passed before final minor edits. SOURCE 42870600968 and PR 42870612903 succeeded on the historical base only.
+verified_before_push: Read AGENTS, active line, handoff, startup, project instructions, task, workflow, test, quality, error learning, checkpoint and diagnostics stage1-5 at explicit base SHA; verified clean isolated checkout, remote HEAD and DEFAULT ai-preflight.
+blockers: Physical device unavailable; original report gives no direct native port or script execution trace. No causal attribution to playback or preview helper.
 evidence_links:
-  - https://github.com/laszko14/nira-browser/actions/runs/42863285968
-  - https://github.com/laszko14/nira-browser/actions/runs/42863296609
-  - https://github.com/laszko14/nira-browser/actions/runs/42864976383
   - https://github.com/laszko14/nira-browser/pull/140
+  - https://github.com/laszko14/nira-browser/actions/runs/42870600968
+  - https://github.com/laszko14/nira-browser/actions/runs/42870612903
 changed_paths:
-  - AGENTS.md
-  - docs/ai/ACTIVE_CLEAN_LINE.md
-  - docs/ai/STARTUP_PREFLIGHT.md
-  - docs/ai/CHATGPT_PROJECT_INSTRUCTIONS.md
-  - docs/ai/project-sources/ZAVRO_START.md
-  - docs/ai/project-sources/ZAVRO_SYSTEM_V3.md
-  - docs/ai/DEVELOPMENT_WORKFLOW.md
-  - docs/ai/APK_CHAT_GITHUB_REVIEW_TRIGGER.md
-  - docs/ai/APK_RELEASE.md
-  - .github/copilot-instructions.md
-  - docs/AI_HANDOFF.md
-  - scripts/project-sources.test.cjs
+  - app/src/main/assets/extensions/zavro-preview-diagnostics/content.js
+  - app/src/main/java/com/prirai/android/nira/BrowserFragment.kt
+  - app/src/main/java/com/prirai/android/nira/browser/MpvPlayDiagnostics.kt
+  - app/src/main/java/com/prirai/android/nira/browser/MpvPlayEvidenceReport.kt
+  - app/src/main/java/com/prirai/android/nira/browser/MpvPlayPageBridgeController.kt
+  - app/src/test/java/com/prirai/android/nira/browser/MpvPlayDiagnosticsTest.kt
+  - app/src/test/java/com/prirai/android/nira/browser/MpvPlayEvidenceReportTest.kt
+  - app/src/test/java/com/prirai/android/nira/browser/MpvPlayPageBridgeControllerTest.kt
+  - app/src/test/js/mpv-play-diagnostics-stage1.test.cjs
+  - app/src/test/js/mpv-play-diagnostics-stage2.test.cjs
+  - app/src/test/js/mpv-play-diagnostics-stage3.test.cjs
+  - app/src/test/js/mpv-play-diagnostics-stage5.test.cjs
   - docs/ai/ERROR_CASES.json
-next_action: Verify new docs-only commit full SHA and green SOURCE+PR CI. If green report CODE_VERIFIED for docs change; do not build/download APK and do not start unrelated stage.
+  - docs/AI_HANDOFF.md
+next_action: Finish required regression tests and CI on the eventual fast-forward SHA; report honest transport uncertainty and request a new opt-in phone report only after code and CI verification.
 ```
 
 ## Istotna historia przekazania
