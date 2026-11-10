@@ -4,9 +4,15 @@ import org.json.JSONObject
 import org.json.JSONArray
 import org.junit.Assert.*
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import android.app.Application
 import java.io.ByteArrayInputStream
 import java.util.zip.ZipInputStream
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35], application = Application::class, manifest = Config.NONE)
 class MpvPlayEvidenceReportTest {
     private val token = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
     private val doc = "abcdefabcdefabcdefabcdefabcdefab"
