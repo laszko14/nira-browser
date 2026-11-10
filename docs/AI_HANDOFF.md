@@ -20,7 +20,7 @@ required_ci: SOURCE process-docs, shared-tests JavaScript, JVM/Robolectric, Andr
 apk: APK_VERIFIED v1226 from run 42864976383 and artifact zavro-arm64-update-apk-v1226 (ID 13787720924), source SHA f24e3463a958c83aa2f2347000fbb7705ae8bfa4. DO NOT download APK/ZIP as agent; user downloads from run page. This docs-only change does not build another APK.
 device: NOT_TESTED; user previously confirmed installed v1225, installation of v1226 NOT_CONFIRMED.
 privacy: No changes to profiles, sessions, history, permissions, Android package, ABI, signing key, app code, merge or release.
-known_failures: Docs-only SOURCE 42868786887 on SHA 19a68940c6b9f0d7e631f6a0d48409df97c73a22 failed process-docs at scripts/check-ai-handoff.test.cjs because the rewritten checkpoint dropped its mandatory legacy archive reference. Restored archive path; recurrence of ERR-20261110-MPV-DIAG4-HANDOFF-SHAREDTESTS; new final CI PENDING. Initial v1226 neon test fixture failure on old SHA a2a4c414da65f0249c4afd800625521679045b81 corrected before base; historical failed runs 42862726025 and 42862739371 do not block green base SHA. Runtime Play/preview site cases still require device evidence.
+known_failures: SOURCE 42869723023 (SHA d413c2803d0fffff000ebbef2fb3e39c04aa47ca) failed process-docs on scripts/project-sources.test.cjs: static old V3 branch assertion rejected newly correct canonical branch. Updated test to compare Project Source/AGENTS/preflight/bootstrap against ACTIVE_CLEAN_LINE and reject stale copies; new CI PENDING. Docs-only SOURCE 42868786887 on SHA 19a68940c6b9f0d7e631f6a0d48409df97c73a22 failed process-docs at scripts/check-ai-handoff.test.cjs because the rewritten checkpoint dropped its mandatory legacy archive reference. Restored archive path; recurrence of ERR-20261110-MPV-DIAG4-HANDOFF-SHAREDTESTS; new final CI PENDING. Initial v1226 neon test fixture failure on old SHA a2a4c414da65f0249c4afd800625521679045b81 corrected before base; historical failed runs 42862726025 and 42862739371 do not block green base SHA. Runtime Play/preview site cases still require device evidence.
 verification: SOURCE 42863285968 success; PR 42863296609 success; APK 42864976383 completed/success with verifier output versionCode=1226, cert and ABI; artifact metadata confirmed. New documentation commit CI remains PENDING.
 verified_before_push: Read AGENTS.md, docs/AI_HANDOFF.md, docs/ai/CHATGPT_PROJECT_INSTRUCTIONS.md, docs/ai/STARTUP_PREFLIGHT.md, APK_CHAT_GITHUB_REVIEW_TRIGGER.md, DEVELOPMENT_WORKFLOW.md, CHECKPOINT_POLICY.md, project sources and build.gradle at explicit live base SHA; confirmed branch ref and active PR.
 blockers: ChatGPT Project Instructions and uploaded Project Sources cannot be changed by repo commit; user must apply latest bootstrap manually. Local Android device not accessible.
@@ -41,6 +41,8 @@ changed_paths:
   - docs/ai/APK_RELEASE.md
   - .github/copilot-instructions.md
   - docs/AI_HANDOFF.md
+  - scripts/project-sources.test.cjs
+  - docs/ai/ERROR_CASES.json
 next_action: Verify new docs-only commit full SHA and green SOURCE+PR CI. If green report CODE_VERIFIED for docs change; do not build/download APK and do not start unrelated stage.
 ```
 
