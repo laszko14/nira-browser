@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const root = path.resolve(__dirname, '../../../../..');
+const root = path.resolve(__dirname, '../../../..');
 
 test('MPV diagnostic UI is opt-in and has explicit start/mark/stop/share controls', () => {
   const fragment = fs.readFileSync(path.join(root, 'app/src/main/java/com/prirai/android/nira/BrowserFragment.kt'), 'utf8');
