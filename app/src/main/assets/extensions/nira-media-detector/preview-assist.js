@@ -79,6 +79,9 @@
         (targetVideo && targetVideo.tagName === "VIDEO")) return;
     const explicitPreviewControl = !!control &&
       /(?:preview|podgląd|trailer|zwiastun)/i.test(label);
+    // A site's ordinary button/role=button owns its click, even when it
+    // contains an image inside a card with a declared preview source.
+    if (control && !explicitPreviewControl) return;
     const clickedThumb = event.target.closest("img,video,[class*='thumb'],[class*='Thumb']");
     if (!explicitPlay && !clickedThumb) return;
     const card = (control || clickedThumb).closest(CARD) ||
@@ -110,6 +113,11 @@
     // The declared source must belong to this exact video, not a different
     // player in the same article/card. Never copy its sound state to a preview.
     if (source && videoSrc !== source) return;
+    // A muted autoplay preview is already owned by the website. When it is
+    // temporarily paused/loading, do not steal its linked thumbnail click.
+    // A deliberate Preview control remains an explicit independent action.
+    if (!explicitPreviewControl && video.autoplay && video.muted &&
+        video.playsInline) return;
     const originalMuted = video.muted;
     const originalPlaysInline = video.playsInline;
     const attempt = {};
