@@ -270,6 +270,11 @@
       "task_id": "ZC-MPV-PLAY-DIAG-2",
       "observed_count": 2,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-MPV-PLAY-DIAG-4",
+      "observed_count": 2,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -6370,6 +6375,62 @@
       "test_result": "PASS",
       "final_ci": "PENDING",
       "recurrence_conditions": "A generated ERROR_CASES.json fingerprint includes a hyphen and causes SOURCE process-docs to fail in canonical validation."
+    },
+    {
+      "id": "ERR-20261110-MPV-DIAG4-PORT-IDENTITY",
+      "task_id": "ZC-MPV-PLAY-DIAG-4",
+      "kind": "REVIEW",
+      "fingerprint": "stage4_diagnostics_port_senderurl_identity_confusion",
+      "summary": "Gecko diagnostic onPortMessage used senderUrl and channel equality, so distinct old/new ports from the same document could be confused and stale packets considered active.",
+      "source_sha": "d80ee2d7d9f438287c98041208e13b73980c8dab",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "6a8d493293bb2cdca4376ebf715eb35019d307dc",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/browser/MpvPlayEvidenceReportTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/6a8d493293bb2cdca4376ebf715eb35019d307dc",
+        "https://github.com/laszko14/nira-browser/pull/140"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "fix_summary": "Accept inbound messages only from the same Port object reference currently held for the EngineSession; prove equal-looking independent ports are rejected.",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "Different Gecko content ports share senderUrl and channel name, with an older port sending after rotation or disconnect."
+    },
+    {
+      "id": "ERR-20261110-MPV-DIAG4-UNTRUSTED-METRIC",
+      "task_id": "ZC-MPV-PLAY-DIAG-4",
+      "kind": "REVIEW",
+      "fingerprint": "stage4_diagnostics_untrusted_uppercase_metric_values",
+      "summary": "Native diagnostics accepted arbitrary uppercase detail strings and metric string values, allowing untrusted page-originated metadata to pass through a nominally redacted ZIP.",
+      "source_sha": "d80ee2d7d9f438287c98041208e13b73980c8dab",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "6a8d493293bb2cdca4376ebf715eb35019d307dc",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/browser/MpvPlayEvidenceReportTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/6a8d493293bb2cdca4376ebf715eb35019d307dc",
+        "https://github.com/laszko14/nira-browser/pull/140"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "fix_summary": "Whitelist exact event detail codes, target categories, per-field numeric/boolean types and exact fixed string enumerations; retain bounded metadata and negative tests.",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "Content packet uses a valid but sensitive uppercase token as detail or a metric such as frame, or uses an unexpected metric type."
     }
   ]
 }
