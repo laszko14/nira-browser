@@ -55,6 +55,13 @@ class NiraBgPlayBridgeLifecycleTest {
         mockingDetails(port).invocations.filter { it.method.name == "postMessage" }
             .map { it.arguments[0] as JSONObject }
 
+    // JSONArray.toString() escapes slashes on Android/Robolectric. Compare the
+    // parsed origins, never a substring of serialized JSON.
+    private fun containsOrigin(message: JSONObject, origin: String): Boolean {
+        val origins = message.getJSONArray("origins")
+        return (0 until origins.length()).any { origins.getString(it) == origin }
+    }
+
     @Test fun stalePortCannotStealCurrentRegistrationAfterReattach() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -83,7 +90,7 @@ class NiraBgPlayBridgeLifecycleTest {
                     " calls=" + mockingDetails(currentPort).invocations.map { it.method.name } +
                     " allowed=" + allowlist.origins.value,
                 messages(currentPort).any {
-                    it.getJSONArray("origins").toString().contains(permitted)
+                    containsOrigin(it, permitted)
                 },
             )
 
@@ -93,7 +100,7 @@ class NiraBgPlayBridgeLifecycleTest {
             allowlist.allow(updated)
             runCurrent()
             assertTrue(messages(currentPort).any {
-                it.getJSONArray("origins").toString().contains(updated)
+                containsOrigin(it, updated)
             })
         } finally {
             allowlist.block(permitted)
@@ -112,7 +119,15 @@ class NiraBgPlayBridgeLifecycleTest {
         try {
             allowlist.allow(permitted)
             UserPreferences(context).niraBgPlayStaleCheckDone = false
-            val existing = mock(WebExtension::class.java)
+            // The controller explicitly selects the installed extension by
+            // its ID; an unstubbed Mockito mock returns null for getId().
+            val existing = mock(WebExtension::class.java, Answer { invocation ->
+                if (invocation.method.name == "getId") {
+                    NiraBgPlayController.EXTENSION_ID
+                } else {
+                    Answers.RETURNS_DEFAULTS.answer(invocation)
+                }
+            })
             val engine = mock(Engine::class.java, Answer { invocation ->
                 if (invocation.method.name == "listInstalledWebExtensions") {
                     @Suppress("UNCHECKED_CAST")
