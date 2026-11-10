@@ -235,6 +235,11 @@
       "task_id": "ZC-PREVIEW-COMPAT-3",
       "observed_count": 1,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-PREVIEW-COMPAT-4",
+      "observed_count": 1,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -5876,6 +5881,33 @@
       "test_result": "NOT_TESTED",
       "final_ci": "PENDING",
       "recurrence_conditions": "Page-owned button contains img inside preview-declared card; or card has temporarily paused muted autoplay inline video and a linked thumbnail."
+    },
+    {
+      "id": "ERR-20261110-PREVIEW-04",
+      "task_id": "ZC-PREVIEW-COMPAT-4",
+      "kind": "REGRESSION",
+      "fingerprint": "preview-hover-no-pointer-event-touch-swipe-fallback",
+      "summary": "Shipping preview-assist only registered click, so it could not independently start declared previews on hover; touch swipes had no gesture guard before click interception. This is a code-level finding, not proven website root cause.",
+      "source_sha": "59793c070db0ac31daa24e49e897caa1d3c58cc0",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/preview-assist-stage4.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/pull/132"
+      ],
+      "branch": "feat/zavro-clean-preview-gestures-stage4-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "fix_summary": "Added trusted mouse pointerover/out playback scoped to declared preview media and transient owner; touchstart/move/end/cancel passive gesture tracking routes short taps to existing click and does not capture swipe, long hold or cancelled touch.",
+      "test_result": "PASS",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "Declared video-preview source on hovering thumbnail or synthetic click after touch scroll/long press. Device and affected website outcomes remain NOT_TESTED."
     }
   ]
 }
