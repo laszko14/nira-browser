@@ -5,7 +5,7 @@ Kontekst: podgląd miniatur na niektórych witrynach pokazuje Play kojarzony ze 
 
 - MENU: MPV / Play • ROZPOCZNIJ TEST, OZNACZ PROBLEM, ZAKOŃCZ TEST, EKSPORTUJ ZIP, ANULUJ / WYCZYŚĆ RAPORT.
 - Dane: sesja w RAM, maksymalnie 8 znaczników, najwyżej 12000 znaków z pojedynczej migawki natywnego app-decor. Sesja wygasa po 15 minutach. Brak odczytu DOM, JS, URL ze ścieżką, cookies, requestów i danych logowania.
-- Plik: ZIP w prywatnym cache aplikacji, dostępny tylko przez existing FileProvider z tymczasowym URI nadanym przy wyraźnym eksporcie. W ZIP są summary.json, timeline.json, native-overlay.txt.
+- Plik: ZIP w prywatnym cache aplikacji, dostępny tylko przez existing FileProvider z tymczasowym URI nadanym przy wyraźnym eksporcie. W ZIP są summary.json, timeline.json, native-overlay.txt. Przy ręcznym ANULUJ/WYCZYŚĆ usuwany jest również cache eksportów tej funkcji.
 - Bezpieczeństwo: wyłączenie w trybie prywatnym, izolacja po profilu i karcie, współdzielony DiagnosticSessionGate z TestLab; rejestrator nic nie robi przed START.
 - Ograniczenia: OverlayWindowDiagnostics próbuje próbkę natywnych widoków w ustalonym punkcie. Nie potrafi wykryć przycisku wewnątrz Gecko/strony ani okien innych aplikacji. Nie twierdzi, że rozpoznało stare MPV.
 

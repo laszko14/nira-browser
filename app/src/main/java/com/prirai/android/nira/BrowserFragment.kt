@@ -1233,8 +1233,12 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_cross_24,
                 onClick = {
                     mpvDiagnostics.discard()
-                    Toast.makeText(requireContext(), "Usunięto tymczasową sesję diagnostyki MPV",
-                        Toast.LENGTH_SHORT).show()
+                    val owner = activity ?: return@Action
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        mpvDiagnostics.clearExports(owner.applicationContext)
+                        if (isAdded) Toast.makeText(owner, "Usunięto sesję i eksporty diagnostyczne MPV",
+                            Toast.LENGTH_SHORT).show()
+                    }
                 }
             ))
         }

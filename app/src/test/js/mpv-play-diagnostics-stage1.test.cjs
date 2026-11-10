@@ -10,7 +10,7 @@ test('MPV diagnostic UI is opt-in and has explicit start/mark/stop/share control
                    'mpv_play_diagnostic_stop', 'mpv_play_diagnostic_export']) {
     assert.match(fragment, new RegExp(id));
   }
-  assert.match(fragment, /MpvPlayDiagnostics\.export/);
+  assert.match(fragment, /mpvDiagnostics\.export/);
   assert.match(fragment, /Intent\.FLAG_GRANT_READ_URI_PERMISSION/);
 });
 

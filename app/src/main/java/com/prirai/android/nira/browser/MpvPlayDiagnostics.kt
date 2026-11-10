@@ -121,7 +121,7 @@ internal object MpvPlayDiagnostics {
         old.finish(elapsed, System.currentTimeMillis(), "TIMED_OUT")
         recording = null
         finished = old
-        DiagnosticSessionGate.shared.release(DiagnosticOwner.MPV_PLAY)
+        DiagnosticSessionGate.shared.release(DiagnosticOwner.VIDEO_PREVIEW_DIAGNOSTICS)
     }
 
     fun state(): State = synchronized(lock) {
@@ -133,7 +133,7 @@ internal object MpvPlayDiagnostics {
     fun start(profile: String, tab: String, host: String?, privateTab: Boolean): Start = synchronized(lock) {
         expireIfNeeded()
         if (privateTab) return@synchronized Start.PRIVATE_TAB
-        if (recording != null || !DiagnosticSessionGate.shared.acquire(DiagnosticOwner.MPV_PLAY)) {
+        if (recording != null || !DiagnosticSessionGate.shared.acquire(DiagnosticOwner.VIDEO_PREVIEW_DIAGNOSTICS)) {
             return@synchronized Start.BUSY
         }
         try {
@@ -145,7 +145,7 @@ internal object MpvPlayDiagnostics {
             )
             Start.STARTED
         } catch (error: Exception) {
-            DiagnosticSessionGate.shared.release(DiagnosticOwner.MPV_PLAY)
+            DiagnosticSessionGate.shared.release(DiagnosticOwner.VIDEO_PREVIEW_DIAGNOSTICS)
             throw error
         }
     }
@@ -165,15 +165,22 @@ internal object MpvPlayDiagnostics {
             System.currentTimeMillis(), "STOPPED")
         recording = null
         finished = ledger
-        DiagnosticSessionGate.shared.release(DiagnosticOwner.MPV_PLAY)
+        DiagnosticSessionGate.shared.release(DiagnosticOwner.VIDEO_PREVIEW_DIAGNOSTICS)
         true
     }
 
     /** Only our ephemeral diagnostic memory is discarded, never browser data. */
     fun discard() = synchronized(lock) {
-        if (recording != null) DiagnosticSessionGate.shared.release(DiagnosticOwner.MPV_PLAY)
+        if (recording != null) DiagnosticSessionGate.shared.release(DiagnosticOwner.VIDEO_PREVIEW_DIAGNOSTICS)
         recording = null
         finished = null
+    }
+
+    /** User-visible CLEAR also removes our own previously exported cache ZIPs. */
+    suspend fun clearExports(context: Context) = withContext(Dispatchers.IO) {
+        File(context.cacheDir, "mpv_play_diagnostics").listFiles()?.filter {
+            it.isFile && it.name.startsWith("mpv-play-") && it.name.endsWith(".zip")
+        }?.forEach { it.delete() }
     }
 
     suspend fun export(context: Context, profile: String): Uri? {

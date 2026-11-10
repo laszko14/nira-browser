@@ -1,6 +1,6 @@
 package com.prirai.android.nira.diagnostics.testlab
 
-internal enum class DiagnosticOwner { TESTLAB, SUPERTEST, MPV_PLAY }
+internal enum class DiagnosticOwner { TESTLAB, SUPERTEST, VIDEO_PREVIEW_DIAGNOSTICS }
 /** One lock, never held while invoking collectors or either engine. */
 internal class DiagnosticSessionGate {
     @Volatile var owner: DiagnosticOwner? = null; private set
