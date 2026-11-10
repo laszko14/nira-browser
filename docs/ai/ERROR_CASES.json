@@ -265,6 +265,11 @@
       "task_id": "ZC-MPV-PLAY-DIAG-1",
       "observed_count": 4,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-MPV-PLAY-DIAG-2",
+      "observed_count": 1,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -6310,6 +6315,34 @@
       "test_result": "PASS",
       "final_ci": "PENDING",
       "recurrence_conditions": "A new browser-menu diagnostic path introduces Uri.parse rather than the existing Kotlin KTX toUri extension, increasing a frozen lint rule/file baseline."
+    },
+    {
+      "id": "ERR-20261110-MPV-DIAG-STAGE2-METRIC-PRIORITY",
+      "task_id": "ZC-MPV-PLAY-DIAG-2",
+      "kind": "CI_FAILURE",
+      "fingerprint": "stage2-mpv-preview-safeMetrics-first-16-video-state-truncated",
+      "summary": "Stage 2 CSS and node metadata occupied the first 16 metric positions, silently omitting HTML5 poster/playback state despite successful DOM capture.",
+      "source_sha": "25dfe9888662708c2b281097845376670afbcc96",
+      "observed_at": null,
+      "run_id": 42834153760,
+      "job_id": 129891755275,
+      "attempt": 1,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/mpv-play-diagnostics-stage2.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42834153760",
+        "https://github.com/laszko14/nira-browser/actions/runs/42834163423"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": "Zavro AI process - documentation gate (NO APK)",
+      "cause_confidence": "confirmed",
+      "fix_summary": "Replaced insertion-order truncation with explicit video/visual event priorities, retaining 16-field metric budget; added explicit poster, readyState, paused and controls regression assertions.",
+      "test_result": "PENDING",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "Video element has more than 16 raw CSS+HTML5 metrics and media state was appended after layout fields."
     }
   ]
 }

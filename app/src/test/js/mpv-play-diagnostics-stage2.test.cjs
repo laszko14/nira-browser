@@ -82,6 +82,10 @@ test('START captures bounded metadata not page text, passwords, raw source URL o
   assert.equal(x.packets[0].schemaVersion, 2);
   assert.equal(x.packets[0].kind, 'MEDIA');
   assert.equal(x.packets[0].metrics.poster, true);
+  assert.equal(x.packets[0].metrics.readyState, 2);
+  assert.equal(x.packets[0].metrics.paused, true);
+  assert.equal(x.packets[0].metrics.controls, false);
+  assert.equal(Object.keys(x.packets[0].metrics).length <= 16, true);
   assert.equal(x.packets[0].metrics.frame, 'TOP');
   assert.doesNotMatch(JSON.stringify(x.packets), /SUPER_SECRET|https:\/\/example\.org/);
   assert.deepEqual(x.observerState(), [1,0]);

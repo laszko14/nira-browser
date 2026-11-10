@@ -38,8 +38,20 @@
   }
   function safeMetrics(raw) {
     const clean = {};
-    for (const [name, value] of Object.entries(raw || {}).slice(0,16)) {
-      if (!metricsKeys.has(name)) continue;
+    if (!raw || typeof raw !== "object") return clean;
+    // Object insertion order is NOT a semantic priority: CSS snapshots may
+    // contain more fields than the transport budget. Preserve HTML5 evidence.
+    const video = Object.prototype.hasOwnProperty.call(raw, "readyState");
+    const priority = video
+      ? ["frame","node","parent","poster","paused","autoplay","controls",
+         "readyState","networkState","errorCode","duration","currentTime",
+         "width","height","display","visibility"]
+      : ["frame","node","parent","count","dropped","playHint","hasId",
+         "hasClass","hasAria","shadow","x","y","width","height",
+         "display","visibility"];
+    for (const name of priority) {
+      if (!metricsKeys.has(name) || !Object.prototype.hasOwnProperty.call(raw,name)) continue;
+      const value = raw[name];
       if (typeof value === "boolean") clean[name] = value;
       else if (typeof value === "number" && Number.isFinite(value))
         clean[name] = Math.max(0, Math.min(32768, Math.round(value)));
