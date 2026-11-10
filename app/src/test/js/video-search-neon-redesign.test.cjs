@@ -55,8 +55,8 @@ test('update remains on same debug package and strictly greater arm64 version', 
   const workflow = fs.readFileSync(path.join(repoRoot, '.github/workflows/apk-release.yml'), 'utf8');
   const { assertUpdateApkContract } = require('./helpers/update-apk-contract.cjs');
   const update = assertUpdateApkContract(gradle, workflow);
-  assert.ok(update.installCode > 1226, 'APK update must exceed installed v1226');
-  assert.equal(update.versionName, '0.5.22-alpha123-clean');
+  assert.ok(update.installCode > 1227, 'APK update must exceed diagnosed v1227');
+  assert.equal(update.versionName, '0.5.22-alpha124-clean');
   assert.match(gradle, /applicationIdSuffix = '\.debug'/);
   assert.match(gradle, /include\(testAbi \?: 'arm64-v8a'\)/);
 });
