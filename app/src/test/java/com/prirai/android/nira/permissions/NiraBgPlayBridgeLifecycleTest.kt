@@ -6,6 +6,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -16,17 +17,14 @@ import mozilla.components.concept.engine.webextension.MessageHandler
 import mozilla.components.concept.engine.webextension.Port
 import mozilla.components.concept.engine.webextension.WebExtension
 import org.json.JSONObject
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.ArgumentCaptor
-import org.mockito.ArgumentMatchers.any
-import org.mockito.ArgumentMatchers.eq
-import org.mockito.Mockito.atLeastOnce
-import org.mockito.Mockito.doAnswer
+import org.mockito.Answers
 import org.mockito.Mockito.mock
-import org.mockito.Mockito.never
-import org.mockito.Mockito.verify
+import org.mockito.Mockito.mockingDetails
+import org.mockito.stubbing.Answer
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
@@ -37,14 +35,25 @@ import org.robolectric.annotation.Config
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class, manifest = Config.NONE)
+@OptIn(ExperimentalCoroutinesApi::class)
 class NiraBgPlayBridgeLifecycleTest {
     private val portName = "nira.bgplay.allowlist"
 
+    // Mockito matchers return null and cannot be passed to non-null Kotlin
+    // registerBackgroundMessageHandler/postMessage parameters. Observe actual
+    // mock invocations instead of stubbing behavior or weakening assertions.
     private fun handler(extension: WebExtension): MessageHandler {
-        val captor = ArgumentCaptor.forClass(MessageHandler::class.java)
-        verify(extension).registerBackgroundMessageHandler(eq(portName), captor.capture())
-        return captor.value
+        val registrations = mockingDetails(extension).invocations.filter {
+            it.method.name == "registerBackgroundMessageHandler"
+        }
+        assertEquals(1, registrations.size)
+        assertEquals(portName, registrations.single().arguments[0])
+        return registrations.single().arguments[1] as MessageHandler
     }
+
+    private fun messages(port: Port): List<JSONObject> =
+        mockingDetails(port).invocations.filter { it.method.name == "postMessage" }
+            .map { it.arguments[0] as JSONObject }
 
     @Test fun stalePortCannotStealCurrentRegistrationAfterReattach() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
@@ -65,13 +74,11 @@ class NiraBgPlayBridgeLifecycleTest {
 
             val oldPort = mock(Port::class.java)
             oldHandler.onPortConnected(oldPort)
-            verify(oldPort, never()).postMessage(any(JSONObject::class.java))
+            assertTrue(messages(oldPort).isEmpty())
 
             val currentPort = mock(Port::class.java)
             newHandler.onPortConnected(currentPort)
-            val messages = ArgumentCaptor.forClass(JSONObject::class.java)
-            verify(currentPort, atLeastOnce()).postMessage(messages.capture())
-            assertTrue(messages.allValues.any {
+            assertTrue(messages(currentPort).any {
                 it.getJSONArray("origins").toString().contains(permitted)
             })
 
@@ -80,9 +87,7 @@ class NiraBgPlayBridgeLifecycleTest {
             runCurrent()
             allowlist.allow(updated)
             runCurrent()
-            val allMessages = ArgumentCaptor.forClass(JSONObject::class.java)
-            verify(currentPort, atLeastOnce()).postMessage(allMessages.capture())
-            assertTrue(allMessages.allValues.any {
+            assertTrue(messages(currentPort).any {
                 it.getJSONArray("origins").toString().contains(updated)
             })
         } finally {
@@ -102,19 +107,23 @@ class NiraBgPlayBridgeLifecycleTest {
         try {
             allowlist.allow(permitted)
             UserPreferences(context).niraBgPlayStaleCheckDone = false
-            val engine = mock(Engine::class.java)
             val existing = mock(WebExtension::class.java)
-            doAnswer { invocation ->
-                val success = invocation.getArgument<(List<WebExtension>) -> Unit>(0)
-                success(listOf(existing))
-                null
-            }.`when`(engine).listInstalledWebExtensions(any(), any())
+            val engine = mock(Engine::class.java, Answer { invocation ->
+                if (invocation.method.name == "listInstalledWebExtensions") {
+                    @Suppress("UNCHECKED_CAST")
+                    val success = invocation.arguments[0] as (List<WebExtension>) -> Unit
+                    success(listOf(existing))
+                    null
+                } else {
+                    Answers.RETURNS_DEFAULTS.answer(invocation)
+                }
+            })
 
             NiraBgPlayController(context, engine, allowlist, scope).start()
             runCurrent()
 
             // An existing install still needs a new process-local port handler.
-            verify(existing).registerBackgroundMessageHandler(eq(portName), any())
+            handler(existing) // exactly one registration, with the expected port name
         } finally {
             allowlist.block(permitted)
             scope.cancel()
