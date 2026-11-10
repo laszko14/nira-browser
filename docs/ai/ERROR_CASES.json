@@ -273,7 +273,7 @@
     },
     {
       "task_id": "ZC-MPV-PLAY-DIAG-4",
-      "observed_count": 3,
+      "observed_count": 4,
       "state": "ACTIVE"
     }
   ],
@@ -6461,6 +6461,34 @@
       "test_result": "NOT_TESTED",
       "final_ci": "PENDING",
       "recurrence_conditions": "A generated handoff captures task/CI in prose but omits either the exact shared-tests gate or its required legacy archive path."
+    },
+    {
+      "id": "ERR-20261110-MPV-DIAG4-ROBOLECTRIC-RUNNER",
+      "task_id": "ZC-MPV-PLAY-DIAG-4",
+      "kind": "CI_FAILURE",
+      "fingerprint": "stage4_new_jvm_json_tests_missing_robolectric_runner",
+      "summary": "Four new stage4 JVM tests threw RuntimeException at Android JSONObject calls because the new test class had no RobolectricTestRunner, unlike existing diagnostic tests.",
+      "source_sha": "643e80345bf358615b5039cea332f5cb8787c682",
+      "observed_at": null,
+      "run_id": 42847792009,
+      "job_id": 129939974410,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "8b17699297275d3de92add9a256fe80500ec6f69",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/browser/MpvPlayEvidenceReportTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42847792009",
+        "https://github.com/laszko14/nira-browser/commit/8b17699297275d3de92add9a256fe80500ec6f69"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": "Shared regression gates (NO APK)",
+      "cause_confidence": "confirmed",
+      "fix_summary": "Applied the existing repository RobolectricTestRunner and SDK 35 Application/Config.NONE fixture to the four Android JSONObject evidence tests; no production or existing test oracle weakened.",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "A new plain-JUnit Android module test invokes org.json.JSONObject or other android.jar stub methods without RobolectricTestRunner."
     }
   ]
 }
