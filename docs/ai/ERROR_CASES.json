@@ -229,6 +229,11 @@
     {
       "task_id": "ZC-PREVIEW-COMPAT-2",
       "observed_count": 1,
+      "state": "COMPLETE"
+    },
+    {
+      "task_id": "ZC-PREVIEW-COMPAT-3",
+      "observed_count": 1,
       "state": "ACTIVE"
     }
   ],
@@ -5828,20 +5833,49 @@
       "job_id": 129666996717,
       "attempt": 1,
       "cause": "test_harness",
-      "state": "OPEN",
+      "state": "FIXED",
       "duplicate_of": null,
-      "fix_sha": null,
+      "fix_sha": "7f7eac80ab47986a5f896951db77ed243bd81dbf",
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
-        "https://github.com/laszko14/nira-browser/actions/runs/42767349592"
+        "https://github.com/laszko14/nira-browser/actions/runs/42767349592",
+        "https://github.com/laszko14/nira-browser/actions/runs/42767694277",
+        "https://github.com/laszko14/nira-browser/actions/runs/42767702011"
       ],
       "branch": "feat/zavro-clean-preview-autoplay-stage2-20261110",
       "workflow_name": "Zavro AI process - documentation gate (NO APK)",
       "cause_confidence": "confirmed",
-      "fix_summary": "Added shared-tests to required_ci handoff text; also normalized preview ledger event to accepted evidence URL and single regression path. Final CI pending.",
-      "test_result": "FAIL",
-      "final_ci": "FAILURE",
+      "fix_summary": "Corrected required_ci to include shared-tests and validated canonical ledger fields; SOURCE run 42767694277 and PR run 42767702011 completed SUCCESS on 7f7eac80ab47986a5f896951db77ed243bd81dbf.",
+      "test_result": "PASS",
+      "final_ci": "SUCCESS",
       "recurrence_conditions": "Checkpoint required_ci lacks the shared-tests string expected by restartability test, or ledger evidence/test reference violates the canonical schema."
+    },
+    {
+      "id": "ERR-20261110-PREVIEW-03",
+      "task_id": "ZC-PREVIEW-COMPAT-3",
+      "kind": "REGRESSION",
+      "fingerprint": "preview-assist-site-owned-button-or-muted-autoplay-click-capture",
+      "summary": "Code-level repro: declared preview card lets nested IMG in ordinary Play/details button invoke preview and consume click; a paused muted autoplay video can also have its site-owned link captured. Actual website not verified.",
+      "source_sha": "7f7eac80ab47986a5f896951db77ed243bd81dbf",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/preview-assist-stage3.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/2d28a6bfd7291f285a45fae0eb7570c5dc25a06d"
+      ],
+      "branch": "feat/zavro-clean-preview-assist-stage3-20261110",
+      "workflow_name": null,
+      "cause_confidence": "suspected",
+      "fix_summary": "Stage 3 source mitigation: skip ordinary controls with image descendants and site-owned muted autoplay video, retain explicit Preview and failure restoration. CI and device evidence pending.",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "Page-owned button contains img inside preview-declared card; or card has temporarily paused muted autoplay inline video and a linked thumbnail."
     }
   ]
 }
