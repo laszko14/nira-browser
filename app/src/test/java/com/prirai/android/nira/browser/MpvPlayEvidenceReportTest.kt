@@ -137,4 +137,64 @@ class MpvPlayEvidenceReportTest {
         assertEquals(7L, timeline.getJSONObject(2).getLong("elapsed_ms"))
         assertEquals(10L, timeline.getJSONObject(3).getLong("elapsed_ms"))
     }
+
+    @Test fun final5BoundedSaturatedCaptureNeverExceedsZipLimit() {
+        val ledger = MpvPlayDiagnosticLedger(
+            token, "normal", "tab-a", "example.test", "v-stage5", 100L, 0L)
+        repeat(MpvPlayDiagnosticLedger.MAX_MARKS) { index ->
+            assertTrue(ledger.mark(index.toLong() + 1L, "N".repeat(24_000)))
+        }
+        assertFalse(ledger.mark(9L, "extra"))
+        repeat(MpvPlayDiagnosticLedger.MAX_PAGE_EVENTS) { index ->
+            assertTrue("Could not accept event $index",
+                ledger.appendPageEvent(packet(index + 1, "MEDIA", "VIDEO", "BASELINE",
+                    JSONObject().put("frame", "SUBFRAME").put("readyState", 3)
+                        .put("networkState", 2).put("controls", true)
+                        .put("helperMarker", true).put("paused", false)
+                        .put("poster", true).put("currentTime", 14)
+                        .put("duration", 80).put("node", index + 1)), index.toLong()))
+        }
+        assertFalse(ledger.appendPageEvent(packet(161, "MEDIA", "VIDEO", "BASELINE"), 161))
+        ledger.finish(200L, 300L, "STOPPED")
+        val bytes = ledger.toZipBytes()
+        assertTrue("Archive must stay within limit",
+            bytes.size <= MpvPlayDiagnosticLedger.MAX_ARCHIVE_BYTES)
+        val parts = zip(ledger)
+        assertEquals(8, JSONObject(parts.getValue("summary.json")).getInt("marks"))
+        assertEquals(160, JSONArray(parts.getValue("page-events.json")).length())
+        assertEquals(160, JSONObject(parts.getValue("analysis.json")).getInt("page_events"))
+        assertTrue(JSONObject(parts.getValue("analysis.json")).getJSONArray("missing_evidence")
+            .toString().contains("PAGE_EVENT_LIMIT_REACHED"))
+        assertFalse(parts.getValue("page-events.json").contains("example.test"))
+        assertEquals(8, parts.keys.size)
+    }
+
+    @Test fun final5RejectsUntrustedMetadataEvenWhenItLooksLikeAnEnum() {
+        val ledger = MpvPlayDiagnosticLedger(
+            token, "normal", "tab-a", null, "v-stage5", 100L, 0L)
+        for ((key,value) in listOf(
+            "frame" to "SESSION_TOKEN",
+            "display" to "SECRET",
+            "visibility" to "PASSWORD",
+            "pointerEvents" to "PRIVATE",
+            "preload" to "AUTH_TOKEN",
+            "muted" to "TRUE",
+            "node" to "TOKEN"
+        )) {
+            assertFalse("Accepted invalid metric $key=$value",
+                ledger.appendPageEvent(packet(1,"DOM","BUTTON","BASELINE",
+                    JSONObject().put(key,value)), 1L))
+        }
+        assertFalse(ledger.appendPageEvent(packet(1,"MEDIA","VIDEO","PRIVATE"),1L))
+        assertTrue(ledger.appendPageEvent(packet(1,"MEDIA","VIDEO","BASELINE",
+            JSONObject().put("frame","TOP").put("muted",true).put("node",1)),2L))
+        ledger.finish(3L,103L,"STOPPED")
+        val parts = zip(ledger)
+        val report = parts.getValue("analysis.json")
+        assertEquals(8,JSONObject(report).getInt("rejected_packets"))
+        assertFalse(parts.getValue("page-events.json").contains("PASSWORD"))
+        assertFalse(parts.getValue("page-events.json").contains("TOKEN"))
+        assertEquals("UNKNOWN", JSONObject(report).getString("play_owner"))
+    }
+
 }

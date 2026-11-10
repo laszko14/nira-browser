@@ -274,7 +274,7 @@
     {
       "task_id": "ZC-MPV-PLAY-DIAG-4",
       "observed_count": 4,
-      "state": "ACTIVE"
+      "state": "COMPLETE"
     }
   ],
   "events": [
@@ -6394,14 +6394,16 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/browser/MpvPlayEvidenceReportTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/6a8d493293bb2cdca4376ebf715eb35019d307dc",
-        "https://github.com/laszko14/nira-browser/pull/140"
+        "https://github.com/laszko14/nira-browser/pull/140",
+        "https://github.com/laszko14/nira-browser/actions/runs/42849391083",
+        "https://github.com/laszko14/nira-browser/actions/runs/42849406844"
       ],
       "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
       "workflow_name": null,
       "cause_confidence": "confirmed",
       "fix_summary": "Accept inbound messages only from the same Port object reference currently held for the EngineSession; prove equal-looking independent ports are rejected.",
-      "test_result": "NOT_TESTED",
-      "final_ci": "PENDING",
+      "test_result": "PASS",
+      "final_ci": "SUCCESS",
       "recurrence_conditions": "Different Gecko content ports share senderUrl and channel name, with an older port sending after rotation or disconnect."
     },
     {
@@ -6422,14 +6424,16 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/browser/MpvPlayEvidenceReportTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/6a8d493293bb2cdca4376ebf715eb35019d307dc",
-        "https://github.com/laszko14/nira-browser/pull/140"
+        "https://github.com/laszko14/nira-browser/pull/140",
+        "https://github.com/laszko14/nira-browser/actions/runs/42849391083",
+        "https://github.com/laszko14/nira-browser/actions/runs/42849406844"
       ],
       "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
       "workflow_name": null,
       "cause_confidence": "confirmed",
       "fix_summary": "Whitelist exact event detail codes, target categories, per-field numeric/boolean types and exact fixed string enumerations; retain bounded metadata and negative tests.",
-      "test_result": "NOT_TESTED",
-      "final_ci": "PENDING",
+      "test_result": "PASS",
+      "final_ci": "SUCCESS",
       "recurrence_conditions": "Content packet uses a valid but sensitive uppercase token as detail or a metric such as frame, or uses an unexpected metric type."
     },
     {
@@ -6452,14 +6456,16 @@
         "https://github.com/laszko14/nira-browser/actions/runs/42846284009",
         "https://github.com/laszko14/nira-browser/commit/71d3c24b64b0ab9aa8daac807472dcf082820927",
         "https://github.com/laszko14/nira-browser/actions/runs/42847238424",
-        "https://github.com/laszko14/nira-browser/commit/c52b5b2c1ba68556e5748ab2181964f87c9e3878"
+        "https://github.com/laszko14/nira-browser/commit/c52b5b2c1ba68556e5748ab2181964f87c9e3878",
+        "https://github.com/laszko14/nira-browser/actions/runs/42849391083",
+        "https://github.com/laszko14/nira-browser/actions/runs/42849406844"
       ],
       "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
       "workflow_name": "Zavro AI process - documentation gate (NO APK)",
       "cause_confidence": "confirmed",
       "fix_summary": "Restored both canonical checkpoint fields and checked every expectation in scripts/check-ai-handoff.test.cjs, without weakening tests or policies.",
-      "test_result": "NOT_TESTED",
-      "final_ci": "PENDING",
+      "test_result": "PASS",
+      "final_ci": "SUCCESS",
       "recurrence_conditions": "A generated handoff captures task/CI in prose but omits either the exact shared-tests gate or its required legacy archive path."
     },
     {
@@ -6480,14 +6486,16 @@
       "regression_test": "app/src/test/java/com/prirai/android/nira/browser/MpvPlayEvidenceReportTest.kt",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42847792009",
-        "https://github.com/laszko14/nira-browser/commit/8b17699297275d3de92add9a256fe80500ec6f69"
+        "https://github.com/laszko14/nira-browser/commit/8b17699297275d3de92add9a256fe80500ec6f69",
+        "https://github.com/laszko14/nira-browser/actions/runs/42849391083",
+        "https://github.com/laszko14/nira-browser/actions/runs/42849406844"
       ],
       "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
       "workflow_name": "Shared regression gates (NO APK)",
       "cause_confidence": "confirmed",
       "fix_summary": "Applied the existing repository RobolectricTestRunner and SDK 35 Application/Config.NONE fixture to the four Android JSONObject evidence tests; no production or existing test oracle weakened.",
-      "test_result": "NOT_TESTED",
-      "final_ci": "PENDING",
+      "test_result": "PASS",
+      "final_ci": "SUCCESS",
       "recurrence_conditions": "A new plain-JUnit Android module test invokes org.json.JSONObject or other android.jar stub methods without RobolectricTestRunner."
     }
   ]
