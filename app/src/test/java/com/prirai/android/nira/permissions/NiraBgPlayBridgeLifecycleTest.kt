@@ -46,7 +46,7 @@ class NiraBgPlayBridgeLifecycleTest {
         val registrations = mockingDetails(extension).invocations.filter {
             it.method.name == "registerBackgroundMessageHandler"
         }
-        assertEquals(1, registrations.size)
+        assertEquals("extension calls: " + mockingDetails(extension).invocations.map { it.method.name }, 1, registrations.size)
         assertEquals(portName, registrations.single().arguments[0])
         return registrations.single().arguments[1] as MessageHandler
     }
@@ -78,9 +78,14 @@ class NiraBgPlayBridgeLifecycleTest {
 
             val currentPort = mock(Port::class.java)
             newHandler.onPortConnected(currentPort)
-            assertTrue(messages(currentPort).any {
-                it.getJSONArray("origins").toString().contains(permitted)
-            })
+            assertTrue(
+                "current port messages=" + messages(currentPort).map { it.toString() } +
+                    " calls=" + mockingDetails(currentPort).invocations.map { it.method.name } +
+                    " allowed=" + allowlist.origins.value,
+                messages(currentPort).any {
+                    it.getJSONArray("origins").toString().contains(permitted)
+                },
+            )
 
             // A stale disconnect cannot silently unset the current port.
             oldHandler.onPortDisconnected(currentPort)
@@ -121,6 +126,12 @@ class NiraBgPlayBridgeLifecycleTest {
 
             NiraBgPlayController(context, engine, allowlist, scope).start()
             runCurrent()
+            assertTrue(
+                "controller engine calls=" + mockingDetails(engine).invocations.map { it.method.name },
+                mockingDetails(engine).invocations.any {
+                    it.method.name == "listInstalledWebExtensions"
+                },
+            )
 
             // An existing install still needs a new process-local port handler.
             handler(existing) // exactly one registration, with the expected port name
