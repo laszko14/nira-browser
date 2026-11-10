@@ -33,3 +33,14 @@ Wymagane pełne SOURCE process-docs/shared-tests (JS, Kotlin/Robolectric, Androi
 - Główny problem miniaturek: `ERR-20261110-PREVIEW-01` nadal OPEN, ponieważ nie ma rzeczywistej reprodukcji witryny.
 - Lifecycle `nira-bg-play` po cofnięciu pozwolenia we **wcześniej już załadowanej** karcie: kod wstrzyknięty do świata strony może pozostać do odświeżenia; bez zaakceptowanej semantyki cleanup/reload nie zmieniono destrukcyjnie strony.
 - Interakcje MediaSession z rzeczywistym audiofocus, aktualizacje profili i nawigacja: DEVICE NOT_TESTED.
+
+## CI — błąd fixture i historia napraw etapu 6
+
+Dwa produkcyjne defekty zostały naprawione w `41664b9f972bfd8ae7573b5af183cf833a978350`. CI wykryło błędy **nowego kodu testów**, a nie potwierdzoną regresję runtime:
+- `42782111264` — Kotlin nie akceptuje argumentu typu w statycznym `RuntimeEnvironment.getApplication<Application>()`. Rozwiązanie ponownie wykorzystuje znaną regułę `CI-41536879882-1-125590976456`: wywołanie bez typu.
+- `42783004919` — matcher Mockito zwracał `null` dla niepustych parametrów Kotlin; zamiast tego test kontroluje zarejestrowane wywołania.
+- `42785624952` — analiza XML JUnit potwierdziła, że poprawny JSON z zapisem `https:\/\/` nie odpowiadał testowemu porównaniu serializowanego łańcucha. Test odczytuje teraz elementy JSONArray przez `getString`; osobno prawidłowo mockuje `WebExtension.getId`, bez czego kontroler nie wybierał istniejącego rozszerzenia.
+
+Na poprawce `82604e300de5162984f7280b6f9599f7734c1e04` SOURCE Kotlin/Robolectric oraz PR Kotlin/Robolectric dały SUCCESS; JavaScript i kompilacja AndroidTest też dały SUCCESS. Kontrole lint i pełnego workflow jeszcze trwały w chwili przygotowania dokumentacyjnego checkpointu.
+
+Przypadki `ZC-PREVIEW-COMPAT-6` zostały rozliczone w `docs/ai/ERROR_CASES.json`: dwie poprawki produkcyjne i dwa odrębne błędy fixture. Test Kotlin porównuje rzeczywiste odczytane originy, rejestrowane porty i odczyt istniejącej instalacji. Test na fizycznym Androidzie, wymuszenie rozłączenia Gecko i odtworzenie miniaturek na wskazanej stronie pozostają NOT_TESTED. Ostateczna decyzja CODE_VERIFIED wymaga SOURCE/PR CI na końcowym SHA po niniejszej aktualizacji dokumentacji.
