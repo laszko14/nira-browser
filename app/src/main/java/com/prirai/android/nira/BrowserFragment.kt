@@ -1168,7 +1168,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                     val owner = activity ?: return@Action
                     Toast.makeText(owner, if (confirmed)
                         "Dane strony są zbierane. Odtwórz problem i oznacz go."
-                        else if (waiting)
+                        else if (mpvState.running && statusText != "BŁĄD KOMUNIKACJI")
                         "Oczekiwanie na potwierdzenie strony. Jeśli stan się nie zmieni, odśwież kartę."
                         else "Brak potwierdzonej migawki strony. Odśwież kartę i rozpocznij nowy test; ZIP zawiera kategorię błędu.",
                         Toast.LENGTH_LONG).show()
