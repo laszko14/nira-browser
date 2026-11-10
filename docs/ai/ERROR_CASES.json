@@ -275,6 +275,11 @@
       "task_id": "ZC-MPV-PLAY-DIAG-4",
       "observed_count": 4,
       "state": "COMPLETE"
+    },
+    {
+      "task_id": "ZC-MPV-PLAY-APK-1226",
+      "observed_count": 1,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -6497,6 +6502,35 @@
       "test_result": "PASS",
       "final_ci": "SUCCESS",
       "recurrence_conditions": "A new plain-JUnit Android module test invokes org.json.JSONObject or other android.jar stub methods without RobolectricTestRunner."
+    },
+    {
+      "id": "ERR-20261110-MPV-APK-VERSIONCODE-1225",
+      "task_id": "ZC-MPV-PLAY-APK-1226",
+      "kind": "USER_REPORT",
+      "fingerprint": "signed-debug-apk-versioncode-equals-installed-clean-1225",
+      "summary": "Owner reported Clean versionCode 1225 already installed, while the signed stage5 APK built from SHA 8453a70e had versionCode 1225. Android requires a higher update versionCode; that APK must not be used to update the installed build.",
+      "source_sha": "8453a70e150cd8fbca01e79a16be5980d214aa03",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "481505cf805840cafdfda4f88c3881678535bb11",
+      "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42860175611",
+        "https://github.com/laszko14/nira-browser/pull/140",
+        "https://github.com/laszko14/nira-browser/commit/481505cf805840cafdfda4f88c3881678535bb11"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": "Android CI",
+      "cause_confidence": "confirmed",
+      "fix_summary": "Set arm64 install versionCode to 1226 (Gradle base 226 plus ABI offset 1000), versionName to 0.5.22-alpha122-clean, synchronized signed APK verifier expected fields and upload artifact name, and increased regression installed baseline to 1225.",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "A newly built signed update has versionCode less than or equal to the user's installed Clean versionCode; user/device baseline is stale even though workflow verifies the artifact's internally matching metadata."
     }
   ]
 }
