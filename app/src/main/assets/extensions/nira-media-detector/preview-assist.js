@@ -38,6 +38,34 @@
     return null;
   }
 
+  // A nested "thumb" can match CARD before its parent article/card, while
+  // the preview declaration actually belongs to that parent. Stay within
+  // at most five preview-shaped ancestors; never scan arbitrary page links.
+  function previewOwner(node) {
+    const nearest = node && node.closest(CARD);
+    let card = nearest;
+    for (let depth = 0; card && depth < 5; depth++) {
+      if (card.querySelectorAll && previewUrl(card)) return card;
+      const parent = card.parentElement;
+      if (!parent || typeof parent.matches !== "function" ||
+          !parent.matches(CARD)) break;
+      card = parent;
+    }
+    return nearest;
+  }
+
+  function activeHoverOwner(node) {
+    let card = node && node.closest(CARD);
+    for (let depth = 0; card && depth < 5; depth++) {
+      if (hoverSessions.has(card)) return card;
+      const parent = card.parentElement;
+      if (!parent || typeof parent.matches !== "function" ||
+          !parent.matches(CARD)) break;
+      card = parent;
+    }
+    return null;
+  }
+
   function findPreviewVideo(card, source) {
     let video = card.querySelector("video");
     if (video) return video;
@@ -90,7 +118,7 @@
         event.target.closest("video") ||
         event.target.closest("button,[role='button']")) return;
     const thumb = event.target.closest("img,[class*='thumb'],[class*='Thumb']");
-    const card = thumb && thumb.closest(CARD);
+    const card = thumb && previewOwner(thumb);
     if (!card || card.closest("nav,header,footer") || !card.querySelector ||
         !card.querySelectorAll || hoverSessions.has(card)) return;
     if (event.relatedTarget && typeof card.contains === "function" &&
@@ -122,7 +150,7 @@
   function onPointerOut(event) {
     if (event.pointerType !== "mouse" || !event.target ||
         typeof event.target.closest !== "function") return;
-    const card = event.target.closest(CARD);
+    const card = activeHoverOwner(event.target);
     if (!card) return;
     const session = hoverSessions.get(card);
     if (!session || (event.relatedTarget &&
@@ -209,7 +237,7 @@
     if (control && !explicitPreviewControl) return;
     const clickedThumb = event.target.closest("img,video,[class*='thumb'],[class*='Thumb']");
     if (!explicitPlay && !clickedThumb) return;
-    const card = (control || clickedThumb).closest(CARD) ||
+    const card = previewOwner(control || clickedThumb) ||
       (clickedThumb && clickedThumb.closest("a[href]") &&
        clickedThumb.closest("a[href]").parentElement);
     if (!card || card.closest("nav,header,footer") || !card.querySelector) return;

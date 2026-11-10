@@ -17,7 +17,7 @@ function deferred() {
 }
 
 function fixture({ declared = true, existing = false, nativeAutoplay = false,
-                   nativeSrc = null, behavior = null } = {}) {
+                   nativeSrc = null, behavior = null, nested = false } = {}) {
   const calls = { plays: 0, pauses: 0, removed: 0, prevented: 0, stopped: 0 };
   const src = "https://cdn.example.test/clip.mp4";
   const handlers = new Map();
@@ -33,7 +33,13 @@ function fixture({ declared = true, existing = false, nativeAutoplay = false,
       return null;
     },
     closest: () => null,
-    contains: node => node === card || node === image || node === currentVideo
+    matches: () => true,
+    contains: node => node === card || node === image ||
+      node === innerThumb || node === currentVideo
+  };
+  const innerThumb = {
+    parentElement: card, querySelectorAll: () => [],
+    getAttribute: () => null
   };
   const layer = {
     style: { position: "relative" },
@@ -46,7 +52,7 @@ function fixture({ declared = true, existing = false, nativeAutoplay = false,
       if (selector === "a[href]") return link;
       if (selector.startsWith("img,video,") ||
           selector === "img,[class*='thumb'],[class*='Thumb']") return image;
-      return card;
+      return nested ? innerThumb : card;
     }
   };
   link.closest = selector => selector === "a[href]" ? link : card;
@@ -252,4 +258,16 @@ test("stage4: two-finger gesture and touch without declared media remain unmanag
     touches: [point, other], changedTouches: [point, other]
   }), unchanged);
   assert.deepEqual(f.emit("click", { timeStamp: 190 }), unchanged);
+});
+
+test("stage4: nested thumbnail resolves declared source from owning ancestor card", () => {
+  const f = fixture({ nested: true });
+  const enter = f.emit("pointerover");
+  assert.equal(enter.plays, 1, "hover finds preview on parent card");
+  assert.equal(f.video().muted, true);
+  assert.equal(f.emit("pointerout").removed, 1, "leaving nested thumb ends owner session");
+  assert.equal(f.video(), null);
+  const tap = f.emit("click", { timeStamp: 250 });
+  assert.equal(tap.plays, 1, "normal tap also resolves declared parent source");
+  assert.equal(tap.prevented, 1);
 });

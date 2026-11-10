@@ -6,7 +6,7 @@ Baseline SOURCE and PR CI for stage 3 (source HEAD `59793c070db0ac31daa24e49e897
 
 ## Implemented scope
 
-1. **Desktop mouse hover**: trusted `pointerover` starts an explicitly declared `.mp4/.webm` preview muted, only after proving the actual video source matches the declaration. `pointerout` pauses and removes only a helper-created video, or restores the original `muted`/`playsInline` state for an existing video. The session is tied to its DOM card; a stale rejected play promise cannot stop a new session.
+1. **Desktop mouse hover**: trusted `pointerover` starts an explicitly declared `.mp4/.webm` preview muted, only after proving the actual video source matches the declaration. `pointerout` pauses and removes only a helper-created video, or restores the original `muted`/`playsInline` state for an existing video. The session is tied to its DOM card; a stale rejected play promise cannot stop a new session. Bounded ancestor lookup (maximum five preview-shaped ancestors) handles nested thumbnail wrappers whose preview URL is declared on the enclosing card, including correct hover cleanup.
 2. **Site ownership**: native `autoplay muted playsInline` remains under website control; never start preview from an ordinary button, video surface, untrusted pointer event, touch-generated `pointerover`, or undelared media. No use of `preventDefault()` or `stopImmediatePropagation()` on pointer or touch events.
 3. **Mobile touch**: `touchstart/move/end/cancel` listeners are passive. They track a single gesture and reject preview interception from a swipe (motion over 12 CSS pixels), a long hold (over 650 ms), or a cancelled gesture. A *short tap* still reaches the existing trusted `click` path for its explicitly declared preview, without independently playing at `touchstart` (which could steal scrolling). Any synthetic click from a cancelled gesture is allowed to navigate using the native site behavior; the guard expires at 1000 ms and is card-specific.
 
@@ -14,8 +14,8 @@ Docs: https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events and https:
 
 ## Deterministic verification
 
-- New `app/src/test/js/preview-assist-stage4.test.cjs`: 14 cases executing the **production script** in a controlled DOM, covering hover enter/exit, native media restoration, explicit-source guard, rejection and sync throw, mouse vs touch pointer identity, passive touch, tap, swipe, hold, cancel and multi-touch.
-- Precommit semantic V8 harness: 14/14 GREEN on proposed code; 14/14 RED against stage3 source without pointer/touch listeners. This is a deterministic isolated JS smoke check, **not** Node/Gecko on device. Final Node and Android checks belong to SOURCE and PR CI.
+- New `app/src/test/js/preview-assist-stage4.test.cjs`: 15 cases executing the **production script** in a controlled DOM, covering hover enter/exit, native media restoration, explicit-source guard, rejection and sync throw, mouse vs touch pointer identity, passive touch, tap, swipe, hold, cancel and multi-touch.
+- Precommit semantic V8 harness: 15/15 GREEN on proposed code; 15/15 RED against stage3 source without pointer/touch listeners. This is a deterministic isolated JS smoke check, **not** Node/Gecko on device. Final Node and Android checks belong to SOURCE and PR CI.
 - Existing `preview-assist-audit60.test.cjs` (18A), `preview-assist-stage18b.test.cjs` (18B), `preview-compat-stage1.test.cjs` and `preview-assist-stage3.test.cjs` must remain green.
 - Mandatory SOURCE: process-docs, shared-tests JS/JVM/Robolectric/AndroidTest compile/lint with lint baseline and quality-evidence. Mandatory PR: Android CI JS/JVM/AndroidTest compile/lint/error-learning, no signed APK.
 
