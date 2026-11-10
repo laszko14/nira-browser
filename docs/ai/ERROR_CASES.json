@@ -220,6 +220,11 @@
       "task_id": "ZC-VIDEO-DIAG-7-FIX",
       "observed_count": 8,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-PREVIEW-COMPAT-1",
+      "observed_count": 1,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -5778,6 +5783,31 @@
       "test_result": null,
       "final_ci": null,
       "recurrence_conditions": null
+    },
+    {
+      "id": "ERR-20261110-PREVIEW-01",
+      "task_id": "ZC-PREVIEW-COMPAT-1",
+      "kind": "USER_REPORT",
+      "fingerprint": "thumbnail-preview-hover-touch-not-playing",
+      "summary": "Użytkownik zgłasza niedziałające ruchome miniatury przy najechaniu/dotyku na części witryn. Brak URL lub reprodukcji na urządzeniu. Autoplay Gecko i preview-assist to hipotezy, nie potwierdzona przyczyna.",
+      "source_sha": "beebd957ff979ab3644c248e1622b8a98692e6bc",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "undetermined",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/preview-compat-stage1.test.cjs",
+      "evidence_links": [],
+      "branch": "feat/zavro-clean-preview-diagnostics-stage1-20261110",
+      "workflow_name": null,
+      "cause_confidence": "unknown",
+      "fix_summary": null,
+      "test_result": "NOT_TESTED before CI; synthetic tests are not Gecko playback evidence",
+      "final_ci": null,
+      "recurrence_conditions": "Preview driven by hover, touch or muted autoplay"
     }
   ]
 }
