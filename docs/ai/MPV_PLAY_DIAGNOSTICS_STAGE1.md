@@ -16,3 +16,7 @@ Kontekst: podgląd miniatur na niektórych witrynach pokazuje Play kojarzony ze 
 
 ## Kolejny etap
 Etap 2: instrumentacja DOM i HTML5 media w WebExtension, obserwacja kliknięć/iframe/Shadow DOM i mapa pochodzenia przycisku Play, z limitami danych i redakcją sekretów.
+
+## Usterki ujawnione przez CI i ich rozliczenie
+
+Na wcześniejszym SHA d9a55d90f3a2dde064c83adffeed15feca158a32 testy SOURCE i PR wykryły wzrost Android lint `Warning:UseKtx` w `BrowserFragment.kt` (+1 względem niezmienionego baseline). Przyczyną było nowe wywołanie `android.net.Uri.parse(current.content.url)`. Zamieniono je na `current.content.url.toUri()`, korzystając z istniejącego importu KTX, i dodano test regresyjny. Kod poprawki: `98634125e21af4f10e80fb54fc5b49a76f570752`, SOURCE [42824863024](https://github.com/laszko14/nira-browser/actions/runs/42824863024) i PR [42824871763](https://github.com/laszko14/nira-browser/actions/runs/42824871763) zakończyły się SUCCESS. Końcowy commit dokumentacyjny wymaga osobnych kontroli na własnym SHA. Test rzeczywistej witryny i urządzenia: NOT_TESTED.

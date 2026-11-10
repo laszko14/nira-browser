@@ -263,7 +263,7 @@
     },
     {
       "task_id": "ZC-MPV-PLAY-DIAG-1",
-      "observed_count": 3,
+      "observed_count": 4,
       "state": "ACTIVE"
     }
   ],
@@ -6279,6 +6279,37 @@
         "https://github.com/laszko14/nira-browser/commit/4c8cdbae9d7ae2cce97f76315f5b81a3c68efa81"
       ],
       "recurrence_conditions": "A replacement AI_HANDOFF file drops fields or vocabulary required by the canonical restartability contract."
+    },
+    {
+      "id": "ERR-20261110-MPV-DIAG-LINT-USEKTX",
+      "task_id": "ZC-MPV-PLAY-DIAG-1",
+      "kind": "CI_FAILURE",
+      "fingerprint": "mpv-diag-stage1-browserfragment-usektx-uri-parse",
+      "summary": "Stage1 MPV diagnostic button introduced a sixth BrowserFragment.kt Warning:UseKtx by calling android.net.Uri.parse on the selected page URL; SOURCE and PR lint regression gates failed.",
+      "source_sha": "d9a55d90f3a2dde064c83adffeed15feca158a32",
+      "observed_at": null,
+      "run_id": 42820842539,
+      "job_id": 129845992422,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "98634125e21af4f10e80fb54fc5b49a76f570752",
+      "regression_test": "app/src/test/js/mpv-play-diagnostics-stage1.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42820842539",
+        "https://github.com/laszko14/nira-browser/actions/runs/42820851062",
+        "https://github.com/laszko14/nira-browser/actions/runs/42824863024",
+        "https://github.com/laszko14/nira-browser/actions/runs/42824871763",
+        "https://github.com/laszko14/nira-browser/commit/98634125e21af4f10e80fb54fc5b49a76f570752"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": "Zavro AI process - documentation gate (NO APK)",
+      "cause_confidence": "confirmed",
+      "fix_summary": "Replaced only the new android.net.Uri.parse(current.content.url) call with existing AndroidX current.content.url.toUri() and added a contract regression. SOURCE and PR CI for the code fix both SUCCESS.",
+      "test_result": "PASS",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "A new browser-menu diagnostic path introduces Uri.parse rather than the existing Kotlin KTX toUri extension, increasing a frozen lint rule/file baseline."
     }
   ]
 }
