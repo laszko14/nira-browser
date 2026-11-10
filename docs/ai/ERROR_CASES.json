@@ -245,6 +245,11 @@
       "task_id": "ZC-PREVIEW-COMPAT-5",
       "observed_count": 2,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-PREVIEW-COMPAT-6",
+      "observed_count": 4,
+      "state": "COMPLETE"
     }
   ],
   "events": [
@@ -808,7 +813,8 @@
       "fix_sha": "f1be27e32762dabd2b6cf151bbd535d013f79ed5",
       "regression_test": "app/src/test/java/com/prirai/android/nira/videosearch/VideoSearchQueueDialogUiTest.kt",
       "evidence_links": [
-        "https://github.com/laszko14/nira-browser/actions/runs/41536879882"
+        "https://github.com/laszko14/nira-browser/actions/runs/41536879882",
+        "https://github.com/laszko14/nira-browser/actions/runs/42782111264"
       ],
       "branch": null,
       "workflow_name": null,
@@ -816,7 +822,7 @@
       "fix_summary": null,
       "test_result": null,
       "final_ci": null,
-      "recurrence_conditions": null
+      "recurrence_conditions": "Recurred in stage6 NiraBgPlayBridgeLifecycleTest on 2026-11-10: getApplication<Application>() invalid; PR run 42782111264 JVM compile FAIL, fixed using the existing non-generic pattern."
     },
     {
       "id": "CI-41537572431-1-125593311107",
@@ -5966,6 +5972,121 @@
       "recurrence_conditions": "Native port set message arrives before a pending storage.local.get resolves with an obsolete allowed origin.",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/fb41a867319adc21c6a81ba7d3425bacd55cc1ec"
+      ]
+    },
+    {
+      "id": "ERR-20261110-BGPLAY-REUSE",
+      "task_id": "ZC-PREVIEW-COMPAT-6",
+      "kind": "REGRESSION",
+      "source_sha": "7bee6c61b8c1a6235a3c6e00f4db189393bb4799",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "41664b9f972bfd8ae7573b5af183cf833a978350",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/permissions/NiraBgPlayBridgeLifecycleTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/7bee6c61b8c1a6235a3c6e00f4db189393bb4799",
+        "https://github.com/laszko14/nira-browser/commit/41664b9f972bfd8ae7573b5af183cf833a978350",
+        "https://github.com/laszko14/nira-browser/actions/runs/42790511898"
+      ],
+      "branch": "feat/zavro-clean-preview-mediasession-stage6-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "test_result": "PASS",
+      "final_ci": "PENDING",
+      "fingerprint": "nira-bgplay-cold-start-reused-extension-misses-bridge-attach",
+      "summary": "At cold start with an already installed extension, NiraBgPlayController recovered current but did not re-register the process-local native message handler; attach was only invoked after a fresh install.",
+      "fix_summary": "Factor attachBridge; call it for both detected existing extension and newly installed extension. No redundant reinstall or global setting changes.",
+      "recurrence_conditions": "Reopening Gecko with a nonempty allowed origin set and an existing WebExtension installation; extension nativeMessaging handler from old process no longer registered."
+    },
+    {
+      "id": "ERR-20261110-BGPLAY-PORT-EPOCH",
+      "task_id": "ZC-PREVIEW-COMPAT-6",
+      "kind": "REGRESSION",
+      "source_sha": "7bee6c61b8c1a6235a3c6e00f4db189393bb4799",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "41664b9f972bfd8ae7573b5af183cf833a978350",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/permissions/NiraBgPlayBridgeLifecycleTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/7bee6c61b8c1a6235a3c6e00f4db189393bb4799",
+        "https://github.com/laszko14/nira-browser/commit/41664b9f972bfd8ae7573b5af183cf833a978350",
+        "https://github.com/laszko14/nira-browser/actions/runs/42790511898"
+      ],
+      "branch": "feat/zavro-clean-preview-mediasession-stage6-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "test_result": "PASS",
+      "final_ci": "PENDING",
+      "fingerprint": "nira-bgplay-stale-bridge-handler-reclaims-new-port",
+      "summary": "After replacing a NiraBgPlayAllowlistBridge registration, old MessageHandler callbacks could connect late and overwrite activePort, redirecting host permission updates to stale extension ports.",
+      "fix_summary": "Atomically advance bridge attachment epoch; ignore stale onPortConnected, onPortDisconnected and collector emissions from previous registrations.",
+      "recurrence_conditions": "A prior WebExtension port callback arrives after reattachment or replacement and may take over activePort in the same process."
+    },
+    {
+      "id": "CI-42783004919-1-129717396079",
+      "task_id": "ZC-PREVIEW-COMPAT-6",
+      "kind": "CI_FAILURE",
+      "observed_at": null,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "82604e300de5162984f7280b6f9599f7734c1e04",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/permissions/NiraBgPlayBridgeLifecycleTest.kt",
+      "branch": "feat/zavro-clean-preview-mediasession-stage6-20261110",
+      "workflow_name": "Android CI",
+      "cause_confidence": "confirmed",
+      "test_result": "PASS",
+      "final_ci": "PENDING",
+      "fingerprint": "stage6-kotlin-mockito-null-matchers-and-missing-extension-id",
+      "source_sha": "6a64fcb4030e0ac193035c11788f3c14f1cec0e0",
+      "run_id": 42783004919,
+      "job_id": 129717396079,
+      "summary": "New Kotlin/Robolectric bridge tests failed at runtime: Mockito argument matchers returned null into non-null Kotlin WebExtension parameters. Follow-up mock also omitted required getId, so existing install was not selected.",
+      "fix_summary": "Inspect Mockito invocation arguments rather than passing null matchers to Kotlin APIs; mock getId with NiraBgPlayController.EXTENSION_ID for real reuse path. 2 test cases passed on corrected SHA.",
+      "recurrence_conditions": "Kotlin WebExtension tests use Mockito matchers for non-null parameters, or mock a WebExtension without real id when controller filters installed extensions.",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42783004919",
+        "https://github.com/laszko14/nira-browser/actions/runs/42785624952",
+        "https://github.com/laszko14/nira-browser/commit/82604e300de5162984f7280b6f9599f7734c1e04"
+      ]
+    },
+    {
+      "id": "CI-42785624952-1-129726068606",
+      "task_id": "ZC-PREVIEW-COMPAT-6",
+      "kind": "CI_FAILURE",
+      "observed_at": null,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "82604e300de5162984f7280b6f9599f7734c1e04",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/permissions/NiraBgPlayBridgeLifecycleTest.kt",
+      "branch": "feat/zavro-clean-preview-mediasession-stage6-20261110",
+      "workflow_name": "Android CI",
+      "cause_confidence": "confirmed",
+      "test_result": "PASS",
+      "final_ci": "PENDING",
+      "fingerprint": "stage6-jsonarray-escaped-slashes-false-origin-assertion",
+      "source_sha": "ed6e83841d4d21f31009effa3c97f12b8059432d",
+      "run_id": 42785624952,
+      "job_id": 129726068606,
+      "summary": "Native bridge regression test compared JSONArray.toString() to a plain https:// origin. Android JSON serializer escaped forward slashes; valid allowlist push was incorrectly reported as a test failure.",
+      "fix_summary": "Parse JSONArray and compare each getString(index) with the exact origin; preserve both positive permission-update assertions. Regression passed on corrected source SHA.",
+      "recurrence_conditions": "Unit tests compare serialized JSONObject/JSONArray substrings to unescaped URL strings instead of inspecting decoded JSON values.",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42785624952",
+        "https://github.com/laszko14/nira-browser/commit/82604e300de5162984f7280b6f9599f7734c1e04"
       ]
     }
   ]

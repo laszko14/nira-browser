@@ -11,6 +11,7 @@ import mozilla.components.concept.engine.webextension.Port
 import mozilla.components.concept.engine.webextension.WebExtension
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Bridge between [BackgroundPlaybackAllowlist] (Kotlin, user-facing)
@@ -46,6 +47,10 @@ internal object NiraBgPlayAllowlistBridge {
     @Volatile
     private var collectorJob: Job? = null
 
+    // Old WebExtension handlers may emit late callbacks after a reattach.
+    // Only the latest registration may claim a port or deliver updates.
+    private val attachmentEpoch = AtomicLong(0L)
+
     /**
      * Attach the bridge to [extension]. Idempotent: subsequent calls
      * cancel any prior collector and reset the port reference, so a
@@ -62,11 +67,13 @@ internal object NiraBgPlayAllowlistBridge {
         allowlist: BackgroundPlaybackAllowlist,
         scope: CoroutineScope,
     ) {
+        val epoch = attachmentEpoch.incrementAndGet()
         collectorJob?.cancel()
         activePort = null
 
         val handler = object : MessageHandler {
             override fun onPortConnected(port: Port) {
+                if (attachmentEpoch.get() != epoch) return
                 activePort = port
                 // Eagerly push the current allow-list so the extension
                 // has a correct view even before the first mutation.
@@ -78,6 +85,7 @@ internal object NiraBgPlayAllowlistBridge {
             }
 
             override fun onPortDisconnected(port: Port) {
+                if (attachmentEpoch.get() != epoch) return
                 if (activePort === port) activePort = null
             }
         }
@@ -90,6 +98,7 @@ internal object NiraBgPlayAllowlistBridge {
         // script connects.
         collectorJob = scope.launch(Dispatchers.Main) {
             allowlist.origins.collect { origins ->
+                if (attachmentEpoch.get() != epoch) return@collect
                 val port = activePort ?: return@collect
                 try {
                     port.postMessage(buildMessage(origins))

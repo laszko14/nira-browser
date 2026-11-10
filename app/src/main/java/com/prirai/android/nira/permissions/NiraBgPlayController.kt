@@ -104,8 +104,11 @@ internal class NiraBgPlayController(
             } else {
                 try {
                     current = findExistingInstall()
-                    if (current != null) {
+                    current?.let { existing ->
                         Log.i(tag, "nira-bg-play already installed from a previous session")
+                        // Native message handlers are process-local. Reusing an
+                        // installed Gecko extension still requires a fresh bridge.
+                        attachBridge(existing)
                     }
                     // Mark the stale check done regardless of outcome.
                     // Even an onError callback counts as "we tried"; a
@@ -174,18 +177,19 @@ internal class NiraBgPlayController(
         inFlight = false
         if (installed != null) {
             current = installed
-            // Push the current allow-list to the just-installed
-            // extension; subsequent changes are picked up by the
-            // bridge's own collector.
-            try {
-                NiraBgPlayAllowlistBridge.attach(
-                    extension = installed,
-                    allowlist = allowlist,
-                    scope = scope,
-                )
-            } catch (t: Throwable) {
-                Log.w(tag, "bridge attach failed", t)
-            }
+            attachBridge(installed)
+        }
+    }
+
+    private fun attachBridge(extension: WebExtension) {
+        try {
+            NiraBgPlayAllowlistBridge.attach(
+                extension = extension,
+                allowlist = allowlist,
+                scope = scope,
+            )
+        } catch (t: Throwable) {
+            Log.w(tag, "bridge attach failed", t)
         }
     }
 
