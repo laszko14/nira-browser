@@ -42,14 +42,52 @@ class MpvPlayDiagnosticsTest {
         ledger.finish(50, 1_050, "STOPPED")
         assertFalse(ledger.mark(55, "after stop"))
         val entries = archiveEntries(ledger.toZipBytes())
-        assertEquals(setOf("summary.json", "timeline.json", "native-overlay.txt"), entries.keys)
+        assertEquals(setOf("summary.json", "timeline.json", "native-overlay.txt",
+            "page-events.json", "page-coverage.json"), entries.keys)
         val summary = JSONObject(entries.getValue("summary.json"))
         assertEquals("APP_DECOR_ONLY", summary.getString("snapshot_scope"))
-        assertEquals("NOT_IMPLEMENTED_STAGE1", summary.getString("dom_capture"))
+        assertEquals("BOUNDED_STRUCTURE_ONLY", summary.getString("dom_capture"))
         assertEquals("NOT_SUPPORTED_STAGE1", summary.getString("private_tabs"))
         assertFalse(summary.getBoolean("automatic_upload"))
         assertFalse(entries.getValue("native-overlay.txt").contains("N".repeat(15_000)))
         assertEquals(10, JSONArray(entries.getValue("timeline.json")).length())
+    }
+
+    @Test fun pagePacketsMustBeOwnedBoundedAndNonSensitive() {
+        val ledger = MpvPlayDiagnosticLedger(
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "p", "t", "example.org", "v", 1L, 0L)
+        val doc = "0123456789abcdef0123456789abcdef"
+        fun packet(sequence: Int, token: String = ledger.sessionId): JSONObject =
+            JSONObject().apply {
+                put("schemaVersion", 2)
+                put("event", "observation")
+                put("sessionId", token)
+                put("documentId", doc)
+                put("sequence", sequence)
+                put("kind", "MEDIA")
+                put("target", "VIDEO")
+                put("detail", "BASELINE")
+                put("metrics", JSONObject().put("readyState", 3).put("paused", true))
+            }
+        assertTrue(ledger.appendPageEvent(packet(1), 12))
+        assertFalse(ledger.appendPageEvent(packet(1), 13))
+        assertFalse(ledger.appendPageEvent(packet(2, "invalid"), 14))
+        assertFalse(ledger.appendPageEvent(packet(2).put(
+            "metrics", JSONObject().put("token", "secret-value")), 15))
+        assertFalse(ledger.appendPageEvent(packet(2).put(
+            "detail", "user@email.com"), 16))
+        assertTrue(ledger.appendPageEvent(packet(2), 17))
+        ledger.finish(20, 40, "STOPPED")
+        assertFalse(ledger.appendPageEvent(packet(3), 21))
+        val entries = archiveEntries(ledger.toZipBytes())
+        val events = JSONArray(entries.getValue("page-events.json"))
+        assertEquals(2, events.length())
+        assertEquals(1, events.getJSONObject(0).getInt("sequence"))
+        assertEquals(2, events.getJSONObject(1).getInt("sequence"))
+        assertFalse(entries.getValue("page-events.json").contains("secret-value"))
+        val summary = JSONObject(entries.getValue("summary.json"))
+        assertEquals(2, summary.getInt("page_events"))
+        assertTrue(summary.getInt("page_rejected") >= 4)
     }
 
     @Test fun privateTabBlockedAndProfileIsolationAndGateConflict() {

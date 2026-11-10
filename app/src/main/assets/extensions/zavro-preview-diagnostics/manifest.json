@@ -1,0 +1,30 @@
+{
+  "manifest_version": 2,
+  "name": "Zavro Preview Diagnostics",
+  "version": "1.0.0",
+  "description": "Explicit, bounded, read-only page diagnostics for moving video previews.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "zavro-preview-diagnostics@prirai.android.nira"
+    }
+  },
+  "permissions": [
+    "nativeMessaging",
+    "nativeMessagingFromContent",
+    "geckoViewAddons"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true,
+      "match_about_blank": false
+    }
+  ]
+}

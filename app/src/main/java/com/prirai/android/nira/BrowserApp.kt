@@ -81,6 +81,11 @@ class BrowserApp : Application() {
     }
 
     val components by lazy { Components(this) }
+
+    internal val mpvPlayPageBridge by lazy {
+        com.prirai.android.nira.browser.MpvPlayPageBridgeController(
+            applicationContext, components.engine, components.store)
+    }
     
     // Track startup timing
     private var appStartTime = 0L
@@ -226,6 +231,7 @@ class BrowserApp : Application() {
         applicationScope.launch(Dispatchers.Main) {
             initializeWebExtensions()
             com.prirai.android.nira.media.MediaDetectorController(components.engine, components.store).start()
+            mpvPlayPageBridge.start()
         }
         
         // Install the FxA WebChannel extension for OOB redirect handling

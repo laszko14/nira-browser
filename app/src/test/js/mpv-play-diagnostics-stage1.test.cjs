@@ -21,7 +21,10 @@ test('diagnostic recorder is bounded, opt-in, and excludes private sessions in s
   assert.match(source, /MAX_MARKS = 8/);
   assert.match(source, /MAX_SNAPSHOT_CHARS = 12_000/);
   assert.match(source, /privateTab\) return@synchronized Start\.PRIVATE_TAB/);
-  assert.match(source, /dom_capture", "NOT_IMPLEMENTED_STAGE1"/);
+  assert.match(source, /dom_capture", "BOUNDED_STRUCTURE_ONLY"/);
+  assert.match(source, /MAX_PAGE_EVENTS = 160/);
+  assert.match(source, /appendPageEvent/);
+  assert.match(source, /page-events\.json/);
   assert.match(source, /FileProvider\.getUriForFile/);
   assert.doesNotMatch(source, /sendBroadcast|HttpURLConnection|OkHttpClient/);
 });

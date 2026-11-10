@@ -1138,8 +1138,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 }, 350L)
             }
         ))
-        // Opt-in MPV/Play forensic recorder (stage 1: native views only).
-        // Site DOM, JS and iframe probes are intentionally left to stage 2.
+        // Opt-in MPV/Play forensic recorder. Stage 2 adds bounded passive
+        // page evidence; native snapshots remain APP_DECOR_ONLY.
         val mpvDiagnostics = com.prirai.android.nira.browser.MpvPlayDiagnostics
         val mpvState = mpvDiagnostics.state()
         if (!mpvState.running) {
@@ -1157,11 +1157,15 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                     val domain = runCatching { current.content.url.toUri().host }.getOrNull()
                     val started = mpvDiagnostics.start(manager.getActiveProfile().id,
                         current.id, domain, manager.isPrivateMode() || current.content.private)
+                    if (started == com.prirai.android.nira.browser.MpvPlayDiagnostics.Start.STARTED) {
+                        (owner.application as? BrowserApp)?.mpvPlayPageBridge?.command(
+                            manager.getActiveProfile().id, current.id, "start")
+                    }
                     val message = when (started) {
                         com.prirai.android.nira.browser.MpvPlayDiagnostics.Start.STARTED ->
                             "Test MPV rozpoczęty. Odtwórz problem i wybierz ⋮ → OZNACZ PROBLEM."
                         com.prirai.android.nira.browser.MpvPlayDiagnostics.Start.PRIVATE_TAB ->
-                            "Etap 1 nie zapisuje diagnostyki kart prywatnych."
+                            "Diagnostyka nie zapisuje danych kart prywatnych."
                         com.prirai.android.nira.browser.MpvPlayDiagnostics.Start.BUSY ->
                             "Inna diagnostyka jest aktywna. Zakończ ją przed nowym testem."
                     }
@@ -1183,9 +1187,30 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                         val marked = allowed && current != null && mpvDiagnostics.mark(
                             manager.getActiveProfile().id, current.id,
                             com.prirai.android.nira.browser.OverlayWindowDiagnostics.capture(owner))
+                        if (marked) current?.let { tab ->
+                            (owner.application as? BrowserApp)?.mpvPlayPageBridge?.command(
+                                manager.getActiveProfile().id, tab.id, "snapshot")
+                        }
                         Toast.makeText(owner, if (marked) "Zapisano znacznik i widoki aplikacji"
                             else "Wróć do zwykłej karty, na której rozpoczęto test", Toast.LENGTH_LONG).show()
                     }, 350L)
+                }
+            ))
+            menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+                id = "mpv_play_diagnostic_pick", title = "MPV / Play • WSKAŻ ELEMENT",
+                iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_settings_24,
+                onClick = {
+                    val owner = activity ?: return@Action
+                    val manager = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(owner)
+                    val selected = store.state.selectedTabId
+                    if (selected != null && !manager.isPrivateMode() &&
+                        mpvDiagnostics.state().ownerTab == selected) {
+                        (owner.application as? BrowserApp)?.mpvPlayPageBridge?.command(
+                            manager.getActiveProfile().id, selected, "pick")
+                        Toast.makeText(owner, "Dotknij elementu na stronie, aby go oznaczyć",
+                            Toast.LENGTH_LONG).show()
+                    } else Toast.makeText(owner, "Wróć do karty źródłowej testu",
+                        Toast.LENGTH_LONG).show()
                 }
             ))
             menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
@@ -1194,6 +1219,10 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 onClick = {
                     val owner = activity ?: return@Action
                     val manager = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(owner)
+                    if (!manager.isPrivateMode()) mpvDiagnostics.state().ownerTab?.let { tab ->
+                        (owner.application as? BrowserApp)?.mpvPlayPageBridge?.command(
+                            manager.getActiveProfile().id, tab, "stop")
+                    }
                     val stopped = !manager.isPrivateMode() && mpvDiagnostics.stop(manager.getActiveProfile().id)
                     Toast.makeText(owner, if (stopped) "Raport gotowy. ⋮ → EKSPORTUJ ZIP"
                         else "Test należy do innego profilu. Możesz anulować sesję.", Toast.LENGTH_LONG).show()
@@ -1232,8 +1261,13 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 id = "mpv_play_diagnostic_discard", title = "MPV / Play • ANULUJ / WYCZYŚĆ RAPORT",
                 iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_cross_24,
                 onClick = {
-                    mpvDiagnostics.discard()
                     val owner = activity ?: return@Action
+                    val manager = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(owner)
+                    mpvDiagnostics.state().ownerTab?.let { tab ->
+                        (owner.application as? BrowserApp)?.mpvPlayPageBridge?.command(
+                            manager.getActiveProfile().id, tab, "stop")
+                    }
+                    mpvDiagnostics.discard()
                     viewLifecycleOwner.lifecycleScope.launch {
                         mpvDiagnostics.clearExports(owner.applicationContext)
                         if (isAdded) Toast.makeText(owner, "Usunięto sesję i eksporty diagnostyczne MPV",

@@ -38,11 +38,16 @@ internal class MpvPlayDiagnosticLedger(
         const val MAX_MARKS = 8
         const val MAX_SNAPSHOT_CHARS = 12_000
         const val MAX_ARCHIVE_BYTES = 512 * 1024
+        const val MAX_PAGE_EVENTS = 160
+        const val MAX_PAGE_PACKET_CHARS = 2_300
     }
 
     private data class Entry(val elapsedMs: Long, val kind: String, val note: String)
     private val entries = mutableListOf(Entry(0L, "started", "User-initiated; stage-1 native diagnostics only"))
     private val snapshots = mutableListOf<String>()
+    private val pageEvents = mutableListOf<JSONObject>()
+    private val lastSequence = mutableMapOf<String, Int>()
+    private var pageRejected = 0
     private var result = "RUNNING"
     private var stoppedWallMs: Long? = null
 
@@ -59,6 +64,62 @@ internal class MpvPlayDiagnosticLedger(
         return true
     }
 
+    /**
+     * Allowlisted schema: no free-form text, URLs, selectors, DOM values, scripts,
+     * cookies or network payloads. The content extension is NOT a trust boundary.
+     */
+    fun appendPageEvent(message: JSONObject, receivedMs: Long): Boolean {
+        if (!active) return false
+        fun reject(): Boolean { pageRejected++; return false }
+        if (message.toString().length > MAX_PAGE_PACKET_CHARS ||
+            message.length() != 9 || message.optInt("schemaVersion") != 2 ||
+            message.optString("event") != "observation" ||
+            message.optString("sessionId") != sessionId) return reject()
+        val documentId = message.optString("documentId")
+        if (!documentId.matches(Regex("[0-9a-f]{32}"))) return reject()
+        val sequence = message.optInt("sequence", -1)
+        if (sequence <= 0 || sequence > 160 ||
+            sequence <= (lastSequence[documentId] ?: 0)) return reject()
+        val kind = message.optString("kind")
+        val target = message.optString("target")
+        val detail = message.optString("detail")
+        if (kind !in setOf("DOM", "MEDIA", "EVENT", "MUTATION", "ERROR", "PICK", "GAP") ||
+            !target.matches(Regex("[A-Z][A-Z0-9_]{1,24}")) ||
+            !detail.matches(Regex("[A-Z][A-Z0-9_]{1,40}"))) return reject()
+        val metrics = message.optJSONObject("metrics") ?: return reject()
+        if (metrics.length() > 16) return reject()
+        val names = setOf("frame", "shadow", "readyState", "networkState", "paused",
+            "muted", "autoplay", "controls", "loop", "duration", "currentTime", "errorCode",
+            "width", "height", "x", "y", "z", "display", "visibility", "pointerEvents",
+            "poster", "preload", "playsInline", "dropped", "count", "node", "parent",
+            "hasId", "hasClass", "hasAria", "playHint")
+        val filtered = JSONObject()
+        for (name in metrics.keys()) {
+            if (name !in names) return reject()
+            val value = metrics.get(name)
+            if (value is Boolean) filtered.put(name, value)
+            else if (value is Number && value.toDouble().isFinite() &&
+                value.toDouble() in 0.0..32768.0) filtered.put(name, value)
+            else if (value is String && value.matches(Regex("[A-Z_]{2,24}")))
+                filtered.put(name, value)
+            else return reject()
+        }
+        if (pageEvents.size >= MAX_PAGE_EVENTS) return reject()
+        lastSequence[documentId] = sequence
+        val received = receivedMs.coerceAtLeast(0L)
+        pageEvents.add(JSONObject().apply {
+            put("received_elapsed_ms", received)
+            put("document_id", documentId)
+            put("sequence", sequence)
+            put("kind", kind)
+            put("target", target)
+            put("detail", detail)
+            put("metrics", filtered)
+        })
+        entries.add(Entry(received, "page_" + kind.lowercase(), detail))
+        return true
+    }
+
     fun finish(elapsedMs: Long, wallMs: Long, reason: String) {
         if (!active) return
         result = reason
@@ -69,7 +130,7 @@ internal class MpvPlayDiagnosticLedger(
     fun toZipBytes(): ByteArray {
         check(!active) { "Stop diagnostics before exporting" }
         val summary = JSONObject().apply {
-            put("schema", "zavro-mpv-play-stage1-v1")
+            put("schema", "zavro-mpv-play-stage2-v1")
             put("session", sessionId)
             put("status", result)
             put("started_utc_ms", startedWallMs)
@@ -77,8 +138,14 @@ internal class MpvPlayDiagnosticLedger(
             put("app_version", version)
             put("site_host_only", host ?: JSONObject.NULL)
             put("snapshot_scope", "APP_DECOR_ONLY")
-            put("dom_capture", "NOT_IMPLEMENTED_STAGE1")
-            put("js_capture", "NOT_IMPLEMENTED_STAGE1")
+            put("dom_capture", "BOUNDED_STRUCTURE_ONLY")
+            put("js_capture", "EVENT_TYPES_AND_ERROR_CLASSES_ONLY")
+            put("page_events", pageEvents.size)
+            put("page_rejected", pageRejected)
+            put("iframe_capture", "PERMITTED_HTTP_FRAMES_ONLY")
+            put("shadow_dom", "OPEN_ROOTS_BOUNDED")
+            put("network_capture", "NOT_CAPTURED_STAGE2")
+            put("play_promise_rejections", "UNHANDLED_ONLY")
             put("private_tabs", "NOT_SUPPORTED_STAGE1")
             put("automatic_upload", false)
             put("marks", snapshots.size)
@@ -101,6 +168,18 @@ internal class MpvPlayDiagnosticLedger(
             add("summary.json", summary.toString(2))
             add("timeline.json", timeline.toString(2))
             add("native-overlay.txt", snapshots.joinToString("\n\n--- NEXT MARK ---\n\n"))
+            add("page-events.json", JSONArray(pageEvents).toString(2))
+            add("page-coverage.json", JSONObject().apply {
+                put("snapshot", "STRUCTURE_AND_STATE_NOT_RAW_HTML")
+                put("frame_access", "HTTP_FRAMES_WITH_EXTENSION_ACCESS")
+                put("shadow_dom", "OPEN_ROOTS_ONLY")
+                put("javascript", "EVENT_TYPES_NO_SOURCE_OR_STACKS")
+                put("video_play_promise", "UNHANDLED_REJECTION_ONLY")
+                put("network", "NOT_RECORDED")
+                put("credentials", "NOT_RECORDED")
+                put("missing_page_events", pageEvents.isEmpty())
+                put("rejected_events", pageRejected)
+            }.toString(2))
         }
         return out.toByteArray().also { check(it.size <= MAX_ARCHIVE_BYTES) }
     }
@@ -108,7 +187,8 @@ internal class MpvPlayDiagnosticLedger(
 
 internal object MpvPlayDiagnostics {
     internal enum class Start { STARTED, PRIVATE_TAB, BUSY }
-    internal data class State(val running: Boolean, val reportReady: Boolean, val ownerProfile: String?)
+    internal data class State(val running: Boolean, val reportReady: Boolean,
+        val ownerProfile: String?, val ownerTab: String?)
     private const val MAX_DURATION_MS = 15 * 60 * 1000L
     private val lock = Any()
     private var recording: MpvPlayDiagnosticLedger? = null
@@ -127,7 +207,8 @@ internal object MpvPlayDiagnostics {
     fun state(): State = synchronized(lock) {
         expireIfNeeded()
         val current = recording
-        State(current != null, finished != null, current?.ownerProfile ?: finished?.ownerProfile)
+        State(current != null, finished != null, current?.ownerProfile ?: finished?.ownerProfile,
+            current?.ownerTab ?: finished?.ownerTab)
     }
 
     fun start(profile: String, tab: String, host: String?, privateTab: Boolean): Start = synchronized(lock) {
@@ -148,6 +229,18 @@ internal object MpvPlayDiagnostics {
             DiagnosticSessionGate.shared.release(DiagnosticOwner.VIDEO_PREVIEW_DIAGNOSTICS)
             throw error
         }
+    }
+
+    fun sessionFor(profile: String, tab: String): String? = synchronized(lock) {
+        expireIfNeeded()
+        recording?.takeIf { it.ownerProfile == profile && it.ownerTab == tab }?.sessionId
+    }
+
+    fun page(profile: String, tab: String, packet: JSONObject): Boolean = synchronized(lock) {
+        expireIfNeeded()
+        val ledger = recording ?: return@synchronized false
+        if (ledger.ownerProfile != profile || ledger.ownerTab != tab) return@synchronized false
+        ledger.appendPageEvent(packet, SystemClock.elapsedRealtime() - ledger.startedElapsedMs)
     }
 
     fun mark(profile: String, tab: String, snapshot: String): Boolean = synchronized(lock) {
