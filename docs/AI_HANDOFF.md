@@ -11,7 +11,7 @@ repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: feat/zavro-clean-mpv-play-diagnostics-stage1-20261110
 base_sha: 02835a356c7d083c3881864d91a66fac412e5b07
-observed_head_sha: 4ee45cb341de9bc92d23166d259db52d4d161ef7
+observed_head_sha: 2d5935a41e2a5118fa7fd55943dd9095323828d2
 status: CI_PENDING
 acceptance_source: User requested "Kompiluj" after verified MPV/Play transport repair; explicit authorization to prepare a private signed update through approved owner PR review after green final SOURCE and PR CI.
 completed: MPV/Play transport repair and review fixes SOURCE 42893075830 and PR 42893088565 completed/success on base SHA. Two supplied device diagnostic archives confirm installed v1226. Prepared controlled version increase from arm64 versionCode 1226 to 1227, versionName 0.5.22-alpha123-clean, aligned workflow expected metadata, artifact name and regression expectations; did not change package, ABI, certificate or app playback.
@@ -19,8 +19,8 @@ remaining: Push this version-only update on same branch, verify exact final SHA 
 required_ci: SOURCE process-docs and shared-tests (JavaScript, Kotlin/Robolectric, AndroidTest compile, Android lint/regression baseline), all evidence success on exact final SHA; PR shared-tests and error-learning success on matching integration checkout.
 apk: REQUESTED_NOT_BUILT; latest remotely verified signed APK v1226 from run 42864976383, artifact zavro-arm64-update-apk-v1226, source f24e3463a958c83aa2f2347000fbb7705ae8bfa4. Next proposed versionCode 1227, versionName 0.5.22-alpha123-clean, artifact zavro-arm64-update-apk-v1227; no binary download by any agent.
 device: NOT_TESTED for updated diagnostic; two older user ZIPs show the installed v1226 produced no page events.
-known_failures: v1226 native diagnostic captured marks but no DOM evidence; device cause undetermined. SOURCE run 42895700657 on initial v1227 SHA 4ee45cb341de9bc92d23166d259db52d4d161ef7 failed process-docs (scripts/check-ai-handoff.test.cjs) because checkpoint required_ci omitted the exact token shared-tests, an existing registered recurrent error. Repaired checkpoint to canonical label without weakening test. Other stage code SOURCE/PR on base passed; do not claim preview playback fixed without device report.
-verification: Base SOURCE 42893075830 and PR 42893088565 completed/success; latest verified signed v1226 APK run 42864976383. v1227 draft SHA 4ee45cb341de9bc92d23166d259db52d4d161ef7 process-docs failed missing shared-tests token; new corrective SHA and SOURCE/PR CI pending.
+known_failures: v1226 had zero page events; device cause unknown. v1227 SOURCE 42895700657 failed checkpoint required_ci exact shared-tests token, fixed in 2d5935a4. SOURCE 42896058869 then failed error-learning validator because updated canonical incident's fix_summary and recurrence_conditions exceeded 320 chars; corrected both without changing validator. No preview playback claim without new device evidence.
+verification: Base SOURCE 42893075830 and PR 42893088565 completed/success. v1227 SHA 4ee45cb had process-docs FAIL (missing shared-tests in handoff); SHA 2d5935a4 fixed checkpoint and passed that gate, but process-docs then failed registry field length limits. Corrected recurrence wording under 320 characters each; latest SOURCE/PR CI PENDING. Last verified signed APK v1226 run 42864976383.
 verified_before_push: Read AGENTS.md, docs/ai/ACTIVE_CLEAN_LINE.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md, docs/ai/CHATGPT_PROJECT_INSTRUCTIONS.md and APK review/release/signing policies at exact live base SHA; confirmed existing draft PR #140 and last signed run; HEAD check required again immediately before update.
 blockers: Physical device is unavailable for test here; native signing requires owner review and GitHub Actions Secrets, not a local or agent-downloaded APK.
 evidence_links:
@@ -29,6 +29,7 @@ evidence_links:
   - https://github.com/laszko14/nira-browser/actions/runs/42893088565
   - https://github.com/laszko14/nira-browser/actions/runs/42864976383
   - https://github.com/laszko14/nira-browser/actions/runs/42895700657
+  - https://github.com/laszko14/nira-browser/actions/runs/42896058869
 changed_paths:
   - app/build.gradle
   - .github/workflows/apk-release.yml

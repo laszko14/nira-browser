@@ -6473,15 +6473,16 @@
         "https://github.com/laszko14/nira-browser/actions/runs/42849406844",
         "https://github.com/laszko14/nira-browser/actions/runs/42868786887",
         "https://github.com/laszko14/nira-browser/commit/84e405222aa5b58b0579177a534a2662217fc4dc",
-        "https://github.com/laszko14/nira-browser/actions/runs/42895700657"
+        "https://github.com/laszko14/nira-browser/actions/runs/42895700657",
+        "https://github.com/laszko14/nira-browser/actions/runs/42896058869"
       ],
       "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
       "workflow_name": "Zavro AI process - documentation gate (NO APK)",
       "cause_confidence": "confirmed",
-      "fix_summary": "Original stage4 fix restored canonical fields, test and archive reference; docs-only rewrite on 2026-11-10 reintroduced omitted archive pointer and it was restored on the active continuous branch. Same fingerprint, one prevention rule and regression test. During the v1227 APK version-only task, repaired another recurrence by spelling 'shared-tests' exactly in required_ci; test oracle unchanged. New final CI must be verified for the correction separately.",
+      "fix_summary": "Stage4 and docs-only checkpoint regressions restored canonical shared-tests and archive fields. v1227 build task repeated shared-tests omission; fixed checkpoint wording while retaining the unchanged gate and its regression test.",
       "test_result": "PASS",
       "final_ci": "SUCCESS",
-      "recurrence_conditions": "A rewritten AI_HANDOFF file drops canonical shared-tests or the exact legacy archive reference, as happened again during continuous-branch policy migration on 2026-11-10. On 2026-11-10 version bump to v1227 a newly written handoff used 'shared JavaScript regressions' instead of the required exact token 'shared-tests'; captured by existing checkpoint test. Resolved in the same APK task by restoring the canonical field."
+      "recurrence_conditions": "Any AI_HANDOFF rewrite omits literal shared-tests in required_ci or drops mandatory legacy archive path. Recurrences: docs migration 2026-11-10 and v1227 version bump checkpoint."
     },
     {
       "id": "ERR-20261110-MPV-DIAG4-ROBOLECTRIC-RUNNER",
