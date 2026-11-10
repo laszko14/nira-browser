@@ -137,7 +137,7 @@
       let node = event.target;
       try { node = node?.closest?.(monitored) || node; } catch (_) {}
       snapshotElement(node,"PICKED_ELEMENT");
-      send("PICK",targetName(node),"USER_SELECTED",{});
+      send("PICK",targetName(node),"USER_SELECTED",{node:elementId(node)});
       return;
     }
     if (type === "unhandledrejection") {

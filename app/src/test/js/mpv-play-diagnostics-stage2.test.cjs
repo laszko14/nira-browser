@@ -115,6 +115,8 @@ test('picker consumes exactly the authorised touch, and can be disarmed across f
   x.listeners.get('pointerdown')(touch);
   assert.equal(prevented, 2);
   assert.equal(x.packets.at(-1).kind, 'PICK');
+  assert.ok(x.packets.at(-1).metrics.node > 0);
+  assert.equal(x.packets.at(-1).metrics.node, x.packets.at(-2).metrics.node);
   assert.equal(x.packets.at(-1).metrics.frame, 'SUBFRAME');
   x.listeners.get('pointerdown')(touch);
   assert.equal(prevented, 2);

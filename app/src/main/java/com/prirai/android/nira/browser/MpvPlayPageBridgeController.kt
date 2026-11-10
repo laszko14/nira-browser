@@ -178,9 +178,7 @@ internal class MpvPlayPageBridgeController(
 
         override fun onPortMessage(message: Any, port: Port) {
             if (port.name() != NATIVE_APP ||
-                ports[session].orEmpty().none {
-                    it.name() == port.name() && it.senderUrl() == port.senderUrl()
-                }) return
+                !MpvPlayPortIdentity.matches(ports[session], port)) return
             val (profile, tabId) = trustedOwner(session) ?: return
             val payload = message as? JSONObject ?: return
             if (payload.optInt("schemaVersion") != 2 ||
@@ -198,4 +196,10 @@ internal class MpvPlayPageBridgeController(
         private const val NATIVE_APP = "zavro.preview.forensics"
         private const val MAX_FRAMES = 24
     }
+}
+
+/** Reference ownership, not equality of sender URL or channel name. */
+internal object MpvPlayPortIdentity {
+    fun <T : Any> matches(connected: List<T>?, incoming: T): Boolean =
+        connected?.any { it === incoming } == true
 }

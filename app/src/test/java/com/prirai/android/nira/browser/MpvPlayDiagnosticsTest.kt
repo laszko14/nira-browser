@@ -43,7 +43,8 @@ class MpvPlayDiagnosticsTest {
         assertFalse(ledger.mark(55, "after stop"))
         val entries = archiveEntries(ledger.toZipBytes())
         assertEquals(setOf("summary.json", "timeline.json", "native-overlay.txt",
-            "page-events.json", "page-coverage.json", "addon-inventory.json"), entries.keys)
+            "page-events.json", "page-coverage.json", "addon-inventory.json",
+            "analysis.json", "analysis.txt"), entries.keys)
         val summary = JSONObject(entries.getValue("summary.json"))
         assertEquals("APP_DECOR_ONLY", summary.getString("snapshot_scope"))
         assertEquals("BOUNDED_STRUCTURE_ONLY", summary.getString("dom_capture"))
@@ -76,6 +77,12 @@ class MpvPlayDiagnosticsTest {
             "metrics", JSONObject().put("token", "secret-value")), 15))
         assertFalse(ledger.appendPageEvent(packet(2).put(
             "detail", "user@email.com"), 16))
+        assertFalse(ledger.appendPageEvent(packet(2).put(
+            "detail", "API_SECRET_TOKEN"), 16))
+        assertFalse(ledger.appendPageEvent(packet(2).put(
+            "metrics", JSONObject().put("frame", "PRIVATE_PASSWORD")), 16))
+        assertFalse(ledger.appendPageEvent(packet(2).put(
+            "metrics", JSONObject().put("controls", "YES")), 16))
         assertTrue(ledger.appendPageEvent(packet(2), 17))
         ledger.finish(20, 40, "STOPPED")
         assertFalse(ledger.appendPageEvent(packet(3), 21))

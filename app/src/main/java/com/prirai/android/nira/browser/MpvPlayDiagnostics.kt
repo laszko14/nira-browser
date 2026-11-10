@@ -19,11 +19,9 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 /**
- * Stage 1: explicitly started, bounded, in-memory diagnostic session.
- *
- * No site DOM, cookie, token, page URL path or network request is collected here.
- * The native-window snapshot is a fixed app-decor sample, NOT proof of which
- * element rendered a webpage control. Page event hooks come in later stages.
+ * Opt-in, bounded stage 4 in-memory diagnostic session. Content data is limited
+ * to typed categories and numeric/boolean metadata. This ledger neither proves
+ * the cause of Play UI nor records raw site markup, source URLs or credentials.
  */
 internal class MpvPlayDiagnosticLedger(
     val sessionId: String,
@@ -43,7 +41,7 @@ internal class MpvPlayDiagnosticLedger(
     }
 
     private data class Entry(val elapsedMs: Long, val kind: String, val note: String)
-    private val entries = mutableListOf(Entry(0L, "started", "User-initiated; stage-1 native diagnostics only"))
+    private val entries = mutableListOf(Entry(0L, "started", "User-initiated bounded diagnostics"))
     private val snapshots = mutableListOf<String>()
     private val pageEvents = mutableListOf<JSONObject>()
     private val lastSequence = mutableMapOf<String, Int>()
@@ -87,9 +85,22 @@ internal class MpvPlayDiagnosticLedger(
         val kind = message.optString("kind")
         val target = message.optString("target")
         val detail = message.optString("detail")
+        // Reject arbitrary uppercase strings as well as malformed text: both
+        // can accidentally contain confidential website state.
         if (kind !in setOf("DOM", "MEDIA", "EVENT", "MUTATION", "ERROR", "PICK", "GAP") ||
-            !target.matches(Regex("[A-Z][A-Z0-9_]{1,24}")) ||
-            !detail.matches(Regex("[A-Z][A-Z0-9_]{1,40}"))) return reject()
+            target !in setOf("VIDEO", "SOURCE", "BUTTON", "A", "IFRAME",
+                "DIV", "SPAN", "IMG", "PICTURE", "SECTION", "ARTICLE",
+                "OTHER", "UNKNOWN") ||
+            detail !in setOf("BASELINE", "USER_MARK", "PICKED_ELEMENT",
+                "ATTRIBUTE_STATE", "SNAPSHOT_FINISHED", "VIDEO_STATE",
+                "ON_POINTERDOWN", "ON_POINTEROVER", "ON_CLICK",
+                "ON_PLAY", "ON_PAUSE", "ON_LOADEDMETADATA", "ON_ERROR",
+                "DOCUMENT_VISIBILITY", "ATTRIBUTE_STYLE", "ATTRIBUTE_CLASS",
+                "ATTRIBUTE_HIDDEN", "ATTRIBUTE_POSTER", "ATTRIBUTE_SRC",
+                "ATTRIBUTE_CONTROLS", "ATTRIBUTE_AUTOPLAY", "ATTRIBUTE_ROLE",
+                "ATTRIBUTE_BATCH", "NODES_ADDED", "PROMISE_REJECTION",
+                "JS_ERROR", "USER_SELECTED", "DOM_UNAVAILABLE",
+                "SCAN_LIMIT", "EVENT_LIMIT")) return reject()
         val metrics = message.optJSONObject("metrics") ?: return reject()
         if (metrics.length() > 16) return reject()
         val names = setOf("frame", "shadow", "readyState", "networkState", "paused",
@@ -97,16 +108,30 @@ internal class MpvPlayDiagnosticLedger(
             "width", "height", "x", "y", "z", "display", "visibility", "pointerEvents",
             "poster", "preload", "playsInline", "dropped", "count", "node", "parent",
             "hasId", "hasClass", "hasAria", "playHint", "helperMarker")
+        val bools = setOf("shadow", "paused", "muted", "autoplay", "controls",
+            "loop", "poster", "playsInline", "hasId", "hasClass", "hasAria",
+            "playHint", "helperMarker")
+        val enums = mapOf(
+            "frame" to setOf("TOP", "SUBFRAME"),
+            "display" to setOf("NONE", "BLOCK", "INLINE", "INLINE_BLOCK",
+                "FLEX", "GRID", "CONTENTS", "OTHER"),
+            "visibility" to setOf("VISIBLE", "HIDDEN", "COLLAPSE", "OTHER"),
+            "pointerEvents" to setOf("AUTO", "NONE", "OTHER"),
+            "preload" to setOf("NONE", "AUTO", "METADATA", "OTHER"),
+        )
         val filtered = JSONObject()
         for (name in metrics.keys()) {
             if (name !in names) return reject()
             val value = metrics.get(name)
-            if (value is Boolean) filtered.put(name, value)
-            else if (value is Number && value.toDouble().isFinite() &&
-                value.toDouble() in 0.0..32768.0) filtered.put(name, value)
-            else if (value is String && value.matches(Regex("[A-Z_]{2,24}")))
-                filtered.put(name, value)
-            else return reject()
+            when {
+                name in bools && value is Boolean -> filtered.put(name, value)
+                name in enums && value is String && value in enums.getValue(name) ->
+                    filtered.put(name, value)
+                name !in bools && name !in enums && value is Number &&
+                    value.toDouble().isFinite() && value.toDouble() in 0.0..32768.0 ->
+                    filtered.put(name, value)
+                else -> return reject()
+            }
         }
         if (pageEvents.size >= MAX_PAGE_EVENTS) return reject()
         lastSequence[documentId] = sequence
@@ -140,7 +165,7 @@ internal class MpvPlayDiagnosticLedger(
     fun toZipBytes(): ByteArray {
         check(!active) { "Stop diagnostics before exporting" }
         val summary = JSONObject().apply {
-            put("schema", "zavro-mpv-play-stage3-v1")
+            put("schema", "zavro-mpv-play-stage4-v1")
             put("session", sessionId)
             put("status", result)
             put("started_utc_ms", startedWallMs)
@@ -154,7 +179,7 @@ internal class MpvPlayDiagnosticLedger(
             put("page_rejected", pageRejected)
             put("iframe_capture", "PERMITTED_HTTP_FRAMES_ONLY")
             put("shadow_dom", "OPEN_ROOTS_BOUNDED")
-            put("network_capture", "NOT_CAPTURED_STAGE3")
+            put("network_capture", "NOT_CAPTURED_STAGE4")
             put("addon_inventory_scope", "INSTALLED_ADDONS_NOT_PAGE_SCRIPT_EXECUTION")
             put("play_origin", "NOT_CONFIRMED_WITHOUT_REAL_PAGE_EVIDENCE")
             put("play_promise_rejections", "UNHANDLED_ONLY")
@@ -163,13 +188,15 @@ internal class MpvPlayDiagnosticLedger(
             put("marks", snapshots.size)
         }
         val timeline = JSONArray()
-        entries.forEach { entry ->
+        entries.sortedBy { it.elapsedMs }.forEach { entry ->
             timeline.put(JSONObject().apply {
                 put("elapsed_ms", entry.elapsedMs)
                 put("kind", entry.kind)
                 put("note", entry.note)
             })
         }
+        val analysis = MpvPlayEvidenceReport.build(pageEvents, markCount,
+            pageRejected, addonInventory)
         val out = ByteArrayOutputStream()
         ZipOutputStream(out).use { zip ->
             fun add(name: String, data: String) {
@@ -182,6 +209,8 @@ internal class MpvPlayDiagnosticLedger(
             add("native-overlay.txt", snapshots.joinToString("\n\n--- NEXT MARK ---\n\n"))
             add("page-events.json", JSONArray(pageEvents).toString(2))
             add("addon-inventory.json", addonInventory.toString(2))
+            add("analysis.json", analysis.toString(2))
+            add("analysis.txt", MpvPlayEvidenceReport.explanation(analysis))
             add("page-coverage.json", JSONObject().apply {
                 put("snapshot", "STRUCTURE_AND_STATE_NOT_RAW_HTML")
                 put("frame_access", "HTTP_FRAMES_WITH_EXTENSION_ACCESS")
