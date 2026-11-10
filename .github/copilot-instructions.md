@@ -1,4 +1,5 @@
 # Zavro Clean — wejście Copilota
+Jedyna ciągła gałąź Clean: `feat/zavro-clean-mpv-play-diagnostics-stage1-20261110`; zobacz [ACTIVE_CLEAN_LINE.md](../docs/ai/ACTIVE_CLEAN_LINE.md). Nie twórz nowych gałęzi na każdy etap. Kolejne APK muszą mieć rosnący versionCode; gotowych plików APK/ZIP nie pobiera agent — podaje link do runu GitHub Actions i nazwę artefaktu.
 Kanon polityki: [AGENTS.md](../AGENTS.md); bieżący stan wyłącznie w [AI_HANDOFF.md](../docs/AI_HANDOFF.md) odczytanym z prawidłowego live ref. Clean i x MPV są oddzielne. Weryfikuj pełny HEAD SHA, własność zmian i jawny zakres.
 Kontrola startowa V3.2: [STARTUP_PREFLIGHT.md](../docs/ai/STARTUP_PREFLIGHT.md); w lokalnym checkoutcie pomocniczy `scripts/ai-preflight.cjs`, który nie zastępuje czytania źródeł.
 Procedura implementacji: [DEVELOPMENT_WORKFLOW.md](../docs/ai/DEVELOPMENT_WORKFLOW.md); testy: [TEST_POLICY.md](../docs/ai/TEST_POLICY.md); bramki: [QUALITY_GATES.md](../docs/ai/QUALITY_GATES.md).

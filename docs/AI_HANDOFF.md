@@ -1,53 +1,50 @@
-# AI_HANDOFF — Zavro Clean MPV/Play, APK update versionCode 1226
+# AI_HANDOFF — Zavro Clean, stała gałąź i przekazywanie APK przez link (10.11.2026)
 
-Archive: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md.
-
-Etap 5/5 potwierdzony przez SOURCE 42856474338 i PR 42857649495,
-oba completed/success na SHA `8453a70e150cd8fbca01e79a16be5980d214aa03`. Podpisana kompilacja
-v1225 (run 42860175611, artifact 13783719511) otrzymała APK_VERIFIED
-dla pakietu, certyfikatu i ABI, ale użytkownik potwierdził, że ma
-już zainstalowany versionCode 1225. Ten APK NIE jest aktualizacją.
-Następna podpisana kompilacja musi mieć versionCode 1226.
-
-Poniższy checkpoint zapisano PRZED końcowym CI zmiany v1226.
-Wynik bieżący sprawdzaj na żywo na nowym pełnym HEAD SHA,
-nie wyciągaj PASS z poniższego historycznego CI_PENDING.
+Kanon gałęzi i monotonicznej wersji: `docs/ai/ACTIVE_CLEAN_LINE.md`. Przed pracą sprawdzaj live HEAD wskazanej gałęzi i ostatnie Actions; poniższy checkpoint jest zapisany **przed nowym CI dokumentacji**.
 
 ```yaml
-task_id: ZC-MPV-PLAY-APK-1226
+task_id: ZC-CLEAN-CONTINUOUS-LINE-APK-LINK-20261110
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: feat/zavro-clean-mpv-play-diagnostics-stage1-20261110
-base_sha: 8453a70e150cd8fbca01e79a16be5980d214aa03
-observed_head_sha: a2a4c414da65f0249c4afd800625521679045b81
+base_sha: f24e3463a958c83aa2f2347000fbb7705ae8bfa4
+observed_head_sha: f24e3463a958c83aa2f2347000fbb7705ae8bfa4
 status: CI_PENDING
-acceptance_source: User 2026-11-10 reports Clean v1225 already installed and requests corrected v1226 APK as continuation of the approved private signed update. No merge, release, force-push, uninstall or signing-key changes.
-completed: Stage5 SOURCE 42856474338 and PR 42857649495 verified SUCCESS at baseline; prior owner-reviewed v1225 APK run 42860175611 successful but same versionCode as installed. Prepared minimal v1226 correction using app/build.gradle base versionCode=226 for arm64 output 1226 and versionName=0.5.22-alpha122-clean; matching explicit APK workflow verifier, artifact name, and strict JS update regression with actual user-installed baseline 1225. Recorded same-version install regression in canonical ERROR_CASES.json. Code-only fix commit 481505cf805840cafdfda4f88c3881678535bb11 prepared; checkpoint and error registry follow in same push.
-remaining: Push complete two-commit change to current branch, confirm final SHA and SOURCE process-docs/shared-tests and PR independent full required checks all SUCCESS on final SHA. Then submit exactly one owner COMMENT review request bound to final PR HEAD, verify private signed arm64 APK package versionCode 1226 versionName alpha122, certificate and artifact. Physical installation and actual Play on site NOT_TESTED.
-required_ci: SOURCE process-docs and shared-tests JavaScript, Kotlin/Robolectric, AndroidTest compile, Android lint regression, quality evidence all SUCCESS; PR shared-tests JavaScript, Kotlin/Robolectric, AndroidTest compile, lint regression, error-learning evidence all SUCCESS at final SHA.
-apk: V1225 APK_VERIFIED but NOT_UPDATEABLE over installed V1225. New v1226 NOT_BUILT; use only authorized exact-SHA PR review trigger and stable GitHub Secrets.
-device: NOT_TESTED; installed versionCode 1225 is user-confirmed; user's installed signature is not independently read.
-privacy: No data migration, profile, session, playback, URL, cert, package ID or new APK feature changes; signed update is intended to preserve installation.
-known_failures: ERR-20261110-MPV-APK-VERSIONCODE-1225 corrected; initial JS regression ERR-20261110-MPV-APK-NEON-TEST-1226 failed SOURCE job 129992856320 and PR job 129992904952 because neon test used stale version literals; now fixture fixed, final CI PENDING. Earlier open preview/Play site cases remain OPEN pending real on-device evidence; do not claim those bugs fixed by version bump.
-verification: Base stage5 SOURCE 42856474338 and PR 42857649495 success (659/659 JS); v1225 signed APK 42860175611 success but unusable as version increment over installed v1225. Initial v1226 SOURCE 42862726025 and PR 42862739371: JS 658/659 PASS, one outdated neon literal versionCode 225 and alpha121 test failure; Android jobs skipped as consequence; fixed neon test in code commit 766cb5793db932b87b6a59781d9e07696b54ba07. New final SHA SOURCE/PR CI and signed APK still PENDING.
-verified_before_push: Checked live branch full SHA and draft PR #140 head at 8453a70e150cd8fbca01e79a16be5980d214aa03; read AGENTS.md, docs/AI_HANDOFF.md, active project instructions, APK_CHAT_GITHUB_REVIEW_TRIGGER.md, APK_RELEASE.md, signing policy, STARTUP_PREFLIGHT.md, TEST_POLICY.md, QUALITY_GATES.md, ERROR_LEARNING.md, CHECKPOINT_POLICY.md and exact Gradle/workflow/test/verifier scripts at base. No local device checkout; test results only after GitHub CI.
-blockers: None known for SOURCE/PR CI or approved review mechanism. No assurance of installation without comparing installed cert and APK on actual phone; refuse uninstall/data loss.
+acceptance_source: User 2026-11-10 requested no agent APK downloads in ChatGPT/Work/Codex, only GitHub Actions run links; one continuously advancing development branch and strictly increasing APK update numbers.
+completed: Confirmed live branch and PR #140 at base SHA. SOURCE 42863285968 and PR 42863296609 completed/success on base SHA. Private signed v1226 build 42864976383 completed/success; build job verifier confirmed package, versionCode 1226, versionName alpha122-clean, arm64-v8a and pinned SHA-256 certificate; artifact 13787720924. Prepared docs-only canonical active line and harmonized agent, preflight, project, Copilot, process and APK instructions; no app or signing changes.
+remaining: Push docs-only fast-forward to the same branch; confirm full final SHA and required SOURCE/PR CI on that exact SHA; triage any FAIL in the same task. No APK for documentation change. Manually replace ChatGPT Project Instructions and refresh static Project Sources outside repo if desired.
+required_ci: SOURCE process-docs, shared-tests JavaScript, JVM/Robolectric, AndroidTest compile, lint, evidence; PR shared-tests and error-learning gates all SUCCESS on final source HEAD / corresponding PR merge-ref.
+apk: APK_VERIFIED v1226 from run 42864976383 and artifact zavro-arm64-update-apk-v1226 (ID 13787720924), source SHA f24e3463a958c83aa2f2347000fbb7705ae8bfa4. DO NOT download APK/ZIP as agent; user downloads from run page. This docs-only change does not build another APK.
+device: NOT_TESTED; user previously confirmed installed v1225, installation of v1226 NOT_CONFIRMED.
+privacy: No changes to profiles, sessions, history, permissions, Android package, ABI, signing key, app code, merge or release.
+known_failures: Initial v1226 neon test fixture failure on old SHA a2a4c414da65f0249c4afd800625521679045b81 corrected before base; historical failed runs 42862726025 and 42862739371 do not block green base SHA. Runtime Play/preview site cases still require device evidence.
+verification: SOURCE 42863285968 success; PR 42863296609 success; APK 42864976383 completed/success with verifier output versionCode=1226, cert and ABI; artifact metadata confirmed. New documentation commit CI remains PENDING.
+verified_before_push: Read AGENTS.md, docs/AI_HANDOFF.md, docs/ai/CHATGPT_PROJECT_INSTRUCTIONS.md, docs/ai/STARTUP_PREFLIGHT.md, APK_CHAT_GITHUB_REVIEW_TRIGGER.md, DEVELOPMENT_WORKFLOW.md, CHECKPOINT_POLICY.md, project sources and build.gradle at explicit live base SHA; confirmed branch ref and active PR.
+blockers: ChatGPT Project Instructions and uploaded Project Sources cannot be changed by repo commit; user must apply latest bootstrap manually. Local Android device not accessible.
 evidence_links:
-  - https://github.com/laszko14/nira-browser/actions/runs/42856474338
-  - https://github.com/laszko14/nira-browser/actions/runs/42857649495
-  - https://github.com/laszko14/nira-browser/actions/runs/42860175611
-  - https://github.com/laszko14/nira-browser/commit/481505cf805840cafdfda4f88c3881678535bb11
-  - https://github.com/laszko14/nira-browser/actions/runs/42862726025
-  - https://github.com/laszko14/nira-browser/actions/runs/42862739371
-  - https://github.com/laszko14/nira-browser/commit/766cb5793db932b87b6a59781d9e07696b54ba07
+  - https://github.com/laszko14/nira-browser/actions/runs/42863285968
+  - https://github.com/laszko14/nira-browser/actions/runs/42863296609
+  - https://github.com/laszko14/nira-browser/actions/runs/42864976383
   - https://github.com/laszko14/nira-browser/pull/140
 changed_paths:
-  - app/build.gradle
-  - .github/workflows/apk-release.yml
-  - app/src/test/js/release-contract-stage19a.test.cjs
-  - app/src/test/js/video-search-neon-redesign.test.cjs
-  - docs/ai/ERROR_CASES.json
+  - AGENTS.md
+  - docs/ai/ACTIVE_CLEAN_LINE.md
+  - docs/ai/STARTUP_PREFLIGHT.md
+  - docs/ai/CHATGPT_PROJECT_INSTRUCTIONS.md
+  - docs/ai/project-sources/ZAVRO_START.md
+  - docs/ai/project-sources/ZAVRO_SYSTEM_V3.md
+  - docs/ai/DEVELOPMENT_WORKFLOW.md
+  - docs/ai/APK_CHAT_GITHUB_REVIEW_TRIGGER.md
+  - docs/ai/APK_RELEASE.md
+  - .github/copilot-instructions.md
   - docs/AI_HANDOFF.md
-next_action: Verify pushed final SHA, required SOURCE and PR CI; repair FAIL on new SHA; then owner-review private signed APK v1226, verifier and artifact. After APK_VERIFIED STOP and report; no uninstall, merge or public release.
+next_action: Verify new docs-only commit full SHA and green SOURCE+PR CI. If green report CODE_VERIFIED for docs change; do not build/download APK and do not start unrelated stage.
 ```
+
+## Istotna historia przekazania
+
+- 2026-11-10: po etapie diagnostyki MPV/Play 5/5 SOURCE run 42856474338 i PR run 42857649495 zakończyły się sukcesem na SHA 8453a70e150cd8fbca01e79a16be5980d214aa03.
+- Pierwszy podpisany APK v1225 (run 42860175611) nie mógł zaktualizować wersji v1225 już zainstalowanej u użytkownika. Naprawiono oczekiwania builda na v1226 oraz nieaktualny fixture testu neon, po nieudanym SOURCE 42862726025 i PR 42862739371.
+- Poprawny commit źródłowy `f24e3463a958c83aa2f2347000fbb7705ae8bfa4` otrzymał zielone SOURCE i PR CI, a zatwierdzony owner-review zbudował i zweryfikował APK v1226. Użytkownik potwierdził skompilowanie v1226; **instalacja nie została potwierdzona**.
+- Dokumentacja i historia wcześniejszych etapów pozostają w Git, w tym w przeszłych wersjach `docs/AI_HANDOFF.md` i rejestrze `docs/ai/ERROR_CASES.json`. Nie przepisuj historycznych wyników ani nie zakładaj naprawy usterek podglądu na telefonie.

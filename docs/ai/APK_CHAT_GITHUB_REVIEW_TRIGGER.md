@@ -44,3 +44,9 @@ podpisanie przy teście. Zwykłe zdarzenia nadal pozostawiają job `build` jako 
 
 Repozytorium jest publiczne; artefakt GitHub Actions wymaga uwierzytelnienia przy
 pobieraniu, ale nie jest równoważny z prywatnym repozytorium. Nie publikuj release.
+
+## Przekazanie artefaktu — wszystkie tryby agenta
+
+Po udanym buildzie agent **nie pobiera** skompilowanego APK ani archiwum ZIP przez GitHub connector, Work, Codex, Python ani kontener. Weryfikacja agenta opiera się na uruchomieniu Actions, statusie joba, logu `verify-update-apk.sh`, manifestujących metadanych i obecności jednego artefaktu. Użytkownik dostaje wyłącznie URL konkretnego uruchomienia `https://github.com/laszko14/nira-browser/actions/runs/<RUN_ID>` i dokładną nazwę w sekcji **Artifacts**, skąd pobiera sam. Nie podawaj URL API do pobrania ZIP ani krótkotrwałych redirectów. Brak logu/verifiera/artefaktu = nie deklaruj `APK_VERIFIED`.
+
+Zawsze odczytaj `docs/ai/ACTIVE_CLEAN_LINE.md` i ostatni zweryfikowany podpisany run; przed buildem aktualizacji zwiększ realny versionCode oraz dopasuj oczekiwania workflow/testów. Nie twórz nowej gałęzi dla APK; aktualizuj jedną zatwierdzoną linię rozwoju Clean.
