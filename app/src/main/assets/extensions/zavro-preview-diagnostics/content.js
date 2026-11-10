@@ -200,7 +200,9 @@
     if (!sessionPattern.test(id || "")) return;
     if (id === stoppedId) return;
     if (active?.id === id) {
-      acknowledge(id);
+      // Native may retry when its first ACK was lost. Re-emit the baseline
+      // after each real ACK attempt, without duplicating page listeners.
+      if (acknowledge(id)) snapshot("BASELINE");
       return;
     }
     stop();

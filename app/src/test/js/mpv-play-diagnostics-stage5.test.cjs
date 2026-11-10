@@ -153,6 +153,18 @@ test("final5: normal HTML5 preview, site Play button, subframe and private data"
   }
 });
 
+test("final5: repeat START after lost ACK re-sends baseline without duplicate listeners", () => {
+  const f=fixture();
+  f.command("start");
+  const before=f.packets.filter(x=>x.detail==="SNAPSHOT_FINISHED").length;
+  assert.equal(f.stats().observed,1);
+  f.command("start");
+  assert.equal(f.packets.filter(x=>x.event==="start_ack").length,2);
+  assert.equal(f.packets.filter(x=>x.detail==="SNAPSHOT_FINISHED").length,before+1);
+  assert.equal(f.stats().observed,1);
+  assert.equal(f.stats().disposed,0);
+});
+
 test("final5: ordinary site click and hover never consume input or start playback", () => {
   const f=fixture();f.command("start");
   const before=f.packets.length;
