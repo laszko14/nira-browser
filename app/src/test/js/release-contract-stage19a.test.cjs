@@ -16,12 +16,12 @@ const { assertUpdateApkContract } = require("./helpers/update-apk-contract.cjs")
 
 test("stage19A current debug contract stays update-compatible", () => {
   const update = assertUpdateApkContract(gradle, workflow);
-  assert.equal(update.installCode, 1227);
-  assert.equal(update.versionName, "0.5.22-alpha123-clean");
+  assert.equal(update.installCode, 1228);
+  assert.equal(update.versionName, "0.5.22-alpha124-clean");
 });
 
-test("MPV diagnostics update: versionCode exceeds installed Clean v1226", () => {
-  const installedVersionCode = 1226; // User-supplied diagnostic ZIPs were produced by installed v1226.
+test("MPV diagnostics update: versionCode exceeds installed Clean v1227", () => {
+  const installedVersionCode = 1227; // User-supplied diagnostic ZIP used versionName alpha123 (signed v1227).
   const update = assertUpdateApkContract(gradle, workflow);
   assert.ok(update.installCode > installedVersionCode);
 });
@@ -30,13 +30,13 @@ test("stage19A release version derives from actual Gradle checkout (not old rele
   const value = resolveReleaseContract(gradle);
   assert.deepEqual(value, {
     packageName: "com.prirai.android.nira",
-    versionCode: 1227,
-    versionName: "0.5.22-alpha123-clean",
+    versionCode: 1228,
+    versionName: "0.5.22-alpha124-clean",
   });
   // Simulate checkout at a DIFFERENT tag with a different Gradle version.
   const olderTag = gradle
-    .replace("versionCode = 227", "versionCode = 182")
-    .replace('versionName = "0.5.22-alpha123-clean"', 'versionName = "0.5.22-alpha87-clean"');
+    .replace("versionCode = 228", "versionCode = 182")
+    .replace('versionName = "0.5.22-alpha124-clean"', 'versionName = "0.5.22-alpha87-clean"');
   assert.deepEqual(resolveReleaseContract(olderTag), {
     packageName: "com.prirai.android.nira",
     versionCode: 1182,
@@ -55,10 +55,10 @@ test("stage19A rejects unsupported ABI, package, malformed metadata and untruste
     gradle.replace("universalApk = false", "universalApk = true")),
     /ABI split/);
   assert.throws(() => resolveReleaseContract(
-    gradle.replace('versionName = "0.5.22-alpha123-clean"', 'versionName = "bad name"')),
+    gradle.replace('versionName = "0.5.22-alpha124-clean"', 'versionName = "bad name"')),
     /Unsafe/);
   assert.throws(() => resolveReleaseContract(gradle.replace(
-    "versionCode = 227", "versionCode = 227\n        versionCode = 227")),
+    "versionCode = 228", "versionCode = 228\n        versionCode = 228")),
     /exactly one versionCode/);
 });
 
@@ -68,7 +68,7 @@ test("stage19A writes only version to GitHub env, not certificates, secrets or p
     const envFile = path.join(tempDir, "env");
     writeGitHubEnv(resolveReleaseContract(gradle), envFile);
     assert.equal(fs.readFileSync(envFile, "utf8"),
-      "EXPECTED_VERSION_CODE=1227\nEXPECTED_VERSION_NAME=0.5.22-alpha123-clean\n");
+      "EXPECTED_VERSION_CODE=1228\nEXPECTED_VERSION_NAME=0.5.22-alpha124-clean\n");
     assert.throws(() => writeGitHubEnv(resolveReleaseContract(gradle), ""), /GITHUB_ENV/);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
