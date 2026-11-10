@@ -16,6 +16,7 @@
   "use strict";
 
   var allowlist = new Set();
+  var hostHasPushed = false;
 
   function normaliseOrigin(origin) {
     // Content scripts compute origin via window.location.origin which
@@ -36,7 +37,8 @@
     }
   }
 
-  function setAllowlist(origins) {
+  function setAllowlist(origins, fromHost) {
+    if (fromHost) hostHasPushed = true;
     allowlist = new Set();
     if (Array.isArray(origins)) {
       for (var i = 0; i < origins.length; i++) {
@@ -55,8 +57,10 @@
     browser.storage.local
       .get("allowlist")
       .then(function (res) {
+        // An old pending cache must never override current host permissions.
+        if (hostHasPushed) return;
         if (res && Array.isArray(res.allowlist)) {
-          setAllowlist(res.allowlist);
+          setAllowlist(res.allowlist, false);
         }
       })
       .catch(function () { /* ignore */ });
@@ -71,7 +75,7 @@
     if (port) {
       port.onMessage.addListener(function (msg) {
         if (!msg || msg.type !== "set") return;
-        setAllowlist(msg.origins);
+        setAllowlist(msg.origins, true);
       });
     }
   } catch (e) { /* ignore */ }
