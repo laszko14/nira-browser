@@ -23,7 +23,7 @@ function validateSources(load=read){
   assert.ok(body[0].includes('`'+branch+'`'),'Project Source active branch mismatch');
   assert.ok(load('AGENTS.md').includes('`'+branch+'`'),'AGENTS.md active branch mismatch');
   assert.ok(load('docs/ai/STARTUP_PREFLIGHT.md').includes('`'+branch+'`'),'preflight active branch mismatch');
-  assert.ok(load('docs/ai/CHATGPT_PROJECT_INSTRUCTIONS.md').includes('`'+branch+'`'),'project bootstrap active branch mismatch');
+  assert.ok(load('docs/ai/CHATGPT_PROJECT_INSTRUCTIONS.md').includes(branch),'project bootstrap active branch mismatch');
   assert.doesNotMatch(body[0],/feat\/zavro-clean-v3-20261101/,'retired V3 branch must not be presented as current');
   assert.match(body[0],/STARTUP_PREFLIGHT\.md/);
   assert.match(body[1],/GeckoView/);

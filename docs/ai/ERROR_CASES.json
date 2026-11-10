@@ -1140,7 +1140,8 @@
       "regression_test": "scripts/ai-preflight.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/41554647363",
-        "https://github.com/laszko14/nira-browser/actions/runs/42869723023"
+        "https://github.com/laszko14/nira-browser/actions/runs/42869723023",
+        "https://github.com/laszko14/nira-browser/actions/runs/42870276479"
       ],
       "branch": null,
       "workflow_name": null,
@@ -1148,7 +1149,7 @@
       "fix_summary": null,
       "test_result": null,
       "final_ci": null,
-      "recurrence_conditions": "An AI preflight or Project Source test fixture hardcodes a historical branch instead of verifying the active branch against the canonical manifest; the error recurred in SOURCE 42869723023."
+      "recurrence_conditions": "A Project Source/preflight test pins a historical branch or overconstrains formatting (Markdown backticks) while the plain-text bootstrap names the canonical branch; checked against ACTIVE_CLEAN_LINE."
     },
     {
       "id": "ERR-20261103-0002",
