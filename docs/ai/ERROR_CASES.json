@@ -5996,13 +5996,15 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/7bee6c61b8c1a6235a3c6e00f4db189393bb4799",
         "https://github.com/laszko14/nira-browser/commit/41664b9f972bfd8ae7573b5af183cf833a978350",
-        "https://github.com/laszko14/nira-browser/actions/runs/42790511898"
+        "https://github.com/laszko14/nira-browser/actions/runs/42790511898",
+        "https://github.com/laszko14/nira-browser/actions/runs/42792244507",
+        "https://github.com/laszko14/nira-browser/actions/runs/42792253518"
       ],
       "branch": "feat/zavro-clean-preview-mediasession-stage6-20261110",
       "workflow_name": null,
       "cause_confidence": "confirmed",
       "test_result": "PASS",
-      "final_ci": "PENDING",
+      "final_ci": "SUCCESS",
       "fingerprint": "nira-bgplay-cold-start-reused-extension-misses-bridge-attach",
       "summary": "At cold start with an already installed extension, NiraBgPlayController recovered current but did not re-register the process-local native message handler; attach was only invoked after a fresh install.",
       "fix_summary": "Factor attachBridge; call it for both detected existing extension and newly installed extension. No redundant reinstall or global setting changes.",
@@ -6025,13 +6027,15 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/7bee6c61b8c1a6235a3c6e00f4db189393bb4799",
         "https://github.com/laszko14/nira-browser/commit/41664b9f972bfd8ae7573b5af183cf833a978350",
-        "https://github.com/laszko14/nira-browser/actions/runs/42790511898"
+        "https://github.com/laszko14/nira-browser/actions/runs/42790511898",
+        "https://github.com/laszko14/nira-browser/actions/runs/42792244507",
+        "https://github.com/laszko14/nira-browser/actions/runs/42792253518"
       ],
       "branch": "feat/zavro-clean-preview-mediasession-stage6-20261110",
       "workflow_name": null,
       "cause_confidence": "confirmed",
       "test_result": "PASS",
-      "final_ci": "PENDING",
+      "final_ci": "SUCCESS",
       "fingerprint": "nira-bgplay-stale-bridge-handler-reclaims-new-port",
       "summary": "After replacing a NiraBgPlayAllowlistBridge registration, old MessageHandler callbacks could connect late and overwrite activePort, redirecting host permission updates to stale extension ports.",
       "fix_summary": "Atomically advance bridge attachment epoch; ignore stale onPortConnected, onPortDisconnected and collector emissions from previous registrations.",
@@ -6052,7 +6056,7 @@
       "workflow_name": "Android CI",
       "cause_confidence": "confirmed",
       "test_result": "PASS",
-      "final_ci": "PENDING",
+      "final_ci": "SUCCESS",
       "fingerprint": "stage6-kotlin-mockito-null-matchers-and-missing-extension-id",
       "source_sha": "6a64fcb4030e0ac193035c11788f3c14f1cec0e0",
       "run_id": 42783004919,
@@ -6063,7 +6067,9 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42783004919",
         "https://github.com/laszko14/nira-browser/actions/runs/42785624952",
-        "https://github.com/laszko14/nira-browser/commit/82604e300de5162984f7280b6f9599f7734c1e04"
+        "https://github.com/laszko14/nira-browser/commit/82604e300de5162984f7280b6f9599f7734c1e04",
+        "https://github.com/laszko14/nira-browser/actions/runs/42792244507",
+        "https://github.com/laszko14/nira-browser/actions/runs/42792253518"
       ]
     },
     {
@@ -6081,7 +6087,7 @@
       "workflow_name": "Android CI",
       "cause_confidence": "confirmed",
       "test_result": "PASS",
-      "final_ci": "PENDING",
+      "final_ci": "SUCCESS",
       "fingerprint": "stage6-jsonarray-escaped-slashes-false-origin-assertion",
       "source_sha": "ed6e83841d4d21f31009effa3c97f12b8059432d",
       "run_id": 42785624952,
@@ -6091,7 +6097,9 @@
       "recurrence_conditions": "Unit tests compare serialized JSONObject/JSONArray substrings to unescaped URL strings instead of inspecting decoded JSON values.",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42785624952",
-        "https://github.com/laszko14/nira-browser/commit/82604e300de5162984f7280b6f9599f7734c1e04"
+        "https://github.com/laszko14/nira-browser/commit/82604e300de5162984f7280b6f9599f7734c1e04",
+        "https://github.com/laszko14/nira-browser/actions/runs/42792244507",
+        "https://github.com/laszko14/nira-browser/actions/runs/42792253518"
       ]
     },
     {
@@ -6110,13 +6118,17 @@
       "duplicate_of": null,
       "fix_sha": "487dada2ea8cbf436df151c92f7801daa6cb2b0b",
       "regression_test": "app/src/test/js/preview-bgplay-stage5.test.cjs",
-      "evidence_links": ["https://github.com/laszko14/nira-browser/commit/487dada2ea8cbf436df151c92f7801daa6cb2b0b"],
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/487dada2ea8cbf436df151c92f7801daa6cb2b0b",
+        "https://github.com/laszko14/nira-browser/actions/runs/42799348761",
+        "https://github.com/laszko14/nira-browser/actions/runs/42799376655"
+      ],
       "branch": "feat/zavro-clean-preview-html5-stage8-20261110",
       "workflow_name": null,
       "cause_confidence": "confirmed",
       "fix_summary": "Capture native document.hidden getter before page-visible override; resume only while natively hidden, clear played state on foreground pause, and recheck visibility in the delayed callback.",
       "test_result": "PASS",
-      "final_ci": "PENDING",
+      "final_ci": "SUCCESS",
       "recurrence_conditions": "Foreground site pause bypasses the video.pause instance wrapper, or the tab returns to foreground before a queued recovery microtask."
     }
   ]
