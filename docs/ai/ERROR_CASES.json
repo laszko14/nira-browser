@@ -5799,12 +5799,14 @@
       "state": "OPEN",
       "duplicate_of": null,
       "fix_sha": null,
-      "regression_test": "app/src/test/js/preview-compat-stage1.test.cjs",
-      "evidence_links": [],
+      "regression_test": "app/src/test/js/preview-autoplay-stage2.test.cjs (also preview-compat-stage1.test.cjs)",
+      "evidence_links": [
+        "https://wiki.mozilla.org/Media/block-autoplay"
+      ],
       "branch": "feat/zavro-clean-preview-diagnostics-stage1-20261110",
       "workflow_name": null,
-      "cause_confidence": "unknown",
-      "fix_summary": null,
+      "cause_confidence": "suspected",
+      "fix_summary": "Stage 2 source-level mitigation: Gecko autoplay.default changed from block-all (5) to block-audible (1); blocking_policy=2 retained. Device/site outcome NOT_TESTED and incident still OPEN.",
       "test_result": "NOT_TESTED",
       "final_ci": null,
       "recurrence_conditions": "Preview driven by hover, touch or muted autoplay"

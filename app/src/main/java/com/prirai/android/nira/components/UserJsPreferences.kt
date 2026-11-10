@@ -85,9 +85,10 @@ object UserJsPreferences {
     )
 
     private val mediaPrefs = mapOf<String, Any>(
-        // Block all media autoplay by default
+        // Allow muted/inaudible HTML5 previews; still block audible autoplay.
+        // Keep click-to-play as the strict gesture policy for audible media.
         "media.autoplay.blocking_policy" to 2,
-        "media.autoplay.default" to 5,
+        "media.autoplay.default" to 1,
     )
 
     private val performancePrefs = mapOf<String, Any>(
