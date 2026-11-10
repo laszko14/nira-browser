@@ -12,6 +12,11 @@
   const failedVideos = new WeakMap(); // video -> source URL
   const failedCards = new WeakMap(); // card -> {source, link, href}
   const latestAttempts = new WeakMap(); // video -> current attempt token
+  // Hover previews are transient and owned by this helper only.
+  const hoverSessions = new WeakMap(); // card -> playback owned by hover
+  let touchTrack = null;
+  let ignoredTouchClick = null;
+
 
   function previewUrl(card) {
     const nodes = [card, ...Array.from(card.querySelectorAll(
@@ -29,6 +34,34 @@
               /\.(?:mp4|webm)(?:$)/i.test(url.pathname)) return url.href;
         } catch (_) {}
       }
+    }
+    return null;
+  }
+
+  // A nested "thumb" can match CARD before its parent article/card, while
+  // the preview declaration actually belongs to that parent. Stay within
+  // at most five preview-shaped ancestors; never scan arbitrary page links.
+  function previewOwner(node) {
+    const nearest = node && node.closest(CARD);
+    let card = nearest;
+    for (let depth = 0; card && depth < 5; depth++) {
+      if (card.querySelectorAll && previewUrl(card)) return card;
+      const parent = card.parentElement;
+      if (!parent || typeof parent.matches !== "function" ||
+          !parent.matches(CARD)) break;
+      card = parent;
+    }
+    return nearest;
+  }
+
+  function activeHoverOwner(node) {
+    let card = node && node.closest(CARD);
+    for (let depth = 0; card && depth < 5; depth++) {
+      if (hoverSessions.has(card)) return card;
+      const parent = card.parentElement;
+      if (!parent || typeof parent.matches !== "function" ||
+          !parent.matches(CARD)) break;
+      card = parent;
     }
     return null;
   }
@@ -59,7 +92,127 @@
     return video;
   }
 
+  // Only a real hovering pointer may start an automatic *muted* preview.
+  // Touch can synthesize pointerover at contact: it is NOT hover.
+  function stopHover(card, session) {
+    if (hoverSessions.get(card) !== session) return;
+    hoverSessions.delete(card); // Invalidates late play() rejection.
+    const video = session.video;
+    const current = video.currentSrc || video.src;
+    if (current !== session.source) return; // Site changed media owner.
+    if (typeof video.pause === "function") {
+      try { video.pause(); } catch (_) {}
+    }
+    if (session.created) {
+      if (typeof video.remove === "function") video.remove();
+    } else {
+      video.muted = session.originalMuted;
+      video.playsInline = session.originalInline;
+    }
+  }
+
+  function onPointerOver(event) {
+    if (!event.isTrusted || event.pointerType !== "mouse" ||
+        (typeof event.buttons === "number" && event.buttons !== 0) ||
+        !event.target || typeof event.target.closest !== "function" ||
+        event.target.closest("video") ||
+        event.target.closest("button,[role='button']")) return;
+    const thumb = event.target.closest("img,[class*='thumb'],[class*='Thumb']");
+    const card = thumb && previewOwner(thumb);
+    if (!card || card.closest("nav,header,footer") || !card.querySelector ||
+        !card.querySelectorAll || hoverSessions.has(card)) return;
+    if (event.relatedTarget && typeof card.contains === "function" &&
+        card.contains(event.relatedTarget)) return;
+    const source = previewUrl(card);
+    if (!source) return; // Never guess media from an unrelated link.
+    const native = card.querySelector("video");
+    if (native && native.autoplay && native.muted && native.playsInline) return;
+    const video = findPreviewVideo(card, source);
+    if (!video || !video.paused || video.isConnected === false ||
+        typeof video.play !== "function") return;
+    const videoSrc = video.currentSrc || video.src;
+    if (videoSrc !== source || failedVideos.get(video) === videoSrc) return;
+    const session = {
+      video, source, originalMuted: video.muted,
+      originalInline: video.playsInline,
+      created: !!(video.dataset && video.dataset.niraPreviewCreated === "1")
+    };
+    hoverSessions.set(card, session);
+    video.muted = true;
+    video.playsInline = true;
+    let result;
+    try { result = video.play(); } catch (_) { stopHover(card, session); return; }
+    if (result && typeof result.catch === "function") {
+      result.catch(() => stopHover(card, session));
+    }
+  }
+
+  function onPointerOut(event) {
+    if (event.pointerType !== "mouse" || !event.target ||
+        typeof event.target.closest !== "function") return;
+    const card = activeHoverOwner(event.target);
+    if (!card) return;
+    const session = hoverSessions.get(card);
+    if (!session || (event.relatedTarget &&
+        typeof card.contains === "function" && card.contains(event.relatedTarget))) return;
+    stopHover(card, session);
+  }
+
+  // Never cancel touchstart/touchmove/touchend: preserve site scrolling,
+  // long-press context menus, pinch zoom and native synthetic click behavior.
+  // A short stationary tap is handled by the existing click path.
+  function changedTouch(event, id) {
+    return Array.from(event.changedTouches || []).find(t => t.identifier === id);
+  }
+  function onTouchStart(event) {
+    touchTrack = null;
+    ignoredTouchClick = null;
+    if (!event.isTrusted || !event.touches || event.touches.length !== 1 ||
+        !event.target || typeof event.target.closest !== "function" ||
+        event.target.closest("button,[role='button']")) return;
+    const thumb = event.target.closest("img,[class*='thumb'],[class*='Thumb']");
+    const card = thumb && thumb.closest(CARD);
+    const point = (event.changedTouches || [])[0];
+    if (!card || !point) return;
+    touchTrack = {
+      card, id: point.identifier, x: point.clientX, y: point.clientY,
+      at: event.timeStamp, moved: false
+    };
+  }
+  function onTouchMove(event) {
+    if (!touchTrack) return;
+    if (!event.touches || event.touches.length !== 1) {
+      touchTrack.moved = true;
+      return;
+    }
+    const point = changedTouch(event, touchTrack.id);
+    if (point && ((point.clientX - touchTrack.x) ** 2 +
+        (point.clientY - touchTrack.y) ** 2 > 144)) touchTrack.moved = true;
+  }
+  function finishTouch(event, cancelled) {
+    if (!touchTrack) return;
+    const track = touchTrack;
+    touchTrack = null;
+    const point = changedTouch(event, track.id);
+    const moved = point && ((point.clientX - track.x) ** 2 +
+      (point.clientY - track.y) ** 2 > 144);
+    const duration = event.timeStamp - track.at;
+    if (cancelled || track.moved || moved || duration > 650) {
+      ignoredTouchClick = { card: track.card, at: event.timeStamp };
+    }
+  }
+  function ignoreGestureClick(event) {
+    if (!ignoredTouchClick) return false;
+    const guard = ignoredTouchClick;
+    ignoredTouchClick = null;
+    const elapsed = event.timeStamp - guard.at;
+    return Number.isFinite(elapsed) && elapsed >= 0 && elapsed <= 1000 &&
+      event.target && typeof event.target.closest === "function" &&
+      event.target.closest(CARD) === guard.card;
+  }
+
   function playPreview(event) {
+    if (ignoreGestureClick(event)) return;
     if (!event.isTrusted || !event.cancelable || event.defaultPrevented ||
         event.button !== 0 || event.ctrlKey || event.metaKey ||
         event.altKey || event.shiftKey || !event.target ||
@@ -84,7 +237,7 @@
     if (control && !explicitPreviewControl) return;
     const clickedThumb = event.target.closest("img,video,[class*='thumb'],[class*='Thumb']");
     if (!explicitPlay && !clickedThumb) return;
-    const card = (control || clickedThumb).closest(CARD) ||
+    const card = previewOwner(control || clickedThumb) ||
       (clickedThumb && clickedThumb.closest("a[href]") &&
        clickedThumb.closest("a[href]").parentElement);
     if (!card || card.closest("nav,header,footer") || !card.querySelector) return;
@@ -152,4 +305,10 @@
     }
   }
   document.addEventListener("click", playPreview, { capture: true });
+  document.addEventListener("pointerover", onPointerOver, { capture: true });
+  document.addEventListener("pointerout", onPointerOut, { capture: true });
+  document.addEventListener("touchstart", onTouchStart, { capture: true, passive: true });
+  document.addEventListener("touchmove", onTouchMove, { capture: true, passive: true });
+  document.addEventListener("touchend", event => finishTouch(event, false), { capture: true, passive: true });
+  document.addEventListener("touchcancel", event => finishTouch(event, true), { capture: true, passive: true });
 })();
