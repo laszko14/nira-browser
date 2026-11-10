@@ -1,53 +1,44 @@
-# AI_HANDOFF — Zavro Clean, stała gałąź i przekazywanie APK przez link (10.11.2026)
+# AI_HANDOFF — Zavro Clean, aktualizacja podpisana v1227 (10.11.2026)
 
 Archive: docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md.
 
-Kanon gałęzi i monotonicznej wersji: `docs/ai/ACTIVE_CLEAN_LINE.md`. Przed pracą sprawdzaj live HEAD wskazanej gałęzi i ostatnie Actions; poniższy checkpoint jest zapisany **przed nowym CI dokumentacji**.
+Kanon aktywnej linii: `docs/ai/ACTIVE_CLEAN_LINE.md`. Zawsze odczytuj live HEAD i GitHub Actions; ten dokument powstaje **przed końcowym CI**, a nie jest dowodem jego zakończenia.
 
 ```yaml
-task_id: ZC-MPV-PLAY-TRANSPORT-20261110
+task_id: ZC-MPV-PLAY-TRANSPORT-APK-1227-20261110
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: feat/zavro-clean-mpv-play-diagnostics-stage1-20261110
-base_sha: b131a0219ea86e533a1f4f88afd81789427e8f57
-observed_head_sha: efea62184e780cc3ac50261eff3175ebd0885391
+base_sha: 02835a356c7d083c3881864d91a66fac412e5b07
+observed_head_sha: 02835a356c7d083c3881864d91a66fac412e5b07
 status: CI_PENDING
-acceptance_source: User supplied two v1226 diagnostic ZIPs and requested an opt-in MPV/Play transport repair, tests, registry, checkpoint, commit, push and green SOURCE/PR CI; no APK, merge or release.
-completed: Codex commit efea62184e780cc3ac50261eff3175ebd0885391 added START ACK, typed transport statuses, bounded reconnect, safe failure counters, incomplete report, and tests. Live SOURCE 42889451656 and PR 42889463425 on that SHA are SUCCESS. Follow-up review corrected duplicate native Port accounting and STOP/restart retry guard; regression tests added. Original device cause remains unknown.
-remaining: Push review fixes on the same branch, confirm final HEAD and all required SOURCE/PR CI SUCCESS, then request new opt-in device ZIP from a newer APK only after separate authorization. Real Play/thumbnail root cause still requires device evidence.
-required_ci: SOURCE process-docs and shared-tests JavaScript, JVM/Robolectric, AndroidTest compile, lint plus baseline and evidence all SUCCESS on final source SHA; PR shared-tests and error-learning gates SUCCESS on integration checkout.
-apk: NOT_BUILT for this task. Historical v1226 signed artifact run 42864976383; no new build or download.
-device: NOT_TESTED; no Android device or real Gecko site test in this task.
-known_failures: Two v1226 ZIPs still have no DOM events; actual device-level cause is undetermined. Follow-up review found same Port counted twice if START overlaps onPortConnected, preventing DISCONNECTED after sole port loss; content script also suppressed reconnect after STOP then another START. Corrected with dedicated regressions. Earlier Codex JVM fixture and transient build-environment issues were resolved before green CI on efea62184e780cc3ac50261eff3175ebd0885391.
-verification: Confirmed Codex implementation SHA efea62184e780cc3ac50261eff3175ebd0885391 from live GitHub; SOURCE 42889451656 all required jobs SUCCESS and PR 42889463425 JS, JVM, AndroidTest compile, lint and error learning SUCCESS. Follow-up review adds two targeted tests and transport fixes; their final SOURCE/PR CI is pending until new SHA is pushed. Device NOT_TESTED.
-verified_before_push: Read AGENTS, active line, handoff, startup, project instructions, task, workflow, test, quality, error learning, checkpoint and diagnostics stage1-5 at explicit base SHA; verified clean isolated checkout, remote HEAD and DEFAULT ai-preflight.
-blockers: Physical device unavailable; original report gives no direct native port or script execution trace. No causal attribution to playback or preview helper.
+acceptance_source: User requested "Kompiluj" after verified MPV/Play transport repair; explicit authorization to prepare a private signed update through approved owner PR review after green final SOURCE and PR CI.
+completed: MPV/Play transport repair and review fixes SOURCE 42893075830 and PR 42893088565 completed/success on base SHA. Two supplied device diagnostic archives confirm installed v1226. Prepared controlled version increase from arm64 versionCode 1226 to 1227, versionName 0.5.22-alpha123-clean, aligned workflow expected metadata, artifact name and regression expectations; did not change package, ABI, certificate or app playback.
+remaining: Push this version-only update on same branch, verify exact final SHA and all SOURCE/PR required jobs success. Only then issue one owner PR review COMMENT with ZAVRO_PRIVATE_APK_REQUEST for that same SHA and task; verify completed signed run, single arm64 artifact, package, versionCode/name and pinned certificate via remote logs and metadata. Do not download APK/ZIP. Device preview playback still needs a new on-phone test.
+required_ci: SOURCE process-docs, shared JavaScript regressions, Kotlin/Robolectric, AndroidTest compile, Android lint/regression baseline and evidence all success on final source SHA; PR shared tests and error-learning success on matching integration checkout.
+apk: REQUESTED_NOT_BUILT; latest remotely verified signed APK v1226 from run 42864976383, artifact zavro-arm64-update-apk-v1226, source f24e3463a958c83aa2f2347000fbb7705ae8bfa4. Next proposed versionCode 1227, versionName 0.5.22-alpha123-clean, artifact zavro-arm64-update-apk-v1227; no binary download by any agent.
+device: NOT_TESTED for updated diagnostic; two older user ZIPs show the installed v1226 produced no page events.
+known_failures: v1226 native diagnostic captured marks but no DOM evidence; root cause on real device remains undetermined. Both Codex and review code fixes were verified by SOURCE/PR CI on base SHA. Do not claim preview/MPV root cause fixed without a new real-device report.
+verification: Base SOURCE 42893075830 completed/success with all six jobs; base PR 42893088565 completed/success; latest verified signed APK v1226 run 42864976383. New version bump CI PENDING before push.
+verified_before_push: Read AGENTS.md, docs/ai/ACTIVE_CLEAN_LINE.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md, docs/ai/CHATGPT_PROJECT_INSTRUCTIONS.md and APK review/release/signing policies at exact live base SHA; confirmed existing draft PR #140 and last signed run; HEAD check required again immediately before update.
+blockers: Physical device is unavailable for test here; native signing requires owner review and GitHub Actions Secrets, not a local or agent-downloaded APK.
 evidence_links:
   - https://github.com/laszko14/nira-browser/pull/140
-  - https://github.com/laszko14/nira-browser/actions/runs/42870600968
-  - https://github.com/laszko14/nira-browser/actions/runs/42870612903
+  - https://github.com/laszko14/nira-browser/actions/runs/42893075830
+  - https://github.com/laszko14/nira-browser/actions/runs/42893088565
+  - https://github.com/laszko14/nira-browser/actions/runs/42864976383
 changed_paths:
-  - app/src/main/assets/extensions/zavro-preview-diagnostics/content.js
-  - app/src/main/java/com/prirai/android/nira/BrowserFragment.kt
-  - app/src/main/java/com/prirai/android/nira/browser/MpvPlayDiagnostics.kt
-  - app/src/main/java/com/prirai/android/nira/browser/MpvPlayEvidenceReport.kt
-  - app/src/main/java/com/prirai/android/nira/browser/MpvPlayPageBridgeController.kt
-  - app/src/test/java/com/prirai/android/nira/browser/MpvPlayDiagnosticsTest.kt
-  - app/src/test/java/com/prirai/android/nira/browser/MpvPlayEvidenceReportTest.kt
-  - app/src/test/java/com/prirai/android/nira/browser/MpvPlayPageBridgeControllerTest.kt
-  - app/src/test/js/mpv-play-diagnostics-stage1.test.cjs
-  - app/src/test/js/mpv-play-diagnostics-stage2.test.cjs
-  - app/src/test/js/mpv-play-diagnostics-stage3.test.cjs
-  - app/src/test/js/mpv-play-diagnostics-stage5.test.cjs
-  - docs/ai/ERROR_CASES.json
+  - app/build.gradle
+  - .github/workflows/apk-release.yml
+  - app/src/test/js/release-contract-stage19a.test.cjs
+  - app/src/test/js/video-search-neon-redesign.test.cjs
   - docs/AI_HANDOFF.md
-next_action: Verify required SOURCE and PR CI for final fast-forward review commit; preserve no-APK scope, report CODE_VERIFIED only after both are fully green. Collect new phone report only after a separately authorized signed update.
+next_action: Check final HEAD, full SOURCE+PR CI on exact version-bump SHA; then initiate exactly one approved owner PR review for private signed v1227 and verify its run and artifact, report link only. No merge, release, force-push or binary download.
 ```
 
-## Istotna historia przekazania
+## Historyczny wynik diagnostyki transportu
 
-- 2026-11-10: po etapie diagnostyki MPV/Play 5/5 SOURCE run 42856474338 i PR run 42857649495 zakończyły się sukcesem na SHA 8453a70e150cd8fbca01e79a16be5980d214aa03.
-- Pierwszy podpisany APK v1225 (run 42860175611) nie mógł zaktualizować wersji v1225 już zainstalowanej u użytkownika. Naprawiono oczekiwania builda na v1226 oraz nieaktualny fixture testu neon, po nieudanym SOURCE 42862726025 i PR 42862739371.
-- Poprawny commit źródłowy `f24e3463a958c83aa2f2347000fbb7705ae8bfa4` otrzymał zielone SOURCE i PR CI, a zatwierdzony owner-review zbudował i zweryfikował APK v1226. Użytkownik potwierdził skompilowanie v1226; **instalacja nie została potwierdzona**.
-- Dokumentacja i historia wcześniejszych etapów pozostają w Git, w tym w przeszłych wersjach `docs/AI_HANDOFF.md` i rejestrze `docs/ai/ERROR_CASES.json`. Nie przepisuj historycznych wyników ani nie zakładaj naprawy usterek podglądu na telefonie.
+- Codex naprawił transport ACK, bezpieczne statusy, reconnect i eksport informacji w commit `efea62184e780cc3ac50261eff3175ebd0885391`; SOURCE 42889451656 i PR 42889463425 zakończone sukcesem.
+- Przegląd naprawił podwójne liczenie portu i ponawianie po nowej sesji w commit `02835a356c7d083c3881864d91a66fac412e5b07`; SOURCE 42893075830 i PR 42893088565 zakończone sukcesem.
+- Wersja v1226 została rzeczywiście użyta w dwóch raportach z telefonu. Nie dowodzi to poprawności podglądów ani tego, że v1227 będzie działać na witrynie.
