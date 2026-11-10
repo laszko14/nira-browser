@@ -51,8 +51,8 @@ test('both result hosts keep high-contrast dark theme', () => {
 
 test('update remains on same debug package and strictly greater arm64 version', () => {
   const gradle = fs.readFileSync(path.resolve(__dirname, '../../../build.gradle'), 'utf8');
-  assert.match(gradle, /versionCode = 224/);
-  assert.match(gradle, /versionName = "0\.5\.22-alpha120-clean"/);
+  assert.match(gradle, /versionCode = 225/);
+  assert.match(gradle, /versionName = "0\.5\.22-alpha121-clean"/);
   assert.match(gradle, /applicationIdSuffix = '\.debug'/);
   assert.match(gradle, /include\(testAbi \?: 'arm64-v8a'\)/);
 });
