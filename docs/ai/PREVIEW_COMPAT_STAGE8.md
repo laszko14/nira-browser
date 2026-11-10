@@ -1,0 +1,11 @@
+# Zavro Clean — etap 8/10: zgodność witryn i HTML5
+
+Baza: `20fe4681be775d8108eabcf392bc558513971425` (etap 7). Przejrzano produkcyjne `preview-assist.js`, `nira-bg-play/content.js`, `background.js`, preferencje Gecko w `UserJsPreferences.kt`, ich testy oraz ścieżkę zewnętrznego odtwarzania w `BrowserFragment`. Wcześniejsze testy obejmują hover, dotyk, pointerout, zwykły klik, przytrzymanie, przewijanie, multitouch, anulowanie, zagnieżdżone karty, zmienione źródło, usunięty element, odrzucone `play()` i cache/host race allowlist. Kontrole te są syntetycznym DOM, nie testem konkretnej witryny ani GeckoView.
+
+## Potwierdzony błąd i naprawa
+
+Na dozwolonym origin `nira-bg-play` wznawiał odtwarzacz po każdym nieprzechwyconym zdarzeniu `pause`, nawet na pierwszym planie. Strona może zatrzymać player bez wywołania przechwyconej metody instancji `video.pause`; test produkcyjnego skryptu odtworzył wtedy drugie, niezamierzone `play()`. Naprawa przechowuje natywny getter `document.hidden` przed page-world maskowaniem widoczności. Wznowienie następuje tylko, gdy natywny dokument jest ukryty; pauza na pierwszym planie kasuje gotowość do wznowienia. Spóźniony callback sprawdza stan ponownie. Gdy natywny getter jest niedostępny, wznowienie jest pomijane. Wyciszone podglądy i już jawnie zatrzymane filmy pozostają wyłączone z odzyskiwania.
+
+Zachowano wyciszony autoplay i politykę blokowania dźwięku, interakcje witryny, źródła WebExtension, allowlist, normalne odtwarzanie HTML5 oraz Intent do zewnętrznego MPV Alpha. Nie zmieniono `preview-assist.js`, `background.js` ani preferencji Gecko, ponieważ nie potwierdzono w nich nowego błędu. Testy iframe i niestandardowych playerów w realnych witrynach oraz fizyczny Nothing Phone (1): **NOT_TESTED**. Natywnego, celowego wstrzymania od celowej pauzy strony podczas pracy w tle nie da się zawsze odróżnić samym zdarzeniem DOM; to pozostaje ryzykiem runtime.
+
+Test RED: foreground pause powodował 2 zamiast 1 wywołania `play()`. Po naprawie testy foreground stop, późniejszy background event, opóźniony callback po powrocie oraz prawdziwa ścieżka background resume przechodzą. Pełny lokalny JavaScript: 631/631 PASS. SOURCE/PR CI oraz JVM, AndroidTest compile i lint wymagają końcowego potwierdzenia na SHA checkpointu.

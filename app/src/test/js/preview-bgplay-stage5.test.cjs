@@ -11,7 +11,7 @@ const contentJS = fs.readFileSync(path.join(dir, "content.js"), "utf8");
 const backgroundJS = fs.readFileSync(path.join(dir, "background.js"), "utf8");
 
 async function drain() { for (let i = 0; i < 10; i++) await Promise.resolve(); }
-function page({ allowed = true, timeout = false, options = {} } = {}) {
+function page({ allowed = true, timeout = false, background = false, options = {} } = {}) {
   const calls = { injected: 0, plays: 0, pauses: 0, blocked: 0 };
   const videoEvents = new Map(), pageEvents = new Map();
   const video = {
@@ -31,9 +31,9 @@ function page({ allowed = true, timeout = false, options = {} } = {}) {
     pause() { calls.pauses++; this.paused = true; },
     ...options
   };
+  let nativeHidden = background;
   const document = {
     readyState: "complete",
-    hidden: false, visibilityState: "visible",
     querySelectorAll: selector => selector === "video" ? [video] : [],
     addEventListener(name, handler) {
       if (!pageEvents.has(name)) pageEvents.set(name, []);
@@ -44,6 +44,9 @@ function page({ allowed = true, timeout = false, options = {} } = {}) {
       return { textContent: "", parentNode: null };
     }
   };
+  Object.defineProperty(document, "hidden", {
+    configurable: true, get() { return nativeHidden; }
+  });
   const root = {
     appendChild(script) {
       script.parentNode = root;
@@ -73,6 +76,7 @@ function page({ allowed = true, timeout = false, options = {} } = {}) {
   });
   return {
     video, calls, timers,
+    setNativeHidden(value) { nativeHidden = value; },
     nativePause() {
       video.paused = true;
       for (const cb of videoEvents.get("pause") || []) cb();
@@ -110,13 +114,36 @@ test("stage5: allowed origin installs the page lifecycle guard once", async () =
   assert.ok(f.calls.blocked > 0);
 });
 test("stage5: native background pause resumes previously playing full media", async () => {
-  const f = page();
+  const f = page({ background: true });
   await drain();
   await f.video.play();
   f.nativePause();
   await drain();
   assert.equal(f.calls.plays, 2);
   assert.equal(f.video.paused, false);
+});
+test("stage8: a foreground pause event stays paused even when the site bypasses video.pause", async () => {
+  const f = page();
+  await drain();
+  await f.video.play();
+  f.nativePause();
+  await drain();
+  assert.equal(f.calls.plays, 1);
+  assert.equal(f.video.paused, true);
+  f.setNativeHidden(true);
+  f.nativePause();
+  await drain();
+  assert.equal(f.calls.plays, 1, "later background event must not revive foreground stop");
+});
+test("stage8: delayed recovery does not resume after returning to foreground", async () => {
+  const f = page({ background: true });
+  await drain();
+  await f.video.play();
+  f.nativePause();
+  f.setNativeHidden(false);
+  await drain();
+  assert.equal(f.calls.plays, 1);
+  assert.equal(f.video.paused, true);
 });
 test("stage5: never-played or deliberately paused media cannot be resurrected", async () => {
   const initial = page();

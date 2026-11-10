@@ -250,6 +250,11 @@
       "task_id": "ZC-PREVIEW-COMPAT-6",
       "observed_count": 4,
       "state": "COMPLETE"
+    },
+    {
+      "task_id": "ZC-PREVIEW-COMPAT-8",
+      "observed_count": 1,
+      "state": "COMPLETE"
     }
   ],
   "events": [
@@ -6088,6 +6093,31 @@
         "https://github.com/laszko14/nira-browser/actions/runs/42785624952",
         "https://github.com/laszko14/nira-browser/commit/82604e300de5162984f7280b6f9599f7734c1e04"
       ]
+    },
+    {
+      "id": "ERR-20261110-BGPLAY-FOREGROUND-RESUME",
+      "task_id": "ZC-PREVIEW-COMPAT-8",
+      "kind": "REGRESSION",
+      "fingerprint": "nira-bgplay-foreground-pause-event-resumes-site-player",
+      "summary": "On an allowlisted origin, a foreground pause event bypassing the video.pause instance wrapper restarted a site-owned player. Synthetic production-script test reproduced 2 play calls instead of 1; no real site or device was tested.",
+      "source_sha": "20fe4681be775d8108eabcf392bc558513971425",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "487dada2ea8cbf436df151c92f7801daa6cb2b0b",
+      "regression_test": "app/src/test/js/preview-bgplay-stage5.test.cjs",
+      "evidence_links": ["https://github.com/laszko14/nira-browser/commit/487dada2ea8cbf436df151c92f7801daa6cb2b0b"],
+      "branch": "feat/zavro-clean-preview-html5-stage8-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "fix_summary": "Capture native document.hidden getter before page-visible override; resume only while natively hidden, clear played state on foreground pause, and recheck visibility in the delayed callback.",
+      "test_result": "PASS",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "Foreground site pause bypasses the video.pause instance wrapper, or the tab returns to foreground before a queued recovery microtask."
     }
   ]
 }

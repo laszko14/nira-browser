@@ -87,6 +87,24 @@
     function pagePatch() {
       "use strict";
       try {
+        // Keep the browser's native visibility getter before replacing the
+        // page-visible property. A pause while still foregrounded may belong
+        // to the site's player even if it bypassed video.pause().
+        var nativeHiddenGetter = null;
+        try {
+          var visibilityOwner = document;
+          while (visibilityOwner && !nativeHiddenGetter) {
+            var hiddenDescriptor = Object.getOwnPropertyDescriptor(visibilityOwner, "hidden");
+            if (hiddenDescriptor && typeof hiddenDescriptor.get === "function") {
+              nativeHiddenGetter = hiddenDescriptor.get;
+            }
+            visibilityOwner = Object.getPrototypeOf(visibilityOwner);
+          }
+        } catch (_) { /* fail closed */ }
+        function isNativelyHidden() {
+          try { return !!(nativeHiddenGetter && nativeHiddenGetter.call(document)); }
+          catch (_) { return false; }
+        }
         // == 1. Page Visibility API always reports visible ==
         try {
           Object.defineProperty(document, "hidden", {
@@ -245,6 +263,10 @@
           try {
             video.addEventListener("pause", function () {
               if (video.ended || !hasPlayed || isTransientPreview(video)) return;
+              if (!isNativelyHidden()) {
+                hasPlayed = false; // A foreground stop stays stopped after tab backgrounding.
+                return;
+              }
               var pausedSource = video.currentSrc || video.src;
               if (!pausedSource) return;
               if (Date.now() - lastIntentionalPauseAt <= INTENTIONAL_WINDOW_MS) {
@@ -254,6 +276,7 @@
               hasPlayed = false; // One resume attempt per proven play cycle.
               Promise.resolve().then(function () {
                 if (!video.paused || video.ended || video.isConnected === false ||
+                    !isNativelyHidden() ||
                     isTransientPreview(video) ||
                     (video.currentSrc || video.src) !== pausedSource) return;
                 try {
