@@ -10,7 +10,9 @@ Baza: `a0afd6140cbb3847265eb12091e9c07e793d8e31` (etap 9). Raport zapisano przed
 - Etap 9: pełny lokalny JS 631/631, testy procesowe 62/62; SOURCE `42801197090` i PR `42801216865`: SUCCESS, w tym JVM/Robolectric, AndroidTest compile, lint/baseline, dokumentacja i quality/error-learning evidence. Produkcyjnego diffu w etapie 9 nie było.
 - Etap 10: końcowy pełny zestaw wymaganych SOURCE/PR CI na SHA tego checkpointu pozostaje bramką do `CODE_VERIFIED` i uruchomienia podpisu.
 
-Kanoniczny rejestr ma 215 zapisanych przypadków i 46 otwartych. `ERR-20261110-PREVIEW-01`, `-03`, `-04`, `-05` oraz `ERR-20261110-BGPLAY-ALLOWLIST-RACE` pozostają **OPEN** do potwierdzenia na witrynie/urządzeniu. `ERR-20261110-BGPLAY-REUSE`, `-PORT-EPOCH` i nowy `-FOREGROUND-RESUME` mają testy kodu i potwierdzone CI; nie stanowi to dowodu działania na telefonie. Nie wykryto nowego niepowodzenia w wymaganych kontrolach do etapu 9.
+Kanoniczny rejestr ma 216 zapisanych przypadków i 46 otwartych. SOURCE run `42803180889` attempt 1 miał nieudany job `quality-evidence` (`129789712876`): odczyt GitHub API zwrócił dla zakończonego sukcesem joba JS sprzeczne `status=in_progress`, `conclusion=success` i `completed_at`. Dziennik JS potwierdził 631/631 PASS. Selektywne ponowienie przeszło jako attempt 2 ze wszystkimi sześcioma wymaganymi jobami SUCCESS na tym samym SHA. Incydent zapisano jako ryzyko środowiska; ostateczny SHA po tym zapisie wymaga własnego SOURCE i PR CI.
+
+`ERR-20261110-PREVIEW-01`, `-03`, `-04`, `-05` oraz `ERR-20261110-BGPLAY-ALLOWLIST-RACE` pozostają **OPEN** do potwierdzenia na witrynie/urządzeniu. `ERR-20261110-BGPLAY-REUSE`, `-PORT-EPOCH` i nowy `-FOREGROUND-RESUME` mają testy kodu i potwierdzone CI; nie stanowi to dowodu działania na telefonie. Nie wykryto nowego niepowodzenia w wymaganych kontrolach do etapu 9.
 
 ## Granice weryfikacji aktualizacji
 

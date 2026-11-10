@@ -255,6 +255,11 @@
       "task_id": "ZC-PREVIEW-COMPAT-8",
       "observed_count": 1,
       "state": "COMPLETE"
+    },
+    {
+      "task_id": "ZC-PREVIEW-COMPAT-10",
+      "observed_count": 1,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -6130,6 +6135,33 @@
       "test_result": "PASS",
       "final_ci": "SUCCESS",
       "recurrence_conditions": "Foreground site pause bypasses the video.pause instance wrapper, or the tab returns to foreground before a queued recovery microtask."
+    },
+    {
+      "id": "CI-42803180889-1-129789712876",
+      "task_id": "ZC-PREVIEW-COMPAT-10",
+      "kind": "CI_FAILURE",
+      "fingerprint": "source-quality-evidence-stale-js-job-status-with-success-conclusion",
+      "summary": "SOURCE attempt 1 quality-evidence failed at CI error capture: GitHub jobs API reported JavaScript status=in_progress with conclusion=success and completed_at present. JavaScript tests passed 631/631. Attempt 2 on the same SHA completed all six jobs successfully.",
+      "source_sha": "20a7972ce1838ec0d396b6583ebff72caaa065cd",
+      "observed_at": "2026-11-10T11:04:17Z",
+      "run_id": 42803180889,
+      "job_id": 129789712876,
+      "attempt": 1,
+      "cause": "environment",
+      "state": "ACCEPTED_RISK",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42803180889"
+      ],
+      "branch": "feat/zavro-clean-preview-final-stage10-20261110",
+      "workflow_name": "Zavro AI process - documentation gate (NO APK)",
+      "cause_confidence": "suspected",
+      "fix_summary": "Re-ran the affected workflow job; GitHub executed attempt 2, and all six required jobs completed/success on the same source SHA. No production or assertion change.",
+      "test_result": "PASS",
+      "final_ci": "SUCCESS",
+      "recurrence_conditions": "GitHub Actions jobs API returns stale status=in_progress after a job has a success conclusion and completed_at, while quality-evidence reads job metadata."
     }
   ]
 }

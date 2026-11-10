@@ -17,16 +17,17 @@ remaining: Complete final audit and verify final SOURCE and PR CI on stage10 SHA
 required_ci: SOURCE process-docs, shared-tests JS, JVM/Robolectric, AndroidTest compile, lint/baseline, quality-evidence; PR Android CI integration JS, JVM, AndroidTest compile, lint, error-learning evidence.
 device: NOT_TESTED — no physical Nothing Phone (1), real site or MPV Alpha runtime.
 apk: NOT_BUILT — authorized only after stage10 CODE_VERIFIED and update compatibility checks.
-known_failures: Historical preview and bg-play site/device reports remain OPEN pending runtime verification; 46 total open ledger cases.
-verification: Stage9 SOURCE and PR runs SUCCESS. Stage10 local JS 631/631, process tests 62/62, error-learning validation and mock APK-verifier tests PASS. Actual installed package/version/cert unknown; final CI pending.
+known_failures: Historical preview and bg-play site/device reports remain OPEN pending runtime verification; 46 total open ledger cases. Stage10 GitHub jobs metadata anomaly recorded as ACCEPTED_RISK.
+verification: Stage9 SOURCE and PR runs SUCCESS. Stage10 local JS 631/631, process tests 62/62, error-learning validation and mock APK-verifier tests PASS. SOURCE 42803180889 attempt 1 failed quality-evidence on inconsistent GitHub JS job status; attempt 2 all six required jobs SUCCESS. PR 42803202414 SUCCESS on prior checkpoint SHA. Actual installed package/version/cert unknown; new final SHA CI pending.
 changed_paths:
   - docs/ai/PREVIEW_COMPAT_STAGE10.md
+  - docs/ai/ERROR_CASES.json
   - docs/AI_HANDOFF.md
 verified_before_push:
   - Stage9 full JavaScript, JVM/Robolectric, AndroidTest compile and lint/baseline passed in SOURCE and PR CI.
   - Stage8 foreground-recovery code-level regression is covered by synthetic production-script tests.
 blockers:
-  - Stage10 final SOURCE/PR CI pending; installed package version/cert and physical device runtime unavailable.
+  - Final SOURCE/PR CI on error-ledger SHA pending; installed package version/cert and physical device runtime unavailable.
 evidence_links:
   - https://github.com/laszko14/nira-browser/pull/138
   - https://github.com/laszko14/nira-browser/actions/runs/42801197090
