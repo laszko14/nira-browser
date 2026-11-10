@@ -96,7 +96,7 @@ class NiraBgPlayBridgeLifecycleTest {
     @Test fun coldStartReusedExtensionGetsFreshNativeMessageHandler() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-        val context = RuntimeEnvironment.getApplication<Application>()
+        val context = RuntimeEnvironment.getApplication()
         val allowlist = BackgroundPlaybackAllowlist.getInstance(context)
         val permitted = "https://cold-reuse-stage6.example:443"
         try {
