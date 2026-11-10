@@ -1155,8 +1155,11 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                         return@Action
                     }
                     val domain = runCatching { current.content.url.toUri().host }.getOrNull()
-                    val started = mpvDiagnostics.start(manager.getActiveProfile().id,
-                        current.id, domain, manager.isPrivateMode() || current.content.private)
+                    val profileId = manager.getActiveProfile().id
+                    val canObserve = com.prirai.android.nira.browser.profile.ProfileTabScope
+                        .belongsToNormalProfile(current, profileId)
+                    val started = mpvDiagnostics.start(profileId,
+                        current.id, domain, manager.isPrivateMode() || !canObserve)
                     if (started == com.prirai.android.nira.browser.MpvPlayDiagnostics.Start.STARTED) {
                         (owner.application as? BrowserApp)?.mpvPlayPageBridge?.command(
                             manager.getActiveProfile().id, current.id, "start")
@@ -1165,7 +1168,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                         com.prirai.android.nira.browser.MpvPlayDiagnostics.Start.STARTED ->
                             "Test MPV rozpoczęty. Odtwórz problem i wybierz ⋮ → OZNACZ PROBLEM."
                         com.prirai.android.nira.browser.MpvPlayDiagnostics.Start.PRIVATE_TAB ->
-                            "Diagnostyka nie zapisuje danych kart prywatnych."
+                            "Diagnostyka działa tylko na zwykłej karcie aktywnego profilu."
                         com.prirai.android.nira.browser.MpvPlayDiagnostics.Start.BUSY ->
                             "Inna diagnostyka jest aktywna. Zakończ ją przed nowym testem."
                     }
@@ -1183,7 +1186,9 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                         if (!isAdded || !isResumed || owner.isFinishing || owner.isDestroyed) return@postDelayed
                         val manager = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(owner)
                         val current = store.state.tabs.find { it.id == store.state.selectedTabId }
-                        val allowed = !manager.isPrivateMode() && current?.content?.private == false
+                        val allowed = !manager.isPrivateMode() && current != null &&
+                            com.prirai.android.nira.browser.profile.ProfileTabScope
+                                .belongsToNormalProfile(current, manager.getActiveProfile().id)
                         val marked = allowed && current != null && mpvDiagnostics.mark(
                             manager.getActiveProfile().id, current.id,
                             com.prirai.android.nira.browser.OverlayWindowDiagnostics.capture(owner))

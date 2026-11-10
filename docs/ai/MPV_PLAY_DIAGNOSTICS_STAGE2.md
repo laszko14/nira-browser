@@ -22,6 +22,8 @@ ale nie obserwuje strony do momentu świadomego ROZPOCZNIJ TEST.
 15 minut, 8 znaczników natywnych, 160 zdarzeń strony, 2300 znaków w pakiecie,
 40 elementów i 6 korzeni DOM na migawkę, 24 porty na EngineSession, 512 KiB ZIP.
 Tylko RAM i lokalny eksport FileProvider, bez automatycznego uploadu.
+Odbiornik natywny sprawdza też zgodność przypisania Gecko tab.contextId
+z aktywnym profilem przez kanoniczny ProfileTabScope.
 Natywny odbiorca odrzuca obcy nonce, błędne sekwencje, nieznane pola, wolny
 tekst i payloady niezgodne z typowanym schematem. Brak treści formularzy,
 cookies, tokenów, surowego HTML, wartości atrybutów, nagłówków i adresów

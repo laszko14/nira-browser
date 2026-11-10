@@ -40,8 +40,9 @@ function harness(frame = false) {
     }
   };
   window.top = frame ? {} : window;
-  let observeCount = 0, disconnectCount = 0;
+  let observeCount = 0, disconnectCount = 0, onMutation;
   class MutationObserver {
+    constructor(fn) { onMutation = fn; }
     observe() { observeCount++; }
     disconnect() { disconnectCount++; }
   }
@@ -59,7 +60,8 @@ function harness(frame = false) {
       display:'block', visibility:'visible', pointerEvents:'auto', zIndex:'2'
     }) }, {timeout: 1000});
   return {packets, listeners, node, command: command => receive(command),
-    disconnect: () => disconnected(), observerState: () => [observeCount,disconnectCount]};
+    disconnect: () => disconnected(), observerState: () => [observeCount,disconnectCount],
+    mutate: batch => onMutation(batch)};
 }
 
 test('manifest runs frame-aware content probe, but no page observers before user START', () => {
@@ -124,10 +126,36 @@ test('picker consumes exactly the authorised touch, and can be disarmed across f
   assert.equal(x.listeners.size, 0);
 });
 
+test('attribute changes retain synthetic node identity and safe post-change HTML5 state', () => {
+  const x = harness();
+  x.command({schemaVersion:2,action:'start',sessionId:ID});
+  const firstNode = x.packets[0].metrics.node;
+  x.node.paused = false;
+  x.mutate([{type:'attributes',target:x.node,attributeName:'poster'},
+    {type:'attributes',target:x.node,attributeName:'src'}]);
+  const attributes = x.packets.filter(p => p.kind === 'MUTATION');
+  assert.equal(attributes.length, 2);
+  assert.equal(attributes[0].detail, 'ATTRIBUTE_POSTER');
+  assert.equal(attributes[0].metrics.node, firstNode);
+  assert.equal(attributes[1].detail, 'ATTRIBUTE_SRC');
+  assert.ok(x.packets.some(p => p.kind === 'MEDIA' &&
+    p.detail === 'ATTRIBUTE_STATE' && p.metrics.paused === false));
+  assert.doesNotMatch(JSON.stringify(x.packets), /SUPER_SECRET|https:\/\/example\.org/);
+});
+
 test('no page rewriting, media playback or background persistence in probe source', () => {
   assert.doesNotMatch(script, /\.play\s*\(|\.pause\s*\(|\.innerHTML|\.textContent/);
   assert.doesNotMatch(script, /\bfetch\s*\(|XMLHttpRequest|localStorage|indexedDB|sendNativeMessage/);
   assert.match(script, /MAX_EVENTS = 160/);
   assert.match(script, /MAX_NODES = 40/);
   assert.match(script, /stopImmediatePropagation/);
+});
+
+test('native bridge authenticates current Gecko tab partition rather than active profile alone', () => {
+  const bridge = fs.readFileSync(path.join(root,
+    'app/src/main/java/com/prirai/android/nira/browser/MpvPlayPageBridgeController.kt'), 'utf8');
+  const fragment = fs.readFileSync(path.join(root,
+    'app/src/main/java/com/prirai/android/nira/BrowserFragment.kt'), 'utf8');
+  assert.match(bridge, /ProfileTabScope\.belongsToNormalProfile\(tab, profile\)/);
+  assert.match(fragment, /ProfileTabScope\s*\.belongsToNormalProfile\(current, profileId\)/);
 });

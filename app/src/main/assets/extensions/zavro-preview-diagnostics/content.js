@@ -124,7 +124,7 @@
       send("GAP","OTHER","SCAN_LIMIT",{count});
   }
   function handler(event) {
-    if (!active) return;
+    if (!active || serial >= MAX_EVENTS) return;
     const type = event.type;
     if (picked && type === "pointerdown") {
       picked = false;
@@ -159,13 +159,27 @@
     if (type === "play" || type === "error") snapshotElement(node,"VIDEO_STATE");
   }
   function mutation(batch) {
-    if (!active) return;
-    let attrs = 0, nodes = 0;
+    if (!active || serial >= MAX_EVENTS) return;
+    let attrs = 0, nodes = 0, sampled = 0;
+    // The event identifies WHICH node changed, not the new attribute value.
+    // Preserve causality of an animated thumbnail without leaking src/poster.
     for (const record of batch.slice(0,40)) {
-      if (record.type === "attributes") attrs++;
-      if (record.type === "childList") nodes += Math.min(10,record.addedNodes.length);
+      if (record.type === "attributes") {
+        attrs++;
+        const name = record.attributeName;
+        if (sampled < 3 && typeof name === "string" &&
+            /^(?:style|class|hidden|poster|src|controls|autoplay|role)$/.test(name)) {
+          send("MUTATION",targetName(record.target),"ATTRIBUTE_" + name.toUpperCase(),
+            {node:elementId(record.target)});
+          snapshotElement(record.target,"ATTRIBUTE_STATE");
+          sampled++;
+        }
+      }
+      if (record.type === "childList")
+        nodes += Math.min(10,(record.addedNodes || []).length);
     }
-    if (attrs) send("MUTATION","OTHER","ATTRIBUTE_CHANGED",{count:attrs});
+    if (attrs > sampled)
+      send("MUTATION","OTHER","ATTRIBUTE_BATCH",{count:attrs - sampled});
     if (nodes) send("MUTATION","OTHER","NODES_ADDED",{count:nodes});
   }
   function listen(target,type,fn,opts) {
@@ -180,6 +194,7 @@
   function start(id) {
     if (!sessionPattern.test(id || "")) return;
     stop(); active = {id,since:Date.now()}; serial = 0; lost = 0;
+    handler.hovered = null;
     elementIds = new WeakMap(); nextElementId = 0;
     for (const name of ["pointerdown","pointerover","click","play","pause","loadedmetadata","error"]) {
       listen(document,name,handler,true);

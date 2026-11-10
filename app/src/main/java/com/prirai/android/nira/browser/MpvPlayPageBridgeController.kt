@@ -12,6 +12,7 @@ import mozilla.components.concept.engine.webextension.Port
 import mozilla.components.concept.engine.webextension.WebExtension
 import mozilla.components.lib.state.ext.flowScoped
 import com.prirai.android.nira.browser.profile.ProfileManager
+import com.prirai.android.nira.browser.profile.ProfileTabScope
 import org.json.JSONObject
 import java.util.IdentityHashMap
 
@@ -54,6 +55,7 @@ internal class MpvPlayPageBridgeController(
         val manager = ProfileManager.getInstance(context)
         if (manager.isPrivateMode() || tab.content.private) return null
         val profile = manager.getActiveProfile().id
+        if (!ProfileTabScope.belongsToNormalProfile(tab, profile)) return null
         return profile to tab.id
     }
 
