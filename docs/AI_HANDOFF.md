@@ -17,18 +17,19 @@ status: CI_PENDING
 acceptance_source: User DALEJ on 2026-11-10; approved stage 4/5 evidence report and only provable safe fixes; no APK.
 completed: Verified stage3 source and PR CI SUCCESS at base. Diagnosed and corrected identical-sender-url Port confusion and overly permissive untrusted page metric strings. Added deterministic bounded diagnostic analysis.json and Polish analysis.txt with explicit UNKNOWN Play owner, gaps, hints and recommended next checks; selected element node correlation; chronology sort; JS and Kotlin acceptance tests; stage4 technical documentation and error registry.
 remaining: Verify required SOURCE and PR CI on exact final stage4 SHA, classify and repair any failure in this same stage. Missing target-site runtime reproduction and physical Android tests remain independent NOT_TESTED. Stage5 pending a new DALEJ.
-required_ci: SOURCE process-docs, full JS WebExtension regressions, JVM/Robolectric, AndroidTest Kotlin compile, lint with baseline, quality-evidence summary. PR JS, JVM/Robolectric, AndroidTest compile, lint/baseline, error-learning evidence. All must PASS at exact final SHA.
+required_ci: SOURCE process-docs, shared-tests JavaScript WebExtension / JVM-Robolectric / AndroidTest compile / lint regression, quality-evidence; PR shared-tests JavaScript / JVM / AndroidTest compile / lint, error-learning evidence; all SUCCESS on final SHA.
 apk: NOT_BUILT. Explicitly no APK in stage4; no certificate, ABI, versionCode, manifest, package or signing changes.
 device: NOT_TESTED
 privacy: Manual START only, private tabs disabled, in-memory and user-initiated ZIP export. Native allowlisted detail/event/target codes and exact metric types/enums; no raw DOM, source URLs, login credentials, foreign addon IDs or automatic transmission. Analysis uses sanitized metadata only.
-known_failures: Old ERR-20261110-PREVIEW-01/-03/-04/-05 and ERR-20261110-BGPLAY-ALLOWLIST-RACE remain OPEN pending real site/device evidence; no confirmed ownership of site's Play overlay. Two confirmed stage4 source vulnerabilities corrected with corresponding negative regressions, CI PENDING.
-verification: Stage3 base SOURCE https://github.com/laszko14/nira-browser/actions/runs/42840717242 SUCCESS, PR https://github.com/laszko14/nira-browser/actions/runs/42840988723 SUCCESS. Stage4 source review + structural verification performed; required Android compiler/CI on final SHA PENDING, target-site NOT_TESTED.
+known_failures: Old ERR-20261110-PREVIEW-01/-03/-04/-05 and ERR-20261110-BGPLAY-ALLOWLIST-RACE remain OPEN pending real site/device evidence; no confirmed ownership of site's Play overlay. Two confirmed stage4 source vulnerabilities corrected; first stage4 SOURCE run 42846284009 process-docs failed due missing shared-tests literal in required_ci; corrected without weakening test; Android checks pending.
+verification: Stage3 base SOURCE https://github.com/laszko14/nira-browser/actions/runs/42840717242 SUCCESS, PR https://github.com/laszko14/nira-browser/actions/runs/42840988723 SUCCESS. Stage4 source review + structural verification performed; required Android compiler/CI on final SHA PENDING, target-site NOT_TESTED. First stage4 SOURCE run 42846284009: JS 649/649 SUCCESS, process-docs FAIL on missing shared-tests checkpoint wording; new SHA CI required.
 verified_before_push: Live GitHub branch and PR #140 at base SHA; AGENTS.md, docs/AI_HANDOFF.md, CHATGPT_PROJECT_INSTRUCTIONS.md, STARTUP_PREFLIGHT.md, DEVELOPMENT_WORKFLOW.md, TEST_POLICY.md, QUALITY_GATES.md, ERROR_LEARNING.md, CHECKPOINT_POLICY.md and stage3 report fetched at explicit base SHA. Changes prepared as Git tree/commits using direct GitHub connector; no local checkout/device, so no local Android build claim.
 blockers: Real-world Play origin lacks on-device ZIP; do not modify active preview-assist.js, nira-bg-play or external MPV Alpha speculatively. CI pending, not blocked.
 evidence_links:
   - https://github.com/laszko14/nira-browser/actions/runs/42840717242
   - https://github.com/laszko14/nira-browser/actions/runs/42840988723
   - https://github.com/laszko14/nira-browser/pull/140
+  - https://github.com/laszko14/nira-browser/actions/runs/42846284009
   - https://github.com/laszko14/nira-browser/commit/6a8d493293bb2cdca4376ebf715eb35019d307dc
 changed_paths:
   - app/src/main/java/com/prirai/android/nira/browser/MpvPlayDiagnostics.kt
