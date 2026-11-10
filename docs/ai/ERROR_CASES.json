@@ -245,6 +245,11 @@
       "task_id": "ZC-PREVIEW-COMPAT-5",
       "observed_count": 2,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-PREVIEW-COMPAT-6",
+      "observed_count": 2,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -5967,6 +5972,60 @@
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/commit/fb41a867319adc21c6a81ba7d3425bacd55cc1ec"
       ]
+    },
+    {
+      "id": "ERR-20261110-BGPLAY-REUSE",
+      "task_id": "ZC-PREVIEW-COMPAT-6",
+      "kind": "REGRESSION",
+      "source_sha": "7bee6c61b8c1a6235a3c6e00f4db189393bb4799",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/java/com/prirai/android/nira/permissions/NiraBgPlayBridgeLifecycleTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/7bee6c61b8c1a6235a3c6e00f4db189393bb4799"
+      ],
+      "branch": "feat/zavro-clean-preview-mediasession-stage6-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING",
+      "fingerprint": "nira-bgplay-cold-start-reused-extension-misses-bridge-attach",
+      "summary": "At cold start with an already installed extension, NiraBgPlayController recovered current but did not re-register the process-local native message handler; attach was only invoked after a fresh install.",
+      "fix_summary": "Factor attachBridge; call it for both detected existing extension and newly installed extension. No redundant reinstall or global setting changes.",
+      "recurrence_conditions": "Reopening Gecko with a nonempty allowed origin set and an existing WebExtension installation; extension nativeMessaging handler from old process no longer registered."
+    },
+    {
+      "id": "ERR-20261110-BGPLAY-PORT-EPOCH",
+      "task_id": "ZC-PREVIEW-COMPAT-6",
+      "kind": "REGRESSION",
+      "source_sha": "7bee6c61b8c1a6235a3c6e00f4db189393bb4799",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/java/com/prirai/android/nira/permissions/NiraBgPlayBridgeLifecycleTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/7bee6c61b8c1a6235a3c6e00f4db189393bb4799"
+      ],
+      "branch": "feat/zavro-clean-preview-mediasession-stage6-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING",
+      "fingerprint": "nira-bgplay-stale-bridge-handler-reclaims-new-port",
+      "summary": "After replacing a NiraBgPlayAllowlistBridge registration, old MessageHandler callbacks could connect late and overwrite activePort, redirecting host permission updates to stale extension ports.",
+      "fix_summary": "Atomically advance bridge attachment epoch; ignore stale onPortConnected, onPortDisconnected and collector emissions from previous registrations.",
+      "recurrence_conditions": "A prior WebExtension port callback arrives after reattachment or replacement and may take over activePort in the same process."
     }
   ]
 }

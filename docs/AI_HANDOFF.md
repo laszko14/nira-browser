@@ -1,40 +1,41 @@
-# AI_HANDOFF — Zavro Clean, stage 5/10: nira-bg-play
+# AI_HANDOFF — Zavro Clean stage 6/10 (GeckoView and WebExtension lifecycle)
 
 Archiwum dawnego handoffu: `docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md`.
-Checkpoint przed końcowym commit/CI; live HEAD i GitHub Actions mają pierwszeństwo.
+Checkpoint przed końcowym CI. Live HEAD i workflow na końcowym SHA są autorytatywne.
 
 ```yaml
-task_id: ZC-PREVIEW-COMPAT-5
+task_id: ZC-PREVIEW-COMPAT-6
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
-branch: feat/zavro-clean-preview-bgplay-stage5-20261110
-base_sha: fb41a867319adc21c6a81ba7d3425bacd55cc1ec
-observed_head_sha: fb41a867319adc21c6a81ba7d3425bacd55cc1ec
+branch: feat/zavro-clean-preview-mediasession-stage6-20261110
+base_sha: 7bee6c61b8c1a6235a3c6e00f4db189393bb4799
+observed_head_sha: 7bee6c61b8c1a6235a3c6e00f4db189393bb4799
 status: CI_PENDING
-acceptance_source: User DALEJ — stage 5/10 nira-bg-play audit and justified fixes, preserve background playback and previews; no APK or merge.
-completed: Verified stage4 source HEAD/PR #133 and exact SOURCE #42773664164 + PR #42773669505 SUCCESS. Read AGENTS and relevant V3 instructions plus content/background JS and Kotlin source at same SHA. Found page-world pause auto-resume affecting preview/late intent, and native-host-vs-cache allowlist race. Added targeted fixes, 10 actual-JS synthetic tests, report, two error records.
-remaining: Execute SOURCE process-docs/shared-tests JS/JVM/AndroidTest compile/lint/quality-evidence and PR Android CI on exact final SHA. Diagnose/fix any FAIL. Gecko/device, live affected site and profile behavior NOT_TESTED.
-required_ci: SOURCE process-docs plus shared-tests JS, Kotlin/Robolectric, AndroidTest compile, lint/baseline and quality-evidence SUCCESS; PR Android CI shared-tests and error-learning-evidence SUCCESS on PR merge ref for final source SHA.
-device: NOT_TESTED — no real site or physical Nothing Phone (1) traces.
-apk: NOT_BUILT — no signed private APK in stages 1-10.
-known_failures: ERR-20261110-PREVIEW-01/-03/-04 remain OPEN for site/device; ERR-20261110-PREVIEW-05 and ERR-20261110-BGPLAY-ALLOWLIST-RACE in new stage. Stage2 CI-42767349592-1-129666996717 FIXED.
-verification: Direct GitHub connector confirmed live stage4 SHA, PR and both CI; actual WebExtension scripts inspected. Local checkout unavailable; mandatory tests run in GitHub CI. High-risk independent reviewer unavailable (self-review required).
+acceptance_source: User DALEJ — stage 6/10 audit and repair confirmed GeckoView MediaSession/WebExtension lifecycle risks; preserve profiles and media; no APK or merge.
+completed: Stage5 HEAD and PR #134 confirmed with exact SOURCE 42778905706 and PR 42778931733 SUCCESS. Read AGENTS/handoff and V3 policies plus MediaSession, GeckoView, native background playback, shadow hook and profile binding at live SHA. Found missing native bridge after reused extension at cold start, and stale callback may capture active port after reattachment. Added scoped fixes and real Kotlin/Robolectric tests; reviewed other mechanisms and recorded remaining hypotheses.
+remaining: Execute required SOURCE and PR CI on exact final SHA and repair any FAIL within this task; device/site/Gecko runtime NOT_TESTED. Stage7 only after next DALEJ.
+required_ci: SOURCE process-docs plus shared-tests JavaScript, Kotlin/Robolectric, AndroidTest compile, lint/baseline, quality-evidence SUCCESS; PR Android CI JS/Kotlin/AndroidTest/lint/error-learning SUCCESS on merge checkout referencing final source SHA.
+device: NOT_TESTED — no Nothing Phone (1), affected website, live profile switching or audiofocus runtime.
+apk: NOT_BUILT — no private signed APK until separate approval after stage 10.
+known_failures: ERR-20261110-PREVIEW-01/-03/-04 and stage5 ERR-20261110-PREVIEW-05 plus BGPLAY-ALLOWLIST-RACE remain OPEN for live-site evidence. Stage6 new source-level errors ERR-20261110-BGPLAY-REUSE and ERR-20261110-BGPLAY-PORT-EPOCH.
+verification: Direct GitHub connector confirmed stage5 source HEAD, PR, SOURCE/PR CI and read exact policy/code sources from that SHA; no local checkout or physical runtime. High-risk independent review unavailable; self-review and required CI planned.
 changed_paths:
-  - app/src/main/assets/extensions/nira-bg-play/content.js
-  - app/src/main/assets/extensions/nira-bg-play/background.js
-  - app/src/test/js/preview-bgplay-stage5.test.cjs
-  - docs/ai/PREVIEW_COMPAT_STAGE5.md
+  - app/src/main/java/com/prirai/android/nira/permissions/NiraBgPlayController.kt
+  - app/src/main/java/com/prirai/android/nira/permissions/NiraBgPlayAllowlistBridge.kt
+  - app/src/test/java/com/prirai/android/nira/permissions/NiraBgPlayBridgeLifecycleTest.kt
+  - docs/ai/PREVIEW_COMPAT_STAGE6.md
   - docs/ai/ERROR_CASES.json
   - docs/AI_HANDOFF.md
 verified_before_push:
-  - Only allowlisted origins activate page-world patch; background playback retained.
-  - No changes to Kotlin, stored user data, profiles, package, ABI, cert, MPV Alpha, or APK.
+  - Existing extension reused without reinstall, native handler reattached.
+  - Stale port callbacks ignored by generation; installed extension and current host permissions preserved.
+  - No changes to per-origin stored data, profiles, Android signing, package, MPV Alpha or APK.
 blockers:
-  - Final SOURCE/PR CI pending; real Gecko/device/site NOT_TESTED.
+  - Mandatory SOURCE and PR CI pending at checkpoint, real Gecko/device/site NOT_TESTED.
 evidence_links:
-  - https://github.com/laszko14/nira-browser/pull/133
-  - https://github.com/laszko14/nira-browser/actions/runs/42773664164
-  - https://github.com/laszko14/nira-browser/actions/runs/42773669505
-next_action: Verify final stage5 SHA SOURCE + PR CI, repair FAIL inside stage5, report and STOP until next DALEJ for stage6.
+  - https://github.com/laszko14/nira-browser/pull/134
+  - https://github.com/laszko14/nira-browser/actions/runs/42778905706
+  - https://github.com/laszko14/nira-browser/actions/runs/42778931733
+next_action: Finish stage6 final SOURCE/PR CI, correct FAIL on new SHA and record exact result in PR; then STOP until DALEJ for stage7.
 ```
