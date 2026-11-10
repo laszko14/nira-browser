@@ -6436,8 +6436,8 @@
       "id": "ERR-20261110-MPV-DIAG4-HANDOFF-SHAREDTESTS",
       "task_id": "ZC-MPV-PLAY-DIAG-4",
       "kind": "CI_FAILURE",
-      "fingerprint": "stage4_handoff_required_ci_missing_shared_tests",
-      "summary": "SOURCE process-docs rejected the stage4 checkpoint because required_ci omitted the exact canonical shared-tests token despite listing all the individual test suites.",
+      "fingerprint": "stage4_handoff_missing_canonical_contract_fields",
+      "summary": "Stage4 SOURCE process-docs failed twice on distinct required checkpoint fields: canonical shared-tests in required_ci (first run) and the mandatory legacy archive reference (second run).",
       "source_sha": "74999125433de0f3a72a8f84ce29c1053103e53c",
       "observed_at": null,
       "run_id": 42846284009,
@@ -6446,19 +6446,21 @@
       "cause": "workflow",
       "state": "FIXED",
       "duplicate_of": null,
-      "fix_sha": "71d3c24b64b0ab9aa8daac807472dcf082820927",
+      "fix_sha": "c52b5b2c1ba68556e5748ab2181964f87c9e3878",
       "regression_test": "scripts/check-ai-handoff.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/42846284009",
-        "https://github.com/laszko14/nira-browser/commit/71d3c24b64b0ab9aa8daac807472dcf082820927"
+        "https://github.com/laszko14/nira-browser/commit/71d3c24b64b0ab9aa8daac807472dcf082820927",
+        "https://github.com/laszko14/nira-browser/actions/runs/42847238424",
+        "https://github.com/laszko14/nira-browser/commit/c52b5b2c1ba68556e5748ab2181964f87c9e3878"
       ],
       "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
       "workflow_name": "Zavro AI process - documentation gate (NO APK)",
       "cause_confidence": "confirmed",
-      "fix_summary": "Restored the literal shared-tests SOURCE/PR gate name in the stage4 required_ci checkpoint; retained the original policy and test unchanged.",
+      "fix_summary": "Restored both canonical checkpoint fields and checked every expectation in scripts/check-ai-handoff.test.cjs, without weakening tests or policies.",
       "test_result": "NOT_TESTED",
       "final_ci": "PENDING",
-      "recurrence_conditions": "A manually authored checkpoint describes JS, JVM, lint and AndroidTest but omits the exact shared-tests identifier required by scripts/check-ai-handoff.test.cjs."
+      "recurrence_conditions": "A generated handoff captures task/CI in prose but omits either the exact shared-tests gate or its required legacy archive path."
     }
   ]
 }
