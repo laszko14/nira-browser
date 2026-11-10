@@ -32,10 +32,14 @@ internal class MpvPlayDiagnosticLedger(
     val startedWallMs: Long,
     val startedElapsedMs: Long,
 ) {
-    enum class Transport { NOT_READY, CONNECTED, START_SENT, START_ACKNOWLEDGED,
-        CAPTURING, NO_PORT, NO_ACK, NO_PAGE_EVENTS, NO_BASELINE, DISCONNECTED, FAILED }
-    enum class Failure { NONE, NO_PORT, NO_ACK, NO_PAGE_EVENTS, NO_BASELINE, PORT_DISCONNECTED,
-        INSTALL_FAILED, HANDLER_FAILED, POST_FAILED, INVALID_ACK }
+    enum class Transport { NOT_READY, CONNECTED, PORT_READY, START_SENT, START_ACKNOWLEDGED,
+        CAPTURING, NO_PORT, NO_READY, NO_START, NO_ACK, NO_PAGE_EVENTS, NO_BASELINE,
+        DISCONNECTED, FAILED }
+    enum class Failure { NONE, NO_PORT, NO_READY, NO_START, NO_ACK, NO_PAGE_EVENTS,
+        NO_BASELINE, PORT_DISCONNECTED, INSTALL_FAILED, HANDLER_FAILED, POST_FAILED,
+        INVALID_ACK }
+    enum class Drop { INVALID_TYPE, PARSE_ERROR, BAD_SCHEMA, SESSION_MISMATCH,
+        DOCUMENT_MISMATCH, STALE_PORT, UNEXPECTED_EVENT }
     companion object {
         const val MAX_MARKS = 8
         const val MAX_SNAPSHOT_CHARS = 12_000
@@ -61,8 +65,14 @@ internal class MpvPlayDiagnosticLedger(
     private var portsDisconnected = 0
     private var openPorts = 0
     private var startAttempts = 0
+    private var retryAttempts = 0
     private var startAcknowledgements = 0
     private var transportRejected = 0
+    private var messagesReceived = 0
+    private var portsReady = 0
+    private var invalidAcks = 0
+    private val drops = Drop.entries.associateWith { 0 }.toMutableMap()
+    private var baselineSnapshots = 0
     private var lastTransportProgressMs = 0L
     private val acknowledgedFrames = mutableMapOf<String, String>()
     private val transportTimeoutMs = 8_000L
@@ -74,7 +84,7 @@ internal class MpvPlayDiagnosticLedger(
     val markCount: Int get() = snapshots.size
 
     fun connected(elapsedMs: Long = 0) {
-        if (!active || transport in setOf(Transport.NO_PORT, Transport.NO_ACK,
+        if (!active || transport in setOf(Transport.NO_PORT, Transport.NO_READY, Transport.NO_START, Transport.NO_ACK,
                 Transport.NO_PAGE_EVENTS, Transport.NO_BASELINE)) return
         portsConnected++
         openPorts++
@@ -85,10 +95,36 @@ internal class MpvPlayDiagnosticLedger(
         }
     }
 
-    fun startSent(elapsedMs: Long) {
-        if (!active || transport in setOf(Transport.NO_PORT, Transport.NO_ACK,
+    fun ready(elapsedMs: Long) {
+        if (!active) return
+        portsReady = (portsReady + 1).coerceAtMost(10_000)
+        lastTransportProgressMs = elapsedMs.coerceAtLeast(0)
+        if (transport in setOf(Transport.NOT_READY, Transport.CONNECTED, Transport.DISCONNECTED)) {
+            transport = Transport.PORT_READY
+            failure = Failure.NONE
+        }
+    }
+
+    fun received() {
+        if (active) messagesReceived = (messagesReceived + 1).coerceAtMost(10_000)
+    }
+
+    fun drop(cause: Drop) {
+        if (!active) return
+        transportRejected = (transportRejected + 1).coerceAtMost(10_000)
+        drops[cause] = ((drops[cause] ?: 0) + 1).coerceAtMost(10_000)
+    }
+
+    fun invalidAck() {
+        if (active) invalidAcks = (invalidAcks + 1).coerceAtMost(10_000)
+        // startAck already counts this rejection.
+    }
+
+    fun startSent(elapsedMs: Long, retry: Boolean = false) {
+        if (!active || transport in setOf(Transport.NO_PORT, Transport.NO_READY, Transport.NO_START, Transport.NO_ACK,
                 Transport.NO_PAGE_EVENTS, Transport.NO_BASELINE)) return
         startAttempts++
+        if (retry) retryAttempts++
         lastTransportProgressMs = elapsedMs.coerceAtLeast(0)
         if (transport != Transport.CAPTURING && transport != Transport.START_ACKNOWLEDGED) {
             transport = Transport.START_SENT
@@ -97,7 +133,7 @@ internal class MpvPlayDiagnosticLedger(
     }
 
     fun startAck(packet: JSONObject, elapsedMs: Long = 0): Boolean {
-        if (!active || transport in setOf(Transport.NO_PORT, Transport.NO_ACK,
+        if (!active || transport in setOf(Transport.NO_PORT, Transport.NO_READY, Transport.NO_START, Transport.NO_ACK,
                 Transport.NO_PAGE_EVENTS, Transport.NO_BASELINE) || packet.length() != 5 ||
             packet.optInt("schemaVersion") != 2 ||
             packet.optString("event") != "start_ack" ||
@@ -143,7 +179,7 @@ internal class MpvPlayDiagnosticLedger(
     fun refreshTransport(elapsedMs: Long, terminal: Boolean = false) {
         if (!active) return
         if (transport in setOf(Transport.CAPTURING, Transport.FAILED,
-                Transport.NO_PORT, Transport.NO_ACK, Transport.NO_PAGE_EVENTS,
+                Transport.NO_PORT, Transport.NO_READY, Transport.NO_START, Transport.NO_ACK, Transport.NO_PAGE_EVENTS,
                 Transport.NO_BASELINE)) return
         val elapsed = elapsedMs.coerceAtLeast(0)
         when {
@@ -167,8 +203,13 @@ internal class MpvPlayDiagnosticLedger(
             portsConnected == 0 && (terminal || elapsed >= transportTimeoutMs) -> {
                 transport = Transport.NO_PORT; failure = Failure.NO_PORT
             }
-            terminal && portsConnected > 0 -> {
-                transport = Transport.NO_ACK; failure = Failure.NO_ACK
+            portsConnected > 0 && portsReady == 0 &&
+                (terminal || elapsed - lastTransportProgressMs >= transportTimeoutMs) -> {
+                transport = Transport.NO_READY; failure = Failure.NO_READY
+            }
+            portsConnected > 0 && startAttempts == 0 &&
+                (terminal || elapsed - lastTransportProgressMs >= transportTimeoutMs) -> {
+                transport = Transport.NO_START; failure = Failure.NO_START
             }
         }
     }
@@ -188,7 +229,7 @@ internal class MpvPlayDiagnosticLedger(
      * cookies or network payloads. The content extension is NOT a trust boundary.
      */
     fun appendPageEvent(message: JSONObject, receivedMs: Long): Boolean {
-        if (!active || transport in setOf(Transport.NO_PORT, Transport.NO_ACK,
+        if (!active || transport in setOf(Transport.NO_PORT, Transport.NO_READY, Transport.NO_START, Transport.NO_ACK,
                 Transport.NO_PAGE_EVENTS, Transport.NO_BASELINE)) return false
         fun reject(): Boolean { pageRejected++; return false }
         if (message.toString().length > MAX_PAGE_PACKET_CHARS ||
@@ -267,6 +308,7 @@ internal class MpvPlayDiagnosticLedger(
         })
         entries.add(Entry(received, "page_" + kind.lowercase(), detail))
         if (detail == "SNAPSHOT_FINISHED") {
+            baselineSnapshots++
             transport = Transport.CAPTURING
             failure = Failure.NONE
         }
@@ -359,7 +401,7 @@ internal class MpvPlayDiagnosticLedger(
                 put("transport_failure", failure.name)
             }.toString(2))
             add("transport.json", JSONObject().apply {
-                put("schema", "zavro-mpv-play-transport-v1")
+                put("schema", "zavro-mpv-play-transport-v2")
                 put("state", transport.name)
                 put("failure", failure.name)
                 put("ports_connected", portsConnected)
@@ -368,6 +410,20 @@ internal class MpvPlayDiagnosticLedger(
                 put("start_acknowledgements", startAcknowledgements)
                 put("frames_acknowledged", acknowledgedFrames.size)
                 put("packets_rejected", transportRejected)
+                put("messages_received", messagesReceived)
+                put("ports_ready", portsReady)
+                put("start_delivery", "NOT_PROVEN_BY_POST")
+                put("invalid_ack", invalidAcks)
+                put("baseline_snapshots", baselineSnapshots)
+                put("invalid_type", drops.getValue(Drop.INVALID_TYPE))
+                put("parse_errors", drops.getValue(Drop.PARSE_ERROR))
+                put("bad_schema", drops.getValue(Drop.BAD_SCHEMA))
+                put("session_mismatch", drops.getValue(Drop.SESSION_MISMATCH))
+                put("document_mismatch", drops.getValue(Drop.DOCUMENT_MISMATCH))
+                put("stale_port", drops.getValue(Drop.STALE_PORT))
+                put("unexpected_event", drops.getValue(Drop.UNEXPECTED_EVENT))
+                put("page_rejected", pageRejected)
+                put("retry_count", retryAttempts)
             }.toString(2))
         }
         return out.toByteArray().also { check(it.size <= MAX_ARCHIVE_BYTES) }
@@ -428,6 +484,8 @@ internal object MpvPlayDiagnostics {
         old.refreshTransport(elapsed)
         if (elapsed < MAX_DURATION_MS && old.transport !in setOf(
                 MpvPlayDiagnosticLedger.Transport.NO_PORT,
+                MpvPlayDiagnosticLedger.Transport.NO_READY,
+                MpvPlayDiagnosticLedger.Transport.NO_START,
                 MpvPlayDiagnosticLedger.Transport.NO_ACK,
                 MpvPlayDiagnosticLedger.Transport.NO_PAGE_EVENTS,
                 MpvPlayDiagnosticLedger.Transport.NO_BASELINE) &&
@@ -488,9 +546,25 @@ internal object MpvPlayDiagnostics {
             it.connected(SystemClock.elapsedRealtime() - it.startedElapsedMs)
         }
 
-    fun startSent(profile: String, tab: String, nonce: String): Boolean =
+    fun ready(profile: String, tab: String, nonce: String): Boolean =
         withSession(profile, tab, nonce) {
-            it.startSent(SystemClock.elapsedRealtime() - it.startedElapsedMs)
+            it.ready(SystemClock.elapsedRealtime() - it.startedElapsedMs)
+        }
+
+    fun received(profile: String, tab: String, nonce: String): Boolean =
+        withSession(profile, tab, nonce) { it.received() }
+
+    fun drop(profile: String, tab: String, nonce: String,
+             cause: MpvPlayDiagnosticLedger.Drop): Boolean =
+        withSession(profile, tab, nonce) { it.drop(cause) }
+
+    fun invalidAck(profile: String, tab: String, nonce: String): Boolean =
+        withSession(profile, tab, nonce) { it.invalidAck() }
+
+    fun startSent(profile: String, tab: String, nonce: String,
+                  retry: Boolean = false): Boolean =
+        withSession(profile, tab, nonce) {
+            it.startSent(SystemClock.elapsedRealtime() - it.startedElapsedMs, retry)
         }
 
     fun disconnected(profile: String, tab: String, nonce: String): Boolean =

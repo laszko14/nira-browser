@@ -1145,16 +1145,24 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         if (mpvState.running || mpvState.reportReady) {
             val confirmed = mpvState.transport ==
                 com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.CAPTURING
-            val waiting = mpvState.running && mpvState.transport in setOf(
-                com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.NOT_READY,
-                com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.CONNECTED,
-                com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.START_SENT,
-                com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.START_ACKNOWLEDGED)
+            val statusText = when {
+                confirmed -> "ZBIERANIE POTWIERDZONE"
+                !mpvState.running -> "RAPORT GOTOWY"
+                mpvState.transport == com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.NOT_READY ->
+                    "OCZEKIWANIE NA POŁĄCZENIE"
+                mpvState.transport == com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.CONNECTED ->
+                    "OCZEKIWANIE NA GOTOWOŚĆ SKRYPTU"
+                mpvState.transport == com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.PORT_READY ->
+                    "WYSYŁANIE START"
+                mpvState.transport == com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.START_SENT ->
+                    "OCZEKIWANIE NA ACK"
+                mpvState.transport == com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.START_ACKNOWLEDGED ->
+                    "OCZEKIWANIE NA BASELINE"
+                else -> "BŁĄD KOMUNIKACJI"
+            }
             menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
                 id = "mpv_play_diagnostic_status",
-                title = if (confirmed) "MPV / Play • ZBIERANIE POTWIERDZONE"
-                    else if (waiting) "MPV / Play • OCZEKIWANIE NA STRONĘ"
-                    else "MPV / Play • BRAK POŁĄCZENIA / RAPORT NIEPEŁNY",
+                title = "MPV / Play • $statusText",
                 iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_settings_24,
                 onClick = {
                     val owner = activity ?: return@Action

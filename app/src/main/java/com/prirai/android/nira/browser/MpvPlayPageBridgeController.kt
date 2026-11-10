@@ -35,6 +35,9 @@ internal class MpvPlayPageBridgeController(
     private val ports = IdentityHashMap<EngineSession, MutableList<Port>>()
     private val portNonces = IdentityHashMap<Port, String>()
     private val portDocuments = IdentityHashMap<Port, Pair<String, String>>()
+    private val readyDocuments = IdentityHashMap<Port, Pair<String, String>>()
+    private val portReadyCounted = IdentityHashMap<Port, String>()
+    private val startTries = IdentityHashMap<Port, Int>()
     private var observer: kotlinx.coroutines.CoroutineScope? = null
     private var installed = false
     private var installGeneration = 0
@@ -95,6 +98,45 @@ internal class MpvPlayPageBridgeController(
         put("sessionId", sessionId)
     }
 
+    // Posting START is only an attempt. READY establishes that the page
+    // installed its command listener on this exact Gecko content Port.
+    private fun sendStart(session: EngineSession, port: Port,
+                          profile: String, tabId: String, nonce: String) {
+        if (portNonces[port] != nonce || readyDocuments[port] == null ||
+            portDocuments[port] != null ||
+            !MpvPlayPortIdentity.matches(ports[session], port) ||
+            MpvPlayDiagnostics.sessionFor(profile, tabId) != nonce) return
+        val tries = startTries[port] ?: 0
+        if (tries >= MAX_START_TRIES) return
+        try {
+            port.postMessage(packet("start", nonce))
+            startTries[port] = tries + 1
+            MpvPlayDiagnostics.startSent(profile, tabId, nonce, tries > 0)
+            if (tries + 1 < MAX_START_TRIES) mainHandler.postDelayed({
+                sendStart(session, port, profile, tabId, nonce)
+            }, START_RETRY_MS)
+        } catch (_: Exception) {
+            ports[session]?.removeAll { it === port }
+            clearPort(port)
+            MpvPlayDiagnostics.failed(profile, tabId, nonce,
+                MpvPlayDiagnosticLedger.Failure.POST_FAILED)
+        }
+    }
+
+    private fun clearPort(port: Port) {
+        portNonces.remove(port)
+        portDocuments.remove(port)
+        readyDocuments.remove(port)
+        portReadyCounted.remove(port)
+        startTries.remove(port)
+    }
+
+    private fun countReady(port: Port, profile: String, tabId: String, nonce: String) {
+        if (readyDocuments[port] != null && portReadyCounted[port] != nonce &&
+            MpvPlayDiagnostics.ready(profile, tabId, nonce))
+            portReadyCounted[port] = nonce
+    }
+
     /** An allow-list match is not proof that the page-world patch ran. */
     private fun originPermission(tabUrl: String): Boolean? = runCatching {
         val uri = URI(tabUrl)
@@ -148,23 +190,23 @@ internal class MpvPlayPageBridgeController(
             val port = iterator.next()
             try {
                 if (action == "start") {
-                    // onPortConnected may already have counted this exact Port.
-                    // A repeated START command does not open another connection.
-                    if (portNonces[port] != id)
+                    if (portNonces[port] != id) {
                         MpvPlayDiagnostics.connected(profile, tabId, id)
-                    MpvPlayDiagnostics.startSent(profile, tabId, id)
-                    portNonces[port] = id
-                    portDocuments.remove(port)
-                }
-                port.postMessage(packet(action, id))
-                if (action == "stop") {
-                    portNonces.remove(port)
-                    portDocuments.remove(port)
+                        portNonces[port] = id
+                        portDocuments.remove(port)
+                        startTries.remove(port)
+                    }
+                    countReady(port, profile, tabId, id)
+                    // Idempotent while waiting for an ACK: retry timer owns resends.
+                    if ((startTries[port] ?: 0) == 0)
+                        sendStart(session, port, profile, tabId, id)
+                } else if (portNonces[port] == id) {
+                    port.postMessage(packet(action, id))
+                    if (action == "stop") clearPort(port)
                 }
             } catch (_: Exception) {
                 iterator.remove()
-                portNonces.remove(port)
-                portDocuments.remove(port)
+                clearPort(port)
                 MpvPlayDiagnostics.failed(profile, tabId, id,
                     MpvPlayDiagnosticLedger.Failure.POST_FAILED)
             }
@@ -191,8 +233,7 @@ internal class MpvPlayPageBridgeController(
         for (list in ports.values) for (port in list.toList()) {
             if (portNonces[port] == nonce) {
                 try { port.postMessage(packet("stop", nonce)) } catch (_: Exception) {}
-                portNonces.remove(port)
-                portDocuments.remove(port)
+                clearPort(port)
             }
         }
     }
@@ -217,8 +258,7 @@ internal class MpvPlayPageBridgeController(
                     if (sessions.none { it === old }) {
                         attached.remove(old)
                         ports.remove(old)?.forEach { port ->
-                            portNonces.remove(port)
-                            portDocuments.remove(port)
+                            clearPort(port)
                             try { port.disconnect() } catch (_: Exception) {}
                         }
                     }
@@ -260,8 +300,7 @@ internal class MpvPlayPageBridgeController(
             val live = ports.getOrPut(session) { mutableListOf() }
             if (live.size >= MAX_FRAMES) {
                 val old = live.removeAt(0)
-                portNonces.remove(old)
-                portDocuments.remove(old)
+                clearPort(old)
                 try { old.disconnect() } catch (_: Exception) {}
             }
             live.add(port)
@@ -269,52 +308,124 @@ internal class MpvPlayPageBridgeController(
             val id = MpvPlayDiagnostics.sessionFor(profile, tabId)
             if (id != null) {
                 MpvPlayDiagnostics.connected(profile, tabId, id)
-                try {
-                    MpvPlayDiagnostics.startSent(profile, tabId, id)
-                    portNonces[port] = id
-                    portDocuments.remove(port)
-                    port.postMessage(packet("start", id))
-                } catch (_: Exception) {
-                    live.removeAll { it === port }
-                    portNonces.remove(port)
-                    portDocuments.remove(port)
-                    MpvPlayDiagnostics.failed(profile, tabId, id,
-                        MpvPlayDiagnosticLedger.Failure.POST_FAILED)
-                }
+                portNonces[port] = id
+                // JS may not have registered onMessage yet. Wait for READY.
             }
         }
 
         override fun onPortDisconnected(port: Port) {
             val wasConnected = ports[session]?.removeAll { it === port } == true
-            val nonce = portNonces.remove(port) ?: return
-            portDocuments.remove(port)
-            if (!wasConnected) return
+            val nonce = portNonces[port]
+            clearPort(port)
+            if (!wasConnected || nonce == null) return
             val (profile, tabId) = trustedOwner(session) ?: return
             MpvPlayDiagnostics.disconnected(profile, tabId, nonce)
         }
 
         override fun onPortMessage(message: Any, port: Port) {
-            if (port.name() != NATIVE_APP ||
-                !MpvPlayPortIdentity.matches(ports[session], port)) return
+            if (port.name() != NATIVE_APP) return
             val (profile, tabId) = trustedOwner(session) ?: return
-            val payload = message as? JSONObject ?: return
-            val nonce = portNonces[port] ?: return
-            if (payload.optString("sessionId") != nonce) return
-            if (payload.optString("event") == "start_ack") {
+            val activeNonce = MpvPlayDiagnostics.sessionFor(profile, tabId)
+            // A document normally connects before the user starts a test.
+            // Cache its READY without adding anything to the diagnostic ledger.
+            if (activeNonce == null) {
+                if (!MpvPlayPortIdentity.matches(ports[session], port)) return
+                val ready = message as? JSONObject ?: return
+                val identity = ready.optString("documentId") to ready.optString("frame")
+                if (ready.length() == 4 && ready.optInt("schemaVersion") == 2 &&
+                    ready.optString("event") == "ready" &&
+                    identity.first.matches(DOCUMENT_PATTERN) &&
+                    identity.second in setOf("TOP", "SUBFRAME") &&
+                    (readyDocuments[port] == null || readyDocuments[port] == identity))
+                    readyDocuments[port] = identity
+                return
+            }
+            if (!MpvPlayPortIdentity.matches(ports[session], port)) {
+                MpvPlayDiagnostics.drop(profile, tabId, activeNonce,
+                    MpvPlayDiagnosticLedger.Drop.STALE_PORT)
+                return
+            }
+            MpvPlayDiagnostics.received(profile, tabId, activeNonce)
+            // GeckoView delivers JS objects as JSONObject, primitives as their
+            // JVM counterparts. Never silently discard unexpected payloads.
+            val payload = when (message) {
+                is JSONObject -> message
+                is String -> try {
+                    if (message.length > MAX_INBOUND_CHARS) {
+                        MpvPlayDiagnostics.drop(profile, tabId, activeNonce,
+                            MpvPlayDiagnosticLedger.Drop.INVALID_TYPE)
+                        return
+                    }
+                    JSONObject(message)
+                } catch (_: Exception) {
+                    MpvPlayDiagnostics.drop(profile, tabId, activeNonce,
+                        MpvPlayDiagnosticLedger.Drop.PARSE_ERROR)
+                    return
+                }
+                else -> {
+                    MpvPlayDiagnostics.drop(profile, tabId, activeNonce,
+                        MpvPlayDiagnosticLedger.Drop.INVALID_TYPE)
+                    return
+                }
+            }
+            if (payload.toString().length > MAX_INBOUND_CHARS ||
+                payload.optInt("schemaVersion", -1) != 2) {
+                MpvPlayDiagnostics.drop(profile, tabId, activeNonce,
+                    MpvPlayDiagnosticLedger.Drop.BAD_SCHEMA)
+                return
+            }
+            val kind = payload.optString("event")
+            if (kind == "ready") {
                 val identity = payload.optString("documentId") to payload.optString("frame")
-                if (portDocuments[port] == null || portDocuments[port] == identity) {
-                    if (MpvPlayDiagnostics.ack(profile, tabId, nonce, payload))
-                        portDocuments[port] = identity
+                if (payload.length() != 4 ||
+                    !identity.first.matches(DOCUMENT_PATTERN) ||
+                    identity.second !in setOf("TOP", "SUBFRAME") ||
+                    (readyDocuments[port] != null && readyDocuments[port] != identity)) {
+                    MpvPlayDiagnostics.drop(profile, tabId, activeNonce,
+                        MpvPlayDiagnosticLedger.Drop.DOCUMENT_MISMATCH)
+                    return
+                }
+                readyDocuments[port] = identity
+                val nonce = portNonces[port]
+                if (nonce == activeNonce) {
+                    countReady(port, profile, tabId, nonce)
+                    if ((startTries[port] ?: 0) == 0)
+                        sendStart(session, port, profile, tabId, nonce)
                 }
                 return
             }
-            if (payload.optInt("schemaVersion") != 2 ||
-                payload.optString("event") != "observation") return
+            val nonce = portNonces[port]
+            if (nonce != activeNonce || payload.optString("sessionId") != nonce) {
+                MpvPlayDiagnostics.drop(profile, tabId, activeNonce,
+                    MpvPlayDiagnosticLedger.Drop.SESSION_MISMATCH)
+                return
+            }
+            if (kind == "start_ack") {
+                val identity = payload.optString("documentId") to payload.optString("frame")
+                if (readyDocuments[port] != identity ||
+                    (portDocuments[port] != null && portDocuments[port] != identity)) {
+                    MpvPlayDiagnostics.drop(profile, tabId, nonce,
+                        MpvPlayDiagnosticLedger.Drop.DOCUMENT_MISMATCH)
+                    return
+                }
+                if (MpvPlayDiagnostics.ack(profile, tabId, nonce, payload))
+                    portDocuments[port] = identity
+                else MpvPlayDiagnostics.invalidAck(profile, tabId, nonce)
+                return
+            }
+            if (kind != "observation") {
+                MpvPlayDiagnostics.drop(profile, tabId, nonce,
+                    MpvPlayDiagnosticLedger.Drop.UNEXPECTED_EVENT)
+                return
+            }
             if (portDocuments[port] != (payload.optString("documentId") to
-                    payload.optJSONObject("metrics")?.optString("frame"))) return
+                    payload.optJSONObject("metrics")?.optString("frame"))) {
+                MpvPlayDiagnostics.drop(profile, tabId, nonce,
+                    MpvPlayDiagnosticLedger.Drop.DOCUMENT_MISMATCH)
+                return
+            }
             if (MpvPlayDiagnostics.page(profile, tabId, payload) &&
                 payload.optString("kind") == "PICK") {
-                // A click in one iframe must disarm the picker in all frames.
                 command(profile, tabId, "cancel_pick")
             }
         }
@@ -324,6 +435,10 @@ internal class MpvPlayPageBridgeController(
         private const val EXTENSION_ID = "zavro-preview-diagnostics@prirai.android.nira"
         private const val NATIVE_APP = "zavro.preview.forensics"
         private const val MAX_FRAMES = 24
+        private const val MAX_START_TRIES = 3
+        private const val START_RETRY_MS = 2_000L
+        private const val MAX_INBOUND_CHARS = 4_000
+        private val DOCUMENT_PATTERN = Regex("[0-9a-f]{32}")
     }
 }
 

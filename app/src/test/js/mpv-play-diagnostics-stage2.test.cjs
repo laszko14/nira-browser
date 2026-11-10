@@ -65,23 +65,25 @@ function harness(frame = false) {
 }
 
 test('manifest runs frame-aware content probe, but no page observers before user START', () => {
-  assert.equal(manifest.version, '1.0.0');
+  assert.equal(manifest.version, '1.0.1');
   assert.equal(manifest.content_scripts[0].all_frames, true);
   assert.equal(manifest.content_scripts[0].run_at, 'document_start');
   const x = harness();
-  assert.deepEqual(x.packets, []);
+  assert.equal(x.packets.length, 1);
+  assert.equal(x.packets[0].event, 'ready');
   assert.equal(x.listeners.size, 0);
   assert.deepEqual(x.observerState(), [0,0]);
   x.command({schemaVersion:2,action:'start',sessionId:'bad'});
-  assert.deepEqual(x.packets, []);
+  assert.equal(x.packets.length, 1);
 });
 
 test('START captures bounded metadata not page text, passwords, raw source URL or token', () => {
   const x = harness();
   x.command({schemaVersion:2,action:'start',sessionId:ID});
-  assert.equal(x.packets[0].event, 'start_ack');
-  assert.equal(x.packets[0].sessionId, ID);
-  assert.match(x.packets[0].documentId, /^[0-9a-f]{32}$/);
+  assert.equal(x.packets[0].event, 'ready');
+  assert.equal(x.packets[1].event, 'start_ack');
+  assert.equal(x.packets[1].sessionId, ID);
+  assert.match(x.packets[1].documentId, /^[0-9a-f]{32}$/);
   assert.ok(x.packets.some(p => p.detail === 'SNAPSHOT_FINISHED'));
   assert.ok(x.packets.length >= 2);
   const media = x.packets.find(p => p.kind === 'MEDIA');

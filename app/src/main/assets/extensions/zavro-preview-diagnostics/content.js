@@ -254,6 +254,15 @@
       if (attempt < 3 && shouldRetry)
         setTimeout(() => connect(attempt + 1), 250 * (attempt + 1));
     });
+    // READY does not mean START succeeded. This packet is emitted only
+    // after our command listener is registered, without any raw page data.
+    try {
+      port.postMessage({schemaVersion:2,event:"ready",documentId,
+        frame:window.top === window ? "TOP" : "SUBFRAME"});
+    } catch (_) {
+      stop();
+      if (attempt < 3) setTimeout(() => connect(attempt + 1), 250 * (attempt + 1));
+    }
   }
   connect();
 })();

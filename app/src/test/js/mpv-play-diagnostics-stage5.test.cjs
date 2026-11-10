@@ -109,7 +109,10 @@ test("final5: probe manifest is HTTP(S) frame-scoped, passive until opt-in", () 
     ["nativeMessaging","nativeMessagingFromContent","geckoViewAddons"]);
   const f=fixture();
   f.badCommand({schemaVersion:2,action:"start",sessionId:"not-a-uuid"});
-  assert.equal(f.packets.length,0);
+  assert.equal(f.packets.length,1);
+  assert.equal(f.packets[0].event,"ready");
+  assert.deepEqual(Object.keys(f.packets[0]).sort(),
+    ["schemaVersion","event","documentId","frame"].sort());
   assert.deepEqual(f.stats(),{observed:0,disposed:0,activeListeners:0});
   assert.equal(f.changes.play,0);
 });
@@ -119,8 +122,8 @@ test("final5: normal HTML5 preview, site Play button, subframe and private data"
   top.video.dataset.niraPreviewCreated="1";
   top.command("start");iframe.command("start");
   assert.ok(top.packets.length>=4);
-  assert.equal(top.packets[0].event,"start_ack");
-  assert.equal(top.packets[0].sessionId,ONE);
+  assert.equal(top.packets[0].event,"ready");
+  assert.equal(top.packets.find(x=>x.event==="start_ack").sessionId,ONE);
   assert.ok(top.packets.some(x=>x.detail==="SNAPSHOT_FINISHED"));
   const media=top.packets.find(x=>x.kind==="MEDIA");
   assert.equal(media.metrics.frame,"TOP");
@@ -134,6 +137,11 @@ test("final5: normal HTML5 preview, site Play button, subframe and private data"
   const full=JSON.stringify(top.packets.concat(iframe.packets));
   assert.doesNotMatch(full,/secret-session-token|private-username|site-css-secret|private\/media|secret=123|https:/);
   for(const x of top.packets.concat(iframe.packets)){
+    if(x.event==="ready"){
+      assert.deepEqual(Object.keys(x).sort(),
+        ["schemaVersion","event","documentId","frame"].sort());
+      continue;
+    }
     if(x.event==="start_ack"){
       assert.deepEqual(Object.keys(x).sort(),
         ["schemaVersion","event","sessionId","documentId","frame"].sort());
@@ -209,7 +217,7 @@ test("final5: dynamic DOM mutations keep attribute categories without raw values
 test("final5: event budget caps at 160 and explicitly indicates truncation", () => {
   const f=fixture();f.command("start");
   for(let i=0;i<250;i++)f.fire("click",f.button);
-  assert.equal(f.packets.length,161);
+  assert.equal(f.packets.filter(x=>x.event==="observation").length,160);
   assert.equal(f.packets.at(-1).kind,"GAP");
   assert.equal(f.packets.at(-1).detail,"EVENT_LIMIT");
   assert.equal(f.packets.at(-1).sequence,160);
@@ -245,7 +253,7 @@ test("final5: STOP, restart and disconnect remove observer/listeners", () => {
   f.badCommand({schemaVersion:2,action:"snapshot",sessionId:ONE});
   assert.equal(f.packets.length,old);
   f.command("start",TWO);
-  assert.equal(f.packets.at(0).sessionId,ONE);
+  assert.equal(f.packets.find(x=>x.event==="start_ack").sessionId,ONE);
   assert.equal(f.packets.at(-1).sessionId,TWO);
   assert.equal(f.packets.at(-1).sequence>0,true);
   f.disconnect();
@@ -259,7 +267,7 @@ test("late native connection and lost port retry are bounded and remain dormant 
   assert.equal(early.pendingRetries(),1);
   early.retry();
   assert.equal(early.connectCalls(),2);
-  assert.equal(early.packets.length,0);
+  assert.equal(early.packets.filter(x=>x.event==="observation").length,0);
   const f=fixture({connectFailures:2});
   assert.equal(f.packets.length,0);
   assert.equal(f.stats().activeListeners,0);
@@ -267,7 +275,8 @@ test("late native connection and lost port retry are bounded and remain dormant 
   assert.equal(f.connectCalls(),3);
   assert.equal(f.pendingRetries(),0);
   f.command("start");
-  assert.equal(f.packets[0].event,"start_ack");
+  assert.equal(f.packets[0].event,"ready");
+  assert.equal(f.packets[1].event,"start_ack");
   const oldSequence=f.packets.filter(x=>x.event==="observation").at(-1).sequence;
   f.disconnect();
   assert.equal(f.stats().activeListeners,0);

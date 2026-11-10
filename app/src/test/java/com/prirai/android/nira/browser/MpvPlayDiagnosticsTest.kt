@@ -63,6 +63,42 @@ class MpvPlayDiagnosticsTest {
         assertEquals(1, transport.getInt("packets_rejected"))
     }
 
+    @Test fun connectedWithoutReadyIsDistinctFromNoAck() {
+        val ledger = MpvPlayDiagnosticLedger("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "p", "t", null, "v", 1, 0)
+        ledger.connected()
+        ledger.refreshTransport(8_001)
+        assertEquals(MpvPlayDiagnosticLedger.Transport.NO_READY, ledger.transport)
+        ledger.finish(8_002, 8_003, "TIMED_OUT")
+        val report = JSONObject(archiveEntries(ledger.toZipBytes()).getValue("transport.json"))
+        assertEquals("zavro-mpv-play-transport-v2", report.getString("schema"))
+        assertEquals("NO_READY", report.getString("failure"))
+        assertEquals(0, report.getInt("messages_received"))
+        assertEquals(0, report.getInt("ports_ready"))
+        assertEquals("NOT_PROVEN_BY_POST", report.getString("start_delivery"))
+    }
+
+    @Test fun transportRejectionsAreTypedBoundedAndExcludeRawPayload() {
+        val ledger = MpvPlayDiagnosticLedger("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "p", "t", null, "v", 1, 0)
+        ledger.connected()
+        ledger.ready(10)
+        ledger.received()
+        ledger.drop(MpvPlayDiagnosticLedger.Drop.INVALID_TYPE)
+        ledger.drop(MpvPlayDiagnosticLedger.Drop.PARSE_ERROR)
+        ledger.drop(MpvPlayDiagnosticLedger.Drop.SESSION_MISMATCH)
+        ledger.startSent(12)
+        ledger.finish(20, 25, "STOPPED")
+        val report = JSONObject(archiveEntries(ledger.toZipBytes()).getValue("transport.json"))
+        assertEquals(1, report.getInt("messages_received"))
+        assertEquals(1, report.getInt("ports_ready"))
+        assertEquals(1, report.getInt("invalid_type"))
+        assertEquals(1, report.getInt("parse_errors"))
+        assertEquals(1, report.getInt("session_mismatch"))
+        assertEquals(3, report.getInt("packets_rejected"))
+        assertFalse(report.toString().contains("private-cookie"))
+    }
+
     @Test fun sentStartWithoutAckTimesOutAndLatePacketsCannotRestartIt() {
         val ledger = MpvPlayDiagnosticLedger("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
             "p", "t", null, "v", 1, 0)
