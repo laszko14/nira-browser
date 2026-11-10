@@ -9,7 +9,7 @@ repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: feat/zavro-clean-mpv-play-diagnostics-stage1-20261110
 base_sha: f9b84ae636a3ac37fd479ba4c7ae65bb548f2b28
-observed_head_sha: f9b84ae636a3ac37fd479ba4c7ae65bb548f2b28
+observed_head_sha: 10b1f0056cd7d4caa7703fc09f031aa2242bba57
 status: CI_PENDING
 acceptance_source: Użytkownik jawnie polecił przygotować podpisany APK do testów po zielonej naprawie diagnostyki MPV/Play, bez merge ani publikacji.
 completed: Poprzednia naprawa READY-START-ACK/BASELINE i rejestr błędów zostały zweryfikowane SOURCE 42910257738 i PR 42910266815 na f9b84ae636a3ac37fd479ba4c7ae65bb548f2b28. Poprzedni podpisany v1227 (run 42898317447) potwierdzony zdalnie. Do następnej aktualizacji przygotowano Gradle versionCode base=228, arm64 APK=1228, versionName=0.5.22-alpha124-clean oraz zgodne oczekiwania workflow, nazwę artefaktu i testy kontraktu.
@@ -18,7 +18,7 @@ required_ci: SOURCE process-docs + shared-tests (JS + Kotlin/Robolectric + Andro
 device: NOT_TESTED; nowy protokół READY-START-ACK, BASELINE i ruchome miniatury wymagają rzeczywistego testu na telefonie Nothing Phone (1), Android 15.
 apk: PLANNED_PRIVATE_SIGNED_v1228; ostatni zdalnie zweryfikowany v1227, run 42898317447, artifact zavro-arm64-update-apk-v1227, pakiet com.prirai.android.nira.debug, arm64-v8a, certyfikat niezmieniony. Wersja zainstalowana na telefonie nie jest niezależnie zweryfikowana co do versionCode, ale raport wskazuje versionName alpha123.
 known_failures: Poprzedni raport v1227 pokazał NO_ACK i zero page events, przyczyna na urządzeniu niepotwierdzona. Nowe SOURCE 42913748802 process-docs FAIL: brak dosłownego shared-tests w polu checkpointu; SOURCE 42913748802 i PR 42913762085 JS FAIL: stary alpha123 w teście video-search-neon-redesign. Obie przyczyny zaklasyfikowane jako fixture/dokumentacja i poprawione w tym zadaniu; wymagają nowego CI.
-verification: Poprzedni code SHA f9b84ae636a3ac37fd479ba4c7ae65bb548f2b28 CODE_VERIFIED. Nowa wersja v1228 wymaga świeżego SOURCE i PR CI oraz odrębnego podpisanego builda i jego zdalnej weryfikacji.
+verification: Stary code SHA f9b84ae636a3ac37fd479ba4c7ae65bb548f2b28 CODE_VERIFIED. Pierwsze v1228 SOURCE 42913748802 i PR 42913762085 FAIL z powodu brakującego shared-tests w checkpointcie i wersji alpha123 w teście; poprawka 10b1f0056cd7d4caa7703fc09f031aa2242bba57 przeszła SOURCE process-docs/JS 42914176395 i PR JS 42914184984; po zapisie błędów konieczne nowe całe SOURCE/PR CI. APK dopiero potem.
 verified_before_push: Live branch HEAD, AGENTS.md, ACTIVE_CLEAN_LINE.md, STARTUP_PREFLIGHT.md, CHATGPT_PROJECT_INSTRUCTIONS.md, AI_HANDOFF.md, APK_CHAT_GITHUB_REVIEW_TRIGGER.md, APK_RELEASE.md, ANDROID_SIGNING_SETUP.md, app/build.gradle, workflow, wersjonujące testy i zdalna kontrola podpisanego v1227.
 blockers: Brak autoryzowanego APK przed zielonym końcowym CI; nie budować przez niezatwierdzony trigger. Test fizycznego urządzenia pozostaje odrębny.
 evidence_links:
@@ -28,12 +28,15 @@ evidence_links:
   - https://github.com/laszko14/nira-browser/actions/runs/42898317447
   - https://github.com/laszko14/nira-browser/actions/runs/42913748802
   - https://github.com/laszko14/nira-browser/actions/runs/42913762085
+  - https://github.com/laszko14/nira-browser/actions/runs/42914176395
+  - https://github.com/laszko14/nira-browser/actions/runs/42914184984
 changed_paths:
   - app/build.gradle
   - .github/workflows/apk-release.yml
   - app/src/test/js/release-contract-stage19a.test.cjs
   - app/src/test/js/video-search-neon-redesign.test.cjs
   - docs/AI_HANDOFF.md
+  - docs/ai/ERROR_CASES.json
 next_action: Po zielonym CI i niezmienionym HEAD wyślij jedną recenzję COMMENT zgodnie z APK_CHAT_GITHUB_REVIEW_TRIGGER.md: ZAVRO_PRIVATE_APK_REQUEST, sha=HEAD, task=ZC_MPV_PLAY_APK_V1228; po runie sprawdź verifier i artefakt. Bez merge/release.
 ```
 

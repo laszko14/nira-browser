@@ -290,6 +290,11 @@
       "task_id": "ZC-MPV-PLAY-READY-20261110",
       "observed_count": 2,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-MPV-PLAY-APK-V1228-20261110",
+      "observed_count": 2,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -6712,6 +6717,63 @@
       "test_result": "PASS",
       "final_ci": "SUCCESS",
       "recurrence_conditions": "Refactor MPV/Play diagnostic UI status variables without changing all uses in title and onClick Toast; the Kotlin compiler catches the stale identifier."
+    },
+    {
+      "task_id": "ZC-MPV-PLAY-APK-V1228-20261110",
+      "kind": "CI_FAILURE",
+      "source_sha": "9c32e8f10b3b4a7b7130a3f25840372237e598df",
+      "observed_at": null,
+      "attempt": 1,
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "10b1f0056cd7d4caa7703fc09f031aa2242bba57",
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": "Zavro AI process - documentation gate (NO APK)",
+      "cause_confidence": "confirmed",
+      "test_result": "PASS",
+      "final_ci": "PENDING",
+      "id": "ERR-20261110-V1228-HANDOFF-SHARED-TESTS",
+      "fingerprint": "v1228_handoff_required_ci_missing_shared_tests",
+      "summary": "SOURCE process-docs failed because the v1228 handoff required_ci field omitted the literal shared-tests mandatory under check-ai-handoff.test.cjs.",
+      "cause": "workflow",
+      "run_id": 42913748802,
+      "job_id": 130170733858,
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42913748802",
+        "https://github.com/laszko14/nira-browser/commit/10b1f0056cd7d4caa7703fc09f031aa2242bba57"
+      ],
+      "fix_summary": "Restored the explicit shared-tests names in the handoff required_ci field. SOURCE process-docs passed on the source fix SHA in run 42914176395.",
+      "recurrence_conditions": "Updating a canonical handoff with general JS/JVM names but omitting the shared-tests marker violates the preflight checkpoint contract."
+    },
+    {
+      "task_id": "ZC-MPV-PLAY-APK-V1228-20261110",
+      "kind": "CI_FAILURE",
+      "source_sha": "9c32e8f10b3b4a7b7130a3f25840372237e598df",
+      "observed_at": null,
+      "attempt": 1,
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "10b1f0056cd7d4caa7703fc09f031aa2242bba57",
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": "Zavro AI process - documentation gate (NO APK)",
+      "cause_confidence": "confirmed",
+      "test_result": "PASS",
+      "final_ci": "PENDING",
+      "id": "ERR-20261110-V1228-TEST-VERSION-PIN",
+      "fingerprint": "v1228_neon_regression_pinned_version_name",
+      "summary": "SOURCE and PR JavaScript regressions failed because video-search-neon-redesign.test.cjs still asserted the previous 0.5.22-alpha123-clean after the v1228 bump.",
+      "cause": "test_harness",
+      "run_id": 42913748802,
+      "job_id": 130170734035,
+      "regression_test": "app/src/test/js/video-search-neon-redesign.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42913748802",
+        "https://github.com/laszko14/nira-browser/actions/runs/42913762085",
+        "https://github.com/laszko14/nira-browser/commit/10b1f0056cd7d4caa7703fc09f031aa2242bba57"
+      ],
+      "fix_summary": "Updated that existing version assertion and versionCode lower-bound to v1228; SOURCE and PR JavaScript suites passed on the fix SHA in runs 42914176395 and 42914184984.",
+      "recurrence_conditions": "Bumping Gradle APK metadata without updating version-specific assertions outside the release-contract suite causes a false JS regression FAIL."
     }
   ]
 }
