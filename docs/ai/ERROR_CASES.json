@@ -278,7 +278,7 @@
     },
     {
       "task_id": "ZC-MPV-PLAY-APK-1226",
-      "observed_count": 1,
+      "observed_count": 2,
       "state": "ACTIVE"
     }
   ],
@@ -6531,6 +6531,35 @@
       "test_result": "NOT_TESTED",
       "final_ci": "PENDING",
       "recurrence_conditions": "A newly built signed update has versionCode less than or equal to the user's installed Clean versionCode; user/device baseline is stale even though workflow verifies the artifact's internally matching metadata."
+    },
+    {
+      "id": "ERR-20261110-MPV-APK-NEON-TEST-1226",
+      "task_id": "ZC-MPV-PLAY-APK-1226",
+      "kind": "CI_FAILURE",
+      "fingerprint": "neon_js_static_versioncode_225_rejects_valid_1226",
+      "summary": "Final SHA a2a4c414 had one failing JavaScript test of 659 because unrelated video-search-neon-redesign.test.cjs hardcoded versionCode 225 and alpha121; the production version is intentionally 226 and alpha122. Other 658 JS tests passed.",
+      "source_sha": "a2a4c414da65f0249c4afd800625521679045b81",
+      "observed_at": null,
+      "run_id": 42862726025,
+      "job_id": 129992856320,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "766cb5793db932b87b6a59781d9e07696b54ba07",
+      "regression_test": "app/src/test/js/video-search-neon-redesign.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42862726025",
+        "https://github.com/laszko14/nira-browser/actions/runs/42862739371",
+        "https://github.com/laszko14/nira-browser/commit/766cb5793db932b87b6a59781d9e07696b54ba07"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": "Zavro AI process - documentation gate (NO APK)",
+      "cause_confidence": "confirmed",
+      "fix_summary": "Replaced stale literal versionCode/Name regexes in neon UI regression with strict shared APK contract validation, which checks Gradle and private workflow values, plus explicit installed 1225 minimum.",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "Any unrelated JavaScript UI test hardcodes a specific Gradle versionCode or versionName; subsequent legitimate APK version increments break that fixture despite correct Gradle/workflow update."
     }
   ]
 }
