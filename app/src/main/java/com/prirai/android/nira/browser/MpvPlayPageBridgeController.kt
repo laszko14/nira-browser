@@ -148,7 +148,10 @@ internal class MpvPlayPageBridgeController(
             val port = iterator.next()
             try {
                 if (action == "start") {
-                    MpvPlayDiagnostics.connected(profile, tabId, id)
+                    // onPortConnected may already have counted this exact Port.
+                    // A repeated START command does not open another connection.
+                    if (portNonces[port] != id)
+                        MpvPlayDiagnostics.connected(profile, tabId, id)
                     MpvPlayDiagnostics.startSent(profile, tabId, id)
                     portNonces[port] = id
                     portDocuments.remove(port)

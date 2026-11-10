@@ -247,8 +247,11 @@
       }
     });
     port.onDisconnect.addListener(() => {
+      // STOP must suppress retries, but a new START on the same document
+      // must restore retry eligibility even when an older session stopped.
+      const shouldRetry = !!active || !stoppedId;
       stop();
-      if (attempt < 3 && !stoppedId)
+      if (attempt < 3 && shouldRetry)
         setTimeout(() => connect(attempt + 1), 250 * (attempt + 1));
     });
   }

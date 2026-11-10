@@ -59,6 +59,9 @@ class MpvPlayPageBridgeControllerTest {
             Mockito.`when`(port.name()).thenReturn("zavro.preview.forensics")
             Mockito.`when`(port.senderUrl()).thenReturn("https://example.org")
             handler.onPortConnected(port)
+            // START from the menu can race an already-connected content port.
+            // It must not count the same Port a second time.
+            controller.command(profile, tab.id, "start")
             assertTrue(sent.any { message ->
                 message is JSONObject && message.optString("action") == "start" &&
                     message.optString("sessionId") == nonce

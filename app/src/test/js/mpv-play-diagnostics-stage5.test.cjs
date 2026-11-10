@@ -216,6 +216,26 @@ test("final5: event budget caps at 160 and explicitly indicates truncation", () 
   assert.equal(f.changes.play,0);
 });
 
+test("final5: a restarted session restores bounded reconnect after an earlier STOP", () => {
+  const stopped = fixture();
+  stopped.command("start", ONE);
+  stopped.command("stop", ONE);
+  stopped.disconnect();
+  assert.equal(stopped.pendingRetries(), 0, "STOP prevents reconnect");
+
+  const restarted = fixture();
+  restarted.command("start", ONE);
+  restarted.command("stop", ONE);
+  restarted.command("start", TWO);
+  restarted.disconnect();
+  assert.equal(restarted.pendingRetries(), 1,
+    "new opted-in session must reconnect after a transient disconnect");
+  restarted.retry();
+  assert.equal(restarted.connectCalls(), 2);
+  restarted.command("start", TWO);
+  assert.equal(restarted.packets.at(-1).sessionId, TWO);
+});
+
 test("final5: STOP, restart and disconnect remove observer/listeners", () => {
   const f=fixture();f.command("start");
   assert.equal(f.stats().observed,1);

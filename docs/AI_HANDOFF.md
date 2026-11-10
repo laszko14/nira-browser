@@ -11,16 +11,16 @@ repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: feat/zavro-clean-mpv-play-diagnostics-stage1-20261110
 base_sha: b131a0219ea86e533a1f4f88afd81789427e8f57
-observed_head_sha: b131a0219ea86e533a1f4f88afd81789427e8f57
+observed_head_sha: efea62184e780cc3ac50261eff3175ebd0885391
 status: CI_PENDING
 acceptance_source: User supplied two v1226 diagnostic ZIPs and requested an opt-in MPV/Play transport repair, tests, registry, checkpoint, commit, push and green SOURCE/PR CI; no APK, merge or release.
-completed: Verified two valid archives with native markers and zero DOM events. RED JS test showed no START acknowledgement. Added typed ACK, bounded JS reconnect, native transport states and safe failure counters, explicit incomplete report and menu status. Root cause of the two phone transport failures remains undetermined.
-remaining: Finish local Kotlin and full regression gates, review diff, push on this branch, verify final source SHA and all required SOURCE/PR CI; inspect a new device report for the exact transport failure. Do not infer the cause of broken thumbnails.
+completed: Codex commit efea62184e780cc3ac50261eff3175ebd0885391 added START ACK, typed transport statuses, bounded reconnect, safe failure counters, incomplete report, and tests. Live SOURCE 42889451656 and PR 42889463425 on that SHA are SUCCESS. Follow-up review corrected duplicate native Port accounting and STOP/restart retry guard; regression tests added. Original device cause remains unknown.
+remaining: Push review fixes on the same branch, confirm final HEAD and all required SOURCE/PR CI SUCCESS, then request new opt-in device ZIP from a newer APK only after separate authorization. Real Play/thumbnail root cause still requires device evidence.
 required_ci: SOURCE process-docs and shared-tests JavaScript, JVM/Robolectric, AndroidTest compile, lint plus baseline and evidence all SUCCESS on final source SHA; PR shared-tests and error-learning gates SUCCESS on integration checkout.
 apk: NOT_BUILT for this task. Historical v1226 signed artifact run 42864976383; no new build or download.
 device: NOT_TESTED; no Android device or real Gecko site test in this task.
-known_failures: Both supplied ZIPs have the same empty-page-evidence fingerprint. Original v1226 report cannot distinguish no port, missing ACK or rejected page packet. Local Robolectric initially lacked its Android 15 image; verified Maven SHA-512 and reran. One test fixture used a Kotlin-null Mockito matcher and was corrected; an OOM-killed Gradle daemon was rerun with a smaller heap.
-verification: RED node stage2 ACK test failed before implementation. Final local JS 660/660, process 63/63, JVM/Robolectric 1561/1561 and AndroidTest Kotlin compile succeeded. Final lint is running; earlier lint and baseline passed before final minor edits. SOURCE 42870600968 and PR 42870612903 succeeded on the historical base only.
+known_failures: Two v1226 ZIPs still have no DOM events; actual device-level cause is undetermined. Follow-up review found same Port counted twice if START overlaps onPortConnected, preventing DISCONNECTED after sole port loss; content script also suppressed reconnect after STOP then another START. Corrected with dedicated regressions. Earlier Codex JVM fixture and transient build-environment issues were resolved before green CI on efea62184e780cc3ac50261eff3175ebd0885391.
+verification: Confirmed Codex implementation SHA efea62184e780cc3ac50261eff3175ebd0885391 from live GitHub; SOURCE 42889451656 all required jobs SUCCESS and PR 42889463425 JS, JVM, AndroidTest compile, lint and error learning SUCCESS. Follow-up review adds two targeted tests and transport fixes; their final SOURCE/PR CI is pending until new SHA is pushed. Device NOT_TESTED.
 verified_before_push: Read AGENTS, active line, handoff, startup, project instructions, task, workflow, test, quality, error learning, checkpoint and diagnostics stage1-5 at explicit base SHA; verified clean isolated checkout, remote HEAD and DEFAULT ai-preflight.
 blockers: Physical device unavailable; original report gives no direct native port or script execution trace. No causal attribution to playback or preview helper.
 evidence_links:
@@ -42,7 +42,7 @@ changed_paths:
   - app/src/test/js/mpv-play-diagnostics-stage5.test.cjs
   - docs/ai/ERROR_CASES.json
   - docs/AI_HANDOFF.md
-next_action: Finish required regression tests and CI on the eventual fast-forward SHA; report honest transport uncertainty and request a new opt-in phone report only after code and CI verification.
+next_action: Verify required SOURCE and PR CI for final fast-forward review commit; preserve no-APK scope, report CODE_VERIFIED only after both are fully green. Collect new phone report only after a separately authorized signed update.
 ```
 
 ## Istotna historia przekazania

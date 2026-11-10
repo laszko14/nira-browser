@@ -283,7 +283,7 @@
     },
     {
       "task_id": "ZC-MPV-PLAY-TRANSPORT-20261110",
-      "observed_count": 1,
+      "observed_count": 3,
       "state": "ACTIVE"
     }
   ],
@@ -6596,6 +6596,60 @@
       "test_result": "PASS",
       "final_ci": "PENDING",
       "recurrence_conditions": "A user starts a page diagnostic session but no content ACK or baseline reaches the native ledger; the report must identify the transport gap rather than imply an observed page."
+    },
+    {
+      "task_id": "ZC-MPV-PLAY-TRANSPORT-20261110",
+      "kind": "REVIEW",
+      "source_sha": "efea62184e780cc3ac50261eff3175ebd0885391",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/efea62184e780cc3ac50261eff3175ebd0885391"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING",
+      "id": "ERR-20261110-MPV-PLAY-REVIEW-PORT-DOUBLE-COUNT",
+      "fingerprint": "diagnostic_same_port_repeated_start_overcounts_open_ports",
+      "summary": "If native onPortConnected already enrolled a Port, a racing explicit START command counts the same Port again. After one disconnect, openPorts remains positive and report can falsely imply an active connection.",
+      "fix_summary": "Guard connected() by per-Port session binding so each Port is counted at most once for one diagnostic nonce; add race and disconnect test.",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/browser/MpvPlayPageBridgeControllerTest.kt",
+      "recurrence_conditions": "START command executes after the content port has connected for the same active nonce, then the only Port disconnects."
+    },
+    {
+      "task_id": "ZC-MPV-PLAY-TRANSPORT-20261110",
+      "kind": "REVIEW",
+      "source_sha": "efea62184e780cc3ac50261eff3175ebd0885391",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/efea62184e780cc3ac50261eff3175ebd0885391"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING",
+      "id": "ERR-20261110-MPV-PLAY-REVIEW-STOP-RESTART",
+      "fingerprint": "diagnostic_stopped_id_suppresses_reconnect_after_new_start",
+      "summary": "A STOP records stoppedId indefinitely; after a new START in the same document, onDisconnect checks the old stoppedId and does not retry, leaving the new session without page transport.",
+      "fix_summary": "Capture active-session retry eligibility before stop() on disconnect, preserving explicit STOP suppression but allowing bounded reconnect for a newly opted-in session.",
+      "regression_test": "app/src/test/js/mpv-play-diagnostics-stage5.test.cjs",
+      "recurrence_conditions": "Start session A, STOP it, start session B in the same document and disconnect the content port during B."
     }
   ]
 }

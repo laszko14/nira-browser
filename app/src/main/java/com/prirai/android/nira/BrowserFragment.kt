@@ -1162,7 +1162,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                         "Dane strony są zbierane. Odtwórz problem i oznacz go."
                         else if (waiting)
                         "Oczekiwanie na potwierdzenie strony. Jeśli stan się nie zmieni, odśwież kartę."
-                        else "Brak potwierdzonej migawki strony. Odśwież kartę, wróć do testu i sprawdź stan; w ZIP znajdziesz kategorię błędu.",
+                        else "Brak potwierdzonej migawki strony. Odśwież kartę i rozpocznij nowy test; ZIP zawiera kategorię błędu.",
                         Toast.LENGTH_LONG).show()
                 }
             ))
