@@ -1,39 +1,36 @@
-# AI_HANDOFF — Zavro Clean stage 8/10 (HTML5 and site compatibility)
+# AI_HANDOFF — Zavro Clean stage 9/10 (full regression)
 
 Archive: `docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md`.
 
 ```yaml
-task_id: ZC-PREVIEW-COMPAT-8
+task_id: ZC-PREVIEW-COMPAT-9
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
-branch: feat/zavro-clean-preview-html5-stage8-20261110
-base_sha: 20fe4681be775d8108eabcf392bc558513971425
-observed_head_sha: 487dada2ea8cbf436df151c92f7801daa6cb2b0b
+branch: feat/zavro-clean-preview-regression-stage9-20261110
+base_sha: cff8ecaf65b5d78e103f6d8043035ee3c3adcd24
+observed_head_sha: cff8ecaf65b5d78e103f6d8043035ee3c3adcd24
 status: CI_PENDING
 acceptance_source: User authorized stages 7–10 and private signed update only after all required CI.
-completed: Stage7 SOURCE 42797481205 and PR 42797503257 SUCCESS on base SHA. Stage8 RED reproduced foreground unintended restart; content script fix and two regression tests pass. Full local JS 631/631 PASS.
-remaining: Verify final SOURCE and PR CI on stage8 documentation and error-ledger SHA; only then start stage9.
-required_ci: SOURCE process-docs, shared-tests JS, JVM/Robolectric, AndroidTest compile, lint/baseline, quality-evidence; PR Android CI integration on final source SHA.
-device: NOT_TESTED — no real affected site, GeckoView runtime or Nothing Phone (1).
+completed: Stage8 SOURCE 42799348761 and PR 42799376655 SUCCESS on base SHA. All six SOURCE jobs and five required PR jobs passed; PR release and build intentionally skipped. Stage9 local full JS 631/631, process tests 62/62 and error-learning validation PASS.
+remaining: Verify final SOURCE and PR CI on stage9 SHA. Only then start stage10.
+required_ci: SOURCE process-docs, shared-tests JS, JVM/Robolectric, AndroidTest compile, lint/baseline, quality-evidence; PR Android CI integration JS, JVM, AndroidTest compile, lint, error-learning evidence.
+device: NOT_TESTED — no physical Nothing Phone (1), real site or MPV Alpha runtime.
 apk: NOT_BUILT — authorized only after stage10 CODE_VERIFIED and update compatibility checks.
-known_failures: Historical preview and bg-play site/device reports remain OPEN pending runtime verification. Stage8 synthetic foreground recovery bug is FIXED in code/tests; CI pending.
-verification: Stage8 test RED 2 play calls instead of 1; GREEN targeted and full JS 631/631. Local Gradle wrapper download unavailable; JVM/Android/lint will be verified by CI. Manual self-review performed; no separate reviewer available.
+known_failures: Historical preview and bg-play site/device reports remain OPEN pending runtime verification; no new stage9 defect observed yet.
+verification: Stage8 six SOURCE and five required PR jobs SUCCESS. Stage9 local JS 631/631, process tests 62/62, error-learning 51 tasks / 215 events / 46 open. Final SOURCE and PR CI pending.
 changed_paths:
-  - app/src/main/assets/extensions/nira-bg-play/content.js
-  - app/src/test/js/preview-bgplay-stage5.test.cjs
-  - docs/ai/PREVIEW_COMPAT_STAGE8.md
+  - docs/ai/PREVIEW_COMPAT_STAGE9.md
   - docs/ai/ERROR_CASES.json
   - docs/AI_HANDOFF.md
 verified_before_push:
-  - Foreground pause and late recovery cannot restart a site player in synthetic production-script tests.
-  - Native hidden state still permits background recovery of prior playing full media.
-  - Full JavaScript suite and error-learning validation pass.
+  - Stage8 full JavaScript, JVM/Robolectric, AndroidTest compile and lint/baseline passed in SOURCE and PR CI.
+  - Stage8 foreground-recovery code-level regression is covered by synthetic production-script tests.
 blockers:
-  - Final SOURCE/PR CI pending; physical device and real site runtime unavailable.
+  - Stage9 final SOURCE/PR CI pending; physical device and real site runtime unavailable.
 evidence_links:
-  - https://github.com/laszko14/nira-browser/pull/136
-  - https://github.com/laszko14/nira-browser/actions/runs/42797481205
-  - https://github.com/laszko14/nira-browser/actions/runs/42797503257
-next_action: Verify stage8 final SOURCE and PR CI; repair any FAIL before starting stage9.
+  - https://github.com/laszko14/nira-browser/pull/137
+  - https://github.com/laszko14/nira-browser/actions/runs/42799348761
+  - https://github.com/laszko14/nira-browser/actions/runs/42799376655
+next_action: Verify stage9 final SOURCE and PR CI; repair any FAIL before starting stage10.
 ```
