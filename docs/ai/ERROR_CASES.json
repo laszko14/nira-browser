@@ -288,7 +288,7 @@
     },
     {
       "task_id": "ZC-MPV-PLAY-READY-20261110",
-      "observed_count": 1,
+      "observed_count": 2,
       "state": "ACTIVE"
     }
   ],
@@ -6681,9 +6681,37 @@
       "workflow_name": null,
       "cause_confidence": "suspected",
       "fix_summary": "Require content READY before START, bound resend to three attempts and expose typed receive/rejection counters in v2 transport ZIP. Real device outcome remains unknown.",
-      "test_result": "NOT_TESTED",
-      "final_ci": "PENDING",
+      "test_result": "PASS",
+      "final_ci": "SUCCESS",
       "recurrence_conditions": "A Gecko content port connects before its JS onMessage handler is ready, or inbound messages are silently rejected; one native START may lead to an unexplained NO_ACK."
+    },
+    {
+      "id": "ERR-20261110-MPV-PLAY-COMPILE-WAITING",
+      "task_id": "ZC-MPV-PLAY-READY-20261110",
+      "kind": "CI_FAILURE",
+      "fingerprint": "mpv_play_status_menu_undefined_waiting_compile_error",
+      "summary": "New menu status refactor removed waiting but left an old Toast branch using it; compileDebugKotlin failed with Unresolved reference 'waiting' in BrowserFragment.kt:1171.",
+      "source_sha": "524f0336aed707946f12981053e13d236753fe5b",
+      "observed_at": null,
+      "run_id": 42907185499,
+      "job_id": 130148242428,
+      "attempt": 1,
+      "cause": "production",
+      "state": "FIXED",
+      "duplicate_of": null,
+      "fix_sha": "eda220d50589c80fa1bf340565db37f0a0221e00",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/browser/MpvPlayPageBridgeControllerTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42907185499",
+        "https://github.com/laszko14/nira-browser/commit/eda220d50589c80fa1bf340565db37f0a0221e00"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": "Zavro AI process - documentation gate (NO APK)",
+      "cause_confidence": "confirmed",
+      "fix_summary": "Changed remaining Toast branch to derive waiting from active transport state; final SOURCE and PR Kotlin, lint and AndroidTest compilation passed at fix SHA.",
+      "test_result": "PASS",
+      "final_ci": "SUCCESS",
+      "recurrence_conditions": "Refactor MPV/Play diagnostic UI status variables without changing all uses in title and onClick Toast; the Kotlin compiler catches the stale identifier."
     }
   ]
 }

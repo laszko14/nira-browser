@@ -11,7 +11,7 @@ repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: feat/zavro-clean-mpv-play-diagnostics-stage1-20261110
 base_sha: c8b5fde894dedf784e49206a363de699512346b5
-observed_head_sha: c8b5fde894dedf784e49206a363de699512346b5
+observed_head_sha: eda220d50589c80fa1bf340565db37f0a0221e00
 status: CI_PENDING
 acceptance_source: User requested IMPLEMENT+VERIFY for MPV/Play diagnosis from original nine-file v1227 device ZIP, explicitly without a new APK.
 completed: Read all nine original ZIP files and GeckoView messaging API. Verified previous SOURCE 42896394644 and PR 42896407543 SUCCESS at base_sha. Previous signed v1227 42898317447 remotely verified. Added content listener READY handshake before native START, bounded retries, typed reject/receive metrics, v2 transport ZIP fields, compact menu states and JS/Kotlin regression fixtures.
@@ -19,8 +19,8 @@ remaining: Review diff; commit/push same active branch, verify final SOURCE proc
 required_ci: SOURCE process-docs and shared-tests JavaScript, Kotlin/Robolectric, AndroidTest compile, Android lint/regression baseline; PR shared-tests and error-learning on integration checkout.
 apk: EXISTING_VERIFIED_v1227; run 42898317447, artifact zavro-arm64-update-apk-v1227, versionCode 1227, versionName 0.5.22-alpha123-clean, arm64-v8a, unchanged certificate. Do not build new APK during this task.
 device: PREVIOUS_DIAGNOSTIC_FAILED; new handshake NOT_TESTED_ON_DEVICE.
-known_failures: v1227 ZIP session ~8s: port connected=1, START attempts=1, ACK=0, page events=0, rejected packets=0; transport NO_ACK. Counters formerly did not cover silently discarded message type or identity. Actual cause of device failure undetermined.
-verification: Pre-implementation baseline SOURCE/PR green. New code needs SOURCE and PR CI at final SHA. Real GeckoView runtime and physical device not available in CI.
+known_failures: v1227 ZIP had NO_ACK and zero page events; real device cause remains undetermined. Earlier SOURCE 42907185499 Kotlin compile failed due stale waiting reference in BrowserFragment; fixed at eda220d50589c80fa1bf340565db37f0a0221e00 with new SOURCE 42908087752 and PR 42908098437 SUCCESS.
+verification: SOURCE 42908087752 and PR 42908098437 SUCCESS on source SHA eda220d50589c80fa1bf340565db37f0a0221e00; this later incident-register/checkpoint commit requires a new exact-final-SHA SOURCE/PR confirmation. Real device remains NOT_TESTED.
 verified_before_push: Read exact live HEAD AGENTS.md, ACTIVE_CLEAN_LINE.md, AI_HANDOFF.md, STARTUP_PREFLIGHT.md, CHATGPT_PROJECT_INSTRUCTIONS.md, relevant V3.2 policies, PR 140, source checks, signed v1227 and original ZIP at source SHA.
 blockers: No access to physical device; no new signed APK requested.
 evidence_links:
@@ -28,6 +28,9 @@ evidence_links:
   - https://github.com/laszko14/nira-browser/actions/runs/42896394644
   - https://github.com/laszko14/nira-browser/actions/runs/42896407543
   - https://github.com/laszko14/nira-browser/actions/runs/42898317447
+  - https://github.com/laszko14/nira-browser/actions/runs/42907185499
+  - https://github.com/laszko14/nira-browser/actions/runs/42908087752
+  - https://github.com/laszko14/nira-browser/actions/runs/42908098437
 changed_paths:
   - app/src/main/java/com/prirai/android/nira/browser/MpvPlayPageBridgeController.kt
   - app/src/main/java/com/prirai/android/nira/browser/MpvPlayDiagnostics.kt
