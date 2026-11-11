@@ -321,7 +321,7 @@
     ,
     {
       "task_id": "ZC-MPV-PLAY-CONTROLS-V2-STAGE4-20261111",
-      "observed_count": 4,
+      "observed_count": 5,
       "state": "ACTIVE"
     }
   ],
@@ -7212,6 +7212,33 @@
       "test_result": "FAIL",
       "final_ci": "PENDING",
       "recurrence_conditions": "Use doubled backslashes before a slash inside an unquoted JavaScript regex literal so the slash closes it early and text becomes invalid flags."
+    },
+    {
+      "id": "ERR-20261111-MPV-PLAY-STALE-MARK",
+      "task_id": "ZC-MPV-PLAY-CONTROLS-V2-STAGE4-20261111",
+      "kind": "REGRESSION",
+      "fingerprint": "mpv_stage4_delayed_mark_uses_current_tab_instead_of_click_origin_nonce",
+      "summary": "MARK is executed 350ms after menu dismissal, but its previous lambda used whatever tab/profile was selected at callback time. A fast switch or restart could apply a delayed mark to another session.",
+      "source_sha": "b96d145c4ac80a7246961f53189013eb7ffe09b5",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/mpv-play-diagnostics-stage5.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/b96d145c4ac80a7246961f53189013eb7ffe09b5"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "fix_summary": "Capture owner profile, selected tab and diagnostic nonce synchronously at the click; revalidate all before delayed native capture. Hide MARK/PICK/STOP controls while a STOP confirmation is pending. Add structural regression; device orientation still unverified.",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "User taps MARK then changes tab/profile, rotates the activity, or ends and restarts the diagnostic before the 350ms native snapshot callback."
     }
   ]
 }

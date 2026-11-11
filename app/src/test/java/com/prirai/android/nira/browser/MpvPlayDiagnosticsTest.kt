@@ -367,6 +367,41 @@ class MpvPlayDiagnosticsTest {
             .getBoolean("diagnostics_complete"))
     }
 
+
+    @Test fun stage4BaselineAndRealPageEventsMustBothExistForCompleteEvidence() {
+        for (frame in listOf("TOP", "SUBFRAME")) {
+            val ledger = MpvPlayDiagnosticLedger(
+                "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "owner", "tab", null, "v", 0, 0)
+            val doc = "0123456789abcdef0123456789abcdef"
+            ledger.connected(0)
+            ledger.ready(1)
+            ledger.startSent(2)
+            assertTrue(ledger.startAck(JSONObject().put("schemaVersion", 2)
+                .put("event", "start_ack").put("sessionId", ledger.sessionId)
+                .put("documentId", doc).put("frame", frame), 3))
+            fun observation(sequence: Int, kind: String, detail: String): JSONObject =
+                JSONObject().put("schemaVersion", 2).put("event", "observation")
+                    .put("sessionId", ledger.sessionId).put("documentId", doc)
+                    .put("sequence", sequence).put("kind", kind)
+                    .put("target", if (kind == "MEDIA") "VIDEO" else "OTHER")
+                    .put("detail", detail)
+                    .put("metrics", JSONObject().put("frame", frame))
+            assertTrue(ledger.appendPageEvent(observation(1, "MEDIA", "BASELINE"), 4))
+            assertTrue(ledger.appendPageEvent(observation(2, "DOM", "SNAPSHOT_FINISHED"), 5))
+            assertEquals(frame == "TOP", ledger.topBaselineConfirmed)
+            assertFalse(ledger.pageEventsObserved)
+            assertTrue(ledger.appendPageEvent(observation(3, "EVENT", "ON_CLICK"), 6))
+            assertTrue(ledger.pageEventsObserved)
+            ledger.finish(7, 8, "STOPPED")
+            val files = archiveEntries(ledger.toZipBytes())
+            val analysis = JSONObject(files.getValue("analysis.json"))
+            assertEquals(frame == "TOP", analysis.getBoolean("diagnostics_complete"))
+            val coverage = JSONObject(files.getValue("page-coverage.json"))
+            assertEquals(frame == "TOP", coverage.getBoolean("top_frame_baseline_confirmed"))
+            assertTrue(coverage.getBoolean("page_events_observed"))
+        }
+    }
+
     @Test fun stage4UnconfirmedStopIsNeverReportedAsJsSuccess() {
         val ledger = MpvPlayDiagnosticLedger(
             "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "owner", "tab", null, "v", 0, 0)

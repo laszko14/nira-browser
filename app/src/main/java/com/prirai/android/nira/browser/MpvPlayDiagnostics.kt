@@ -82,8 +82,12 @@ internal class MpvPlayDiagnosticLedger(
     var stopPending = false
         private set
     val topBaselineConfirmed: Boolean get() = topBaselineSnapshots > 0
+    // A static MEDIA/BASELINE snapshot is not a real user or page event.
     val pageEventsObserved: Boolean get() = pageEvents.any {
-        it.optString("kind") in setOf("EVENT", "MEDIA", "MUTATION", "ERROR", "PICK")
+        val kind = it.optString("kind")
+        val detail = it.optString("detail")
+        kind in setOf("EVENT", "MUTATION", "ERROR", "PICK") ||
+            kind == "MEDIA" && detail.startsWith("ON_")
     }
     fun confirmedControls(): Map<String, Int> = controlConfirmed.toMap()
 
@@ -97,7 +101,7 @@ internal class MpvPlayDiagnosticLedger(
     fun requestStop(): Boolean {
         if (!active || stopPending) return false
         stopPending = true
-        entries.add(Entry(0, "stop_requested", "Awaiting bounded content STOP confirmation"))
+        entries.add(Entry(0L, "stop_requested", "Awaiting bounded content STOP confirmation"))
         return true
     }
 
@@ -473,8 +477,10 @@ internal class MpvPlayDiagnosticLedger(
         analysis.put("transport_stage", diagnosticStage())
         analysis.put("top_frame_baseline_confirmed", topBaselineConfirmed)
         analysis.put("page_events_observed", pageEventsObserved)
-        analysis.put("diagnostics_complete", transport == Transport.CAPTURING)
-        if (transport != Transport.CAPTURING) {
+        val complete = transport == Transport.CAPTURING &&
+            topBaselineConfirmed && pageEventsObserved
+        analysis.put("diagnostics_complete", complete)
+        if (!complete) {
             analysis.getJSONArray("missing_evidence").put("DIAGNOSTIC_TRANSPORT_INCOMPLETE")
         }
         val out = ByteArrayOutputStream()
@@ -606,6 +612,7 @@ internal object MpvPlayDiagnostics {
         val topBaseline: Boolean = false,
         val pageEventsObserved: Boolean = false,
         val stopPending: Boolean = false,
+        val stopWasRequested: Boolean = false,
         val stopAcknowledged: Boolean = false,
         val snapshotAcknowledged: Int = 0,
         val pickAcknowledged: Int = 0)
@@ -643,6 +650,7 @@ internal object MpvPlayDiagnostics {
             topBaseline = currentEvidence?.topBaselineConfirmed == true,
             pageEventsObserved = currentEvidence?.pageEventsObserved == true,
             stopPending = current?.stopPending == true,
+            stopWasRequested = currentEvidence?.stopPending == true,
             stopAcknowledged = (confirmations["stop"] ?: 0) > 0,
             snapshotAcknowledged = confirmations["snapshot"] ?: 0,
             pickAcknowledged = confirmations["pick"] ?: 0)

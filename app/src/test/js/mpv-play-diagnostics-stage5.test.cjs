@@ -285,6 +285,18 @@ test("final5: a restarted session restores bounded reconnect after an earlier ST
 });
 
 
+test("stage4: UI never treats send as confirmed and rejects stale delayed MARK", () => {
+  const fragment=read("app/src/main/java/com/prirai/android/nira/BrowserFragment.kt");
+  const native=read("app/src/main/java/com/prirai/android/nira/browser/MpvPlayPageBridgeController.kt");
+  assert.match(fragment,/stopWasRequested/);
+  assert.match(fragment,/!mpvState\.stopPending/);
+  assert.match(fragment,/clickedNonce/);
+  assert.match(fragment,/MARK ACK:/);
+  assert.match(fragment,/SENT_UNCONFIRMED/);
+  assert.match(native,/STOP_ACK_WAIT_MS = 600L/);
+  assert.match(native,/pendingControls\[port\]\?\.get\(controlId\) != action/);
+});
+
 test("stage4: control ACKs distinguish posted requests from executed JS actions", () => {
   const f=fixture();
   f.command("start");

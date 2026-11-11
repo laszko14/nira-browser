@@ -571,6 +571,18 @@ class MpvPlayPageBridgeControllerTest {
             handler.onPortMessage(receipt, port)
             handler.onPortMessage(receipt, port) // Never count a duplicate.
             assertEquals(1, MpvPlayDiagnostics.state().pickAcknowledged)
+            // Two separate MARK actions on the same document must each be
+            // authenticated by their own control ID, not just first ACK.
+            repeat(2) {
+                assertEquals(MpvPlayPageBridgeController.Delivery.SENT_UNCONFIRMED,
+                    controller.command(profile, tab.id, "snapshot"))
+                val posted = sent.last()
+                assertEquals("snapshot", posted.optString("action"))
+                handler.onPortMessage(JSONObject(receipt.toString())
+                    .put("action", "snapshot")
+                    .put("controlId", posted.getInt("controlId")), port)
+            }
+            assertEquals(2, MpvPlayDiagnostics.state().snapshotAcknowledged)
             assertEquals(MpvPlayPageBridgeController.Delivery.SENT_UNCONFIRMED,
                 controller.requestStop(profile, tab.id))
             assertTrue(MpvPlayDiagnostics.state().stopPending)
@@ -583,6 +595,8 @@ class MpvPlayPageBridgeControllerTest {
             assertFalse(MpvPlayDiagnostics.state().running)
             assertTrue(MpvPlayDiagnostics.state().reportReady)
             assertTrue(MpvPlayDiagnostics.state().stopAcknowledged)
+            assertTrue(MpvPlayDiagnostics.state().stopWasRequested)
+            assertEquals(2, MpvPlayDiagnostics.state().snapshotAcknowledged)
             assertEquals(1, MpvPlayDiagnostics.state().pickAcknowledged)
             assertEquals(MpvPlayPageBridgeController.Delivery.NOT_DELIVERED,
                 controller.requestStop(profile, tab.id))

@@ -1145,9 +1145,11 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         if (mpvState.running || mpvState.reportReady) {
             val confirmed = mpvState.topBaseline && mpvState.pageEventsObserved
             val statusText = when {
-                !mpvState.running -> if (mpvState.stopAcknowledged)
-                    "RAPORT GOTOWY • STOP JS POTWIERDZONY"
-                    else "RAPORT GOTOWY • STOP JS NIEPOTWIERDZONY"
+                !mpvState.running -> when {
+                    mpvState.stopAcknowledged -> "RAPORT GOTOWY • STOP JS POTWIERDZONY"
+                    mpvState.stopWasRequested -> "RAPORT GOTOWY • STOP JS NIEPOTWIERDZONY"
+                    else -> "RAPORT GOTOWY • BRAK STOP JS"
+                }
                 mpvState.stopPending -> "KOŃCZENIE • OCZEKIWANIE NA STOP ACK"
                 mpvState.failure != null &&
                     mpvState.failure != com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Failure.NONE ->
@@ -1175,9 +1177,13 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 onClick = {
                     val owner = activity ?: return@Action
                     val detail = when {
-                        !mpvState.running -> if (mpvState.stopAcknowledged)
-                            "Zakończono test. STOP potwierdzony przez JS."
-                            else "Zakończono zapis lokalny. STOP niepotwierdzony przez JS."
+                        !mpvState.running -> when {
+                            mpvState.stopAcknowledged ->
+                                "Zakończono test. STOP potwierdzony przez JS."
+                            mpvState.stopWasRequested ->
+                                "Zakończono zapis lokalny. STOP niepotwierdzony przez JS."
+                            else -> "Raport gotowy. Nie wysłano potwierdzonego STOP do JS."
+                        }
                         mpvState.stopPending ->
                             "Kończenie w toku; po ACK lub limicie 600 ms raport będzie gotowy."
                         confirmed ->
@@ -1230,16 +1236,33 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                     Toast.makeText(owner, message, Toast.LENGTH_LONG).show()
                 }
             ))
-        } else {
+        } else if (!mpvState.stopPending) {
             menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
                 id = "mpv_play_diagnostic_mark", title = "MPV / Play • OZNACZ PROBLEM",
                 iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_settings_24,
                 onClick = {
                     val owner = activity ?: return@Action
-                    // Let the browser menu disappear before sampling the native view tree.
+                    // Capture the exact owner and nonce before the delayed UI sample.
+                    // Rotation, profile switching or a new session must not mark
+                    // a different diagnostic after the menu closes.
+                    val clickedProfile = com.prirai.android.nira.browser.profile.ProfileManager
+                        .getInstance(owner).getActiveProfile().id
+                    val clickedTab = store.state.selectedTabId
+                    val clickedNonce = clickedTab?.let {
+                        mpvDiagnostics.sessionFor(clickedProfile, it)
+                    }
                     owner.window.decorView.postDelayed({
                         if (!isAdded || !isResumed || owner.isFinishing || owner.isDestroyed) return@postDelayed
                         val manager = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(owner)
+                        if (clickedTab == null || clickedNonce == null ||
+                            manager.isPrivateMode() ||
+                            manager.getActiveProfile().id != clickedProfile ||
+                            store.state.selectedTabId != clickedTab ||
+                            mpvDiagnostics.sessionFor(clickedProfile, clickedTab) != clickedNonce) {
+                            Toast.makeText(owner, "Karta lub sesja zmieniona; nie zapisano znacznika.",
+                                Toast.LENGTH_LONG).show()
+                            return@postDelayed
+                        }
                         val current = store.state.tabs.find { it.id == store.state.selectedTabId }
                         val allowed = !manager.isPrivateMode() && current != null &&
                             com.prirai.android.nira.browser.profile.ProfileTabScope
