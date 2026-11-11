@@ -644,7 +644,7 @@ internal class MpvPlayPageBridgeController(
     }
 
     companion object {
-        internal const val EXPECTED_SCRIPT_VERSION = "1.0.4"
+        internal const val EXPECTED_SCRIPT_VERSION = "1.0.5"
         private val SCRIPT_VERSION_PATTERN = Regex("[0-9]{1,3}(\\.[0-9]{1,3}){1,2}")
         private const val EXTENSION_ID = "zavro-preview-diagnostics@prirai.android.nira"
         private const val NATIVE_APP = "zavro.preview.forensics"

@@ -46,6 +46,9 @@ internal class MpvPlayDiagnosticLedger(
         const val MAX_SNAPSHOT_CHARS = 12_000
         const val MAX_ARCHIVE_BYTES = 512 * 1024
         const val MAX_PAGE_EVENTS = 160
+        // Leave a guaranteed slice for a late top-frame baseline.
+        const val MAX_SUBFRAME_EVENTS = 96
+        const val MAX_PER_SUBFRAME_EVENTS = 24
         const val MAX_PAGE_PACKET_CHARS = 2_300
     }
 
@@ -55,6 +58,9 @@ internal class MpvPlayDiagnosticLedger(
     private val pageEvents = mutableListOf<JSONObject>()
     private val lastSequence = mutableMapOf<String, Int>()
     private var pageRejected = 0
+    private var acceptedSubframeEvents = 0
+    private var droppedSubframeFairness = 0
+    private val subframeCounts = mutableMapOf<String, Int>()
     // Real Gecko installed-addon snapshot, collected only during an explicit
     // session. It is NOT proof that a script executed on the target website.
     private var addonInventory = MpvPlayAddonEvidence.unknown()
@@ -351,14 +357,15 @@ internal class MpvPlayDiagnosticLedger(
                 "OTHER", "UNKNOWN") ||
             detail !in setOf("BASELINE", "USER_MARK", "PICKED_ELEMENT",
                 "ATTRIBUTE_STATE", "SNAPSHOT_FINISHED", "VIDEO_STATE",
-                "ON_POINTERDOWN", "ON_POINTEROVER", "ON_CLICK",
-                "ON_PLAY", "ON_PAUSE", "ON_LOADEDMETADATA", "ON_ERROR",
+                "ON_POINTERDOWN", "ON_POINTEROVER", "ON_TOUCHSTART", "ON_CLICK",
+                "ON_PLAY", "ON_PAUSE", "ON_PLAYING", "ON_WAITING", "ON_STALLED",
+                "ON_LOADEDMETADATA", "ON_ERROR",
                 "DOCUMENT_VISIBILITY", "ATTRIBUTE_STYLE", "ATTRIBUTE_CLASS",
                 "ATTRIBUTE_HIDDEN", "ATTRIBUTE_POSTER", "ATTRIBUTE_SRC",
                 "ATTRIBUTE_CONTROLS", "ATTRIBUTE_AUTOPLAY", "ATTRIBUTE_ROLE",
-                "ATTRIBUTE_BATCH", "NODES_ADDED", "PROMISE_REJECTION",
-                "JS_ERROR", "USER_SELECTED", "DOM_UNAVAILABLE",
-                "SCAN_LIMIT", "EVENT_LIMIT")) return reject()
+                "ATTRIBUTE_BATCH", "NODES_ADDED", "NODE_INSERTED",
+                "PROMISE_REJECTION", "JS_ERROR", "USER_SELECTED", "DOM_UNAVAILABLE",
+                "SCAN_LIMIT", "SHADOW_LIMIT", "EVENT_LIMIT")) return reject()
         val metrics = message.optJSONObject("metrics") ?: return reject()
         if (metrics.optString("frame") != expectedFrame) return reject()
         if (metrics.length() > 16) return reject()
@@ -366,10 +373,10 @@ internal class MpvPlayDiagnosticLedger(
             "muted", "autoplay", "controls", "loop", "duration", "currentTime", "errorCode",
             "width", "height", "x", "y", "z", "display", "visibility", "pointerEvents",
             "poster", "preload", "playsInline", "dropped", "count", "node", "parent",
-            "hasId", "hasClass", "hasAria", "playHint", "helperMarker")
+            "hasId", "hasClass", "hasAria", "playHint", "previewHint", "helperMarker")
         val bools = setOf("shadow", "paused", "muted", "autoplay", "controls",
             "loop", "poster", "playsInline", "hasId", "hasClass", "hasAria",
-            "playHint", "helperMarker")
+            "playHint", "previewHint", "helperMarker")
         val enums = mapOf(
             "frame" to setOf("TOP", "SUBFRAME"),
             "display" to setOf("NONE", "BLOCK", "INLINE", "INLINE_BLOCK",
@@ -392,7 +399,17 @@ internal class MpvPlayDiagnosticLedger(
                 else -> return reject()
             }
         }
+        if (expectedFrame == "SUBFRAME" &&
+            (acceptedSubframeEvents >= MAX_SUBFRAME_EVENTS ||
+             (subframeCounts[documentId] ?: 0) >= MAX_PER_SUBFRAME_EVENTS)) {
+            droppedSubframeFairness++
+            return reject()
+        }
         if (pageEvents.size >= MAX_PAGE_EVENTS) return reject()
+        if (expectedFrame == "SUBFRAME") {
+            acceptedSubframeEvents++
+            subframeCounts[documentId] = (subframeCounts[documentId] ?: 0) + 1
+        }
         lastSequence[documentId] = sequence
         val received = receivedMs.coerceAtLeast(0L)
         pageEvents.add(JSONObject().apply {
@@ -412,6 +429,14 @@ internal class MpvPlayDiagnosticLedger(
             failure = Failure.NONE
         }
         return true
+    }
+
+    private fun frameCoverage(): String = when {
+        acknowledgedFrames.values.any { it == "TOP" } &&
+            acknowledgedFrames.values.any { it == "SUBFRAME" } -> "TOP_AND_SOME_SUBFRAMES"
+        acknowledgedFrames.values.any { it == "TOP" } -> "TOP_ONLY_CONFIRMED"
+        acknowledgedFrames.values.any { it == "SUBFRAME" } -> "SUBFRAMES_ONLY_CONFIRMED"
+        else -> "NOT_CONFIRMED"
     }
 
     fun recordAddons(installed: Set<String>?, originAllowed: Boolean?): Boolean {
@@ -444,6 +469,9 @@ internal class MpvPlayDiagnosticLedger(
             put("page_events", pageEvents.size)
             put("page_rejected", pageRejected)
             put("iframe_capture", "PERMITTED_HTTP_FRAMES_ONLY")
+            put("frame_coverage", frameCoverage())
+            put("subframe_events_accepted", acceptedSubframeEvents)
+            put("subframe_events_limited", droppedSubframeFairness)
             put("shadow_dom", "OPEN_ROOTS_BOUNDED")
             put("network_capture", "NOT_CAPTURED_STAGE4")
             put("addon_inventory_scope", "INSTALLED_ADDONS_NOT_PAGE_SCRIPT_EXECUTION")
@@ -477,12 +505,24 @@ internal class MpvPlayDiagnosticLedger(
         analysis.put("transport_stage", diagnosticStage())
         analysis.put("top_frame_baseline_confirmed", topBaselineConfirmed)
         analysis.put("page_events_observed", pageEventsObserved)
-        val complete = transport == Transport.CAPTURING &&
-            topBaselineConfirmed && pageEventsObserved
-        analysis.put("diagnostics_complete", complete)
-        if (!complete) {
-            analysis.getJSONArray("missing_evidence").put("DIAGNOSTIC_TRANSPORT_INCOMPLETE")
+        val scanTruncated = pageEvents.any {
+            it.optString("kind") == "GAP" &&
+                it.optString("detail") in setOf("EVENT_LIMIT", "SCAN_LIMIT", "SHADOW_LIMIT")
         }
+        val complete = transport == Transport.CAPTURING &&
+            topBaselineConfirmed && pageEventsObserved &&
+            pageEvents.size < MAX_PAGE_EVENTS && droppedSubframeFairness == 0 &&
+            !scanTruncated
+        analysis.put("diagnostics_complete", complete)
+        val missing = analysis.getJSONArray("missing_evidence")
+        if (transport != Transport.CAPTURING)
+            missing.put("DIAGNOSTIC_TRANSPORT_INCOMPLETE")
+        if (!topBaselineConfirmed) missing.put("TOP_FRAME_BASELINE_MISSING")
+        if (!pageEventsObserved) missing.put("NO_INTERACTION_OR_MEDIA_EVENTS")
+        if (droppedSubframeFairness > 0)
+            missing.put("SUBFRAME_BUDGET_TRUNCATION")
+        if (scanTruncated || pageEvents.size >= MAX_PAGE_EVENTS)
+            missing.put("BOUNDED_OBSERVATION_TRUNCATED")
         val out = ByteArrayOutputStream()
         ZipOutputStream(out).use { zip ->
             fun add(name: String, data: String) {
@@ -501,6 +541,14 @@ internal class MpvPlayDiagnosticLedger(
                 put("schema", "zavro-mpv-play-coverage-v2")
                 put("snapshot", "STRUCTURE_AND_STATE_NOT_RAW_HTML")
                 put("frame_access", "HTTP_FRAMES_WITH_EXTENSION_ACCESS")
+                put("frame_coverage", frameCoverage())
+                put("cross_origin_iframe_coverage", "UNVERIFIED_PER_IFRAME")
+                put("about_blank_injected", false)
+                put("closed_shadow_roots_observed", false)
+                put("open_shadow_roots", "BOUNDED_OBSERVATION_ONLY")
+                put("subframe_events_accepted", acceptedSubframeEvents)
+                put("subframe_events_limited", droppedSubframeFairness)
+                put("top_event_budget_reserved", MAX_PAGE_EVENTS - MAX_SUBFRAME_EVENTS)
                 put("shadow_dom", "OPEN_ROOTS_ONLY")
                 put("javascript", "EVENT_TYPES_NO_SOURCE_OR_STACKS")
                 put("video_play_promise", "UNHANDLED_REJECTION_ONLY")
@@ -531,6 +579,10 @@ internal class MpvPlayDiagnosticLedger(
                 put("frames_acknowledged", acknowledgedFrames.size)
                 put("top_frame_acknowledged", acknowledgedFrames.values.any { it == "TOP" })
                 put("subframes_acknowledged", acknowledgedFrames.values.count { it == "SUBFRAME" })
+                put("frame_coverage", frameCoverage())
+                put("subframe_events_accepted", acceptedSubframeEvents)
+                put("subframe_events_limited", droppedSubframeFairness)
+                put("top_event_budget_reserved", MAX_PAGE_EVENTS - MAX_SUBFRAME_EVENTS)
                 put("page_events_accepted", pageEvents.size)
                 put("top_frame_baseline_confirmed", topBaselineConfirmed)
                 put("page_events_observed", pageEventsObserved)

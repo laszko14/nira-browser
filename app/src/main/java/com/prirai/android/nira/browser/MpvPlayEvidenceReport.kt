@@ -13,7 +13,9 @@ internal object MpvPlayEvidenceReport {
         "SITE_PLAY_LABEL_HINT", "HTML5_CONTROLS_PRESENT",
         "PREVIEW_ASSIST_MARKER_PRESENT", "BGPLAY_PATCH_POSSIBLE",
         "PLAY_EVENT_OBSERVED", "JAVASCRIPT_ERROR_OBSERVED",
-        "SUBFRAME_OBSERVED", "VIDEO_POSTER_PRESENT"
+        "SUBFRAME_OBSERVED", "VIDEO_POSTER_PRESENT",
+        "OPEN_SHADOW_OBSERVED", "VIDEO_PLAYING_EVENT", "PREVIEW_WAITING_EVENT",
+        "DECLARED_PREVIEW_ATTRIBUTE_OBSERVED"
     )
 
     fun build(pageEvents: List<JSONObject>, marks: Int, rejected: Int,
@@ -24,6 +26,8 @@ internal object MpvPlayEvidenceReport {
         var video = 0
         var errors = 0
         var eventLimit = false
+        var shadowLimit = false
+        var scanLimit = false
         var manualSnapshots = 0
         val documents = linkedSetOf<String>()
         pageEvents.forEach { item ->
@@ -36,6 +40,13 @@ internal object MpvPlayEvidenceReport {
             val frame = m.optString("frame")
             if (frame == "TOP" || frame == "SUBFRAME") frames.add(frame)
             if (frame == "SUBFRAME") hints.add("SUBFRAME_OBSERVED")
+            if (m.optBoolean("shadow", false)) hints.add("OPEN_SHADOW_OBSERVED")
+            if (m.optBoolean("previewHint", false))
+                hints.add("DECLARED_PREVIEW_ATTRIBUTE_OBSERVED")
+            if (detail == "ON_PLAYING" && target == "VIDEO")
+                hints.add("VIDEO_PLAYING_EVENT")
+            if (detail == "ON_WAITING" && target == "VIDEO")
+                hints.add("PREVIEW_WAITING_EVENT")
             if (kind == "PICK" && detail == "USER_SELECTED") picked++
             if (detail == "USER_MARK") manualSnapshots++
             if (kind == "MEDIA" && target == "VIDEO") video++
@@ -44,6 +55,8 @@ internal object MpvPlayEvidenceReport {
                 hints.add("JAVASCRIPT_ERROR_OBSERVED")
             }
             if (kind == "GAP" && detail == "EVENT_LIMIT") eventLimit = true
+            if (kind == "GAP" && detail == "SHADOW_LIMIT") shadowLimit = true
+            if (kind == "GAP" && detail == "SCAN_LIMIT") scanLimit = true
             if (kind == "DOM" && target in setOf("BUTTON", "A") &&
                 m.optBoolean("playHint", false)) hints.add("SITE_PLAY_LABEL_HINT")
             if (kind == "MEDIA" && target == "VIDEO") {
@@ -65,11 +78,15 @@ internal object MpvPlayEvidenceReport {
         if (addonInventory.optString("evidence") != "GECKO_INSTALLED_LIST")
             gaps.add("ADDON_INVENTORY_UNAVAILABLE")
         if (rejected > 0) gaps.add("REJECTED_PAGE_PACKETS")
+        if (shadowLimit) gaps.add("OPEN_SHADOW_ROOT_LIMIT_REACHED")
+        if (scanLimit) gaps.add("BOUNDED_DOM_SCAN_LIMIT_REACHED")
         if (eventLimit || pageEvents.size >= MpvPlayDiagnosticLedger.MAX_PAGE_EVENTS)
             gaps.add("PAGE_EVENT_LIMIT_REACHED")
         // Coverage of closed Shadow DOM, permission-restricted frames, and site-
         // handled play() rejections cannot be proven from this protocol.
         gaps.add("INACCESSIBLE_DOM_NOT_EXCLUDED")
+        gaps.add("CLOSED_SHADOW_ROOTS_NOT_OBSERVABLE")
+        gaps.add("CROSS_ORIGIN_FRAME_COVERAGE_UNVERIFIED")
         gaps.add("CAUGHT_PLAY_REJECTIONS_NOT_OBSERVED")
         gaps.add("REAL_SITE_REPRO_NOT_VERIFIED")
         val actions = linkedSetOf<String>()
@@ -94,6 +111,10 @@ internal object MpvPlayEvidenceReport {
             put("script_errors", errors)
             put("rejected_packets", rejected)
             put("event_limit", eventLimit)
+            put("open_shadow_limit", shadowLimit)
+            put("dom_scan_limit", scanLimit)
+            put("observation_isolation", "EXTENSION_ISOLATED_WORLD")
+            put("causal_attribution", "NOT_PROVEN_BY_EVENT_TYPES")
             put("hints", JSONArray(hintOrder.filter { it in hints }))
             put("missing_evidence", JSONArray(gaps.toList()))
             put("recommended_checks", JSONArray(actions.toList()))
@@ -109,7 +130,7 @@ internal object MpvPlayEvidenceReport {
                 .ifEmpty { "BRAK" }
         }
         return listOf(
-            "ZAVRO CLEAN — RAPORT DIAGNOSTYCZNY PLAY (ETAP 4/5)",
+            "ZAVRO CLEAN — RAPORT DIAGNOSTYCZNY PLAY (ETAP 5/6)",
             "WYNIK: NIE USTALONO ŹRÓDŁA PRZYCISKU PLAY.",
             "Wskazówki są obserwacjami, nie dowodami przyczynowymi.",
             "Stan zbierania: ${data.optString("transport_state", "UNKNOWN")}; przyczyna: ${data.optString("transport_failure", "NONE")}.",
@@ -118,7 +139,8 @@ internal object MpvPlayEvidenceReport {
             "Brakujące dowody i ograniczenia: ${values("missing_evidence")}",
             "Następne kroki: ${values("recommended_checks")}",
             "Zainstalowany dodatek nie oznacza jego uruchomienia na stronie.",
-            "Ruchome miniatury i zewnętrzne MPV Alpha nie zostały zmienione.",
+            "Obserwacja dostępnych ramek i otwartych Shadow DOM jest ograniczona; zamknięte korzenie i nieuprawnione ramki pozostają poza zasięgiem.",
+            "Ruchome miniatury, ich odtwarzanie i zewnętrzne MPV Alpha nie zostały zmienione.",
             "Szczegółowe, filtrowane zdarzenia znajdują się w page-events.json."
         ).joinToString("\n", postfix = "\n")
     }

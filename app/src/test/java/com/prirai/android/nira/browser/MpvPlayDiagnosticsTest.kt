@@ -420,6 +420,62 @@ class MpvPlayDiagnosticsTest {
             .getBoolean("top_frame_baseline_confirmed"))
     }
 
+
+    @Test fun stage5SubframeFairnessReservesTopEvidenceAndReportsTruncation() {
+        val ledger = MpvPlayDiagnosticLedger(
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "owner", "tab", null, "v", 0, 0)
+        val topDoc = "abcdefabcdefabcdefabcdefabcdefab"
+        ledger.connected()
+        ledger.ready(0)
+        ledger.startSent(1)
+        fun ack(doc: String, frame: String) = JSONObject()
+            .put("schemaVersion", 2).put("event", "start_ack")
+            .put("sessionId", ledger.sessionId).put("documentId", doc)
+            .put("frame", frame)
+        fun event(doc: String, frame: String, seq: Int,
+                  kind: String = "DOM", detail: String = "BASELINE") = JSONObject()
+            .put("schemaVersion", 2).put("event", "observation")
+            .put("sessionId", ledger.sessionId).put("documentId", doc)
+            .put("sequence", seq).put("kind", kind)
+            .put("target", if (kind == "EVENT") "BUTTON" else "OTHER")
+            .put("detail", detail).put("metrics", JSONObject().put("frame", frame))
+        assertTrue(ledger.startAck(ack(topDoc,"TOP"), 2))
+        val subs=(1..5).map { it.toString(16).padStart(32,'0') }
+        subs.forEach { assertTrue(ledger.startAck(ack(it,"SUBFRAME"), 3)) }
+        // No single subframe can consume more than 24 events.
+        for (doc in subs.take(4)) repeat(24) { index ->
+            assertTrue("document $doc seq ${index+1}",
+                ledger.appendPageEvent(event(doc,"SUBFRAME",index+1), index.toLong()+4))
+        }
+        assertFalse(ledger.appendPageEvent(event(subs[0],"SUBFRAME",25), 40))
+        assertFalse(ledger.appendPageEvent(event(subs[4],"SUBFRAME",1), 41))
+        // A TOP baseline arriving after the noisy subframes still gets room.
+        assertTrue(ledger.appendPageEvent(event(topDoc,"TOP",1,
+            "DOM","SNAPSHOT_FINISHED"),42))
+        assertTrue(ledger.appendPageEvent(event(topDoc,"TOP",2,
+            "EVENT","ON_CLICK"),43))
+        assertTrue(ledger.topBaselineConfirmed)
+        assertTrue(ledger.pageEventsObserved)
+        ledger.finish(44,45,"STOPPED")
+        val files=archiveEntries(ledger.toZipBytes())
+        val transport=JSONObject(files.getValue("transport.json"))
+        val coverage=JSONObject(files.getValue("page-coverage.json"))
+        val analysis=JSONObject(files.getValue("analysis.json"))
+        assertEquals(98,transport.getInt("page_events_accepted"))
+        assertEquals(96,transport.getInt("subframe_events_accepted"))
+        assertEquals(2,transport.getInt("subframe_events_limited"))
+        assertEquals(64,transport.getInt("top_event_budget_reserved"))
+        assertEquals("TOP_AND_SOME_SUBFRAMES",
+            coverage.getString("frame_coverage"))
+        assertEquals("UNVERIFIED_PER_IFRAME",
+            coverage.getString("cross_origin_iframe_coverage"))
+        assertFalse(coverage.getBoolean("about_blank_injected"))
+        assertFalse(coverage.getBoolean("closed_shadow_roots_observed"))
+        assertFalse(analysis.getBoolean("diagnostics_complete"))
+        assertTrue(analysis.getJSONArray("missing_evidence")
+            .toString().contains("SUBFRAME_BUDGET_TRUNCATION"))
+    }
+
     @Test fun privateTabBlockedAndProfileIsolationAndGateConflict() {
         MpvPlayDiagnostics.discard()
         try {

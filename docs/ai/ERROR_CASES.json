@@ -324,6 +324,12 @@
       "observed_count": 5,
       "state": "ACTIVE"
     }
+    ,
+    {
+      "task_id": "ZC-MPV-PLAY-OBSERVABILITY-STAGE5-20261111",
+      "observed_count": 3,
+      "state": "ACTIVE"
+    }
   ],
   "events": [
     {
@@ -7239,6 +7245,87 @@
       "test_result": "NOT_TESTED",
       "final_ci": "PENDING",
       "recurrence_conditions": "User taps MARK then changes tab/profile, rotates the activity, or ends and restarts the diagnostic before the 350ms native snapshot callback."
+    },
+    {
+      "id": "ERR-20261111-MPV-PLAY-SHADOW-MEDIA",
+      "task_id": "ZC-MPV-PLAY-OBSERVABILITY-STAGE5-20261111",
+      "kind": "REGRESSION",
+      "fingerprint": "mpv_play_diagnostics_open_shadow_media_events_not_listened",
+      "summary": "The existing diagnostic listened only on document, missing non-composed play/pause on videos in open Shadow DOM and new shadow roots inserted during capture.",
+      "source_sha": "f4f7d9e9673d9cba5a1af9ac1b054ec9d9b61f96",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/mpv-play-diagnostics-stage5.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/f4f7d9e9673d9cba5a1af9ac1b054ec9d9b61f96"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "fix_summary": "Register bounded listeners and a shared MutationObserver on discovered open roots; deduplicate composed events by identity; sample new video/preview nodes and remove listeners on STOP.",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "The existing diagnostic listened only on document, missing non-composed play/pause on videos in open Shadow DOM and new shadow roots inserted during capture."
+    },
+    {
+      "id": "ERR-20261111-MPV-PLAY-FRAME-FAIRNESS",
+      "task_id": "ZC-MPV-PLAY-OBSERVABILITY-STAGE5-20261111",
+      "kind": "REGRESSION",
+      "fingerprint": "mpv_play_diagnostics_subframe_event_spam_starves_top_baseline",
+      "summary": "The 160-record global Kotlin ledger admitted all events from a busy subframe, potentially rejecting the main-frame baseline or subsequent user interactions.",
+      "source_sha": "f4f7d9e9673d9cba5a1af9ac1b054ec9d9b61f96",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/java/com/prirai/android/nira/browser/MpvPlayDiagnosticsTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/f4f7d9e9673d9cba5a1af9ac1b054ec9d9b61f96"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "fix_summary": "Cap subframe acceptance at 96 total and 24 per document, reserve at least 64 slots for TOP, and report rejected/truncated coverage without claiming full diagnostics.",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "The 160-record global Kotlin ledger admitted all events from a busy subframe, potentially rejecting the main-frame baseline or subsequent user interactions."
+    },
+    {
+      "id": "ERR-20261111-MPV-PLAY-PREVIEW-HINTS",
+      "task_id": "ZC-MPV-PLAY-OBSERVABILITY-STAGE5-20261111",
+      "kind": "REGRESSION",
+      "fingerprint": "mpv_play_diagnostics_thumbnail_hover_and_inaccessible_dom_have_no_distinct_evidence",
+      "summary": "The probe ignored hover/touch on preview-marked DIV cards, did not sample inserted preview candidates, and its ZIP did not explicitly separate observed frames/open roots from inaccessible frames/closed roots.",
+      "source_sha": "f4f7d9e9673d9cba5a1af9ac1b054ec9d9b61f96",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/java/com/prirai/android/nira/browser/MpvPlayEvidenceReportTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/f4f7d9e9673d9cba5a1af9ac1b054ec9d9b61f96"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "fix_summary": "Observe preview-marker attribute existence and typed hover/touch/media events without reading URLs, add explicit unknown frame and closed-root coverage, preserve playback and native MPV paths.",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "The probe ignored hover/touch on preview-marked DIV cards, did not sample inserted preview candidates, and its ZIP did not explicitly separate observed frames/open roots from inaccessible frames/closed roots."
     }
   ]
 }

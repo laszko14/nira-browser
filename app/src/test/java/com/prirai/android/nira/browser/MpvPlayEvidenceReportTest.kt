@@ -165,7 +165,7 @@ class MpvPlayEvidenceReportTest {
         repeat(MpvPlayDiagnosticLedger.MAX_PAGE_EVENTS) { index ->
             assertTrue("Could not accept event $index",
                 ledger.appendPageEvent(packet(index + 1, "MEDIA", "VIDEO", "BASELINE",
-                    JSONObject().put("frame", "SUBFRAME").put("readyState", 3)
+                    JSONObject().put("frame", "TOP").put("readyState", 3)
                         .put("networkState", 2).put("controls", true)
                         .put("helperMarker", true).put("paused", false)
                         .put("poster", true).put("currentTime", 14)
@@ -184,6 +184,32 @@ class MpvPlayEvidenceReportTest {
             .toString().contains("PAGE_EVENT_LIMIT_REACHED"))
         assertFalse(parts.getValue("page-events.json").contains("example.test"))
         assertEquals(9, parts.keys.size)
+    }
+
+
+    @Test fun stage5OpenShadowAndMovingPreviewHintsNeverProveCausality() {
+        val ledger = MpvPlayDiagnosticLedger(token, "p", "t", null, "v", 0, 0)
+        ready(ledger)
+        assertTrue(ledger.appendPageEvent(packet(1,"MEDIA","VIDEO","ON_PLAYING",
+            JSONObject().put("frame","TOP").put("shadow",true)
+                .put("previewHint",true)),1))
+        assertTrue(ledger.appendPageEvent(packet(2,"MEDIA","VIDEO","ON_WAITING",
+            JSONObject().put("frame","TOP").put("shadow",true)),2))
+        assertTrue(ledger.appendPageEvent(packet(3,"GAP","OTHER","SHADOW_LIMIT"),3))
+        ledger.finish(4,4,"STOPPED")
+        val analysis = JSONObject(zip(ledger).getValue("analysis.json"))
+        assertEquals("UNDETERMINED",analysis.getString("diagnosis"))
+        assertEquals("UNKNOWN",analysis.getString("play_owner"))
+        val hints=analysis.getJSONArray("hints").toString()
+        assertTrue(hints.contains("OPEN_SHADOW_OBSERVED"))
+        assertTrue(hints.contains("DECLARED_PREVIEW_ATTRIBUTE_OBSERVED"))
+        assertTrue(hints.contains("VIDEO_PLAYING_EVENT"))
+        assertTrue(hints.contains("PREVIEW_WAITING_EVENT"))
+        val gaps=analysis.getJSONArray("missing_evidence").toString()
+        assertTrue(gaps.contains("OPEN_SHADOW_ROOT_LIMIT_REACHED"))
+        assertTrue(gaps.contains("CLOSED_SHADOW_ROOTS_NOT_OBSERVABLE"))
+        assertTrue(gaps.contains("CROSS_ORIGIN_FRAME_COVERAGE_UNVERIFIED"))
+        assertFalse(analysis.getBoolean("diagnostics_complete"))
     }
 
     @Test fun final5RejectsUntrustedMetadataEvenWhenItLooksLikeAnEnum() {

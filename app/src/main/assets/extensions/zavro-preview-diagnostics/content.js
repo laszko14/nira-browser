@@ -6,14 +6,33 @@
 (function () {
   "use strict";
   const APP = "zavro.preview.forensics";
-  const SCRIPT_VERSION = "1.0.4"; // Must match manifest and native handshake.
-  const MAX_EVENTS = 160, MAX_NODES = 40, MAX_ROOTS = 6, MAX_DURATION = 15 * 60 * 1000;
+  const SCRIPT_VERSION = "1.0.5"; // Must match manifest and native handshake.
+  const MAX_EVENTS = 160, MAX_NODES = 40, MAX_SUBFRAME_NODES = 16;
+  const MAX_ROOTS = 6, MAX_INSERTED_SCAN = 48, MAX_INSERTED_SAMPLES = 3;
+  const MAX_DURATION = 15 * 60 * 1000;
+  const PAGE_EVENTS = ["pointerdown","pointerover","touchstart","click",
+    "play","pause","playing","waiting","stalled","loadedmetadata","error"];
+  const MUTATION_CONFIG = {subtree:true,childList:true,attributes:true,
+    attributeFilter:["style","class","hidden","poster","src","controls","autoplay","role"]};
   const sessionPattern = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
   const metricsKeys = new Set(["frame","shadow","readyState","networkState","paused",
     "muted","autoplay","controls","loop","duration","currentTime","errorCode","width",
     "height","x","y","z","display","visibility","pointerEvents","poster","preload",
-    "playsInline","dropped","count","node","parent","hasId","hasClass","hasAria","playHint","helperMarker"]);
-  const monitored = "video,button,[role='button'],a,iframe,source";
+    "playsInline","dropped","count","node","parent","hasId","hasClass","hasAria","playHint","previewHint","helperMarker"]);
+  const PREVIEW_ATTRS = ["data-preview-video","data-preview-src",
+    "data-preview-url","data-video-preview","data-trailer","data-hover-video"];
+  const monitored = "video,button,[role='button'],a,iframe,source," +
+    PREVIEW_ATTRS.map(a=>`[${a}]`).join(",");
+  // Only test attribute existence. Never read the preview media URL.
+  function isPreviewCandidate(node) {
+    let current = node;
+    for (let depth=0; current && depth<4; depth++,current=current.parentElement) {
+      try {
+        if (PREVIEW_ATTRS.some(name=>current.hasAttribute?.(name))) return true;
+      } catch (_) {}
+    }
+    return false;
+  }
   const allowedDisplay = new Set(["NONE","BLOCK","INLINE","INLINE_BLOCK","FLEX","GRID","CONTENTS","OTHER"]);
   const allowedVisibility = new Set(["VISIBLE","HIDDEN","COLLAPSE","OTHER"]);
   const allowedPointer = new Set(["AUTO","NONE","OTHER"]);
@@ -26,6 +45,7 @@
   let stoppedId = null;
   let lastActiveId = null;
   let elementIds = new WeakMap(), nextElementId = 0;
+  let shadowRoots = [], seenEvents = new WeakSet();
   function elementId(element) {
     if (!element || typeof element !== "object") return 0;
     if (!elementIds.has(element)) elementIds.set(element, ++nextElementId);
@@ -54,9 +74,10 @@
          "readyState","networkState","errorCode","duration","currentTime",
          "width","helperMarker","display","visibility"]
       : ["frame","node","parent","count","dropped","playHint","hasId",
-         "hasClass","hasAria","shadow","x","y","width","height",
+         "hasClass","hasAria","previewHint","shadow","x","y","width","height",
          "display","visibility"];
     for (const name of priority) {
+      if (Object.keys(clean).length >= 16) break;
       if (!metricsKeys.has(name) || !Object.prototype.hasOwnProperty.call(raw,name)) continue;
       const value = raw[name];
       if (typeof value === "boolean") clean[name] = value;
@@ -90,6 +111,7 @@
         hasId:!!node.id,hasClass:!!node.className,
         hasAria:!!node.hasAttribute?.("aria-label"),
         playHint:/\b(play|preview|odtw[oó]rz|start)\b/i.test(node.getAttribute?.("aria-label") || ""),
+        previewHint:isPreviewCandidate(node),
         x:safeNumber(box.x),y:safeNumber(box.y),width:safeNumber(box.width),
         height:safeNumber(box.height),z:safeNumber(Number(css.zIndex)),
         display:category(css.display,allowedDisplay),
@@ -112,29 +134,89 @@
     }
     send(node.tagName === "VIDEO" ? "MEDIA" : "DOM",targetName(node),reason,data);
   }
+  function observeOpenRoot(root) {
+    if (!active || !root || shadowRoots.includes(root)) return;
+    // Closed roots are intentionally inaccessible. Never patch attachShadow
+    // or execute code in the page world to discover them.
+    if (shadowRoots.length >= MAX_ROOTS - 1) {
+      send("GAP","OTHER","SHADOW_LIMIT",{count:shadowRoots.length});
+      return;
+    }
+    shadowRoots.push(root);
+    try {
+      for (const name of PAGE_EVENTS) listen(root,name,handler,true);
+      observer?.observe(root,MUTATION_CONFIG);
+    } catch (_) { send("GAP","OTHER","DOM_UNAVAILABLE",{}); }
+  }
   function snapshot(reason) {
     if (!active) return;
-    let count = 0, roots = [document], scanned = 0;
-    for (let index = 0; index < roots.length && count < MAX_NODES; index++) {
+    const perFrameMax = window.top === window ? MAX_NODES : MAX_SUBFRAME_NODES;
+    let count = 0, roots = [document], scanned = 0, limited = false;
+    for (let index = 0; index < roots.length; index++) {
       const root = roots[index];
       try {
-        for (const node of root.querySelectorAll(monitored)) {
-          if (count++ >= MAX_NODES) break;
-          snapshotElement(node,reason);
+        if (count < perFrameMax) {
+          for (const node of root.querySelectorAll(monitored)) {
+            if (count >= perFrameMax) { limited = true; break; }
+            snapshotElement(node,reason); count++;
+          }
         }
         const walker = document.createTreeWalker(root,NodeFilter.SHOW_ELEMENT);
         let element;
-        while ((element = walker.nextNode()) && scanned++ < 300 && roots.length < MAX_ROOTS) {
-          if (element.shadowRoot) roots.push(element.shadowRoot);
+        while ((element = walker.nextNode()) && scanned < 300) {
+          scanned++;
+          if (!element.shadowRoot || roots.includes(element.shadowRoot)) continue;
+          if (roots.length >= MAX_ROOTS) { limited = true; break; }
+          roots.push(element.shadowRoot);
+          observeOpenRoot(element.shadowRoot);
         }
+        if (scanned >= 300) limited = true;
       } catch (_) { send("GAP","OTHER","DOM_UNAVAILABLE",{}); }
     }
     send("DOM","OTHER","SNAPSHOT_FINISHED",{count,shadow:roots.length>1});
-    if (roots.length >= MAX_ROOTS || scanned >= 300 || count >= MAX_NODES)
+    if (limited || count >= perFrameMax)
       send("GAP","OTHER","SCAN_LIMIT",{count});
   }
+  // Sample a new element (including descendants and open shadow roots)
+  // without querying every page node or reading any DOM text/URL.
+  function sampleInserted(node) {
+    if (!active || !node || typeof node.tagName !== "string") return;
+    let sampled = 0, visited = 0;
+    const queue = [node], queued = new Set([node]);
+    function queueShadow(root) {
+      if (!root || queued.has(root)) return;
+      queued.add(root);
+      observeOpenRoot(root);
+      if (queued.size <= MAX_ROOTS) queue.push(root);
+    }
+    for (let i = 0; i < queue.length && visited < MAX_INSERTED_SCAN; i++) {
+      const root = queue[i];
+      queueShadow(root.shadowRoot);
+      try {
+        const walker = document.createTreeWalker(root,NodeFilter.SHOW_ELEMENT);
+        let element;
+        const elements = root.tagName ? [root] : [];
+        while ((element = walker.nextNode()) && visited + elements.length < MAX_INSERTED_SCAN) {
+          elements.push(element);
+        }
+        for (const child of elements) {
+          visited++;
+          queueShadow(child.shadowRoot);
+          if (sampled < MAX_INSERTED_SAMPLES &&
+              (/^(VIDEO|SOURCE|BUTTON|A|IFRAME)$/.test(targetName(child)) ||
+               isPreviewCandidate(child))) {
+            snapshotElement(child,"NODE_INSERTED"); sampled++;
+          }
+        }
+      } catch (_) { send("GAP","OTHER","DOM_UNAVAILABLE",{}); }
+    }
+    if (visited >= MAX_INSERTED_SCAN) send("GAP","OTHER","SCAN_LIMIT",{count:visited});
+  }
   function handler(event) {
-    if (!active || serial >= MAX_EVENTS) return;
+    if (!active || serial >= MAX_EVENTS || seenEvents.has(event)) return;
+    // Composed events can hit both shadow and document listeners. Keep one
+    // record, but capture non-composed media events inside open shadow roots.
+    seenEvents.add(event);
     const type = event.type;
     if (picked && type === "pointerdown" && event.pointerType === "touch") {
       picked = false;
@@ -144,7 +226,8 @@
       let node = event.target;
       try { node = node?.closest?.(monitored) || node; } catch (_) {}
       snapshotElement(node,"PICKED_ELEMENT");
-      send("PICK",targetName(node),"USER_SELECTED",{node:elementId(node)});
+      send("PICK",targetName(node),"USER_SELECTED",
+        {node:elementId(node),shadow:node?.getRootNode?.() !== document});
       return;
     }
     if (type === "unhandledrejection") {
@@ -160,17 +243,20 @@
     let node = event.target;
     try { node = node?.closest?.(monitored) || node; } catch (_) {}
     if (!node || !/^(VIDEO|BUTTON|A|IFRAME|SOURCE)$/.test(targetName(node)) &&
-        node.getAttribute?.("role") !== "button") return;
+        node.getAttribute?.("role") !== "button" &&
+        !isPreviewCandidate(node)) return;
     if (type === "pointerover" && node === handler.hovered) return;
     if (type === "pointerover") handler.hovered = node;
-    send(type === "play" || type === "pause" || type === "loadedmetadata" ||
-        type === "error" ? "MEDIA" : "EVENT",targetName(node),
-      "ON_" + type.toUpperCase(),{});
+    send(["play","pause","playing","waiting","stalled","loadedmetadata",
+      "error"].includes(type) ? "MEDIA" : "EVENT",targetName(node),
+      "ON_" + type.toUpperCase(),
+      {shadow:node.getRootNode?.() !== document,
+       previewHint:isPreviewCandidate(node)});
     if (type === "play" || type === "error") snapshotElement(node,"VIDEO_STATE");
   }
   function mutation(batch) {
     if (!active || serial >= MAX_EVENTS) return;
-    let attrs = 0, nodes = 0, sampled = 0;
+    let attrs = 0, nodes = 0, sampled = 0, inserted = 0;
     // The event identifies WHICH node changed, not the new attribute value.
     // Preserve causality of an animated thumbnail without leaking src/poster.
     for (const record of batch.slice(0,40)) {
@@ -185,8 +271,13 @@
           sampled++;
         }
       }
-      if (record.type === "childList")
+      if (record.type === "childList") {
         nodes += Math.min(10,(record.addedNodes || []).length);
+        for (const node of Array.from(record.addedNodes || []).slice(0,3)) {
+          if (inserted++ >= MAX_INSERTED_SAMPLES) break;
+          sampleInserted(node);
+        }
+      }
     }
     if (attrs > sampled)
       send("MUTATION","OTHER","ATTRIBUTE_BATCH",{count:attrs - sampled});
@@ -200,6 +291,8 @@
     active = null; picked = false;
     if (observer) { observer.disconnect(); observer = null; }
     for (const remove of listeners.splice(0)) { try { remove(); } catch (_) {} }
+    shadowRoots = [];
+    seenEvents = new WeakSet();
   }
   function start(id) {
     if (!sessionPattern.test(id || "")) return;
@@ -219,15 +312,12 @@
     active = {id,since:Date.now()}; lost = 0;
     if (!acknowledge(id)) return;
     handler.hovered = null;
-    for (const name of ["pointerdown","pointerover","click","play","pause","loadedmetadata","error"]) {
-      listen(document,name,handler,true);
-    }
+    for (const name of PAGE_EVENTS) listen(document,name,handler,true);
     listen(window,"unhandledrejection",handler,false);
     listen(window,"error",handler,true);
     listen(document,"visibilitychange",handler,true);
     observer = new MutationObserver(mutation);
-    observer.observe(document,{subtree:true,childList:true,attributes:true,
-      attributeFilter:["style","class","hidden","poster","src","controls","autoplay","role"]});
+    observer.observe(document,MUTATION_CONFIG);
     snapshot("BASELINE");
   }
   // Only enum metadata and a monotonic command ID cross the Gecko bridge.

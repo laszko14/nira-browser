@@ -13,14 +13,22 @@ const manifest = JSON.parse(read("app/src/main/assets/extensions/zavro-preview-d
 const ONE = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 const TWO = "11111111-2222-3333-4444-555555555555";
 
-function fixture({ subframe = false, failedPost = false, connectFailures = 0 } = {}) {
+function fixture({ subframe = false, failedPost = false, connectFailures = 0,
+  openShadow = false, lateShadow = false, closedShadow = false } = {}) {
   let clock = 1000, inbound, onMutation, disconnected, observed = 0, disposed = 0;
-  const packet = [], listeners = new Map(), scheduled = [], portHistory = [];
+  const packet = [], listeners = new Map(), shadowListeners = new Map(),
+    scheduled = [], portHistory = [];
+  let shadowPresent = openShadow || closedShadow, host, shadowRoot, shadowVideo;
   let connectCalls = 0;
   const changes = { play:0, pause:0, prevent:0, stop:0 };
   const doc = {
     querySelectorAll: () => [video, button, frame],
-    createTreeWalker: () => ({ nextNode: () => null }),
+    createTreeWalker: root => {
+      const nodes = root === doc && shadowPresent ? [host] :
+        root === shadowRoot ? [shadowVideo] : [];
+      let pos = 0;
+      return { nextNode: () => nodes[pos++] || null };
+    },
     addEventListener(type, fn) { listeners.set("doc:"+type, fn); },
     removeEventListener(type, fn) {
       if (listeners.get("doc:"+type) === fn) listeners.delete("doc:"+type);
@@ -45,6 +53,23 @@ function fixture({ subframe = false, failedPost = false, connectFailures = 0 } =
     pause() { changes.pause++; }
   });
   const button = el("BUTTON"), frame = el("IFRAME");
+  host = el("DIV");
+  shadowVideo = Object.assign(el("VIDEO"), {
+    poster:"https://secret.example/hidden-preview.mp4?private=123",
+    paused:true,muted:true,autoplay:true,controls:false,playsInline:true,
+    readyState:2,networkState:1,loop:true,currentTime:0,duration:10,error:null,
+    play(){ changes.play++; return Promise.resolve(); },
+    pause(){ changes.pause++; }
+  });
+  shadowRoot = {
+    addEventListener(type,fn) { shadowListeners.set(type,fn); },
+    removeEventListener(type,fn) {
+      if (shadowListeners.get(type) === fn) shadowListeners.delete(type);
+    },
+    querySelectorAll: () => [shadowVideo]
+  };
+  shadowVideo.getRootNode = () => shadowRoot;
+  host.shadowRoot = closedShadow ? null : shadowRoot;
   const win = {
     addEventListener(type, fn) { listeners.set("win:"+type,fn); },
     removeEventListener(type, fn) {
@@ -83,7 +108,18 @@ function fixture({ subframe = false, failedPost = false, connectFailures = 0 } =
     }
   }, { timeout:2000 });
   return {
-    packets:packet, listeners, video, button, frame, changes,
+    packets:packet, listeners, shadowListeners, host, shadowVideo,
+    video, button, frame, changes,
+    activateShadow(){shadowPresent = true;return host;},
+    emitShadow(type,target=shadowVideo) {
+      const event = {type,target,pointerType:"mouse",
+        preventDefault(){changes.prevent++},
+        stopImmediatePropagation(){changes.stop++}};
+      const inner=shadowListeners.get(type), outer=listeners.get("doc:"+type);
+      assert.ok(inner,"missing open-shadow listener "+type);
+      inner(event);
+      if (outer) outer(event); // One composed event across two capture roots.
+    },
     portHistory(){return portHistory.slice()},
     command(action, sessionId=ONE){inbound({schemaVersion:2,action,sessionId})},
     badCommand(value){inbound(value)},
@@ -104,7 +140,7 @@ function fixture({ subframe = false, failedPost = false, connectFailures = 0 } =
     pendingRetries(){return scheduled.length},
     nextDelay(){return scheduled[0]?.ms},
     clockTo(ms){clock=ms},
-    stats(){return {observed,disposed,activeListeners:listeners.size}}
+    stats(){return {observed,disposed,activeListeners:listeners.size+shadowListeners.size}}
   };
 }
 
@@ -256,6 +292,79 @@ test("final5: event budget caps at 160 and explicitly indicates truncation", () 
   assert.equal(f.packets.at(-1).detail,"EVENT_LIMIT");
   assert.equal(f.packets.at(-1).sequence,160);
   assert.equal(f.changes.play,0);
+});
+
+
+test("stage5: open Shadow DOM media events are captured once without changing playback", () => {
+  const f=fixture({openShadow:true});
+  assert.deepEqual(f.stats(),{observed:0,disposed:0,activeListeners:0});
+  f.command("start");
+  assert.equal(f.stats().observed,2,"document and bounded shadow root must be observed");
+  assert.ok(f.packets.some(x=>x.kind==="MEDIA" && x.metrics.shadow===true));
+  f.emitShadow("play");
+  f.emitShadow("waiting");
+  f.emitShadow("stalled");
+  assert.equal(f.packets.filter(x=>x.detail==="ON_PLAY" && x.metrics.shadow===true).length,1);
+  assert.ok(f.packets.some(x=>x.detail==="ON_WAITING" && x.metrics.shadow===true));
+  assert.ok(f.packets.some(x=>x.detail==="ON_STALLED" && x.metrics.shadow===true));
+  f.fire("touchstart",f.button);
+  assert.ok(f.packets.some(x=>x.detail==="ON_TOUCHSTART"));
+  assert.equal(f.changes.play,0);
+  assert.equal(f.changes.pause,0);
+  assert.equal(f.changes.prevent,0);
+  f.command("stop");
+  assert.deepEqual(f.stats(),{observed:2,disposed:1,activeListeners:0});
+  assert.equal(JSON.stringify(f.packets).includes("hidden-preview.mp4"),false);
+  assert.equal(JSON.stringify(f.packets).includes("private=123"),false);
+});
+
+test("stage5: newly inserted open-shadow video is discovered without scanning before START", () => {
+  const f=fixture({lateShadow:true});
+  assert.equal(f.stats().observed,0);
+  f.command("start");
+  assert.equal(f.stats().observed,1);
+  f.activateShadow();
+  f.mutation([{type:"childList",addedNodes:[f.host]}]);
+  assert.equal(f.stats().observed,2);
+  assert.ok(f.packets.some(x=>x.detail==="NODE_INSERTED" &&
+    x.target==="VIDEO" && x.metrics.shadow===true));
+  f.emitShadow("playing");
+  assert.ok(f.packets.some(x=>x.detail==="ON_PLAYING" &&
+    x.metrics.shadow===true));
+  f.command("stop");
+  assert.equal(f.stats().activeListeners,0);
+  assert.equal(f.changes.play,0);
+  assert.equal(f.changes.pause,0);
+});
+
+
+test("stage5: declared hover-preview card is observed without reading its media URL", () => {
+  const f=fixture();
+  f.host.hasAttribute = name => name === "data-preview-video";
+  f.host.getAttribute = () => "https://sensitive.example/preview.mp4?token=secret";
+  f.command("start");
+  f.fire("pointerover",f.host);
+  const evidence=f.packets.find(p=>p.detail==="ON_POINTEROVER" && p.target==="DIV");
+  assert.ok(evidence,"missing passive hover-preview observation");
+  assert.equal(evidence.metrics.previewHint,true);
+  assert.equal(f.changes.play,0);
+  assert.equal(f.changes.pause,0);
+  assert.equal(f.changes.prevent,0);
+  assert.equal(JSON.stringify(f.packets).includes("sensitive.example"),false);
+  assert.equal(JSON.stringify(f.packets).includes("token=secret"),false);
+});
+
+test("stage5: closed roots stay unobservable and subframes have bounded baseline", () => {
+  const closed=fixture({closedShadow:true});
+  closed.command("start");
+  assert.equal(closed.stats().observed,1);
+  assert.equal(closed.packets.some(x=>x.metrics?.shadow===true),false);
+  assert.equal(closed.changes.play,0);
+  const sub=fixture({subframe:true});
+  sub.command("start");
+  assert.ok(sub.packets.some(x=>x.detail==="SNAPSHOT_FINISHED"));
+  assert.ok(sub.packets.filter(x=>x.event==="observation").length<=18);
+  assert.equal(sub.packets.find(x=>x.event==="start_ack").frame,"SUBFRAME");
 });
 
 test("final5: a restarted session restores bounded reconnect after an earlier STOP", () => {
