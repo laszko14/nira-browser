@@ -333,7 +333,7 @@
     },
     {
       "task_id": "ZC-MPV-PLAY-V2-APK-V1229-20261111",
-      "observed_count": 1,
+      "observed_count": 2,
       "state": "ACTIVE"
     }
   ],
@@ -7456,7 +7456,7 @@
       "state": "OPEN",
       "duplicate_of": null,
       "fix_sha": null,
-      "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs; app/src/test/js/video-search-neon-redesign.test.cjs",
+      "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs",
       "evidence_links": [
         "https://github.com/laszko14/nira-browser/actions/runs/43024140788",
         "https://github.com/laszko14/nira-browser/actions/runs/43024148699"
@@ -7468,6 +7468,33 @@
       "test_result": "FAIL",
       "final_ci": "PENDING",
       "recurrence_conditions": "Any future versionCode or versionName bump while static test fixtures retain prior version literals; identical failures in SOURCE and PR are one root-cause incident."
+    },
+    {
+      "id": "CI-43024670410-1-130536226531",
+      "task_id": "ZC-MPV-PLAY-V2-APK-V1229-20261111",
+      "kind": "CI_FAILURE",
+      "fingerprint": "apk_ci_error_registry_multi_test_path_invalid_reference",
+      "summary": "SOURCE process-docs rejected the new CI error-learning record because its regression_test field combined two test paths separated by a semicolon, violating the single-path schema.",
+      "source_sha": "8e0d1aa5adda26ee14401e01e57d6ce4429c89af",
+      "observed_at": "2026-11-11T12:56:33Z",
+      "run_id": 43024670410,
+      "job_id": 130536226531,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "scripts/error-learning.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/43024670410"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": "zavro-ai-process-docs.yml",
+      "cause_confidence": "confirmed",
+      "fix_summary": "Use one canonical test reference per event as required by the error-learning schema; keep both affected test paths in descriptive text and add process-validation failure provenance.",
+      "test_result": "FAIL",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "Any combined or punctuation-separated file paths stored in single regression_test value instead of a validated single source test path."
     }
   ]
 }
