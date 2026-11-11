@@ -300,14 +300,12 @@
       "task_id": "ZC-MPV-PLAY-BUTTON-P0-20261111",
       "observed_count": 2,
       "state": "ACTIVE"
-    }
-    ,
+    },
     {
       "task_id": "ZC-MPV-PLAY-EXTENSION-VERSION-20261111",
       "observed_count": 5,
       "state": "ACTIVE"
-    }
-    ,
+    },
     {
       "task_id": "ZC-MPV-PLAY-PORT-RECONNECT-20261111",
       "observed_count": 2,
@@ -317,23 +315,25 @@
       "task_id": "ZC-MPV-PLAY-TRANSPORT-V2-STAGE3-20261111",
       "observed_count": 2,
       "state": "ACTIVE"
-    }
-    ,
+    },
     {
       "task_id": "ZC-MPV-PLAY-CONTROLS-V2-STAGE4-20261111",
       "observed_count": 5,
       "state": "ACTIVE"
-    }
-    ,
+    },
     {
       "task_id": "ZC-MPV-PLAY-OBSERVABILITY-STAGE5-20261111",
       "observed_count": 5,
       "state": "ACTIVE"
-    }
-    ,
+    },
     {
       "task_id": "ZC-MPV-PLAY-V2-STAGE6-INTEGRATION-20261111",
       "observed_count": 2,
+      "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-MPV-PLAY-V2-APK-V1229-20261111",
+      "observed_count": 1,
       "state": "ACTIVE"
     }
   ],
@@ -6895,8 +6895,7 @@
       "test_result": "NOT_TESTED",
       "final_ci": "PENDING",
       "recurrence_conditions": "Edit packaged built-in content.js without bumping addon manifest.version or validating the script running in the page; an old connected document may produce four-field READY."
-    }
-,
+    },
     {
       "id": "CI-42942606380-1-130267756208",
       "kind": "CI_FAILURE",
@@ -6978,8 +6977,7 @@
       "test_result": "FAIL",
       "final_ci": "PENDING",
       "recurrence_conditions": "Add a new error-learning task at the beginning of coverage without updating the test fixture that copies the first task and first event."
-    }
-,
+    },
     {
       "id": "CI-42943408302-1-130270594150",
       "task_id": "ZC-MPV-PLAY-EXTENSION-VERSION-20261111",
@@ -7442,6 +7440,34 @@
       "test_result": "FAIL",
       "final_ci": "PENDING",
       "recurrence_conditions": "Checkpoint replaces or expands product_line with prose instead of keeping the exact canonical product identifier."
+    },
+    {
+      "id": "CI-43024140788-1-130534435173",
+      "task_id": "ZC-MPV-PLAY-V2-APK-V1229-20261111",
+      "kind": "CI_FAILURE",
+      "fingerprint": "apk_update_stage19a_and_neon_tests_pin_previous_version_literals",
+      "summary": "Five JavaScript assertions across stage19A release contract and neon update tests rejected a correctly incremented v1229 because fixtures still pinned v1228/alpha124. Malformed-metadata negative controls silently failed to mutate the new version.",
+      "source_sha": "48e9e884ad50b7b3d1d1c7816f2d493cda18022b",
+      "observed_at": "2026-11-11T12:52:50Z",
+      "run_id": 43024140788,
+      "job_id": 130534435173,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/release-contract-stage19a.test.cjs; app/src/test/js/video-search-neon-redesign.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/43024140788",
+        "https://github.com/laszko14/nira-browser/actions/runs/43024148699"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": "SOURCE / PR CI",
+      "cause_confidence": "confirmed",
+      "fix_summary": "Make update assertions version-independent while strictly comparing Gradle, workflow, output contract and last signed v1228. Make mutation/negative fixtures use the current Gradle metadata and assert each mutation changed input. Add simulated next-version regression.",
+      "test_result": "FAIL",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "Any future versionCode or versionName bump while static test fixtures retain prior version literals; identical failures in SOURCE and PR are one root-cause incident."
     }
   ]
 }
