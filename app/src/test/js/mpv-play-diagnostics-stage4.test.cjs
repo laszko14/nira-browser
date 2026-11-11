@@ -41,7 +41,8 @@ test("stage4: stale content ports sharing a sender URL must not pass ownership",
 
 test("stage4: selected Play control is correlated by synthetic node, without site text", () => {
   const probe = read("app/src/main/assets/extensions/zavro-preview-diagnostics/content.js");
-  assert.match(probe, /send\("PICK",targetName\(node\),"USER_SELECTED",\{node:elementId\(node\)\}\)/);
-  assert.match(probe, /if \(!active \|\| serial >= MAX_EVENTS\) return;/);
+  assert.match(probe, /send\("PICK",targetName\(node\),"USER_SELECTED",\s*\{node:elementId\(node\),shadow:/);
+  assert.match(probe, /if \(!active \|\| serial >= MAX_EVENTS \|\| seenEvents\.has\(event\)\) return;/);
+  assert.match(probe, /seenEvents\.add\(event\)/);
   assert.doesNotMatch(probe, /\.innerHTML|\.textContent|\.currentSrc\b/);
 });

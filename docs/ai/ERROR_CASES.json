@@ -327,7 +327,7 @@
     ,
     {
       "task_id": "ZC-MPV-PLAY-OBSERVABILITY-STAGE5-20261111",
-      "observed_count": 3,
+      "observed_count": 5,
       "state": "ACTIVE"
     }
   ],
@@ -7326,6 +7326,62 @@
       "test_result": "NOT_TESTED",
       "final_ci": "PENDING",
       "recurrence_conditions": "The probe ignored hover/touch on preview-marked DIV cards, did not sample inserted preview candidates, and its ZIP did not explicitly separate observed frames/open roots from inaccessible frames/closed roots."
+    },
+    {
+      "id": "CI-43006478803-1-SHADOW-PRIORITY",
+      "fingerprint": "mpv_stage5_video_snapshot_shadow_flag_omitted_by_prioritized_metric_fields",
+      "summary": "Stage5 open-Shadow and dynamic open-Shadow snapshot tests failed: video safeMetrics priority omitted shadow, so the native report could not distinguish video living in an open ShadowRoot.",
+      "cause": "production",
+      "fix_summary": "Keep the 16-key strict transport budget but replace low-priority parent synthetic ID with the shadow boolean in video metrics; preserve autoplay/paused/controls/error/visibility.",
+      "regression_test": "app/src/test/js/mpv-play-diagnostics-stage5.test.cjs",
+      "task_id": "ZC-MPV-PLAY-OBSERVABILITY-STAGE5-20261111",
+      "kind": "CI_FAILURE",
+      "source_sha": "54c33ec09253c512f060253eb8e65a3968b58b0b",
+      "observed_at": "2026-11-11T10:47:06Z",
+      "run_id": 43006478803,
+      "job_id": 130475109091,
+      "attempt": 1,
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/43006478803",
+        "https://github.com/laszko14/nira-browser/actions/runs/43006487600"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": "SOURCE / PR CI",
+      "cause_confidence": "confirmed",
+      "test_result": "FAIL",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "Stage5 open-Shadow and dynamic open-Shadow snapshot tests failed: video safeMetrics priority omitted shadow, so the native report could not distinguish video living in an open ShadowRoot."
+    },
+    {
+      "id": "CI-43006478803-1-STALE-STAGE4-TEST",
+      "fingerprint": "mpv_stage5_legacy_stage4_test_requires_literal_pick_payload_before_shadow_metadata",
+      "summary": "Existing Stage4 source-pattern regression asserted an exact PICK packet string and old handler guard. New safe shadow metadata and event dedupe changed the source without changing the node-ownership privacy contract.",
+      "cause": "test_harness",
+      "fix_summary": "Update the Stage4 oracle to verify PICK synthetic node plus shadow flag and bounded guard plus event deduplication, retaining the no-raw-page-content prohibition.",
+      "regression_test": "app/src/test/js/mpv-play-diagnostics-stage4.test.cjs",
+      "task_id": "ZC-MPV-PLAY-OBSERVABILITY-STAGE5-20261111",
+      "kind": "CI_FAILURE",
+      "source_sha": "54c33ec09253c512f060253eb8e65a3968b58b0b",
+      "observed_at": "2026-11-11T10:47:06Z",
+      "run_id": 43006478803,
+      "job_id": 130475109091,
+      "attempt": 1,
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/43006478803",
+        "https://github.com/laszko14/nira-browser/actions/runs/43006487600"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": "SOURCE / PR CI",
+      "cause_confidence": "confirmed",
+      "test_result": "FAIL",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "Existing Stage4 source-pattern regression asserted an exact PICK packet string and old handler guard. New safe shadow metadata and event dedupe changed the source without changing the node-ownership privacy contract."
     }
   ]
 }

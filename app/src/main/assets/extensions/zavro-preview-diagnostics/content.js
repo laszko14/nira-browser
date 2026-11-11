@@ -70,7 +70,7 @@
     // contain more fields than the transport budget. Preserve HTML5 evidence.
     const video = Object.prototype.hasOwnProperty.call(raw, "readyState");
     const priority = video
-      ? ["frame","node","parent","poster","paused","autoplay","controls",
+      ? ["frame","node","shadow","poster","paused","autoplay","controls",
          "readyState","networkState","errorCode","duration","currentTime",
          "width","helperMarker","display","visibility"]
       : ["frame","node","parent","count","dropped","playHint","hasId",

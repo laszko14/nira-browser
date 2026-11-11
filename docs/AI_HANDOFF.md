@@ -17,14 +17,17 @@ remaining: SOURCE i PR CI na nowym końcowym SHA; przy FAIL analiza konkretnego 
 required_ci: SOURCE process-docs + JavaScript + Kotlin/Robolectric JVM + AndroidTest compile + lint/lint-regression + summary; PR osobne shared-tests + error learning evidence, na tym samym końcowym source SHA.
 device: NOT_TESTED. Brak realnego testu na Nothing Phone (1) Android 15 ani konkretnych witrynach, nie potwierdzono przyczyny starego NO_ACK.
 apk: NOT_BUILT, zgodnie z jawnym zakresem bez APK. Bez pobierania binariów, zmiany certyfikatu, pakietu, ABI, versionCode, merge czy release.
-known_failures: Obserwowanie document nie wystarcza dla niekomponowanych play/pause wewnątrz open Shadow DOM; przypisane ramkom zdarzenia mogą być niedostępne z powodu zakresu host_permissions, about:blank, closed Shadow DOM i opóźnionej injekcji. Kontrprzykłady są syntetyczne/źródłowe, nie realne przebiegi na telefonie.
-verification: Etap 4/6 SHA f4f7d9e9673d9cba5a1af9ac1b054ec9d9b61f96 ma SOURCE https://github.com/laszko14/nira-browser/actions/runs/43002025546 i PR https://github.com/laszko14/nira-browser/actions/runs/43002035672 — oba completed SUCCESS. To potwierdza poprzedni SHA, nie etap 5/6. Po aktualnych zmianach wymagane nowe runy.
+known_failures: Po pierwszym SHA etapu 5 54c33ec09253c512f060253eb8e65a3968b58b0b SOURCE run 43006478803 i PR run 43006487600 dały FAIL w JavaScript (job 130475109091 / 130475138135): trzy testy FAIL, 670 PASS. Dwie regresje Shadow wykryły pominięte pole shadow w 16-kluczowym priorytecie metryk VIDEO (produkcja), trzecia to stary test tekstowego formatu PICK/guard po legalnej rozbudowie metadanych (fixture). Zmieniono priorytet VIDEO zachowując 16 pól i ulepszono asercje prywatności w Stage4, zarejestrowano oba fingerprinty w ERROR_CASES.json; potrzebny nowy SHA i pełne CI. Obserwowanie document nie wystarcza dla niekomponowanych play/pause wewnątrz open Shadow DOM; przypisane ramkom zdarzenia mogą być niedostępne z powodu zakresu host_permissions, about:blank, closed Shadow DOM i opóźnionej injekcji. Kontrprzykłady są syntetyczne/źródłowe, nie realne przebiegi na telefonie.
+verification: Etap 4/6 SHA f4f7d9e9673d9cba5a1af9ac1b054ec9d9b61f96 ma SOURCE https://github.com/laszko14/nira-browser/actions/runs/43002025546 i PR https://github.com/laszko14/nira-browser/actions/runs/43002035672 — oba completed SUCCESS. To potwierdza poprzedni SHA, nie etap 5/6. Pierwsze uruchomienia etapu 5 na 54c33ec09253c512f060253eb8e65a3968b58b0b: SOURCE 43006478803 i PR 43006487600 — JS FAIL, kolejne joby pominięte. Poprawki źródła i fixture wymagają nowego pełnego SHA i obu CI.
 verified_before_push: Odczytano live HEAD f4f7d9e9673d9cba5a1af9ac1b054ec9d9b61f96 i z niego AGENTS.md, docs/ai/ACTIVE_CLEAN_LINE.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md, docs/ai/CHATGPT_PROJECT_INSTRUCTIONS.md oraz polityki. Przed aktualizacją ref sprawdź ponownie HEAD i konflikty.
 blockers: Realny GeckoView, permission boundaries cross-origin/closed roots oraz strony z DRM wymagają testu na urządzeniu. Brak niezależnego recenzenta wysokiego ryzyka — self-review i CI nie zastępują oddzielnego review. Nie wykonuj żadnych działań wpływających na odtwarzanie lub dane profili.
 evidence_links:
   - https://github.com/laszko14/nira-browser/actions/runs/43002025546
   - https://github.com/laszko14/nira-browser/actions/runs/43002035672
   - https://github.com/laszko14/nira-browser/commit/f4f7d9e9673d9cba5a1af9ac1b054ec9d9b61f96
+  - https://github.com/laszko14/nira-browser/actions/runs/43006478803
+  - https://github.com/laszko14/nira-browser/actions/runs/43006487600
+  - https://github.com/laszko14/nira-browser/commit/54c33ec09253c512f060253eb8e65a3968b58b0b
 changed_paths:
   - app/src/main/assets/extensions/zavro-preview-diagnostics/content.js
   - app/src/main/assets/extensions/zavro-preview-diagnostics/manifest.json
@@ -32,6 +35,7 @@ changed_paths:
   - app/src/main/java/com/prirai/android/nira/browser/MpvPlayDiagnostics.kt
   - app/src/main/java/com/prirai/android/nira/browser/MpvPlayEvidenceReport.kt
   - app/src/test/js/mpv-play-diagnostics-stage2.test.cjs
+  - app/src/test/js/mpv-play-diagnostics-stage4.test.cjs
   - app/src/test/js/mpv-play-diagnostics-stage5.test.cjs
   - app/src/test/java/com/prirai/android/nira/browser/MpvPlayPageBridgeControllerTest.kt
   - app/src/test/java/com/prirai/android/nira/browser/MpvPlayDiagnosticsTest.kt
