@@ -17,14 +17,17 @@ remaining: Zakończyć SOURCE i PR CI na końcowym SHA, naprawić wszystkie FAIL
 required_ci: SOURCE process-docs, shared-tests JS/Kotlin-Robolectric/AndroidTest compile/lint i lint-regression plus summary; PR shared-tests i error-learning evidence, na jednym końcowym źródłowym SHA.
 apk: NOT_BUILT; bez podpisanego APK, bez pobierania binariów, zmiany versionCode/ABI/pakietu/certyfikatu.
 device: NOT_TESTED; fizyczny Nothing Phone (1), Android 15 nie był testowany.
-known_failures: Historycznie STOP kończył ledger zanim JavaScript mógł potwierdzić wykonanie; MARK i PICK nie miały odpowiedzi JS, a CAPTURING oznaczał dowolną migawkę również z SUBFRAME. Rzeczywisty problem z Play i miniaturkami na stronie pozostaje poza tym etapem.
-verification: Etap 3/6 zakończono na 36b0a5db2aebbdeaaadc296ab013d97d3f1d7ca2; SOURCE 42994688345 SUCCESS, PR 42994695409 SUCCESS. Nowy kod etapu 4 wymaga świeżych CI.
+known_failures: Pierwszy kodowy SHA fb0c4ea87aaa054a5b2289da969679e21aa2fa27: SOURCE run 43000816707 i PR 43000823979 JS FAIL przez niepoprawne escapowanie slash w nowym teście prywatności (SyntaxError Invalid regular expression flags, joby 130456188469/130456210456), kontrole JVM/AndroidTest/lint skipped, bo JS FAIL. Test fixture naprawiono, zachowując oba sprawdzenia wycieku danych. Historycznie STOP kończył ledger zanim JavaScript mógł potwierdzić wykonanie; MARK i PICK nie miały odpowiedzi JS, a CAPTURING oznaczał dowolną migawkę również z SUBFRAME. Rzeczywisty problem z Play i miniaturkami na stronie pozostaje poza tym etapem.
+verification: Etap 3/6 zakończono na 36b0a5db2aebbdeaaadc296ab013d97d3f1d7ca2: SOURCE 42994688345 SUCCESS, PR 42994695409 SUCCESS. Pierwszy SHA etapu 4 fb0c4ea87aaa054a5b2289da969679e21aa2fa27 miał SOURCE 43000816707 i PR 43000823979 FAIL (błąd test-fixture regex); nowy końcowy SHA po naprawie wymaga świeżych SOURCE i PR CI.
 verified_before_push: Odczytano live HEAD i AGENTS/ACTIVE_CLEAN_LINE/AI_HANDOFF/STARTUP_PREFLIGHT/CHATGPT_PROJECT_INSTRUCTIONS oraz właściwe polityki z dokładnego 36b0a5db2aebbdeaaadc296ab013d97d3f1d7ca2. Przed update_ref ponownie zweryfikować HEAD, konflikt pracy i gałąź.
 blockers: Testy Robolectric/JS nie zastępują realnego GeckoView, UI, orientacji i stron na urządzeniu. Brak odrębnej zewnętrznej recenzji o wysokim ryzyku; self-review nie jest niezależnym review.
 evidence_links:
   - https://github.com/laszko14/nira-browser/actions/runs/42994688345
   - https://github.com/laszko14/nira-browser/actions/runs/42994695409
   - https://github.com/laszko14/nira-browser/commit/36b0a5db2aebbdeaaadc296ab013d97d3f1d7ca2
+  - https://github.com/laszko14/nira-browser/actions/runs/43000816707
+  - https://github.com/laszko14/nira-browser/actions/runs/43000823979
+  - https://github.com/laszko14/nira-browser/commit/fb0c4ea87aaa054a5b2289da969679e21aa2fa27
 changed_paths:
   - app/src/main/assets/extensions/zavro-preview-diagnostics/manifest.json
   - app/src/main/assets/extensions/zavro-preview-diagnostics/content.js

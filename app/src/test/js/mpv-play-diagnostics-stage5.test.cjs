@@ -310,7 +310,8 @@ test("stage4: control ACKs distinguish posted requests from executed JS actions"
   f.command("start",TWO);
   assert.equal(f.packets.filter(p=>p.event==="start_ack").at(-1).sessionId,TWO);
   assert.equal(f.changes.play,0);assert.equal(f.changes.pause,0);
-  assert.doesNotMatch(JSON.stringify(f.packets),/secret-session-token|private-username|private\\/media|secret=123/);
+  assert.doesNotMatch(JSON.stringify(f.packets),/secret-session-token|private-username|secret=123/);
+  assert.equal(JSON.stringify(f.packets).includes("private/media"),false);
 });
 
 test("stage4: wrong or malformed control IDs never yield a false JS ACK", () => {

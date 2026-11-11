@@ -321,7 +321,7 @@
     ,
     {
       "task_id": "ZC-MPV-PLAY-CONTROLS-V2-STAGE4-20261111",
-      "observed_count": 3,
+      "observed_count": 4,
       "state": "ACTIVE"
     }
   ],
@@ -7184,6 +7184,34 @@
       "test_result": "NOT_TESTED",
       "final_ci": "PENDING",
       "recurrence_conditions": "UI treated CAPTURING from any frame's SNAPSHOT_FINISHED as page/Play detection, without distinguishing a TOP-frame baseline or page interaction categories."
+    },
+    {
+      "id": "CI-43000816707-1-130456188469",
+      "task_id": "ZC-MPV-PLAY-CONTROLS-V2-STAGE4-20261111",
+      "kind": "CI_FAILURE",
+      "fingerprint": "mpv_stage4_js_privacy_regex_literal_invalid_flags",
+      "summary": "SOURCE and PR JavaScript job failed at parsing stage5.test.cjs line 313: over-escaped slash in a new privacy assertion produced SyntaxError Invalid regular expression flags; other 649 JS tests passed.",
+      "source_sha": "fb0c4ea87aaa054a5b2289da969679e21aa2fa27",
+      "observed_at": "2026-11-11T10:06:43Z",
+      "run_id": 43000816707,
+      "job_id": 130456188469,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/mpv-play-diagnostics-stage5.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/43000816707",
+        "https://github.com/laszko14/nira-browser/actions/runs/43000823979"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": "zavro-ai-process-docs.yml",
+      "cause_confidence": "confirmed",
+      "fix_summary": "Replace invalid regex with valid strict secret and username check plus an independent literal substring check for private/media; do not weaken the privacy oracle.",
+      "test_result": "FAIL",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "Use doubled backslashes before a slash inside an unquoted JavaScript regex literal so the slash closes it early and text becomes invalid flags."
     }
   ]
 }
