@@ -284,6 +284,51 @@ test("final5: a restarted session restores bounded reconnect after an earlier ST
   assert.equal(restarted.packets.at(-1).sessionId, TWO);
 });
 
+
+test("stage4: control ACKs distinguish posted requests from executed JS actions", () => {
+  const f=fixture();
+  f.command("start");
+  const send=(action,controlId,sessionId=ONE)=>f.portHistory().at(-1).receive({
+    schemaVersion:2,action,sessionId,controlId
+  });
+  send("snapshot",1);
+  assert.ok(f.packets.some(p=>p.detail==="USER_MARK"));
+  send("pick",2);
+  const acks=f.packets.filter(p=>p.event==="control_ack");
+  assert.deepEqual(acks.map(a=>[a.action,a.controlId]),[["snapshot",1],["pick",2]]);
+  assert.ok(acks.every(a=>a.sessionId===ONE && a.documentId===f.packets[0].documentId));
+  f.fire("pointerdown",f.button,"touch");
+  assert.equal(f.changes.prevent,1);
+  send("cancel_pick",3);
+  assert.equal(f.packets.filter(p=>p.event==="control_ack").at(-1).action,"cancel_pick");
+  send("stop",4);
+  assert.equal(f.packets.filter(p=>p.event==="control_ack").at(-1).action,"stop");
+  assert.equal(f.stats().activeListeners,0);
+  const after=f.packets.length;
+  send("snapshot",5); // stale command after STOP
+  assert.equal(f.packets.length,after);
+  f.command("start",TWO);
+  assert.equal(f.packets.filter(p=>p.event==="start_ack").at(-1).sessionId,TWO);
+  assert.equal(f.changes.play,0);assert.equal(f.changes.pause,0);
+  assert.doesNotMatch(JSON.stringify(f.packets),/secret-session-token|private-username|private\\/media|secret=123/);
+});
+
+test("stage4: wrong or malformed control IDs never yield a false JS ACK", () => {
+  const f=fixture({subframe:true});
+  f.command("start");
+  const send=value=>f.portHistory().at(-1).receive(value);
+  send({schemaVersion:2,action:"snapshot",sessionId:TWO,controlId:1});
+  send({schemaVersion:2,action:"pick",sessionId:ONE,controlId:-1});
+  send({schemaVersion:2,action:"pick",sessionId:ONE,controlId:"1"});
+  send({schemaVersion:2,action:"pick",sessionId:ONE,controlId:1,extra:"leak"});
+  assert.equal(f.packets.filter(p=>p.event==="control_ack").length,0);
+  send({schemaVersion:2,action:"pick",sessionId:ONE,controlId:1});
+  const ack=f.packets.filter(p=>p.event==="control_ack").at(-1);
+  assert.equal(ack.frame,"SUBFRAME");
+  assert.equal(ack.controlId,1);
+  assert.equal(f.changes.play,0);
+});
+
 test("final5: STOP, restart and disconnect remove observer/listeners", () => {
   const f=fixture();f.command("start");
   assert.equal(f.stats().observed,1);

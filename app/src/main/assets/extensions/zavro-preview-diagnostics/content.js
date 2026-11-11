@@ -6,7 +6,7 @@
 (function () {
   "use strict";
   const APP = "zavro.preview.forensics";
-  const SCRIPT_VERSION = "1.0.3"; // Must match manifest and native handshake.
+  const SCRIPT_VERSION = "1.0.4"; // Must match manifest and native handshake.
   const MAX_EVENTS = 160, MAX_NODES = 40, MAX_ROOTS = 6, MAX_DURATION = 15 * 60 * 1000;
   const sessionPattern = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
   const metricsKeys = new Set(["frame","shadow","readyState","networkState","paused",
@@ -230,6 +230,15 @@
       attributeFilter:["style","class","hidden","poster","src","controls","autoplay","role"]});
     snapshot("BASELINE");
   }
+  // Only enum metadata and a monotonic command ID cross the Gecko bridge.
+  function confirmControl(action, id, controlId) {
+    if (!Number.isInteger(controlId) || controlId <= 0) return;
+    try {
+      port.postMessage({schemaVersion:2,event:"control_ack",sessionId:id,
+        documentId,frame:window.top === window ? "TOP" : "SUBFRAME",
+        action,controlId});
+    } catch (_) { losePort(port); }
+  }
   function acknowledge(id) {
     try {
       port.postMessage({schemaVersion:2,event:"start_ack",sessionId:id,
@@ -267,12 +276,29 @@
       // A late callback from a retired Port cannot resurrect an old session.
       if (port !== candidate) return;
       if (!command || command.schemaVersion !== 2 || typeof command.sessionId !== "string") return;
-      if (command.action === "start" && Object.keys(command).length === 3) start(command.sessionId);
-      else if (active?.id === command.sessionId && Object.keys(command).length === 3) {
-        if (command.action === "snapshot") snapshot("USER_MARK");
-        else if (command.action === "pick") picked = true;
-        else if (command.action === "cancel_pick") picked = false;
-        else if (command.action === "stop") { stoppedId = active.id; stop(); }
+      if (command.action === "start" && Object.keys(command).length === 3) {
+        start(command.sessionId);
+      } else if ((active?.id === command.sessionId ||
+                   !active && command.action === "stop" &&
+                   sessionPattern.test(command.sessionId)) &&
+                 (Object.keys(command).length === 3 ||
+                  Object.keys(command).length === 4 &&
+                  Number.isInteger(command.controlId) && command.controlId > 0)) {
+        const action = command.action, id = command.sessionId;
+        if (action === "snapshot") {
+          snapshot("USER_MARK");
+          confirmControl(action,id,command.controlId);
+        } else if (action === "pick") {
+          picked = true;
+          confirmControl(action,id,command.controlId);
+        } else if (action === "cancel_pick") {
+          picked = false;
+          confirmControl(action,id,command.controlId);
+        } else if (action === "stop") {
+          stoppedId = id;
+          stop();
+          confirmControl(action,id,command.controlId);
+        }
       }
     });
     candidate.onDisconnect.addListener(() => {

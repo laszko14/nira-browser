@@ -1,43 +1,45 @@
-# AI_HANDOFF — Zavro Clean MPV/Play, V2 etap 3/6 (11.11.2026)
+# AI_HANDOFF — Zavro Clean MPV/Play V2, etap 4/6 (11.11.2026)
 
-Kanon aktywnej linii: `docs/ai/ACTIVE_CLEAN_LINE.md`. Archiwum: `docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md`. Checkpoint sporządzony przed końcowym CI, nie dowodzi ukończenia bramek.
+Kanon aktywnej gałęzi: `docs/ai/ACTIVE_CLEAN_LINE.md`. Archiwum: `docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md`. To checkpoint przed końcowym CI, nie dowód sukcesu. Wyniki sprawdzaj na live GitHub.
 
 ```yaml
-task_id: ZC-MPV-PLAY-TRANSPORT-V2-STAGE3-20261111
+task_id: ZC-MPV-PLAY-CONTROLS-V2-STAGE4-20261111
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
 branch: feat/zavro-clean-mpv-play-diagnostics-stage1-20261110
-base_sha: a0c1c3f540f43c933f4158e2783c661114a01452
-observed_head_sha: a0c1c3f540f43c933f4158e2783c661114a01452
+base_sha: 36b0a5db2aebbdeaaadc296ab013d97d3f1d7ca2
+observed_head_sha: 36b0a5db2aebbdeaaadc296ab013d97d3f1d7ca2
 status: CI_PENDING
-acceptance_source: Użytkownik zatwierdził DALEJ etap 3/6 z planu kompleksowej naprawy MPV/Play; IMPLEMENT+VERIFY wyłącznie tego etapu, bez APK.
-completed: Skryptów WebExtension z etapu 2 nie zmieniano. Bridge zapisuje oryginalnego właściciela Port (profil+tab), raportuje disconnect do pierwotnej sesji również przy zmianie profilu/prywatności, czyszczeniu EngineSession i wyrzucaniu ramki; wycofuje stare porty i ignoruje ich dane. Dodatkowy review wykrył możliwość wykonania opóźnionego START po przełączeniu do innego/prywatnego profilu; natywny retry sprawdza teraz właściciela, wycofuje port i zapisuje OWNER_MISMATCH. START bez karty/EngineSession/uprawnionego właściciela raportuje osobne TAB_MISSING, ENGINE_SESSION_MISSING lub OWNER_MISMATCH. Ledger nie maskuje fatalnego błędu późniejszymi callbackami; w summary/analysis/page-coverage/transport ZIP dodano wyłącznie bezpieczną kategorię etapu, liczbę otwartych portów, potwierdzenie TOP/SUBFRAME i liczniki uzyskanych zdarzeń. Nowe testy Kotlin/Robolectric sprawdzają zmianę trybu prywatnego, stare callbacki, opóźniony START po zmianie właściciela i trzy rodzaje braku sesji oraz treść ZIP i ograniczenia. Rejestr incydentów zaktualizowano bez duplikacji.
-remaining: Wymagane SOURCE i PR CI na końcowym źródłowym SHA; przy FAIL konkretne logi, przyczyna i poprawka w ramach etapu 3. Nie rozpoczynać etapu 4/6 przed zielonymi bramkami i kolejnym DALEJ.
-required_ci: SOURCE process-docs + shared-tests (JS, komplet Kotlin/Robolectric, AndroidTest compile, Android lint+lint-regression) + final summary oraz niezależne PR CI shared-tests i error-learning evidence, wszystkie na końcowym source SHA.
-device: NOT_TESTED; brak rzeczywistego testu Nothing Phone (1) z Android 15.
-apk: NOT_BUILT; zakaz budowy/pobierania APK, bez zmiany versionCode/certyfikatu/ABI/pakietu.
-known_failures: Poprzednio onPortDisconnected brał trustedOwner(session) przy zdarzeniu, co po zmianie aktywnego profilu lub private mode gubiło pierwotne rozłączenie; retry START mógł działać po zmianie właściciela, a ciche return przy START bez tab/EngineSession/owner uniemożliwiały precyzyjną diagnozę. Starsze NO_ACK z telefonu nadal nie ma potwierdzonej przyczyny.
-verification: Etap 2 na SHA a0c1c3f540f43c933f4158e2783c661114a01452 miał SOURCE run 42947680582 SUCCESS i PR run 42947687156 SUCCESS. Pierwszy commit etapu 3 caa8869d6bf17c7ed533ff34a072bd8ac3335e49 uruchomił SOURCE 42993835863 i PR 42993843996; JS i process-docs SUCCESS, dalsze kontrole były w toku przy checkpointcie. Dodatkowy review wymaga poprawki bezpieczeństwa i ponownego pełnego CI na nowym SHA.
-verified_before_push: GitHub live HEAD i pełny SHA a0c1c3f540f43c933f4158e2783c661114a01452; AGENTS, ACTIVE_CLEAN_LINE, AI_HANDOFF, STARTUP_PREFLIGHT, CHATGPT_PROJECT_INSTRUCTIONS i właściwe polityki odczytane z tego samego SHA. Ponowna kontrola HEAD przed update_ref obowiązkowa.
-blockers: Rzeczywiste interakcje w GeckoView wymagają późniejszej zatwierdzonej kompilacji i testu urządzenia. Brak niezależnej osobnej recenzji poza wymaganą kontrolą CI; self-review nie jest niezależną recenzją.
+acceptance_source: DALEJ po zweryfikowanym etapie 3/6; IMPLEMENT i VERIFY wyłącznie etapu 4/6, bez APK.
+completed: Potwierdzony brak wyniku transportu dla MARK/PICK/STOP mimo komunikatów UI. Dodano jawny Delivery (SENT_UNCONFIRMED, WAITING_FOR_PAGE, NOT_DELIVERED), per-port controlId i walidowany control_ack łączący dokładnie nonce, dokument, ramkę, numer i rodzaj polecenia. Wersja wbudowanego diagnostycznego WebExtension/handshake 1.0.4. Brak ingerencji w play/pause stron. STOP żądany raz, kończy sesję po zweryfikowanym ACK lub maksymalnie 600ms; nie zawiesza nagrywania na nieobecnym JS, zapisuje sent i ACK osobno. STOP bez ACK nie jest sukcesem JS. ZIP raportuje TOP baseline i kategorie zdarzeń niezależnie od CAPTURING, a także sent/ack dla snapshot/pick/cancel_pick/stop. Menu rozróżnia oczekiwanie na START, migawkę TOP, zdarzenia oraz brak potwierdzenia. MARK zapisuje wyłącznie lokalny znacznik nawet przy braku portu; PICK nie zachęca do klikania, gdy komenda nie została wysłana; komunikaty nie potwierdzają odtwarzania Play. Dodano JS i JVM regresje potwierdzenia komend, złych/starych ID, odpowiedzi STOP, wielokrotnych żądań i bezpiecznych danych.
+remaining: Zakończyć SOURCE i PR CI na końcowym SHA, naprawić wszystkie FAIL w tym etapie. Następny etap 5/6 dopiero po osobnym DALEJ i pełnym zielonym CI.
+required_ci: SOURCE process-docs, shared-tests JS/Kotlin-Robolectric/AndroidTest compile/lint i lint-regression plus summary; PR shared-tests i error-learning evidence, na jednym końcowym źródłowym SHA.
+apk: NOT_BUILT; bez podpisanego APK, bez pobierania binariów, zmiany versionCode/ABI/pakietu/certyfikatu.
+device: NOT_TESTED; fizyczny Nothing Phone (1), Android 15 nie był testowany.
+known_failures: Historycznie STOP kończył ledger zanim JavaScript mógł potwierdzić wykonanie; MARK i PICK nie miały odpowiedzi JS, a CAPTURING oznaczał dowolną migawkę również z SUBFRAME. Rzeczywisty problem z Play i miniaturkami na stronie pozostaje poza tym etapem.
+verification: Etap 3/6 zakończono na 36b0a5db2aebbdeaaadc296ab013d97d3f1d7ca2; SOURCE 42994688345 SUCCESS, PR 42994695409 SUCCESS. Nowy kod etapu 4 wymaga świeżych CI.
+verified_before_push: Odczytano live HEAD i AGENTS/ACTIVE_CLEAN_LINE/AI_HANDOFF/STARTUP_PREFLIGHT/CHATGPT_PROJECT_INSTRUCTIONS oraz właściwe polityki z dokładnego 36b0a5db2aebbdeaaadc296ab013d97d3f1d7ca2. Przed update_ref ponownie zweryfikować HEAD, konflikt pracy i gałąź.
+blockers: Testy Robolectric/JS nie zastępują realnego GeckoView, UI, orientacji i stron na urządzeniu. Brak odrębnej zewnętrznej recenzji o wysokim ryzyku; self-review nie jest niezależnym review.
 evidence_links:
-  - https://github.com/laszko14/nira-browser/actions/runs/42947680582
-  - https://github.com/laszko14/nira-browser/actions/runs/42947687156
-  - https://github.com/laszko14/nira-browser/commit/a0c1c3f540f43c933f4158e2783c661114a01452
-  - https://github.com/laszko14/nira-browser/actions/runs/42993835863
-  - https://github.com/laszko14/nira-browser/actions/runs/42993843996
-  - https://github.com/laszko14/nira-browser/commit/caa8869d6bf17c7ed533ff34a072bd8ac3335e49
+  - https://github.com/laszko14/nira-browser/actions/runs/42994688345
+  - https://github.com/laszko14/nira-browser/actions/runs/42994695409
+  - https://github.com/laszko14/nira-browser/commit/36b0a5db2aebbdeaaadc296ab013d97d3f1d7ca2
 changed_paths:
-  - app/src/main/java/com/prirai/android/nira/browser/MpvPlayPageBridgeController.kt
+  - app/src/main/assets/extensions/zavro-preview-diagnostics/manifest.json
+  - app/src/main/assets/extensions/zavro-preview-diagnostics/content.js
   - app/src/main/java/com/prirai/android/nira/browser/MpvPlayDiagnostics.kt
+  - app/src/main/java/com/prirai/android/nira/browser/MpvPlayPageBridgeController.kt
+  - app/src/main/java/com/prirai/android/nira/BrowserFragment.kt
+  - app/src/test/js/mpv-play-diagnostics-stage2.test.cjs
+  - app/src/test/js/mpv-play-diagnostics-stage5.test.cjs
   - app/src/test/java/com/prirai/android/nira/browser/MpvPlayPageBridgeControllerTest.kt
   - app/src/test/java/com/prirai/android/nira/browser/MpvPlayDiagnosticsTest.kt
   - docs/ai/ERROR_CASES.json
   - docs/AI_HANDOFF.md
-next_action: Zamknąć etap 3/6 wymaganym SOURCE/PR CI na końcowym SHA, potem STOP. Etap 4/6 wyłącznie na kolejne DALEJ.
+next_action: Domknąć etap 4/6 poprzez wymagane końcowe SOURCE i PR CI. Po sukcesie STOP i oczekiwanie na następne DALEJ. Bez APK.
 ```
 
-## Zakres dowodowy
+## Ograniczenia dowodów
 
-Przypisanie portu do pierwotnego profilu zapobiega zaliczeniu zdarzeń do innej karty, ale nie obiecuje działającego Play na prawdziwej stronie. ZIP rozróżnia transport/READY/START/ACK/obserwacje i błędy środowiska bez adresów, HTML, selektorów, ciasteczek, danych uwierzytelniania czy źródeł wideo. Weryfikacja portów w Robolectric nie zastępuje rzeczywistego GeckoView.
+Potwierdzenie `control_ack` jest dowodem uruchomienia polecenia w skrypcie WebExtension, nie dowodem działania Play lub pełnego zeskanowania strony. `STOP` bez ACK oznacza wyłącznie zakończenie lokalnego zapisu. Wszystkie przesyłane pola kontrolne są typu enum/numer/losowy identyfikator, bez treści strony, URL filmów, HTML i poświadczeń.

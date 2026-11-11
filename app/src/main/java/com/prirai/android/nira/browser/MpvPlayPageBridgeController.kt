@@ -42,6 +42,9 @@ internal class MpvPlayPageBridgeController(
     private val portScriptVersions = IdentityHashMap<Port, String>()
     private val portReadyCounted = IdentityHashMap<Port, String>()
     private val startTries = IdentityHashMap<Port, Int>()
+    private val controlSequence = IdentityHashMap<Port, Int>()
+    private val pendingControls = IdentityHashMap<Port, MutableMap<Int, String>>()
+    internal enum class Delivery { SENT_UNCONFIRMED, WAITING_FOR_PAGE, NOT_DELIVERED }
     private var observer: kotlinx.coroutines.CoroutineScope? = null
     private var installed = false
     private var activeExtension: WebExtension? = null
@@ -102,11 +105,13 @@ internal class MpvPlayPageBridgeController(
         return profile to tab.id
     }
 
-    private fun packet(action: String, sessionId: String) = JSONObject().apply {
-        put("schemaVersion", 2)
-        put("action", action)
-        put("sessionId", sessionId)
-    }
+    private fun packet(action: String, sessionId: String, controlId: Int? = null) =
+        JSONObject().apply {
+            put("schemaVersion", 2)
+            put("action", action)
+            put("sessionId", sessionId)
+            if (controlId != null) put("controlId", controlId)
+        }
 
     // A READY comes from the running content script, not necessarily the
     // packaged script. Old installed versions emit READY without scriptVersion.
@@ -154,6 +159,7 @@ internal class MpvPlayPageBridgeController(
             retirePort(session, port)
             return
         }
+        if (MpvPlayDiagnostics.state().stopPending) return
         val tries = startTries[port] ?: 0
         if (tries >= MAX_START_TRIES) return
         try {
@@ -187,6 +193,8 @@ internal class MpvPlayPageBridgeController(
         }
         portReadyCounted.remove(port)
         startTries.remove(port)
+        controlSequence.remove(port)
+        pendingControls.remove(port)
     }
 
     /** Retire a port once, recording the originally bound ledger owner. */
@@ -240,9 +248,13 @@ internal class MpvPlayPageBridgeController(
     }
 
     /** The control surface does not read or rewrite any page data. */
-    fun command(profile: String, tabId: String, action: String) {
-        if (action !in setOf("start", "snapshot", "pick", "cancel_pick", "stop")) return
-        val id = MpvPlayDiagnostics.sessionFor(profile, tabId) ?: return
+    fun command(profile: String, tabId: String, action: String): Delivery {
+        if (action !in setOf("start", "snapshot", "pick", "cancel_pick", "stop"))
+            return Delivery.NOT_DELIVERED
+        val id = MpvPlayDiagnostics.sessionFor(profile, tabId)
+            ?: return Delivery.NOT_DELIVERED
+        if (MpvPlayDiagnostics.state().stopPending && action != "stop")
+            return Delivery.NOT_DELIVERED
         if (action == "start") {
             if (!installed) start()
             scheduleTimeout(profile, tabId, id)
@@ -250,23 +262,24 @@ internal class MpvPlayPageBridgeController(
         val tab = store.state.tabs.firstOrNull { it.id == tabId } ?: run {
             MpvPlayDiagnostics.failed(profile, tabId, id,
                 MpvPlayDiagnosticLedger.Failure.TAB_MISSING)
-            return
+            return Delivery.NOT_DELIVERED
         }
         val session = tab.engineState.engineSession ?: run {
             MpvPlayDiagnostics.failed(profile, tabId, id,
                 MpvPlayDiagnosticLedger.Failure.ENGINE_SESSION_MISSING)
-            return
+            return Delivery.NOT_DELIVERED
         }
         if (trustedOwner(session) != (profile to tabId)) {
             MpvPlayDiagnostics.failed(profile, tabId, id,
                 MpvPlayDiagnosticLedger.Failure.OWNER_MISMATCH)
-            return
+            return Delivery.NOT_DELIVERED
         }
         if (action == "start") activeExtension?.let { registerHandler(session, it) }
         if (action == "start") {
             captureAddonInventory(profile, tabId, id, tab.content.url)
         }
-        val live = ports[session] ?: return
+        val live = ports[session] ?: return Delivery.WAITING_FOR_PAGE
+        var dispatched = false
         val iterator = live.iterator()
         while (iterator.hasNext()) {
             val port = iterator.next()
@@ -303,9 +316,18 @@ internal class MpvPlayPageBridgeController(
                     // Idempotent while waiting for an ACK: retry timer owns resends.
                     if ((startTries[port] ?: 0) == 0)
                         sendStart(session, port, profile, tabId, id)
-                } else if (portNonces[port] == id) {
-                    port.postMessage(packet(action, id))
-                    if (action == "stop") clearPort(port, keepReady = true)
+                } else if (portNonces[port] == id &&
+                           (portDocuments[port] != null ||
+                            action == "stop" && readyDocuments[port] != null)) {
+                    val controlId = (controlSequence[port] ?: 0) + 1
+                    val outstanding = pendingControls.getOrPut(port) { mutableMapOf() }
+                    // Record before POST, so a synchronous test callback cannot
+                    // produce an unsolicited acknowledgement.
+                    outstanding[controlId] = action
+                    controlSequence[port] = controlId
+                    MpvPlayDiagnostics.commandSent(profile, tabId, id, action)
+                    port.postMessage(packet(action, id, controlId))
+                    dispatched = true
                 }
             } catch (_: Exception) {
                 iterator.remove()
@@ -314,6 +336,31 @@ internal class MpvPlayPageBridgeController(
                 MpvPlayDiagnostics.failed(profile, tabId, id,
                     MpvPlayDiagnosticLedger.Failure.POST_FAILED)
             }
+        }
+        return if (dispatched) Delivery.SENT_UNCONFIRMED else Delivery.WAITING_FOR_PAGE
+    }
+
+    /** A STOP is finalized after an ACK or a bounded timeout, never hung on JS. */
+    fun requestStop(profile: String, tabId: String): Delivery {
+        val nonce = MpvPlayDiagnostics.sessionFor(profile, tabId)
+            ?: return Delivery.NOT_DELIVERED
+        if (!MpvPlayDiagnostics.requestStop(profile, tabId, nonce))
+            return Delivery.NOT_DELIVERED
+        val delivered = command(profile, tabId, "stop")
+        if (delivered != Delivery.SENT_UNCONFIRMED) {
+            finishStop(profile, tabId, nonce)
+        } else {
+            mainHandler.postDelayed({ finishStop(profile, tabId, nonce) }, STOP_ACK_WAIT_MS)
+        }
+        return delivered
+    }
+
+    private fun finishStop(profile: String, tabId: String, nonce: String) {
+        if (MpvPlayDiagnostics.sessionFor(profile, tabId) != nonce) return
+        MpvPlayDiagnostics.stop(profile)
+        // Preserve only READY on an extant port for a future, explicit START.
+        for (list in ports.values) for (port in list) {
+            if (portNonces[port] == nonce) clearPort(port, keepReady = true)
         }
     }
 
@@ -545,6 +592,26 @@ internal class MpvPlayPageBridgeController(
                     MpvPlayDiagnosticLedger.Drop.SESSION_MISMATCH)
                 return
             }
+            if (kind == "control_ack") {
+                val identity = payload.optString("documentId") to payload.optString("frame")
+                val controlId = payload.optInt("controlId", -1)
+                val action = payload.optString("action")
+                if (payload.length() != 7 || controlId <= 0 ||
+                    portDocuments[port] != identity ||
+                    pendingControls[port]?.get(controlId) != action) {
+                    MpvPlayDiagnostics.drop(profile, tabId, nonce,
+                        MpvPlayDiagnosticLedger.Drop.UNEXPECTED_EVENT)
+                    return
+                }
+                if (MpvPlayDiagnostics.controlAck(profile, tabId, nonce, payload)) {
+                    pendingControls[port]?.remove(controlId)
+                    if (action == "stop") finishStop(profile, tabId, nonce)
+                } else {
+                    MpvPlayDiagnostics.drop(profile, tabId, nonce,
+                        MpvPlayDiagnosticLedger.Drop.UNEXPECTED_EVENT)
+                }
+                return
+            }
             if (kind == "start_ack") {
                 val identity = payload.optString("documentId") to payload.optString("frame")
                 if (readyDocuments[port] != identity ||
@@ -577,13 +644,14 @@ internal class MpvPlayPageBridgeController(
     }
 
     companion object {
-        internal const val EXPECTED_SCRIPT_VERSION = "1.0.3"
+        internal const val EXPECTED_SCRIPT_VERSION = "1.0.4"
         private val SCRIPT_VERSION_PATTERN = Regex("[0-9]{1,3}(\\.[0-9]{1,3}){1,2}")
         private const val EXTENSION_ID = "zavro-preview-diagnostics@prirai.android.nira"
         private const val NATIVE_APP = "zavro.preview.forensics"
         private const val MAX_FRAMES = 24
         private const val MAX_START_TRIES = 3
         private const val START_RETRY_MS = 2_000L
+        private const val STOP_ACK_WAIT_MS = 600L
         private const val MAX_INBOUND_CHARS = 4_000
         private val DOCUMENT_PATTERN = Regex("[0-9a-f]{32}")
     }

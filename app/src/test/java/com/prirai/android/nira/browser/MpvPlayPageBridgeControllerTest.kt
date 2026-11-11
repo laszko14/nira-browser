@@ -516,6 +516,81 @@ class MpvPlayPageBridgeControllerTest {
         }
     }
 
+
+    @Test fun stage4ControlReceiptsAreBoundToOriginalPortAndStopWaitsForAck() {
+        MpvPlayDiagnostics.discard()
+        val context = RuntimeEnvironment.getApplication()
+        val manager = ProfileManager.getInstance(context)
+        manager.setPrivateMode(false)
+        val profile = manager.getActiveProfile().id
+        val session = Mockito.mock(EngineSession::class.java)
+        val tab = TabSessionState(id = "stage4-controls",
+            contextId = if (profile == "default") null else "profile_$profile",
+            content = ContentState(url = "https://example.org"),
+            engineState = EngineState(engineSession = session))
+        val controller = MpvPlayPageBridgeController(context,
+            Mockito.mock(Engine::class.java), BrowserStore(initialState =
+                BrowserState(tabs = listOf(tab), selectedTabId = tab.id)))
+        val method = controller.javaClass.getDeclaredMethod("handler", EngineSession::class.java)
+        method.isAccessible = true
+        val handler = method.invoke(controller, session) as MessageHandler
+        val sent = mutableListOf<JSONObject>()
+        val port = Mockito.mock(Port::class.java) { invocation ->
+            if (invocation.method.name == "postMessage") {
+                sent.add(invocation.arguments[0] as JSONObject)
+                null
+            } else Mockito.RETURNS_DEFAULTS.answer(invocation)
+        }
+        Mockito.`when`(port.name()).thenReturn("zavro.preview.forensics")
+        Mockito.`when`(port.senderUrl()).thenReturn("https://example.org")
+        val doc = "0123456789abcdef0123456789abcdef"
+        try {
+            handler.onPortConnected(port)
+            handler.onPortMessage(JSONObject().put("schemaVersion", 2)
+                .put("event", "ready").put("documentId", doc).put("frame", "TOP")
+                .put("scriptVersion", MpvPlayPageBridgeController.EXPECTED_SCRIPT_VERSION), port)
+            assertEquals(MpvPlayDiagnostics.Start.STARTED,
+                MpvPlayDiagnostics.start(profile, tab.id, "example.org", false))
+            val nonce = MpvPlayDiagnostics.sessionFor(profile, tab.id)!!
+            assertEquals(MpvPlayPageBridgeController.Delivery.WAITING_FOR_PAGE,
+                controller.command(profile, tab.id, "pick"))
+            controller.command(profile, tab.id, "start")
+            assertEquals(MpvPlayPageBridgeController.Delivery.WAITING_FOR_PAGE,
+                controller.command(profile, tab.id, "pick"))
+            handler.onPortMessage(JSONObject().put("schemaVersion", 2).put("event", "start_ack")
+                .put("sessionId", nonce).put("documentId", doc).put("frame", "TOP"),port)
+            assertEquals(MpvPlayPageBridgeController.Delivery.SENT_UNCONFIRMED,
+                controller.command(profile, tab.id, "pick"))
+            val pick = sent.last()
+            assertEquals("pick", pick.optString("action"))
+            val receipt = JSONObject().put("schemaVersion", 2).put("event", "control_ack")
+                .put("sessionId", nonce).put("documentId", doc).put("frame", "TOP")
+                .put("action", "pick").put("controlId", pick.getInt("controlId"))
+            handler.onPortMessage(JSONObject(receipt.toString()).put("controlId", 404), port)
+            assertEquals(0, MpvPlayDiagnostics.state().pickAcknowledged)
+            handler.onPortMessage(receipt, port)
+            handler.onPortMessage(receipt, port) // Never count a duplicate.
+            assertEquals(1, MpvPlayDiagnostics.state().pickAcknowledged)
+            assertEquals(MpvPlayPageBridgeController.Delivery.SENT_UNCONFIRMED,
+                controller.requestStop(profile, tab.id))
+            assertTrue(MpvPlayDiagnostics.state().stopPending)
+            assertEquals(MpvPlayPageBridgeController.Delivery.NOT_DELIVERED,
+                controller.command(profile, tab.id, "pick"))
+            val stop = sent.last()
+            assertEquals("stop", stop.getString("action"))
+            handler.onPortMessage(JSONObject(receipt.toString()).put("action", "stop")
+                .put("controlId", stop.getInt("controlId")), port)
+            assertFalse(MpvPlayDiagnostics.state().running)
+            assertTrue(MpvPlayDiagnostics.state().reportReady)
+            assertTrue(MpvPlayDiagnostics.state().stopAcknowledged)
+            assertEquals(1, MpvPlayDiagnostics.state().pickAcknowledged)
+            assertEquals(MpvPlayPageBridgeController.Delivery.NOT_DELIVERED,
+                controller.requestStop(profile, tab.id))
+        } finally {
+            MpvPlayDiagnostics.discard()
+        }
+    }
+
     @Test fun oldInstalledScriptReadyIsReportedAsVersionMismatchNotNoAck() {
         MpvPlayDiagnostics.discard()
         val context = RuntimeEnvironment.getApplication()
@@ -671,7 +746,7 @@ class MpvPlayPageBridgeControllerTest {
             }
         }
         assertNotNull(transport)
-        assertEquals("1.0.3", transport!!.getString("extension_script_version_expected"))
+        assertEquals("1.0.4", transport!!.getString("extension_script_version_expected"))
         assertEquals("MISSING", transport!!.getString("extension_script_version_observed"))
         assertEquals("SCRIPT_VERSION_MISMATCH", transport!!.getString("failure"))
     }

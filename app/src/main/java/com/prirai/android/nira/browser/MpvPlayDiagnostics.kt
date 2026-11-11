@@ -75,6 +75,48 @@ internal class MpvPlayDiagnosticLedger(
     private var invalidAcks = 0
     private val drops = Drop.entries.associateWith { 0 }.toMutableMap()
     private var baselineSnapshots = 0
+    private var topBaselineSnapshots = 0
+    private val controlSent = mutableMapOf("snapshot" to 0, "pick" to 0,
+        "cancel_pick" to 0, "stop" to 0)
+    private val controlConfirmed = controlSent.toMutableMap()
+    var stopPending = false
+        private set
+    val topBaselineConfirmed: Boolean get() = topBaselineSnapshots > 0
+    val pageEventsObserved: Boolean get() = pageEvents.any {
+        it.optString("kind") in setOf("EVENT", "MEDIA", "MUTATION", "ERROR", "PICK")
+    }
+    fun confirmedControls(): Map<String, Int> = controlConfirmed.toMap()
+
+    fun commandSent(action: String): Boolean {
+        if (!active || (stopPending && action != "stop") ||
+            action !in controlSent) return false
+        controlSent[action] = (controlSent.getValue(action) + 1).coerceAtMost(10_000)
+        return true
+    }
+
+    fun requestStop(): Boolean {
+        if (!active || stopPending) return false
+        stopPending = true
+        entries.add(Entry(0, "stop_requested", "Awaiting bounded content STOP confirmation"))
+        return true
+    }
+
+    fun controlAck(packet: JSONObject): Boolean {
+        if (!active || packet.length() != 7 || packet.optInt("schemaVersion") != 2 ||
+            packet.optString("event") != "control_ack" ||
+            packet.optString("sessionId") != sessionId) return false
+        val action = packet.optString("action")
+        val document = packet.optString("documentId")
+        val frame = packet.optString("frame")
+        if (packet.optInt("controlId", 0) <= 0 ||
+            action !in controlSent || (action == "stop" && !stopPending) ||
+            (stopPending && action != "stop") ||
+            acknowledgedFrames[document] != frame ||
+            controlConfirmed.getValue(action) >= controlSent.getValue(action)) return false
+        controlConfirmed[action] = controlConfirmed.getValue(action) + 1
+        entries.add(Entry(0, "control_ack", action.uppercase()))
+        return true
+    }
     private var lastTransportProgressMs = 0L
     private val acknowledgedFrames = mutableMapOf<String, String>()
     private val transportTimeoutMs = 8_000L
@@ -154,7 +196,7 @@ internal class MpvPlayDiagnosticLedger(
     }
 
     fun startAck(packet: JSONObject, elapsedMs: Long = 0): Boolean {
-        if (hasFatalSessionFault()) return false
+        if (hasFatalSessionFault() || stopPending) return false
         if (!active || transport in setOf(Transport.NO_PORT, Transport.NO_READY, Transport.NO_START, Transport.NO_ACK,
                 Transport.NO_PAGE_EVENTS, Transport.NO_BASELINE) || packet.length() != 5 ||
             packet.optInt("schemaVersion") != 2 ||
@@ -266,7 +308,7 @@ internal class MpvPlayDiagnosticLedger(
     }
 
     fun mark(elapsedMs: Long, nativeSnapshot: String): Boolean {
-        if (!active || snapshots.size >= MAX_MARKS) return false
+        if (!active || stopPending || snapshots.size >= MAX_MARKS) return false
         val capped = nativeSnapshot.take(MAX_SNAPSHOT_CHARS)
         snapshots.add("MARK " + snapshots.size + " (" + elapsedMs.coerceAtLeast(0L) +
             "ms; APP_DECOR_ONLY)\n" + capped)
@@ -281,7 +323,7 @@ internal class MpvPlayDiagnosticLedger(
      */
     fun appendPageEvent(message: JSONObject, receivedMs: Long): Boolean {
         if (hasFatalSessionFault()) return false
-        if (!active || transport in setOf(Transport.NO_PORT, Transport.NO_READY, Transport.NO_START, Transport.NO_ACK,
+        if (!active || stopPending || transport in setOf(Transport.NO_PORT, Transport.NO_READY, Transport.NO_START, Transport.NO_ACK,
                 Transport.NO_PAGE_EVENTS, Transport.NO_BASELINE)) return false
         fun reject(): Boolean { pageRejected++; return false }
         if (message.toString().length > MAX_PAGE_PACKET_CHARS ||
@@ -361,6 +403,7 @@ internal class MpvPlayDiagnosticLedger(
         entries.add(Entry(received, "page_" + kind.lowercase(), detail))
         if (detail == "SNAPSHOT_FINISHED") {
             baselineSnapshots++
+            if (expectedFrame == "TOP") topBaselineSnapshots++
             transport = Transport.CAPTURING
             failure = Failure.NONE
         }
@@ -408,6 +451,10 @@ internal class MpvPlayDiagnosticLedger(
             put("transport_state", transport.name)
             put("transport_failure", failure.name)
             put("transport_stage", diagnosticStage())
+            put("top_frame_baseline_confirmed", topBaselineConfirmed)
+            put("page_events_observed", pageEventsObserved)
+            put("stop_requested", stopPending)
+            put("stop_acknowledged", controlConfirmed.getValue("stop") > 0)
             put("extension_script_version_expected", MpvPlayPageBridgeController.EXPECTED_SCRIPT_VERSION)
             put("extension_script_version_observed", observedScriptVersion ?: JSONObject.NULL)
         }
@@ -424,6 +471,8 @@ internal class MpvPlayDiagnosticLedger(
         analysis.put("transport_state", transport.name)
         analysis.put("transport_failure", failure.name)
         analysis.put("transport_stage", diagnosticStage())
+        analysis.put("top_frame_baseline_confirmed", topBaselineConfirmed)
+        analysis.put("page_events_observed", pageEventsObserved)
         analysis.put("diagnostics_complete", transport == Transport.CAPTURING)
         if (transport != Transport.CAPTURING) {
             analysis.getJSONArray("missing_evidence").put("DIAGNOSTIC_TRANSPORT_INCOMPLETE")
@@ -457,6 +506,9 @@ internal class MpvPlayDiagnosticLedger(
                 put("top_frame_acknowledged", acknowledgedFrames.values.any { it == "TOP" })
                 put("subframes_acknowledged", acknowledgedFrames.values.count { it == "SUBFRAME" })
                 put("baseline_snapshots", baselineSnapshots)
+                put("top_frame_baseline_confirmed", topBaselineConfirmed)
+                put("page_events_observed", pageEventsObserved)
+                put("stop_acknowledged", controlConfirmed.getValue("stop") > 0)
                 put("transport_state", transport.name)
                 put("transport_failure", failure.name)
             }.toString(2))
@@ -474,6 +526,17 @@ internal class MpvPlayDiagnosticLedger(
                 put("top_frame_acknowledged", acknowledgedFrames.values.any { it == "TOP" })
                 put("subframes_acknowledged", acknowledgedFrames.values.count { it == "SUBFRAME" })
                 put("page_events_accepted", pageEvents.size)
+                put("top_frame_baseline_confirmed", topBaselineConfirmed)
+                put("page_events_observed", pageEventsObserved)
+                put("stop_requested", stopPending)
+                put("control_snapshot_sent", controlSent.getValue("snapshot"))
+                put("control_snapshot_ack", controlConfirmed.getValue("snapshot"))
+                put("control_pick_sent", controlSent.getValue("pick"))
+                put("control_pick_ack", controlConfirmed.getValue("pick"))
+                put("control_cancel_pick_sent", controlSent.getValue("cancel_pick"))
+                put("control_cancel_pick_ack", controlConfirmed.getValue("cancel_pick"))
+                put("control_stop_sent", controlSent.getValue("stop"))
+                put("control_stop_ack", controlConfirmed.getValue("stop"))
                 put("packets_rejected", transportRejected)
                 put("messages_received", messagesReceived)
                 put("ports_ready", portsReady)
@@ -539,7 +602,13 @@ internal object MpvPlayDiagnostics {
     internal data class State(val running: Boolean, val reportReady: Boolean,
         val ownerProfile: String?, val ownerTab: String?,
         val transport: MpvPlayDiagnosticLedger.Transport?,
-        val failure: MpvPlayDiagnosticLedger.Failure?)
+        val failure: MpvPlayDiagnosticLedger.Failure?,
+        val topBaseline: Boolean = false,
+        val pageEventsObserved: Boolean = false,
+        val stopPending: Boolean = false,
+        val stopAcknowledged: Boolean = false,
+        val snapshotAcknowledged: Int = 0,
+        val pickAcknowledged: Int = 0)
     private const val MAX_DURATION_MS = 15 * 60 * 1000L
     private val lock = Any()
     private var recording: MpvPlayDiagnosticLedger? = null
@@ -566,9 +635,17 @@ internal object MpvPlayDiagnostics {
     fun state(): State = synchronized(lock) {
         expireIfNeeded()
         val current = recording
+        val currentEvidence = current ?: finished
+        val confirmations = currentEvidence?.confirmedControls().orEmpty()
         State(current != null, finished != null, current?.ownerProfile ?: finished?.ownerProfile,
             current?.ownerTab ?: finished?.ownerTab, current?.transport ?: finished?.transport,
-            current?.failure ?: finished?.failure)
+            current?.failure ?: finished?.failure,
+            topBaseline = currentEvidence?.topBaselineConfirmed == true,
+            pageEventsObserved = currentEvidence?.pageEventsObserved == true,
+            stopPending = current?.stopPending == true,
+            stopAcknowledged = (confirmations["stop"] ?: 0) > 0,
+            snapshotAcknowledged = confirmations["snapshot"] ?: 0,
+            pickAcknowledged = confirmations["pick"] ?: 0)
     }
 
     fun start(profile: String, tab: String, host: String?, privateTab: Boolean,
@@ -646,6 +723,24 @@ internal object MpvPlayDiagnostics {
     fun failed(profile: String, tab: String, nonce: String,
                cause: MpvPlayDiagnosticLedger.Failure): Boolean =
         withSession(profile, tab, nonce) { it.transportFailed(cause) }
+
+    fun commandSent(profile: String, tab: String, nonce: String, action: String): Boolean {
+        var accepted = false
+        withSession(profile, tab, nonce) { accepted = it.commandSent(action) }
+        return accepted
+    }
+
+    fun requestStop(profile: String, tab: String, nonce: String): Boolean {
+        var accepted = false
+        withSession(profile, tab, nonce) { accepted = it.requestStop() }
+        return accepted
+    }
+
+    fun controlAck(profile: String, tab: String, nonce: String, packet: JSONObject): Boolean {
+        var accepted = false
+        withSession(profile, tab, nonce) { accepted = it.controlAck(packet) }
+        return accepted
+    }
 
     fun ack(profile: String, tab: String, nonce: String, packet: JSONObject): Boolean {
         var result = false

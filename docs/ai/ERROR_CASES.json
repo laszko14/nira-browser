@@ -318,6 +318,12 @@
       "observed_count": 2,
       "state": "ACTIVE"
     }
+    ,
+    {
+      "task_id": "ZC-MPV-PLAY-CONTROLS-V2-STAGE4-20261111",
+      "observed_count": 3,
+      "state": "ACTIVE"
+    }
   ],
   "events": [
     {
@@ -7097,6 +7103,87 @@
       "cause_confidence": "confirmed",
       "test_result": "NOT_TESTED",
       "final_ci": "PENDING"
+    },
+    {
+      "id": "ERR-20261111-MPV-PLAY-CONTROL-ACK",
+      "task_id": "ZC-MPV-PLAY-CONTROLS-V2-STAGE4-20261111",
+      "kind": "REGRESSION",
+      "fingerprint": "diagnostic_native_ui_claims_pick_snapshot_delivery_without_js_control_ack",
+      "summary": "MARK and PICK UI previously assumed a native postMessage meant the content script executed the action, even with no acknowledged START/doc or lost port.",
+      "source_sha": "36b0a5db2aebbdeaaadc296ab013d97d3f1d7ca2",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/mpv-play-diagnostics-stage5.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/36b0a5db2aebbdeaaadc296ab013d97d3f1d7ca2"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "fix_summary": "Use per-port monotonic control IDs with bounded metadata-only control_ack, require matching owner/nonce/document/ID before counting execution, and show SENT_UNCONFIRMED vs NOT_DELIVERED.",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "MARK and PICK UI previously assumed a native postMessage meant the content script executed the action, even with no acknowledged START/doc or lost port."
+    },
+    {
+      "id": "ERR-20261111-MPV-PLAY-STOP-ACK",
+      "task_id": "ZC-MPV-PLAY-CONTROLS-V2-STAGE4-20261111",
+      "kind": "REGRESSION",
+      "fingerprint": "diagnostic_native_stop_finishes_immediately_and_loses_js_stop_receipt",
+      "summary": "Immediate native stop finalized the ledger before asynchronous STOP ACK could arrive, so the ZIP could not distinguish stop delivery from a locally completed report.",
+      "source_sha": "36b0a5db2aebbdeaaadc296ab013d97d3f1d7ca2",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/java/com/prirai/android/nira/browser/MpvPlayPageBridgeControllerTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/36b0a5db2aebbdeaaadc296ab013d97d3f1d7ca2"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "fix_summary": "Introduce bounded 600ms STOP ACK window; finish on a validated control_ack or timeout, preserve one-shot READY for next START, and record missing ACK explicitly.",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "Immediate native stop finalized the ledger before asynchronous STOP ACK could arrive, so the ZIP could not distinguish stop delivery from a locally completed report."
+    },
+    {
+      "id": "ERR-20261111-MPV-PLAY-UI-BASELINE",
+      "task_id": "ZC-MPV-PLAY-CONTROLS-V2-STAGE4-20261111",
+      "kind": "REGRESSION",
+      "fingerprint": "diagnostic_ui_reports_capturing_when_only_subframe_snapshot_confirmed",
+      "summary": "UI treated CAPTURING from any frame's SNAPSHOT_FINISHED as page/Play detection, without distinguishing a TOP-frame baseline or page interaction categories.",
+      "source_sha": "36b0a5db2aebbdeaaadc296ab013d97d3f1d7ca2",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/java/com/prirai/android/nira/browser/MpvPlayDiagnosticsTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/36b0a5db2aebbdeaaadc296ab013d97d3f1d7ca2"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "fix_summary": "Keep strict transport state but expose separately TOP baseline, observed typed page events, control acknowledgements and explicit unverified Play in menu and ZIP.",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "UI treated CAPTURING from any frame's SNAPSHOT_FINISHED as page/Play detection, without distinguishing a TOP-frame baseline or page interaction categories."
     }
   ]
 }

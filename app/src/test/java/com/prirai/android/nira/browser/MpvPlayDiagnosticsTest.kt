@@ -327,6 +327,64 @@ class MpvPlayDiagnosticsTest {
             .getBoolean("diagnostics_complete"))
     }
 
+
+    @Test fun stage4ControlReceiptRequiresRealStartAckAndExplicitStopRequest() {
+        val ledger = MpvPlayDiagnosticLedger(
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "owner", "tab", null, "v", 0, 0)
+        val doc = "0123456789abcdef0123456789abcdef"
+        val start = JSONObject().put("schemaVersion", 2).put("event", "start_ack")
+            .put("sessionId", ledger.sessionId).put("documentId", doc).put("frame", "TOP")
+        fun control(action: String, id: Int) = JSONObject().put("schemaVersion", 2)
+            .put("event", "control_ack").put("sessionId", ledger.sessionId)
+            .put("documentId", doc).put("frame", "TOP")
+            .put("action", action).put("controlId", id)
+        ledger.connected(1)
+        ledger.ready(1)
+        assertFalse(ledger.controlAck(control("pick", 1))) // unsolicited
+        assertTrue(ledger.commandSent("pick"))
+        assertFalse(ledger.controlAck(control("pick", 1))) // no START ACK
+        ledger.startSent(2)
+        assertTrue(ledger.startAck(start, 3))
+        assertTrue(ledger.controlAck(control("pick", 1)))
+        assertFalse(ledger.controlAck(control("pick", 2))) // unposted request
+        assertFalse(ledger.controlAck(control("stop", 3))) // no STOP request
+        assertTrue(ledger.requestStop())
+        assertFalse(ledger.requestStop()) // duplicate tap
+        assertFalse(ledger.commandSent("pick")) // controls blocked during STOP
+        assertTrue(ledger.commandSent("stop"))
+        assertTrue(ledger.controlAck(control("stop", 3)))
+        assertFalse(ledger.controlAck(control("stop", 4)))
+        ledger.finish(10, 11, "STOPPED")
+        val entries = archiveEntries(ledger.toZipBytes())
+        val transport = JSONObject(entries.getValue("transport.json"))
+        assertEquals(1, transport.getInt("control_pick_ack"))
+        assertEquals(1, transport.getInt("control_stop_ack"))
+        assertEquals(1, transport.getInt("control_stop_sent"))
+        assertEquals(true, transport.getBoolean("stop_requested"))
+        assertEquals(true, JSONObject(entries.getValue("summary.json"))
+            .getBoolean("stop_acknowledged"))
+        assertFalse(JSONObject(entries.getValue("analysis.json"))
+            .getBoolean("diagnostics_complete"))
+    }
+
+    @Test fun stage4UnconfirmedStopIsNeverReportedAsJsSuccess() {
+        val ledger = MpvPlayDiagnosticLedger(
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "owner", "tab", null, "v", 0, 0)
+        ledger.connected(0)
+        ledger.startSent(1)
+        assertTrue(ledger.requestStop())
+        assertTrue(ledger.commandSent("stop"))
+        ledger.finish(5, 6, "STOPPED")
+        val entries = archiveEntries(ledger.toZipBytes())
+        val transport = JSONObject(entries.getValue("transport.json"))
+        assertEquals(1, transport.getInt("control_stop_sent"))
+        assertEquals(0, transport.getInt("control_stop_ack"))
+        assertFalse(JSONObject(entries.getValue("summary.json"))
+            .getBoolean("stop_acknowledged"))
+        assertFalse(JSONObject(entries.getValue("page-coverage.json"))
+            .getBoolean("top_frame_baseline_confirmed"))
+    }
+
     @Test fun privateTabBlockedAndProfileIsolationAndGateConflict() {
         MpvPlayDiagnostics.discard()
         try {
