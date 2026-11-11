@@ -1146,8 +1146,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             val confirmed = mpvState.transport ==
                 com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.CAPTURING
             val statusText = when {
-                confirmed -> "ZBIERANIE POTWIERDZONE"
                 !mpvState.running -> "RAPORT GOTOWY"
+                confirmed -> "ZBIERANIE POTWIERDZONE"
                 mpvState.transport == com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.NOT_READY ->
                     "OCZEKIWANIE NA POŁĄCZENIE"
                 mpvState.transport == com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.CONNECTED ->
@@ -1166,9 +1166,11 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_settings_24,
                 onClick = {
                     val owner = activity ?: return@Action
-                    Toast.makeText(owner, if (confirmed)
+                    Toast.makeText(owner, if (!mpvState.running)
+                        "Test zakończony. Raport jest gotowy do eksportu; sprawdź stan transportu w ZIP."
+                        else if (confirmed)
                         "Dane strony są zbierane. Odtwórz problem i oznacz go."
-                        else if (mpvState.running && statusText != "BŁĄD KOMUNIKACJI")
+                        else if (statusText != "BŁĄD KOMUNIKACJI")
                         "Oczekiwanie na potwierdzenie strony. Jeśli stan się nie zmieni, odśwież kartę."
                         else "Brak potwierdzonej migawki strony. Odśwież kartę i rozpocznij nowy test; ZIP zawiera kategorię błędu.",
                         Toast.LENGTH_LONG).show()

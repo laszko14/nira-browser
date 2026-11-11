@@ -123,10 +123,13 @@ internal class MpvPlayPageBridgeController(
         }
     }
 
-    private fun clearPort(port: Port) {
+    private fun clearPort(port: Port, keepReady: Boolean = false) {
         portNonces.remove(port)
         portDocuments.remove(port)
-        readyDocuments.remove(port)
+        // STOP ends the diagnostic nonce, not the Gecko content Port. Its
+        // one-shot READY remains valid while this exact Port is connected.
+        // Disconnect/replacement must still invalidate that READY.
+        if (!keepReady) readyDocuments.remove(port)
         portReadyCounted.remove(port)
         startTries.remove(port)
     }
@@ -202,7 +205,7 @@ internal class MpvPlayPageBridgeController(
                         sendStart(session, port, profile, tabId, id)
                 } else if (portNonces[port] == id) {
                     port.postMessage(packet(action, id))
-                    if (action == "stop") clearPort(port)
+                    if (action == "stop") clearPort(port, keepReady = true)
                 }
             } catch (_: Exception) {
                 iterator.remove()
@@ -233,7 +236,7 @@ internal class MpvPlayPageBridgeController(
         for (list in ports.values) for (port in list.toList()) {
             if (portNonces[port] == nonce) {
                 try { port.postMessage(packet("stop", nonce)) } catch (_: Exception) {}
-                clearPort(port)
+                clearPort(port, keepReady = true)
             }
         }
     }

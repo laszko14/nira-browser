@@ -249,11 +249,11 @@
       }
     });
     port.onDisconnect.addListener(() => {
-      // STOP must suppress retries, but a new START on the same document
-      // must restore retry eligibility even when an older session stopped.
-      const shouldRetry = !!active || !stoppedId;
+      // A disconnected idle channel must be restored for the next START,
+      // including after STOP. Reconnecting is passive: no DOM listeners or
+      // observations are installed until a distinct opt-in session starts.
       stop();
-      if (attempt < 3 && shouldRetry)
+      if (attempt < 3)
         setTimeout(() => connect(attempt + 1), 250 * (attempt + 1));
     });
     // READY does not mean START succeeded. This packet is emitted only

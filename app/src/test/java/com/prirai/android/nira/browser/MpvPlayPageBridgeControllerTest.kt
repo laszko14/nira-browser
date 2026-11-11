@@ -185,4 +185,74 @@ class MpvPlayPageBridgeControllerTest {
             MpvPlayDiagnostics.discard()
         }
     }
+    @Test fun repeatedStartAfterStopUsesCachedReadyOnTheSameLivePort() {
+        MpvPlayDiagnostics.discard()
+        val context = RuntimeEnvironment.getApplication()
+        val manager = ProfileManager.getInstance(context)
+        manager.setPrivateMode(false)
+        val profile = manager.getActiveProfile().id
+        val session = Mockito.mock(EngineSession::class.java)
+        val tab = TabSessionState(id = "stop-restart-ready",
+            contextId = if (profile == "default") null else "profile_$profile",
+            content = ContentState(url = "https://example.org/preview"),
+            engineState = EngineState(engineSession = session))
+        val store = BrowserStore(initialState = BrowserState(tabs = listOf(tab),
+            selectedTabId = tab.id))
+        val controller = MpvPlayPageBridgeController(context,
+            Mockito.mock(Engine::class.java), store)
+        val method = controller.javaClass.getDeclaredMethod("handler", EngineSession::class.java)
+        method.isAccessible = true
+        val handler = method.invoke(controller, session) as MessageHandler
+        val sent = mutableListOf<JSONObject>()
+        val port = Mockito.mock(Port::class.java) { invocation ->
+            if (invocation.method.name == "postMessage") {
+                sent.add(invocation.arguments[0] as JSONObject)
+                null
+            } else Mockito.RETURNS_DEFAULTS.answer(invocation)
+        }
+        Mockito.`when`(port.name()).thenReturn("zavro.preview.forensics")
+        Mockito.`when`(port.senderUrl()).thenReturn("https://example.org/preview")
+        val document = "0123456789abcdef0123456789abcdef"
+        val ready = JSONObject().put("schemaVersion", 2).put("event", "ready")
+            .put("documentId", document).put("frame", "TOP")
+        try {
+            handler.onPortConnected(port)
+            handler.onPortMessage(ready, port) // READY is one-shot for this document.
+            assertEquals(MpvPlayDiagnostics.Start.STARTED,
+                MpvPlayDiagnostics.start(profile, tab.id, "example.org", false))
+            val oldNonce = MpvPlayDiagnostics.sessionFor(profile, tab.id)!!
+            controller.command(profile, tab.id, "start")
+            assertEquals(1, sent.count { it.optString("action") == "start" })
+            controller.command(profile, tab.id, "stop")
+            assertTrue(sent.any { it.optString("action") == "stop" })
+            assertTrue(MpvPlayDiagnostics.stop(profile))
+
+            assertEquals(MpvPlayDiagnostics.Start.STARTED,
+                MpvPlayDiagnostics.start(profile, tab.id, "example.org", false))
+            val newNonce = MpvPlayDiagnostics.sessionFor(profile, tab.id)!!
+            assertNotEquals(oldNonce, newNonce)
+            controller.command(profile, tab.id, "start")
+            // No second READY was emitted by the still-connected content script.
+            assertEquals(2, sent.count { it.optString("action") == "start" })
+            assertEquals(newNonce, sent.last().optString("sessionId"))
+            assertEquals(MpvPlayDiagnosticLedger.Transport.START_SENT,
+                MpvPlayDiagnostics.state().transport)
+
+            // A late ACK for the old session must never unlock new capture.
+            val staleAck = JSONObject().put("schemaVersion", 2)
+                .put("event", "start_ack").put("sessionId", oldNonce)
+                .put("documentId", document).put("frame", "TOP")
+            handler.onPortMessage(staleAck, port)
+            assertEquals(MpvPlayDiagnosticLedger.Transport.START_SENT,
+                MpvPlayDiagnostics.state().transport)
+            handler.onPortMessage(JSONObject(staleAck.toString())
+                .put("sessionId", newNonce), port)
+            assertEquals(MpvPlayDiagnosticLedger.Transport.START_ACKNOWLEDGED,
+                MpvPlayDiagnostics.state().transport)
+        } finally {
+            controller.cancelCurrent()
+            MpvPlayDiagnostics.discard()
+        }
+    }
+
 }

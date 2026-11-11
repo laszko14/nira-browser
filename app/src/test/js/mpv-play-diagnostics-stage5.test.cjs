@@ -241,7 +241,13 @@ test("final5: a restarted session restores bounded reconnect after an earlier ST
   stopped.command("start", ONE);
   stopped.command("stop", ONE);
   stopped.disconnect();
-  assert.equal(stopped.pendingRetries(), 0, "STOP prevents reconnect");
+  assert.equal(stopped.pendingRetries(), 1,
+    "an idle port lost after STOP must reconnect for the next diagnostic");
+  stopped.retry();
+  assert.equal(stopped.stats().activeListeners, 0,
+    "idle reconnection must not reactivate page listeners");
+  stopped.command("start", TWO);
+  assert.equal(stopped.packets.filter(x=>x.event==="start_ack").at(-1).sessionId, TWO);
 
   const restarted = fixture();
   restarted.command("start", ONE);
