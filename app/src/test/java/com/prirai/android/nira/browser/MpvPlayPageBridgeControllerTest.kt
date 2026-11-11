@@ -333,6 +333,132 @@ class MpvPlayPageBridgeControllerTest {
         }
     }
 
+
+    @Test fun portDisconnectIsCreditedToOriginalOwnerAfterEnteringPrivateMode() {
+        MpvPlayDiagnostics.discard()
+        val context = RuntimeEnvironment.getApplication()
+        val manager = ProfileManager.getInstance(context)
+        manager.setPrivateMode(false)
+        val profile = manager.getActiveProfile().id
+        val session = Mockito.mock(EngineSession::class.java)
+        val tab = TabSessionState(id = "owner-after-switch",
+            contextId = if (profile == "default") null else "profile_$profile",
+            content = ContentState(url = "https://example.org"),
+            engineState = EngineState(engineSession = session))
+        val controller = MpvPlayPageBridgeController(context,
+            Mockito.mock(Engine::class.java), BrowserStore(initialState =
+                BrowserState(tabs = listOf(tab), selectedTabId = tab.id)))
+        val method = controller.javaClass.getDeclaredMethod("handler", EngineSession::class.java)
+        method.isAccessible = true
+        val handler = method.invoke(controller, session) as MessageHandler
+        val port = Mockito.mock(Port::class.java)
+        Mockito.`when`(port.name()).thenReturn("zavro.preview.forensics")
+        Mockito.`when`(port.senderUrl()).thenReturn("https://example.org")
+        try {
+            assertEquals(MpvPlayDiagnostics.Start.STARTED,
+                MpvPlayDiagnostics.start(profile, tab.id, "example.org", false))
+            handler.onPortConnected(port)
+            manager.setPrivateMode(true) // trustedOwner(session) is now null.
+            handler.onPortDisconnected(port)
+            assertEquals(MpvPlayDiagnosticLedger.Transport.DISCONNECTED,
+                MpvPlayDiagnostics.state().transport)
+            assertEquals(MpvPlayDiagnosticLedger.Failure.PORT_DISCONNECTED,
+                MpvPlayDiagnostics.state().failure)
+            // A second callback must not decrement the old count again.
+            handler.onPortDisconnected(port)
+            assertEquals(MpvPlayDiagnosticLedger.Transport.DISCONNECTED,
+                MpvPlayDiagnostics.state().transport)
+        } finally {
+            manager.setPrivateMode(false)
+            MpvPlayDiagnostics.discard()
+        }
+    }
+
+    @Test fun oldOwnerPacketAfterPrivateModeTransitionIsRetiredNotAccepted() {
+        MpvPlayDiagnostics.discard()
+        val context = RuntimeEnvironment.getApplication()
+        val manager = ProfileManager.getInstance(context)
+        manager.setPrivateMode(false)
+        val profile = manager.getActiveProfile().id
+        val session = Mockito.mock(EngineSession::class.java)
+        val tab = TabSessionState(id = "stale-owner-packet",
+            contextId = if (profile == "default") null else "profile_$profile",
+            content = ContentState(url = "https://example.org"),
+            engineState = EngineState(engineSession = session))
+        val controller = MpvPlayPageBridgeController(context,
+            Mockito.mock(Engine::class.java), BrowserStore(initialState =
+                BrowserState(tabs = listOf(tab), selectedTabId = tab.id)))
+        val method = controller.javaClass.getDeclaredMethod("handler", EngineSession::class.java)
+        method.isAccessible = true
+        val handler = method.invoke(controller, session) as MessageHandler
+        val port = Mockito.mock(Port::class.java)
+        Mockito.`when`(port.name()).thenReturn("zavro.preview.forensics")
+        Mockito.`when`(port.senderUrl()).thenReturn("https://example.org")
+        try {
+            assertEquals(MpvPlayDiagnostics.Start.STARTED,
+                MpvPlayDiagnostics.start(profile, tab.id, "example.org", false))
+            handler.onPortConnected(port)
+            manager.setPrivateMode(true)
+            handler.onPortMessage(JSONObject().put("schemaVersion", 2)
+                .put("event", "ready").put("documentId", "0123456789abcdef0123456789abcdef")
+                .put("frame", "TOP")
+                .put("scriptVersion", MpvPlayPageBridgeController.EXPECTED_SCRIPT_VERSION), port)
+            Mockito.verify(port, Mockito.times(1)).disconnect()
+            assertEquals(MpvPlayDiagnosticLedger.Transport.DISCONNECTED,
+                MpvPlayDiagnostics.state().transport)
+            assertEquals(MpvPlayDiagnosticLedger.Failure.PORT_DISCONNECTED,
+                MpvPlayDiagnostics.state().failure)
+            handler.onPortDisconnected(port) // The retired port is no longer owned.
+            assertEquals(MpvPlayDiagnosticLedger.Transport.DISCONNECTED,
+                MpvPlayDiagnostics.state().transport)
+        } finally {
+            manager.setPrivateMode(false)
+            MpvPlayDiagnostics.discard()
+        }
+    }
+
+    @Test fun startWithoutTabEngineOrOwnedSessionReportsConcreteFailure() {
+        MpvPlayDiagnostics.discard()
+        val context = RuntimeEnvironment.getApplication()
+        val manager = ProfileManager.getInstance(context)
+        manager.setPrivateMode(false)
+        val profile = manager.getActiveProfile().id
+        data class Case(val tab: String, val state: BrowserState,
+                        val failure: MpvPlayDiagnosticLedger.Failure)
+        val cases = listOf(
+            Case("missing", BrowserState(),
+                MpvPlayDiagnosticLedger.Failure.TAB_MISSING),
+            Case("no-engine", BrowserState(tabs = listOf(
+                TabSessionState(id = "no-engine",
+                    contextId = if (profile == "default") null else "profile_$profile",
+                    content = ContentState(url = "https://example.org"),
+                    engineState = EngineState()))),
+                MpvPlayDiagnosticLedger.Failure.ENGINE_SESSION_MISSING),
+            Case("wrong-owner", BrowserState(tabs = listOf(
+                TabSessionState(id = "wrong-owner", contextId = "profile_someoneelse",
+                    content = ContentState(url = "https://example.org"),
+                    engineState = EngineState(engineSession =
+                        Mockito.mock(EngineSession::class.java))))),
+                MpvPlayDiagnosticLedger.Failure.OWNER_MISMATCH)
+        )
+        try {
+            for (item in cases) {
+                MpvPlayDiagnostics.discard()
+                assertEquals(MpvPlayDiagnostics.Start.STARTED,
+                    MpvPlayDiagnostics.start(profile, item.tab, "example.org", false))
+                val controller = MpvPlayPageBridgeController(context,
+                    Mockito.mock(Engine::class.java),
+                    BrowserStore(initialState = item.state))
+                controller.command(profile, item.tab, "start")
+                assertEquals(item.failure, MpvPlayDiagnostics.state().failure)
+                assertEquals(MpvPlayDiagnosticLedger.Transport.FAILED,
+                    MpvPlayDiagnostics.state().transport)
+            }
+        } finally {
+            MpvPlayDiagnostics.discard()
+        }
+    }
+
     @Test fun oldInstalledScriptReadyIsReportedAsVersionMismatchNotNoAck() {
         MpvPlayDiagnostics.discard()
         val context = RuntimeEnvironment.getApplication()

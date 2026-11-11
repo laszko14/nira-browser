@@ -37,7 +37,8 @@ internal class MpvPlayDiagnosticLedger(
         DISCONNECTED, FAILED }
     enum class Failure { NONE, NO_PORT, NO_READY, NO_START, NO_ACK, NO_PAGE_EVENTS,
         NO_BASELINE, PORT_DISCONNECTED, INSTALL_FAILED, HANDLER_FAILED, POST_FAILED,
-        INVALID_ACK, SCRIPT_VERSION_MISMATCH }
+        INVALID_ACK, SCRIPT_VERSION_MISMATCH, TAB_MISSING,
+        ENGINE_SESSION_MISSING, OWNER_MISMATCH }
     enum class Drop { INVALID_TYPE, PARSE_ERROR, BAD_SCHEMA, SESSION_MISMATCH,
         DOCUMENT_MISMATCH, STALE_PORT, UNEXPECTED_EVENT }
     companion object {
@@ -95,8 +96,14 @@ internal class MpvPlayDiagnosticLedger(
         }
     }
 
+    private fun hasFatalSessionFault(): Boolean = failure in setOf(
+        Failure.SCRIPT_VERSION_MISMATCH, Failure.TAB_MISSING,
+        Failure.ENGINE_SESSION_MISSING, Failure.OWNER_MISMATCH)
+
     fun connected(elapsedMs: Long = 0) {
-        if (failure == Failure.SCRIPT_VERSION_MISMATCH) return
+        // Ownership and session errors cannot be silently cured by a
+        // late port callback. A new user START creates a fresh ledger.
+        if (hasFatalSessionFault()) return
         if (!active || transport in setOf(Transport.NO_PORT, Transport.NO_READY, Transport.NO_START, Transport.NO_ACK,
                 Transport.NO_PAGE_EVENTS, Transport.NO_BASELINE)) return
         portsConnected++
@@ -109,7 +116,7 @@ internal class MpvPlayDiagnosticLedger(
     }
 
     fun ready(elapsedMs: Long) {
-        if (!active || failure == Failure.SCRIPT_VERSION_MISMATCH) return
+        if (!active || hasFatalSessionFault()) return
         portsReady = (portsReady + 1).coerceAtMost(10_000)
         lastTransportProgressMs = elapsedMs.coerceAtLeast(0)
         if (transport in setOf(Transport.NOT_READY, Transport.CONNECTED, Transport.DISCONNECTED)) {
@@ -134,7 +141,7 @@ internal class MpvPlayDiagnosticLedger(
     }
 
     fun startSent(elapsedMs: Long, retry: Boolean = false) {
-        if (failure == Failure.SCRIPT_VERSION_MISMATCH) return
+        if (hasFatalSessionFault()) return
         if (!active || transport in setOf(Transport.NO_PORT, Transport.NO_READY, Transport.NO_START, Transport.NO_ACK,
                 Transport.NO_PAGE_EVENTS, Transport.NO_BASELINE)) return
         startAttempts++
@@ -147,7 +154,7 @@ internal class MpvPlayDiagnosticLedger(
     }
 
     fun startAck(packet: JSONObject, elapsedMs: Long = 0): Boolean {
-        if (failure == Failure.SCRIPT_VERSION_MISMATCH) return false
+        if (hasFatalSessionFault()) return false
         if (!active || transport in setOf(Transport.NO_PORT, Transport.NO_READY, Transport.NO_START, Transport.NO_ACK,
                 Transport.NO_PAGE_EVENTS, Transport.NO_BASELINE) || packet.length() != 5 ||
             packet.optInt("schemaVersion") != 2 ||
@@ -177,7 +184,7 @@ internal class MpvPlayDiagnosticLedger(
         portsDisconnected++
         openPorts = (openPorts - 1).coerceAtLeast(0)
         lastTransportProgressMs = elapsedMs.coerceAtLeast(0)
-        if (openPorts == 0) {
+        if (openPorts == 0 && !hasFatalSessionFault()) {
             transport = Transport.DISCONNECTED
             failure = Failure.PORT_DISCONNECTED
         }
@@ -187,7 +194,8 @@ internal class MpvPlayDiagnosticLedger(
         if (!active) return
         if (cause !in setOf(Failure.INSTALL_FAILED, Failure.HANDLER_FAILED,
                 Failure.POST_FAILED, Failure.INVALID_ACK,
-                Failure.SCRIPT_VERSION_MISMATCH)) return
+                Failure.SCRIPT_VERSION_MISMATCH, Failure.TAB_MISSING,
+                Failure.ENGINE_SESSION_MISSING, Failure.OWNER_MISMATCH)) return
         transport = Transport.FAILED
         failure = cause
     }
@@ -230,6 +238,33 @@ internal class MpvPlayDiagnosticLedger(
         }
     }
 
+    /** Public enum-only stage for ZIP: no URL, stack trace or page contents. */
+    private fun diagnosticStage(): String = when (failure) {
+        Failure.TAB_MISSING -> "TAB_LOOKUP"
+        Failure.ENGINE_SESSION_MISSING -> "ENGINE_SESSION"
+        Failure.OWNER_MISMATCH -> "SESSION_OWNER"
+        Failure.INSTALL_FAILED -> "EXTENSION_INSTALL"
+        Failure.HANDLER_FAILED -> "MESSAGE_HANDLER"
+        Failure.SCRIPT_VERSION_MISMATCH -> "SCRIPT_VERSION"
+        Failure.POST_FAILED -> "COMMAND_SEND"
+        Failure.NO_PORT -> "PORT_CONNECTION"
+        Failure.NO_READY -> "CONTENT_READY"
+        Failure.NO_START -> "START_SEND"
+        Failure.NO_ACK, Failure.INVALID_ACK -> "START_ACK"
+        Failure.NO_PAGE_EVENTS -> "PAGE_EVENTS"
+        Failure.NO_BASELINE -> "PAGE_BASELINE"
+        Failure.PORT_DISCONNECTED -> "PORT_DISCONNECT"
+        Failure.NONE -> when (transport) {
+            Transport.NOT_READY -> "PORT_CONNECTION"
+            Transport.CONNECTED -> "CONTENT_READY"
+            Transport.PORT_READY -> "START_SEND"
+            Transport.START_SENT -> "START_ACK"
+            Transport.START_ACKNOWLEDGED -> "PAGE_BASELINE"
+            Transport.CAPTURING -> "PAGE_OBSERVATION"
+            else -> "UNKNOWN"
+        }
+    }
+
     fun mark(elapsedMs: Long, nativeSnapshot: String): Boolean {
         if (!active || snapshots.size >= MAX_MARKS) return false
         val capped = nativeSnapshot.take(MAX_SNAPSHOT_CHARS)
@@ -245,7 +280,7 @@ internal class MpvPlayDiagnosticLedger(
      * cookies or network payloads. The content extension is NOT a trust boundary.
      */
     fun appendPageEvent(message: JSONObject, receivedMs: Long): Boolean {
-        if (failure == Failure.SCRIPT_VERSION_MISMATCH) return false
+        if (hasFatalSessionFault()) return false
         if (!active || transport in setOf(Transport.NO_PORT, Transport.NO_READY, Transport.NO_START, Transport.NO_ACK,
                 Transport.NO_PAGE_EVENTS, Transport.NO_BASELINE)) return false
         fun reject(): Boolean { pageRejected++; return false }
@@ -372,6 +407,7 @@ internal class MpvPlayDiagnosticLedger(
             put("marks", snapshots.size)
             put("transport_state", transport.name)
             put("transport_failure", failure.name)
+            put("transport_stage", diagnosticStage())
             put("extension_script_version_expected", MpvPlayPageBridgeController.EXPECTED_SCRIPT_VERSION)
             put("extension_script_version_observed", observedScriptVersion ?: JSONObject.NULL)
         }
@@ -387,6 +423,7 @@ internal class MpvPlayDiagnosticLedger(
             pageRejected, addonInventory)
         analysis.put("transport_state", transport.name)
         analysis.put("transport_failure", failure.name)
+        analysis.put("transport_stage", diagnosticStage())
         analysis.put("diagnostics_complete", transport == Transport.CAPTURING)
         if (transport != Transport.CAPTURING) {
             analysis.getJSONArray("missing_evidence").put("DIAGNOSTIC_TRANSPORT_INCOMPLETE")
@@ -416,6 +453,10 @@ internal class MpvPlayDiagnosticLedger(
                 put("credentials", "NOT_RECORDED")
                 put("missing_page_events", pageEvents.isEmpty())
                 put("rejected_events", pageRejected)
+                put("transport_stage", diagnosticStage())
+                put("top_frame_acknowledged", acknowledgedFrames.values.any { it == "TOP" })
+                put("subframes_acknowledged", acknowledgedFrames.values.count { it == "SUBFRAME" })
+                put("baseline_snapshots", baselineSnapshots)
                 put("transport_state", transport.name)
                 put("transport_failure", failure.name)
             }.toString(2))
@@ -423,11 +464,16 @@ internal class MpvPlayDiagnosticLedger(
                 put("schema", "zavro-mpv-play-transport-v2")
                 put("state", transport.name)
                 put("failure", failure.name)
+                put("failure_stage", diagnosticStage())
+                put("ports_open", openPorts)
                 put("ports_connected", portsConnected)
                 put("ports_disconnected", portsDisconnected)
                 put("start_attempts", startAttempts)
                 put("start_acknowledgements", startAcknowledgements)
                 put("frames_acknowledged", acknowledgedFrames.size)
+                put("top_frame_acknowledged", acknowledgedFrames.values.any { it == "TOP" })
+                put("subframes_acknowledged", acknowledgedFrames.values.count { it == "SUBFRAME" })
+                put("page_events_accepted", pageEvents.size)
                 put("packets_rejected", transportRejected)
                 put("messages_received", messagesReceived)
                 put("ports_ready", portsReady)

@@ -312,6 +312,11 @@
       "task_id": "ZC-MPV-PLAY-PORT-RECONNECT-20261111",
       "observed_count": 2,
       "state": "ACTIVE"
+    },
+    {
+      "task_id": "ZC-MPV-PLAY-TRANSPORT-V2-STAGE3-20261111",
+      "observed_count": 2,
+      "state": "ACTIVE"
     }
   ],
   "events": [
@@ -7038,6 +7043,60 @@
       "test_result": "NOT_TESTED",
       "final_ci": "PENDING",
       "recurrence_conditions": "Duplicate Gecko onPortConnected callbacks for a live Port, frame count exceeding 24, or native postMessage failing before onPortDisconnected."
+    },
+    {
+      "id": "ERR-20261111-MPV-PLAY-OWNER-DISCONNECT",
+      "fingerprint": "diagnostic_native_disconnect_uses_active_profile_instead_of_connected_port_owner",
+      "summary": "When profile/private mode changed while a native diagnostic Port was live, onPortDisconnected recomputed trustedOwner(session) and could not decrement the originally bound ledger; late data could be confused with the new owner.",
+      "cause": "production",
+      "fix_summary": "Persist original (profile, tab) per Port; count disconnect, frame eviction, session teardown and late packets against the original owner, retiring stale ports idempotently.",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/browser/MpvPlayPageBridgeControllerTest.kt",
+      "recurrence_conditions": "A diagnostic Port outlives its active normal profile/tab or is disconnected after switching into private mode or after a session closes.",
+      "task_id": "ZC-MPV-PLAY-TRANSPORT-V2-STAGE3-20261111",
+      "kind": "REGRESSION",
+      "source_sha": "a0c1c3f540f43c933f4158e2783c661114a01452",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/a0c1c3f540f43c933f4158e2783c661114a01452"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING"
+    },
+    {
+      "id": "ERR-20261111-MPV-PLAY-TRANSPORT-SILENT-FAIL",
+      "fingerprint": "diagnostic_native_start_missing_tab_engine_or_owner_silently_returns_without_zip_stage",
+      "summary": "The bridge command returned without a typed transport failure when the target tab, EngineSession or trusted profile owner was unavailable; ZIP lacked the stage where capture stopped and outstanding-port evidence.",
+      "cause": "production",
+      "fix_summary": "Report typed TAB_MISSING, ENGINE_SESSION_MISSING and OWNER_MISMATCH failures; preserve fatal stages across late callbacks; export enum-only transport stage, open ports and bounded TOP/subframe acknowledgement evidence.",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/browser/MpvPlayDiagnosticsTest.kt",
+      "recurrence_conditions": "User START races tab close/session initialization or a profile change, or an incomplete report needs to show the last supported transport stage.",
+      "task_id": "ZC-MPV-PLAY-TRANSPORT-V2-STAGE3-20261111",
+      "kind": "REGRESSION",
+      "source_sha": "a0c1c3f540f43c933f4158e2783c661114a01452",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/a0c1c3f540f43c933f4158e2783c661114a01452"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING"
     }
   ]
 }

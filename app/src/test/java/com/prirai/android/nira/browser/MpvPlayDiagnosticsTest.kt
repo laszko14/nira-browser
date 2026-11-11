@@ -240,6 +240,93 @@ class MpvPlayDiagnosticsTest {
         }
     }
 
+
+    @Test fun missingSessionAndOwnerHaveTypedFailureStageInAllZipReports() {
+        val expected = mapOf(
+            MpvPlayDiagnosticLedger.Failure.TAB_MISSING to "TAB_LOOKUP",
+            MpvPlayDiagnosticLedger.Failure.ENGINE_SESSION_MISSING to "ENGINE_SESSION",
+            MpvPlayDiagnosticLedger.Failure.OWNER_MISMATCH to "SESSION_OWNER",
+            MpvPlayDiagnosticLedger.Failure.INSTALL_FAILED to "EXTENSION_INSTALL",
+            MpvPlayDiagnosticLedger.Failure.HANDLER_FAILED to "MESSAGE_HANDLER",
+            MpvPlayDiagnosticLedger.Failure.POST_FAILED to "COMMAND_SEND",
+            MpvPlayDiagnosticLedger.Failure.SCRIPT_VERSION_MISMATCH to "SCRIPT_VERSION"
+        )
+        expected.forEach { (failure, stage) ->
+            val ledger = MpvPlayDiagnosticLedger(
+                "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "owner", "tab", null,
+                "app-version", 0, 0)
+            ledger.transportFailed(failure)
+            ledger.finish(1, 1, "STOPPED")
+            val files = archiveEntries(ledger.toZipBytes())
+            val transport = JSONObject(files.getValue("transport.json"))
+            assertEquals(failure.name, transport.getString("failure"))
+            assertEquals(stage, transport.getString("failure_stage"))
+            assertEquals("FAILED", transport.getString("state"))
+            assertEquals(0, transport.getInt("ports_open"))
+            assertEquals(false, transport.getBoolean("top_frame_acknowledged"))
+            assertEquals(0, transport.getInt("page_events_accepted"))
+            assertEquals(stage, JSONObject(files.getValue("summary.json"))
+                .getString("transport_stage"))
+            assertEquals(stage, JSONObject(files.getValue("analysis.json"))
+                .getString("transport_stage"))
+            assertEquals(stage, JSONObject(files.getValue("page-coverage.json"))
+                .getString("transport_stage"))
+            assertFalse(files.getValue("transport.json").contains("example.org"))
+        }
+    }
+
+    @Test fun fatalOwnerMismatchIsNotMaskedByLateConnectReadyOrDisconnect() {
+        val ledger = MpvPlayDiagnosticLedger(
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "owner", "tab", null, "v", 0, 0)
+        ledger.connected(1)
+        ledger.transportFailed(MpvPlayDiagnosticLedger.Failure.OWNER_MISMATCH)
+        ledger.ready(2)
+        ledger.connected(3)
+        ledger.startSent(4)
+        ledger.disconnected(5)
+        assertEquals(MpvPlayDiagnosticLedger.Transport.FAILED, ledger.transport)
+        assertEquals(MpvPlayDiagnosticLedger.Failure.OWNER_MISMATCH, ledger.failure)
+        ledger.finish(6, 7, "STOPPED")
+        val report = JSONObject(archiveEntries(ledger.toZipBytes())
+            .getValue("transport.json"))
+        assertEquals("SESSION_OWNER", report.getString("failure_stage"))
+        assertEquals(1, report.getInt("ports_connected"))
+        assertEquals(1, report.getInt("ports_disconnected"))
+        assertEquals(0, report.getInt("start_attempts"))
+        assertEquals(0, report.getInt("ports_open"))
+    }
+
+    @Test fun transportZipCountsOutstandingPortsAndAcknowledgedFrameClasses() {
+        val ledger = MpvPlayDiagnosticLedger(
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "owner", "tab", null, "v", 0, 0)
+        val topDocument = "0123456789abcdef0123456789abcdef"
+        val subDocument = "abcdefabcdefabcdefabcdefabcdefab"
+        ledger.connected()
+        ledger.connected()
+        ledger.ready(1)
+        ledger.startSent(2)
+        fun ack(doc: String, frame: String) = JSONObject()
+            .put("schemaVersion", 2).put("event", "start_ack")
+            .put("sessionId", ledger.sessionId).put("documentId", doc)
+            .put("frame", frame)
+        assertTrue(ledger.startAck(ack(topDocument, "TOP"), 3))
+        assertTrue(ledger.startAck(ack(subDocument, "SUBFRAME"), 4))
+        ledger.disconnected(5)
+        ledger.finish(6, 7, "STOPPED")
+        val files = archiveEntries(ledger.toZipBytes())
+        val transport = JSONObject(files.getValue("transport.json"))
+        assertEquals(2, transport.getInt("ports_connected"))
+        assertEquals(1, transport.getInt("ports_disconnected"))
+        assertEquals(1, transport.getInt("ports_open"))
+        assertEquals(2, transport.getInt("start_acknowledgements"))
+        assertEquals(true, transport.getBoolean("top_frame_acknowledged"))
+        assertEquals(1, transport.getInt("subframes_acknowledged"))
+        assertEquals("PAGE_EVENTS", transport.getString("failure_stage"))
+        assertEquals("NO_PAGE_EVENTS", transport.getString("failure"))
+        assertEquals(false, JSONObject(files.getValue("analysis.json"))
+            .getBoolean("diagnostics_complete"))
+    }
+
     @Test fun privateTabBlockedAndProfileIsolationAndGateConflict() {
         MpvPlayDiagnostics.discard()
         try {

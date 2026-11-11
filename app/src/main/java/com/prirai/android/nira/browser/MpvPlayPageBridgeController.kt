@@ -34,6 +34,9 @@ internal class MpvPlayPageBridgeController(
     private val attached = IdentityHashMap<EngineSession, Unit>()
     private val ports = IdentityHashMap<EngineSession, MutableList<Port>>()
     private val portNonces = IdentityHashMap<Port, String>()
+    // Original Gecko owner: NEVER recompute the attribution on disconnect.
+    // Profile/private-mode changes may make trustedOwner(session) unavailable.
+    private val portOwners = IdentityHashMap<Port, Pair<String, String>>()
     private val portDocuments = IdentityHashMap<Port, Pair<String, String>>()
     private val readyDocuments = IdentityHashMap<Port, Pair<String, String>>()
     private val portScriptVersions = IdentityHashMap<Port, String>()
@@ -163,6 +166,7 @@ internal class MpvPlayPageBridgeController(
     }
 
     private fun clearPort(port: Port, keepReady: Boolean = false) {
+        if (!keepReady) portOwners.remove(port)
         portNonces.remove(port)
         portDocuments.remove(port)
         // STOP ends the diagnostic nonce, not the Gecko content Port. Its
@@ -174,6 +178,17 @@ internal class MpvPlayPageBridgeController(
         }
         portReadyCounted.remove(port)
         startTries.remove(port)
+    }
+
+    /** Retire a port once, recording the originally bound ledger owner. */
+    private fun retirePort(session: EngineSession, port: Port, disconnect: Boolean = true) {
+        val removed = ports[session]?.removeAll { it === port } == true
+        val nonce = portNonces[port]
+        val owner = portOwners[port]
+        clearPort(port)
+        if (removed && owner != null && nonce != null)
+            MpvPlayDiagnostics.disconnected(owner.first, owner.second, nonce)
+        if (disconnect) try { port.disconnect() } catch (_: Exception) {}
     }
 
     private fun countReady(port: Port, profile: String, tabId: String, nonce: String) {
@@ -223,9 +238,21 @@ internal class MpvPlayPageBridgeController(
             if (!installed) start()
             scheduleTimeout(profile, tabId, id)
         }
-        val tab = store.state.tabs.firstOrNull { it.id == tabId } ?: return
-        val session = tab.engineState.engineSession ?: return
-        if (trustedOwner(session) != (profile to tabId)) return
+        val tab = store.state.tabs.firstOrNull { it.id == tabId } ?: run {
+            MpvPlayDiagnostics.failed(profile, tabId, id,
+                MpvPlayDiagnosticLedger.Failure.TAB_MISSING)
+            return
+        }
+        val session = tab.engineState.engineSession ?: run {
+            MpvPlayDiagnostics.failed(profile, tabId, id,
+                MpvPlayDiagnosticLedger.Failure.ENGINE_SESSION_MISSING)
+            return
+        }
+        if (trustedOwner(session) != (profile to tabId)) {
+            MpvPlayDiagnostics.failed(profile, tabId, id,
+                MpvPlayDiagnosticLedger.Failure.OWNER_MISMATCH)
+            return
+        }
         if (action == "start") activeExtension?.let { registerHandler(session, it) }
         if (action == "start") {
             captureAddonInventory(profile, tabId, id, tab.content.url)
@@ -234,6 +261,18 @@ internal class MpvPlayPageBridgeController(
         val iterator = live.iterator()
         while (iterator.hasNext()) {
             val port = iterator.next()
+            if (portOwners[port] != (profile to tabId)) {
+                // Old tab/profile port cannot be rebound into another profile,
+                // even if an EngineSession object was reused by the store.
+                iterator.remove()
+                val oldOwner = portOwners[port]
+                val oldNonce = portNonces[port]
+                clearPort(port)
+                if (oldOwner != null && oldNonce != null)
+                    MpvPlayDiagnostics.disconnected(oldOwner.first, oldOwner.second, oldNonce)
+                try { port.disconnect() } catch (_: Exception) {}
+                continue
+            }
             try {
                 if (action == "start") {
                     if (portNonces[port] != id) {
@@ -330,7 +369,13 @@ internal class MpvPlayPageBridgeController(
                     if (sessions.none { it === old }) {
                         attached.remove(old)
                         ports.remove(old)?.forEach { port ->
+                            // The store can forget a tab before Gecko emits
+                            // onPortDisconnected; preserve its original ledger.
+                            val owner = portOwners[port]
+                            val nonce = portNonces[port]
                             clearPort(port)
+                            if (owner != null && nonce != null)
+                                MpvPlayDiagnostics.disconnected(owner.first, owner.second, nonce)
                             try { port.disconnect() } catch (_: Exception) {}
                         }
                     }
@@ -346,7 +391,8 @@ internal class MpvPlayPageBridgeController(
         override fun onMessage(message: Any, source: EngineSession?): Any = false
 
         override fun onPortConnected(port: Port) {
-            if (port.name() != NATIVE_APP || trustedOwner(session) == null) {
+            val owner = trustedOwner(session)
+            if (port.name() != NATIVE_APP || owner == null) {
                 try { port.disconnect() } catch (_: Exception) {}
                 return
             }
@@ -363,16 +409,17 @@ internal class MpvPlayPageBridgeController(
             if (live.size >= MAX_FRAMES) {
                 val old = live.removeAt(0)
                 val oldNonce = portNonces[old]
+                val oldOwner = portOwners[old]
                 clearPort(old)
-                // Eviction, just like a physical disconnect, must decrement
-                // the ledger before the replacement port is counted.
-                if (oldNonce != null) trustedOwner(session)?.let { (profile, tabId) ->
-                    MpvPlayDiagnostics.disconnected(profile, tabId, oldNonce)
-                }
+                // Eviction belongs to the original owner even after a tab or
+                // profile transition; never credit the current active profile.
+                if (oldNonce != null && oldOwner != null)
+                    MpvPlayDiagnostics.disconnected(oldOwner.first, oldOwner.second, oldNonce)
                 try { old.disconnect() } catch (_: Exception) {}
             }
             live.add(port)
-            val (profile, tabId) = trustedOwner(session) ?: return
+            portOwners[port] = owner
+            val (profile, tabId) = owner
             val id = MpvPlayDiagnostics.sessionFor(profile, tabId)
             if (id != null) {
                 MpvPlayDiagnostics.connected(profile, tabId, id)
@@ -382,17 +429,24 @@ internal class MpvPlayPageBridgeController(
         }
 
         override fun onPortDisconnected(port: Port) {
-            val wasConnected = ports[session]?.removeAll { it === port } == true
-            val nonce = portNonces[port]
-            clearPort(port)
-            if (!wasConnected || nonce == null) return
-            val (profile, tabId) = trustedOwner(session) ?: return
-            MpvPlayDiagnostics.disconnected(profile, tabId, nonce)
+            retirePort(session, port, disconnect = false)
         }
 
         override fun onPortMessage(message: Any, port: Port) {
             if (port.name() != NATIVE_APP) return
-            val (profile, tabId) = trustedOwner(session) ?: return
+            val boundOwner = portOwners[port]
+            val currentOwner = trustedOwner(session)
+            if (boundOwner != null && currentOwner != boundOwner) {
+                // Do not reinterpret a late packet as belonging to a newer
+                // profile/tab. Record the old owner's disconnect exactly once.
+                portNonces[port]?.let { nonce ->
+                    MpvPlayDiagnostics.drop(boundOwner.first, boundOwner.second, nonce,
+                        MpvPlayDiagnosticLedger.Drop.STALE_PORT)
+                }
+                retirePort(session, port)
+                return
+            }
+            val (profile, tabId) = currentOwner ?: return
             val activeNonce = MpvPlayDiagnostics.sessionFor(profile, tabId)
             // A document normally connects before the user starts a test.
             // Cache its READY without adding anything to the diagnostic ledger.
