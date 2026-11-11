@@ -2,11 +2,6 @@
   "schema": "zavro.error-learning/2",
   "coverage": [
     {
-      "task_id": "ZC-MPV-PLAY-EXTENSION-VERSION-20261111",
-      "observed_count": 3,
-      "state": "ACTIVE"
-    },
-    {
       "task_id": "ZC-V31-ERROR-LEARNING",
       "observed_count": 3,
       "state": "ACTIVE"
@@ -304,6 +299,12 @@
     {
       "task_id": "ZC-MPV-PLAY-BUTTON-P0-20261111",
       "observed_count": 2,
+      "state": "ACTIVE"
+    }
+    ,
+    {
+      "task_id": "ZC-MPV-PLAY-EXTENSION-VERSION-20261111",
+      "observed_count": 4,
       "state": "ACTIVE"
     }
   ],
@@ -6921,6 +6922,33 @@
       "cause_confidence": "confirmed",
       "test_result": "FAIL",
       "final_ci": "PENDING"
+    },
+    {
+      "id": "CI-42942831114-1-130268488514",
+      "task_id": "ZC-MPV-PLAY-EXTENSION-VERSION-20261111",
+      "kind": "CI_FAILURE",
+      "fingerprint": "error_learning_fixture_first_coverage_reordered_before_legacy_test_task",
+      "summary": "The SOURCE process-docs error-learning negative-test suite failed because the new task coverage row was prepended before the legacy first task, while its copy fixture pairs the first coverage row with the first historical event.",
+      "source_sha": "0d0b7799bbeed65bfe81bc684d40a60971f23f71",
+      "observed_at": "2026-11-11T01:59:29Z",
+      "run_id": 42942831114,
+      "job_id": 130268488514,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "scripts/error-learning.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42942831114"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": "zavro-ai-process-docs.yml",
+      "cause_confidence": "confirmed",
+      "fix_summary": "Append new task coverage to the registry instead of prepending it, preserving the stable first row used by existing negative-test fixtures; keep strict validator rules unchanged.",
+      "test_result": "FAIL",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "Add a new error-learning task at the beginning of coverage without updating the test fixture that copies the first task and first event."
     }
   ]
 }
