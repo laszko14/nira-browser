@@ -330,6 +330,12 @@
       "observed_count": 5,
       "state": "ACTIVE"
     }
+    ,
+    {
+      "task_id": "ZC-MPV-PLAY-V2-STAGE6-INTEGRATION-20261111",
+      "observed_count": 1,
+      "state": "ACTIVE"
+    }
   ],
   "events": [
     {
@@ -7382,6 +7388,33 @@
       "test_result": "FAIL",
       "final_ci": "PENDING",
       "recurrence_conditions": "Existing Stage4 source-pattern regression asserted an exact PICK packet string and old handler guard. New safe shadow metadata and event dedupe changed the source without changing the node-ownership privacy contract."
+    },
+    {
+      "id": "ERR-20261111-MPV-PLAY-STALE-RESTART",
+      "task_id": "ZC-MPV-PLAY-V2-STAGE6-INTEGRATION-20261111",
+      "kind": "REGRESSION",
+      "fingerprint": "mpv_play_content_script_only_remembers_last_stopped_nonce_and_reaccepts_older_start",
+      "summary": "Content script remembered only the most recently stopped diagnostic nonce. After STOP(A), START(B), STOP(B), an old START(A) callback on the same still-open native port could restore page observers for the finished session.",
+      "source_sha": "ad41702077ed7f155781c9ff66d443bf61c772ff",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/mpv-play-diagnostics-stage5.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/ad41702077ed7f155781c9ff66d443bf61c772ff"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "fix_summary": "Replace single stoppedId with a bounded set of 128 stopped nonces. Reject delayed START for any remembered completed session, including after another STOP and native reconnect. Add synthetic combined TOP/subframe/Shadow/STOP/restart regressions. Beyond retention bound remains an explicit edge-case limitation.",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "More than one diagnostic STOP/START cycle within one page and delayed native START for a previously finished nonce; retention cap 128 prevents unbounded per-document memory."
     }
   ]
 }

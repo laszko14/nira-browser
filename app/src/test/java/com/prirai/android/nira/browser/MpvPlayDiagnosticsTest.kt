@@ -421,6 +421,70 @@ class MpvPlayDiagnosticsTest {
     }
 
 
+
+    @Test fun stage6TransportAndPageEvidenceAreConsistentAcrossAllZipFiles() {
+        val ledger = MpvPlayDiagnosticLedger(
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "owner", "tab", null,
+            "diagnostic-build", 0, 0)
+        val top = "0123456789abcdef0123456789abcdef"
+        val sub = "abcdefabcdefabcdefabcdefabcdefab"
+        fun ack(doc: String, frame: String): JSONObject = JSONObject()
+            .put("schemaVersion", 2).put("event", "start_ack")
+            .put("sessionId", ledger.sessionId).put("documentId", doc)
+            .put("frame", frame)
+        fun observed(doc: String, frame: String, seq: Int,
+                     kind: String, detail: String, target: String) = JSONObject()
+            .put("schemaVersion", 2).put("event", "observation")
+            .put("sessionId", ledger.sessionId).put("documentId", doc)
+            .put("sequence", seq).put("kind", kind).put("detail", detail)
+            .put("target", target).put("metrics", JSONObject().put("frame", frame))
+
+        ledger.connected(0)
+        ledger.connected(0)
+        ledger.ready(1)
+        ledger.startSent(2)
+        assertTrue(ledger.startAck(ack(top,"TOP"),3))
+        assertTrue(ledger.startAck(ack(sub,"SUBFRAME"),3))
+        assertTrue(ledger.appendPageEvent(
+            observed(top,"TOP",1,"DOM","SNAPSHOT_FINISHED","OTHER"),4))
+        assertTrue(ledger.appendPageEvent(
+            observed(sub,"SUBFRAME",1,"MEDIA","ON_PLAY","VIDEO"),5))
+        assertTrue(ledger.topBaselineConfirmed)
+        assertTrue(ledger.pageEventsObserved)
+        assertTrue(ledger.requestStop())
+        assertTrue(ledger.commandSent("stop"))
+        val stopAck = JSONObject().put("schemaVersion",2).put("event","control_ack")
+            .put("sessionId",ledger.sessionId).put("documentId",top)
+            .put("frame","TOP").put("action","stop").put("controlId",1)
+        assertTrue(ledger.controlAck(stopAck))
+        ledger.finish(6,7,"STOPPED")
+        assertFalse(ledger.appendPageEvent(
+            observed(top,"TOP",2,"EVENT","ON_CLICK","BUTTON"),8))
+        val files = archiveEntries(ledger.toZipBytes())
+        assertEquals(setOf("summary.json","timeline.json","native-overlay.txt",
+            "page-events.json","page-coverage.json","addon-inventory.json",
+            "analysis.json","analysis.txt","transport.json"), files.keys)
+        val summary = JSONObject(files.getValue("summary.json"))
+        val coverage = JSONObject(files.getValue("page-coverage.json"))
+        val transport = JSONObject(files.getValue("transport.json"))
+        val analysis = JSONObject(files.getValue("analysis.json"))
+        assertEquals("TOP_AND_SOME_SUBFRAMES",summary.getString("frame_coverage"))
+        assertEquals(summary.getString("frame_coverage"),
+            coverage.getString("frame_coverage"))
+        assertEquals(summary.getString("frame_coverage"),
+            transport.getString("frame_coverage"))
+        assertEquals("CAPTURING",transport.getString("state"))
+        assertEquals(2,transport.getInt("start_acknowledgements"))
+        assertEquals(2,transport.getInt("ports_open"))
+        assertEquals(2,transport.getInt("page_events_accepted"))
+        assertEquals(1,transport.getInt("control_stop_ack"))
+        assertTrue(summary.getBoolean("top_frame_baseline_confirmed"))
+        assertTrue(summary.getBoolean("stop_acknowledged"))
+        assertTrue(analysis.getBoolean("diagnostics_complete"))
+        assertEquals("UNKNOWN",analysis.getString("play_owner"))
+        assertFalse(files.values.joinToString(" ").contains("secret-credential"))
+    }
+
     @Test fun stage5SubframeFairnessReservesTopEvidenceAndReportsTruncation() {
         val ledger = MpvPlayDiagnosticLedger(
             "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "owner", "tab", null, "v", 0, 0)

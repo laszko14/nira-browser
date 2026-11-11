@@ -6,7 +6,7 @@
 (function () {
   "use strict";
   const APP = "zavro.preview.forensics";
-  const SCRIPT_VERSION = "1.0.5"; // Must match manifest and native handshake.
+  const SCRIPT_VERSION = "1.0.6"; // Must match manifest and native handshake.
   const MAX_EVENTS = 160, MAX_NODES = 40, MAX_SUBFRAME_NODES = 16;
   const MAX_ROOTS = 6, MAX_INSERTED_SCAN = 48, MAX_INSERTED_SAMPLES = 3;
   const MAX_DURATION = 15 * 60 * 1000;
@@ -42,7 +42,15 @@
   const RECONNECT_BASE_MS = 250, RECONNECT_MAX_MS = 30000;
   let retryPending = false, connectFailures = 0;
   let port, active = null, observer = null, listeners = [], serial = 0, picked = false, lost = 0;
-  let stoppedId = null;
+  // Remember prior STOP nonces: a late START from an older diagnostic must
+  // not restart page observation after a newer session has also ended.
+  const stoppedIds = new Set();
+  const MAX_STOPPED_IDS = 128;
+  function rememberStopped(id) {
+    stoppedIds.add(id);
+    if (stoppedIds.size > MAX_STOPPED_IDS)
+      stoppedIds.delete(stoppedIds.values().next().value);
+  }
   let lastActiveId = null;
   let elementIds = new WeakMap(), nextElementId = 0;
   let shadowRoots = [], seenEvents = new WeakSet();
@@ -296,7 +304,7 @@
   }
   function start(id) {
     if (!sessionPattern.test(id || "")) return;
-    if (id === stoppedId) return;
+    if (stoppedIds.has(id)) return;
     if (active?.id === id) {
       // Native may retry when its first ACK was lost. Re-emit the baseline
       // after each real ACK attempt, without duplicating page listeners.
@@ -385,7 +393,7 @@
           picked = false;
           confirmControl(action,id,command.controlId);
         } else if (action === "stop") {
-          stoppedId = id;
+          rememberStopped(id);
           stop();
           confirmControl(action,id,command.controlId);
         }

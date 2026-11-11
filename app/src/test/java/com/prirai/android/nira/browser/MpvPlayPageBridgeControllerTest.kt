@@ -760,7 +760,7 @@ class MpvPlayPageBridgeControllerTest {
             }
         }
         assertNotNull(transport)
-        assertEquals("1.0.5", transport!!.getString("extension_script_version_expected"))
+        assertEquals("1.0.6", transport!!.getString("extension_script_version_expected"))
         assertEquals("MISSING", transport!!.getString("extension_script_version_observed"))
         assertEquals("SCRIPT_VERSION_MISMATCH", transport!!.getString("failure"))
     }

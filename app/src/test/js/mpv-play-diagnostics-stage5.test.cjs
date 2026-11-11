@@ -577,6 +577,82 @@ test("final5: time expiry and failed native port fail closed", () => {
   assert.equal(bad.stats().disposed,0);
 });
 
+
+test("stage6: TOP + SUBFRAME + open Shadow, control ACK, STOP and next START integrate", () => {
+  const top=fixture({openShadow:true}), iframe=fixture({subframe:true});
+  assert.equal(top.stats().activeListeners,0);
+  assert.equal(iframe.stats().activeListeners,0);
+  assert.equal(top.packets[0].event,"ready");
+  assert.equal(iframe.packets[0].event,"ready");
+  top.command("start",ONE);
+  iframe.command("start",ONE);
+  assert.equal(top.packets.filter(p=>p.event==="start_ack").length,1);
+  assert.equal(iframe.packets.filter(p=>p.event==="start_ack").length,1);
+  assert.equal(top.packets.find(p=>p.detail==="SNAPSHOT_FINISHED").metrics.frame,"TOP");
+  assert.equal(iframe.packets.find(p=>p.detail==="SNAPSHOT_FINISHED").metrics.frame,"SUBFRAME");
+  assert.notEqual(top.packets[0].documentId,iframe.packets[0].documentId);
+  top.emitShadow("play");
+  top.fire("pointerover",top.button);
+  iframe.fire("click",iframe.button);
+  assert.ok(top.packets.some(p=>p.detail==="ON_PLAY" && p.metrics.shadow));
+  assert.ok(iframe.packets.some(p=>p.detail==="ON_CLICK"));
+  const control=(f,action,controlId)=>f.badCommand({
+    schemaVersion:2,action,controlId,sessionId:ONE
+  });
+  control(top,"snapshot",1);
+  control(top,"pick",2);
+  top.fire("pointerdown",top.button,"touch");
+  assert.deepEqual(top.packets.filter(p=>p.event==="control_ack").map(p=>p.action),
+    ["snapshot","pick"]);
+  assert.equal(top.packets.filter(p=>p.kind==="PICK").length,1);
+  control(top,"stop",3);
+  control(iframe,"stop",1);
+  assert.equal(top.stats().activeListeners,0);
+  assert.equal(iframe.stats().activeListeners,0);
+  assert.equal(top.packets.filter(p=>p.event==="control_ack").at(-1).action,"stop");
+  assert.equal(top.listeners.has("win:error"),false);
+  assert.equal(top.listeners.has("doc:click"),false);
+  top.command("start",TWO);
+  iframe.command("start",TWO);
+  assert.equal(top.packets.filter(p=>p.event==="start_ack").at(-1).sessionId,TWO);
+  assert.equal(iframe.packets.filter(p=>p.event==="start_ack").at(-1).sessionId,TWO);
+  assert.equal(top.stats().observed,4);
+  assert.equal(top.changes.play,0);
+  assert.equal(top.changes.pause,0);
+  assert.equal(iframe.changes.play,0);
+  assert.equal(iframe.changes.pause,0);
+  const content=JSON.stringify([...top.packets,...iframe.packets]);
+  for(const secret of ["private-username","site-css-secret",
+    "secret-session-token","private/media","secret=123","hidden-preview.mp4"])
+    assert.equal(content.includes(secret),false,secret);
+});
+
+test("stage6: an older STOP nonce cannot restart observation after a newer STOP", () => {
+  const f=fixture({openShadow:true});
+  f.command("start",ONE);
+  f.command("stop",ONE);
+  f.command("start",TWO);
+  f.command("stop",TWO);
+  assert.equal(f.stats().activeListeners,0);
+  assert.equal(f.stats().observed,4);
+  const ackCount=f.packets.filter(p=>p.event==="start_ack").length;
+  f.command("start",ONE); // Late START for the first completed session.
+  f.command("start",TWO);
+  assert.equal(f.packets.filter(p=>p.event==="start_ack").length,ackCount);
+  assert.equal(f.stats().activeListeners,0);
+  assert.equal(f.stats().observed,4);
+  assert.equal(f.changes.play,0);
+  assert.equal(f.changes.pause,0);
+  assert.equal(f.changes.prevent,0);
+  f.disconnect();
+  assert.equal(f.pendingRetries(),1);
+  f.retry();
+  assert.equal(f.stats().activeListeners,0);
+  const old=f.portHistory()[0];
+  old.receive({schemaVersion:2,action:"start",sessionId:ONE});
+  assert.equal(f.stats().activeListeners,0);
+});
+
 test("final5: integration boundaries keep existing preview, autoplay, media detection and external MPV", () => {
   const readMain=p=>read("app/src/main/"+p);
   const helper=readMain("assets/extensions/nira-media-detector/preview-assist.js");

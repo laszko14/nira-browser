@@ -1,50 +1,44 @@
-# AI_HANDOFF — Zavro Clean MPV/Play V2, etap 5/6 (11.11.2026)
+# AI_HANDOFF — Zavro Clean MPV/Play V2, etap 6/6 (11.11.2026)
 
-Kanon aktywnej gałęzi: `docs/ai/ACTIVE_CLEAN_LINE.md`. Archiwum: `docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md`. Historyczny checkpoint złożony przed CI nie jest dowodem bieżącego sukcesu. Sprawdź live HEAD i runs.
+Aktywna gałąź: `docs/ai/ACTIVE_CLEAN_LINE.md`. Historyczny handoff: `docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md`. Ten checkpoint powstał PRZED końcowym CI — odczytuj zawsze live GitHub; `CI_PENDING` nie jest sukcesem.
 
 ```yaml
-task_id: ZC-MPV-PLAY-OBSERVABILITY-STAGE5-20261111
+task_id: ZC-MPV-PLAY-V2-STAGE6-INTEGRATION-20261111
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
-product_line: Zavro Clean
+product_line: Zavro Clean, bez x MPV
 branch: feat/zavro-clean-mpv-play-diagnostics-stage1-20261110
-base_sha: f4f7d9e9673d9cba5a1af9ac1b054ec9d9b61f96
-observed_head_sha: f4f7d9e9673d9cba5a1af9ac1b054ec9d9b61f96
+base_sha: ad41702077ed7f155781c9ff66d443bf61c772ff
+observed_head_sha: ad41702077ed7f155781c9ff66d443bf61c772ff
 status: CI_PENDING
-acceptance_source: Użytkownik wydał DALEJ po etapie 4/6, IMPLEMENT+VERIFY etapu 5/6, bez APK.
-completed: Zdiagnozowano luki w obserwacji niekomponowanych zdarzeń video w otwartym Shadow DOM, dynamicznie powstających korzeni i kart miniatur oraz ryzyko wyparcia zdarzeń TOP przez iframe. Rozszerzenie diagnostyczne (nie playback) w wersji 1.0.5 obserwuje otwarte korzenie (maks. 5 obok dokumentu), nowo wstawiane elementy (budżet 48 skanowanych i 3 próbek na batch), touchstart, play/pause/playing/waiting/stalled/error, hover i tylko istnienie atrybutów deklarujących podgląd — bez odczytu źródeł filmów. Zdarzenia z shadow/document są deduplikowane; STOP i disconnect usuwają obserwatory. Baseline SUBFRAME ma limit 16 węzłów, cała ramka 160 zdarzeń JS. Native ledger rezerwuje 64 z 160 wpisów dla TOP poprzez limit 96 SUBFRAME razem oraz 24 na jeden poddokument; odrzucenie jest jawne. ZIP odróżnia ACK TOP/subframe od pełnej obserwacji, zamknięte Shadow DOM, about:blank, cross-origin frame bez udowodnionego ACK, ograniczenia skanowania i utratę zdarzeń. Analiza nie oznacza diagnostyki jako kompletnej przy utraconych zdarzeniach lub braku prawdziwych interakcji. Dodano testy syntetycznego Shadow DOM/dynamicznej miniatury i Kotlin/Robolectric ramkowej sprawiedliwości; poszerzono ochronę prywatności. Zbadano granice preview-assist.js, nira-bg-play, media detector i MpvPlaybackHeaders; nie zmieniono ich ani odtwarzania, nawigacji, gestów stron, zewnętrznego MPV Alpha.
-remaining: SOURCE i PR CI na nowym końcowym SHA; przy FAIL analiza konkretnego joba/kroku/logu i naprawa w tym etapie. Etap 6/6 dopiero po osobnym DALEJ i wszystkich zielonych bramkach.
-required_ci: SOURCE process-docs + JavaScript + Kotlin/Robolectric JVM + AndroidTest compile + lint/lint-regression + summary; PR osobne shared-tests + error learning evidence, na tym samym końcowym source SHA.
-device: NOT_TESTED. Brak realnego testu na Nothing Phone (1) Android 15 ani konkretnych witrynach, nie potwierdzono przyczyny starego NO_ACK.
-apk: NOT_BUILT, zgodnie z jawnym zakresem bez APK. Bez pobierania binariów, zmiany certyfikatu, pakietu, ABI, versionCode, merge czy release.
-known_failures: Po pierwszym SHA etapu 5 54c33ec09253c512f060253eb8e65a3968b58b0b SOURCE run 43006478803 i PR run 43006487600 dały FAIL w JavaScript (job 130475109091 / 130475138135): trzy testy FAIL, 670 PASS. Dwie regresje Shadow wykryły pominięte pole shadow w 16-kluczowym priorytecie metryk VIDEO (produkcja), trzecia to stary test tekstowego formatu PICK/guard po legalnej rozbudowie metadanych (fixture). Zmieniono priorytet VIDEO zachowując 16 pól i ulepszono asercje prywatności w Stage4, zarejestrowano oba fingerprinty w ERROR_CASES.json; potrzebny nowy SHA i pełne CI. Obserwowanie document nie wystarcza dla niekomponowanych play/pause wewnątrz open Shadow DOM; przypisane ramkom zdarzenia mogą być niedostępne z powodu zakresu host_permissions, about:blank, closed Shadow DOM i opóźnionej injekcji. Kontrprzykłady są syntetyczne/źródłowe, nie realne przebiegi na telefonie.
-verification: Etap 4/6 SHA f4f7d9e9673d9cba5a1af9ac1b054ec9d9b61f96 ma SOURCE https://github.com/laszko14/nira-browser/actions/runs/43002025546 i PR https://github.com/laszko14/nira-browser/actions/runs/43002035672 — oba completed SUCCESS. To potwierdza poprzedni SHA, nie etap 5/6. Pierwsze uruchomienia etapu 5 na 54c33ec09253c512f060253eb8e65a3968b58b0b: SOURCE 43006478803 i PR 43006487600 — JS FAIL, kolejne joby pominięte. Poprawki źródła i fixture wymagają nowego pełnego SHA i obu CI.
-verified_before_push: Odczytano live HEAD f4f7d9e9673d9cba5a1af9ac1b054ec9d9b61f96 i z niego AGENTS.md, docs/ai/ACTIVE_CLEAN_LINE.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md, docs/ai/CHATGPT_PROJECT_INSTRUCTIONS.md oraz polityki. Przed aktualizacją ref sprawdź ponownie HEAD i konflikty.
-blockers: Realny GeckoView, permission boundaries cross-origin/closed roots oraz strony z DRM wymagają testu na urządzeniu. Brak niezależnego recenzenta wysokiego ryzyka — self-review i CI nie zastępują oddzielnego review. Nie wykonuj żadnych działań wpływających na odtwarzanie lub dane profili.
+acceptance_source: DALEJ po zakończonym etapie 5/6. Użytkownik następnie nakazał STOP; w tej turze wyraźnie polecił sprawdzić ostatni stan i KONTYNUOWAĆ. Autoryzacja: tylko etap 6/6 IMPLEMENT + VERIFY, bez APK.
+completed: Preflight live HEAD i niezbędne pliki kanoniczne odczytane z ad41702077ed7f155781c9ff66d443bf61c772ff; SOURCE 43006921141 i PR 43006930215 completed SUCCESS na tym SHA (końcowy etap 5/6). Przerwane działania etapu 6 nie miały commita, push ani CI. Kontrola integracyjna ujawniła, że content.js używał tylko jednego stoppedId — po STOP(A), START(B), STOP(B) spóźniony START(A) mógł odtworzyć obserwację. Zamieniono to na ograniczony pamięcią zbiór 128 zakończonych nonce; podniesiono manifest/content/native handshake do 1.0.6. Dodano regresje dwóch STOP/START i pełny syntetyczny przepływ TOP+SUBFRAME+Shadow+obserwacje+PICK/MARK ACK+STOP+ponowny START, sprawdzające granice prywatności i brak wywołań play/pause przez diagnostykę. Dodano JVM test spójności 9 plików ZIP (README semantyki transportu i różnica między TOP baseline, zdarzeniami, sukcesem Play). Przygotowano procedurę testu telefonu docs/ai/MPV_PLAY_V2_STAGE6_DEVICE_TEST.md, z 12 przypadkami, testami profili/orientacji/miniaturs i warunkami DEVICE_VERIFIED. Zarejestrowano fingerprint regresji w docs/ai/ERROR_CASES.json. Nie zmieniano istniejących modułów odtwarzania, GeckoView, profili ani danych.
+remaining: Końcowy krytyczny przegląd diffu, testy JS i Kotlin/Robolectric, AndroidTest compile, lint oraz wymagane osobne SOURCE/PR CI na jednym nowym końcowym źródłowym SHA. Przy FAIL pobierz konkretny job/krok/log i usuń przyczynę bez obniżania testów; nie deklaruj CODE_VERIFIED przy CI_PENDING. Nie buduj APK ani nie uruchamiaj następnego etapu automatycznie.
+required_ci: SOURCE process-docs + shared-tests (JavaScript, JVM/Robolectric, AndroidTest compile, Android lint i lint-regression) + final summary, oraz PR shared-tests + error-learning evidence; komplet SUCCESS na dokładnym końcowym source SHA.
+device: NOT_TESTED — Nothing Phone (1), Android 15; brak wykonanych przypadków D01-D12. Docelowy protokół: docs/ai/MPV_PLAY_V2_STAGE6_DEVICE_TEST.md. Realny wynik DEVICE_VERIFIED wymaga późniejszej zgody i testu użytkownika.
+apk: NOT_BUILT_IN_THIS_TASK. Nie budowano ani nie pobierano APK/ZIP binariów. Nie zmieniono versionCode, versionName, podpisu, ABI ani pakietu; brak merge/release/force-push.
+known_failures: Stary START dla pierwszej zakończonej sesji mógł wznowić obserwację po STOP kolejnej sesji. Retencja 128 nonce ogranicza pamięć; po ich przekroczeniu pojedynczy ekstremalnie stary START nie jest gwarantowanie rozpoznawany. Zgłoszone historyczne NO_ACK na telefonie nadal nie ma zweryfikowanej przyczyny. Closed Shadow DOM, niewstrzyknięte/cross-origin iframe, handled play Promise rejection i DRM pozostają poza granicami obserwacji.
+verification: Ostatni zakończony etap 5/6 jest potwierdzony przez SOURCE https://github.com/laszko14/nira-browser/actions/runs/43006921141 i PR https://github.com/laszko14/nira-browser/actions/runs/43006930215 na ad41702077ed7f155781c9ff66d443bf61c772ff. Wyniki nie weryfikują nowego etapu 6/6. Finalne CI w toku/nieuruchomione w chwili checkpointu; najpierw utwórz nowy SHA.
+verified_before_push: Potwierdzono live HEAD ad41702077ed7f155781c9ff66d443bf61c772ff, AGENTS.md, docs/ai/ACTIVE_CLEAN_LINE.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md, docs/ai/CHATGPT_PROJECT_INSTRUCTIONS.md oraz polityki workflow/test/quality/error/checkpoint. Przed update_ref powtórz kontrolę HEAD i konfliktu równoległej pracy.
+blockers: Testy syntetyczne i Robolectric nie zastępują prawdziwego urządzenia, a bez osobnego polecenia nie wolno budować APK. Brak odrębnego recenzenta wysokiego ryzyka ogranicza niezależną ocenę; wymagany self-review i CI nie są testem telefonu.
 evidence_links:
-  - https://github.com/laszko14/nira-browser/actions/runs/43002025546
-  - https://github.com/laszko14/nira-browser/actions/runs/43002035672
-  - https://github.com/laszko14/nira-browser/commit/f4f7d9e9673d9cba5a1af9ac1b054ec9d9b61f96
-  - https://github.com/laszko14/nira-browser/actions/runs/43006478803
-  - https://github.com/laszko14/nira-browser/actions/runs/43006487600
-  - https://github.com/laszko14/nira-browser/commit/54c33ec09253c512f060253eb8e65a3968b58b0b
+  - https://github.com/laszko14/nira-browser/actions/runs/43006921141
+  - https://github.com/laszko14/nira-browser/actions/runs/43006930215
+  - https://github.com/laszko14/nira-browser/commit/ad41702077ed7f155781c9ff66d443bf61c772ff
 changed_paths:
   - app/src/main/assets/extensions/zavro-preview-diagnostics/content.js
   - app/src/main/assets/extensions/zavro-preview-diagnostics/manifest.json
   - app/src/main/java/com/prirai/android/nira/browser/MpvPlayPageBridgeController.kt
-  - app/src/main/java/com/prirai/android/nira/browser/MpvPlayDiagnostics.kt
-  - app/src/main/java/com/prirai/android/nira/browser/MpvPlayEvidenceReport.kt
   - app/src/test/js/mpv-play-diagnostics-stage2.test.cjs
-  - app/src/test/js/mpv-play-diagnostics-stage4.test.cjs
   - app/src/test/js/mpv-play-diagnostics-stage5.test.cjs
   - app/src/test/java/com/prirai/android/nira/browser/MpvPlayPageBridgeControllerTest.kt
   - app/src/test/java/com/prirai/android/nira/browser/MpvPlayDiagnosticsTest.kt
-  - app/src/test/java/com/prirai/android/nira/browser/MpvPlayEvidenceReportTest.kt
+  - docs/ai/MPV_PLAY_V2_STAGE6_DEVICE_TEST.md
   - docs/ai/ERROR_CASES.json
   - docs/AI_HANDOFF.md
-next_action: Zamknąć etap 5/6 po pełnym zielonym SOURCE/PR CI na finalnym SHA, zarejestrować nowe incydenty lub weryfikację, następnie STOP. Etap 6 tylko na kolejne DALEJ.
+next_action: Zatwierdzić etap 6/6 tylko po pełnym zielonym finalnym SOURCE i PR CI dla jednego HEAD. Wtedy raport CODE_VERIFIED i STOP. APK oraz DEVICE_VERIFIED wymagają osobnych poleceń i rzeczywistych dowodów.
 ```
 
-## Ograniczenia dowodowe
+## Granice interpretacji
 
-`PLAYING` i typowane zmiany/hover są obserwacjami (nie dowodami, kto wywołał Play). Cross-origin iframe jest obserwowalny tylko, jeśli w nim rzeczywiście działa wstrzyknięte rozszerzenie i potwierdził port. Zamknięte Shadow DOM i handled `play()` rejection nie są dostępne bez ingerencji; nie obchodzimy tych granic. Diagnostyka nie przejmuje sterowania wideo, nie wykonuje `play()`, nie modyfikuje zewnętrznego MPV i nie zapisuje treści DOM, URL wideo, cookies, poświadczeń ani identyfikatorów obcych dodatków.
+Kod wykrywa i klasyfikuje zdarzenia, nie przejmuje playback. `START_ACK` potwierdza komunikację skryptu, `top_frame_baseline_confirmed` potwierdza migawkę głównego dokumentu, a `page_events_observed` potwierdza tylko zaobserwowanie skategoryzowanych interakcji. Żaden z tych stanów sam nie dowodzi naprawy Play ani przyczyny niedziałających miniaturek. Do rozstrzygnięcia potrzebne są późniejsze testy telefonu z konkretnymi stronami.
