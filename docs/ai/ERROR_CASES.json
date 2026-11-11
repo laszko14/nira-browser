@@ -3,7 +3,7 @@
   "coverage": [
     {
       "task_id": "ZC-MPV-PLAY-EXTENSION-VERSION-20261111",
-      "observed_count": 1,
+      "observed_count": 3,
       "state": "ACTIVE"
     },
     {
@@ -6865,6 +6865,62 @@
       "test_result": "NOT_TESTED",
       "final_ci": "PENDING",
       "recurrence_conditions": "Edit packaged built-in content.js without bumping addon manifest.version or validating the script running in the page; an old connected document may produce four-field READY."
+    }
+,
+    {
+      "id": "CI-42942606380-1-130267756208",
+      "kind": "CI_FAILURE",
+      "fingerprint": "mpv_stage1_checkpoint_missing_shared_tests_and_legacy_archive_markers",
+      "summary": "SOURCE process-docs check-ai-handoff.test.cjs failed because stage 1 handoff did not contain the strict shared-tests and archived legacy handoff markers.",
+      "source_sha": "10dd940b7646ad2b7493cb53299f743155f667cd",
+      "run_id": 42942606380,
+      "job_id": 130267756208,
+      "workflow_name": "zavro-ai-process-docs.yml",
+      "cause": "test_harness",
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42942606380"
+      ],
+      "fix_summary": "Restore both required checkpoint references in AI_HANDOFF.md without altering the strict test.",
+      "recurrence_conditions": "Replace current checkpoint with prose that omits required shared-tests and legacy archive refs.",
+      "task_id": "ZC-MPV-PLAY-EXTENSION-VERSION-20261111",
+      "observed_at": "2026-11-11T01:57:32Z",
+      "attempt": 1,
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "cause_confidence": "confirmed",
+      "test_result": "FAIL",
+      "final_ci": "PENDING"
+    },
+    {
+      "id": "CI-42942606380-1-130267756724",
+      "kind": "CI_FAILURE",
+      "fingerprint": "mpv_stage1_manifest_1_0_2_stale_stage2_js_version_assertion",
+      "summary": "SOURCE and PR JavaScript suites failed because stage2 test still expected manifest.version=1.0.1 after version bump to 1.0.2. 662/663 JS tests passed.",
+      "source_sha": "10dd940b7646ad2b7493cb53299f743155f667cd",
+      "run_id": 42942606380,
+      "job_id": 130267756724,
+      "workflow_name": "zavro-ai-process-docs.yml",
+      "cause": "test_harness",
+      "regression_test": "app/src/test/js/mpv-play-diagnostics-stage2.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42942606380",
+        "https://github.com/laszko14/nira-browser/actions/runs/42942612799"
+      ],
+      "fix_summary": "Update exact manifest version assertion to 1.0.2; keep strict expected-value check and cross-source version consistency test.",
+      "recurrence_conditions": "Bump built-in diagnostic extension manifest without adjusting earlier stage-specific version-pinning tests.",
+      "task_id": "ZC-MPV-PLAY-EXTENSION-VERSION-20261111",
+      "observed_at": "2026-11-11T01:57:32Z",
+      "attempt": 1,
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "cause_confidence": "confirmed",
+      "test_result": "FAIL",
+      "final_ci": "PENDING"
     }
   ]
 }
