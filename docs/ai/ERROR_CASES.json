@@ -2,6 +2,11 @@
   "schema": "zavro.error-learning/2",
   "coverage": [
     {
+      "task_id": "ZC-MPV-PLAY-EXTENSION-VERSION-20261111",
+      "observed_count": 1,
+      "state": "ACTIVE"
+    },
+    {
       "task_id": "ZC-V31-ERROR-LEARNING",
       "observed_count": 3,
       "state": "ACTIVE"
@@ -6833,6 +6838,33 @@
       "test_result": "FAIL",
       "final_ci": "PENDING",
       "recurrence_conditions": "Adding a diagnostic error entry with a blob URL or a bare test method rather than a permitted GitHub reference and repository test path."
+    },
+    {
+      "id": "ERR-20261111-MPV-PLAY-EXTENSION-VERSION",
+      "task_id": "ZC-MPV-PLAY-EXTENSION-VERSION-20261111",
+      "kind": "REGRESSION",
+      "fingerprint": "gecko_builtin_diagnostic_script_changed_without_manifest_version_bump",
+      "summary": "Bundled diagnostic content.js changed without incrementing WebExtension manifest 1.0.1. Gecko ensureBuiltIn skips reinstall at identical version, so stale script can remain after an APK update. Whether this caused the prior phone NO_ACK is unverified.",
+      "source_sha": "d5cf05362c67fd3b836f7dc8e71ad8be93084a6b",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/mpv-play-diagnostics-stage5.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/d5cf05362c67fd3b836f7dc8e71ad8be93084a6b"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "fix_summary": "Increase diagnostic manifest to 1.0.2, add static content-script version to READY, validate it before native START, export expected/observed versions in transport ZIP, fail explicitly on old script, allow handler registration retries. Requires final CI and a future device test to close.",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "Edit packaged built-in content.js without bumping addon manifest.version or validating the script running in the page; an old connected document may produce four-field READY."
     }
   ]
 }

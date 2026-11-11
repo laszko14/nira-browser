@@ -36,10 +36,12 @@ internal class MpvPlayPageBridgeController(
     private val portNonces = IdentityHashMap<Port, String>()
     private val portDocuments = IdentityHashMap<Port, Pair<String, String>>()
     private val readyDocuments = IdentityHashMap<Port, Pair<String, String>>()
+    private val portScriptVersions = IdentityHashMap<Port, String>()
     private val portReadyCounted = IdentityHashMap<Port, String>()
     private val startTries = IdentityHashMap<Port, Int>()
     private var observer: kotlinx.coroutines.CoroutineScope? = null
     private var installed = false
+    private var activeExtension: WebExtension? = null
     private var installGeneration = 0
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -55,16 +57,21 @@ internal class MpvPlayPageBridgeController(
             engine.installBuiltInWebExtension(
                 id = EXTENSION_ID,
                 url = "resource://android/assets/extensions/zavro-preview-diagnostics/",
-                onSuccess = { ext -> if (generation == installGeneration) attach(ext) },
+                onSuccess = { ext -> if (generation == installGeneration) {
+                    activeExtension = ext
+                    attach(ext)
+                } },
                 onError = {
                     if (generation != installGeneration) return@installBuiltInWebExtension
                     installed = false
+                    activeExtension = null
                     reportFailure(MpvPlayDiagnosticLedger.Failure.INSTALL_FAILED, requestNonce)
                 },
             )
         } catch (_: Exception) {
             if (generation != installGeneration) return
             installed = false
+            activeExtension = null
             reportFailure(MpvPlayDiagnosticLedger.Failure.INSTALL_FAILED, requestNonce)
         }
     }
@@ -98,6 +105,35 @@ internal class MpvPlayPageBridgeController(
         put("sessionId", sessionId)
     }
 
+    // A READY comes from the running content script, not necessarily the
+    // packaged script. Old installed versions emit READY without scriptVersion.
+    private enum class ReadyResult { VALID, VERSION_MISMATCH, INVALID }
+
+    private fun recordReady(port: Port, ready: JSONObject): ReadyResult {
+        val document = ready.optString("documentId")
+        val frame = ready.optString("frame")
+        if (ready.optInt("schemaVersion") != 2 ||
+            ready.optString("event") != "ready" ||
+            ready.length() !in 4..5 ||
+            !document.matches(DOCUMENT_PATTERN) ||
+            frame !in setOf("TOP", "SUBFRAME") ||
+            (readyDocuments[port] != null &&
+                readyDocuments[port] != (document to frame))) return ReadyResult.INVALID
+        val reported = when {
+            !ready.has("scriptVersion") && ready.length() == 4 -> "MISSING"
+            !ready.has("scriptVersion") -> "INVALID"
+            ready.optString("scriptVersion").matches(SCRIPT_VERSION_PATTERN) ->
+                ready.optString("scriptVersion")
+            else -> "INVALID"
+        }
+        val previously = portScriptVersions[port]
+        if (previously != null && previously != reported) return ReadyResult.INVALID
+        portScriptVersions[port] = reported
+        if (reported != EXPECTED_SCRIPT_VERSION) return ReadyResult.VERSION_MISMATCH
+        readyDocuments[port] = document to frame
+        return ReadyResult.VALID
+    }
+
     // Posting START is only an attempt. READY establishes that the page
     // installed its command listener on this exact Gecko content Port.
     private fun sendStart(session: EngineSession, port: Port,
@@ -129,7 +165,10 @@ internal class MpvPlayPageBridgeController(
         // STOP ends the diagnostic nonce, not the Gecko content Port. Its
         // one-shot READY remains valid while this exact Port is connected.
         // Disconnect/replacement must still invalidate that READY.
-        if (!keepReady) readyDocuments.remove(port)
+        if (!keepReady) {
+            readyDocuments.remove(port)
+            portScriptVersions.remove(port)
+        }
         portReadyCounted.remove(port)
         startTries.remove(port)
     }
@@ -184,6 +223,7 @@ internal class MpvPlayPageBridgeController(
         val tab = store.state.tabs.firstOrNull { it.id == tabId } ?: return
         val session = tab.engineState.engineSession ?: return
         if (trustedOwner(session) != (profile to tabId)) return
+        if (action == "start") activeExtension?.let { registerHandler(session, it) }
         if (action == "start") {
             captureAddonInventory(profile, tabId, id, tab.content.url)
         }
@@ -199,6 +239,15 @@ internal class MpvPlayPageBridgeController(
                         portDocuments.remove(port)
                         startTries.remove(port)
                     }
+                    portScriptVersions[port]?.let { version ->
+                        MpvPlayDiagnostics.scriptVersion(profile, tabId, id, version)
+                        if (version != EXPECTED_SCRIPT_VERSION) {
+                            MpvPlayDiagnostics.failed(profile, tabId, id,
+                                MpvPlayDiagnosticLedger.Failure.SCRIPT_VERSION_MISMATCH)
+                        }
+                    }
+                    if (portScriptVersions[port] != null &&
+                        portScriptVersions[port] != EXPECTED_SCRIPT_VERSION) continue
                     countReady(port, profile, tabId, id)
                     // Idempotent while waiting for an ACK: retry timer owns resends.
                     if ((startTries[port] ?: 0) == 0)
@@ -250,6 +299,22 @@ internal class MpvPlayPageBridgeController(
         stopPorts(nonce)
     }
 
+    /** A failed handler registration must be retriable on the same session. */
+    private fun registerHandler(session: EngineSession, extension: WebExtension) {
+        if (attached.containsKey(session)) return
+        try {
+            extension.registerContentMessageHandler(session, NATIVE_APP, handler(session))
+            attached[session] = Unit
+        } catch (_: Exception) {
+            trustedOwner(session)?.let { (profile, tab) ->
+                MpvPlayDiagnostics.sessionFor(profile, tab)?.let { nonce ->
+                    MpvPlayDiagnostics.failed(profile, tab, nonce,
+                        MpvPlayDiagnosticLedger.Failure.HANDLER_FAILED)
+                }
+            }
+        }
+    }
+
     private fun attach(extension: WebExtension) {
         if (observer != null) return
         observer = store.flowScoped(dispatcher = Dispatchers.Main) { flow ->
@@ -267,20 +332,7 @@ internal class MpvPlayPageBridgeController(
                     }
                 }
                 for ((session, _) in live) {
-                    if (!attached.containsKey(session)) {
-                        try {
-                            extension.registerContentMessageHandler(session, NATIVE_APP, handler(session))
-                            attached[session] = Unit
-                        } catch (_: Exception) {
-                            // No URLs or page text in logcat.
-                            trustedOwner(session)?.let { (profile, tab) ->
-                                MpvPlayDiagnostics.sessionFor(profile, tab)?.let { nonce ->
-                                    MpvPlayDiagnostics.failed(profile, tab, nonce,
-                                        MpvPlayDiagnosticLedger.Failure.HANDLER_FAILED)
-                                }
-                            }
-                        }
-                    }
+                    registerHandler(session, extension)
                 }
             }
         }
@@ -334,13 +386,7 @@ internal class MpvPlayPageBridgeController(
             if (activeNonce == null) {
                 if (!MpvPlayPortIdentity.matches(ports[session], port)) return
                 val ready = message as? JSONObject ?: return
-                val identity = ready.optString("documentId") to ready.optString("frame")
-                if (ready.length() == 4 && ready.optInt("schemaVersion") == 2 &&
-                    ready.optString("event") == "ready" &&
-                    identity.first.matches(DOCUMENT_PATTERN) &&
-                    identity.second in setOf("TOP", "SUBFRAME") &&
-                    (readyDocuments[port] == null || readyDocuments[port] == identity))
-                    readyDocuments[port] = identity
+                recordReady(port, ready)
                 return
             }
             if (!MpvPlayPortIdentity.matches(ports[session], port)) {
@@ -379,16 +425,22 @@ internal class MpvPlayPageBridgeController(
             }
             val kind = payload.optString("event")
             if (kind == "ready") {
-                val identity = payload.optString("documentId") to payload.optString("frame")
-                if (payload.length() != 4 ||
-                    !identity.first.matches(DOCUMENT_PATTERN) ||
-                    identity.second !in setOf("TOP", "SUBFRAME") ||
-                    (readyDocuments[port] != null && readyDocuments[port] != identity)) {
-                    MpvPlayDiagnostics.drop(profile, tabId, activeNonce,
-                        MpvPlayDiagnosticLedger.Drop.DOCUMENT_MISMATCH)
-                    return
+                when (recordReady(port, payload)) {
+                    ReadyResult.INVALID -> {
+                        MpvPlayDiagnostics.drop(profile, tabId, activeNonce,
+                            MpvPlayDiagnosticLedger.Drop.DOCUMENT_MISMATCH)
+                        return
+                    }
+                    ReadyResult.VERSION_MISMATCH -> {
+                        MpvPlayDiagnostics.scriptVersion(profile, tabId, activeNonce,
+                            portScriptVersions[port] ?: "INVALID")
+                        MpvPlayDiagnostics.failed(profile, tabId, activeNonce,
+                            MpvPlayDiagnosticLedger.Failure.SCRIPT_VERSION_MISMATCH)
+                        return
+                    }
+                    ReadyResult.VALID -> MpvPlayDiagnostics.scriptVersion(
+                        profile, tabId, activeNonce, EXPECTED_SCRIPT_VERSION)
                 }
-                readyDocuments[port] = identity
                 val nonce = portNonces[port]
                 if (nonce == activeNonce) {
                     countReady(port, profile, tabId, nonce)
@@ -435,6 +487,8 @@ internal class MpvPlayPageBridgeController(
     }
 
     companion object {
+        internal const val EXPECTED_SCRIPT_VERSION = "1.0.2"
+        private val SCRIPT_VERSION_PATTERN = Regex("[0-9]{1,3}(\\.[0-9]{1,3}){1,2}")
         private const val EXTENSION_ID = "zavro-preview-diagnostics@prirai.android.nira"
         private const val NATIVE_APP = "zavro.preview.forensics"
         private const val MAX_FRAMES = 24

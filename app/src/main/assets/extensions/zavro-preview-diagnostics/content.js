@@ -6,6 +6,7 @@
 (function () {
   "use strict";
   const APP = "zavro.preview.forensics";
+  const SCRIPT_VERSION = "1.0.2"; // Must match manifest and native handshake.
   const MAX_EVENTS = 160, MAX_NODES = 40, MAX_ROOTS = 6, MAX_DURATION = 15 * 60 * 1000;
   const sessionPattern = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
   const metricsKeys = new Set(["frame","shadow","readyState","networkState","paused",
@@ -260,7 +261,7 @@
     // after our command listener is registered, without any raw page data.
     try {
       port.postMessage({schemaVersion:2,event:"ready",documentId,
-        frame:window.top === window ? "TOP" : "SUBFRAME"});
+        frame:window.top === window ? "TOP" : "SUBFRAME",scriptVersion:SCRIPT_VERSION});
     } catch (_) {
       stop();
       if (attempt < 3) setTimeout(() => connect(attempt + 1), 250 * (attempt + 1));

@@ -37,7 +37,7 @@ internal class MpvPlayDiagnosticLedger(
         DISCONNECTED, FAILED }
     enum class Failure { NONE, NO_PORT, NO_READY, NO_START, NO_ACK, NO_PAGE_EVENTS,
         NO_BASELINE, PORT_DISCONNECTED, INSTALL_FAILED, HANDLER_FAILED, POST_FAILED,
-        INVALID_ACK }
+        INVALID_ACK, SCRIPT_VERSION_MISMATCH }
     enum class Drop { INVALID_TYPE, PARSE_ERROR, BAD_SCHEMA, SESSION_MISMATCH,
         DOCUMENT_MISMATCH, STALE_PORT, UNEXPECTED_EVENT }
     companion object {
@@ -70,6 +70,7 @@ internal class MpvPlayDiagnosticLedger(
     private var transportRejected = 0
     private var messagesReceived = 0
     private var portsReady = 0
+    private var observedScriptVersion: String? = null
     private var invalidAcks = 0
     private val drops = Drop.entries.associateWith { 0 }.toMutableMap()
     private var baselineSnapshots = 0
@@ -83,7 +84,19 @@ internal class MpvPlayDiagnosticLedger(
     val active: Boolean get() = result == "RUNNING"
     val markCount: Int get() = snapshots.size
 
+    fun recordScriptVersion(version: String) {
+        if (!active) return
+        val safe = if (version.matches(Regex("[0-9]{1,3}(\\.[0-9]{1,3}){1,2}")) ||
+            version in setOf("MISSING", "INVALID")) version else "INVALID"
+        observedScriptVersion = when {
+            observedScriptVersion == null -> safe
+            observedScriptVersion == safe -> safe
+            else -> "MIXED"
+        }
+    }
+
     fun connected(elapsedMs: Long = 0) {
+        if (failure == Failure.SCRIPT_VERSION_MISMATCH) return
         if (!active || transport in setOf(Transport.NO_PORT, Transport.NO_READY, Transport.NO_START, Transport.NO_ACK,
                 Transport.NO_PAGE_EVENTS, Transport.NO_BASELINE)) return
         portsConnected++
@@ -96,7 +109,7 @@ internal class MpvPlayDiagnosticLedger(
     }
 
     fun ready(elapsedMs: Long) {
-        if (!active) return
+        if (!active || failure == Failure.SCRIPT_VERSION_MISMATCH) return
         portsReady = (portsReady + 1).coerceAtMost(10_000)
         lastTransportProgressMs = elapsedMs.coerceAtLeast(0)
         if (transport in setOf(Transport.NOT_READY, Transport.CONNECTED, Transport.DISCONNECTED)) {
@@ -121,6 +134,7 @@ internal class MpvPlayDiagnosticLedger(
     }
 
     fun startSent(elapsedMs: Long, retry: Boolean = false) {
+        if (failure == Failure.SCRIPT_VERSION_MISMATCH) return
         if (!active || transport in setOf(Transport.NO_PORT, Transport.NO_READY, Transport.NO_START, Transport.NO_ACK,
                 Transport.NO_PAGE_EVENTS, Transport.NO_BASELINE)) return
         startAttempts++
@@ -133,6 +147,7 @@ internal class MpvPlayDiagnosticLedger(
     }
 
     fun startAck(packet: JSONObject, elapsedMs: Long = 0): Boolean {
+        if (failure == Failure.SCRIPT_VERSION_MISMATCH) return false
         if (!active || transport in setOf(Transport.NO_PORT, Transport.NO_READY, Transport.NO_START, Transport.NO_ACK,
                 Transport.NO_PAGE_EVENTS, Transport.NO_BASELINE) || packet.length() != 5 ||
             packet.optInt("schemaVersion") != 2 ||
@@ -171,7 +186,8 @@ internal class MpvPlayDiagnosticLedger(
     fun transportFailed(cause: Failure) {
         if (!active) return
         if (cause !in setOf(Failure.INSTALL_FAILED, Failure.HANDLER_FAILED,
-                Failure.POST_FAILED, Failure.INVALID_ACK)) return
+                Failure.POST_FAILED, Failure.INVALID_ACK,
+                Failure.SCRIPT_VERSION_MISMATCH)) return
         transport = Transport.FAILED
         failure = cause
     }
@@ -229,6 +245,7 @@ internal class MpvPlayDiagnosticLedger(
      * cookies or network payloads. The content extension is NOT a trust boundary.
      */
     fun appendPageEvent(message: JSONObject, receivedMs: Long): Boolean {
+        if (failure == Failure.SCRIPT_VERSION_MISMATCH) return false
         if (!active || transport in setOf(Transport.NO_PORT, Transport.NO_READY, Transport.NO_START, Transport.NO_ACK,
                 Transport.NO_PAGE_EVENTS, Transport.NO_BASELINE)) return false
         fun reject(): Boolean { pageRejected++; return false }
@@ -355,6 +372,8 @@ internal class MpvPlayDiagnosticLedger(
             put("marks", snapshots.size)
             put("transport_state", transport.name)
             put("transport_failure", failure.name)
+            put("extension_script_version_expected", MpvPlayPageBridgeController.EXPECTED_SCRIPT_VERSION)
+            put("extension_script_version_observed", observedScriptVersion ?: JSONObject.NULL)
         }
         val timeline = JSONArray()
         entries.sortedBy { it.elapsedMs }.forEach { entry ->
@@ -412,6 +431,8 @@ internal class MpvPlayDiagnosticLedger(
                 put("packets_rejected", transportRejected)
                 put("messages_received", messagesReceived)
                 put("ports_ready", portsReady)
+                put("extension_script_version_expected", MpvPlayPageBridgeController.EXPECTED_SCRIPT_VERSION)
+                put("extension_script_version_observed", observedScriptVersion ?: JSONObject.NULL)
                 put("start_delivery", "NOT_PROVEN_BY_POST")
                 put("invalid_ack", invalidAcks)
                 put("baseline_snapshots", baselineSnapshots)
@@ -550,6 +571,10 @@ internal object MpvPlayDiagnostics {
         withSession(profile, tab, nonce) {
             it.ready(SystemClock.elapsedRealtime() - it.startedElapsedMs)
         }
+
+    fun scriptVersion(profile: String, tab: String, nonce: String,
+                      version: String): Boolean =
+        withSession(profile, tab, nonce) { it.recordScriptVersion(version) }
 
     fun received(profile: String, tab: String, nonce: String): Boolean =
         withSession(profile, tab, nonce) { it.received() }

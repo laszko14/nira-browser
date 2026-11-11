@@ -10,6 +10,7 @@ import mozilla.components.concept.engine.Engine
 import mozilla.components.concept.engine.EngineSession
 import mozilla.components.concept.engine.webextension.MessageHandler
 import mozilla.components.concept.engine.webextension.Port
+import mozilla.components.concept.engine.webextension.WebExtension
 import com.prirai.android.nira.browser.profile.ProfileManager
 import org.json.JSONObject
 import org.junit.Assert.*
@@ -55,7 +56,8 @@ class MpvPlayPageBridgeControllerTest {
             handler.onPortMessage(JSONObject().put("schemaVersion", 2)
                 .put("event", "ready")
                 .put("documentId", "0123456789abcdef0123456789abcdef")
-                .put("frame", "TOP"), port)
+                .put("frame", "TOP")
+                .put("scriptVersion", MpvPlayPageBridgeController.EXPECTED_SCRIPT_VERSION), port)
             assertTrue(sent.isEmpty())
             assertEquals(MpvPlayDiagnostics.Start.STARTED,
                 MpvPlayDiagnostics.start(profile, tab.id, "example.org", false))
@@ -111,6 +113,7 @@ class MpvPlayPageBridgeControllerTest {
             val doc = "0123456789abcdef0123456789abcdef"
             val ready = JSONObject().put("schemaVersion", 2).put("event", "ready")
                 .put("documentId", doc).put("frame", "TOP")
+                .put("scriptVersion", MpvPlayPageBridgeController.EXPECTED_SCRIPT_VERSION)
             handler.onPortMessage(ready, port)
             handler.onPortMessage(ready, port)
             assertEquals(1, sent.size) // repeated READY does not duplicate START
@@ -215,6 +218,7 @@ class MpvPlayPageBridgeControllerTest {
         val document = "0123456789abcdef0123456789abcdef"
         val ready = JSONObject().put("schemaVersion", 2).put("event", "ready")
             .put("documentId", document).put("frame", "TOP")
+            .put("scriptVersion", MpvPlayPageBridgeController.EXPECTED_SCRIPT_VERSION)
         try {
             handler.onPortConnected(port)
             handler.onPortMessage(ready, port) // READY is one-shot for this document.
@@ -255,4 +259,162 @@ class MpvPlayPageBridgeControllerTest {
         }
     }
 
+
+    @Test fun oldInstalledScriptReadyIsReportedAsVersionMismatchNotNoAck() {
+        MpvPlayDiagnostics.discard()
+        val context = RuntimeEnvironment.getApplication()
+        val manager = ProfileManager.getInstance(context)
+        manager.setPrivateMode(false)
+        val profile = manager.getActiveProfile().id
+        val session = Mockito.mock(EngineSession::class.java)
+        val tab = TabSessionState(id = "old-extension-script",
+            contextId = if (profile == "default") null else "profile_$profile",
+            content = ContentState(url = "https://example.org"),
+            engineState = EngineState(engineSession = session))
+        val controller = MpvPlayPageBridgeController(context,
+            Mockito.mock(Engine::class.java), BrowserStore(initialState =
+                BrowserState(tabs = listOf(tab), selectedTabId = tab.id)))
+        val handlerMethod = controller.javaClass.getDeclaredMethod("handler", EngineSession::class.java)
+        handlerMethod.isAccessible = true
+        val handler = handlerMethod.invoke(controller, session) as MessageHandler
+        val sent = mutableListOf<JSONObject>()
+        val port = Mockito.mock(Port::class.java) { invocation ->
+            if (invocation.method.name == "postMessage") {
+                sent.add(invocation.arguments[0] as JSONObject)
+                null
+            } else Mockito.RETURNS_DEFAULTS.answer(invocation)
+        }
+        Mockito.`when`(port.name()).thenReturn("zavro.preview.forensics")
+        Mockito.`when`(port.senderUrl()).thenReturn("https://example.org")
+        try {
+            handler.onPortConnected(port)
+            // Previous APK script emitted a four-field READY with no version.
+            handler.onPortMessage(JSONObject().put("schemaVersion", 2).put("event", "ready")
+                .put("documentId", "0123456789abcdef0123456789abcdef")
+                .put("frame", "TOP"), port)
+            assertEquals(MpvPlayDiagnostics.Start.STARTED,
+                MpvPlayDiagnostics.start(profile, tab.id, "example.org", false))
+            controller.command(profile, tab.id, "start")
+            assertTrue(sent.none { it.optString("action") == "start" })
+            assertEquals(MpvPlayDiagnosticLedger.Transport.FAILED,
+                MpvPlayDiagnostics.state().transport)
+            assertEquals(MpvPlayDiagnosticLedger.Failure.SCRIPT_VERSION_MISMATCH,
+                MpvPlayDiagnostics.state().failure)
+        } finally {
+            MpvPlayDiagnostics.discard()
+        }
+    }
+
+    @Test fun invalidScriptVersionDuringActiveSessionIsRejected() {
+        MpvPlayDiagnostics.discard()
+        val context = RuntimeEnvironment.getApplication()
+        val manager = ProfileManager.getInstance(context)
+        manager.setPrivateMode(false)
+        val profile = manager.getActiveProfile().id
+        val session = Mockito.mock(EngineSession::class.java)
+        val tab = TabSessionState(id = "invalid-extension-script",
+            contextId = if (profile == "default") null else "profile_$profile",
+            content = ContentState(url = "https://example.org"),
+            engineState = EngineState(engineSession = session))
+        val controller = MpvPlayPageBridgeController(context,
+            Mockito.mock(Engine::class.java), BrowserStore(initialState =
+                BrowserState(tabs = listOf(tab), selectedTabId = tab.id)))
+        val handlerMethod = controller.javaClass.getDeclaredMethod("handler", EngineSession::class.java)
+        handlerMethod.isAccessible = true
+        val handler = handlerMethod.invoke(controller, session) as MessageHandler
+        val port = Mockito.mock(Port::class.java)
+        Mockito.`when`(port.name()).thenReturn("zavro.preview.forensics")
+        Mockito.`when`(port.senderUrl()).thenReturn("https://example.org")
+        try {
+            assertEquals(MpvPlayDiagnostics.Start.STARTED,
+                MpvPlayDiagnostics.start(profile, tab.id, "example.org", false))
+            handler.onPortConnected(port)
+            handler.onPortMessage(JSONObject().put("schemaVersion", 2).put("event", "ready")
+                .put("documentId", "0123456789abcdef0123456789abcdef")
+                .put("frame", "TOP").put("scriptVersion", "0.0.1"), port)
+            assertEquals(MpvPlayDiagnosticLedger.Transport.FAILED,
+                MpvPlayDiagnostics.state().transport)
+            assertEquals(MpvPlayDiagnosticLedger.Failure.SCRIPT_VERSION_MISMATCH,
+                MpvPlayDiagnostics.state().failure)
+        } finally {
+            MpvPlayDiagnostics.discard()
+        }
+    }
+
+    @Test fun handlerRegistrationFailureCanRetryOnSameEngineSession() {
+        MpvPlayDiagnostics.discard()
+        val context = RuntimeEnvironment.getApplication()
+        ProfileManager.getInstance(context).setPrivateMode(false)
+        val session = Mockito.mock(EngineSession::class.java)
+        val controller = MpvPlayPageBridgeController(context,
+            Mockito.mock(Engine::class.java), BrowserStore(initialState =
+                BrowserState(tabs = listOf(TabSessionState(id = "registration-retry",
+                    content = ContentState(url = "https://example.org"),
+                    engineState = EngineState(engineSession = session))))))
+        var attempts = 0
+        val extension = Mockito.mock(WebExtension::class.java) { invocation ->
+            if (invocation.method.name == "registerContentMessageHandler") {
+                attempts++
+                if (attempts == 1) throw IllegalStateException("transient handler failure")
+                null
+            } else Mockito.RETURNS_DEFAULTS.answer(invocation)
+        }
+        val method = controller.javaClass.getDeclaredMethod("registerHandler",
+            EngineSession::class.java, WebExtension::class.java)
+        method.isAccessible = true
+        method.invoke(controller, session, extension)
+        method.invoke(controller, session, extension)
+        method.invoke(controller, session, extension)
+        assertEquals(2, attempts) // Retry failure and keep successful binding idempotent.
+    }
+
+    @Test fun installationFailurePermitsReinitializationAndIgnoresStaleSuccess() {
+        val context = RuntimeEnvironment.getApplication()
+        val successes = mutableListOf<(WebExtension) -> Unit>()
+        val failures = mutableListOf<(Throwable) -> Unit>()
+        val engine = Mockito.mock(Engine::class.java) { invocation ->
+            if (invocation.method.name == "installBuiltInWebExtension") {
+                @Suppress("UNCHECKED_CAST")
+                successes.add(invocation.arguments[2] as (WebExtension) -> Unit)
+                @Suppress("UNCHECKED_CAST")
+                failures.add(invocation.arguments[3] as (Throwable) -> Unit)
+                null
+            } else Mockito.RETURNS_DEFAULTS.answer(invocation)
+        }
+        val controller = MpvPlayPageBridgeController(context, engine,
+            BrowserStore(initialState = BrowserState()))
+        controller.start()
+        controller.start()
+        assertEquals(1, successes.size) // Deferred install must not be duplicated.
+        failures.single()(IllegalStateException("temporary installation failure"))
+        controller.start()
+        assertEquals(2, successes.size)
+        successes.first()(Mockito.mock(WebExtension::class.java)) // Obsolete callback.
+        successes.last()(Mockito.mock(WebExtension::class.java))
+        controller.start()
+        assertEquals(2, successes.size)
+    }
+
+    @Test fun scriptVersionEvidenceIsPresentInTransportZip() {
+        val ledger = MpvPlayDiagnosticLedger("nonce", "default", "tab", null,
+            "0.5.22-clean", 0, 0)
+        ledger.recordScriptVersion("MISSING")
+        ledger.transportFailed(MpvPlayDiagnosticLedger.Failure.SCRIPT_VERSION_MISMATCH)
+        val zipped = java.util.zip.ZipInputStream(
+            java.io.ByteArrayInputStream(ledger.toZipBytes()))
+        var transport: JSONObject? = null
+        zipped.use { zip ->
+            while (true) {
+                val entry = zip.nextEntry ?: break
+                if (entry.name == "transport.json") {
+                    transport = JSONObject(zip.readBytes().toString(Charsets.UTF_8))
+                }
+                zip.closeEntry()
+            }
+        }
+        assertNotNull(transport)
+        assertEquals("1.0.2", transport!!.getString("extension_script_version_expected"))
+        assertEquals("MISSING", transport!!.getString("extension_script_version_observed"))
+        assertEquals("SCRIPT_VERSION_MISMATCH", transport!!.getString("failure"))
+    }
 }

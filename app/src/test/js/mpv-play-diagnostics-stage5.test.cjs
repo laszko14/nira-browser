@@ -101,6 +101,20 @@ function fixture({ subframe = false, failedPost = false, connectFailures = 0 } =
   };
 }
 
+
+test("stage1: shipped manifest, native expectation and running content handshake agree", () => {
+  const native = read("app/src/main/java/com/prirai/android/nira/browser/MpvPlayPageBridgeController.kt");
+  const scriptVersion = script.match(/const SCRIPT_VERSION = "([^"]+)"/)?.[1];
+  const expectedNative = native.match(/EXPECTED_SCRIPT_VERSION = "([^"]+)"/)?.[1];
+  assert.equal(scriptVersion, manifest.version);
+  assert.equal(expectedNative, manifest.version);
+  const f=fixture();
+  assert.equal(f.packets[0].event,"ready");
+  assert.equal(f.packets[0].scriptVersion, manifest.version);
+  assert.equal(f.stats().activeListeners,0);
+  assert.equal(f.stats().observed,0);
+});
+
 test("final5: probe manifest is HTTP(S) frame-scoped, passive until opt-in", () => {
   assert.deepEqual(manifest.content_scripts[0].matches, ["http://*/*","https://*/*"]);
   assert.equal(manifest.content_scripts[0].all_frames,true);
@@ -111,8 +125,9 @@ test("final5: probe manifest is HTTP(S) frame-scoped, passive until opt-in", () 
   f.badCommand({schemaVersion:2,action:"start",sessionId:"not-a-uuid"});
   assert.equal(f.packets.length,1);
   assert.equal(f.packets[0].event,"ready");
+  assert.equal(f.packets[0].scriptVersion, manifest.version);
   assert.deepEqual(Object.keys(f.packets[0]).sort(),
-    ["schemaVersion","event","documentId","frame"].sort());
+    ["schemaVersion","event","documentId","frame","scriptVersion"].sort());
   assert.deepEqual(f.stats(),{observed:0,disposed:0,activeListeners:0});
   assert.equal(f.changes.play,0);
 });
@@ -139,7 +154,7 @@ test("final5: normal HTML5 preview, site Play button, subframe and private data"
   for(const x of top.packets.concat(iframe.packets)){
     if(x.event==="ready"){
       assert.deepEqual(Object.keys(x).sort(),
-        ["schemaVersion","event","documentId","frame"].sort());
+        ["schemaVersion","event","documentId","frame","scriptVersion"].sort());
       continue;
     }
     if(x.event==="start_ack"){

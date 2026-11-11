@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Zavro Preview Diagnostics",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Explicit, bounded, read-only page diagnostics for moving video previews.",
   "browser_specific_settings": {
     "gecko": {
