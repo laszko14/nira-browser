@@ -6,7 +6,7 @@ Aktywna gałąź: `docs/ai/ACTIVE_CLEAN_LINE.md`. Historyczny handoff: `docs/ai/
 task_id: ZC-MPV-PLAY-V2-STAGE6-INTEGRATION-20261111
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
-product_line: Zavro Clean, bez x MPV
+product_line: Zavro Clean
 branch: feat/zavro-clean-mpv-play-diagnostics-stage1-20261110
 base_sha: ad41702077ed7f155781c9ff66d443bf61c772ff
 observed_head_sha: ad41702077ed7f155781c9ff66d443bf61c772ff
@@ -17,14 +17,17 @@ remaining: Końcowy krytyczny przegląd diffu, testy JS i Kotlin/Robolectric, An
 required_ci: SOURCE process-docs + shared-tests (JavaScript, JVM/Robolectric, AndroidTest compile, Android lint i lint-regression) + final summary, oraz PR shared-tests + error-learning evidence; komplet SUCCESS na dokładnym końcowym source SHA.
 device: NOT_TESTED — Nothing Phone (1), Android 15; brak wykonanych przypadków D01-D12. Docelowy protokół: docs/ai/MPV_PLAY_V2_STAGE6_DEVICE_TEST.md. Realny wynik DEVICE_VERIFIED wymaga późniejszej zgody i testu użytkownika.
 apk: NOT_BUILT_IN_THIS_TASK. Nie budowano ani nie pobierano APK/ZIP binariów. Nie zmieniono versionCode, versionName, podpisu, ABI ani pakietu; brak merge/release/force-push.
-known_failures: Stary START dla pierwszej zakończonej sesji mógł wznowić obserwację po STOP kolejnej sesji. Retencja 128 nonce ogranicza pamięć; po ich przekroczeniu pojedynczy ekstremalnie stary START nie jest gwarantowanie rozpoznawany. Zgłoszone historyczne NO_ACK na telefonie nadal nie ma zweryfikowanej przyczyny. Closed Shadow DOM, niewstrzyknięte/cross-origin iframe, handled play Promise rejection i DRM pozostają poza granicami obserwacji.
-verification: Ostatni zakończony etap 5/6 jest potwierdzony przez SOURCE https://github.com/laszko14/nira-browser/actions/runs/43006921141 i PR https://github.com/laszko14/nira-browser/actions/runs/43006930215 na ad41702077ed7f155781c9ff66d443bf61c772ff. Wyniki nie weryfikują nowego etapu 6/6. Finalne CI w toku/nieuruchomione w chwili checkpointu; najpierw utwórz nowy SHA.
+known_failures: Na pierwszym SHA etapu 6 ca45f3b1b4a55a6d3f4934efa16e10c3d5002e96 SOURCE run 43017004093 process-docs/job 130510467015 miał FAIL (test check-ai-handoff wymaga product_line dokładnie Zavro Clean, a nowy checkpoint zawierał dopisek bez x MPV). Przyczyna: dokumentacja/fixture kontraktu, nie aplikacja. Skorygowano wartość kanoniczną bez osłabiania testu. PR run 43017017039 JS SUCCESS, pozostałe kontrole w toku przy zapisie. Stary START dla pierwszej zakończonej sesji mógł wznowić obserwację po STOP kolejnej sesji. Retencja 128 nonce ogranicza pamięć; po ich przekroczeniu pojedynczy ekstremalnie stary START nie jest gwarantowanie rozpoznawany. Zgłoszone historyczne NO_ACK na telefonie nadal nie ma zweryfikowanej przyczyny. Closed Shadow DOM, niewstrzyknięte/cross-origin iframe, handled play Promise rejection i DRM pozostają poza granicami obserwacji.
+verification: Ostatni zakończony etap 5/6 jest potwierdzony przez SOURCE https://github.com/laszko14/nira-browser/actions/runs/43006921141 i PR https://github.com/laszko14/nira-browser/actions/runs/43006930215 na ad41702077ed7f155781c9ff66d443bf61c772ff. Wyniki nie weryfikują nowego etapu 6/6. Pierwsze SOURCE 43017004093 wykazało process-docs FAIL na checkpointcie, a JS SUCCESS; PR 43017017039 miał JS SUCCESS i pozostałe joby w toku. Nowy SHA po poprawce dokumentacji wymaga od nowa pełnych SOURCE i PR CI.
 verified_before_push: Potwierdzono live HEAD ad41702077ed7f155781c9ff66d443bf61c772ff, AGENTS.md, docs/ai/ACTIVE_CLEAN_LINE.md, docs/AI_HANDOFF.md, docs/ai/STARTUP_PREFLIGHT.md, docs/ai/CHATGPT_PROJECT_INSTRUCTIONS.md oraz polityki workflow/test/quality/error/checkpoint. Przed update_ref powtórz kontrolę HEAD i konfliktu równoległej pracy.
 blockers: Testy syntetyczne i Robolectric nie zastępują prawdziwego urządzenia, a bez osobnego polecenia nie wolno budować APK. Brak odrębnego recenzenta wysokiego ryzyka ogranicza niezależną ocenę; wymagany self-review i CI nie są testem telefonu.
 evidence_links:
   - https://github.com/laszko14/nira-browser/actions/runs/43006921141
   - https://github.com/laszko14/nira-browser/actions/runs/43006930215
   - https://github.com/laszko14/nira-browser/commit/ad41702077ed7f155781c9ff66d443bf61c772ff
+  - https://github.com/laszko14/nira-browser/actions/runs/43017004093
+  - https://github.com/laszko14/nira-browser/actions/runs/43017017039
+  - https://github.com/laszko14/nira-browser/commit/ca45f3b1b4a55a6d3f4934efa16e10c3d5002e96
 changed_paths:
   - app/src/main/assets/extensions/zavro-preview-diagnostics/content.js
   - app/src/main/assets/extensions/zavro-preview-diagnostics/manifest.json

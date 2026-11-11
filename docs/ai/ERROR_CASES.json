@@ -333,7 +333,7 @@
     ,
     {
       "task_id": "ZC-MPV-PLAY-V2-STAGE6-INTEGRATION-20261111",
-      "observed_count": 1,
+      "observed_count": 2,
       "state": "ACTIVE"
     }
   ],
@@ -7415,6 +7415,33 @@
       "test_result": "NOT_TESTED",
       "final_ci": "PENDING",
       "recurrence_conditions": "More than one diagnostic STOP/START cycle within one page and delayed native START for a previously finished nonce; retention cap 128 prevents unbounded per-document memory."
+    },
+    {
+      "id": "CI-43017004093-1-130510467015",
+      "task_id": "ZC-MPV-PLAY-V2-STAGE6-INTEGRATION-20261111",
+      "kind": "CI_FAILURE",
+      "fingerprint": "mpv_stage6_checkpoint_product_line_has_noncanonical_suffix",
+      "summary": "First SOURCE process-docs stage 6 failed exact checkpoint contract check: product_line had 'Zavro Clean, bez x MPV' rather than the canonical 'Zavro Clean'. The archive and other process-docs tests passed.",
+      "source_sha": "ca45f3b1b4a55a6d3f4934efa16e10c3d5002e96",
+      "observed_at": "2026-11-11T12:03:18Z",
+      "run_id": 43017004093,
+      "job_id": 130510467015,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "scripts/check-ai-handoff.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/43017004093"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": "zavro-ai-process-docs.yml",
+      "cause_confidence": "confirmed",
+      "fix_summary": "Restore the exact canonical product_line value Zavro Clean in docs/AI_HANDOFF.md; describe separation from x MPV elsewhere. Preserve byte-perfect archive and strict checkpoint test.",
+      "test_result": "FAIL",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "Checkpoint replaces or expands product_line with prose instead of keeping the exact canonical product identifier."
     }
   ]
 }
