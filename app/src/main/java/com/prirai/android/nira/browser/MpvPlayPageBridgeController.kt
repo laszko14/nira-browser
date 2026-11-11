@@ -145,6 +145,15 @@ internal class MpvPlayPageBridgeController(
             portDocuments[port] != null ||
             !MpvPlayPortIdentity.matches(ports[session], port) ||
             MpvPlayDiagnostics.sessionFor(profile, tabId) != nonce) return
+        // A retry may fire after switching to a different/private profile.
+        // The prior opt-in must not authorize further page observation there.
+        if (trustedOwner(session) != (profile to tabId) ||
+            portOwners[port] != (profile to tabId)) {
+            MpvPlayDiagnostics.failed(profile, tabId, nonce,
+                MpvPlayDiagnosticLedger.Failure.OWNER_MISMATCH)
+            retirePort(session, port)
+            return
+        }
         val tries = startTries[port] ?: 0
         if (tries >= MAX_START_TRIES) return
         try {
@@ -392,6 +401,18 @@ internal class MpvPlayPageBridgeController(
 
         override fun onPortConnected(port: Port) {
             val owner = trustedOwner(session)
+            if (MpvPlayPortIdentity.matches(ports[session], port) &&
+                portOwners[port] != owner) {
+                // A duplicate connect after an owner switch retires the old
+                // binding instead of leaving an unaccounted live Port.
+                val original = portOwners[port]
+                val nonce = portNonces[port]
+                if (original != null && nonce != null)
+                    MpvPlayDiagnostics.failed(original.first, original.second, nonce,
+                        MpvPlayDiagnosticLedger.Failure.OWNER_MISMATCH)
+                retirePort(session, port)
+                return
+            }
             if (port.name() != NATIVE_APP || owner == null) {
                 try { port.disconnect() } catch (_: Exception) {}
                 return
@@ -442,6 +463,8 @@ internal class MpvPlayPageBridgeController(
                 portNonces[port]?.let { nonce ->
                     MpvPlayDiagnostics.drop(boundOwner.first, boundOwner.second, nonce,
                         MpvPlayDiagnosticLedger.Drop.STALE_PORT)
+                    MpvPlayDiagnostics.failed(boundOwner.first, boundOwner.second, nonce,
+                        MpvPlayDiagnosticLedger.Failure.OWNER_MISMATCH)
                 }
                 retirePort(session, port)
                 return

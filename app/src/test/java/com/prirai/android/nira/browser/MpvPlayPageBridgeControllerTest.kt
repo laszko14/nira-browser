@@ -404,13 +404,70 @@ class MpvPlayPageBridgeControllerTest {
                 .put("frame", "TOP")
                 .put("scriptVersion", MpvPlayPageBridgeController.EXPECTED_SCRIPT_VERSION), port)
             Mockito.verify(port, Mockito.times(1)).disconnect()
-            assertEquals(MpvPlayDiagnosticLedger.Transport.DISCONNECTED,
+            assertEquals(MpvPlayDiagnosticLedger.Transport.FAILED,
                 MpvPlayDiagnostics.state().transport)
-            assertEquals(MpvPlayDiagnosticLedger.Failure.PORT_DISCONNECTED,
+            assertEquals(MpvPlayDiagnosticLedger.Failure.OWNER_MISMATCH,
                 MpvPlayDiagnostics.state().failure)
             handler.onPortDisconnected(port) // The retired port is no longer owned.
-            assertEquals(MpvPlayDiagnosticLedger.Transport.DISCONNECTED,
+            assertEquals(MpvPlayDiagnosticLedger.Failure.OWNER_MISMATCH,
+                MpvPlayDiagnostics.state().failure)
+        } finally {
+            manager.setPrivateMode(false)
+            MpvPlayDiagnostics.discard()
+        }
+    }
+
+
+    @Test fun delayedStartRetryIsBlockedAfterOwnerBecomesPrivate() {
+        MpvPlayDiagnostics.discard()
+        val context = RuntimeEnvironment.getApplication()
+        val manager = ProfileManager.getInstance(context)
+        manager.setPrivateMode(false)
+        val profile = manager.getActiveProfile().id
+        val session = Mockito.mock(EngineSession::class.java)
+        val tab = TabSessionState(id = "retry-owner-switch",
+            contextId = if (profile == "default") null else "profile_$profile",
+            content = ContentState(url = "https://example.org"),
+            engineState = EngineState(engineSession = session))
+        val controller = MpvPlayPageBridgeController(context,
+            Mockito.mock(Engine::class.java), BrowserStore(initialState =
+                BrowserState(tabs = listOf(tab), selectedTabId = tab.id)))
+        val factory = controller.javaClass.getDeclaredMethod("handler", EngineSession::class.java)
+        factory.isAccessible = true
+        val handler = factory.invoke(controller, session) as MessageHandler
+        val packets = mutableListOf<JSONObject>()
+        val port = Mockito.mock(Port::class.java) { invocation ->
+            if (invocation.method.name == "postMessage") {
+                packets.add(invocation.arguments[0] as JSONObject)
+                null
+            } else Mockito.RETURNS_DEFAULTS.answer(invocation)
+        }
+        Mockito.`when`(port.name()).thenReturn("zavro.preview.forensics")
+        Mockito.`when`(port.senderUrl()).thenReturn("https://example.org")
+        val document = "0123456789abcdef0123456789abcdef"
+        val ready = JSONObject().put("schemaVersion", 2).put("event", "ready")
+            .put("documentId", document).put("frame", "TOP")
+            .put("scriptVersion", MpvPlayPageBridgeController.EXPECTED_SCRIPT_VERSION)
+        try {
+            handler.onPortConnected(port)
+            handler.onPortMessage(ready, port)
+            assertEquals(MpvPlayDiagnostics.Start.STARTED,
+                MpvPlayDiagnostics.start(profile, tab.id, "example.org", false))
+            val nonce = MpvPlayDiagnostics.sessionFor(profile, tab.id)!!
+            controller.command(profile, tab.id, "start")
+            assertEquals(1, packets.count { it.optString("action") == "start" })
+            manager.setPrivateMode(true)
+            val retry = controller.javaClass.getDeclaredMethod("sendStart",
+                EngineSession::class.java, Port::class.java,
+                String::class.java, String::class.java, String::class.java)
+            retry.isAccessible = true
+            retry.invoke(controller, session, port, profile, tab.id, nonce)
+            assertEquals(1, packets.count { it.optString("action") == "start" })
+            Mockito.verify(port, Mockito.times(1)).disconnect()
+            assertEquals(MpvPlayDiagnosticLedger.Transport.FAILED,
                 MpvPlayDiagnostics.state().transport)
+            assertEquals(MpvPlayDiagnosticLedger.Failure.OWNER_MISMATCH,
+                MpvPlayDiagnostics.state().failure)
         } finally {
             manager.setPrivateMode(false)
             MpvPlayDiagnostics.discard()
