@@ -400,6 +400,8 @@ class MpvPlayPageBridgeControllerTest {
             "0.5.22-clean", 0, 0)
         ledger.recordScriptVersion("MISSING")
         ledger.transportFailed(MpvPlayDiagnosticLedger.Failure.SCRIPT_VERSION_MISMATCH)
+        // Production exports only finished sessions; keep this invariant in the test.
+        ledger.finish(1L, 1L, "STOPPED")
         val zipped = java.util.zip.ZipInputStream(
             java.io.ByteArrayInputStream(ledger.toZipBytes()))
         var transport: JSONObject? = null

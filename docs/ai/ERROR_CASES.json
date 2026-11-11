@@ -304,7 +304,7 @@
     ,
     {
       "task_id": "ZC-MPV-PLAY-EXTENSION-VERSION-20261111",
-      "observed_count": 4,
+      "observed_count": 5,
       "state": "ACTIVE"
     }
   ],
@@ -6949,6 +6949,35 @@
       "test_result": "FAIL",
       "final_ci": "PENDING",
       "recurrence_conditions": "Add a new error-learning task at the beginning of coverage without updating the test fixture that copies the first task and first event."
+    }
+,
+    {
+      "id": "CI-42943408302-1-130270594150",
+      "task_id": "ZC-MPV-PLAY-EXTENSION-VERSION-20261111",
+      "kind": "CI_FAILURE",
+      "fingerprint": "mpv_stage1_zip_regression_fixture_exports_active_ledger",
+      "summary": "SOURCE and PR JVM Robolectric suites each ran 1570 tests, with one new ZIP regression failing on IllegalStateException because the fixture exported an active ledger without finishing the session.",
+      "source_sha": "e32b675abd3b648dd755acaa9dcb323de078bf4e",
+      "observed_at": "2026-11-11T02:10:58Z",
+      "run_id": 42943408302,
+      "job_id": 130270594150,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/java/com/prirai/android/nira/browser/MpvPlayPageBridgeControllerTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42943408302",
+        "https://github.com/laszko14/nira-browser/actions/runs/42943418132"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": "zavro-ai-process-docs.yml",
+      "cause_confidence": "confirmed",
+      "fix_summary": "Finalize the test-only ledger before calling toZipBytes(), matching the real export precondition and retaining the production check that rejects active sessions.",
+      "test_result": "FAIL",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "Add direct ZIP export tests that call ledger.toZipBytes() while result is RUNNING, violating its deliberately strict active-session precondition."
     }
   ]
 }
