@@ -298,7 +298,7 @@
     },
     {
       "task_id": "ZC-MPV-PLAY-BUTTON-P0-20261111",
-      "observed_count": 1,
+      "observed_count": 2,
       "state": "ACTIVE"
     }
   ],
@@ -6795,9 +6795,9 @@
       "state": "OPEN",
       "duplicate_of": null,
       "fix_sha": null,
-      "regression_test": "MpvPlayPageBridgeControllerTest.repeatedStartAfterStopUsesCachedReadyOnTheSameLivePort",
+      "regression_test": "app/src/test/java/com/prirai/android/nira/browser/MpvPlayPageBridgeControllerTest.kt",
       "evidence_links": [
-        "https://github.com/laszko14/nira-browser/blob/ed1bc243224893f8eedfc39cd504942915c7a823/app/src/main/java/com/prirai/android/nira/browser/MpvPlayPageBridgeController.kt"
+        "https://github.com/laszko14/nira-browser/commit/ed1bc243224893f8eedfc39cd504942915c7a823"
       ],
       "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
       "workflow_name": null,
@@ -6806,6 +6806,33 @@
       "test_result": null,
       "final_ci": null,
       "recurrence_conditions": "STOP then new START in the same tab/document without reload; or port disconnect after STOP followed by new diagnostic START."
+    },
+    {
+      "id": "CI-42937132990-1-130249861699",
+      "task_id": "ZC-MPV-PLAY-BUTTON-P0-20261111",
+      "kind": "CI_FAILURE",
+      "fingerprint": "mpv_p0_error_learning_invalid_evidence_and_test_reference",
+      "summary": "First SOURCE process-docs failed at error-learning validation: newly added event linked a blob path rather than an allowed run/commit URL and used a bare JVM test method instead of a repository-relative test file path.",
+      "source_sha": "df565a9938ba4a61d3b7ae8616dd7160500fed76",
+      "observed_at": "2026-11-11T01:11:52Z",
+      "run_id": 42937132990,
+      "job_id": 130249861699,
+      "attempt": 1,
+      "cause": "test_harness",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "scripts/error-learning.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/actions/runs/42937132990"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": "zavro-ai-process-docs.yml",
+      "cause_confidence": "confirmed",
+      "fix_summary": "Use the validator's strict GitHub commit URL and repository-relative test path; retain all original validation rules.",
+      "test_result": "FAIL",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "Adding a diagnostic error entry with a blob URL or a bare test method rather than a permitted GitHub reference and repository test path."
     }
   ]
 }

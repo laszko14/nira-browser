@@ -17,8 +17,8 @@ remaining: Potwierdzić brak równoległych zapisów, commit/push na tej samej g
 required_ci: SOURCE process-docs + shared-tests (JavaScript, Kotlin/Robolectric, AndroidTest compile, Android lint, lint-regression) + summary, oraz odrębne PR shared-tests + error-learning evidence; oba na końcowym źródłowym SHA.
 device: NOT_TESTED; brak nowego fizycznego raportu Nothing Phone (1) z tej poprawki. Historyczny v1227 miał NO_ACK i zero page events, a obecna diagnoza nie ustala jeszcze zachowania pierwszej sesji na urządzeniu.
 apk: NOT_BUILT_IN_THIS_TASK; ostatni zweryfikowany zdalny prywatny artefakt przed zadaniem to v1228, run 42916351673, nazwa zavro-arm64-update-apk-v1228, SHA ed1bc243224893f8eedfc39cd504942915c7a823; nowe APK jawnie zabronione.
-known_failures: Historyczny brak ACK ze starszej wersji — otwarty do testu telefonu. Potwierdzone READY-after-STOP i idle-reconnect po STOP naprawiane w bieżącym kodzie; wynik obecnego CI nieznany przed push.
-verification: Dotychczas tylko audyt kodu i ukierunkowane testy dodane do źródeł; nie uznawać za wykonane ani zielone przed rzeczywistym CI. Nie twierdzić, że Play z witryny pochodzi z dawnego MPV.
+known_failures: Historyczne NO_ACK ze starszej wersji wymaga testu telefonu. Pierwszy bieżący SOURCE run 42937132990 process-docs FAIL w job 130249861699: rejestr wskazał niedozwolony adres blob i niekanoniczną ścieżkę regresji. Przyczyna fixture jest potwierdzona i wpis skorygowano bez osłabiania walidatora; pozostałe kontrole wymagają sprawdzenia.
+verification: Źródłowy SHA df565a9938ba4a61d3b7ae8616dd7160500fed76: SOURCE 42937132990 i PR 42937140900 JS SUCCESS, SOURCE process-docs FAIL (fixture) z konkretnego kroku error-learning; Kotlin/Robolectric, AndroidTest, lint i finalne CI jeszcze niepotwierdzone. Nowy SHA po poprawce wymaga pełnej weryfikacji. Nie twierdzić, że Play z witryny pochodzi z dawnego MPV.
 verified_before_push: GitHub HEAD i pięć plików G1 odczytane z ed1bc243224893f8eedfc39cd504942915c7a823, polityki testów/CI/error-learning/checkpoint odczytane; ponowny odczyt live HEAD wymagany bezpośrednio przed update_ref.
 blockers: Pierwsze NO_ACK wymaga rzeczywistego raportu telefonu po nowym APK, którego to zadanie nie buduje; nawet zielone CI nie daje DEVICE_VERIFIED.
 evidence_links:
@@ -26,6 +26,8 @@ evidence_links:
   - https://github.com/laszko14/nira-browser/actions/runs/42914453857
   - https://github.com/laszko14/nira-browser/actions/runs/42914462417
   - https://github.com/laszko14/nira-browser/actions/runs/42916351673
+  - https://github.com/laszko14/nira-browser/actions/runs/42937132990
+  - https://github.com/laszko14/nira-browser/actions/runs/42937140900
 changed_paths:
   - app/src/main/java/com/prirai/android/nira/browser/MpvPlayPageBridgeController.kt
   - app/src/main/assets/extensions/zavro-preview-diagnostics/content.js
