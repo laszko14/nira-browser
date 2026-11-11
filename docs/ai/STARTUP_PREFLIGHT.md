@@ -5,18 +5,18 @@ To jedyna procedura G1 dla kolejnych zadań Zavro Clean. Nie zastępuje `AGENTS.
 ## Każde nowe zadanie ChatGPT / Codex
 
 1. Określ produkt, rodzaj zadania i upoważnienie. Repo: `laszko14/nira-browser`; Clean jest osobno od x MPV.
-2. Z GitHub bezpośrednio pobierz **aktualny** HEAD właściwej gałęzi (obecna robocza V3: `feat/zavro-clean-v3-20261101`). Nie zakładaj `main` i nie opieraj się na SHA w plikach Źródła.
+2. Pracuj na jednej **stałej** gałęzi rozwoju Clean: `feat/zavro-clean-mpv-play-diagnostics-stage1-20261110` (nie na `main`). Najpierw odczytaj jej pełny live HEAD przez GitHub, potem z dokładnego SHA `docs/ai/ACTIVE_CLEAN_LINE.md`; porównaj nazwę aktywnej gałęzi i checkpoint. Nie twórz gałęzi kolejnego etapu ani nie bazuj na historycznej gałęzi z pamięci. Zmiana kanonicznej gałęzi tylko po osobnej decyzji użytkownika i aktualizacji źródeł startowych.
 3. Z **tego dokładnego SHA** przeczytaj `AGENTS.md`, `docs/AI_HANDOFF.md` i instrukcje katalogowe dotyczące modyfikowanych plików. Porównaj pole `branch:` checkpointu z bieżącą gałęzią; `observed_head_sha` jest historycznym snapshotem, nie może zastąpić live SHA.
 4. Dobierz tylko potrzebne dokumenty przez `scope` z `scripts/ai-preflight.cjs`: `DEFAULT`, `VIDEO_SEARCH`, `UI_GESTURES`, `DATA_PRIVACY`, `CI_TOOLING`, `APK`. Dla APK sprawdź osobny kanon autoryzacji, ale **nie buduj** APK bez upoważnienia.
 5. Przed zapisem sprawdź ponownie HEAD i uprawnienia. Przy niespójności: `PREFLIGHT_BLOCKED`, zamiast zgadywania lub zastępowania źródeł plikami z Projektu.
-6. Przy implementacji zapisz checkpoint przed końcowym commitem, wykonaj wymagane testy i zweryfikuj SOURCE CI na końcowym HEAD. Błędy i regresje rozliczaj w `docs/ai/ERROR_CASES.json`. Raportuj uczciwie `CI_PENDING` oraz brak dowodów.
+6. Przy implementacji zapisz checkpoint przed końcowym commitem, wykonaj wymagane testy i zweryfikuj SOURCE oraz PR CI na końcowym HEAD. Błędy i regresje rozliczaj w `docs/ai/ERROR_CASES.json`. Dla podpisanego APK odczytaj ostatni potwierdzony numer z live GitHub Actions (bazowy odnośnik w `ACTIVE_CLEAN_LINE.md`), sprawdź monotoniczność i podaj tylko link do zakończonego runu oraz nazwę artefaktu; bez pobierania APK/ZIP. Raportuj uczciwie `CI_PENDING` oraz brak dowodów.
 
 **Przykładowy minimalny zapis w zadaniu**: `branch + live_sha + read(AGENTS@sha, AI_HANDOFF@sha) + selected_paths + scope + last_head_check`. To dowód przebiegu pracy tylko wtedy, gdy odczyty rzeczywiście wykonano, nie gdy ktoś przekleił gotowy tekst.
 
 ## Lokalna kontrola checkoutu — narzędzie pomocnicze Codex
 
 ```bash
-node scripts/ai-preflight.cjs feat/zavro-clean-v3-20261101 LIVE_40_HEX_SHA VIDEO_SEARCH
+node scripts/ai-preflight.cjs feat/zavro-clean-mpv-play-diagnostics-stage1-20261110 LIVE_40_HEX_SHA VIDEO_SEARCH
 ```
 
 Skrypt wywołany w **rzeczywistym** checkoutcie porównuje lokalny HEAD, branch i zawartość wymaganych dokumentów, w tym checkpoint. Wynik `SOURCE_SNAPSHOT_VERIFIED` zawiera skróty SHA-256 odczytanych plików i wybrane źródła. Nie jest dowodem, że model je zrozumiał, ani potwierdzeniem sieciowego live HEAD; należy osobno sprawdzić remote.

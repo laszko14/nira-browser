@@ -1,42 +1,41 @@
-# AI_HANDOFF — Zavro Clean stage 10/10 (update version correction)
+# AI_HANDOFF — Zavro Clean MPV/Play V2, aktualizacja APK v1229 (11.11.2026)
 
-Archive: `docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md`.
+Kanon: `docs/ai/ACTIVE_CLEAN_LINE.md`. Archiwum: `docs/ai/archive/AI_HANDOFF_LEGACY_2026-11-01.md`. To checkpoint PRZED końcowym CI; `CI_PENDING` nie zastępuje weryfikacji na żywo.
 
 ```yaml
-task_id: ZC-PREVIEW-COMPAT-10
+task_id: ZC-MPV-PLAY-V2-APK-V1229-20261111
 workflow_mode: autonomous_task
 repo: laszko14/nira-browser
 product_line: Zavro Clean
-branch: feat/zavro-clean-preview-final-stage10-20261110
-base_sha: a0afd6140cbb3847265eb12091e9c07e793d8e31
-observed_head_sha: f1304b4510f28bce7b6e0d06b92e7eb1278e0634
+branch: feat/zavro-clean-mpv-play-diagnostics-stage1-20261110
+base_sha: cc8a72feb13b9eb45c1f0a9e1992579a45f52ee4
+observed_head_sha: cc8a72feb13b9eb45c1f0a9e1992579a45f52ee4
 status: CI_PENDING
-acceptance_source: User authorized stages 7–10 and private signed update after green CI; supplied Nothing Phone (1) About screenshot showing installed versionCode 1224.
-completed: Stage7–9 SOURCE/PR CI SUCCESS. Stage10 prior SHA 9617574be8d2b74e9d5ef82b2fbe31b3387d0497 SOURCE 42806429603 and PR 42806437189 SUCCESS; signed build 42807937319 passed but also had code 1224, so cannot update installed code 1224. Version bumped to arm64 install code 1225 and name 0.5.22-alpha121-clean; local JS 632/632 and process tests 62/62 PASS.
-remaining: Verify final SOURCE and PR CI on new SHA; re-read APK trigger, submit exact-SHA owner PR review, build and inspect new signed artifact. Actual installed package and certificate remain unverified.
-required_ci: SOURCE process-docs, shared-tests JS, JVM/Robolectric, AndroidTest compile, lint/baseline, quality-evidence; PR Android CI integration JS, JVM, AndroidTest compile, lint, error-learning evidence.
-device: NOT_TESTED — About screenshot confirms installed version only; no physical execution test of new APK, real site or MPV Alpha.
-apk: OLD_BUILD_INVALID_FOR_UPDATE — artifact 13761880931 has code 1224, equal to installed code. New signed APK pending final CI.
-known_failures: 46 open ledger cases. Stage10 GitHub metadata anomaly ACCEPTED_RISK; installed-version parity registered as FIXED in code, CI pending.
-verification: User screenshot shows installed 0.5.22-alpha120-clean (1224). Stage10 RED version monotonicity test failed on old code; GREEN targeted and full JS 632/632 after bump. Actual installed applicationId and certificate unknown.
+acceptance_source: Użytkownik 11.11.2026 polecił sprawdzić ukończoną naprawę MPV Play i, przy pomyślnym wyniku, skompilować podpisane APK aktualizacyjne.
+completed: Przed buildem potwierdzono etapy 1-6 V2, SOURCE run 43017903847 i PR run 43017913061 completed SUCCESS na cc8a72feb13b9eb45c1f0a9e1992579a45f52ee4. Ostatni zweryfikowany APK v1228 z run 42916351673; podniesiono wyłącznie wersję do 1229 (Gradle base 229, 0.5.22-alpha125-clean), workflow i nazwę artefaktu. Nie zmieniano logiki MPV/Play, GeckoView, podpisu, profili, historii ani danych.
+remaining: Poprzednie CI na 48e9e884ad50b7b3d1d1c7816f2d493cda18022b odrzuciło pięć twardo przypiętych asercji JS (SOURCE 43024140788 job 130534435173, PR 43024148699); testy poprawiono bez osłabienia kontraktu. Zweryfikować końcowy SOURCE i PR CI dla nowego SHA; po PASS wysłać jedną owner COMMENT review PR 140 z dokładnym SHA, zgodnie z APK_CHAT_GITHUB_REVIEW_TRIGGER.md; sprawdzić build, log verify-update-apk.sh i pojedynczy artefakt, bez pobierania APK ani ZIP.
+required_ci: SOURCE process-docs + shared-tests JavaScript, JVM/Robolectric, AndroidTest compile, lint i lint-regression + summary; PR shared-tests + error-learning-evidence; wszystkie SUCCESS dla finalnego source SHA.
+device: NOT_TESTED — Nothing Phone (1), Android 15; D01-D12 z docs/ai/MPV_PLAY_V2_STAGE6_DEVICE_TEST.md wymagają rzeczywistego sprawdzenia.
+apk: PENDING — v1229, versionCode 1229, versionName 0.5.22-alpha125-clean, com.prirai.android.nira.debug, arm64-v8a, dotychczasowy certyfikat. Nie deklaruj APK_VERIFIED bez runu i logu podpisanego weryfikatora.
+known_failures: Źródłowe process-docs 43024670410 dodatkowo wykryło niepoprawny zapis dwóch ścieżek w jednym polu regression_test w ERROR_CASES.json; naprawiono do jednej ścieżki i zapisano odrębny incydent. Potwierdzony FAIL test_harness: poprzednio zahardkodowany v1228/alpha124 w pięciu asercjach etapu19A i neon, przy zmianie v1229; zapisano w ERROR_CASES.json. Historyczne NO_ACK oraz problem Play i ruchomych miniaturek nie zostały sprawdzone na urządzeniu. Synthetic tests/CI nie potwierdzają ich rozwiązania. Closed Shadow DOM, nieobsługiwane ramki i DRM pozostają granicami obserwacji.
+verification: SOURCE https://github.com/laszko14/nira-browser/actions/runs/43017903847 i PR https://github.com/laszko14/nira-browser/actions/runs/43017913061 potwierdzone dla cc8a72feb13b9eb45c1f0a9e1992579a45f52ee4; ostatni zweryfikowany build v1228 https://github.com/laszko14/nira-browser/actions/runs/42916351673.
+verified_before_push: Bezpośrednio sprawdzono live HEAD cc8a72feb13b9eb45c1f0a9e1992579a45f52ee4, PR 140, AGENTS.md, ACTIVE_CLEAN_LINE.md, AI_HANDOFF.md, STARTUP_PREFLIGHT.md, CHATGPT_PROJECT_INSTRUCTIONS.md, APK_CHAT_GITHUB_REVIEW_TRIGGER.md, APK_RELEASE.md, Gradle i testy kontraktu.
+blockers: Nie ma dowodu testu telefonu ani nowszej zainstalowanej wersji. v1229 jest wyższa niż najnowszy zweryfikowany v1228. Ostateczna akceptacja wymaga finalnego CI i bezpiecznego podpisu w Actions.
+evidence_links:
+  - https://github.com/laszko14/nira-browser/actions/runs/43017903847
+  - https://github.com/laszko14/nira-browser/actions/runs/43017913061
+  - https://github.com/laszko14/nira-browser/actions/runs/42916351673
+  - https://github.com/laszko14/nira-browser/pull/140
 changed_paths:
   - app/build.gradle
   - .github/workflows/apk-release.yml
+  - docs/AI_HANDOFF.md
   - app/src/test/js/release-contract-stage19a.test.cjs
   - app/src/test/js/video-search-neon-redesign.test.cjs
-  - docs/ai/PREVIEW_COMPAT_STAGE10.md
   - docs/ai/ERROR_CASES.json
-  - docs/AI_HANDOFF.md
-verified_before_push:
-  - New arm64 versionCode 1225 is strictly greater than installed 1224 in screenshot.
-  - Debug package and signing certificate contract are unchanged; workflow expected version and artifact name match Gradle.
-  - Full local JavaScript 632/632, process tests 62/62 and error-learning validation PASS.
-blockers:
-  - Final SOURCE/PR CI and new signed build pending. Installed package and certificate not shown by screenshot.
-evidence_links:
-  - https://github.com/laszko14/nira-browser/pull/139
-  - https://github.com/laszko14/nira-browser/actions/runs/42806429603
-  - https://github.com/laszko14/nira-browser/actions/runs/42806437189
-  - https://github.com/laszko14/nira-browser/actions/runs/42807937319
-next_action: Verify final SOURCE/PR CI, build corrected signed APK via exact-SHA owner review, then compare to installed package/certificate if evidence becomes available.
+next_action: Po zielonym końcowym SOURCE i PR CI autoryzować owner COMMENT review dla v1229, sprawdzić run, podpis, ABI i artefakt. Nie deklarować DEVICE_VERIFIED bez telefonu.
 ```
+
+## Granice interpretacji
+
+`START_ACK` potwierdza transport, `top_frame_baseline_confirmed` potwierdza migawkę TOP, a `page_events_observed` zauważone interakcje. Żaden z tych stanów samodzielnie nie dowodzi naprawy odtwarzania Play ani miniaturek.

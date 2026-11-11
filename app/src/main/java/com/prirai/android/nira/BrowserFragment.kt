@@ -1138,6 +1138,247 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 }, 350L)
             }
         ))
+        // Opt-in MPV/Play forensic recorder. Stage 2 adds bounded passive
+        // page evidence; native snapshots remain APP_DECOR_ONLY.
+        val mpvDiagnostics = com.prirai.android.nira.browser.MpvPlayDiagnostics
+        val mpvState = mpvDiagnostics.state()
+        if (mpvState.running || mpvState.reportReady) {
+            val confirmed = mpvState.topBaseline && mpvState.pageEventsObserved
+            val statusText = when {
+                !mpvState.running -> when {
+                    mpvState.stopAcknowledged -> "RAPORT GOTOWY • STOP JS POTWIERDZONY"
+                    mpvState.stopWasRequested -> "RAPORT GOTOWY • STOP JS NIEPOTWIERDZONY"
+                    else -> "RAPORT GOTOWY • BRAK STOP JS"
+                }
+                mpvState.stopPending -> "KOŃCZENIE • OCZEKIWANIE NA STOP ACK"
+                mpvState.failure != null &&
+                    mpvState.failure != com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Failure.NONE ->
+                    "BŁĄD • ${mpvState.failure}"
+                confirmed -> "ZDARZENIA STRONY + MIGAWKA TOP"
+                mpvState.topBaseline -> "MIGAWKA GŁÓWNEJ STRONY POTWIERDZONA"
+                mpvState.transport == com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.CAPTURING ->
+                    "TRANSPORT OK • BRAK MIGAWKI TOP"
+                mpvState.transport == com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.NOT_READY ->
+                    "OCZEKIWANIE NA POŁĄCZENIE"
+                mpvState.transport == com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.CONNECTED ->
+                    "OCZEKIWANIE NA GOTOWOŚĆ SKRYPTU"
+                mpvState.transport == com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.PORT_READY ->
+                    "WYSYŁANIE START"
+                mpvState.transport == com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.START_SENT ->
+                    "OCZEKIWANIE NA ACK"
+                mpvState.transport == com.prirai.android.nira.browser.MpvPlayDiagnosticLedger.Transport.START_ACKNOWLEDGED ->
+                    "OCZEKIWANIE NA BASELINE"
+                else -> "BŁĄD KOMUNIKACJI"
+            }
+            menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+                id = "mpv_play_diagnostic_status",
+                title = "MPV / Play • $statusText",
+                iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_settings_24,
+                onClick = {
+                    val owner = activity ?: return@Action
+                    val detail = when {
+                        !mpvState.running -> when {
+                            mpvState.stopAcknowledged ->
+                                "Zakończono test. STOP potwierdzony przez JS."
+                            mpvState.stopWasRequested ->
+                                "Zakończono zapis lokalny. STOP niepotwierdzony przez JS."
+                            else -> "Raport gotowy. Nie wysłano potwierdzonego STOP do JS."
+                        }
+                        mpvState.stopPending ->
+                            "Kończenie w toku; po ACK lub limicie 600 ms raport będzie gotowy."
+                        confirmed ->
+                            "Potwierdzono migawkę TOP i zdarzenia. Nie dowodzi to wykrycia Play."
+                        mpvState.topBaseline ->
+                            "TOP potwierdził migawkę; czekamy na zdarzenia strony."
+                        else ->
+                            "Brak potwierdzonych danych strony; szczegóły awarii znajdziesz w ZIP."
+                    }
+                    val controls = " MARK ACK: ${mpvState.snapshotAcknowledged}, PICK ACK: ${mpvState.pickAcknowledged}."
+                    Toast.makeText(owner, detail + controls, Toast.LENGTH_LONG).show()
+                }
+            ))
+        }
+        if (!mpvState.running) {
+            menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+                id = "mpv_play_diagnostic_start", title = "MPV / Play • ROZPOCZNIJ TEST",
+                iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_settings_24,
+                onClick = {
+                    val owner = activity ?: return@Action
+                    val manager = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(owner)
+                    val current = store.state.tabs.find { it.id == store.state.selectedTabId }
+                    if (current == null) {
+                        Toast.makeText(owner, "Najpierw otwórz zwykłą kartę strony", Toast.LENGTH_LONG).show()
+                        return@Action
+                    }
+                    val pageUri = runCatching { current.content.url.toUri() }.getOrNull()
+                    val domain = pageUri?.host
+                    val eligiblePage = pageUri?.scheme?.lowercase() in setOf("http", "https") &&
+                        !domain.isNullOrBlank()
+                    val profileId = manager.getActiveProfile().id
+                    val canObserve = com.prirai.android.nira.browser.profile.ProfileTabScope
+                        .belongsToNormalProfile(current, profileId)
+                    val started = mpvDiagnostics.start(profileId,
+                        current.id, domain, manager.isPrivateMode() || !canObserve, eligiblePage)
+                    if (started == com.prirai.android.nira.browser.MpvPlayDiagnostics.Start.STARTED) {
+                        (owner.application as? BrowserApp)?.mpvPlayPageBridge?.command(
+                            manager.getActiveProfile().id, current.id, "start")
+                    }
+                    val message = when (started) {
+                        com.prirai.android.nira.browser.MpvPlayDiagnostics.Start.STARTED ->
+                            "Uruchamianie diagnostyki zlecone. Sprawdź potwierdzenie READY, ACK i TOP w menu."
+                        com.prirai.android.nira.browser.MpvPlayDiagnostics.Start.PRIVATE_TAB ->
+                            "Diagnostyka działa tylko na zwykłej karcie aktywnego profilu."
+                        com.prirai.android.nira.browser.MpvPlayDiagnostics.Start.UNSUPPORTED_PAGE ->
+                            "Otwórz zwykłą stronę HTTP(S), aby rozpocząć diagnostykę."
+                        com.prirai.android.nira.browser.MpvPlayDiagnostics.Start.BUSY ->
+                            "Inna diagnostyka jest aktywna. Zakończ ją przed nowym testem."
+                    }
+                    Toast.makeText(owner, message, Toast.LENGTH_LONG).show()
+                }
+            ))
+        } else if (!mpvState.stopPending) {
+            menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+                id = "mpv_play_diagnostic_mark", title = "MPV / Play • OZNACZ PROBLEM",
+                iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_settings_24,
+                onClick = {
+                    val owner = activity ?: return@Action
+                    // Capture the exact owner and nonce before the delayed UI sample.
+                    // Rotation, profile switching or a new session must not mark
+                    // a different diagnostic after the menu closes.
+                    val clickedProfile = com.prirai.android.nira.browser.profile.ProfileManager
+                        .getInstance(owner).getActiveProfile().id
+                    val clickedTab = store.state.selectedTabId
+                    val clickedNonce = clickedTab?.let {
+                        mpvDiagnostics.sessionFor(clickedProfile, it)
+                    }
+                    owner.window.decorView.postDelayed({
+                        if (!isAdded || !isResumed || owner.isFinishing || owner.isDestroyed) return@postDelayed
+                        val manager = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(owner)
+                        if (clickedTab == null || clickedNonce == null ||
+                            manager.isPrivateMode() ||
+                            manager.getActiveProfile().id != clickedProfile ||
+                            store.state.selectedTabId != clickedTab ||
+                            mpvDiagnostics.sessionFor(clickedProfile, clickedTab) != clickedNonce) {
+                            Toast.makeText(owner, "Karta lub sesja zmieniona; nie zapisano znacznika.",
+                                Toast.LENGTH_LONG).show()
+                            return@postDelayed
+                        }
+                        val current = store.state.tabs.find { it.id == store.state.selectedTabId }
+                        val allowed = !manager.isPrivateMode() && current != null &&
+                            com.prirai.android.nira.browser.profile.ProfileTabScope
+                                .belongsToNormalProfile(current, manager.getActiveProfile().id)
+                        val marked = allowed && current != null && mpvDiagnostics.mark(
+                            manager.getActiveProfile().id, current.id,
+                            com.prirai.android.nira.browser.OverlayWindowDiagnostics.capture(owner))
+                        val delivery = if (marked && current != null)
+                            (owner.application as? BrowserApp)?.mpvPlayPageBridge?.command(
+                                manager.getActiveProfile().id, current.id, "snapshot")
+                            else null
+                        val message = if (!marked)
+                            "Wróć do zwykłej karty, na której rozpoczęto test"
+                        else when (delivery) {
+                            com.prirai.android.nira.browser.MpvPlayPageBridgeController.Delivery.SENT_UNCONFIRMED ->
+                                "Zapisano znacznik lokalny. Migawkę strony wysłano, ale JS jeszcze jej nie potwierdził."
+                            else -> "Zapisano znacznik lokalny, lecz nie dostarczono polecenia migawki strony."
+                        }
+                        Toast.makeText(owner, message, Toast.LENGTH_LONG).show()
+                    }, 350L)
+                }
+            ))
+            menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+                id = "mpv_play_diagnostic_pick", title = "MPV / Play • WSKAŻ ELEMENT",
+                iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_settings_24,
+                onClick = {
+                    val owner = activity ?: return@Action
+                    val manager = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(owner)
+                    val selected = store.state.selectedTabId
+                    if (selected != null && !manager.isPrivateMode() &&
+                        mpvDiagnostics.state().ownerTab == selected) {
+                        val delivery = (owner.application as? BrowserApp)?.mpvPlayPageBridge?.command(
+                            manager.getActiveProfile().id, selected, "pick")
+                        Toast.makeText(owner, if (delivery ==
+                            com.prirai.android.nira.browser.MpvPlayPageBridgeController.Delivery.SENT_UNCONFIRMED)
+                            "Żądanie wskazania wysłano. Poczekaj na potwierdzenie JS przed dotknięciem elementu."
+                            else "Nie dostarczono polecenia wskazania. Sprawdź stan połączenia.",
+                            Toast.LENGTH_LONG).show()
+                    } else Toast.makeText(owner, "Wróć do karty źródłowej testu",
+                        Toast.LENGTH_LONG).show()
+                }
+            ))
+            menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+                id = "mpv_play_diagnostic_stop", title = "MPV / Play • ZAKOŃCZ TEST",
+                iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_cross_24,
+                onClick = {
+                    val owner = activity ?: return@Action
+                    val manager = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(owner)
+                    val state = mpvDiagnostics.state()
+                    val profile = manager.getActiveProfile().id
+                    val allowed = !manager.isPrivateMode() &&
+                        state.ownerProfile == profile && state.ownerTab != null
+                    val delivery = if (allowed)
+                        state.ownerTab?.let { tab ->
+                            (owner.application as? BrowserApp)?.mpvPlayPageBridge?.requestStop(profile, tab)
+                        } else null
+                    if (allowed && delivery == null) mpvDiagnostics.stop(profile)
+                    val message = when {
+                        !allowed -> "Test należy do innego profilu. Możesz anulować sesję."
+                        delivery == com.prirai.android.nira.browser.MpvPlayPageBridgeController.Delivery.SENT_UNCONFIRMED ->
+                            "Wysłano STOP. Oczekiwanie na potwierdzenie JS (maks. 600 ms)."
+                        else -> "Test zatrzymano lokalnie. STOP nie został potwierdzony przez stronę."
+                    }
+                    Toast.makeText(owner, message, Toast.LENGTH_LONG).show()
+                }
+            ))
+        }
+        if (mpvState.reportReady && !mpvState.running) {
+            menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+                id = "mpv_play_diagnostic_export", title = "MPV / Play • EKSPORTUJ ZIP",
+                iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_external_link_24,
+                onClick = {
+                    val owner = activity ?: return@Action
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        try {
+                            val manager = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(owner)
+                            val uri = mpvDiagnostics.export(owner.applicationContext, manager.getActiveProfile().id)
+                            if (uri == null || !isAdded) {
+                                Toast.makeText(owner, "Raport niedostępny w tym profilu", Toast.LENGTH_LONG).show()
+                                return@launch
+                            }
+                            startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                                type = "application/zip"
+                                putExtra(Intent.EXTRA_STREAM, uri)
+                                clipData = android.content.ClipData.newUri(owner.contentResolver, "Raport MPV", uri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }, "Udostępnij raport diagnostyczny MPV"))
+                        } catch (_: Exception) {
+                            Toast.makeText(owner, "Nie udało się wyeksportować raportu ZIP", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            ))
+        }
+        if (mpvState.running || mpvState.reportReady) {
+            menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
+                id = "mpv_play_diagnostic_discard", title = "MPV / Play • ANULUJ / WYCZYŚĆ RAPORT",
+                iconRes = mozilla.components.ui.icons.R.drawable.mozac_ic_cross_24,
+                onClick = {
+                    val owner = activity ?: return@Action
+                    val manager = com.prirai.android.nira.browser.profile.ProfileManager.getInstance(owner)
+                    mpvDiagnostics.state().ownerTab?.let { tab ->
+                        (owner.application as? BrowserApp)?.mpvPlayPageBridge?.command(
+                            manager.getActiveProfile().id, tab, "stop")
+                    }
+                    (owner.application as? BrowserApp)?.mpvPlayPageBridge?.cancelCurrent()
+                    mpvDiagnostics.discard()
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        mpvDiagnostics.clearExports(owner.applicationContext)
+                        if (isAdded) Toast.makeText(owner, "Usunięto sesję i eksporty diagnostyczne MPV",
+                            Toast.LENGTH_SHORT).show()
+                    }
+                }
+            ))
+        }
+
         if (!com.prirai.android.nira.diagnostics.testlab.TestLab.busy) {
             menuItems.add(com.prirai.android.nira.components.menu.Material3BrowserMenu.MenuItem.Action(
                 id = "testlab_panels_start", title = "Test panelów • START",

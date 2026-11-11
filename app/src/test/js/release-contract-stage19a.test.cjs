@@ -16,27 +16,29 @@ const { assertUpdateApkContract } = require("./helpers/update-apk-contract.cjs")
 
 test("stage19A current debug contract stays update-compatible", () => {
   const update = assertUpdateApkContract(gradle, workflow);
-  assert.equal(update.installCode, 1225);
-  assert.equal(update.versionName, "0.5.22-alpha121-clean");
+  assert.ok(update.installCode > 1228, "new update must exceed latest previously signed v1228");
+  assert.match(update.versionName, /^0\.5\.22-alpha\d+-clean$/);
 });
 
-test("stage10: update versionCode exceeds the version shown by the installed Clean app", () => {
-  const installedVersionCode = 1224; // Nothing Phone (1) About screen supplied by user.
+test("MPV diagnostics update: versionCode exceeds last signed Clean v1228", () => {
+  const previousSignedVersionCode = 1228; // Verified artifact 42916351673. Do not assume this APK is installed.
   const update = assertUpdateApkContract(gradle, workflow);
-  assert.ok(update.installCode > installedVersionCode);
+  assert.ok(update.installCode > previousSignedVersionCode);
 });
 
 test("stage19A release version derives from actual Gradle checkout (not old release constants)", () => {
   const value = resolveReleaseContract(gradle);
+  const update = assertUpdateApkContract(gradle, workflow);
   assert.deepEqual(value, {
     packageName: "com.prirai.android.nira",
-    versionCode: 1225,
-    versionName: "0.5.22-alpha121-clean",
+    versionCode: update.installCode,
+    versionName: update.versionName,
   });
   // Simulate checkout at a DIFFERENT tag with a different Gradle version.
   const olderTag = gradle
-    .replace("versionCode = 225", "versionCode = 182")
-    .replace('versionName = "0.5.22-alpha121-clean"', 'versionName = "0.5.22-alpha87-clean"');
+    .replace("versionCode = " + (value.versionCode - 1000), "versionCode = 182")
+    .replace('versionName = "' + value.versionName + '"', 'versionName = "0.5.22-alpha87-clean"');
+  assert.notEqual(olderTag, gradle, "negative tag fixture must modify source");
   assert.deepEqual(resolveReleaseContract(olderTag), {
     packageName: "com.prirai.android.nira",
     versionCode: 1182,
@@ -54,25 +56,46 @@ test("stage19A rejects unsupported ABI, package, malformed metadata and untruste
   assert.throws(() => resolveReleaseContract(
     gradle.replace("universalApk = false", "universalApk = true")),
     /ABI split/);
-  assert.throws(() => resolveReleaseContract(
-    gradle.replace('versionName = "0.5.22-alpha121-clean"', 'versionName = "bad name"')),
-    /Unsafe/);
-  assert.throws(() => resolveReleaseContract(gradle.replace(
-    "versionCode = 225", "versionCode = 225\n        versionCode = 225")),
-    /exactly one versionCode/);
+  const value = resolveReleaseContract(gradle);
+  const invalidName = gradle.replace('versionName = "' + value.versionName + '"', 'versionName = "bad name"');
+  assert.notEqual(invalidName, gradle, "invalid name fixture must modify source");
+  assert.throws(() => resolveReleaseContract(invalidName), /Unsafe/);
+  const baseVersion = value.versionCode - 1000;
+  const duplicatedCode = gradle.replace("versionCode = " + baseVersion,
+    "versionCode = " + baseVersion + "\n        versionCode = " + baseVersion);
+  assert.notEqual(duplicatedCode, gradle, "duplicate code fixture must modify source");
+  assert.throws(() => resolveReleaseContract(duplicatedCode), /exactly one versionCode/);
 });
 
 test("stage19A writes only version to GitHub env, not certificates, secrets or package", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "zavro-release-contract-"));
   try {
     const envFile = path.join(tempDir, "env");
-    writeGitHubEnv(resolveReleaseContract(gradle), envFile);
+    const value = resolveReleaseContract(gradle);
+    writeGitHubEnv(value, envFile);
     assert.equal(fs.readFileSync(envFile, "utf8"),
-      "EXPECTED_VERSION_CODE=1225\nEXPECTED_VERSION_NAME=0.5.22-alpha121-clean\n");
+      "EXPECTED_VERSION_CODE=" + value.versionCode + "\nEXPECTED_VERSION_NAME=" + value.versionName + "\n");
     assert.throws(() => writeGitHubEnv(resolveReleaseContract(gradle), ""), /GITHUB_ENV/);
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
+});
+
+test("next update version is accepted without re-pinning release test fixtures", () => {
+  const previous = assertUpdateApkContract(gradle, workflow);
+  const nextName = previous.versionName.replace(/alpha(\d+)/, (_, n) => "alpha" + (Number(n) + 1));
+  const nextGradle = gradle
+    .replace("versionCode = " + (previous.installCode - 1000), "versionCode = " + (previous.installCode - 999))
+    .replace('versionName = "' + previous.versionName + '"', 'versionName = "' + nextName + '"');
+  const nextWorkflow = workflow
+    .replace('EXPECTED_VERSION_CODE: "' + previous.installCode + '"', 'EXPECTED_VERSION_CODE: "' + (previous.installCode + 1) + '"')
+    .replace("EXPECTED_VERSION_NAME: " + previous.versionName, "EXPECTED_VERSION_NAME: " + nextName)
+    .replace("name: zavro-arm64-update-apk-v" + previous.installCode,
+      "name: zavro-arm64-update-apk-v" + (previous.installCode + 1));
+  assert.notEqual(nextGradle, gradle);
+  assert.notEqual(nextWorkflow, workflow);
+  assert.equal(assertUpdateApkContract(nextGradle, nextWorkflow).installCode, previous.installCode + 1);
+  assert.equal(resolveReleaseContract(nextGradle).versionCode, previous.installCode + 1);
 });
 
 test("stage19A release job validates tag before checkout, then resolves version from tag content", () => {

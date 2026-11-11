@@ -2,6 +2,8 @@
 
 **Mapa systemu, nie druga instrukcja nadrzędna.**
 
+**Wszystkie tryby — ChatGPT, Work i Codex:** kontynuują tę samą gałąź Clean `feat/zavro-clean-mpv-play-diagnostics-stage1-20261110`, zgodnie z `docs/ai/ACTIVE_CLEAN_LINE.md`. Nie powstają osobne gałęzie etapów; kolejny podpisany APK musi mieć wyższy versionCode niż ostatnia potwierdzona kompilacja i instalacja, jeśli znana. Gotowego APK/ZIP nigdy nie pobiera agent: po weryfikacji podaje tylko URL runu GitHub Actions i nazwę artefaktu.
+
 **ChatGPT**: ustala zakres pytania i upoważnienie, odczytuje bieżący HEAD oraz `AGENTS.md` i `docs/AI_HANDOFF.md` bezpośrednio z GitHuba; wybiera odpowiednie źródła przez `docs/ai/STARTUP_PREFLIGHT.md`. Projektowe Źródła mogą pomóc z kontekstem, ale nie zastępują repozytorium.
 
 **Codex**: jeśli używany do implementacji, startuje z aktualnego checkoutu i `AGENTS.md`; lokalna kontrola `scripts/ai-preflight.cjs` wykrywa niezgodny SHA, branch i brakujące pliki. To potwierdza źródła na dysku, nie zrozumienie ich przez model.
