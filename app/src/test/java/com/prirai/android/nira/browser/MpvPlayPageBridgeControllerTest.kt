@@ -260,6 +260,79 @@ class MpvPlayPageBridgeControllerTest {
     }
 
 
+
+    @Test fun repeatedOnPortConnectedForOnePortMustNotLeakLedgerOpenCount() {
+        MpvPlayDiagnostics.discard()
+        val context = RuntimeEnvironment.getApplication()
+        val manager = ProfileManager.getInstance(context)
+        manager.setPrivateMode(false)
+        val profile = manager.getActiveProfile().id
+        val session = Mockito.mock(EngineSession::class.java)
+        val tab = TabSessionState(id = "duplicate-port",
+            contextId = if (profile == "default") null else "profile_$profile",
+            content = ContentState(url = "https://example.org"),
+            engineState = EngineState(engineSession = session))
+        val controller = MpvPlayPageBridgeController(context,
+            Mockito.mock(Engine::class.java), BrowserStore(initialState =
+                BrowserState(tabs = listOf(tab), selectedTabId = tab.id)))
+        val method = controller.javaClass.getDeclaredMethod("handler", EngineSession::class.java)
+        method.isAccessible = true
+        val handler = method.invoke(controller, session) as MessageHandler
+        val port = Mockito.mock(Port::class.java)
+        Mockito.`when`(port.name()).thenReturn("zavro.preview.forensics")
+        Mockito.`when`(port.senderUrl()).thenReturn("https://example.org")
+        try {
+            assertEquals(MpvPlayDiagnostics.Start.STARTED,
+                MpvPlayDiagnostics.start(profile, tab.id, "example.org", false))
+            handler.onPortConnected(port)
+            handler.onPortConnected(port)
+            handler.onPortDisconnected(port)
+            handler.onPortDisconnected(port)
+            assertEquals(MpvPlayDiagnosticLedger.Transport.DISCONNECTED,
+                MpvPlayDiagnostics.state().transport)
+        } finally {
+            MpvPlayDiagnostics.discard()
+        }
+    }
+
+    @Test fun framePortCapEvictsOldPortAndBalancesAllRemainingDisconnects() {
+        MpvPlayDiagnostics.discard()
+        val context = RuntimeEnvironment.getApplication()
+        val manager = ProfileManager.getInstance(context)
+        manager.setPrivateMode(false)
+        val profile = manager.getActiveProfile().id
+        val session = Mockito.mock(EngineSession::class.java)
+        val tab = TabSessionState(id = "port-cap",
+            contextId = if (profile == "default") null else "profile_$profile",
+            content = ContentState(url = "https://example.org"),
+            engineState = EngineState(engineSession = session))
+        val controller = MpvPlayPageBridgeController(context,
+            Mockito.mock(Engine::class.java), BrowserStore(initialState =
+                BrowserState(tabs = listOf(tab), selectedTabId = tab.id)))
+        val method = controller.javaClass.getDeclaredMethod("handler", EngineSession::class.java)
+        method.isAccessible = true
+        val handler = method.invoke(controller, session) as MessageHandler
+        val frames = (0..24).map {
+            Mockito.mock(Port::class.java).also { port ->
+                Mockito.`when`(port.name()).thenReturn("zavro.preview.forensics")
+                Mockito.`when`(port.senderUrl()).thenReturn("https://example.org")
+            }
+        }
+        try {
+            assertEquals(MpvPlayDiagnostics.Start.STARTED,
+                MpvPlayDiagnostics.start(profile, tab.id, "example.org", false))
+            frames.forEach { handler.onPortConnected(it) }
+            // The oldest is retired when the 25th frame connects.
+            Mockito.verify(frames.first(), Mockito.times(1)).disconnect()
+            handler.onPortDisconnected(frames.first()) // Stale duplicate callback
+            frames.drop(1).forEach { handler.onPortDisconnected(it) }
+            assertEquals(MpvPlayDiagnosticLedger.Transport.DISCONNECTED,
+                MpvPlayDiagnostics.state().transport)
+        } finally {
+            MpvPlayDiagnostics.discard()
+        }
+    }
+
     @Test fun oldInstalledScriptReadyIsReportedAsVersionMismatchNotNoAck() {
         MpvPlayDiagnostics.discard()
         val context = RuntimeEnvironment.getApplication()
@@ -415,7 +488,7 @@ class MpvPlayPageBridgeControllerTest {
             }
         }
         assertNotNull(transport)
-        assertEquals("1.0.2", transport!!.getString("extension_script_version_expected"))
+        assertEquals("1.0.3", transport!!.getString("extension_script_version_expected"))
         assertEquals("MISSING", transport!!.getString("extension_script_version_observed"))
         assertEquals("SCRIPT_VERSION_MISMATCH", transport!!.getString("failure"))
     }

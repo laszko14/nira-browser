@@ -65,7 +65,7 @@ function harness(frame = false) {
 }
 
 test('manifest runs frame-aware content probe, but no page observers before user START', () => {
-  assert.equal(manifest.version, '1.0.2');
+  assert.equal(manifest.version, '1.0.3');
   assert.equal(manifest.content_scripts[0].all_frames, true);
   assert.equal(manifest.content_scripts[0].run_at, 'document_start');
   const x = harness();

@@ -15,7 +15,7 @@ const TWO = "11111111-2222-3333-4444-555555555555";
 
 function fixture({ subframe = false, failedPost = false, connectFailures = 0 } = {}) {
   let clock = 1000, inbound, onMutation, disconnected, observed = 0, disposed = 0;
-  const packet = [], listeners = new Map(), scheduled = [];
+  const packet = [], listeners = new Map(), scheduled = [], portHistory = [];
   let connectCalls = 0;
   const changes = { play:0, pause:0, prevent:0, stop:0 };
   const doc = {
@@ -52,22 +52,27 @@ function fixture({ subframe = false, failedPost = false, connectFailures = 0 } =
     }
   };
   win.top = subframe ? {} : win;
-  const port = {
-    postMessage(m) {
-      if(failedPost) throw Error("transport failed");
-      packet.push(JSON.parse(JSON.stringify(m)));
-    },
-    onMessage:{addListener(cb){inbound=cb}},
-    onDisconnect:{addListener(cb){disconnected=cb}}
-  };
+  function newPort() {
+    const candidate = {
+      postMessage(m) {
+        if(failedPost) throw Error("transport failed");
+        packet.push(JSON.parse(JSON.stringify(m)));
+      },
+      disconnect() {}, // Native can retire a broken connection.
+      onMessage:{addListener(cb){inbound=cb;candidate.receive=cb}},
+      onDisconnect:{addListener(cb){disconnected=cb;candidate.drop=cb}}
+    };
+    portHistory.push(candidate);
+    return candidate;
+  }
   vm.runInNewContext(script,{
     browser:{runtime:{connectNative(name) {
       assert.equal(name,"zavro.preview.forensics");
       connectCalls++;
-      return connectCalls <= connectFailures ? null : port;
+      return connectCalls <= connectFailures ? null : newPort();
     }}}, document:doc, window:win,
     crypto:{getRandomValues(bytes) { bytes.fill(subframe ? 17 : 12); return bytes; }},
-    NodeFilter:{SHOW_ELEMENT:1}, setTimeout:fn=>scheduled.push(fn),
+    NodeFilter:{SHOW_ELEMENT:1}, setTimeout:(fn,ms)=>scheduled.push({fn,ms}),
     Date:class extends Date { static now(){return clock;} },
     getComputedStyle:()=>({display:"block",visibility:"visible",
       pointerEvents:"auto",zIndex:"7"}),
@@ -78,7 +83,8 @@ function fixture({ subframe = false, failedPost = false, connectFailures = 0 } =
     }
   }, { timeout:2000 });
   return {
-    packets:packet, listeners, video, button, frame, changes, port,
+    packets:packet, listeners, video, button, frame, changes,
+    portHistory(){return portHistory.slice()},
     command(action, sessionId=ONE){inbound({schemaVersion:2,action,sessionId})},
     badCommand(value){inbound(value)},
     fire(type,target=video,pointerType="mouse") {
@@ -93,9 +99,10 @@ function fixture({ subframe = false, failedPost = false, connectFailures = 0 } =
     fireWindow(type){this.fire(type,win)},
     mutation(batch){onMutation(batch)},
     disconnect(){disconnected()},
-    retry(){const fn=scheduled.shift();assert.ok(fn);fn()},
+    retry(){const job=scheduled.shift();assert.ok(job);job.fn()},
     connectCalls(){return connectCalls},
     pendingRetries(){return scheduled.length},
+    nextDelay(){return scheduled[0]?.ms},
     clockTo(ms){clock=ms},
     stats(){return {observed,disposed,activeListeners:listeners.size}}
   };
@@ -293,7 +300,7 @@ test("final5: STOP, restart and disconnect remove observer/listeners", () => {
   assert.deepEqual(f.stats(),{observed:2,disposed:2,activeListeners:0});
 });
 
-test("late native connection and lost port retry are bounded and remain dormant before START", () => {
+test("late native connection retries with bounded frequency and remains dormant before START", () => {
   const early=fixture();
   early.disconnect();
   assert.equal(early.stats().activeListeners,0);
@@ -321,12 +328,71 @@ test("late native connection and lost port retry are bounded and remain dormant 
   assert.ok(f.packets.filter(x=>x.event==="observation").at(-1).sequence>oldSequence);
   f.command("stop");
   f.disconnect();
-  assert.equal(f.pendingRetries(),0);
-  const unavailable=fixture({connectFailures:5});
-  unavailable.retry();unavailable.retry();unavailable.retry();
-  assert.equal(unavailable.connectCalls(),4);
+  assert.equal(f.pendingRetries(),1,
+    "a STOP does not permanently disable future passive connections");
+  const unavailable=fixture({connectFailures:15});
+  for(let i=0;i<15;i++) {
+    assert.equal(unavailable.pendingRetries(),1,
+      "only one pending reconnect timer is permitted");
+    assert.ok(unavailable.nextDelay()<=30000,
+      "backoff frequency must remain bounded");
+    unavailable.retry();
+  }
+  assert.equal(unavailable.connectCalls(),16,
+    "an unavailable native handler must remain recoverable beyond four attempts");
   assert.equal(unavailable.pendingRetries(),0);
   assert.equal(unavailable.stats().activeListeners,0);
+  unavailable.command("start");
+  assert.ok(unavailable.packets.some(p=>p.event==="start_ack"));
+});
+
+
+test("stage2: eight separate Gecko disconnects always retry after a successful READY", () => {
+  const f=fixture();
+  for(let i=0;i<8;i++) {
+    const old=f.portHistory().at(-1);
+    f.disconnect();
+    assert.equal(f.pendingRetries(),1);
+    assert.equal(f.nextDelay(),250,
+      "successful READY must reset consecutive failure backoff");
+    old.drop(); // Duplicate disconnect must not schedule another timer.
+    assert.equal(f.pendingRetries(),1);
+    f.retry();
+    assert.equal(f.connectCalls(),i+2);
+    assert.equal(f.pendingRetries(),0);
+    assert.deepEqual(f.stats(),{observed:0,disposed:0,activeListeners:0});
+  }
+  f.command("start");
+  assert.equal(f.packets.filter(x=>x.event==="start_ack").length,1);
+});
+
+test("stage2: stale native port callbacks cannot reactivate playback capture or retry", () => {
+  const f=fixture();
+  const old=f.portHistory()[0];
+  f.disconnect();
+  f.retry();
+  assert.equal(f.portHistory().length,2);
+  old.receive({schemaVersion:2,action:"start",sessionId:ONE});
+  old.drop();
+  assert.equal(f.pendingRetries(),0);
+  assert.equal(f.stats().activeListeners,0);
+  assert.equal(f.packets.filter(p=>p.event==="start_ack").length,0);
+  f.command("start",TWO);
+  assert.equal(f.packets.filter(p=>p.event==="start_ack").length,1);
+  assert.equal(f.packets.find(p=>p.event==="start_ack").sessionId,TWO);
+});
+
+test("stage2: a failed READY send is retired and retries without DOM activity", () => {
+  const f=fixture({failedPost:true});
+  assert.equal(f.pendingRetries(),1);
+  assert.equal(f.stats().activeListeners,0);
+  assert.equal(f.stats().observed,0);
+  f.retry();
+  assert.equal(f.connectCalls(),2);
+  assert.equal(f.pendingRetries(),1);
+  assert.equal(f.stats().activeListeners,0);
+  assert.equal(f.changes.play,0);
+  assert.equal(f.changes.pause,0);
 });
 
 test("final5: time expiry and failed native port fail closed", () => {

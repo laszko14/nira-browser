@@ -6,7 +6,7 @@
 (function () {
   "use strict";
   const APP = "zavro.preview.forensics";
-  const SCRIPT_VERSION = "1.0.2"; // Must match manifest and native handshake.
+  const SCRIPT_VERSION = "1.0.3"; // Must match manifest and native handshake.
   const MAX_EVENTS = 160, MAX_NODES = 40, MAX_ROOTS = 6, MAX_DURATION = 15 * 60 * 1000;
   const sessionPattern = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
   const metricsKeys = new Set(["frame","shadow","readyState","networkState","paused",
@@ -18,6 +18,10 @@
   const allowedVisibility = new Set(["VISIBLE","HIDDEN","COLLAPSE","OTHER"]);
   const allowedPointer = new Set(["AUTO","NONE","OTHER"]);
   const safeNumber = value => Number.isFinite(value) ? Math.max(0, Math.min(32768, Math.round(value))) : 0;
+  // A failed native connect is retried passively with bounded frequency.
+  // Successful READY resets the backoff, even after many separate disconnects.
+  const RECONNECT_BASE_MS = 250, RECONNECT_MAX_MS = 30000;
+  let retryPending = false, connectFailures = 0;
   let port, active = null, observer = null, listeners = [], serial = 0, picked = false, lost = 0;
   let stoppedId = null;
   let lastActiveId = null;
@@ -74,7 +78,7 @@
       port.postMessage({schemaVersion:2,event:"observation",sessionId:active.id,
         documentId,sequence:serial,kind:event,target,detail,
         metrics:safeMetrics(Object.assign({frame:window.top === window ? "TOP" : "SUBFRAME"},metrics))});
-    } catch (_) { stop(); }
+    } catch (_) { losePort(port); }
   }
   function snapshotElement(node, reason) {
     if (!node || !active) return;
@@ -231,15 +235,37 @@
       port.postMessage({schemaVersion:2,event:"start_ack",sessionId:id,
         documentId,frame:window.top === window ? "TOP" : "SUBFRAME"});
       return true;
-    } catch (_) { stop(); return false; }
+    } catch (_) { losePort(port); return false; }
   }
-  function connect(attempt = 0) {
-    try { port = browser.runtime.connectNative(APP); } catch (_) { port = null; }
-    if (!port) {
-      if (attempt < 3) setTimeout(() => connect(attempt + 1), 250 * (attempt + 1));
-      return;
-    }
-    port.onMessage.addListener(command => {
+  function scheduleReconnect() {
+    if (retryPending || port) return;
+    retryPending = true;
+    // Limit the frequency, not the number, of retries. A native handler can
+    // become available long after the original document was created.
+    const delay = Math.min(RECONNECT_MAX_MS,
+      RECONNECT_BASE_MS * (2 ** Math.min(connectFailures, 7)));
+    connectFailures = Math.min(connectFailures + 1, 8);
+    setTimeout(() => {
+      retryPending = false;
+      if (!port) connect();
+    }, delay);
+  }
+  function losePort(current) {
+    if (!current || port !== current) return;
+    port = null;
+    stop();
+    try { current.disconnect?.(); } catch (_) {}
+    scheduleReconnect();
+  }
+  function connect() {
+    if (port) return;
+    let candidate;
+    try { candidate = browser.runtime.connectNative(APP); } catch (_) { candidate = null; }
+    if (!candidate) { scheduleReconnect(); return; }
+    port = candidate;
+    candidate.onMessage.addListener(command => {
+      // A late callback from a retired Port cannot resurrect an old session.
+      if (port !== candidate) return;
       if (!command || command.schemaVersion !== 2 || typeof command.sessionId !== "string") return;
       if (command.action === "start" && Object.keys(command).length === 3) start(command.sessionId);
       else if (active?.id === command.sessionId && Object.keys(command).length === 3) {
@@ -249,22 +275,21 @@
         else if (command.action === "stop") { stoppedId = active.id; stop(); }
       }
     });
-    port.onDisconnect.addListener(() => {
-      // A disconnected idle channel must be restored for the next START,
-      // including after STOP. Reconnecting is passive: no DOM listeners or
-      // observations are installed until a distinct opt-in session starts.
+    candidate.onDisconnect.addListener(() => {
+      // Idempotent: ignore late/duplicate disconnects of an old port.
+      if (port !== candidate) return;
+      port = null;
       stop();
-      if (attempt < 3)
-        setTimeout(() => connect(attempt + 1), 250 * (attempt + 1));
+      scheduleReconnect();
     });
     // READY does not mean START succeeded. This packet is emitted only
     // after our command listener is registered, without any raw page data.
     try {
-      port.postMessage({schemaVersion:2,event:"ready",documentId,
+      candidate.postMessage({schemaVersion:2,event:"ready",documentId,
         frame:window.top === window ? "TOP" : "SUBFRAME",scriptVersion:SCRIPT_VERSION});
+      connectFailures = 0;
     } catch (_) {
-      stop();
-      if (attempt < 3) setTimeout(() => connect(attempt + 1), 250 * (attempt + 1));
+      losePort(candidate);
     }
   }
   connect();

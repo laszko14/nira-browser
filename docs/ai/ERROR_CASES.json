@@ -307,6 +307,12 @@
       "observed_count": 5,
       "state": "ACTIVE"
     }
+    ,
+    {
+      "task_id": "ZC-MPV-PLAY-PORT-RECONNECT-20261111",
+      "observed_count": 2,
+      "state": "ACTIVE"
+    }
   ],
   "events": [
     {
@@ -6978,6 +6984,60 @@
       "test_result": "FAIL",
       "final_ci": "PENDING",
       "recurrence_conditions": "Add direct ZIP export tests that call ledger.toZipBytes() while result is RUNNING, violating its deliberately strict active-session precondition."
+    },
+    {
+      "id": "ERR-20261111-MPV-PLAY-RECONNECT-BUDGET",
+      "task_id": "ZC-MPV-PLAY-PORT-RECONNECT-20261111",
+      "kind": "REGRESSION",
+      "fingerprint": "diagnostic_successful_reconnect_inherits_old_attempt_budget_and_stops_retrying",
+      "summary": "The content script kept the old connect(attempt) value inside successful port disconnect callbacks. Multiple separate disconnects or initial native unavailability could permanently exhaust retries, leaving the page unable to reconnect for START.",
+      "source_sha": "115995192a55f421642cd2950d7c9487618e8a56",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/js/mpv-play-diagnostics-stage5.test.cjs",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/115995192a55f421642cd2950d7c9487618e8a56"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "fix_summary": "Use passive, single-flight reconnect with exponential delay capped at 30s, reset failure streak after successful READY, continue to retry across multiple outages, retire broken ports, ignore stale callback/duplicate disconnect, never attach DOM observers before START.",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "Several successful connect/disconnect cycles or native handler missing for longer than the old four-attempt limit; disconnected callback from an obsolete Port."
+    },
+    {
+      "id": "ERR-20261111-MPV-PLAY-PORT-COUNT",
+      "task_id": "ZC-MPV-PLAY-PORT-RECONNECT-20261111",
+      "kind": "REGRESSION",
+      "fingerprint": "diagnostic_duplicate_port_callbacks_and_frame_eviction_miscount_active_ports",
+      "summary": "Repeated onPortConnected for the same Port increased ledger counts; evicting the oldest frame at the 24-Port cap removed its native port without decrementing the ledger, making disconnect and recovery status inaccurate.",
+      "source_sha": "115995192a55f421642cd2950d7c9487618e8a56",
+      "observed_at": null,
+      "run_id": null,
+      "job_id": null,
+      "attempt": null,
+      "cause": "production",
+      "state": "OPEN",
+      "duplicate_of": null,
+      "fix_sha": null,
+      "regression_test": "app/src/test/java/com/prirai/android/nira/browser/MpvPlayPageBridgeControllerTest.kt",
+      "evidence_links": [
+        "https://github.com/laszko14/nira-browser/commit/115995192a55f421642cd2950d7c9487618e8a56"
+      ],
+      "branch": "feat/zavro-clean-mpv-play-diagnostics-stage1-20261110",
+      "workflow_name": null,
+      "cause_confidence": "confirmed",
+      "fix_summary": "Deduplicate connected callbacks by Port identity; decrement ledger exactly once on frame eviction and native POST failure, and ignore later duplicate disconnects; add JVM regressions for duplicate and 25-frame overflow.",
+      "test_result": "NOT_TESTED",
+      "final_ci": "PENDING",
+      "recurrence_conditions": "Duplicate Gecko onPortConnected callbacks for a live Port, frame count exceeding 24, or native postMessage failing before onPortDisconnected."
     }
   ]
 }

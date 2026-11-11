@@ -152,8 +152,11 @@ internal class MpvPlayPageBridgeController(
                 sendStart(session, port, profile, tabId, nonce)
             }, START_RETRY_MS)
         } catch (_: Exception) {
-            ports[session]?.removeAll { it === port }
+            val removed = ports[session]?.removeAll { it === port } == true
             clearPort(port)
+            // POST failure retires this specific port; account for it once,
+            // even if Gecko later delivers a second disconnect callback.
+            if (removed) MpvPlayDiagnostics.disconnected(profile, tabId, nonce)
             MpvPlayDiagnostics.failed(profile, tabId, nonce,
                 MpvPlayDiagnosticLedger.Failure.POST_FAILED)
         }
@@ -259,6 +262,7 @@ internal class MpvPlayPageBridgeController(
             } catch (_: Exception) {
                 iterator.remove()
                 clearPort(port)
+                MpvPlayDiagnostics.disconnected(profile, tabId, id)
                 MpvPlayDiagnostics.failed(profile, tabId, id,
                     MpvPlayDiagnosticLedger.Failure.POST_FAILED)
             }
@@ -353,9 +357,18 @@ internal class MpvPlayPageBridgeController(
                 return
             }
             val live = ports.getOrPut(session) { mutableListOf() }
+            // A duplicate callback for one physical Port is not another
+            // connection. Otherwise the ledger never reaches zero at STOP.
+            if (MpvPlayPortIdentity.matches(live, port)) return
             if (live.size >= MAX_FRAMES) {
                 val old = live.removeAt(0)
+                val oldNonce = portNonces[old]
                 clearPort(old)
+                // Eviction, just like a physical disconnect, must decrement
+                // the ledger before the replacement port is counted.
+                if (oldNonce != null) trustedOwner(session)?.let { (profile, tabId) ->
+                    MpvPlayDiagnostics.disconnected(profile, tabId, oldNonce)
+                }
                 try { old.disconnect() } catch (_: Exception) {}
             }
             live.add(port)
@@ -487,7 +500,7 @@ internal class MpvPlayPageBridgeController(
     }
 
     companion object {
-        internal const val EXPECTED_SCRIPT_VERSION = "1.0.2"
+        internal const val EXPECTED_SCRIPT_VERSION = "1.0.3"
         private val SCRIPT_VERSION_PATTERN = Regex("[0-9]{1,3}(\\.[0-9]{1,3}){1,2}")
         private const val EXTENSION_ID = "zavro-preview-diagnostics@prirai.android.nira"
         private const val NATIVE_APP = "zavro.preview.forensics"
